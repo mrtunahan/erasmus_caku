@@ -2326,7 +2326,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
   };
 
   return (
-    <Modal width="800px">
+    <Modal open={true} onClose={onClose} width="800px">
       <div style={{
         padding: 32,
         background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -3663,7 +3663,15 @@ function ErasmusLearningAgreementApp() {
               </div>
             </div>
             {currentUser.role === 'admin' && (
-              <Btn onClick={() => setShowPasswordModal(true)} variant="secondary">
+              <Btn 
+                onClick={() => {
+                  console.log('Şifre Yönetimi butonu tıklandı');
+                  console.log('Mevcut modal durumu:', showPasswordModal);
+                  setShowPasswordModal(true);
+                  console.log('Modal açılıyor...');
+                }} 
+                variant="secondary"
+              >
                 🔑 Şifre Yönetimi
               </Btn>
             )}
