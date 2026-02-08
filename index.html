@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Erasmus Öğrenim Anlaşması Yönetimi - ÇAKÜ</title>
+  
+  <!-- React & ReactDOM from CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel Standalone for JSX transformation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    
+    #root {
+      min-height: 100vh;
+    }
+    
+    /* Loading screen */
+    .loading-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .loading-text {
+      font-size: 18px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="loading-screen">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Yükleniyor...</div>
+    </div>
+  </div>
+
+  <!-- Load the React component -->
+  <script type="text/babel" src="erasmus-learning-agreement.jsx"></script>
+  
+  <!-- Render the app -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<ErasmusLearningAgreementApp />);
+  </script>
+</body>
+</html>
