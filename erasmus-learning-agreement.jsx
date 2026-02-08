@@ -859,7 +859,9 @@ const FirebaseDB = {
   // Update student
   async updateStudent(id, student) {
     try {
-      await FirebaseDB.studentsRef().doc(id).update({
+      // ID'yi string'e çevir - Firestore document ID string olmalı
+      const docId = String(id);
+      await FirebaseDB.studentsRef().doc(docId).update({
         ...student,
         updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
       });
@@ -873,7 +875,9 @@ const FirebaseDB = {
   // Delete student
   async deleteStudent(id) {
     try {
-      await FirebaseDB.studentsRef().doc(id).delete();
+      // ID'yi string'e çevir - Firestore document ID string olmalı
+      const docId = String(id);
+      await FirebaseDB.studentsRef().doc(docId).delete();
       return true;
     } catch (error) {
       console.error('Error deleting student:', error);
@@ -3201,7 +3205,7 @@ function ErasmusLearningAgreementApp() {
 
   const handleAddStudent = async () => {
     const newStudent = {
-      id: Date.now(),
+      id: String(Date.now()), // ID string olmalı - Firestore için
       studentNumber: "",
       firstName: "",
       lastName: "",
@@ -3662,18 +3666,40 @@ function ErasmusLearningAgreementApp() {
                 {currentUser.name}
               </div>
             </div>
-            {currentUser.role === 'admin' && (
-              <Btn 
-                onClick={() => {
-                  console.log('Şifre Yönetimi butonu tıklandı');
-                  console.log('Mevcut modal durumu:', showPasswordModal);
-                  setShowPasswordModal(true);
-                  console.log('Modal açılıyor...');
-                }} 
-                variant="secondary"
-              >
-                🔑 Şifre Yönetimi
-              </Btn>
+            {currentUser && (
+              <>
+                {currentUser.role === 'admin' && (
+                  <>
+                    <button 
+                      onClick={() => alert('TEST: Buton çalışıyor! Role: ' + currentUser.role)}
+                      style={{
+                        padding: '10px 18px',
+                        background: '#ff6b6b',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                      }}
+                    >
+                      TEST BUTONU
+                    </button>
+                    <Btn 
+                      onClick={(e) => {
+                        console.log('🔑 Şifre Yönetimi butonu tıklandı');
+                        console.log('Current User:', currentUser);
+                        console.log('Modal durumu:', showPasswordModal);
+                        alert('Şifre Yönetimi butonu tıklandı!');
+                        setShowPasswordModal(true);
+                        console.log('Modal durumu güncellendi:', true);
+                      }} 
+                      variant="secondary"
+                    >
+                      🔑 Şifre Yönetimi
+                    </Btn>
+                  </>
+                )}
+              </>
             )}
             <Btn onClick={handleLogout} variant="secondary">
               Çıkış Yap
