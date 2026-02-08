@@ -3473,19 +3473,24 @@ function ErasmusLearningAgreementApp() {
               const originalHostGrade = match.hostGrade || 'A';
               const convertedGrade = convertGrade(originalHostGrade);
               
+              // Statü belirle - hem home hem host courses kontrol et
+              const isElective = 
+                homeCourses.some(c => 
+                  c.code && (c.code.startsWith('SEÇ') || c.code.toLowerCase().includes('elective') || c.name.toLowerCase().includes('seçmeli') || c.name.toLowerCase().includes('elective'))
+                ) ||
+                hostCourses.some(c => 
+                  c.code && (c.code.toLowerCase().includes('elective') || c.name.toLowerCase().includes('elective') || c.name.toLowerCase().includes('seçmeli'))
+                );
+              const matchStatus = isElective ? 'S' : 'Z';
+              
               let rows = '';
               for (let i = 0; i < maxRows; i++) {
                 const homeCourse = homeCourses[i];
                 const hostCourse = hostCourses[i];
-                const status = homeCourse ? (
-                  homeCourse.code && (homeCourse.code.startsWith('SEÇ') || 
-                  homeCourse.code.includes('Elective') || 
-                  homeCourse.name.toLowerCase().includes('seçmeli'))
-                ) ? 'Seçmeli' : 'Zorunlu' : '';
                 
                 rows += '<tr>';
                 
-                // ÖNCE KARŞI KURUM sütunları - Her ders ayrı satırda
+                // KARŞI KURUM (HOST) - Her satırda göster
                 if (hostCourse) {
                   rows += `
                     <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${hostCourse.code || '-'}</td>
@@ -3503,46 +3508,42 @@ function ErasmusLearningAgreementApp() {
                   `;
                 }
                 
-                // SONRA KENDİ KURUMUMUZ sütunları
-                if (i === 0 && homeCourses.length > 1) {
-                  // İlk satır - rowspan kullan (sadece Kod, Ad, AKTS için)
-                  const totalHomeCredits = homeCourses.reduce((s, c) => s + c.credits, 0);
-                  rows += `
-                    <td style='border: 1px solid black; vertical-align: middle; font-size: 8pt; padding: 1px; line-height: 1;' rowspan='${homeCourses.length}'>${homeCourses.map(c => c.code || '-').join('<br/>')}</td>
-                    <td style='border: 1px solid black; vertical-align: middle; font-size: 8pt; padding: 1px; line-height: 1;' rowspan='${homeCourses.length}'>${homeCourses.map(c => c.name).join('<br/>')}</td>
-                    <td style='border: 1px solid black; text-align: center; vertical-align: middle; font-size: 8pt; padding: 1px; line-height: 1;' rowspan='${homeCourses.length}'>${totalHomeCredits}</td>
-                  `;
-                  // Başarı Notu - her satır için ayrı
-                  rows += `<td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${convertedGrade}</td>`;
-                } else if (homeCourses.length === 1) {
-                  // Tek ders - normal göster
-                  if (i === 0) {
+                // KENDİ KURUMUMUZ (HOME) - İlk satırda rowspan, sonraki satırlarda yok
+                if (i === 0) {
+                  // İlk satır - home course bilgilerini göster
+                  if (homeCourses.length === 1 && homeCourse) {
+                    // Tek home course - rowspan yok
                     rows += `
-                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse ? (homeCourse.code || '-') : '-'}</td>
-                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse ? homeCourse.name : '-'}</td>
-                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse ? homeCourse.credits : '-'}</td>
+                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse.code || '-'}</td>
+                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse.name}</td>
+                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse.credits}</td>
                       <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${convertedGrade}</td>
+                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${matchStatus}</td>
+                    `;
+                  } else if (homeCourses.length > 1) {
+                    // Çoklu home courses - tümünü göster, rowspan yok
+                    const allHomeCodes = homeCourses.map(c => c.code || '-').join('<br/>');
+                    const allHomeNames = homeCourses.map(c => c.name).join('<br/>');
+                    const totalHomeCredits = homeCourses.reduce((s, c) => s + c.credits, 0);
+                    rows += `
+                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${allHomeCodes}</td>
+                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${allHomeNames}</td>
+                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${totalHomeCredits}</td>
+                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${convertedGrade}</td>
+                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${matchStatus}</td>
+                    `;
+                  } else {
+                    // Home course yok
+                    rows += `
+                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>-</td>
+                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>-</td>
+                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>-</td>
+                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>-</td>
+                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>-</td>
                     `;
                   }
-                } else if (i > 0) {
-                  // Çoklu ders durumunda 2. ve sonraki satırlar - sadece Başarı Notu
-                  rows += `<td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${convertedGrade}</td>`;
                 }
-                
-                // Statü sütunu - sadece ilk satırda
-                if (i === 0) {
-                  // Hem home hem host courses'da Elective/Seçmeli kontrolü
-                  const isElective = 
-                    homeCourses.some(c => 
-                      c.code && (c.code.startsWith('SEÇ') || c.code.toLowerCase().includes('elective') || c.name.toLowerCase().includes('seçmeli') || c.name.toLowerCase().includes('elective'))
-                    ) ||
-                    hostCourses.some(c => 
-                      c.code && (c.code.toLowerCase().includes('elective') || c.name.toLowerCase().includes('elective') || c.name.toLowerCase().includes('seçmeli'))
-                    );
-                  
-                  const matchStatus = isElective ? 'S' : 'Z';  // Z=Zorunlu, S=Seçmeli
-                  rows += `<td style='border: 1px solid black; text-align: center; vertical-align: middle; font-size: 8pt; padding: 1px; line-height: 1;' rowspan='${maxRows}'>${matchStatus}</td>`;
-                }
+                // i > 0 durumunda home course sütunları eklenmez (rowspan devam eder)
                 
                 rows += '</tr>';
               }
