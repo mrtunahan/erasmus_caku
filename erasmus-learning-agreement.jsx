@@ -3440,27 +3440,18 @@ function ErasmusLearningAgreementApp() {
           olduğuna ve gereği için Fakültemiz ilgili kurullarında görüşülmek üzere Dekanlık Makamına sunulmasına,
         </p>
 
-        <table border='1' cellpadding='4' cellspacing='0' style='width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 9pt;'>
+        <table border='1' cellpadding='1' cellspacing='0' style='width: 100%; border-collapse: collapse; margin: 5px 0; font-size: 8pt; line-height: 1;'>
           <thead>
-            <tr style='background-color: #f0f0f0; font-weight: bold;'>
-              <th colspan='4' style='text-align: center; border: 1px solid black; font-size: 9pt; padding: 4px;'>
-                ${student.hostInstitution} Bölümünden Aldığı Dersin
-              </th>
-              <th colspan='4' style='text-align: center; border: 1px solid black; font-size: 9pt; padding: 4px;'>
-                Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin
-              </th>
-              <th style='border: 1px solid black;'></th>
-            </tr>
-            <tr style='background-color: #f8f8f8; font-weight: bold;'>
-              <th style='border: 1px solid black; font-size: 9pt; padding: 4px;'>Kodu</th>
-              <th style='border: 1px solid black; font-size: 9pt; padding: 4px;'>Adı</th>
-              <th style='border: 1px solid black; font-size: 9pt; padding: 4px;'>AKTS</th>
-              <th style='border: 1px solid black; font-size: 9pt; padding: 4px;'>Başarı Notu</th>
-              <th style='border: 1px solid black; font-size: 9pt; padding: 4px;'>Kodu</th>
-              <th style='border: 1px solid black; font-size: 9pt; padding: 4px;'>Adı</th>
-              <th style='border: 1px solid black; font-size: 9pt; padding: 4px;'>AKTS</th>
-              <th style='border: 1px solid black; font-size: 9pt; padding: 4px;'>Başarı Notu</th>
-              <th style='border: 1px solid black; font-size: 9pt; padding: 4px; text-align: center;'>Statüsü</th>
+            <tr style='background-color: #e0e0e0; font-weight: bold;'>
+              <th style='border: 1px solid black; font-size: 8pt; padding: 2px;'>Kodu</th>
+              <th style='border: 1px solid black; font-size: 8pt; padding: 2px;'>Adı</th>
+              <th style='border: 1px solid black; font-size: 8pt; padding: 2px;'>AKTS</th>
+              <th style='border: 1px solid black; font-size: 8pt; padding: 2px;'>Başarı Notu</th>
+              <th style='border: 1px solid black; font-size: 8pt; padding: 2px;'>Kodu</th>
+              <th style='border: 1px solid black; font-size: 8pt; padding: 2px;'>Adı</th>
+              <th style='border: 1px solid black; font-size: 8pt; padding: 2px;'>AKTS</th>
+              <th style='border: 1px solid black; font-size: 8pt; padding: 2px;'>Başarı Notu</th>
+              <th style='border: 1px solid black; font-size: 8pt; padding: 2px;'>Statüsü</th>
             </tr>
           </thead>
           <tbody>
@@ -3490,19 +3481,19 @@ function ErasmusLearningAgreementApp() {
                   // İlk satır - rowspan kullan
                   const totalHostCredits = hostCourses.reduce((s, c) => s + c.credits, 0);
                   rows += `
-                    <td style='border: 1px solid black; vertical-align: middle; font-size: 9pt; padding: 3px;' rowspan='${hostCourses.length}'>${hostCourses.map(c => c.code || '-').join('<br/>')}</td>
-                    <td style='border: 1px solid black; vertical-align: middle; font-size: 9pt; padding: 3px;' rowspan='${hostCourses.length}'>${hostCourses.map(c => c.name).join('<br/>')}</td>
-                    <td style='border: 1px solid black; text-align: center; vertical-align: middle; font-size: 9pt; padding: 3px;' rowspan='${hostCourses.length}'>${totalHostCredits}</td>
-                    <td style='border: 1px solid black; text-align: center; vertical-align: middle; font-size: 9pt; padding: 3px;' rowspan='${hostCourses.length}'>${originalHostGrade}</td>
+                    <td style='border: 1px solid black; vertical-align: middle; font-size: 8pt; padding: 1px; line-height: 1;' rowspan='${hostCourses.length}'>${hostCourses.map(c => c.code || '-').join('<br/>')}</td>
+                    <td style='border: 1px solid black; vertical-align: middle; font-size: 8pt; padding: 1px; line-height: 1;' rowspan='${hostCourses.length}'>${hostCourses.map(c => c.name).join('<br/>')}</td>
+                    <td style='border: 1px solid black; text-align: center; vertical-align: middle; font-size: 8pt; padding: 1px; line-height: 1;' rowspan='${hostCourses.length}'>${totalHostCredits}</td>
+                    <td style='border: 1px solid black; text-align: center; vertical-align: middle; font-size: 8pt; padding: 1px; line-height: 1;' rowspan='${hostCourses.length}'>${originalHostGrade}</td>
                   `;
                 } else if (hostCourses.length === 1) {
                   // Tek ders - normal göster
                   if (i === 0) {
                     rows += `
-                      <td style='border: 1px solid black; font-size: 9pt; padding: 3px;'>${hostCourse ? (hostCourse.code || '-') : '-'}</td>
-                      <td style='border: 1px solid black; font-size: 9pt; padding: 3px;'>${hostCourse ? hostCourse.name : '-'}</td>
-                      <td style='border: 1px solid black; text-align: center; font-size: 9pt; padding: 3px;'>${hostCourse ? hostCourse.credits : '-'}</td>
-                      <td style='border: 1px solid black; text-align: center; font-size: 9pt; padding: 3px;'>${originalHostGrade}</td>
+                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${hostCourse ? (hostCourse.code || '-') : '-'}</td>
+                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${hostCourse ? hostCourse.name : '-'}</td>
+                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${hostCourse ? hostCourse.credits : '-'}</td>
+                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${originalHostGrade}</td>
                     `;
                   }
                 }
@@ -3512,25 +3503,25 @@ function ErasmusLearningAgreementApp() {
                   // İlk satır - rowspan kullan (sadece Kod, Ad, AKTS için)
                   const totalHomeCredits = homeCourses.reduce((s, c) => s + c.credits, 0);
                   rows += `
-                    <td style='border: 1px solid black; vertical-align: middle; font-size: 9pt; padding: 3px;' rowspan='${homeCourses.length}'>${homeCourses.map(c => c.code || '-').join('<br/>')}</td>
-                    <td style='border: 1px solid black; vertical-align: middle; font-size: 9pt; padding: 3px;' rowspan='${homeCourses.length}'>${homeCourses.map(c => c.name).join('<br/>')}</td>
-                    <td style='border: 1px solid black; text-align: center; vertical-align: middle; font-size: 9pt; padding: 3px;' rowspan='${homeCourses.length}'>${totalHomeCredits}</td>
+                    <td style='border: 1px solid black; vertical-align: middle; font-size: 8pt; padding: 1px; line-height: 1;' rowspan='${homeCourses.length}'>${homeCourses.map(c => c.code || '-').join('<br/>')}</td>
+                    <td style='border: 1px solid black; vertical-align: middle; font-size: 8pt; padding: 1px; line-height: 1;' rowspan='${homeCourses.length}'>${homeCourses.map(c => c.name).join('<br/>')}</td>
+                    <td style='border: 1px solid black; text-align: center; vertical-align: middle; font-size: 8pt; padding: 1px; line-height: 1;' rowspan='${homeCourses.length}'>${totalHomeCredits}</td>
                   `;
                   // Başarı Notu - her satır için ayrı
-                  rows += `<td style='border: 1px solid black; text-align: center; font-size: 9pt; padding: 3px;'>${convertedGrade}</td>`;
+                  rows += `<td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${convertedGrade}</td>`;
                 } else if (homeCourses.length === 1) {
                   // Tek ders - normal göster
                   if (i === 0) {
                     rows += `
-                      <td style='border: 1px solid black; font-size: 9pt; padding: 3px;'>${homeCourse ? (homeCourse.code || '-') : '-'}</td>
-                      <td style='border: 1px solid black; font-size: 9pt; padding: 3px;'>${homeCourse ? homeCourse.name : '-'}</td>
-                      <td style='border: 1px solid black; text-align: center; font-size: 9pt; padding: 3px;'>${homeCourse ? homeCourse.credits : '-'}</td>
-                      <td style='border: 1px solid black; text-align: center; font-size: 9pt; padding: 3px;'>${convertedGrade}</td>
+                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse ? (homeCourse.code || '-') : '-'}</td>
+                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse ? homeCourse.name : '-'}</td>
+                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse ? homeCourse.credits : '-'}</td>
+                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${convertedGrade}</td>
                     `;
                   }
                 } else if (i > 0) {
                   // Çoklu ders durumunda 2. ve sonraki satırlar - sadece Başarı Notu
-                  rows += `<td style='border: 1px solid black; text-align: center; font-size: 9pt; padding: 3px;'>${convertedGrade}</td>`;
+                  rows += `<td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${convertedGrade}</td>`;
                 }
                 
                 // Statü sütunu - sadece ilk satırda
@@ -3538,7 +3529,7 @@ function ErasmusLearningAgreementApp() {
                   const matchStatus = homeCourses.some(c => 
                     c.code && (c.code.startsWith('SEÇ') || c.code.includes('Elective') || c.name.toLowerCase().includes('seçmeli'))
                   ) ? 'S' : 'Z';  // Z=Zorunlu, S=Seçmeli (kısaltma - yer tasarrufu için)
-                  rows += `<td style='border: 1px solid black; text-align: center; vertical-align: middle; font-size: 9pt; padding: 3px;' rowspan='${maxRows}'>${matchStatus}</td>`;
+                  rows += `<td style='border: 1px solid black; text-align: center; vertical-align: middle; font-size: 8pt; padding: 1px; line-height: 1;' rowspan='${maxRows}'>${matchStatus}</td>`;
                 }
                 
                 rows += '</tr>';
@@ -3547,12 +3538,12 @@ function ErasmusLearningAgreementApp() {
               return rows;
             }).join('')}
             <tr style='font-weight: bold; background-color: #f0f0f0;'>
-              <td colspan='2' style='border: 1px solid black; text-align: right; font-size: 9pt; padding: 3px;'>Toplam</td>
-              <td style='border: 1px solid black; text-align: center; font-size: 9pt; padding: 3px;'>${totalHostCredits}</td>
-              <td style='border: 1px solid black; font-size: 9pt; padding: 3px;'></td>
-              <td colspan='2' style='border: 1px solid black; text-align: right; font-size: 9pt; padding: 3px;'>Toplam</td>
-              <td style='border: 1px solid black; text-align: center; font-size: 9pt; padding: 3px;'>${totalHomeCredits}</td>
-              <td colspan='2' style='border: 1px solid black; font-size: 9pt; padding: 3px;'></td>
+              <td colspan='2' style='border: 1px solid black; text-align: right; font-size: 8pt; padding: 1px; line-height: 1;'>Toplam</td>
+              <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${totalHostCredits}</td>
+              <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'></td>
+              <td colspan='2' style='border: 1px solid black; text-align: right; font-size: 8pt; padding: 1px; line-height: 1;'>Toplam</td>
+              <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${totalHomeCredits}</td>
+              <td colspan='2' style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'></td>
             </tr>
           </tbody>
         </table>
