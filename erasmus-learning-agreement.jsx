@@ -2337,37 +2337,6 @@ const LoginModal = ({ onLogin }) => {
       setLoading(false);
     }
   };
-      if (!studentNumber.trim()) {
-        setError("Öğrenci numarası gerekli!");
-        return;
-      }
-
-      if (passwords[studentNumber] === password) {
-        // Öğrenci bilgilerini bul
-        const savedStudents = localStorage.getItem('erasmus_students');
-        let students = SAMPLE_STUDENTS;
-        if (savedStudents) {
-          try {
-            students = JSON.parse(savedStudents);
-          } catch (e) {}
-        }
-        
-        const student = students.find(s => s.studentNumber === studentNumber);
-        
-        if (student) {
-          onLogin({
-            role: 'student',
-            name: `${student.firstName} ${student.lastName}`,
-            studentNumber: studentNumber,
-          });
-        } else {
-          setError("Öğrenci bulunamadı!");
-        }
-      } else {
-        setError("Öğrenci numarası veya şifre yanlış!");
-      }
-    }
-  };
 
   return (
     <div style={{
@@ -2914,7 +2883,7 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect }) => {
 };
 
 // ── Main App ──
-export default function ErasmusLearningAgreementApp() {
+function ErasmusLearningAgreementApp() {
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
