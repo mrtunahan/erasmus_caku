@@ -1,6 +1,19 @@
 // React hooks will be available globally from CDN
 const { useState, useEffect, useRef } = React;
 
+// ⚠️ FIREBASE CONFIGURATION
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAv7jWo-91xUkrhQ7o8stRoo6en5Ft1XXw",
+  authDomain: "caku-erasmus.firebaseapp.com",
+  projectId: "caku-erasmus",
+  storageBucket: "caku-erasmus.firebasestorage.app",
+  messagingSenderId: "1080383700372",
+  appId: "1:1080383700372:web:86b7a67bf8701f64afa381",
+  measurementId: "G-53QJWDQF2Y"
+};
+
+// Firebase initialization will happen in HTML after SDK loads
+
 const FONTS_LINK = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap";
 
 // ── Color Palette ──
@@ -806,6 +819,116 @@ const SAMPLE_STUDENTS = [
     returnMatches: [],
   },
 ];
+
+// ── Firebase Database Functions ──
+const FirebaseDB = {
+  // Get Firestore reference
+  db: () => window.firebase?.firestore(),
+  
+  // Collections
+  studentsRef: () => FirebaseDB.db()?.collection('students'),
+  usersRef: () => FirebaseDB.db()?.collection('users'),
+  passwordsRef: () => FirebaseDB.db()?.collection('passwords'),
+  
+  // Fetch all students
+  async fetchStudents() {
+    try {
+      const snapshot = await FirebaseDB.studentsRef().get();
+      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      return [];
+    }
+  },
+  
+  // Add new student
+  async addStudent(student) {
+    try {
+      const docRef = await FirebaseDB.studentsRef().add({
+        ...student,
+        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      return { ...student, id: docRef.id };
+    } catch (error) {
+      console.error('Error adding student:', error);
+      throw error;
+    }
+  },
+  
+  // Update student
+  async updateStudent(id, student) {
+    try {
+      await FirebaseDB.studentsRef().doc(id).update({
+        ...student,
+        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      return student;
+    } catch (error) {
+      console.error('Error updating student:', error);
+      throw error;
+    }
+  },
+  
+  // Delete student
+  async deleteStudent(id) {
+    try {
+      await FirebaseDB.studentsRef().doc(id).delete();
+      return true;
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      throw error;
+    }
+  },
+  
+  // Fetch passwords
+  async fetchPasswords() {
+    try {
+      const doc = await FirebaseDB.passwordsRef().doc('student_passwords').get();
+      return doc.exists ? doc.data() : {};
+    } catch (error) {
+      console.error('Error fetching passwords:', error);
+      return {};
+    }
+  },
+  
+  // Update password
+  async updatePassword(studentNumber, newPassword) {
+    try {
+      const passwords = await FirebaseDB.fetchPasswords();
+      passwords[studentNumber] = newPassword;
+      await FirebaseDB.passwordsRef().doc('student_passwords').set(passwords);
+      return true;
+    } catch (error) {
+      console.error('Error updating password:', error);
+      throw error;
+    }
+  },
+  
+  // Initialize database with sample data (only if empty)
+  async initializeDatabase() {
+    try {
+      const snapshot = await FirebaseDB.studentsRef().limit(1).get();
+      if (snapshot.empty) {
+        console.log('Initializing database with sample data...');
+        for (const student of SAMPLE_STUDENTS) {
+          await FirebaseDB.addStudent(student);
+        }
+        
+        // Initialize passwords
+        const defaultPasswords = {};
+        SAMPLE_STUDENTS.forEach(s => {
+          defaultPasswords[s.studentNumber] = '1234';
+        });
+        await FirebaseDB.passwordsRef().doc('student_passwords').set(defaultPasswords);
+        
+        console.log('Database initialized successfully!');
+      }
+    } catch (error) {
+      console.error('Error initializing database:', error);
+    }
+  },
+};
 
 // ── Icons ──
 const UploadIcon = () => (
@@ -2158,54 +2281,62 @@ const LoginModal = ({ onLogin }) => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isAdminMode, setIsAdminMode] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Varsayılan admin şifresi
   const ADMIN_PASSWORD = "admin123";
 
-  // Öğrenci şifreleri (localStorage'da saklanabilir)
-  const getStudentPasswords = () => {
-    const saved = localStorage.getItem('student_passwords');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return {};
-      }
-    }
-    // Varsayılan şifreler - her öğrenci için "1234"
-    return {
-      "AND43": "1234",
-      "YEB47": "1234",
-      "SNC23": "1234",
-      "ND53": "1234",
-      "YEO110": "1234",
-      "EIF018": "1234",
-      "HTG2003": "1234",
-      "RBK061": "1234",
-      "ZA001": "1234",
-      "FO006": "1234",
-    };
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
-    if (isAdminMode) {
-      // Admin girişi
-      if (password === ADMIN_PASSWORD) {
-        onLogin({
-          role: 'admin',
-          name: 'Admin',
-          studentNumber: null,
-        });
+    try {
+      if (isAdminMode) {
+        // Admin girişi
+        if (password === ADMIN_PASSWORD) {
+          onLogin({
+            role: 'admin',
+            name: 'Admin',
+            studentNumber: null,
+          });
+        } else {
+          setError("Admin şifresi yanlış!");
+        }
       } else {
-        setError("Admin şifresi yanlış!");
+        // Öğrenci girişi - Firebase'den şifreleri al
+        if (!studentNumber.trim()) {
+          setError("Öğrenci numarası gerekli!");
+          return;
+        }
+
+        const passwords = await FirebaseDB.fetchPasswords();
+        
+        if (passwords[studentNumber] === password) {
+          // Öğrenci bilgilerini bul
+          const students = await FirebaseDB.fetchStudents();
+          const student = students.find(s => s.studentNumber === studentNumber);
+          
+          if (student) {
+            onLogin({
+              role: 'student',
+              name: `${student.firstName} ${student.lastName}`,
+              studentNumber: studentNumber,
+            });
+          } else {
+            setError("Öğrenci bulunamadı!");
+          }
+        } else {
+          setError("Öğrenci numarası veya şifre yanlış!");
+        }
       }
-    } else {
-      // Öğrenci girişi
-      const passwords = getStudentPasswords();
-      
+    } catch (error) {
+      console.error('Login error:', error);
+      setError("Giriş sırasında hata oluştu. Lütfen tekrar deneyin.");
+    } finally {
+      setLoading(false);
+    }
+  };
       if (!studentNumber.trim()) {
         setError("Öğrenci numarası gerekli!");
         return;
@@ -2784,10 +2915,11 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect }) => {
 
 // ── Main App ──
 export default function ErasmusLearningAgreementApp() {
-  const [students, setStudents] = useState(SAMPLE_STUDENTS);
+  const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSemester, setSelectedSemester] = useState("all");
+  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef(null);
 
   // Authentication State
@@ -2810,23 +2942,35 @@ export default function ErasmusLearningAgreementApp() {
     }
   }, []);
 
-  // Save/Load students from localStorage
+  // Load students from Firebase
   useEffect(() => {
-    const savedStudents = localStorage.getItem('erasmus_students');
-    if (savedStudents) {
-      try {
-        setStudents(JSON.parse(savedStudents));
-      } catch (e) {
-        console.error('Students load error:', e);
+    const loadStudents = async () => {
+      if (!window.firebase) {
+        console.error('Firebase not loaded');
+        setLoading(false);
+        return;
       }
-    }
+      
+      try {
+        setLoading(true);
+        
+        // Initialize database if needed
+        await FirebaseDB.initializeDatabase();
+        
+        // Fetch students
+        const fetchedStudents = await FirebaseDB.fetchStudents();
+        setStudents(fetchedStudents);
+      } catch (error) {
+        console.error('Error loading students:', error);
+        alert('Veriler yüklenirken hata oluştu. Lütfen sayfayı yenileyin.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    // Wait a bit for Firebase to initialize
+    setTimeout(loadStudents, 500);
   }, []);
-
-  useEffect(() => {
-    if (students.length > 0) {
-      localStorage.setItem('erasmus_students', JSON.stringify(students));
-    }
-  }, [students]);
 
   // Check if current user can edit this student
   const canEdit = (student) => {
@@ -2888,9 +3032,16 @@ export default function ErasmusLearningAgreementApp() {
         .includes(searchTerm.toLowerCase())
     );
 
-  const handleSaveStudent = (updatedStudent) => {
-    setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
-    setSelectedStudent(null);
+  const handleSaveStudent = async (updatedStudent) => {
+    try {
+      await FirebaseDB.updateStudent(updatedStudent.id, updatedStudent);
+      setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
+      setSelectedStudent(null);
+      alert('✅ Değişiklikler kaydedildi!');
+    } catch (error) {
+      console.error('Save error:', error);
+      alert('❌ Kayıt sırasında hata oluştu.');
+    }
   };
 
   const handleAddStudent = () => {
@@ -2909,9 +3060,16 @@ export default function ErasmusLearningAgreementApp() {
     setSelectedStudent(newStudent);
   };
 
-  const handleDeleteStudent = (id) => {
+  const handleDeleteStudent = async (id) => {
     if (confirm("Bu öğrenciyi silmek istediğinizden emin misiniz?")) {
-      setStudents(prev => prev.filter(s => s.id !== id));
+      try {
+        await FirebaseDB.deleteStudent(id);
+        setStudents(prev => prev.filter(s => s.id !== id));
+        alert('✅ Öğrenci silindi.');
+      } catch (error) {
+        console.error('Delete error:', error);
+        alert('❌ Silme sırasında hata oluştu.');
+      }
     }
   };
 

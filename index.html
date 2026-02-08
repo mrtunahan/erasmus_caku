@@ -9,6 +9,11 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  
   <!-- Babel Standalone for JSX transformation -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
@@ -63,26 +68,112 @@
       font-size: 18px;
       font-weight: 500;
     }
+    
+    .error-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+      flex-direction: column;
+      gap: 20px;
+      padding: 40px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
   <div id="root">
     <div class="loading-screen">
       <div class="loading-spinner"></div>
-      <div class="loading-text">Yükleniyor...</div>
+      <div class="loading-text">Firebase başlatılıyor...</div>
     </div>
   </div>
 
-  <!-- Load the React component -->
-  <script type="text/babel" src="erasmus-learning-agreement.jsx"></script>
-  
-  <!-- Render the app after component loads -->
-  <script type="text/babel">
-    // Wait for component to be available
-    setTimeout(() => {
-      const root = ReactDOM.createRoot(document.getElementById('root'));
-      root.render(<ErasmusLearningAgreementApp />);
-    }, 100);
+  <script>
+    // ⚠️ FIREBASE CONFIGURATION
+    const firebaseConfig = {
+      apiKey: "AIzaSyAv7jWo-91xUkrhQ7o8stRoo6en5Ft1XXw",
+      authDomain: "caku-erasmus.firebaseapp.com",
+      projectId: "caku-erasmus",
+      storageBucket: "caku-erasmus.firebasestorage.app",
+      messagingSenderId: "1080383700372",
+      appId: "1:1080383700372:web:86b7a67bf8701f64afa381",
+      measurementId: "G-53QJWDQF2Y"
+    };
+    
+    // Initialize Firebase
+    try {
+      firebase.initializeApp(firebaseConfig);
+      console.log('✅ Firebase initialized successfully');
+    } catch (error) {
+      console.error('❌ Firebase initialization error:', error);
+      document.getElementById('root').innerHTML = `
+        <div class="error-screen">
+          <div>
+            <h2 style="font-size: 32px; margin-bottom: 16px;">❌ Firebase Hatası</h2>
+            <p style="font-size: 18px; margin-bottom: 12px;">Firebase başlatılamadı</p>
+            <p style="font-size: 14px; opacity: 0.9; max-width: 500px;">
+              Lütfen Firebase yapılandırma bilgilerinizi index.html dosyasına ekleyin.
+            </p>
+            <p style="font-size: 12px; opacity: 0.7; margin-top: 16px; max-width: 600px;">
+              <strong>Hata:</strong> ${error.message}
+            </p>
+          </div>
+        </div>
+      `;
+    }
+  </script>
+
+  <script>
+    // Load JSX file and transform it
+    async function loadApp() {
+      try {
+        // Update loading message
+        document.querySelector('.loading-text').textContent = 'Uygulama yükleniyor...';
+        
+        const response = await fetch('erasmus-learning-agreement.jsx');
+        const jsxCode = await response.text();
+        
+        // Transform JSX to JavaScript
+        const transformedCode = Babel.transform(jsxCode, {
+          presets: ['react'],
+          filename: 'app.jsx'
+        }).code;
+        
+        // Execute the transformed code
+        eval(transformedCode);
+        
+        // Render the app
+        setTimeout(() => {
+          const root = ReactDOM.createRoot(document.getElementById('root'));
+          root.render(React.createElement(window.ErasmusLearningAgreementApp));
+        }, 100);
+        
+      } catch (error) {
+        console.error('Error loading app:', error);
+        document.getElementById('root').innerHTML = `
+          <div class="error-screen">
+            <div>
+              <h2 style="font-size: 32px; margin-bottom: 16px;">❌ Yükleme Hatası</h2>
+              <p style="font-size: 18px; margin-bottom: 12px;">Uygulama yüklenemedi</p>
+              <p style="font-size: 14px; opacity: 0.9; max-width: 500px;">${error.message}</p>
+              <button onclick="location.reload()" style="margin-top: 24px; padding: 12px 24px; font-size: 16px; border: 2px solid white; background: transparent; color: white; border-radius: 8px; cursor: pointer;">
+                Sayfayı Yenile
+              </button>
+            </div>
+          </div>
+        `;
+      }
+    }
+    
+    // Wait for all scripts to load
+    if (window.Babel && window.firebase) {
+      loadApp();
+    } else {
+      window.addEventListener('load', loadApp);
+    }
   </script>
 </body>
 </html>
