@@ -76,11 +76,13 @@
   <!-- Load the React component -->
   <script type="text/babel" src="erasmus-learning-agreement.jsx"></script>
   
-  <!-- Render the app -->
+  <!-- Render the app after component loads -->
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<ErasmusLearningAgreementApp />);
+    // Wait for component to be available
+    setTimeout(() => {
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<ErasmusLearningAgreementApp />);
+    }, 100);
   </script>
 </body>
 </html>
