@@ -2275,6 +2275,168 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
   );
 };
 
+// ── Password Management Modal (Admin Only) ──
+const PasswordManagementModal = ({ students, onClose }) => {
+  const [passwords, setPasswords] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadPasswords();
+  }, []);
+
+  const loadPasswords = async () => {
+    try {
+      const fetchedPasswords = await FirebaseDB.fetchPasswords();
+      setPasswords(fetchedPasswords);
+    } catch (error) {
+      console.error('Error loading passwords:', error);
+      alert('Şifreler yüklenirken hata oluştu.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordChange = (studentNumber, newPassword) => {
+    setPasswords(prev => ({
+      ...prev,
+      [studentNumber]: newPassword
+    }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Firebase'e tüm şifreleri kaydet
+      await FirebaseDB.passwordsRef().doc('student_passwords').set(passwords);
+      alert('✅ Şifreler başarıyla kaydedildi!');
+      onClose();
+    } catch (error) {
+      console.error('Error saving passwords:', error);
+      alert('❌ Şifreler kaydedilirken hata oluştu.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetPassword = (studentNumber) => {
+    if (confirm(`${studentNumber} için şifreyi varsayılan değere (1234) sıfırlamak istediğinizden emin misiniz?`)) {
+      handlePasswordChange(studentNumber, '1234');
+    }
+  };
+
+  return (
+    <Modal width="800px">
+      <div style={{
+        padding: 32,
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        color: "white",
+        borderRadius: "16px 16px 0 0",
+        marginBottom: 24,
+      }}>
+        <h2 style={{
+          margin: 0,
+          fontSize: 24,
+          fontWeight: 700,
+          fontFamily: "'Playfair Display', serif",
+          marginBottom: 8,
+        }}>
+          🔐 Öğrenci Şifre Yönetimi
+        </h2>
+        <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>
+          Öğrencilerin giriş şifrelerini buradan yönetebilirsiniz
+        </p>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: 40, textAlign: 'center' }}>
+          <div style={{ fontSize: 14, color: C.textMuted }}>Şifreler yükleniyor...</div>
+        </div>
+      ) : (
+        <div style={{ padding: "0 32px 32px" }}>
+          <div style={{
+            maxHeight: '400px',
+            overflowY: 'auto',
+            marginBottom: 24,
+          }}>
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+            }}>
+              <thead>
+                <tr style={{ background: C.bg }}>
+                  <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Öğrenci No</th>
+                  <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Ad Soyad</th>
+                  <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Şifre</th>
+                  <th style={{ padding: 12, textAlign: 'center', borderBottom: `2px solid ${C.border}` }}>İşlem</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map(student => (
+                  <tr key={student.studentNumber} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{student.studentNumber}</td>
+                    <td style={{ padding: 12 }}>{student.firstName} {student.lastName}</td>
+                    <td style={{ padding: 12 }}>
+                      <Input
+                        type="text"
+                        value={passwords[student.studentNumber] || '1234'}
+                        onChange={(e) => handlePasswordChange(student.studentNumber, e.target.value)}
+                        style={{ maxWidth: 200 }}
+                        placeholder="Şifre"
+                      />
+                    </td>
+                    <td style={{ padding: 12, textAlign: 'center' }}>
+                      <button
+                        onClick={() => resetPassword(student.studentNumber)}
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: 12,
+                          border: `1px solid ${C.border}`,
+                          borderRadius: 6,
+                          background: "white",
+                          cursor: "pointer",
+                          color: C.accent,
+                        }}
+                      >
+                        🔄 Sıfırla
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{
+            padding: 16,
+            background: C.bg,
+            borderRadius: 8,
+            marginBottom: 24,
+            fontSize: 13,
+            color: C.textMuted,
+          }}>
+            <strong>💡 İpucu:</strong> Öğrenci numarasını değiştirdiğinizde, şifre otomatik olarak yeni numarayla eşleştirilir.
+            Varsayılan şifre: <code style={{ background: 'white', padding: '2px 6px', borderRadius: 4 }}>1234</code>
+          </div>
+
+          <div style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 12,
+            paddingTop: 20,
+            borderTop: `1px solid ${C.border}`,
+          }}>
+            <Btn onClick={onClose} variant="secondary">İptal</Btn>
+            <Btn onClick={handleSave} disabled={saving}>
+              {saving ? '⏳ Kaydediliyor...' : '💾 Tümünü Kaydet'}
+            </Btn>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+};
+
 // ── Login Modal ──
 const LoginModal = ({ onLogin }) => {
   const [studentNumber, setStudentNumber] = useState("");
@@ -2895,6 +3057,7 @@ function ErasmusLearningAgreementApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(true);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Load authentication from localStorage on mount
   useEffect(() => {
@@ -3003,17 +3166,40 @@ function ErasmusLearningAgreementApp() {
 
   const handleSaveStudent = async (updatedStudent) => {
     try {
+      // Öğrenci numarası değişti mi kontrol et
+      const originalStudent = students.find(s => s.id === updatedStudent.id);
+      const studentNumberChanged = originalStudent && originalStudent.studentNumber !== updatedStudent.studentNumber;
+      
+      // Öğrenci bilgilerini güncelle
       await FirebaseDB.updateStudent(updatedStudent.id, updatedStudent);
+      
+      // Eğer öğrenci numarası değiştiyse, şifre mapping'ini güncelle
+      if (studentNumberChanged) {
+        const passwords = await FirebaseDB.fetchPasswords();
+        const oldPassword = passwords[originalStudent.studentNumber] || '1234';
+        
+        // Eski numarayı sil, yeni numara ile aynı şifreyi ekle
+        delete passwords[originalStudent.studentNumber];
+        passwords[updatedStudent.studentNumber] = oldPassword;
+        
+        await FirebaseDB.passwordsRef().doc('student_passwords').set(passwords);
+      }
+      
       setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
       setSelectedStudent(null);
-      alert('✅ Değişiklikler kaydedildi!');
+      
+      if (studentNumberChanged) {
+        alert('✅ Öğrenci bilgileri ve şifre kaydı güncellendi!\n\nYeni numara ile giriş yapabilir: ' + updatedStudent.studentNumber);
+      } else {
+        alert('✅ Değişiklikler kaydedildi!');
+      }
     } catch (error) {
       console.error('Save error:', error);
       alert('❌ Kayıt sırasında hata oluştu.');
     }
   };
 
-  const handleAddStudent = () => {
+  const handleAddStudent = async () => {
     const newStudent = {
       id: Date.now(),
       studentNumber: "",
@@ -3021,10 +3207,20 @@ function ErasmusLearningAgreementApp() {
       lastName: "",
       hostInstitution: "",
       hostCountry: "",
-      semester: "Fall 2025", // Varsayılan dönem
+      semester: "Fall 2025",
       outgoingMatches: [],
       returnMatches: [],
     };
+    
+    // Yeni öğrenciye varsayılan şifre ata
+    try {
+      const passwords = await FirebaseDB.fetchPasswords();
+      passwords[newStudent.studentNumber || 'NEW'] = '1234';
+      await FirebaseDB.passwordsRef().doc('student_passwords').set(passwords);
+    } catch (error) {
+      console.error('Error setting default password:', error);
+    }
+    
     setStudents(prev => [...prev, newStudent]);
     setSelectedStudent(newStudent);
   };
@@ -3466,6 +3662,11 @@ function ErasmusLearningAgreementApp() {
                 {currentUser.name}
               </div>
             </div>
+            {currentUser.role === 'admin' && (
+              <Btn onClick={() => setShowPasswordModal(true)} variant="secondary">
+                🔑 Şifre Yönetimi
+              </Btn>
+            )}
             <Btn onClick={handleLogout} variant="secondary">
               Çıkış Yap
             </Btn>
@@ -3839,6 +4040,14 @@ function ErasmusLearningAgreementApp() {
           onClose={() => setSelectedStudent(null)}
           onSave={handleSaveStudent}
           readOnly={!canEdit(selectedStudent)}
+        />
+      )}
+
+      {/* Password Management Modal (Admin Only) */}
+      {showPasswordModal && currentUser?.role === 'admin' && (
+        <PasswordManagementModal
+          students={students}
+          onClose={() => setShowPasswordModal(false)}
         />
       )}
     </div>
