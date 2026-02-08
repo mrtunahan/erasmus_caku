@@ -3425,13 +3425,15 @@ function ErasmusLearningAgreementApp() {
         <title>Erasmus Dönüş Muafiyeti</title>
         <style>
           @page { size: A4 landscape; margin: 2cm; }
+          table { table-layout: fixed; }
+          td, th { word-wrap: break-word; }
         </style>
       </head>
       <body style='font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5;'>
         <h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ DÖNÜŞÜ MUAFİYET İSTEĞİ</h3>
         
         <p style='text-align: justify; margin: 20px 0;'>
-          6- Bölümümüz <b>${student.studentNumber}</b> numaralı öğrencisi <b>${student.firstName} ${student.lastName}</b>'nun, 
+          Bölümümüz <b>${student.studentNumber}</b> numaralı öğrencisi <b>${student.firstName} ${student.lastName}</b>'nun, 
           <b>${academicYear} Akademik Yılı ${seasonTR} Dönemi</b>nde ERASMUS+ programı kapsamında yurtdışında almış olduğu derslerin, 
           Bilgisayar Mühendisliği Bölümü lisans programında hangi derslere karşılık geldiği, hangi derslere sayılacağının 
           belirlenmesi talebi hakkında vermiş olduğu dilekçesi incelenmiş olup, aşağıda tabloda verildiği şekliyle uygun 
@@ -3441,13 +3443,13 @@ function ErasmusLearningAgreementApp() {
         <table border='1' cellpadding='8' cellspacing='0' style='width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 10pt;'>
           <thead>
             <tr style='background-color: #f0f0f0; font-weight: bold;'>
-              <th colspan='4' style='text-align: center; border: 1px solid black;'>
-                Çankırı Karatekin Üniversitesi Mühendislik Fakültesi<br/>Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin
-              </th>
-              <th colspan='4' style='text-align: center; border: 1px solid black;'>
+              <th colspan='4' style='text-align: center; border: 1px solid black; vertical-align: bottom;'>
                 ${student.hostInstitution}<br/>Bölümünden Aldığı Dersin
               </th>
-              <th style='text-align: center; border: 1px solid black;'>Statüsü</th>
+              <th colspan='4' style='text-align: center; border: 1px solid black; vertical-align: bottom;'>
+                Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin
+              </th>
+              <th rowspan='2' style='text-align: center; border: 1px solid black; vertical-align: middle;'>Statüsü</th>
             </tr>
             <tr style='background-color: #f8f8f8; font-weight: bold;'>
               <th style='border: 1px solid black;'>Kodu</th>
@@ -3457,9 +3459,7 @@ function ErasmusLearningAgreementApp() {
               <th style='border: 1px solid black;'>Kodu</th>
               <th style='border: 1px solid black;'>Adı</th>
               <th style='border: 1px solid black;'>AKTS</th>
-              <th style='border: 1px solid black;'>Alınan Not</th>
-              <th style='border: 1px solid black;'>Dönüştürülen Not</th>
-              <th style='border: 1px solid black;'>Statüsü</th>
+              <th style='border: 1px solid black;'>Başarı Notu</th>
             </tr>
           </thead>
           <tbody>
@@ -3484,29 +3484,7 @@ function ErasmusLearningAgreementApp() {
                 
                 rows += '<tr>';
                 
-                // Kendi Kurumumuz sütunları
-                if (i === 0 && homeCourses.length > 1) {
-                  // İlk satır - rowspan kullan
-                  const totalHomeCredits = homeCourses.reduce((s, c) => s + c.credits, 0);
-                  rows += `
-                    <td style='border: 1px solid black; vertical-align: middle;' rowspan='${homeCourses.length}'>${homeCourses.map(c => c.code || '-').join('<br/>')}</td>
-                    <td style='border: 1px solid black; vertical-align: middle;' rowspan='${homeCourses.length}'>${homeCourses.map(c => c.name).join('<br/>')}</td>
-                    <td style='border: 1px solid black; text-align: center; vertical-align: middle;' rowspan='${homeCourses.length}'>${totalHomeCredits}</td>
-                    <td style='border: 1px solid black; text-align: center; vertical-align: middle;' rowspan='${homeCourses.length}'>${match.homeGrade || 'Muaf'}</td>
-                  `;
-                } else if (homeCourses.length === 1) {
-                  // Tek ders - normal göster
-                  if (i === 0) {
-                    rows += `
-                      <td style='border: 1px solid black;'>${homeCourse ? (homeCourse.code || '-') : '-'}</td>
-                      <td style='border: 1px solid black;'>${homeCourse ? homeCourse.name : '-'}</td>
-                      <td style='border: 1px solid black; text-align: center;'>${homeCourse ? homeCourse.credits : '-'}</td>
-                      <td style='border: 1px solid black; text-align: center;'>${match.homeGrade || 'Muaf'}</td>
-                    `;
-                  }
-                }
-                
-                // Karşı Kurum sütunları
+                // ÖNCE KARŞI KURUM sütunları
                 if (i === 0 && hostCourses.length > 1) {
                   // İlk satır - rowspan kullan
                   const totalHostCredits = hostCourses.reduce((s, c) => s + c.credits, 0);
@@ -3515,7 +3493,6 @@ function ErasmusLearningAgreementApp() {
                     <td style='border: 1px solid black; vertical-align: middle;' rowspan='${hostCourses.length}'>${hostCourses.map(c => c.name).join('<br/>')}</td>
                     <td style='border: 1px solid black; text-align: center; vertical-align: middle;' rowspan='${hostCourses.length}'>${totalHostCredits}</td>
                     <td style='border: 1px solid black; text-align: center; vertical-align: middle;' rowspan='${hostCourses.length}'>${originalHostGrade}</td>
-                    <td style='border: 1px solid black; text-align: center; vertical-align: middle; background-color: #fffacd;' rowspan='${hostCourses.length}'><b>${convertedGrade}</b></td>
                   `;
                 } else if (hostCourses.length === 1) {
                   // Tek ders - normal göster
@@ -3525,9 +3502,34 @@ function ErasmusLearningAgreementApp() {
                       <td style='border: 1px solid black;'>${hostCourse ? hostCourse.name : '-'}</td>
                       <td style='border: 1px solid black; text-align: center;'>${hostCourse ? hostCourse.credits : '-'}</td>
                       <td style='border: 1px solid black; text-align: center;'>${originalHostGrade}</td>
-                      <td style='border: 1px solid black; text-align: center; background-color: #fffacd;'><b>${convertedGrade}</b></td>
                     `;
                   }
+                }
+                
+                // SONRA KENDİ KURUMUMUZ sütunları
+                if (i === 0 && homeCourses.length > 1) {
+                  // İlk satır - rowspan kullan (sadece Kod, Ad, AKTS için)
+                  const totalHomeCredits = homeCourses.reduce((s, c) => s + c.credits, 0);
+                  rows += `
+                    <td style='border: 1px solid black; vertical-align: middle;' rowspan='${homeCourses.length}'>${homeCourses.map(c => c.code || '-').join('<br/>')}</td>
+                    <td style='border: 1px solid black; vertical-align: middle;' rowspan='${homeCourses.length}'>${homeCourses.map(c => c.name).join('<br/>')}</td>
+                    <td style='border: 1px solid black; text-align: center; vertical-align: middle;' rowspan='${homeCourses.length}'>${totalHomeCredits}</td>
+                  `;
+                  // Başarı Notu - her satır için ayrı
+                  rows += `<td style='border: 1px solid black; text-align: center;'>${convertedGrade}</td>`;
+                } else if (homeCourses.length === 1) {
+                  // Tek ders - normal göster
+                  if (i === 0) {
+                    rows += `
+                      <td style='border: 1px solid black;'>${homeCourse ? (homeCourse.code || '-') : '-'}</td>
+                      <td style='border: 1px solid black;'>${homeCourse ? homeCourse.name : '-'}</td>
+                      <td style='border: 1px solid black; text-align: center;'>${homeCourse ? homeCourse.credits : '-'}</td>
+                      <td style='border: 1px solid black; text-align: center;'>${convertedGrade}</td>
+                    `;
+                  }
+                } else if (i > 0) {
+                  // Çoklu ders durumunda 2. ve sonraki satırlar - sadece Başarı Notu
+                  rows += `<td style='border: 1px solid black; text-align: center;'>${convertedGrade}</td>`;
                 }
                 
                 // Statü sütunu - sadece ilk satırda
@@ -3545,22 +3547,14 @@ function ErasmusLearningAgreementApp() {
             }).join('')}
             <tr style='font-weight: bold; background-color: #f0f0f0;'>
               <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td>
-              <td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td>
+              <td style='border: 1px solid black; text-align: center;'>${totalHostCredits}</td>
               <td style='border: 1px solid black;'></td>
               <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td>
-              <td style='border: 1px solid black; text-align: center;'>${totalHostCredits}</td>
-              <td colspan='3' style='border: 1px solid black;'></td>
+              <td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td>
+              <td colspan='2' style='border: 1px solid black;'></td>
             </tr>
           </tbody>
         </table>
-
-        <div style='margin-top: 30px; padding: 15px; background-color: #f0f8ff; border: 2px solid #4682b4; border-radius: 8px;'>
-          <p style='margin: 0; font-size: 10pt;'><b>Not:</b> "Dönüştürülen Not" sütunu, karşı kurumdan alınan notların Çankırı Karatekin Üniversitesi not sistemine dönüştürülmüş halidir (Üniversitemiz Ön Lisans ve Lisans Eğitim Yönetmeliği'ne göre).</p>
-        </div>
-
-        <p style='margin-top: 30px;'>
-          <b>Öğrenci:</b> ${student.firstName} ${student.lastName} (${student.studentNumber})
-        </p>
       </body>
       </html>
     `;
