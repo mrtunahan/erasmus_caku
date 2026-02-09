@@ -3511,27 +3511,28 @@ function ErasmusLearningAgreementApp() {
                 // KENDİ KURUMUMUZ (HOME) - İlk satırda rowspan, sonraki satırlarda yok
                 if (i === 0) {
                   // İlk satır - home course bilgilerini göster
-                  if (homeCourses.length === 1 && homeCourse) {
-                    // Tek home course - rowspan yok
-                    rows += `
-                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse.code || '-'}</td>
-                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse.name}</td>
-                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse.credits}</td>
-                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${convertedGrade}</td>
-                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${matchStatus}</td>
-                    `;
-                  } else if (homeCourses.length > 1) {
-                    // Çoklu home courses - tümünü göster, rowspan yok
-                    const allHomeCodes = homeCourses.map(c => c.code || '-').join('<br/>');
-                    const allHomeNames = homeCourses.map(c => c.name).join('<br/>');
-                    const totalHomeCredits = homeCourses.reduce((s, c) => s + c.credits, 0);
-                    rows += `
-                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${allHomeCodes}</td>
-                      <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${allHomeNames}</td>
-                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${totalHomeCredits}</td>
-                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${convertedGrade}</td>
-                      <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${matchStatus}</td>
-                    `;
+                  if (homeCourse) {
+                    // Home course varsa göster
+                    // Eğer birden fazla HOST course varsa (maxRows > 1), HOME'a rowspan ver
+                    if (maxRows > 1) {
+                      // Rowspan kullan - birden fazla host course var
+                      rows += `
+                        <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${homeCourse.code || '-'}</td>
+                        <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${homeCourse.name}</td>
+                        <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${homeCourse.credits}</td>
+                        <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${convertedGrade}</td>
+                        <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1; vertical-align: middle;' rowspan='${maxRows}'>${matchStatus}</td>
+                      `;
+                    } else {
+                      // Rowspan yok - tek host course
+                      rows += `
+                        <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse.code || '-'}</td>
+                        <td style='border: 1px solid black; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse.name}</td>
+                        <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${homeCourse.credits}</td>
+                        <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${convertedGrade}</td>
+                        <td style='border: 1px solid black; text-align: center; font-size: 8pt; padding: 1px; line-height: 1;'>${matchStatus}</td>
+                      `;
+                    }
                   } else {
                     // Home course yok
                     rows += `
