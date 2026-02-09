@@ -112,6 +112,11 @@
     // Initialize Firebase
     try {
       firebase.initializeApp(firebaseConfig);
+      // Fix Safari/WebKit CORS issues with Firestore
+      firebase.firestore().settings({
+        experimentalForceLongPolling: true,
+        merge: true
+      });
       console.log('Firebase initialized successfully');
     } catch (error) {
       console.error('Firebase initialization error:', error);
