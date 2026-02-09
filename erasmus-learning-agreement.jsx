@@ -2451,8 +2451,7 @@ const LoginModal = ({ onLogin }) => {
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Varsayılan admin şifresi
-  const ADMIN_PASSWORD = "admin123";
+  const ADMIN_PASSWORD = "\x31\x36\x30\x35";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -2642,7 +2641,7 @@ const LoginModal = ({ onLogin }) => {
             <strong>ℹ️ Bilgi:</strong>
             <br />
             {isAdminMode ? (
-              <>Varsayılan admin şifresi: <code style={{background: "white", padding: "2px 6px", borderRadius: 4}}>admin123</code></>
+              <>Admin girişi için yetkili şifrenizi kullanın.</>
             ) : (
               <>Varsayılan öğrenci şifresi: <code style={{background: "white", padding: "2px 6px", borderRadius: 4}}>1234</code></>
             )}
