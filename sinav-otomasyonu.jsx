@@ -95,34 +95,34 @@ const SEED_PROFESSORS = [
 // ── Seed Data: 25 Ders ──
 const SEED_COURSES = [
   // 1. Sinif
-  { code: "FZK181", name: "Fizik I (Sube 1)", sinif: 1, duration: 60, professor: "Prof. Dr. Hamit ALYAR" },
-  { code: "FZK181", name: "Fizik I (Sube 2)", sinif: 1, duration: 60, professor: "Prof. Dr. Hamit ALYAR" },
-  { code: "MAT165", name: "Matematik I (Sube 1)", sinif: 1, duration: 90, professor: "Dr. Ogr. Uyesi Esma Baran OZKAN" },
-  { code: "MAT165", name: "Matematik I (Sube 2)", sinif: 1, duration: 90, professor: "Dr. Ogr. Uyesi Esma Baran OZKAN" },
-  { code: "BLM103", name: "Programlamaya Giris", sinif: 1, duration: 60, professor: "Dr. Ogr. Uyesi Taha ETEM" },
-  { code: "MAT241", name: "Dogrusal Cebir (Sube 1-2)", sinif: 1, duration: 90, professor: "Dr. Ogr. Uyesi Celalettin KAYA" },
-  { code: "BLM101", name: "Bilgisayar Muhendisligine Giris", sinif: 1, duration: 60, professor: "Dr. Ogr. Uyesi Seda SAHIN" },
+  { code: "FZK181", name: "Fizik I (Sube 1)", sinif: 1, duration: 30, professor: "Prof. Dr. Hamit ALYAR" },
+  { code: "FZK181", name: "Fizik I (Sube 2)", sinif: 1, duration: 30, professor: "Prof. Dr. Hamit ALYAR" },
+  { code: "MAT165", name: "Matematik I (Sube 1)", sinif: 1, duration: 30, professor: "Dr. Ogr. Uyesi Esma Baran OZKAN" },
+  { code: "MAT165", name: "Matematik I (Sube 2)", sinif: 1, duration: 30, professor: "Dr. Ogr. Uyesi Esma Baran OZKAN" },
+  { code: "BLM103", name: "Programlamaya Giris", sinif: 1, duration: 30, professor: "Dr. Ogr. Uyesi Taha ETEM" },
+  { code: "MAT241", name: "Dogrusal Cebir (Sube 1-2)", sinif: 1, duration: 30, professor: "Dr. Ogr. Uyesi Celalettin KAYA" },
+  { code: "BLM101", name: "Bilgisayar Muhendisligine Giris", sinif: 1, duration: 30, professor: "Dr. Ogr. Uyesi Seda SAHIN" },
   // 2. Sinif
-  { code: "BIL113", name: "Web Programlama", sinif: 2, duration: 60, professor: "Dr. Ogr. Uyesi Fatih ISSI" },
-  { code: "BLM205", name: "Isletim Sistemleri", sinif: 2, duration: 60, professor: "Doc. Dr. Selim BUYRUkoglu" },
-  { code: "BLM209", name: "Veritabani Yonetim Sistemleri / BIL303", sinif: 2, duration: 60, professor: "Dr. Ogr. Uyesi Fatih ISSI" },
-  { code: "BLM203", name: "Veri Yapilari", sinif: 2, duration: 60, professor: "Dr. Ogr. Uyesi Taha ETEM" },
-  { code: "MAT242", name: "Diferansiyel Denklemler", sinif: 2, duration: 90, professor: "Prof. Dr. Ilyas INCI" },
-  { code: "BLM201", name: "Nesneye Yonelik Programlama", sinif: 2, duration: 60, professor: "Doc. Dr. Selim BUYRUKOGLI" },
-  { code: "IST235", name: "Olasilik ve Istatistik", sinif: 2, duration: 90, professor: "Dr. Ugur BINZAT" },
-  { code: "BIL231", name: "Ingilizce I", sinif: 2, duration: 60, professor: "Dr. Alime YILMAZ" },
+  { code: "BIL113", name: "Web Programlama", sinif: 2, duration: 30, professor: "Dr. Ogr. Uyesi Fatih ISSI" },
+  { code: "BLM205", name: "Isletim Sistemleri", sinif: 2, duration: 30, professor: "Doc. Dr. Selim BUYRUkoglu" },
+  { code: "BLM209", name: "Veritabani Yonetim Sistemleri / BIL303", sinif: 2, duration: 30, professor: "Dr. Ogr. Uyesi Fatih ISSI" },
+  { code: "BLM203", name: "Veri Yapilari", sinif: 2, duration: 30, professor: "Dr. Ogr. Uyesi Taha ETEM" },
+  { code: "MAT242", name: "Diferansiyel Denklemler", sinif: 2, duration: 30, professor: "Prof. Dr. Ilyas INCI" },
+  { code: "BLM201", name: "Nesneye Yonelik Programlama", sinif: 2, duration: 30, professor: "Doc. Dr. Selim BUYRUKOGLI" },
+  { code: "IST235", name: "Olasilik ve Istatistik", sinif: 2, duration: 30, professor: "Dr. Ugur BINZAT" },
+  { code: "BIL231", name: "Ingilizce I", sinif: 2, duration: 30, professor: "Dr. Alime YILMAZ" },
   // 3. Sinif
-  { code: "BIL305", name: "Bilgisayar Aglari", sinif: 3, duration: 60, professor: "Dr. Mehmet Akif ALPER" },
-  { code: "BIL307", name: "Yazilim Muhendisligi", sinif: 3, duration: 60, professor: "Dr. Ogr. Uyesi Osman GULER" },
-  { code: "BIL301", name: "Mikroislemciler", sinif: 3, duration: 60, professor: "Dr. Selim SURUCU" },
+  { code: "BIL305", name: "Bilgisayar Aglari", sinif: 3, duration: 30, professor: "Dr. Mehmet Akif ALPER" },
+  { code: "BIL307", name: "Yazilim Muhendisligi", sinif: 3, duration: 30, professor: "Dr. Ogr. Uyesi Osman GULER" },
+  { code: "BIL301", name: "Mikroislemciler", sinif: 3, duration: 30, professor: "Dr. Selim SURUCU" },
   // 4. Sinif
-  { code: "BIL425", name: "Derin Ogrenme", sinif: 4, duration: 60, professor: "Doc. Dr. Selim BUYRUKOGLI" },
-  { code: "BIL401", name: "Bilgisayar Projesi I", sinif: 4, duration: 60, professor: "Dr. Ogr. Uyesi Fatih ISSI" },
-  { code: "BIL325", name: "Mobil Programlama", sinif: 4, duration: 60, professor: "Dr. Ogr. Uyesi Osman GULER" },
-  { code: "BIL403", name: "Yapay Zeka", sinif: 4, duration: 60, professor: "Dr. Ogr. Uyesi Taha ETEM" },
-  { code: "BIL473", name: "Bilgi Guvenligi", sinif: 4, duration: 60, professor: "Dr. Mehmet Akif ALPER" },
-  { code: "BIL432", name: "Goruntu Isleme", sinif: 4, duration: 60, professor: "Dr. Ogr. Uyesi Seda SAHIN" },
-  { code: "BIL466", name: "Giri$imcilik", sinif: 4, duration: 60, professor: "Dr. Ogr. Uyesi Osman GULER" },
+  { code: "BIL425", name: "Derin Ogrenme", sinif: 4, duration: 30, professor: "Doc. Dr. Selim BUYRUKOGLI" },
+  { code: "BIL401", name: "Bilgisayar Projesi I", sinif: 4, duration: 30, professor: "Dr. Ogr. Uyesi Fatih ISSI" },
+  { code: "BIL325", name: "Mobil Programlama", sinif: 4, duration: 30, professor: "Dr. Ogr. Uyesi Osman GULER" },
+  { code: "BIL403", name: "Yapay Zeka", sinif: 4, duration: 30, professor: "Dr. Ogr. Uyesi Taha ETEM" },
+  { code: "BIL473", name: "Bilgi Guvenligi", sinif: 4, duration: 30, professor: "Dr. Mehmet Akif ALPER" },
+  { code: "BIL432", name: "Goruntu Isleme", sinif: 4, duration: 30, professor: "Dr. Ogr. Uyesi Seda SAHIN" },
+  { code: "BIL466", name: "Giri$imcilik", sinif: 4, duration: 30, professor: "Dr. Ogr. Uyesi Osman GULER" },
 ];
 
 // ── Helper Functions ──
@@ -284,11 +284,12 @@ const PeriodConfigModal = ({ period, onSave, onClose }) => {
 // ══════════════════════════════════════════════════════════════
 // Edit Exam Modal - for editing placed exam details
 // ══════════════════════════════════════════════════════════════
-const EditExamModal = ({ exam, onSave, onRemove, onClose }) => {
+const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
   const [studentCount, setStudentCount] = useState(exam?.studentCount || "");
   const [supervisor, setSupervisor] = useState(exam?.supervisor || "");
   const [room, setRoom] = useState(exam?.room || "");
-  const [duration, setDuration] = useState(exam?.duration || 60);
+  const [duration, setDuration] = useState(exam?.duration || 30);
+  const [professor, setProfessor] = useState(exam?.professor || "");
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -299,7 +300,8 @@ const EditExamModal = ({ exam, onSave, onRemove, onClose }) => {
         studentCount: parseInt(studentCount) || 0,
         supervisor,
         room,
-        duration: parseInt(duration) || 60,
+        duration: parseInt(duration) || 30,
+        professor,
       });
       onClose();
     } catch (e) {
@@ -312,9 +314,14 @@ const EditExamModal = ({ exam, onSave, onRemove, onClose }) => {
     <Modal open={true} title="Sinav Detaylarini Duzenle" onClose={onClose} width={500}>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ padding: 12, background: SINIF_COLORS[exam.sinif]?.bg || "#f0f0f0", borderRadius: 8, fontSize: 14 }}>
-          <strong>{exam.code}</strong> - {exam.name}<br />
-          <span style={{ fontSize: 13, opacity: 0.8 }}>{exam.professor}</span>
+          <strong>{exam.code}</strong> - {exam.name}
         </div>
+        <FormField label="Ogretim Uyesi">
+          <Input value={professor} onChange={e => setProfessor(e.target.value)} placeholder="Hoca adi" list="prof-list" />
+          <datalist id="prof-list">
+            {(professors || []).map((p, i) => <option key={i} value={p.name} />)}
+          </datalist>
+        </FormField>
         <FormField label="Sinav Suresi (dk)">
           <Select value={duration} onChange={e => setDuration(e.target.value)}>
             {[30, 45, 60, 75, 90, 105, 120].map(d => <option key={d} value={d}>{d} dakika</option>)}
@@ -348,7 +355,7 @@ const EditExamModal = ({ exam, onSave, onRemove, onClose }) => {
 // ══════════════════════════════════════════════════════════════
 const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
   const [editingCourse, setEditingCourse] = useState(null);
-  const [form, setForm] = useState({ code: "", name: "", sinif: 1, duration: 60, professor: "" });
+  const [form, setForm] = useState({ code: "", name: "", sinif: 1, duration: 30, professor: "" });
 
   const startEdit = (c) => {
     setEditingCourse(c);
@@ -357,7 +364,7 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
 
   const startNew = () => {
     setEditingCourse("new");
-    setForm({ code: "", name: "", sinif: 1, duration: 60, professor: "" });
+    setForm({ code: "", name: "", sinif: 1, duration: 30, professor: "" });
   };
 
   const handleSave = () => {
@@ -446,7 +453,7 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
 // ══════════════════════════════════════════════════════════════
 // Draggable Course Card (in pool)
 // ══════════════════════════════════════════════════════════════
-const DraggableCourseCard = ({ course, isPlaced }) => {
+const DraggableCourseCard = ({ course, isPlaced, placedCount = 0 }) => {
   const color = SINIF_COLORS[course.sinif] || SINIF_COLORS[1];
 
   const handleDragStart = (e) => {
@@ -461,24 +468,31 @@ const DraggableCourseCard = ({ course, isPlaced }) => {
 
   return (
     <div
-      draggable={!isPlaced}
+      draggable={true}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       style={{
         padding: "8px 10px",
-        background: isPlaced ? "#f0f0f0" : color.bg,
-        color: isPlaced ? "#999" : color.text,
+        background: color.bg,
+        color: color.text,
         borderRadius: 6,
         fontSize: 12,
-        cursor: isPlaced ? "default" : "grab",
-        border: `1px solid ${isPlaced ? "#ddd" : color.text + "30"}`,
-        opacity: isPlaced ? 0.5 : 1,
+        cursor: "grab",
+        border: `1px solid ${color.text}30`,
         transition: "all 0.2s",
-        textDecoration: isPlaced ? "line-through" : "none",
         userSelect: "none",
+        position: "relative",
       }}
     >
-      <div style={{ fontWeight: 600, fontSize: 12 }}>{course.code}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontWeight: 600, fontSize: 12 }}>{course.code}</div>
+        {placedCount > 0 && (
+          <span style={{
+            background: color.text, color: "white", borderRadius: 10,
+            padding: "1px 6px", fontSize: 9, fontWeight: 700, minWidth: 16, textAlign: "center",
+          }}>{placedCount}</span>
+        )}
+      </div>
       <div style={{ fontSize: 11, marginTop: 2, lineHeight: 1.3 }}>{course.name}</div>
       <div style={{ fontSize: 10, marginTop: 3, opacity: 0.7 }}>{course.duration} dk</div>
     </div>
@@ -840,23 +854,25 @@ function SinavOtomasyonuApp({ currentUser }) {
     return getWeekDays(parseDateISO(activePeriod.startDate), activePeriod.weeks || 2);
   }, [activePeriod]);
 
-  // ── Unplaced courses ──
-  const unplacedCourses = useMemo(() => {
-    const placedIds = new Set(periodExams.map(e => e.courseId));
-    let filtered = courses.filter(c => !placedIds.has(c.id));
+  // ── Course pool (all courses always available, with placement count) ──
+  const poolCourses = useMemo(() => {
+    let filtered = courses;
     if (filterSinif > 0) {
       filtered = filtered.filter(c => c.sinif === filterSinif);
     }
-    return filtered;
+    return filtered.map(c => ({
+      ...c,
+      placedCount: periodExams.filter(e => e.courseId === c.id).length,
+    }));
   }, [courses, periodExams, filterSinif]);
 
-  const groupedUnplaced = useMemo(() => {
+  const groupedPool = useMemo(() => {
     const groups = { 1: [], 2: [], 3: [], 4: [] };
-    unplacedCourses.forEach(c => {
+    poolCourses.forEach(c => {
       if (groups[c.sinif]) groups[c.sinif].push(c);
     });
     return groups;
-  }, [unplacedCourses]);
+  }, [poolCourses]);
 
   // ── Drop handler ──
   const handleDrop = async (courseData, dateStr, timeSlot) => {
@@ -1178,7 +1194,7 @@ function SinavOtomasyonuApp({ currentUser }) {
 
                 {[1, 2, 3, 4].map(sinif => {
                   if (filterSinif > 0 && filterSinif !== sinif) return null;
-                  const group = groupedUnplaced[sinif];
+                  const group = groupedPool[sinif];
                   if (!group || group.length === 0) return null;
                   return (
                     <div key={sinif} style={{ marginBottom: 12 }}>
@@ -1189,18 +1205,17 @@ function SinavOtomasyonuApp({ currentUser }) {
                         {SINIF_COLORS[sinif].label} ({group.length})
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        {group.map((c, i) => {
-                          const isPlaced = periodExams.some(e => e.courseId === c.id);
-                          return <DraggableCourseCard key={c.id || i} course={c} isPlaced={isPlaced} />;
-                        })}
+                        {group.map((c, i) => (
+                          <DraggableCourseCard key={c.id || i} course={c} isPlaced={false} placedCount={c.placedCount} />
+                        ))}
                       </div>
                     </div>
                   );
                 })}
 
-                {unplacedCourses.length === 0 && (
+                {poolCourses.length === 0 && (
                   <div style={{ padding: 20, textAlign: "center", color: "#999", fontSize: 12 }}>
-                    Tum dersler yerlestirildi!
+                    Ders bulunamadi
                   </div>
                 )}
               </div>
@@ -1279,6 +1294,7 @@ function SinavOtomasyonuApp({ currentUser }) {
       {editingExam && (
         <EditExamModal
           exam={editingExam}
+          professors={professors}
           onSave={handleUpdateExam}
           onRemove={handleRemoveExam}
           onClose={() => setEditingExam(null)}
