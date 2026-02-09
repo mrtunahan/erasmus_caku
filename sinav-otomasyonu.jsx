@@ -16,6 +16,38 @@ const FormField = window.FormField;
 const Modal = window.Modal;
 const Badge = window.Badge;
 
+// ── Ghost Button (Btn ghost variant yerine standalone) ──
+const GhostBtn = ({ children, onClick, disabled, style: customStyle }) => {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        padding: "10px 18px",
+        borderRadius: 8,
+        border: "1px solid " + (C ? C.border : "#E5E1D8"),
+        background: hover ? (C ? C.blueLight : "#DBEAFE") : "transparent",
+        color: C ? C.blue : "#3B82F6",
+        fontSize: 14,
+        fontWeight: 600,
+        cursor: disabled ? "not-allowed" : "pointer",
+        fontFamily: "'Source Sans 3', sans-serif",
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        transition: "all 0.2s",
+        opacity: disabled ? 0.5 : 1,
+        ...customStyle,
+      }}
+    >
+      {children}
+    </button>
+  );
+};
+
 // ── Sabitler ──
 const SINIF_COLORS = {
   1: { bg: "#B2EBF2", text: "#006064", label: "1. Sinif" },
@@ -241,7 +273,7 @@ const PeriodConfigModal = ({ period, onSave, onClose }) => {
           </div>
         )}
         <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 8 }}>
-          <Btn variant="ghost" onClick={onClose}>Iptal</Btn>
+          <GhostBtn onClick={onClose}>Iptal</GhostBtn>
           <Btn onClick={handleSave} disabled={saving}>{saving ? "Kaydediliyor..." : "Kaydet"}</Btn>
         </div>
       </div>
@@ -298,11 +330,11 @@ const EditExamModal = ({ exam, onSave, onRemove, onClose }) => {
           <Input value={room} onChange={e => setRoom(e.target.value)} placeholder="Orn: D-201" />
         </FormField>
         <div style={{ display: "flex", gap: 12, justifyContent: "space-between", marginTop: 8 }}>
-          <Btn variant="ghost" onClick={() => { onRemove(exam); onClose(); }} style={{ color: "#DC2626" }}>
+          <GhostBtn onClick={() => { onRemove(exam); onClose(); }} style={{ color: "#DC2626" }}>
             Takvimden Kaldir
-          </Btn>
+          </GhostBtn>
           <div style={{ display: "flex", gap: 12 }}>
-            <Btn variant="ghost" onClick={onClose}>Iptal</Btn>
+            <GhostBtn onClick={onClose}>Iptal</GhostBtn>
             <Btn onClick={handleSave} disabled={saving}>{saving ? "..." : "Kaydet"}</Btn>
           </div>
         </div>
@@ -397,15 +429,15 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
             </FormField>
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Btn variant="ghost" onClick={() => setEditingCourse(null)}>Iptal</Btn>
+            <GhostBtn onClick={() => setEditingCourse(null)}>Iptal</GhostBtn>
             <Btn onClick={handleSave}>Kaydet</Btn>
           </div>
         </div>
       )}
 
       <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between" }}>
-        <Btn variant="ghost" onClick={startNew}>+ Yeni Ders Ekle</Btn>
-        <Btn variant="ghost" onClick={onClose}>Kapat</Btn>
+        <GhostBtn onClick={startNew}>+ Yeni Ders Ekle</GhostBtn>
+        <GhostBtn onClick={onClose}>Kapat</GhostBtn>
       </div>
     </Modal>
   );
@@ -992,12 +1024,12 @@ function SinavOtomasyonuApp({ currentUser }) {
             </Btn>
           )}
           {isAdmin && (
-            <Btn variant="ghost" onClick={() => setShowCourseModal(true)}>Ders Yonetimi</Btn>
+            <GhostBtn onClick={() => setShowCourseModal(true)}>Ders Yonetimi</GhostBtn>
           )}
           {isAdmin && (
-            <Btn variant="ghost" onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }}>
+            <GhostBtn onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }}>
               + Yeni Donem
-            </Btn>
+            </GhostBtn>
           )}
         </div>
       </div>
@@ -1096,16 +1128,16 @@ function SinavOtomasyonuApp({ currentUser }) {
               </span>
               {periodExams.length > 0 && (
                 <>
-                  <Btn variant="ghost" onClick={() => exportToCSV(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
+                  <GhostBtn onClick={() => exportToCSV(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
                     CSV
-                  </Btn>
-                  <Btn variant="ghost" onClick={() => exportToWord(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
+                  </GhostBtn>
+                  <GhostBtn onClick={() => exportToWord(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
                     Word
-                  </Btn>
+                  </GhostBtn>
                   {isAdmin && (
-                    <Btn variant="ghost" onClick={handleResetPlacements} style={{ fontSize: 12, padding: "4px 10px", color: "#DC2626" }}>
+                    <GhostBtn onClick={handleResetPlacements} style={{ fontSize: 12, padding: "4px 10px", color: "#DC2626" }}>
                       Sifirla
-                    </Btn>
+                    </GhostBtn>
                   )}
                 </>
               )}
