@@ -366,7 +366,7 @@ const SAMPLE_STUDENTS = [
       {
         id: "out18",
         homeCourses: [{ code: "BİL307", name: "Mikroişlemciler", credits: 7 }],
-        hostCourses: [{ code: "05-EMS-APN-SP1", name: "Architecture and Programming of Micricontrollers", credits: 8 }],
+        hostCourses: [{ code: "05-EMS-APN-SP1", name: "Architecture and Programming of Microcontrollers", credits: 8 }],
       },
       {
         id: "out19",
@@ -1054,13 +1054,14 @@ const Btn = ({ children, onClick, variant = "primary", icon, small, disabled }) 
   );
 };
 
-const Input = ({ value, onChange, placeholder, type = "text", disabled }) => (
+const Input = ({ value, onChange, placeholder, type = "text", disabled, ...rest }) => (
   <input
     type={type}
     value={value}
     onChange={onChange}
     placeholder={placeholder}
     disabled={disabled}
+    {...rest}
     style={{
       width: "100%",
       padding: "10px 14px",
@@ -1071,6 +1072,7 @@ const Input = ({ value, onChange, placeholder, type = "text", disabled }) => (
       outline: "none",
       transition: "all 0.2s",
       background: disabled ? C.bg : C.card,
+      ...(rest.style || {}),
     }}
     onFocus={e => e.target.style.borderColor = C.navy}
     onBlur={e => e.target.style.borderColor = C.border}
@@ -2330,7 +2332,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
   };
 
   return (
-    <Modal open={true} onClose={onClose} width="800px">
+    <Modal open={true} onClose={onClose} title="Şifre Yönetimi" width={800}>
       <div style={{
         padding: 32,
         background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -3590,6 +3592,11 @@ function ErasmusLearningAgreementApp() {
       "Gidiş Eşleştirme Sayısı": s.outgoingMatches.length,
       "Dönüş Eşleştirme Sayısı": s.returnMatches.length,
     }));
+
+    if (data.length === 0) {
+      alert('Dışa aktarılacak öğrenci bulunamadı.');
+      return;
+    }
 
     const csv = [
       Object.keys(data[0]).join(","),
