@@ -92,9 +92,9 @@ const SEED_PROFESSORS = [
   { name: "Dr. Ogr. Uyesi Osman GULER", department: "Bilgisayar", isExternal: false },
 ];
 
-// ── Seed Data: 25 Ders ──
+// ── Seed Data: Dersler ──
 const SEED_COURSES = [
-  // 1. Sinif
+  // ═══ 1. Sinif (1. ve 2. Donem) ═══
   { code: "FZK181", name: "Fizik I (Sube 1)", sinif: 1, duration: 30, professor: "Prof. Dr. Hamit ALYAR" },
   { code: "FZK181", name: "Fizik I (Sube 2)", sinif: 1, duration: 30, professor: "Prof. Dr. Hamit ALYAR" },
   { code: "MAT165", name: "Matematik I (Sube 1)", sinif: 1, duration: 30, professor: "Dr. Ogr. Uyesi Esma Baran OZKAN" },
@@ -102,7 +102,15 @@ const SEED_COURSES = [
   { code: "BLM103", name: "Programlamaya Giris", sinif: 1, duration: 30, professor: "Dr. Ogr. Uyesi Taha ETEM" },
   { code: "MAT241", name: "Dogrusal Cebir (Sube 1-2)", sinif: 1, duration: 30, professor: "Dr. Ogr. Uyesi Celalettin KAYA" },
   { code: "BLM101", name: "Bilgisayar Muhendisligine Giris", sinif: 1, duration: 30, professor: "Dr. Ogr. Uyesi Seda SAHIN" },
-  // 2. Sinif
+  // 2. Donem
+  { code: "MAT162", name: "Matematik II", sinif: 1, duration: 30, professor: "" },
+  { code: "FIZ162", name: "Genel Fizik II", sinif: 1, duration: 30, professor: "" },
+  { code: "ATA102", name: "Ataturk Ilkeleri ve Inkilap Tarihi II", sinif: 1, duration: 30, professor: "" },
+  { code: "TDI102", name: "Turk Dili II", sinif: 1, duration: 30, professor: "" },
+  { code: "BIL132", name: "Bilgisayar Programlama II", sinif: 1, duration: 30, professor: "" },
+  { code: "MAT142", name: "Ayrik Matematik ve Uygulamalari", sinif: 1, duration: 30, professor: "" },
+
+  // ═══ 2. Sinif (3. ve 4. Donem) ═══
   { code: "BIL113", name: "Web Programlama", sinif: 2, duration: 30, professor: "Dr. Ogr. Uyesi Fatih ISSI" },
   { code: "BLM205", name: "Isletim Sistemleri", sinif: 2, duration: 30, professor: "Doc. Dr. Selim BUYRUkoglu" },
   { code: "BLM209", name: "Veritabani Yonetim Sistemleri / BIL303", sinif: 2, duration: 30, professor: "Dr. Ogr. Uyesi Fatih ISSI" },
@@ -111,11 +119,34 @@ const SEED_COURSES = [
   { code: "BLM201", name: "Nesneye Yonelik Programlama", sinif: 2, duration: 30, professor: "Doc. Dr. Selim BUYRUKOGLI" },
   { code: "IST235", name: "Olasilik ve Istatistik", sinif: 2, duration: 30, professor: "Dr. Ugur BINZAT" },
   { code: "BIL231", name: "Ingilizce I", sinif: 2, duration: 30, professor: "Dr. Alime YILMAZ" },
-  // 3. Sinif
+  // 3. Donem
+  { code: "BIL201", name: "Algoritma ve Veri Yapilari I", sinif: 2, duration: 30, professor: "" },
+  { code: "BIL203", name: "Nesnesel Tasarim ve Programlama", sinif: 2, duration: 30, professor: "" },
+  { code: "BIL205", name: "Sayisal Sistem Tasarimi", sinif: 2, duration: 30, professor: "" },
+  { code: "BIL231", name: "Bilgisayar Muhendisliginde Mesleki Ingilizce", sinif: 2, duration: 30, professor: "" },
+  { code: "MAT221", name: "Dogrusal Cebir", sinif: 2, duration: 30, professor: "" },
+  // 4. Donem
+  { code: "BIL222", name: "Diferansiyel Denklemler", sinif: 2, duration: 30, professor: "" },
+  { code: "BIL232", name: "Muhendislik Ekonomisi", sinif: 2, duration: 30, professor: "" },
+  { code: "BIL202", name: "Algoritma ve Veri Yapilari II", sinif: 2, duration: 30, professor: "" },
+  { code: "BIL206", name: "Elektrik ve Elektronik Devrelerinin Temelleri", sinif: 2, duration: 30, professor: "" },
+  { code: "BIL212", name: "Olasilik Teorisi ve Istatistik", sinif: 2, duration: 30, professor: "" },
+
+  // ═══ 3. Sinif (5. ve 6. Donem) ═══
   { code: "BIL305", name: "Bilgisayar Aglari", sinif: 3, duration: 30, professor: "Dr. Mehmet Akif ALPER" },
   { code: "BIL307", name: "Yazilim Muhendisligi", sinif: 3, duration: 30, professor: "Dr. Ogr. Uyesi Osman GULER" },
   { code: "BIL301", name: "Mikroislemciler", sinif: 3, duration: 30, professor: "Dr. Selim SURUCU" },
-  // 4. Sinif
+  // 5. Donem
+  { code: "BIL301", name: "Programlama Dilleri", sinif: 3, duration: 30, professor: "" },
+  { code: "BIL303", name: "Veritabani Sistemleri", sinif: 3, duration: 30, professor: "" },
+  { code: "BIL305", name: "Isletim Sistemleri", sinif: 3, duration: 30, professor: "" },
+  { code: "BIL307", name: "Mikroislemciler", sinif: 3, duration: 30, professor: "" },
+  // 6. Donem
+  { code: "BIL308", name: "Bilgisayar Mimarisi ve Organizasyonu", sinif: 3, duration: 30, professor: "" },
+  { code: "BIL312", name: "Web Tasarimi ve Programlama", sinif: 3, duration: 30, professor: "" },
+  { code: "BIL314", name: "Otomata Teorisi ve Formal Diller", sinif: 3, duration: 30, professor: "" },
+
+  // ═══ 4. Sinif (7. ve 8. Donem) ═══
   { code: "BIL425", name: "Derin Ogrenme", sinif: 4, duration: 30, professor: "Doc. Dr. Selim BUYRUKOGLI" },
   { code: "BIL401", name: "Bilgisayar Projesi I", sinif: 4, duration: 30, professor: "Dr. Ogr. Uyesi Fatih ISSI" },
   { code: "BIL325", name: "Mobil Programlama", sinif: 4, duration: 30, professor: "Dr. Ogr. Uyesi Osman GULER" },
@@ -123,6 +154,40 @@ const SEED_COURSES = [
   { code: "BIL473", name: "Bilgi Guvenligi", sinif: 4, duration: 30, professor: "Dr. Mehmet Akif ALPER" },
   { code: "BIL432", name: "Goruntu Isleme", sinif: 4, duration: 30, professor: "Dr. Ogr. Uyesi Seda SAHIN" },
   { code: "BIL466", name: "Giri$imcilik", sinif: 4, duration: 30, professor: "Dr. Ogr. Uyesi Osman GULER" },
+  // 7. Donem
+  { code: "BIL401", name: "Bilgisayar Aglari", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL403", name: "Yazilim Muhendisligi Ilkeleri", sinif: 4, duration: 30, professor: "" },
+  // 8. Donem
+  { code: "BIL482", name: "Yonetim Bilisim Sistemleri", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL494", name: "Bitirme Projesi", sinif: 4, duration: 30, professor: "" },
+
+  // ═══ Bolum Secmeli Dersler ═══
+  { code: "BIL432", name: "Kriptografi ve Bilgi Guvenligi", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL325", name: "Siber Guvenlige Giris", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL466", name: "Biyobilisim ve Biyoteknoloji", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL323", name: "Sayisal Isaret Isleme", sinif: 4, duration: 30, professor: "" },
+  { code: "MTH401", name: "Java & React JS ile Web Programlama Egitimi", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL321", name: "Makine Ogrenmesi", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL411", name: "Sistem Muhendisligi", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL412", name: "Insan Bilgisayar Etkilesimi", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL421", name: "E-Ticaret ve Dijital Donusum", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL425", name: "Mobil Uygulama Gelistirme", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL427", name: "Oyun Teknolojileri", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL434", name: "Gomulu Sistemler", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL462", name: "Bulut Cozume Giris", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL471", name: "Sayisal Analiz Yontemleri", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL473", name: "Bilgisayarli Gorme", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL476", name: "Veri Madenciligine Giris", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL477", name: "Oruntu Tanima", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL481", name: "Yapay Zeka", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL483", name: "Coklu Ortam Sistemleri", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL486", name: "Optimizasyon", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL493", name: "Gercek Zamanli Sistemler", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL496", name: "Sinyal Isleme Uygulamalari", sinif: 4, duration: 30, professor: "" },
+  { code: "OSD144", name: "Siber Guvenlik ve Etik Hacker", sinif: 4, duration: 30, professor: "" },
+  { code: "MTH404", name: "Yazilim Test ve Kalitesi", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL438", name: "Goruntu Isleme", sinif: 4, duration: 30, professor: "" },
+  { code: "BIL474", name: "Tip Bilisimi", sinif: 4, duration: 30, professor: "" },
 ];
 
 // ── Helper Functions ──
