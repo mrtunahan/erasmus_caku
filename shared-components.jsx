@@ -204,6 +204,8 @@ const FirebaseDB = {
   // Exam collections
   examsRef: () => FirebaseDB.db()?.collection('exams'),
   examResultsRef: () => FirebaseDB.db()?.collection('exam_results'),
+  examPeriodsRef: () => FirebaseDB.db()?.collection('exam_periods'),
+  professorsRef: () => FirebaseDB.db()?.collection('professors'),
 
   // ── Erasmus Student CRUD ──
   async fetchStudents() {
@@ -390,6 +392,88 @@ const FirebaseDB = {
       return true;
     } catch (error) {
       console.error('Error deleting exam result:', error);
+      throw error;
+    }
+  },
+
+  // ── Exam Periods CRUD ──
+  async fetchExamPeriods() {
+    try {
+      const ref = FirebaseDB.examPeriodsRef();
+      if (!ref) return [];
+      const snapshot = await ref.get();
+      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    } catch (error) {
+      console.error('Error fetching exam periods:', error);
+      return [];
+    }
+  },
+  async saveExamPeriod(period) {
+    try {
+      const ref = FirebaseDB.examPeriodsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      const { id: _id, ...data } = period;
+      if (_id) {
+        await ref.doc(String(_id)).update({ ...data, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+        return period;
+      } else {
+        const docRef = await ref.add({ ...data, createdAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+        return { ...period, id: docRef.id };
+      }
+    } catch (error) {
+      console.error('Error saving exam period:', error);
+      throw error;
+    }
+  },
+  async deleteExamPeriod(id) {
+    try {
+      const ref = FirebaseDB.examPeriodsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      await ref.doc(String(id)).delete();
+      return true;
+    } catch (error) {
+      console.error('Error deleting exam period:', error);
+      throw error;
+    }
+  },
+
+  // ── Professors CRUD ──
+  async fetchProfessors() {
+    try {
+      const ref = FirebaseDB.professorsRef();
+      if (!ref) return [];
+      const snapshot = await ref.get();
+      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    } catch (error) {
+      console.error('Error fetching professors:', error);
+      return [];
+    }
+  },
+  async saveProfessor(prof) {
+    try {
+      const ref = FirebaseDB.professorsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      const { id: _id, ...data } = prof;
+      if (_id) {
+        await ref.doc(String(_id)).update({ ...data, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+        return prof;
+      } else {
+        const docRef = await ref.add({ ...data, createdAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+        return { ...prof, id: docRef.id };
+      }
+    } catch (error) {
+      console.error('Error saving professor:', error);
+      throw error;
+    }
+  },
+  async deleteProfessor(id) {
+    try {
+      const ref = FirebaseDB.professorsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      await ref.doc(String(id)).delete();
+      return true;
+    } catch (error) {
+      console.error('Error deleting professor:', error);
       throw error;
     }
   },
