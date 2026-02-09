@@ -773,16 +773,19 @@ function ErasmusLearningAgreementApp({ currentUser }) {
 
   useEffect(() => {
     const loadStudents = async () => {
-      if (!window.firebase) { setLoading(false); return; }
+      if (!FirebaseDB.isReady()) { setLoading(false); return; }
       try {
         setLoading(true);
         // Initialize database if needed
-        const snapshot = await FirebaseDB.studentsRef().limit(1).get();
+        const ref = FirebaseDB.studentsRef();
+        if (!ref) { setLoading(false); return; }
+        const snapshot = await ref.limit(1).get();
         if (snapshot.empty) {
           for (const student of SAMPLE_STUDENTS) await FirebaseDB.addStudent(student);
           const defaultPasswords = {};
           SAMPLE_STUDENTS.forEach(s => { defaultPasswords[s.studentNumber] = '1234'; });
-          await FirebaseDB.passwordsRef().doc('student_passwords').set(defaultPasswords);
+          const pwRef = FirebaseDB.passwordsRef();
+          if (pwRef) await pwRef.doc('student_passwords').set(defaultPasswords);
         }
         const fetchedStudents = await FirebaseDB.fetchStudents();
         setStudents(fetchedStudents);

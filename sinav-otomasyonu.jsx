@@ -556,6 +556,7 @@ function SinavOtomasyonuApp({ currentUser }) {
   }, []);
 
   const loadExams = async () => {
+    if (!FirebaseDB.isReady()) { setLoading(false); return; }
     try {
       setLoading(true);
       const fetched = await FirebaseDB.fetchExams();

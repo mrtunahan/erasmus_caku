@@ -186,7 +186,15 @@ const convertGrade = (inputGrade, system = "auto") => {
 
 // ── Firebase Database Functions ──
 const FirebaseDB = {
-  db: () => window.firebase?.firestore(),
+  db: () => {
+    if (!window.firebase) {
+      console.warn('Firebase SDK yuklenmemis!');
+      return null;
+    }
+    return window.firebase.firestore();
+  },
+
+  isReady: () => !!window.firebase,
 
   // Erasmus collections
   studentsRef: () => FirebaseDB.db()?.collection('students'),
@@ -200,7 +208,9 @@ const FirebaseDB = {
   // ── Erasmus Student CRUD ──
   async fetchStudents() {
     try {
-      const snapshot = await FirebaseDB.studentsRef().get();
+      const ref = FirebaseDB.studentsRef();
+      if (!ref) return [];
+      const snapshot = await ref.get();
       return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -209,8 +219,11 @@ const FirebaseDB = {
   },
   async addStudent(student) {
     try {
-      const docRef = await FirebaseDB.studentsRef().add({
-        ...student,
+      const ref = FirebaseDB.studentsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      const { id: _id, ...data } = student;
+      const docRef = await ref.add({
+        ...data,
         createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
       });
@@ -222,9 +235,11 @@ const FirebaseDB = {
   },
   async updateStudent(id, student) {
     try {
-      const docId = String(id);
-      await FirebaseDB.studentsRef().doc(docId).update({
-        ...student,
+      const ref = FirebaseDB.studentsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      const { id: _id, ...data } = student;
+      await ref.doc(String(id)).update({
+        ...data,
         updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
       });
       return student;
@@ -235,8 +250,9 @@ const FirebaseDB = {
   },
   async deleteStudent(id) {
     try {
-      const docId = String(id);
-      await FirebaseDB.studentsRef().doc(docId).delete();
+      const ref = FirebaseDB.studentsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      await ref.doc(String(id)).delete();
       return true;
     } catch (error) {
       console.error('Error deleting student:', error);
@@ -245,7 +261,9 @@ const FirebaseDB = {
   },
   async fetchPasswords() {
     try {
-      const doc = await FirebaseDB.passwordsRef().doc('student_passwords').get();
+      const ref = FirebaseDB.passwordsRef();
+      if (!ref) return {};
+      const doc = await ref.doc('student_passwords').get();
       return doc.exists ? doc.data() : {};
     } catch (error) {
       console.error('Error fetching passwords:', error);
@@ -254,9 +272,11 @@ const FirebaseDB = {
   },
   async updatePassword(studentNumber, newPassword) {
     try {
+      const ref = FirebaseDB.passwordsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
       const passwords = await FirebaseDB.fetchPasswords();
       passwords[studentNumber] = newPassword;
-      await FirebaseDB.passwordsRef().doc('student_passwords').set(passwords);
+      await ref.doc('student_passwords').set(passwords);
       return true;
     } catch (error) {
       console.error('Error updating password:', error);
@@ -268,6 +288,7 @@ const FirebaseDB = {
   async fetchExams(semester) {
     try {
       let query = FirebaseDB.examsRef();
+      if (!query) return [];
       if (semester && semester !== 'all') {
         query = query.where('semester', '==', semester);
       }
@@ -280,8 +301,11 @@ const FirebaseDB = {
   },
   async addExam(exam) {
     try {
-      const docRef = await FirebaseDB.examsRef().add({
-        ...exam,
+      const ref = FirebaseDB.examsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      const { id: _id, ...data } = exam;
+      const docRef = await ref.add({
+        ...data,
         createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
       });
@@ -293,8 +317,11 @@ const FirebaseDB = {
   },
   async updateExam(id, exam) {
     try {
-      await FirebaseDB.examsRef().doc(String(id)).update({
-        ...exam,
+      const ref = FirebaseDB.examsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      const { id: _id, ...data } = exam;
+      await ref.doc(String(id)).update({
+        ...data,
         updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
       });
       return exam;
@@ -305,7 +332,9 @@ const FirebaseDB = {
   },
   async deleteExam(id) {
     try {
-      await FirebaseDB.examsRef().doc(String(id)).delete();
+      const ref = FirebaseDB.examsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      await ref.doc(String(id)).delete();
       return true;
     } catch (error) {
       console.error('Error deleting exam:', error);
@@ -314,7 +343,9 @@ const FirebaseDB = {
   },
   async fetchExamResults(examId) {
     try {
-      const snapshot = await FirebaseDB.examResultsRef().where('examId', '==', examId).get();
+      const ref = FirebaseDB.examResultsRef();
+      if (!ref) return [];
+      const snapshot = await ref.where('examId', '==', examId).get();
       return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
     } catch (error) {
       console.error('Error fetching exam results:', error);
@@ -323,8 +354,11 @@ const FirebaseDB = {
   },
   async addExamResult(result) {
     try {
-      const docRef = await FirebaseDB.examResultsRef().add({
-        ...result,
+      const ref = FirebaseDB.examResultsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      const { id: _id, ...data } = result;
+      const docRef = await ref.add({
+        ...data,
         enteredAt: window.firebase.firestore.FieldValue.serverTimestamp(),
       });
       return { ...result, id: docRef.id };
@@ -335,7 +369,13 @@ const FirebaseDB = {
   },
   async updateExamResult(id, result) {
     try {
-      await FirebaseDB.examResultsRef().doc(String(id)).update(result);
+      const ref = FirebaseDB.examResultsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      const { id: _id, ...data } = result;
+      await ref.doc(String(id)).update({
+        ...data,
+        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      });
       return result;
     } catch (error) {
       console.error('Error updating exam result:', error);
@@ -344,7 +384,9 @@ const FirebaseDB = {
   },
   async deleteExamResult(id) {
     try {
-      await FirebaseDB.examResultsRef().doc(String(id)).delete();
+      const ref = FirebaseDB.examResultsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      await ref.doc(String(id)).delete();
       return true;
     } catch (error) {
       console.error('Error deleting exam result:', error);
@@ -655,7 +697,12 @@ const LoginModal = ({ onLogin }) => {
               {error}
             </div>
           )}
-          <Btn onClick={handleSubmit}>{isAdminMode ? "Admin Olarak Giris Yap" : "Ogrenci Olarak Giris Yap"}</Btn>
+          <button type="submit" disabled={loading} style={{
+            width: "100%", padding: "12px 18px", borderRadius: 8, border: "none",
+            background: loading ? C.border : C.navy, color: loading ? C.textMuted : "#fff",
+            fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
+            fontFamily: "'Source Sans 3', sans-serif", opacity: loading ? 0.5 : 1,
+          }}>{loading ? "Giris yapiliyor..." : (isAdminMode ? "Admin Olarak Giris Yap" : "Ogrenci Olarak Giris Yap")}</button>
           <div style={{ marginTop: 16, padding: 12, background: C.bg, borderRadius: 8, fontSize: 12, color: C.textMuted }}>
             <strong>Bilgi:</strong><br />
             {isAdminMode ? (
