@@ -6,6 +6,16 @@
 
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
+// ── Shared bilesenlerden import (window uzerinden) ──
+const C = window.C;
+const Card = window.Card;
+const Btn = window.Btn;
+const Input = window.Input;
+const Select = window.Select;
+const FormField = window.FormField;
+const Modal = window.Modal;
+const Badge = window.Badge;
+
 // ── Sabitler ──
 const SINIF_COLORS = {
   1: { bg: "#B2EBF2", text: "#006064", label: "1. Sinif" },

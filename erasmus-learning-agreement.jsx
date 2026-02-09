@@ -5,6 +5,27 @@
 
 const { useState, useEffect, useRef } = React;
 
+// ── Shared bilesenlerden import (window uzerinden) ──
+const C = window.C;
+const Card = window.Card;
+const Btn = window.Btn;
+const Input = window.Input;
+const FormField = window.FormField;
+const Modal = window.Modal;
+const Badge = window.Badge;
+const HOME_INSTITUTION_CATALOG = window.HOME_INSTITUTION_CATALOG;
+const convertGrade = window.convertGrade;
+const FirebaseDB = window.FirebaseDB;
+const UploadIcon = window.UploadIcon;
+const DownloadIcon = window.DownloadIcon;
+const PlusIcon = window.PlusIcon;
+const EditIcon = window.EditIcon;
+const TrashIcon = window.TrashIcon;
+const ArrowRightIcon = window.ArrowRightIcon;
+const FileTextIcon = window.FileTextIcon;
+const PasswordManagementModal = window.PasswordManagementModal;
+const GradeConverter = window.GradeConverter;
+
 // ── University Course Catalogs ──
 const UNIVERSITY_CATALOGS = {
   "Politechnika Bydgoska im Jana i Jedrzeja Sniadeckich": {
