@@ -250,7 +250,7 @@ const PeriodConfigModal = ({ period, onSave, onClose }) => {
   };
 
   return (
-    <Modal title={period?.id ? "Donemi Duzenle" : "Yeni Sinav Donemi"} onClose={onClose} width={500}>
+    <Modal open={true} title={period?.id ? "Donemi Duzenle" : "Yeni Sinav Donemi"} onClose={onClose} width={500}>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <FormField label="Donem">
           <Select value={semester} onChange={e => setSemester(e.target.value)}>
@@ -309,7 +309,7 @@ const EditExamModal = ({ exam, onSave, onRemove, onClose }) => {
   };
 
   return (
-    <Modal title="Sinav Detaylarini Duzenle" onClose={onClose} width={500}>
+    <Modal open={true} title="Sinav Detaylarini Duzenle" onClose={onClose} width={500}>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ padding: 12, background: SINIF_COLORS[exam.sinif]?.bg || "#f0f0f0", borderRadius: 8, fontSize: 14 }}>
           <strong>{exam.code}</strong> - {exam.name}<br />
@@ -367,7 +367,7 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
   };
 
   return (
-    <Modal title="Ders Yonetimi" onClose={onClose} width={800}>
+    <Modal open={true} title="Ders Yonetimi" onClose={onClose} width={800}>
       <div style={{ maxHeight: 500, overflowY: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
