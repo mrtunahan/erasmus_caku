@@ -5,6 +5,11 @@
 
 const { useState, useEffect, useCallback } = React;
 
+// ── Shared bilesenlerden import (window uzerinden) ──
+const C = window.C;
+const sharedStyles = window.sharedStyles;
+const LoginModal = window.LoginModal;
+
 // ── Hash Router Hook ──
 function useHashRoute(defaultRoute = "erasmus") {
   const getHash = () => {
