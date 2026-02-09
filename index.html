@@ -110,13 +110,15 @@
     };
 
     // Initialize Firebase
+    var firebaseReady = false;
     try {
       firebase.initializeApp(firebaseConfig);
       // Fix Safari/WebKit CORS issues with Firestore
       firebase.firestore().settings({
-        experimentalForceLongPolling: true,
+        experimentalAutoDetectLongPolling: true,
         merge: true
       });
+      firebaseReady = true;
       console.log('Firebase initialized successfully');
     } catch (error) {
       console.error('Firebase initialization error:', error);
@@ -192,11 +194,15 @@
       }
     }
 
-    // Wait for all scripts to load
-    if (window.Babel && window.firebase) {
-      loadApp();
-    } else {
-      window.addEventListener('load', loadApp);
+    // Wait for all scripts to load (only if Firebase initialized successfully)
+    if (firebaseReady) {
+      if (window.Babel && window.firebase) {
+        loadApp();
+      } else {
+        window.addEventListener('load', function() {
+          if (firebaseReady) loadApp();
+        });
+      }
     }
   </script>
 </body>
