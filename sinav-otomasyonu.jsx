@@ -494,10 +494,15 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
               </Select>
             </FormField>
             <FormField label="Hoca">
-              <Select value={form.professor} onChange={e => setForm({ ...form, professor: e.target.value })}>
-                <option value="">Sec...</option>
-                {professors.map((p, i) => <option key={i} value={p.name}>{p.name}</option>)}
-              </Select>
+              <Input
+                value={form.professor}
+                onChange={e => setForm({ ...form, professor: e.target.value })}
+                placeholder="Hoca adi yazin..."
+                list="course-prof-list"
+              />
+              <datalist id="course-prof-list">
+                {professors.map((p, i) => <option key={i} value={p.name} />)}
+              </datalist>
             </FormField>
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -872,6 +877,39 @@ function SinavOtomasyonuApp({ currentUser }) {
     }
   };
 
+  // ── Sync: add missing courses from SEED_COURSES to Firebase ──
+  const syncCourses = async () => {
+    const cRef = getCoursesRef();
+    if (!cRef) return;
+
+    try {
+      const existingSnap = await cRef.get();
+      const existingCourses = existingSnap.docs.map(d => d.data());
+
+      // Find courses that don't exist yet (match by code + name)
+      const missing = SEED_COURSES.filter(seed => {
+        return !existingCourses.some(ex => ex.code === seed.code && ex.name === seed.name);
+      });
+
+      if (missing.length === 0) {
+        alert("Tum dersler zaten mevcut, eklenecek yeni ders yok.");
+        return;
+      }
+
+      if (!confirm(missing.length + " yeni ders eklenecek. Devam edilsin mi?")) return;
+
+      for (const course of missing) {
+        await cRef.add({ ...course, studentCount: 0, createdAt: new Date().toISOString() });
+      }
+
+      alert(missing.length + " ders basariyla eklendi!");
+      loadData();
+    } catch (e) {
+      console.error("Sync error:", e);
+      alert("Senkronizasyon hatasi: " + e.message);
+    }
+  };
+
   // ── Load data from Firebase ──
   const loadData = async () => {
     setLoading(true);
@@ -1103,6 +1141,11 @@ function SinavOtomasyonuApp({ currentUser }) {
             <Btn onClick={seedData} style={{ background: "#059669" }}>
               Ornek Verileri Yukle
             </Btn>
+          )}
+          {isAdmin && courses.length > 0 && (
+            <GhostBtn onClick={syncCourses} style={{ fontSize: 12 }}>
+              Eksik Dersleri Ekle
+            </GhostBtn>
           )}
           {isAdmin && (
             <GhostBtn onClick={() => setShowCourseModal(true)}>Ders Yonetimi</GhostBtn>
