@@ -611,7 +611,7 @@ const Input = ({ value, onChange, placeholder, type = "text", disabled, ...rest 
   />
 );
 
-const Select = ({ value, onChange, options, placeholder }) => (
+const Select = ({ value, onChange, options, placeholder, children }) => (
   <select
     value={value}
     onChange={onChange}
@@ -628,7 +628,7 @@ const Select = ({ value, onChange, options, placeholder }) => (
     }}
   >
     {placeholder && <option value="">{placeholder}</option>}
-    {options.map((opt, i) => (
+    {children ? children : (options || []).map((opt, i) => (
       <option key={i} value={opt.value}>{opt.label}</option>
     ))}
   </select>
