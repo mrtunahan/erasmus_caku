@@ -869,19 +869,21 @@ function exportToWord(placedExams, periodLabel) {
   URL.revokeObjectURL(url);
 }
 
-async function exportToXLSX(placedExams, periodLabel) {
-  // Load SheetJS if not already loaded
-  if (!window.XLSX) {
+async function exportToXLSX(placedExams, periodLabel, period) {
+  // Load xlsx-js-style for cell styling support (colors, bold, borders)
+  if (!window._XLSX_STYLE_LOADED) {
     try {
+      delete window.XLSX;
       await new Promise((resolve, reject) => {
         const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+        script.src = "https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js";
         script.onload = resolve;
-        script.onerror = () => reject(new Error("SheetJS yüklenemedi"));
+        script.onerror = () => reject(new Error("Excel kütüphanesi yüklenemedi"));
         document.head.appendChild(script);
       });
+      window._XLSX_STYLE_LOADED = true;
     } catch (e) {
-      alert("Excel kütüphanesi yüklenemedi: " + e.message);
+      alert(e.message);
       return;
     }
   }
@@ -889,29 +891,34 @@ async function exportToXLSX(placedExams, periodLabel) {
   const XLSX = window.XLSX;
   const wb = XLSX.utils.book_new();
 
-  // Sort exams by date then time
+  // ── Style definitions ──
+  const border = {
+    top: { style: "thin", color: { rgb: "000000" } },
+    bottom: { style: "thin", color: { rgb: "000000" } },
+    left: { style: "thin", color: { rgb: "000000" } },
+    right: { style: "thin", color: { rgb: "000000" } },
+  };
+  const yellowFill = { patternType: "solid", fgColor: { rgb: "FFFF00" } };
+  const navyFill = { patternType: "solid", fgColor: { rgb: "1B2A4A" } };
+
+  // ── Sort and enrich exams ──
   const sorted = [...placedExams].sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
     return a.timeSlot.localeCompare(b.timeSlot);
   });
 
-  // Auto-assign classrooms and supervisors
   const supervisorMap = assignSupervisorsToExams(sorted);
 
   const enriched = sorted.map(exam => {
     const key = exam.id || (exam.code + exam.date + exam.timeSlot);
     const room = assignClassroom(exam.studentCount);
     const supervisors = (supervisorMap[key] || []).join(", ");
-
-    // Calculate end time
     const [sh, sm] = exam.timeSlot.split(":").map(Number);
     const totalMin = sh * 60 + sm + (exam.duration || 60);
     const eh = String(Math.floor(totalMin / 60)).padStart(2, "0");
     const em = String(totalMin % 60).padStart(2, "0");
-
     const dateObj = parseDateISO(exam.date);
     const dateStr = formatDate(dateObj);
-
     return {
       ...exam,
       assignedRoom: room,
@@ -922,84 +929,151 @@ async function exportToXLSX(placedExams, periodLabel) {
     };
   });
 
-  // ── Sheet 1: Liste (Tarihe göre sıralı) ──
+  // ══════ Sheet 1: Liste (Tarihe göre sıralı) ══════
   const listHeader = [
     "Dersin Adı", "Dersin Kodu", "Sınavın Başlama Tarihi ve Saati",
     "Sınavın Bitiş Tarihi ve Saati", "Sınav Süresi", "GÖZETMEN", "SINIF",
   ];
-  const listRows = enriched.map(e => [
+  const listData = [listHeader, ...enriched.map(e => [
     e.name, e.code, e.startStr, e.endStr, e.durationStr, e.assignedSupervisors, e.assignedRoom,
-  ]);
+  ])];
 
-  const ws1 = XLSX.utils.aoa_to_sheet([listHeader, ...listRows]);
+  const ws1 = XLSX.utils.aoa_to_sheet(listData);
+
+  // Style Liste header row - navy background, white bold text
+  for (var C = 0; C < listHeader.length; C++) {
+    var addr = XLSX.utils.encode_cell({ r: 0, c: C });
+    if (ws1[addr]) {
+      ws1[addr].s = {
+        fill: navyFill,
+        font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
+        border: border,
+        alignment: { horizontal: "center", vertical: "center", wrapText: true },
+      };
+    }
+  }
+
+  // Style Liste data rows - borders and wrap text
+  for (var R = 1; R < listData.length; R++) {
+    for (var C2 = 0; C2 < listHeader.length; C2++) {
+      var addr2 = XLSX.utils.encode_cell({ r: R, c: C2 });
+      if (!ws1[addr2]) ws1[addr2] = { v: "", t: "s" };
+      ws1[addr2].s = {
+        border: border,
+        alignment: { vertical: "center", wrapText: true },
+      };
+    }
+  }
+
   ws1["!cols"] = [
     { wch: 35 }, { wch: 18 }, { wch: 28 }, { wch: 28 }, { wch: 12 }, { wch: 60 }, { wch: 20 },
   ];
   XLSX.utils.book_append_sheet(wb, ws1, "Liste (Tarihe göre sıralı)");
 
-  // ── Group exams by date ──
-  const examsByDate = {};
-  enriched.forEach(e => {
+  // ══════ Generate ALL weekdays (Mon-Fri) from period ══════
+  var allWeekdays = [];
+  if (period && period.startDate) {
+    var pStart = parseDateISO(period.startDate);
+    var pDow = pStart.getDay();
+    var monOff = pDow === 0 ? -6 : 1 - pDow;
+    var monday = new Date(pStart);
+    monday.setDate(pStart.getDate() + monOff);
+    var totalWeeks = period.weeks || 1;
+    for (var w = 0; w < totalWeeks; w++) {
+      for (var d = 0; d < 5; d++) {
+        var day = new Date(monday);
+        day.setDate(monday.getDate() + w * 7 + d);
+        allWeekdays.push(day);
+      }
+    }
+  } else {
+    // Derive weekdays from exam dates
+    var dates = [...new Set(enriched.map(function(e) { return e.date; }))].sort();
+    if (dates.length > 0) {
+      var first = parseDateISO(dates[0]);
+      var last = parseDateISO(dates[dates.length - 1]);
+      var fDow = first.getDay();
+      var mOff = fDow === 0 ? -6 : 1 - fDow;
+      var mon = new Date(first);
+      mon.setDate(first.getDate() + mOff);
+      var lDow = last.getDay();
+      var fOff = lDow === 0 ? -2 : 5 - lDow;
+      var fri = new Date(last);
+      fri.setDate(last.getDate() + fOff);
+      var cur = new Date(mon);
+      while (cur <= fri) {
+        if (cur.getDay() >= 1 && cur.getDay() <= 5) {
+          allWeekdays.push(new Date(cur));
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+  }
+
+  // Group exams by date
+  var examsByDate = {};
+  enriched.forEach(function(e) {
     if (!examsByDate[e.date]) examsByDate[e.date] = [];
     examsByDate[e.date].push(e);
   });
 
-  // ── Day time slots for grid ──
-  const dayTimeSlots = [];
-  for (let h = 8; h <= 18; h++) {
-    for (let m = 0; m < 60; m += 30) {
+  // Day time slots
+  var dayTimeSlots = [];
+  for (var h = 8; h <= 18; h++) {
+    for (var m = 0; m < 60; m += 30) {
       if (h === 8 && m === 0) continue;
       if (h === 18 && m > 30) continue;
-      const startHH = String(h).padStart(2, "0");
-      const startMM = String(m).padStart(2, "0");
-      const endMin = h * 60 + m + 30;
-      const endHH = String(Math.floor(endMin / 60)).padStart(2, "0");
-      const endMM = String(endMin % 60).padStart(2, "0");
-      dayTimeSlots.push(startHH + ":" + startMM + "-" + endHH + ":" + endMM);
+      var sH = String(h).padStart(2, "0");
+      var sM = String(m).padStart(2, "0");
+      var eMin = h * 60 + m + 30;
+      var eH2 = String(Math.floor(eMin / 60)).padStart(2, "0");
+      var eM2 = String(eMin % 60).padStart(2, "0");
+      dayTimeSlots.push(sH + ":" + sM + "-" + eH2 + ":" + eM2);
     }
   }
 
-  // ── Create a day sheet for each date ──
-  Object.keys(examsByDate).sort().forEach(dateStr => {
-    const dateObj = parseDateISO(dateStr);
-    const dayName = getDayName(dateObj);
-    const dd = String(dateObj.getDate()).padStart(2, "0");
-    const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
-    const sheetName = dd + "." + mm + "-" + dayName;
+  var numCols = ALL_FACULTY_CLASSROOMS.length + 1; // +1 for column A (time)
 
-    const data = [];
+  // ══════ Create day sheet for EACH weekday ══════
+  allWeekdays.forEach(function(dateObj) {
+    var dayName = getDayName(dateObj);
+    var dd = String(dateObj.getDate()).padStart(2, "0");
+    var mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+    var sheetName = dd + "." + mm + "-" + dayName;
+    var dateISO = formatDateISO(dateObj);
+    var dayExams = examsByDate[dateISO] || [];
 
-    // Row 1: DERSLİKLER header
-    const row1 = new Array(ALL_FACULTY_CLASSROOMS.length + 1).fill("");
-    row1[Math.floor(ALL_FACULTY_CLASSROOMS.length / 2)] = "DERSLİKLER";
+    var data = [];
+
+    // Row 0: DERSLİKLER header
+    var row0 = new Array(numCols).fill("");
+    row0[1] = "DERSLİKLER";
+    data.push(row0);
+
+    // Row 1: Kapasite
+    var row1 = ["Kapasite"];
+    ALL_FACULTY_CLASSROOMS.forEach(function(c) { row1.push(c.capacity === "" ? "" : c.capacity); });
     data.push(row1);
 
-    // Row 2: Kapasite
-    const row2 = ["Kapasite"];
-    ALL_FACULTY_CLASSROOMS.forEach(c => row2.push(c.capacity));
+    // Row 2: Saatler / Room names
+    var row2 = ["Saatler"];
+    ALL_FACULTY_CLASSROOMS.forEach(function(c) { row2.push(c.name); });
     data.push(row2);
 
-    // Row 3: Saatler / Room names
-    const row3 = ["Saatler"];
-    ALL_FACULTY_CLASSROOMS.forEach(c => row3.push(c.name));
-    data.push(row3);
-
     // Time slot rows
-    const dayExams = examsByDate[dateStr];
+    dayTimeSlots.forEach(function(slot) {
+      var row = [slot];
+      var slotStart = slot.split("-")[0];
+      var parts = slotStart.split(":");
+      var slotMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
 
-    dayTimeSlots.forEach(slot => {
-      const row = [slot];
-      const slotStart = slot.split("-")[0];
-      const [slotH, slotM] = slotStart.split(":").map(Number);
-      const slotMin = slotH * 60 + slotM;
-
-      ALL_FACULTY_CLASSROOMS.forEach(classroom => {
-        const exam = dayExams.find(e => {
-          const rooms = e.assignedRoom.split(" - ").map(r => r.trim());
-          if (!rooms.includes(classroom.name)) return false;
-          const [eH, eM] = e.timeSlot.split(":").map(Number);
-          const examStart = eH * 60 + eM;
-          const examEnd = examStart + (e.duration || 60);
+      ALL_FACULTY_CLASSROOMS.forEach(function(classroom) {
+        var exam = dayExams.find(function(e) {
+          var rooms = e.assignedRoom.split(" - ").map(function(r) { return r.trim(); });
+          if (rooms.indexOf(classroom.name) === -1) return false;
+          var eParts = e.timeSlot.split(":");
+          var examStart = parseInt(eParts[0]) * 60 + parseInt(eParts[1]);
+          var examEnd = examStart + (e.duration || 60);
           return slotMin >= examStart && slotMin < examEnd;
         });
         row.push(exam ? exam.code : "");
@@ -1008,16 +1082,91 @@ async function exportToXLSX(placedExams, periodLabel) {
       data.push(row);
     });
 
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    const cols = [{ wch: 14 }];
-    ALL_FACULTY_CLASSROOMS.forEach(() => cols.push({ wch: 14 }));
+    var ws = XLSX.utils.aoa_to_sheet(data);
+
+    // ── Apply cell styles ──
+
+    // Row 0: DERSLİKLER - yellow background, bold, centered, merged
+    for (var c0 = 0; c0 < numCols; c0++) {
+      var a0 = XLSX.utils.encode_cell({ r: 0, c: c0 });
+      if (!ws[a0]) ws[a0] = { v: "", t: "s" };
+      ws[a0].s = {
+        fill: yellowFill,
+        font: { bold: true, sz: 12 },
+        border: border,
+        alignment: { horizontal: "center", vertical: "center" },
+      };
+    }
+    // Merge DERSLİKLER across classroom columns
+    ws["!merges"] = [
+      { s: { r: 0, c: 1 }, e: { r: 0, c: ALL_FACULTY_CLASSROOMS.length } },
+    ];
+
+    // Row 1: Kapasite - yellow background, bold, centered
+    for (var c1 = 0; c1 < numCols; c1++) {
+      var a1 = XLSX.utils.encode_cell({ r: 1, c: c1 });
+      if (!ws[a1]) ws[a1] = { v: "", t: "s" };
+      ws[a1].s = {
+        fill: yellowFill,
+        font: { bold: true },
+        border: border,
+        alignment: { horizontal: "center", vertical: "center" },
+      };
+    }
+
+    // Row 2: Saatler - yellow background, bold, centered
+    for (var c2 = 0; c2 < numCols; c2++) {
+      var a2 = XLSX.utils.encode_cell({ r: 2, c: c2 });
+      if (!ws[a2]) ws[a2] = { v: "", t: "s" };
+      ws[a2].s = {
+        fill: yellowFill,
+        font: { bold: true },
+        border: border,
+        alignment: { horizontal: "center", vertical: "center" },
+      };
+    }
+
+    // Time slot rows (row 3 onwards)
+    for (var ri = 3; ri < data.length; ri++) {
+      var slotIdx = ri - 3;
+      // Yellow for odd-indexed slots (09:00, 10:00, 11:00, etc. = :00 start times)
+      var isYellow = slotIdx % 2 === 1;
+
+      for (var ci = 0; ci < numCols; ci++) {
+        var ai = XLSX.utils.encode_cell({ r: ri, c: ci });
+        if (!ws[ai]) ws[ai] = { v: "", t: "s" };
+
+        if (ci === 0) {
+          // Time label column - yellow alternating, bold
+          ws[ai].s = {
+            fill: isYellow ? yellowFill : undefined,
+            font: { bold: true },
+            border: border,
+            alignment: { horizontal: "center", vertical: "center" },
+          };
+          if (!isYellow) delete ws[ai].s.fill;
+        } else {
+          // Data cells - borders, centered, yellow row background for alternating
+          ws[ai].s = {
+            fill: isYellow ? yellowFill : undefined,
+            border: border,
+            alignment: { horizontal: "center", vertical: "center" },
+          };
+          if (!isYellow) delete ws[ai].s.fill;
+        }
+      }
+    }
+
+    // Column widths
+    var cols = [{ wch: 14 }];
+    ALL_FACULTY_CLASSROOMS.forEach(function() { cols.push({ wch: 12 }); });
     ws["!cols"] = cols;
 
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   });
 
   // Download
-  const safeName = (periodLabel || "export").replace(/[^a-zA-Z0-9_ğüşıöçĞÜŞİÖÇ ]/g, "_");
+  var safeName = (periodLabel || "export").replace(/[^a-zA-Z0-9_ğüşıöçĞÜŞİÖÇ ]/g, "_");
   XLSX.writeFile(wb, "sinav_programi_" + safeName + ".xlsx");
 }
 
@@ -1448,7 +1597,7 @@ function SinavOtomasyonuApp({ currentUser }) {
                   <GhostBtn onClick={() => exportToWord(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
                     Word
                   </GhostBtn>
-                  <GhostBtn onClick={() => exportToXLSX(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px", background: "#059669", color: "white", border: "none" }}>
+                  <GhostBtn onClick={() => exportToXLSX(periodExams, activePeriod.label, activePeriod)} style={{ fontSize: 12, padding: "4px 10px", background: "#059669", color: "white", border: "none" }}>
                     XLSX
                   </GhostBtn>
                   {isAdmin && (
