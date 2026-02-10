@@ -771,11 +771,11 @@ const generateReturnWordDoc = (student) => {
       } else {
         const hc = match.hostCourses[i]; hostCells = `<td style='${bd}'>${hc ? (hc.code || '-') : ''}</td><td style='${bd}'>${hc ? hc.name : ''}</td><td style='${bd} text-align: center;'>${hc ? hc.credits : ''}</td><td style='${bd} text-align: center;'>${hc ? originalHostGrade : ''}</td>`;
       }
-      // Home side (4 cols: Kodu, Adı, AKTS, Başarı Notu)
+      // Home side (5 cols: Kodu, Adı, AKTS, Başarı Notu, Statüsü)
       if (homeLen === 1 && hostLen > 1) {
-        if (i === 0) { const mc = match.homeCourses[0]; homeCells = `<td rowspan='${hostLen}' style='${bd} vertical-align: middle;'>${mc.code || '-'}</td><td rowspan='${hostLen}' style='${bd} vertical-align: middle;'>${mc.name}</td><td rowspan='${hostLen}' style='${bd} text-align: center; vertical-align: middle;'>${mc.credits}</td><td rowspan='${hostLen}' style='${bd} text-align: center; vertical-align: middle;'>${converted}</td>`; }
+        if (i === 0) { const mc = match.homeCourses[0]; homeCells = `<td rowspan='${hostLen}' style='${bd} vertical-align: middle;'>${mc.code || '-'}</td><td rowspan='${hostLen}' style='${bd} vertical-align: middle;'>${mc.name}</td><td rowspan='${hostLen}' style='${bd} text-align: center; vertical-align: middle;'>${mc.credits}</td><td rowspan='${hostLen}' style='${bd} text-align: center; vertical-align: middle;'>${converted}</td><td rowspan='${hostLen}' style='${bd} vertical-align: middle;'></td>`; }
       } else {
-        const mc = match.homeCourses[i]; homeCells = `<td style='${bd}'>${mc ? (mc.code || '-') : ''}</td><td style='${bd}'>${mc ? mc.name : ''}</td><td style='${bd} text-align: center;'>${mc ? mc.credits : ''}</td><td style='${bd} text-align: center;'>${mc ? converted : ''}</td>`;
+        const mc = match.homeCourses[i]; homeCells = `<td style='${bd}'>${mc ? (mc.code || '-') : ''}</td><td style='${bd}'>${mc ? mc.name : ''}</td><td style='${bd} text-align: center;'>${mc ? mc.credits : ''}</td><td style='${bd} text-align: center;'>${mc ? converted : ''}</td><td style='${bd}'></td>`;
       }
       rows.push(`<tr>${hostCells}${homeCells}</tr>`);
     }
@@ -789,16 +789,16 @@ const generateReturnWordDoc = (student) => {
 <table border='1' cellpadding='4' cellspacing='0' style='width: 100%; border-collapse: collapse; margin: 5px 0; font-size: 9pt;'>
 <thead><tr style='background-color: #e8e8e8; font-weight: bold; font-size: 8pt;'>
 <td colspan='4' style='border: 1px solid black; text-align: center;'><b>${student.hostInstitution}${student.hostFaculty ? ' ' + student.hostFaculty : ''}${student.hostDepartment ? ' ' + student.hostDepartment : ''} Bölümünden Aldığı Dersin</b></td>
-<td colspan='4' style='border: 1px solid black; text-align: center;'><b>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin</b></td>
+<td colspan='5' style='border: 1px solid black; text-align: center;'><b>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin</b></td>
 </tr>
 <tr style='background-color: #e0e0e0; font-weight: bold;'>
 <th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Başarı Notu</th>
-<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Başarı Notu</th>
+<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Başarı Notu</th><th style='border: 1px solid black;'>Statüsü</th>
 </tr></thead><tbody>
 ${rows.join('')}
 <tr style='font-weight: bold; background-color: #f0f0f0;'>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHostCredits}</td><td style='border: 1px solid black;'></td>
-<td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td><td style='border: 1px solid black;'></td>
+<td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td><td style='border: 1px solid black;'></td><td style='border: 1px solid black;'></td>
 </tr></tbody></table>
 <p style='margin: 15px 0;'><strong>Öğrenci:</strong> ${student.firstName} ${student.lastName} (${student.studentNumber})</p>
 </body></html>`;
