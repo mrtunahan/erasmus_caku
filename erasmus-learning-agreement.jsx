@@ -688,21 +688,27 @@ const generateOutgoingWordDoc = (student) => {
   const seasonTR = season === "Fall" ? "Güz" : "Bahar";
   const academicYear = season === "Fall" ? `${year}-${parseInt(year)+1}` : `${parseInt(year)-1}-${year}`;
 
-  // Build rows: each course gets its own row
+  // Build rows: use rowspan when one course matches multiple on the other side
   const rows = [];
   student.outgoingMatches.forEach(match => {
-    const maxLen = Math.max(match.hostCourses.length, match.homeCourses.length);
+    const hostLen = match.hostCourses.length;
+    const homeLen = match.homeCourses.length;
+    const maxLen = Math.max(hostLen, homeLen);
+    const bd = "border: 1px solid black;";
     for (let i = 0; i < maxLen; i++) {
-      const hc = match.hostCourses[i];
-      const mc = match.homeCourses[i];
-      rows.push(`<tr>
-        <td style='border: 1px solid black;'>${hc ? (hc.code || '-') : ''}</td>
-        <td style='border: 1px solid black;'>${hc ? hc.name : ''}</td>
-        <td style='border: 1px solid black; text-align: center;'>${hc ? hc.credits : ''}</td>
-        <td style='border: 1px solid black;'>${mc ? (mc.code || '-') : ''}</td>
-        <td style='border: 1px solid black;'>${mc ? mc.name : ''}</td>
-        <td style='border: 1px solid black; text-align: center;'>${mc ? mc.credits : ''}</td>
-      </tr>`);
+      let hostCells = '';
+      let homeCells = '';
+      if (hostLen === 1 && homeLen > 1) {
+        if (i === 0) { const hc = match.hostCourses[0]; hostCells = `<td rowspan='${homeLen}' style='${bd}'>${hc.code || '-'}</td><td rowspan='${homeLen}' style='${bd}'>${hc.name}</td><td rowspan='${homeLen}' style='${bd} text-align: center;'>${hc.credits}</td>`; }
+      } else {
+        const hc = match.hostCourses[i]; hostCells = `<td style='${bd}'>${hc ? (hc.code || '-') : ''}</td><td style='${bd}'>${hc ? hc.name : ''}</td><td style='${bd} text-align: center;'>${hc ? hc.credits : ''}</td>`;
+      }
+      if (homeLen === 1 && hostLen > 1) {
+        if (i === 0) { const mc = match.homeCourses[0]; homeCells = `<td rowspan='${hostLen}' style='${bd}'>${mc.code || '-'}</td><td rowspan='${hostLen}' style='${bd}'>${mc.name}</td><td rowspan='${hostLen}' style='${bd} text-align: center;'>${mc.credits}</td>`; }
+      } else {
+        const mc = match.homeCourses[i]; homeCells = `<td style='${bd}'>${mc ? (mc.code || '-') : ''}</td><td style='${bd}'>${mc ? mc.name : ''}</td><td style='${bd} text-align: center;'>${mc ? mc.credits : ''}</td>`;
+      }
+      rows.push(`<tr>${hostCells}${homeCells}</tr>`);
     }
   });
 
@@ -747,25 +753,31 @@ const generateReturnWordDoc = (student) => {
   const seasonTR = season === "Fall" ? "Güz" : "Bahar";
   const academicYear = season === "Fall" ? `${year}-${parseInt(year)+1}` : `${parseInt(year)-1}-${year}`;
 
-  // Build rows: each course gets its own row
+  // Build rows: use rowspan when one course matches multiple on the other side
   const rows = [];
   student.returnMatches.forEach(match => {
     const originalHostGrade = match.hostGrade || 'A';
     const converted = convertGrade(originalHostGrade);
-    const maxLen = Math.max(match.hostCourses.length, match.homeCourses.length);
+    const hostLen = match.hostCourses.length;
+    const homeLen = match.homeCourses.length;
+    const maxLen = Math.max(hostLen, homeLen);
+    const bd = "border: 1px solid black;";
     for (let i = 0; i < maxLen; i++) {
-      const hc = match.hostCourses[i];
-      const mc = match.homeCourses[i];
-      rows.push(`<tr>
-        <td style='border: 1px solid black;'>${hc ? (hc.code || '-') : ''}</td>
-        <td style='border: 1px solid black;'>${hc ? hc.name : ''}</td>
-        <td style='border: 1px solid black; text-align: center;'>${hc ? hc.credits : ''}</td>
-        <td style='border: 1px solid black; text-align: center;'>${hc ? originalHostGrade : ''}</td>
-        <td style='border: 1px solid black;'>${mc ? (mc.code || '-') : ''}</td>
-        <td style='border: 1px solid black;'>${mc ? mc.name : ''}</td>
-        <td style='border: 1px solid black; text-align: center;'>${mc ? mc.credits : ''}</td>
-        <td style='border: 1px solid black; text-align: center;'>${mc ? converted : ''}</td>
-      </tr>`);
+      let hostCells = '';
+      let homeCells = '';
+      // Host side (4 cols: Kodu, Adı, AKTS, Başarı Notu)
+      if (hostLen === 1 && homeLen > 1) {
+        if (i === 0) { const hc = match.hostCourses[0]; hostCells = `<td rowspan='${homeLen}' style='${bd} vertical-align: middle;'>${hc.code || '-'}</td><td rowspan='${homeLen}' style='${bd} vertical-align: middle;'>${hc.name}</td><td rowspan='${homeLen}' style='${bd} text-align: center; vertical-align: middle;'>${hc.credits}</td><td rowspan='${homeLen}' style='${bd} text-align: center; vertical-align: middle;'>${originalHostGrade}</td>`; }
+      } else {
+        const hc = match.hostCourses[i]; hostCells = `<td style='${bd}'>${hc ? (hc.code || '-') : ''}</td><td style='${bd}'>${hc ? hc.name : ''}</td><td style='${bd} text-align: center;'>${hc ? hc.credits : ''}</td><td style='${bd} text-align: center;'>${hc ? originalHostGrade : ''}</td>`;
+      }
+      // Home side (4 cols: Kodu, Adı, AKTS, Başarı Notu)
+      if (homeLen === 1 && hostLen > 1) {
+        if (i === 0) { const mc = match.homeCourses[0]; homeCells = `<td rowspan='${hostLen}' style='${bd} vertical-align: middle;'>${mc.code || '-'}</td><td rowspan='${hostLen}' style='${bd} vertical-align: middle;'>${mc.name}</td><td rowspan='${hostLen}' style='${bd} text-align: center; vertical-align: middle;'>${mc.credits}</td><td rowspan='${hostLen}' style='${bd} text-align: center; vertical-align: middle;'>${converted}</td>`; }
+      } else {
+        const mc = match.homeCourses[i]; homeCells = `<td style='${bd}'>${mc ? (mc.code || '-') : ''}</td><td style='${bd}'>${mc ? mc.name : ''}</td><td style='${bd} text-align: center;'>${mc ? mc.credits : ''}</td><td style='${bd} text-align: center;'>${mc ? converted : ''}</td>`;
+      }
+      rows.push(`<tr>${hostCells}${homeCells}</tr>`);
     }
   });
 
