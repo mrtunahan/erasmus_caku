@@ -945,7 +945,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
     var addr = XLSX.utils.encode_cell({ r: 0, c: C });
     if (ws1[addr]) {
       ws1[addr].s = {
-        font: { bold: true },
+        font: { bold: true, name: "Times New Roman" },
         border: border,
         alignment: { horizontal: "center", vertical: "center", wrapText: true },
       };
@@ -958,6 +958,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
       var addr2 = XLSX.utils.encode_cell({ r: R, c: C2 });
       if (!ws1[addr2]) ws1[addr2] = { v: "", t: "s" };
       ws1[addr2].s = {
+        font: { name: "Times New Roman" },
         border: border,
         alignment: { horizontal: "center", vertical: "center", wrapText: true },
       };
@@ -1091,7 +1092,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
       if (!ws[a0]) ws[a0] = { v: "", t: "s" };
       ws[a0].s = {
         fill: yellowFill,
-        font: { bold: true, sz: 12 },
+        font: { bold: true, sz: 12, name: "Times New Roman" },
         border: border,
         alignment: { horizontal: "center", vertical: "center" },
       };
@@ -1106,7 +1107,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
       var a1 = XLSX.utils.encode_cell({ r: 1, c: c1 });
       if (!ws[a1]) ws[a1] = { v: "", t: "s" };
       ws[a1].s = {
-        font: { bold: true },
+        font: { bold: true, name: "Times New Roman" },
         border: border,
         alignment: { horizontal: "center", vertical: "center" },
       };
@@ -1117,7 +1118,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
       var a2 = XLSX.utils.encode_cell({ r: 2, c: c2 });
       if (!ws[a2]) ws[a2] = { v: "", t: "s" };
       ws[a2].s = {
-        font: { bold: true },
+        font: { bold: true, name: "Times New Roman" },
         border: border,
         alignment: { horizontal: "center", vertical: "center" },
       };
@@ -1129,6 +1130,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
         var ai = XLSX.utils.encode_cell({ r: ri, c: ci });
         if (!ws[ai]) ws[ai] = { v: "", t: "s" };
         ws[ai].s = {
+          font: { name: "Times New Roman" },
           border: border,
           alignment: { horizontal: "center", vertical: "center" },
         };
