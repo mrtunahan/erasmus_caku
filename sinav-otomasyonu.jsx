@@ -940,27 +940,26 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
   const ws1 = XLSX.utils.aoa_to_sheet(listData);
 
-  // Style Liste header row - navy background, white bold text
+  // Style Liste header row - bold, centered, borders, no background
   for (var C = 0; C < listHeader.length; C++) {
     var addr = XLSX.utils.encode_cell({ r: 0, c: C });
     if (ws1[addr]) {
       ws1[addr].s = {
-        fill: navyFill,
-        font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
+        font: { bold: true },
         border: border,
         alignment: { horizontal: "center", vertical: "center", wrapText: true },
       };
     }
   }
 
-  // Style Liste data rows - borders and wrap text
+  // Style Liste data rows - borders, centered, no background
   for (var R = 1; R < listData.length; R++) {
     for (var C2 = 0; C2 < listHeader.length; C2++) {
       var addr2 = XLSX.utils.encode_cell({ r: R, c: C2 });
       if (!ws1[addr2]) ws1[addr2] = { v: "", t: "s" };
       ws1[addr2].s = {
         border: border,
-        alignment: { vertical: "center", wrapText: true },
+        alignment: { horizontal: "center", vertical: "center", wrapText: true },
       };
     }
   }
