@@ -909,14 +909,14 @@ function ErasmusLearningAgreementApp({ currentUser }) {
     reader.onload = (event) => {
       try {
         const importedData = JSON.parse(event.target.result);
-        if (Array.isArray(importedData)) { setStudents(prev => [...prev, ...importedData]); alert(`${importedData.length} ogrenci iceye aktarildi!`); }
+        if (Array.isArray(importedData)) { setStudents(prev => [...prev, ...importedData]); alert(`${importedData.length} öğrenci içeye aktarıldı!`); }
       } catch (error) { alert("Dosya formati hatali!"); }
     };
     reader.readAsText(file);
   };
 
   if (loading) {
-    return <div style={{ padding: 60, textAlign: "center", color: C.textMuted }}>Veriler yukleniyor...</div>;
+    return <div style={{ padding: 60, textAlign: "center", color: C.textMuted }}>Veriler yükleniyor...</div>;
   }
 
   return (
@@ -926,12 +926,12 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: 12, flex: 1, minWidth: 300 }}>
             <div style={{ flex: 1, maxWidth: 350 }}>
-              <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Ogrenci ara (ad, numara, kurum)..." />
+              <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Öğrenci ara (ad, numara, kurum)..." />
             </div>
             <select value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}
               style={{ padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer", minWidth: 150 }}>
               {semesters.map(sem => {
-                let displayText = sem === "all" ? "Tum Donemler" : sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Guz");
+                let displayText = sem === "all" ? "Tüm Dönemler" : sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Güz");
                 return <option key={sem} value={sem}>{displayText}</option>;
               })}
             </select>
@@ -940,10 +940,10 @@ function ErasmusLearningAgreementApp({ currentUser }) {
             {currentUser?.role === 'admin' && (
               <>
                 <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
-                <Btn onClick={() => fileInputRef.current?.click()} variant="secondary" icon={<UploadIcon />}>Ice Aktar</Btn>
-                <Btn onClick={exportAllData} variant="secondary" icon={<DownloadIcon />}>Tumunu Disa Aktar</Btn>
-                <Btn onClick={handleAddStudent} icon={<PlusIcon />}>Yeni Ogrenci Ekle</Btn>
-                <Btn onClick={() => setShowPasswordModal(true)} variant="secondary">Sifre Yonetimi</Btn>
+                <Btn onClick={() => fileInputRef.current?.click()} variant="secondary" icon={<UploadIcon />}>İçe Aktar</Btn>
+                <Btn onClick={exportAllData} variant="secondary" icon={<DownloadIcon />}>Tümünü Dışa Aktar</Btn>
+                <Btn onClick={handleAddStudent} icon={<PlusIcon />}>Yeni Öğrenci Ekle</Btn>
+                <Btn onClick={() => setShowPasswordModal(true)} variant="secondary">Şifre Yönetimi</Btn>
               </>
             )}
           </div>
@@ -953,10 +953,10 @@ function ErasmusLearningAgreementApp({ currentUser }) {
       {/* Statistics */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 24 }}>
         {[
-          { label: "Toplam Ogrenci", value: students.length, color: C.navy },
-          { label: "Gidis Eslestirmeleri", value: students.reduce((sum, s) => sum + s.outgoingMatches.length, 0), color: C.green },
-          { label: "Donus Eslestirmeleri", value: students.reduce((sum, s) => sum + s.returnMatches.length, 0), color: C.gold },
-          { label: "Ortalama Eslestirme", value: students.length > 0 ? ((students.reduce((sum, s) => sum + s.outgoingMatches.length + s.returnMatches.length, 0)) / students.length).toFixed(1) : 0, color: C.accent },
+          { label: "Toplam Öğrenci", value: students.length, color: C.navy },
+          { label: "Gidiş Eşleştirmeleri", value: students.reduce((sum, s) => sum + s.outgoingMatches.length, 0), color: C.green },
+          { label: "Dönüş Eşleştirmeleri", value: students.reduce((sum, s) => sum + s.returnMatches.length, 0), color: C.gold },
+          { label: "Ortalama Eşleştirme", value: students.length > 0 ? ((students.reduce((sum, s) => sum + s.outgoingMatches.length + s.returnMatches.length, 0)) / students.length).toFixed(1) : 0, color: C.accent },
         ].map((stat, i) => (
           <Card key={i} noPadding>
             <div style={{ padding: 24, textAlign: "center" }}>
@@ -968,15 +968,15 @@ function ErasmusLearningAgreementApp({ currentUser }) {
       </div>
 
       {/* Grade Conversion */}
-      <Card title="Not Donusum Hesaplayici"><GradeConverter /></Card>
+      <Card title="Not Dönüşüm Hesaplayıcı"><GradeConverter /></Card>
 
       {/* Students Table */}
-      <Card title="Ogrenciler" noPadding>
+      <Card title="Öğrenciler" noPadding>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: C.bg, borderBottom: `2px solid ${C.border}` }}>
-                {["Ogrenci No", "Ad Soyad", "Karsi Kurum", "Gidis", "Donus", "Islemler"].map((h, i) => (
+                {["Öğrenci No", "Ad Soyad", "Karşı Kurum", "Gidiş", "Dönüş", "İşlemler"].map((h, i) => (
                   <th key={i} style={{ padding: "16px 24px", textAlign: i === 3 || i === 4 ? "center" : i === 5 ? "right" : "left", fontSize: 11, fontWeight: 700, color: C.navy, letterSpacing: "0.1em", textTransform: "uppercase" }}>{h}</th>
                 ))}
               </tr>
@@ -994,14 +994,14 @@ function ErasmusLearningAgreementApp({ currentUser }) {
                     <div style={{ fontSize: 14, fontWeight: 500 }}>{student.hostInstitution}</div>
                     <div style={{ fontSize: 12, color: C.textMuted }}>{student.hostCountry}</div>
                   </td>
-                  <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.green} bg={C.greenLight}>{student.outgoingMatches.length} eslestirme</Badge></td>
-                  <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.gold} bg={C.goldPale}>{student.returnMatches.length} eslestirme</Badge></td>
+                  <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.green} bg={C.greenLight}>{student.outgoingMatches.length} eşleştirme</Badge></td>
+                  <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.gold} bg={C.goldPale}>{student.returnMatches.length} eşleştirme</Badge></td>
                   <td style={{ padding: "16px 24px", textAlign: "right" }}>
                     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                      <Btn onClick={() => setSelectedStudent(student)} variant="secondary" small icon={<FileTextIcon />}>{canEdit(student) ? 'Detay & Duzenle' : 'Detay'}</Btn>
-                      <button onClick={() => generateOutgoingWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#E6F4EA", color: "#1E7E34", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Gidis</button>
+                      <Btn onClick={() => setSelectedStudent(student)} variant="secondary" small icon={<FileTextIcon />}>{canEdit(student) ? 'Detay & Düzenle' : 'Detay'}</Btn>
+                      <button onClick={() => generateOutgoingWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#E6F4EA", color: "#1E7E34", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Gidiş</button>
                       {student.returnMatches.length > 0 && (
-                        <button onClick={() => generateReturnWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FFF3E0", color: "#E65100", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Donus</button>
+                        <button onClick={() => generateReturnWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FFF3E0", color: "#E65100", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Dönüş</button>
                       )}
                       {canEdit(student) && (
                         <button onClick={() => handleDeleteStudent(student.id)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FAEBED", color: C.accent, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}><TrashIcon /></button>
