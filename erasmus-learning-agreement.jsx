@@ -678,46 +678,56 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
 
 // ── Word Document Generators (same logic as before) ──
 const generateOutgoingWordDoc = (student) => {
-  if (!student.outgoingMatches || student.outgoingMatches.length === 0) { alert('Bu ogrencinin henuz gidis eslestirmesi bulunmamaktadir.'); return; }
+  if (!student.outgoingMatches || student.outgoingMatches.length === 0) { alert('Bu öğrencinin henüz gidiş eşleştirmesi bulunmamaktadır.'); return; }
   const totalHomeCredits = student.outgoingMatches.reduce((sum, m) => sum + m.homeCourses.reduce((s, c) => s + c.credits, 0), 0);
   const totalHostCredits = student.outgoingMatches.reduce((sum, m) => sum + m.hostCourses.reduce((s, c) => s + c.credits, 0), 0);
   const semester = student.semester || "Fall 2025";
   const [season, year] = semester.split(" ");
-  const seasonTR = season === "Fall" ? "Guz" : "Bahar";
+  const seasonTR = season === "Fall" ? "Güz" : "Bahar";
   const academicYear = season === "Fall" ? `${year}-${parseInt(year)+1}` : `${parseInt(year)-1}-${year}`;
 
+  // Build rows: each course gets its own row
+  const rows = [];
+  student.outgoingMatches.forEach(match => {
+    const maxLen = Math.max(match.hostCourses.length, match.homeCourses.length);
+    for (let i = 0; i < maxLen; i++) {
+      const hc = match.hostCourses[i];
+      const mc = match.homeCourses[i];
+      rows.push(`<tr>
+        <td style='border: 1px solid black;'>${hc ? (hc.code || '-') : ''}</td>
+        <td style='border: 1px solid black;'>${hc ? hc.name : ''}</td>
+        <td style='border: 1px solid black; text-align: center;'>${hc ? hc.credits : ''}</td>
+        <td style='border: 1px solid black;'>${mc ? (mc.code || '-') : ''}</td>
+        <td style='border: 1px solid black;'>${mc ? mc.name : ''}</td>
+        <td style='border: 1px solid black; text-align: center;'>${mc ? mc.credits : ''}</td>
+      </tr>`);
+    }
+  });
+
   const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-<head><meta charset='utf-8'><title>Erasmus Gidis Degerlendirmesi</title></head>
+<head><meta charset='utf-8'><title>Erasmus Gidiş Değerlendirmesi</title></head>
 <body style='font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5;'>
-<h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ GIDIS ONCESI DERS ESLESTIRME DEGERLENDIRMESI</h3>
-<p style='text-align: justify; margin: 20px 0;'>5- Bolumumuz <b>${student.studentNumber}</b> numarali ogrencisi <b>${student.firstName} ${student.lastName}</b>'nun, <b>${academicYear} Egitim-Ogretim Yili ${seasonTR} Donemi</b>ni ERASMUS+ Ogrenim Hareketliligi programi kapsaminda <b>${student.hostCountry}</b>'da bulunan "<b>${student.hostInstitution}</b>" Universitesi, Bilgisayar Muhendisligi Bolumunde alacagi derslerin karsiliklarin uygun olduguna ve geregi icin Fakultemiz ilgili kurullarinda gorusulmek uzere Dekanlik Makamina sunulmasina,</p>
+<h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ GİDİŞ ÖNCESİ DERS EŞLEŞTİRME DEĞERLENDİRMESİ</h3>
+<p style='text-align: justify; margin: 20px 0;'>Bölümümüz <b>${student.studentNumber}</b> numaralı öğrencisi <b>${student.firstName} ${student.lastName}</b>'nın, <b>${academicYear} Eğitim-Öğretim Yılı ${seasonTR} Dönemi</b>'ni ERASMUS+ Öğrenim Hareketliliği programı kapsamında <b>${student.hostCountry}</b>'da bulunan "<b>${student.hostInstitution}</b>" Üniversitesi, Bilgisayar Mühendisliği Bölümünde alacağı derslerin karşılıklarının uygun olduğuna ve gereği için Fakültemiz ilgili kurullarında görüşülmek üzere Dekanlık Makamına sunulmasına,</p>
 <table border='1' cellpadding='8' cellspacing='0' style='width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 10pt;'>
 <thead><tr style='background-color: #f0f0f0; font-weight: bold;'>
 <th colspan='3' style='text-align: center; border: 1px solid black;'>${student.hostInstitution}</th>
-<th colspan='3' style='text-align: center; border: 1px solid black;'>CAKU Bilgisayar Muhendisligi</th>
-<th style='text-align: center; border: 1px solid black;'>Statusu</th>
-</tr><tr style='background-color: #f8f8f8; font-weight: bold;'>
-<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adi</th><th style='border: 1px solid black;'>AKTS</th>
-<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adi</th><th style='border: 1px solid black;'>AKTS</th>
-<th style='border: 1px solid black;'>Statusu</th>
+<th colspan='3' style='text-align: center; border: 1px solid black;'>ÇAKÜ Bilgisayar Mühendisliği</th>
+</tr>
+<tr style='background-color: #f0f0f0; font-weight: bold; font-size: 9pt;'>
+<th style='border: 1px solid black;'><b>${student.hostInstitution} University Faculty of xxxxx Department of xxxxx Bölümünden Aldığı Dersin</b></th>
+<th style='border: 1px solid black;'></th><th style='border: 1px solid black;'></th>
+<th style='border: 1px solid black;'><b>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin</b></th>
+<th style='border: 1px solid black;'></th><th style='border: 1px solid black;'></th>
+</tr>
+<tr style='background-color: #f8f8f8; font-weight: bold;'>
+<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th>
+<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th>
 </tr></thead><tbody>
-${student.outgoingMatches.map(match => {
-  const hoCodes = match.hostCourses.map(c => c.code || '-').join('<br/>');
-  const hoNames = match.hostCourses.map(c => c.name).join('<br/>');
-  const hoCredits = match.hostCourses.reduce((s, c) => s + c.credits, 0);
-  const hmCodes = match.homeCourses.map(c => c.code || '-').join('<br/>');
-  const hmNames = match.homeCourses.map(c => c.name).join('<br/>');
-  const hmCredits = match.homeCourses.reduce((s, c) => s + c.credits, 0);
-  return `<tr>
-    <td style='border: 1px solid black;'>${hoCodes}</td><td style='border: 1px solid black;'>${hoNames}</td><td style='border: 1px solid black; text-align: center;'>${hoCredits}</td>
-    <td style='border: 1px solid black;'>${hmCodes}</td><td style='border: 1px solid black;'>${hmNames}</td><td style='border: 1px solid black; text-align: center;'>${hmCredits}</td>
-    <td style='border: 1px solid black; text-align: center;'>Eslesti</td>
-  </tr>`;
-}).join('')}
+${rows.join('')}
 <tr style='font-weight: bold; background-color: #f0f0f0;'>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHostCredits}</td>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td>
-<td style='border: 1px solid black;'></td>
 </tr></tbody></table>
 <p style='margin-top: 40px;'>Tarih: ${new Date().toLocaleDateString('tr-TR')}</p>
 </body></html>`;
@@ -729,51 +739,60 @@ ${student.outgoingMatches.map(match => {
 };
 
 const generateReturnWordDoc = (student) => {
-  if (student.returnMatches.length === 0) { alert('Bu ogrencinin henuz donus eslestirmesi bulunmamaktadir.'); return; }
+  if (student.returnMatches.length === 0) { alert('Bu öğrencinin henüz dönüş eşleştirmesi bulunmamaktadır.'); return; }
   const totalHomeCredits = student.returnMatches.reduce((sum, m) => sum + m.homeCourses.reduce((s, c) => s + c.credits, 0), 0);
   const totalHostCredits = student.returnMatches.reduce((sum, m) => sum + m.hostCourses.reduce((s, c) => s + c.credits, 0), 0);
   const semester = student.semester || "Fall 2025";
   const [season, year] = semester.split(" ");
-  const seasonTR = season === "Fall" ? "Guz" : "Bahar";
+  const seasonTR = season === "Fall" ? "Güz" : "Bahar";
   const academicYear = season === "Fall" ? `${year}-${parseInt(year)+1}` : `${parseInt(year)-1}-${year}`;
 
+  // Build rows: each course gets its own row
+  const rows = [];
+  student.returnMatches.forEach(match => {
+    const originalHostGrade = match.hostGrade || 'A';
+    const converted = convertGrade(originalHostGrade);
+    const maxLen = Math.max(match.hostCourses.length, match.homeCourses.length);
+    for (let i = 0; i < maxLen; i++) {
+      const hc = match.hostCourses[i];
+      const mc = match.homeCourses[i];
+      rows.push(`<tr>
+        <td style='border: 1px solid black;'>${hc ? (hc.code || '-') : ''}</td>
+        <td style='border: 1px solid black;'>${hc ? hc.name : ''}</td>
+        <td style='border: 1px solid black; text-align: center;'>${hc ? hc.credits : ''}</td>
+        <td style='border: 1px solid black; text-align: center;'>${hc ? originalHostGrade : ''}</td>
+        <td style='border: 1px solid black;'>${mc ? (mc.code || '-') : ''}</td>
+        <td style='border: 1px solid black;'>${mc ? mc.name : ''}</td>
+        <td style='border: 1px solid black; text-align: center;'>${mc ? mc.credits : ''}</td>
+        <td style='border: 1px solid black; text-align: center;'>${mc ? converted : ''}</td>
+      </tr>`);
+    }
+  });
+
   const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-<head><meta charset='utf-8'><title>Erasmus Donus Muafiyeti</title><style>@page { size: A4 landscape; margin: 2cm; }</style></head>
+<head><meta charset='utf-8'><title>Erasmus Dönüş Muafiyeti</title><style>@page { size: A4 landscape; margin: 2cm; }</style></head>
 <body style='font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5;'>
-<h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ DONUSU MUAFIYET ISTEGI</h3>
-<p style='text-align: justify; margin: 20px 0;'>Bolumumuz <b>${student.studentNumber}</b> numarali ogrencisi <b>${student.firstName} ${student.lastName}</b>'nun, <b>${academicYear} Akademik Yili ${seasonTR} Donemi</b>nde ERASMUS+ programi kapsaminda yurtdisinda almis oldugu derslerin, Bilgisayar Muhendisligi Bolumu lisans programinda hangi derslere karsilik geldigi, hangi derslere sayilacaginin belirlenmesi talebi hakkinda vermis oldugu dilekcesi incelenmis olup, asagida tabloda verildigi sekliyle uygun olduguna ve geregi icin Fakultemiz ilgili kurullarinda gorusulmek uzere Dekanlik Makamina sunulmasina,</p>
+<h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ DÖNÜŞÜ MUAFİYET İSTEĞİ</h3>
+<p style='text-align: justify; margin: 20px 0;'>Bölümümüz <b>${student.studentNumber}</b> numaralı öğrencisi <b>${student.firstName} ${student.lastName}</b>'nın, <b>${academicYear} Akademik Yılı ${seasonTR} Dönemi</b>'nde ERASMUS+ programı kapsamında yurtdışında almış olduğu derslerin, Bilgisayar Mühendisliği Bölümü lisans programında hangi derslere karşılık geldiği, hangi derslere sayılacağının belirlenmesi talebi hakkında vermiş olduğu dilekçesi incelenmiş olup, aşağıda tabloda verildiği şekliyle uygun olduğuna ve gereği için Fakültemiz ilgili kurullarında görüşülmek üzere Dekanlık Makamına sunulmasına,</p>
+<p style='margin: 10px 0;'><strong>Öğrenci:</strong> ${student.firstName} ${student.lastName} (${student.studentNumber})</p>
 <table border='1' cellpadding='4' cellspacing='0' style='width: 100%; border-collapse: collapse; margin: 5px 0; font-size: 9pt;'>
 <thead><tr style='background-color: #d0d0d0; font-weight: bold;'>
 <th colspan='4' style='border: 1px solid black; text-align: center;'>${student.hostInstitution}</th>
-<th colspan='4' style='border: 1px solid black; text-align: center;'>CAKU Bilgisayar Muhendisligi</th>
-<th style='border: 1px solid black;'>Statusu</th>
-</tr><tr style='background-color: #e0e0e0; font-weight: bold;'>
-<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adi</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Basari Notu</th>
-<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adi</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Basari Notu</th>
-<th style='border: 1px solid black;'>Statusu</th>
+<th colspan='4' style='border: 1px solid black; text-align: center;'>ÇAKÜ Bilgisayar Mühendisliği</th>
+</tr>
+<tr style='background-color: #e8e8e8; font-weight: bold; font-size: 8pt;'>
+<td colspan='4' style='border: 1px solid black; text-align: center;'><b>${student.hostInstitution} University Faculty of xxxxx Department of xxxxx Bölümünden Aldığı Dersin</b></td>
+<td colspan='4' style='border: 1px solid black; text-align: center;'><b>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin</b></td>
+</tr>
+<tr style='background-color: #e0e0e0; font-weight: bold;'>
+<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Başarı Notu</th>
+<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Başarı Notu</th>
 </tr></thead><tbody>
-${student.returnMatches.map(match => {
-  const originalHostGrade = match.hostGrade || 'A';
-  const converted = convertGrade(originalHostGrade);
-  const isElective = match.homeCourses.some(c => c.code && (c.code.startsWith('SEC') || c.name.toLowerCase().includes('elective'))) || match.hostCourses.some(c => c.name.toLowerCase().includes('elective'));
-  const matchStatus = isElective ? 'S' : 'Z';
-  const hoCodes = match.hostCourses.map(c => c.code || '-').join('<br/>');
-  const hoNames = match.hostCourses.map(c => c.name).join('<br/>');
-  const hoCredits = match.hostCourses.reduce((s, c) => s + c.credits, 0);
-  const hmCodes = match.homeCourses.map(c => c.code || '-').join('<br/>');
-  const hmNames = match.homeCourses.map(c => c.name).join('<br/>');
-  const hmCredits = match.homeCourses.reduce((s, c) => s + c.credits, 0);
-  return `<tr>
-    <td style='border: 1px solid black;'>${hoCodes}</td><td style='border: 1px solid black;'>${hoNames}</td><td style='border: 1px solid black; text-align: center;'>${hoCredits}</td><td style='border: 1px solid black; text-align: center;'>${originalHostGrade}</td>
-    <td style='border: 1px solid black;'>${hmCodes}</td><td style='border: 1px solid black;'>${hmNames}</td><td style='border: 1px solid black; text-align: center;'>${hmCredits}</td><td style='border: 1px solid black; text-align: center;'>${converted}</td>
-    <td style='border: 1px solid black; text-align: center;'>${matchStatus}</td>
-  </tr>`;
-}).join('')}
+${rows.join('')}
 <tr style='font-weight: bold; background-color: #f0f0f0;'>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHostCredits}</td><td style='border: 1px solid black;'></td>
-<td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td><td colspan='2' style='border: 1px solid black;'></td>
+<td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td><td style='border: 1px solid black;'></td>
 </tr></tbody></table>
-<p style='margin-top: 10px; font-size: 9pt;'><strong>Ogrenci:</strong> ${student.firstName} ${student.lastName} (${student.studentNumber})</p>
 </body></html>`;
 
   const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
