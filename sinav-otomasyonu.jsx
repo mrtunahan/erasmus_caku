@@ -784,10 +784,57 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
 };
 
 // ══════════════════════════════════════════════════════════════
+// Turkish Character Normalization for Export
+// ══════════════════════════════════════════════════════════════
+function normalizeToASCII(str) {
+  if (!str) return "";
+  return str
+    .replace(/İ/g, "I").replace(/ı/g, "i")
+    .replace(/Ö/g, "O").replace(/ö/g, "o")
+    .replace(/Ü/g, "U").replace(/ü/g, "u")
+    .replace(/Ş/g, "S").replace(/ş/g, "s")
+    .replace(/Ç/g, "C").replace(/ç/g, "c")
+    .replace(/Ğ/g, "G").replace(/ğ/g, "g");
+}
+
+// Build lookup maps from SEED data (Turkish) keyed by ASCII-normalized names
+var TURKISH_COURSE_MAP = {};
+SEED_COURSES.forEach(function(c) {
+  var key = c.code + "|" + normalizeToASCII(c.name).toLowerCase();
+  TURKISH_COURSE_MAP[key] = c.name;
+});
+
+var TURKISH_PROF_MAP = {};
+SEED_PROFESSORS.forEach(function(p) {
+  var key = normalizeToASCII(p.name).toLowerCase();
+  TURKISH_PROF_MAP[key] = p.name;
+});
+
+function getTurkishCourseName(code, name) {
+  if (!name) return name;
+  var key = code + "|" + normalizeToASCII(name).toLowerCase();
+  return TURKISH_COURSE_MAP[key] || name;
+}
+
+function getTurkishProfName(name) {
+  if (!name) return name;
+  var key = normalizeToASCII(name).toLowerCase();
+  return TURKISH_PROF_MAP[key] || name;
+}
+
+function turkishifyExam(exam) {
+  return {
+    ...exam,
+    name: getTurkishCourseName(exam.code, exam.name),
+    professor: getTurkishProfName(exam.professor),
+  };
+}
+
+// ══════════════════════════════════════════════════════════════
 // Export Functions
 // ══════════════════════════════════════════════════════════════
 function exportToCSV(placedExams, periodLabel) {
-  const sorted = [...placedExams].sort((a, b) => {
+  const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
     if (a.sinif !== b.sinif) return a.sinif - b.sinif;
     return a.date.localeCompare(b.date) || a.timeSlot.localeCompare(b.timeSlot);
   });
@@ -822,7 +869,7 @@ function exportToCSV(placedExams, periodLabel) {
 }
 
 function exportToWord(placedExams, periodLabel) {
-  const sorted = [...placedExams].sort((a, b) => {
+  const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
     if (a.sinif !== b.sinif) return a.sinif - b.sinif;
     return a.date.localeCompare(b.date) || a.timeSlot.localeCompare(b.timeSlot);
   });
@@ -902,7 +949,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
   const navyFill = { patternType: "solid", fgColor: { rgb: "1B2A4A" } };
 
   // ── Sort and enrich exams ──
-  const sorted = [...placedExams].sort((a, b) => {
+  const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
     return a.timeSlot.localeCompare(b.timeSlot);
   });
