@@ -549,14 +549,14 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
 
   const exportStudentData = () => {
     const data = {
-      "Ogrenci Bilgileri": { "Ogrenci Numarasi": editedStudent.studentNumber, "Ad": editedStudent.firstName, "Soyad": editedStudent.lastName, "Karsi Kurum": editedStudent.hostInstitution, "Ulke": editedStudent.hostCountry },
-      "Gidis Eslestirmeleri": editedStudent.outgoingMatches.map(m => ({
+      "Öğrenci Bilgileri": { "Öğrenci Numarası": editedStudent.studentNumber, "Ad": editedStudent.firstName, "Soyad": editedStudent.lastName, "Karşı Kurum": editedStudent.hostInstitution, "Fakülte": editedStudent.hostFaculty || "", "Bölüm": editedStudent.hostDepartment || "", "Ülke": editedStudent.hostCountry },
+      "Gidiş Eşleştirmeleri": editedStudent.outgoingMatches.map(m => ({
         "Kendi Derslerimiz": m.homeCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
-        "Karsi Kurum Dersleri": m.hostCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
+        "Karşı Kurum Dersleri": m.hostCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
       })),
-      "Donus Eslestirmeleri": editedStudent.returnMatches.map(m => ({
+      "Dönüş Eşleştirmeleri": editedStudent.returnMatches.map(m => ({
         "Kendi Derslerimiz": m.homeCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
-        "Karsi Kurum Dersleri": m.hostCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
+        "Karşı Kurum Dersleri": m.hostCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
         "Not": m.grade, "Puan": m.gradePoints,
       })),
     };
@@ -569,34 +569,36 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
   };
 
   return (
-    <Modal open={true} onClose={onClose} title={`${student.firstName} ${student.lastName} - Learning Agreement`} width={1000}>
+    <Modal open={true} onClose={onClose} title={`${student.firstName} ${student.lastName} - Öğrenim Anlaşması`} width={1000}>
       {readOnly && (
         <div style={{ padding: 16, background: "#FFF3CD", border: "2px solid #FFC107", borderRadius: 12, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ fontSize: 24 }}>🔒</div>
           <div>
-            <div style={{ fontWeight: 600, color: "#856404", marginBottom: 4 }}>Sadece Goruntuleme Modu</div>
-            <div style={{ fontSize: 13, color: "#856404" }}>Bu ogrencinin bilgilerini sadece goruntuleyebilirsiniz.</div>
+            <div style={{ fontWeight: 600, color: "#856404", marginBottom: 4 }}>Sadece Görüntüleme Modu</div>
+            <div style={{ fontSize: 13, color: "#856404" }}>Bu öğrencinin bilgilerini sadece görüntüleyebilirsiniz.</div>
           </div>
         </div>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24, padding: 20, background: C.goldPale, borderRadius: 10, border: `1px solid ${C.goldLight}` }}>
-        <FormField label="Ogrenci Numarasi"><Input value={editedStudent.studentNumber} onChange={e => updateStudent("studentNumber", e.target.value)} disabled={readOnly} /></FormField>
+        <FormField label="Öğrenci Numarası"><Input value={editedStudent.studentNumber} onChange={e => updateStudent("studentNumber", e.target.value)} disabled={readOnly} /></FormField>
         <FormField label="Ad"><Input value={editedStudent.firstName} onChange={e => updateStudent("firstName", e.target.value)} disabled={readOnly} /></FormField>
         <FormField label="Soyad"><Input value={editedStudent.lastName} onChange={e => updateStudent("lastName", e.target.value)} disabled={readOnly} /></FormField>
-        <FormField label="Karsi Kurum">
+        <FormField label="Karşı Kurum (Üniversite)">
           <select value={editedStudent.hostInstitution} onChange={e => { updateStudent("hostInstitution", e.target.value); if (UNIVERSITY_CATALOGS[e.target.value]) updateStudent("hostCountry", UNIVERSITY_CATALOGS[e.target.value].country); }} disabled={readOnly}
             style={{ width: "100%", padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: readOnly ? "#f5f5f5" : "white", cursor: readOnly ? "not-allowed" : "pointer" }}>
-            <option value="">Universite Secin</option>
+            <option value="">Üniversite Seçin</option>
             {Object.keys(UNIVERSITY_CATALOGS).map(uni => <option key={uni} value={uni}>{uni}</option>)}
           </select>
         </FormField>
-        <FormField label="Ulke"><Input value={editedStudent.hostCountry} onChange={e => updateStudent("hostCountry", e.target.value)} disabled /></FormField>
-        <FormField label="Donem">
+        <FormField label="Ülke"><Input value={editedStudent.hostCountry} onChange={e => updateStudent("hostCountry", e.target.value)} disabled /></FormField>
+        <FormField label="Dönem">
           <select value={editedStudent.semester || "Fall 2025"} onChange={e => updateStudent("semester", e.target.value)} disabled={readOnly}
             style={{ width: "100%", padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" }}>
-            {semesters.map(sem => <option key={sem} value={sem}>{sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Guz")}</option>)}
+            {semesters.map(sem => <option key={sem} value={sem}>{sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Güz")}</option>)}
           </select>
         </FormField>
+        <FormField label="Karşı Kurum Fakülte Adı"><Input value={editedStudent.hostFaculty || ""} onChange={e => updateStudent("hostFaculty", e.target.value)} disabled={readOnly} placeholder="Örn: Faculty of Engineering" /></FormField>
+        <FormField label="Karşı Kurum Bölüm Adı"><Input value={editedStudent.hostDepartment || ""} onChange={e => updateStudent("hostDepartment", e.target.value)} disabled={readOnly} placeholder="Örn: Computer Engineering" /></FormField>
       </div>
 
       {/* Tabs */}
@@ -608,7 +610,7 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
             cursor: "pointer", borderBottom: activeTab === tab ? `3px solid ${C.navy}` : "3px solid transparent",
             fontFamily: "'Source Sans 3', sans-serif",
           }}>
-            {tab === "outgoing" ? `Gidis Eslestirmeleri (${editedStudent.outgoingMatches.length})` : `Donus Eslestirmeleri (${editedStudent.returnMatches.length})`}
+            {tab === "outgoing" ? `Gidiş Eşleştirmeleri (${editedStudent.outgoingMatches.length})` : `Dönüş Eşleştirmeleri (${editedStudent.returnMatches.length})`}
           </button>
         ))}
       </div>
@@ -619,27 +621,27 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
           <>
             {editedStudent.hostInstitution && UNIVERSITY_CATALOGS[editedStudent.hostInstitution] && (
               <div style={{ padding: 16, background: "#E3F2FD", border: "2px solid #2196F3", borderRadius: 12, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#1565C0", marginBottom: 12 }}>{editedStudent.hostInstitution} Ders Katalogu</div>
-                {!readOnly && <Btn onClick={() => setShowCatalogModal(true)} variant="secondary" icon={<PlusIcon />}>Katalogdan Ders Sec ve Ekle</Btn>}
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#1565C0", marginBottom: 12 }}>{editedStudent.hostInstitution} Ders Kataloğu</div>
+                {!readOnly && <Btn onClick={() => setShowCatalogModal(true)} variant="secondary" icon={<PlusIcon />}>Katalogdan Ders Seç ve Ekle</Btn>}
               </div>
             )}
             {editedStudent.outgoingMatches.map(match => (
               <CourseMatchCard key={match.id} match={match} onDelete={id => deleteMatch("outgoing", id)} onEdit={m => setEditingMatch({ type: "outgoing", match: m })} showGrade={false} type="outgoing" readOnly={readOnly} />
             ))}
-            {!readOnly && <Btn onClick={() => addMatch("outgoing")} variant="secondary" icon={<PlusIcon />}>Manuel Eslestirme Ekle</Btn>}
+            {!readOnly && <Btn onClick={() => addMatch("outgoing")} variant="secondary" icon={<PlusIcon />}>Manuel Eşleştirme Ekle</Btn>}
           </>
         )}
         {activeTab === "return" && (
           <>
             {!readOnly && editedStudent.outgoingMatches.length > 0 && (
               <div style={{ padding: 20, background: "#FFF9E6", border: "2px dashed #FDB022", borderRadius: 12, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 12 }}>Gidis Eslestirmelerinden Hizli Doldur</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 12 }}>Gidiş Eşleştirmelerinden Hızlı Doldur</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                   {editedStudent.outgoingMatches.map((outMatch, idx) => {
                     const alreadyExists = editedStudent.returnMatches.some(retMatch => JSON.stringify(retMatch.homeCourses) === JSON.stringify(outMatch.homeCourses) && JSON.stringify(retMatch.hostCourses) === JSON.stringify(outMatch.hostCourses));
                     return (
                       <button key={idx} onClick={() => copyFromOutgoing(outMatch)} disabled={alreadyExists} style={{ padding: "10px 16px", background: alreadyExists ? "#f5f5f5" : "white", border: `2px solid ${alreadyExists ? "#e0e0e0" : C.gold}`, borderRadius: 8, cursor: alreadyExists ? "not-allowed" : "pointer", fontSize: 13, color: alreadyExists ? C.textMuted : C.navy, opacity: alreadyExists ? 0.5 : 1 }}>
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{alreadyExists ? "✓ " : "+ "}Eslestirme {idx + 1}</div>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{alreadyExists ? "✓ " : "+ "}Eşleştirme {idx + 1}</div>
                         <div style={{ fontSize: 11, opacity: 0.8 }}>{outMatch.homeCourses.map(c => c.code || c.name).join(", ").substring(0, 30)}...</div>
                       </button>
                     );
@@ -650,16 +652,16 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
             {editedStudent.returnMatches.map(match => (
               <CourseMatchCard key={match.id} match={match} onDelete={id => deleteMatch("return", id)} onEdit={m => setEditingMatch({ type: "return", match: m })} showGrade={true} type="return" readOnly={readOnly} />
             ))}
-            {!readOnly && <Btn onClick={() => addMatch("return")} variant="secondary" icon={<PlusIcon />}>Manuel Donus Eslestirmesi Ekle</Btn>}
+            {!readOnly && <Btn onClick={() => addMatch("return")} variant="secondary" icon={<PlusIcon />}>Manuel Dönüş Eşleştirmesi Ekle</Btn>}
           </>
         )}
       </div>
 
       {/* Actions */}
       <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-        <Btn onClick={exportStudentData} variant="secondary" icon={<DownloadIcon />}>Disa Aktar (JSON)</Btn>
+        <Btn onClick={exportStudentData} variant="secondary" icon={<DownloadIcon />}>Dışa Aktar (JSON)</Btn>
         <div style={{ display: "flex", gap: 10 }}>
-          <Btn onClick={onClose} variant="secondary">{readOnly ? 'Kapat' : 'Iptal'}</Btn>
+          <Btn onClick={onClose} variant="secondary">{readOnly ? 'Kapat' : 'İptal'}</Btn>
           {!readOnly && <Btn onClick={() => onSave(editedStudent)}>Kaydet</Btn>}
         </div>
       </div>
@@ -678,46 +680,54 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
 
 // ── Word Document Generators (same logic as before) ──
 const generateOutgoingWordDoc = (student) => {
-  if (!student.outgoingMatches || student.outgoingMatches.length === 0) { alert('Bu ogrencinin henuz gidis eslestirmesi bulunmamaktadir.'); return; }
+  if (!student.outgoingMatches || student.outgoingMatches.length === 0) { alert('Bu öğrencinin henüz gidiş eşleştirmesi bulunmamaktadır.'); return; }
   const totalHomeCredits = student.outgoingMatches.reduce((sum, m) => sum + m.homeCourses.reduce((s, c) => s + c.credits, 0), 0);
   const totalHostCredits = student.outgoingMatches.reduce((sum, m) => sum + m.hostCourses.reduce((s, c) => s + c.credits, 0), 0);
   const semester = student.semester || "Fall 2025";
   const [season, year] = semester.split(" ");
-  const seasonTR = season === "Fall" ? "Guz" : "Bahar";
+  const seasonTR = season === "Fall" ? "Güz" : "Bahar";
   const academicYear = season === "Fall" ? `${year}-${parseInt(year)+1}` : `${parseInt(year)-1}-${year}`;
 
+  // Build rows: each course gets its own row
+  const rows = [];
+  student.outgoingMatches.forEach(match => {
+    const maxLen = Math.max(match.hostCourses.length, match.homeCourses.length);
+    for (let i = 0; i < maxLen; i++) {
+      const hc = match.hostCourses[i];
+      const mc = match.homeCourses[i];
+      rows.push(`<tr>
+        <td style='border: 1px solid black;'>${hc ? (hc.code || '-') : ''}</td>
+        <td style='border: 1px solid black;'>${hc ? hc.name : ''}</td>
+        <td style='border: 1px solid black; text-align: center;'>${hc ? hc.credits : ''}</td>
+        <td style='border: 1px solid black;'>${mc ? (mc.code || '-') : ''}</td>
+        <td style='border: 1px solid black;'>${mc ? mc.name : ''}</td>
+        <td style='border: 1px solid black; text-align: center;'>${mc ? mc.credits : ''}</td>
+      </tr>`);
+    }
+  });
+
   const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-<head><meta charset='utf-8'><title>Erasmus Gidis Degerlendirmesi</title></head>
+<head><meta charset='utf-8'><title>Erasmus Gidiş Değerlendirmesi</title></head>
 <body style='font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5;'>
-<h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ GIDIS ONCESI DERS ESLESTIRME DEGERLENDIRMESI</h3>
-<p style='text-align: justify; margin: 20px 0;'>5- Bolumumuz <b>${student.studentNumber}</b> numarali ogrencisi <b>${student.firstName} ${student.lastName}</b>'nun, <b>${academicYear} Egitim-Ogretim Yili ${seasonTR} Donemi</b>ni ERASMUS+ Ogrenim Hareketliligi programi kapsaminda <b>${student.hostCountry}</b>'da bulunan "<b>${student.hostInstitution}</b>" Universitesi, Bilgisayar Muhendisligi Bolumunde alacagi derslerin karsiliklarin uygun olduguna ve geregi icin Fakultemiz ilgili kurullarinda gorusulmek uzere Dekanlik Makamina sunulmasina,</p>
+<h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ GİDİŞ ÖNCESİ DERS EŞLEŞTİRME DEĞERLENDİRMESİ</h3>
+<p style='text-align: justify; margin: 20px 0;'>Bölümümüz <b>${student.studentNumber}</b> numaralı öğrencisi <b>${student.firstName} ${student.lastName}</b>'nın, <b>${academicYear} Eğitim-Öğretim Yılı ${seasonTR} Dönemi</b>'ni ERASMUS+ Öğrenim Hareketliliği programı kapsamında <b>${student.hostCountry}</b>'da bulunan "<b>${student.hostInstitution}</b>" Üniversitesi, Bilgisayar Mühendisliği Bölümünde alacağı derslerin karşılıklarının uygun olduğuna ve gereği için Fakültemiz ilgili kurullarında görüşülmek üzere Dekanlık Makamına sunulmasına,</p>
 <table border='1' cellpadding='8' cellspacing='0' style='width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 10pt;'>
 <thead><tr style='background-color: #f0f0f0; font-weight: bold;'>
 <th colspan='3' style='text-align: center; border: 1px solid black;'>${student.hostInstitution}</th>
-<th colspan='3' style='text-align: center; border: 1px solid black;'>CAKU Bilgisayar Muhendisligi</th>
-<th style='text-align: center; border: 1px solid black;'>Statusu</th>
-</tr><tr style='background-color: #f8f8f8; font-weight: bold;'>
-<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adi</th><th style='border: 1px solid black;'>AKTS</th>
-<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adi</th><th style='border: 1px solid black;'>AKTS</th>
-<th style='border: 1px solid black;'>Statusu</th>
+<th colspan='3' style='text-align: center; border: 1px solid black;'>ÇAKÜ Bilgisayar Mühendisliği</th>
+</tr>
+<tr style='background-color: #e8e8e8; font-weight: bold; font-size: 8pt;'>
+<td colspan='3' style='border: 1px solid black; text-align: center;'><b>${student.hostInstitution}${student.hostFaculty ? ' ' + student.hostFaculty : ''}${student.hostDepartment ? ' ' + student.hostDepartment : ''} Bölümünden Aldığı Dersin</b></td>
+<td colspan='3' style='border: 1px solid black; text-align: center;'><b>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin</b></td>
+</tr>
+<tr style='background-color: #f8f8f8; font-weight: bold;'>
+<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th>
+<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th>
 </tr></thead><tbody>
-${student.outgoingMatches.map(match => {
-  const hoCodes = match.hostCourses.map(c => c.code || '-').join('<br/>');
-  const hoNames = match.hostCourses.map(c => c.name).join('<br/>');
-  const hoCredits = match.hostCourses.reduce((s, c) => s + c.credits, 0);
-  const hmCodes = match.homeCourses.map(c => c.code || '-').join('<br/>');
-  const hmNames = match.homeCourses.map(c => c.name).join('<br/>');
-  const hmCredits = match.homeCourses.reduce((s, c) => s + c.credits, 0);
-  return `<tr>
-    <td style='border: 1px solid black;'>${hoCodes}</td><td style='border: 1px solid black;'>${hoNames}</td><td style='border: 1px solid black; text-align: center;'>${hoCredits}</td>
-    <td style='border: 1px solid black;'>${hmCodes}</td><td style='border: 1px solid black;'>${hmNames}</td><td style='border: 1px solid black; text-align: center;'>${hmCredits}</td>
-    <td style='border: 1px solid black; text-align: center;'>Eslesti</td>
-  </tr>`;
-}).join('')}
+${rows.join('')}
 <tr style='font-weight: bold; background-color: #f0f0f0;'>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHostCredits}</td>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td>
-<td style='border: 1px solid black;'></td>
 </tr></tbody></table>
 <p style='margin-top: 40px;'>Tarih: ${new Date().toLocaleDateString('tr-TR')}</p>
 </body></html>`;
@@ -729,51 +739,60 @@ ${student.outgoingMatches.map(match => {
 };
 
 const generateReturnWordDoc = (student) => {
-  if (student.returnMatches.length === 0) { alert('Bu ogrencinin henuz donus eslestirmesi bulunmamaktadir.'); return; }
+  if (student.returnMatches.length === 0) { alert('Bu öğrencinin henüz dönüş eşleştirmesi bulunmamaktadır.'); return; }
   const totalHomeCredits = student.returnMatches.reduce((sum, m) => sum + m.homeCourses.reduce((s, c) => s + c.credits, 0), 0);
   const totalHostCredits = student.returnMatches.reduce((sum, m) => sum + m.hostCourses.reduce((s, c) => s + c.credits, 0), 0);
   const semester = student.semester || "Fall 2025";
   const [season, year] = semester.split(" ");
-  const seasonTR = season === "Fall" ? "Guz" : "Bahar";
+  const seasonTR = season === "Fall" ? "Güz" : "Bahar";
   const academicYear = season === "Fall" ? `${year}-${parseInt(year)+1}` : `${parseInt(year)-1}-${year}`;
 
+  // Build rows: each course gets its own row
+  const rows = [];
+  student.returnMatches.forEach(match => {
+    const originalHostGrade = match.hostGrade || 'A';
+    const converted = convertGrade(originalHostGrade);
+    const maxLen = Math.max(match.hostCourses.length, match.homeCourses.length);
+    for (let i = 0; i < maxLen; i++) {
+      const hc = match.hostCourses[i];
+      const mc = match.homeCourses[i];
+      rows.push(`<tr>
+        <td style='border: 1px solid black;'>${hc ? (hc.code || '-') : ''}</td>
+        <td style='border: 1px solid black;'>${hc ? hc.name : ''}</td>
+        <td style='border: 1px solid black; text-align: center;'>${hc ? hc.credits : ''}</td>
+        <td style='border: 1px solid black; text-align: center;'>${hc ? originalHostGrade : ''}</td>
+        <td style='border: 1px solid black;'>${mc ? (mc.code || '-') : ''}</td>
+        <td style='border: 1px solid black;'>${mc ? mc.name : ''}</td>
+        <td style='border: 1px solid black; text-align: center;'>${mc ? mc.credits : ''}</td>
+        <td style='border: 1px solid black; text-align: center;'>${mc ? converted : ''}</td>
+      </tr>`);
+    }
+  });
+
   const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-<head><meta charset='utf-8'><title>Erasmus Donus Muafiyeti</title><style>@page { size: A4 landscape; margin: 2cm; }</style></head>
+<head><meta charset='utf-8'><title>Erasmus Dönüş Muafiyeti</title><style>@page { size: A4 landscape; margin: 2cm; }</style></head>
 <body style='font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5;'>
-<h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ DONUSU MUAFIYET ISTEGI</h3>
-<p style='text-align: justify; margin: 20px 0;'>Bolumumuz <b>${student.studentNumber}</b> numarali ogrencisi <b>${student.firstName} ${student.lastName}</b>'nun, <b>${academicYear} Akademik Yili ${seasonTR} Donemi</b>nde ERASMUS+ programi kapsaminda yurtdisinda almis oldugu derslerin, Bilgisayar Muhendisligi Bolumu lisans programinda hangi derslere karsilik geldigi, hangi derslere sayilacaginin belirlenmesi talebi hakkinda vermis oldugu dilekcesi incelenmis olup, asagida tabloda verildigi sekliyle uygun olduguna ve geregi icin Fakultemiz ilgili kurullarinda gorusulmek uzere Dekanlik Makamina sunulmasina,</p>
+<h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ DÖNÜŞÜ MUAFİYET İSTEĞİ</h3>
+<p style='text-align: justify; margin: 20px 0;'>Bölümümüz <b>${student.studentNumber}</b> numaralı öğrencisi <b>${student.firstName} ${student.lastName}</b>'nın, <b>${academicYear} Akademik Yılı ${seasonTR} Dönemi</b>'nde ERASMUS+ programı kapsamında yurtdışında almış olduğu derslerin, Bilgisayar Mühendisliği Bölümü lisans programında hangi derslere karşılık geldiği, hangi derslere sayılacağının belirlenmesi talebi hakkında vermiş olduğu dilekçesi incelenmiş olup, aşağıda tabloda verildiği şekliyle uygun olduğuna ve gereği için Fakültemiz ilgili kurullarında görüşülmek üzere Dekanlık Makamına sunulmasına,</p>
+<p style='margin: 10px 0;'><strong>Öğrenci:</strong> ${student.firstName} ${student.lastName} (${student.studentNumber})</p>
 <table border='1' cellpadding='4' cellspacing='0' style='width: 100%; border-collapse: collapse; margin: 5px 0; font-size: 9pt;'>
 <thead><tr style='background-color: #d0d0d0; font-weight: bold;'>
 <th colspan='4' style='border: 1px solid black; text-align: center;'>${student.hostInstitution}</th>
-<th colspan='4' style='border: 1px solid black; text-align: center;'>CAKU Bilgisayar Muhendisligi</th>
-<th style='border: 1px solid black;'>Statusu</th>
-</tr><tr style='background-color: #e0e0e0; font-weight: bold;'>
-<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adi</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Basari Notu</th>
-<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adi</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Basari Notu</th>
-<th style='border: 1px solid black;'>Statusu</th>
+<th colspan='4' style='border: 1px solid black; text-align: center;'>ÇAKÜ Bilgisayar Mühendisliği</th>
+</tr>
+<tr style='background-color: #e8e8e8; font-weight: bold; font-size: 8pt;'>
+<td colspan='4' style='border: 1px solid black; text-align: center;'><b>${student.hostInstitution}${student.hostFaculty ? ' ' + student.hostFaculty : ''}${student.hostDepartment ? ' ' + student.hostDepartment : ''} Bölümünden Aldığı Dersin</b></td>
+<td colspan='4' style='border: 1px solid black; text-align: center;'><b>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin</b></td>
+</tr>
+<tr style='background-color: #e0e0e0; font-weight: bold;'>
+<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Başarı Notu</th>
+<th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Başarı Notu</th>
 </tr></thead><tbody>
-${student.returnMatches.map(match => {
-  const originalHostGrade = match.hostGrade || 'A';
-  const converted = convertGrade(originalHostGrade);
-  const isElective = match.homeCourses.some(c => c.code && (c.code.startsWith('SEC') || c.name.toLowerCase().includes('elective'))) || match.hostCourses.some(c => c.name.toLowerCase().includes('elective'));
-  const matchStatus = isElective ? 'S' : 'Z';
-  const hoCodes = match.hostCourses.map(c => c.code || '-').join('<br/>');
-  const hoNames = match.hostCourses.map(c => c.name).join('<br/>');
-  const hoCredits = match.hostCourses.reduce((s, c) => s + c.credits, 0);
-  const hmCodes = match.homeCourses.map(c => c.code || '-').join('<br/>');
-  const hmNames = match.homeCourses.map(c => c.name).join('<br/>');
-  const hmCredits = match.homeCourses.reduce((s, c) => s + c.credits, 0);
-  return `<tr>
-    <td style='border: 1px solid black;'>${hoCodes}</td><td style='border: 1px solid black;'>${hoNames}</td><td style='border: 1px solid black; text-align: center;'>${hoCredits}</td><td style='border: 1px solid black; text-align: center;'>${originalHostGrade}</td>
-    <td style='border: 1px solid black;'>${hmCodes}</td><td style='border: 1px solid black;'>${hmNames}</td><td style='border: 1px solid black; text-align: center;'>${hmCredits}</td><td style='border: 1px solid black; text-align: center;'>${converted}</td>
-    <td style='border: 1px solid black; text-align: center;'>${matchStatus}</td>
-  </tr>`;
-}).join('')}
+${rows.join('')}
 <tr style='font-weight: bold; background-color: #f0f0f0;'>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHostCredits}</td><td style='border: 1px solid black;'></td>
-<td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td><td colspan='2' style='border: 1px solid black;'></td>
+<td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td><td style='border: 1px solid black;'></td>
 </tr></tbody></table>
-<p style='margin-top: 10px; font-size: 9pt;'><strong>Ogrenci:</strong> ${student.firstName} ${student.lastName} (${student.studentNumber})</p>
 </body></html>`;
 
   const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
@@ -890,14 +909,14 @@ function ErasmusLearningAgreementApp({ currentUser }) {
     reader.onload = (event) => {
       try {
         const importedData = JSON.parse(event.target.result);
-        if (Array.isArray(importedData)) { setStudents(prev => [...prev, ...importedData]); alert(`${importedData.length} ogrenci iceye aktarildi!`); }
+        if (Array.isArray(importedData)) { setStudents(prev => [...prev, ...importedData]); alert(`${importedData.length} öğrenci içeye aktarıldı!`); }
       } catch (error) { alert("Dosya formati hatali!"); }
     };
     reader.readAsText(file);
   };
 
   if (loading) {
-    return <div style={{ padding: 60, textAlign: "center", color: C.textMuted }}>Veriler yukleniyor...</div>;
+    return <div style={{ padding: 60, textAlign: "center", color: C.textMuted }}>Veriler yükleniyor...</div>;
   }
 
   return (
@@ -907,12 +926,12 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: 12, flex: 1, minWidth: 300 }}>
             <div style={{ flex: 1, maxWidth: 350 }}>
-              <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Ogrenci ara (ad, numara, kurum)..." />
+              <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Öğrenci ara (ad, numara, kurum)..." />
             </div>
             <select value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}
               style={{ padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer", minWidth: 150 }}>
               {semesters.map(sem => {
-                let displayText = sem === "all" ? "Tum Donemler" : sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Guz");
+                let displayText = sem === "all" ? "Tüm Dönemler" : sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Güz");
                 return <option key={sem} value={sem}>{displayText}</option>;
               })}
             </select>
@@ -921,10 +940,10 @@ function ErasmusLearningAgreementApp({ currentUser }) {
             {currentUser?.role === 'admin' && (
               <>
                 <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
-                <Btn onClick={() => fileInputRef.current?.click()} variant="secondary" icon={<UploadIcon />}>Ice Aktar</Btn>
-                <Btn onClick={exportAllData} variant="secondary" icon={<DownloadIcon />}>Tumunu Disa Aktar</Btn>
-                <Btn onClick={handleAddStudent} icon={<PlusIcon />}>Yeni Ogrenci Ekle</Btn>
-                <Btn onClick={() => setShowPasswordModal(true)} variant="secondary">Sifre Yonetimi</Btn>
+                <Btn onClick={() => fileInputRef.current?.click()} variant="secondary" icon={<UploadIcon />}>İçe Aktar</Btn>
+                <Btn onClick={exportAllData} variant="secondary" icon={<DownloadIcon />}>Tümünü Dışa Aktar</Btn>
+                <Btn onClick={handleAddStudent} icon={<PlusIcon />}>Yeni Öğrenci Ekle</Btn>
+                <Btn onClick={() => setShowPasswordModal(true)} variant="secondary">Şifre Yönetimi</Btn>
               </>
             )}
           </div>
@@ -934,10 +953,10 @@ function ErasmusLearningAgreementApp({ currentUser }) {
       {/* Statistics */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 24 }}>
         {[
-          { label: "Toplam Ogrenci", value: students.length, color: C.navy },
-          { label: "Gidis Eslestirmeleri", value: students.reduce((sum, s) => sum + s.outgoingMatches.length, 0), color: C.green },
-          { label: "Donus Eslestirmeleri", value: students.reduce((sum, s) => sum + s.returnMatches.length, 0), color: C.gold },
-          { label: "Ortalama Eslestirme", value: students.length > 0 ? ((students.reduce((sum, s) => sum + s.outgoingMatches.length + s.returnMatches.length, 0)) / students.length).toFixed(1) : 0, color: C.accent },
+          { label: "Toplam Öğrenci", value: students.length, color: C.navy },
+          { label: "Gidiş Eşleştirmeleri", value: students.reduce((sum, s) => sum + s.outgoingMatches.length, 0), color: C.green },
+          { label: "Dönüş Eşleştirmeleri", value: students.reduce((sum, s) => sum + s.returnMatches.length, 0), color: C.gold },
+          { label: "Ortalama Eşleştirme", value: students.length > 0 ? ((students.reduce((sum, s) => sum + s.outgoingMatches.length + s.returnMatches.length, 0)) / students.length).toFixed(1) : 0, color: C.accent },
         ].map((stat, i) => (
           <Card key={i} noPadding>
             <div style={{ padding: 24, textAlign: "center" }}>
@@ -949,15 +968,15 @@ function ErasmusLearningAgreementApp({ currentUser }) {
       </div>
 
       {/* Grade Conversion */}
-      <Card title="Not Donusum Hesaplayici"><GradeConverter /></Card>
+      <Card title="Not Dönüşüm Hesaplayıcı"><GradeConverter /></Card>
 
       {/* Students Table */}
-      <Card title="Ogrenciler" noPadding>
+      <Card title="Öğrenciler" noPadding>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: C.bg, borderBottom: `2px solid ${C.border}` }}>
-                {["Ogrenci No", "Ad Soyad", "Karsi Kurum", "Gidis", "Donus", "Islemler"].map((h, i) => (
+                {["Öğrenci No", "Ad Soyad", "Karşı Kurum", "Gidiş", "Dönüş", "İşlemler"].map((h, i) => (
                   <th key={i} style={{ padding: "16px 24px", textAlign: i === 3 || i === 4 ? "center" : i === 5 ? "right" : "left", fontSize: 11, fontWeight: 700, color: C.navy, letterSpacing: "0.1em", textTransform: "uppercase" }}>{h}</th>
                 ))}
               </tr>
@@ -975,14 +994,14 @@ function ErasmusLearningAgreementApp({ currentUser }) {
                     <div style={{ fontSize: 14, fontWeight: 500 }}>{student.hostInstitution}</div>
                     <div style={{ fontSize: 12, color: C.textMuted }}>{student.hostCountry}</div>
                   </td>
-                  <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.green} bg={C.greenLight}>{student.outgoingMatches.length} eslestirme</Badge></td>
-                  <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.gold} bg={C.goldPale}>{student.returnMatches.length} eslestirme</Badge></td>
+                  <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.green} bg={C.greenLight}>{student.outgoingMatches.length} eşleştirme</Badge></td>
+                  <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.gold} bg={C.goldPale}>{student.returnMatches.length} eşleştirme</Badge></td>
                   <td style={{ padding: "16px 24px", textAlign: "right" }}>
                     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                      <Btn onClick={() => setSelectedStudent(student)} variant="secondary" small icon={<FileTextIcon />}>{canEdit(student) ? 'Detay & Duzenle' : 'Detay'}</Btn>
-                      <button onClick={() => generateOutgoingWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#E6F4EA", color: "#1E7E34", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Gidis</button>
+                      <Btn onClick={() => setSelectedStudent(student)} variant="secondary" small icon={<FileTextIcon />}>{canEdit(student) ? 'Detay & Düzenle' : 'Detay'}</Btn>
+                      <button onClick={() => generateOutgoingWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#E6F4EA", color: "#1E7E34", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Gidiş</button>
                       {student.returnMatches.length > 0 && (
-                        <button onClick={() => generateReturnWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FFF3E0", color: "#E65100", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Donus</button>
+                        <button onClick={() => generateReturnWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FFF3E0", color: "#E65100", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Dönüş</button>
                       )}
                       {canEdit(student) && (
                         <button onClick={() => handleDeleteStudent(student.id)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FAEBED", color: C.accent, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}><TrashIcon /></button>

@@ -38,7 +38,7 @@ function useHashRoute(defaultRoute = "erasmus") {
 // ── Navigation Items ──
 const NAV_ITEMS = [
   { id: "erasmus", label: "Erasmus Learning Agreement", icon: "M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" },
-  { id: "sinav", label: "Sinav Otomasyonu", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" },
+  { id: "sinav", label: "Sınav Otomasyonu", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" },
   { id: "muafiyet", label: "Ders Muafiyet", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
 ];
 
@@ -74,10 +74,10 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
           }}>C</div>
           <div>
             <div style={{ color: "white", fontSize: 16, fontWeight: 700, fontFamily: "'Playfair Display', serif", letterSpacing: "0.02em" }}>
-              CAKU Yonetim Sistemi
+              ÇAKÜ Yönetim Sistemi
             </div>
             <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>
-              Cankiri Karatekin Universitesi
+              Çankırı Karatekin Üniversitesi
             </div>
           </div>
         </div>
@@ -122,10 +122,10 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ textAlign: "right" }}>
             <div style={{ color: "white", fontSize: 14, fontWeight: 600 }}>
-              {currentUser?.name || "Kullanici"}
+              {currentUser?.name || "Kullanıcı"}
             </div>
             <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>
-              {currentUser?.role === "admin" ? "Admin" : `Ogrenci (${currentUser?.studentNumber || ""})`}
+              {currentUser?.role === "admin" ? "Admin" : `Öğrenci (${currentUser?.studentNumber || ""})`}
             </div>
           </div>
           <button
@@ -144,7 +144,7 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
             onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "white"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.8)"; }}
           >
-            Cikis Yap
+            Çıkış Yap
           </button>
         </div>
       </div>
