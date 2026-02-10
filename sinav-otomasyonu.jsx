@@ -1102,58 +1102,37 @@ async function exportToXLSX(placedExams, periodLabel, period) {
       { s: { r: 0, c: 1 }, e: { r: 0, c: ALL_FACULTY_CLASSROOMS.length } },
     ];
 
-    // Row 1: Kapasite - yellow background, bold, centered
+    // Row 1: Kapasite - bold, centered, borders
     for (var c1 = 0; c1 < numCols; c1++) {
       var a1 = XLSX.utils.encode_cell({ r: 1, c: c1 });
       if (!ws[a1]) ws[a1] = { v: "", t: "s" };
       ws[a1].s = {
-        fill: yellowFill,
         font: { bold: true },
         border: border,
         alignment: { horizontal: "center", vertical: "center" },
       };
     }
 
-    // Row 2: Saatler - yellow background, bold, centered
+    // Row 2: Saatler - bold, centered, borders
     for (var c2 = 0; c2 < numCols; c2++) {
       var a2 = XLSX.utils.encode_cell({ r: 2, c: c2 });
       if (!ws[a2]) ws[a2] = { v: "", t: "s" };
       ws[a2].s = {
-        fill: yellowFill,
         font: { bold: true },
         border: border,
         alignment: { horizontal: "center", vertical: "center" },
       };
     }
 
-    // Time slot rows (row 3 onwards)
+    // Time slot rows (row 3 onwards) - borders, centered, no fill
     for (var ri = 3; ri < data.length; ri++) {
-      var slotIdx = ri - 3;
-      // Yellow for odd-indexed slots (09:00, 10:00, 11:00, etc. = :00 start times)
-      var isYellow = slotIdx % 2 === 1;
-
       for (var ci = 0; ci < numCols; ci++) {
         var ai = XLSX.utils.encode_cell({ r: ri, c: ci });
         if (!ws[ai]) ws[ai] = { v: "", t: "s" };
-
-        if (ci === 0) {
-          // Time label column - yellow alternating, bold
-          ws[ai].s = {
-            fill: isYellow ? yellowFill : undefined,
-            font: { bold: true },
-            border: border,
-            alignment: { horizontal: "center", vertical: "center" },
-          };
-          if (!isYellow) delete ws[ai].s.fill;
-        } else {
-          // Data cells - borders, centered, yellow row background for alternating
-          ws[ai].s = {
-            fill: isYellow ? yellowFill : undefined,
-            border: border,
-            alignment: { horizontal: "center", vertical: "center" },
-          };
-          if (!isYellow) delete ws[ai].s.fill;
-        }
+        ws[ai].s = {
+          border: border,
+          alignment: { horizontal: "center", vertical: "center" },
+        };
       }
     }
 
