@@ -549,14 +549,14 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
 
   const exportStudentData = () => {
     const data = {
-      "Ogrenci Bilgileri": { "Ogrenci Numarasi": editedStudent.studentNumber, "Ad": editedStudent.firstName, "Soyad": editedStudent.lastName, "Karsi Kurum": editedStudent.hostInstitution, "Ulke": editedStudent.hostCountry },
-      "Gidis Eslestirmeleri": editedStudent.outgoingMatches.map(m => ({
+      "Öğrenci Bilgileri": { "Öğrenci Numarası": editedStudent.studentNumber, "Ad": editedStudent.firstName, "Soyad": editedStudent.lastName, "Karşı Kurum": editedStudent.hostInstitution, "Fakülte": editedStudent.hostFaculty || "", "Bölüm": editedStudent.hostDepartment || "", "Ülke": editedStudent.hostCountry },
+      "Gidiş Eşleştirmeleri": editedStudent.outgoingMatches.map(m => ({
         "Kendi Derslerimiz": m.homeCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
-        "Karsi Kurum Dersleri": m.hostCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
+        "Karşı Kurum Dersleri": m.hostCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
       })),
-      "Donus Eslestirmeleri": editedStudent.returnMatches.map(m => ({
+      "Dönüş Eşleştirmeleri": editedStudent.returnMatches.map(m => ({
         "Kendi Derslerimiz": m.homeCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
-        "Karsi Kurum Dersleri": m.hostCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
+        "Karşı Kurum Dersleri": m.hostCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
         "Not": m.grade, "Puan": m.gradePoints,
       })),
     };
@@ -569,34 +569,36 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
   };
 
   return (
-    <Modal open={true} onClose={onClose} title={`${student.firstName} ${student.lastName} - Learning Agreement`} width={1000}>
+    <Modal open={true} onClose={onClose} title={`${student.firstName} ${student.lastName} - Öğrenim Anlaşması`} width={1000}>
       {readOnly && (
         <div style={{ padding: 16, background: "#FFF3CD", border: "2px solid #FFC107", borderRadius: 12, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ fontSize: 24 }}>🔒</div>
           <div>
-            <div style={{ fontWeight: 600, color: "#856404", marginBottom: 4 }}>Sadece Goruntuleme Modu</div>
-            <div style={{ fontSize: 13, color: "#856404" }}>Bu ogrencinin bilgilerini sadece goruntuleyebilirsiniz.</div>
+            <div style={{ fontWeight: 600, color: "#856404", marginBottom: 4 }}>Sadece Görüntüleme Modu</div>
+            <div style={{ fontSize: 13, color: "#856404" }}>Bu öğrencinin bilgilerini sadece görüntüleyebilirsiniz.</div>
           </div>
         </div>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24, padding: 20, background: C.goldPale, borderRadius: 10, border: `1px solid ${C.goldLight}` }}>
-        <FormField label="Ogrenci Numarasi"><Input value={editedStudent.studentNumber} onChange={e => updateStudent("studentNumber", e.target.value)} disabled={readOnly} /></FormField>
+        <FormField label="Öğrenci Numarası"><Input value={editedStudent.studentNumber} onChange={e => updateStudent("studentNumber", e.target.value)} disabled={readOnly} /></FormField>
         <FormField label="Ad"><Input value={editedStudent.firstName} onChange={e => updateStudent("firstName", e.target.value)} disabled={readOnly} /></FormField>
         <FormField label="Soyad"><Input value={editedStudent.lastName} onChange={e => updateStudent("lastName", e.target.value)} disabled={readOnly} /></FormField>
-        <FormField label="Karsi Kurum">
+        <FormField label="Karşı Kurum (Üniversite)">
           <select value={editedStudent.hostInstitution} onChange={e => { updateStudent("hostInstitution", e.target.value); if (UNIVERSITY_CATALOGS[e.target.value]) updateStudent("hostCountry", UNIVERSITY_CATALOGS[e.target.value].country); }} disabled={readOnly}
             style={{ width: "100%", padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: readOnly ? "#f5f5f5" : "white", cursor: readOnly ? "not-allowed" : "pointer" }}>
-            <option value="">Universite Secin</option>
+            <option value="">Üniversite Seçin</option>
             {Object.keys(UNIVERSITY_CATALOGS).map(uni => <option key={uni} value={uni}>{uni}</option>)}
           </select>
         </FormField>
-        <FormField label="Ulke"><Input value={editedStudent.hostCountry} onChange={e => updateStudent("hostCountry", e.target.value)} disabled /></FormField>
-        <FormField label="Donem">
+        <FormField label="Ülke"><Input value={editedStudent.hostCountry} onChange={e => updateStudent("hostCountry", e.target.value)} disabled /></FormField>
+        <FormField label="Dönem">
           <select value={editedStudent.semester || "Fall 2025"} onChange={e => updateStudent("semester", e.target.value)} disabled={readOnly}
             style={{ width: "100%", padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" }}>
-            {semesters.map(sem => <option key={sem} value={sem}>{sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Guz")}</option>)}
+            {semesters.map(sem => <option key={sem} value={sem}>{sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Güz")}</option>)}
           </select>
         </FormField>
+        <FormField label="Karşı Kurum Fakülte Adı"><Input value={editedStudent.hostFaculty || ""} onChange={e => updateStudent("hostFaculty", e.target.value)} disabled={readOnly} placeholder="Örn: Faculty of Engineering" /></FormField>
+        <FormField label="Karşı Kurum Bölüm Adı"><Input value={editedStudent.hostDepartment || ""} onChange={e => updateStudent("hostDepartment", e.target.value)} disabled={readOnly} placeholder="Örn: Computer Engineering" /></FormField>
       </div>
 
       {/* Tabs */}
@@ -608,7 +610,7 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
             cursor: "pointer", borderBottom: activeTab === tab ? `3px solid ${C.navy}` : "3px solid transparent",
             fontFamily: "'Source Sans 3', sans-serif",
           }}>
-            {tab === "outgoing" ? `Gidis Eslestirmeleri (${editedStudent.outgoingMatches.length})` : `Donus Eslestirmeleri (${editedStudent.returnMatches.length})`}
+            {tab === "outgoing" ? `Gidiş Eşleştirmeleri (${editedStudent.outgoingMatches.length})` : `Dönüş Eşleştirmeleri (${editedStudent.returnMatches.length})`}
           </button>
         ))}
       </div>
@@ -619,27 +621,27 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
           <>
             {editedStudent.hostInstitution && UNIVERSITY_CATALOGS[editedStudent.hostInstitution] && (
               <div style={{ padding: 16, background: "#E3F2FD", border: "2px solid #2196F3", borderRadius: 12, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#1565C0", marginBottom: 12 }}>{editedStudent.hostInstitution} Ders Katalogu</div>
-                {!readOnly && <Btn onClick={() => setShowCatalogModal(true)} variant="secondary" icon={<PlusIcon />}>Katalogdan Ders Sec ve Ekle</Btn>}
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#1565C0", marginBottom: 12 }}>{editedStudent.hostInstitution} Ders Kataloğu</div>
+                {!readOnly && <Btn onClick={() => setShowCatalogModal(true)} variant="secondary" icon={<PlusIcon />}>Katalogdan Ders Seç ve Ekle</Btn>}
               </div>
             )}
             {editedStudent.outgoingMatches.map(match => (
               <CourseMatchCard key={match.id} match={match} onDelete={id => deleteMatch("outgoing", id)} onEdit={m => setEditingMatch({ type: "outgoing", match: m })} showGrade={false} type="outgoing" readOnly={readOnly} />
             ))}
-            {!readOnly && <Btn onClick={() => addMatch("outgoing")} variant="secondary" icon={<PlusIcon />}>Manuel Eslestirme Ekle</Btn>}
+            {!readOnly && <Btn onClick={() => addMatch("outgoing")} variant="secondary" icon={<PlusIcon />}>Manuel Eşleştirme Ekle</Btn>}
           </>
         )}
         {activeTab === "return" && (
           <>
             {!readOnly && editedStudent.outgoingMatches.length > 0 && (
               <div style={{ padding: 20, background: "#FFF9E6", border: "2px dashed #FDB022", borderRadius: 12, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 12 }}>Gidis Eslestirmelerinden Hizli Doldur</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 12 }}>Gidiş Eşleştirmelerinden Hızlı Doldur</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                   {editedStudent.outgoingMatches.map((outMatch, idx) => {
                     const alreadyExists = editedStudent.returnMatches.some(retMatch => JSON.stringify(retMatch.homeCourses) === JSON.stringify(outMatch.homeCourses) && JSON.stringify(retMatch.hostCourses) === JSON.stringify(outMatch.hostCourses));
                     return (
                       <button key={idx} onClick={() => copyFromOutgoing(outMatch)} disabled={alreadyExists} style={{ padding: "10px 16px", background: alreadyExists ? "#f5f5f5" : "white", border: `2px solid ${alreadyExists ? "#e0e0e0" : C.gold}`, borderRadius: 8, cursor: alreadyExists ? "not-allowed" : "pointer", fontSize: 13, color: alreadyExists ? C.textMuted : C.navy, opacity: alreadyExists ? 0.5 : 1 }}>
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{alreadyExists ? "✓ " : "+ "}Eslestirme {idx + 1}</div>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{alreadyExists ? "✓ " : "+ "}Eşleştirme {idx + 1}</div>
                         <div style={{ fontSize: 11, opacity: 0.8 }}>{outMatch.homeCourses.map(c => c.code || c.name).join(", ").substring(0, 30)}...</div>
                       </button>
                     );
@@ -650,16 +652,16 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
             {editedStudent.returnMatches.map(match => (
               <CourseMatchCard key={match.id} match={match} onDelete={id => deleteMatch("return", id)} onEdit={m => setEditingMatch({ type: "return", match: m })} showGrade={true} type="return" readOnly={readOnly} />
             ))}
-            {!readOnly && <Btn onClick={() => addMatch("return")} variant="secondary" icon={<PlusIcon />}>Manuel Donus Eslestirmesi Ekle</Btn>}
+            {!readOnly && <Btn onClick={() => addMatch("return")} variant="secondary" icon={<PlusIcon />}>Manuel Dönüş Eşleştirmesi Ekle</Btn>}
           </>
         )}
       </div>
 
       {/* Actions */}
       <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-        <Btn onClick={exportStudentData} variant="secondary" icon={<DownloadIcon />}>Disa Aktar (JSON)</Btn>
+        <Btn onClick={exportStudentData} variant="secondary" icon={<DownloadIcon />}>Dışa Aktar (JSON)</Btn>
         <div style={{ display: "flex", gap: 10 }}>
-          <Btn onClick={onClose} variant="secondary">{readOnly ? 'Kapat' : 'Iptal'}</Btn>
+          <Btn onClick={onClose} variant="secondary">{readOnly ? 'Kapat' : 'İptal'}</Btn>
           {!readOnly && <Btn onClick={() => onSave(editedStudent)}>Kaydet</Btn>}
         </div>
       </div>
@@ -714,11 +716,9 @@ const generateOutgoingWordDoc = (student) => {
 <th colspan='3' style='text-align: center; border: 1px solid black;'>${student.hostInstitution}</th>
 <th colspan='3' style='text-align: center; border: 1px solid black;'>ÇAKÜ Bilgisayar Mühendisliği</th>
 </tr>
-<tr style='background-color: #f0f0f0; font-weight: bold; font-size: 9pt;'>
-<th style='border: 1px solid black;'><b>${student.hostInstitution} University Faculty of xxxxx Department of xxxxx Bölümünden Aldığı Dersin</b></th>
-<th style='border: 1px solid black;'></th><th style='border: 1px solid black;'></th>
-<th style='border: 1px solid black;'><b>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin</b></th>
-<th style='border: 1px solid black;'></th><th style='border: 1px solid black;'></th>
+<tr style='background-color: #e8e8e8; font-weight: bold; font-size: 8pt;'>
+<td colspan='3' style='border: 1px solid black; text-align: center;'><b>${student.hostInstitution}${student.hostFaculty ? ' ' + student.hostFaculty : ''}${student.hostDepartment ? ' ' + student.hostDepartment : ''} Bölümünden Aldığı Dersin</b></td>
+<td colspan='3' style='border: 1px solid black; text-align: center;'><b>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin</b></td>
 </tr>
 <tr style='background-color: #f8f8f8; font-weight: bold;'>
 <th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th>
@@ -781,7 +781,7 @@ const generateReturnWordDoc = (student) => {
 <th colspan='4' style='border: 1px solid black; text-align: center;'>ÇAKÜ Bilgisayar Mühendisliği</th>
 </tr>
 <tr style='background-color: #e8e8e8; font-weight: bold; font-size: 8pt;'>
-<td colspan='4' style='border: 1px solid black; text-align: center;'><b>${student.hostInstitution} University Faculty of xxxxx Department of xxxxx Bölümünden Aldığı Dersin</b></td>
+<td colspan='4' style='border: 1px solid black; text-align: center;'><b>${student.hostInstitution}${student.hostFaculty ? ' ' + student.hostFaculty : ''}${student.hostDepartment ? ' ' + student.hostDepartment : ''} Bölümünden Aldığı Dersin</b></td>
 <td colspan='4' style='border: 1px solid black; text-align: center;'><b>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin</b></td>
 </tr>
 <tr style='background-color: #e0e0e0; font-weight: bold;'>
