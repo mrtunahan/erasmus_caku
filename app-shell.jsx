@@ -202,20 +202,23 @@ function AppShell() {
 
   // Render active module
   const renderModule = () => {
-    switch (route) {
-      case "erasmus":
-        return React.createElement(window.ErasmusLearningAgreementApp, { currentUser });
-      case "sinav":
-        if (!isAdmin) return React.createElement(window.ErasmusLearningAgreementApp, { currentUser });
-        return React.createElement(window.SinavOtomasyonuApp, { currentUser });
-      case "muafiyet":
-        if (!isAdmin) return React.createElement(window.ErasmusLearningAgreementApp, { currentUser });
-        return React.createElement(window.DersMuafiyetApp, { currentUser });
-      case "portal":
-        return React.createElement(window.OgrenciPortaliApp, { currentUser });
-      default:
-        return React.createElement(window.ErasmusLearningAgreementApp, { currentUser });
+    const components = {
+      erasmus: window.ErasmusLearningAgreementApp,
+      sinav: window.SinavOtomasyonuApp,
+      muafiyet: window.DersMuafiyetApp,
+      portal: window.OgrenciPortaliApp,
+    };
+    // Admin-only routes: redirect non-admin to erasmus
+    if (!isAdmin && (route === 'sinav' || route === 'muafiyet')) {
+      const Fallback = components.erasmus;
+      if (!Fallback) return <div style={{ padding: 60, textAlign: "center", color: "#c00" }}>Modül yüklenemedi. Lütfen sayfayı yenileyin (Ctrl+Shift+R).</div>;
+      return React.createElement(Fallback, { currentUser });
     }
+    const Component = components[route] || components.erasmus;
+    if (!Component) {
+      return <div style={{ padding: 60, textAlign: "center", color: "#c00" }}>Modül yüklenemedi. Lütfen sayfayı yenileyin (Ctrl+Shift+R).</div>;
+    }
+    return React.createElement(Component, { currentUser });
   };
 
   return (
