@@ -110,13 +110,15 @@
     };
 
     // Initialize Firebase
+    var firebaseReady = false;
     try {
       firebase.initializeApp(firebaseConfig);
       // Fix Safari/WebKit CORS issues with Firestore
       firebase.firestore().settings({
-        experimentalForceLongPolling: true,
+        experimentalAutoDetectLongPolling: true,
         merge: true
       });
+      firebaseReady = true;
       console.log('Firebase initialized successfully');
     } catch (error) {
       console.error('Firebase initialization error:', error);
@@ -139,6 +141,8 @@
       { file: 'shared-components.jsx', label: 'Ortak bilesenler' },
       { file: 'erasmus-learning-agreement.jsx', label: 'Erasmus modulu' },
       { file: 'sinav-otomasyonu.jsx', label: 'Sinav otomasyonu' },
+      { file: 'ders-muafiyet.jsx', label: 'Ders muafiyet' },
+      { file: 'ogrenci-portali.jsx', label: 'Ogrenci portali' },
       { file: 'app-shell.jsx', label: 'Ana kabuk' },
     ];
 
@@ -197,11 +201,15 @@
       }
     }
 
-    // Wait for all scripts to load
-    if (window.Babel && window.firebase) {
-      loadApp();
-    } else {
-      window.addEventListener('load', loadApp);
+    // Wait for all scripts to load (only if Firebase initialized successfully)
+    if (firebaseReady) {
+      if (window.Babel && window.firebase) {
+        loadApp();
+      } else {
+        window.addEventListener('load', function() {
+          if (firebaseReady) loadApp();
+        });
+      }
     }
   </script>
 </body>

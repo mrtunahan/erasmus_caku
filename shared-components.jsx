@@ -698,6 +698,7 @@ const LoginModal = ({ onLogin }) => {
   const [error, setError] = useState("");
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const ADMIN_PASSWORD = "\x31\x36\x30\x35";
 
   const handleSubmit = async (e) => {
@@ -709,10 +710,10 @@ const LoginModal = ({ onLogin }) => {
         if (password === ADMIN_PASSWORD) {
           onLogin({ role: 'admin', name: 'Admin', studentNumber: null });
         } else {
-          setError("Admin sifresi yanlis!");
+          setError("Admin şifresi yanlış!");
         }
       } else {
-        if (!studentNumber.trim()) { setError("Ogrenci numarasi gerekli!"); return; }
+        if (!studentNumber.trim()) { setError("Öğrenci numarası gerekli!"); setLoading(false); return; }
         const passwords = await FirebaseDB.fetchPasswords();
         if (passwords[studentNumber] === password) {
           const students = await FirebaseDB.fetchStudents();
@@ -720,84 +721,346 @@ const LoginModal = ({ onLogin }) => {
           if (student) {
             onLogin({ role: 'student', name: `${student.firstName} ${student.lastName}`, studentNumber });
           } else {
-            setError("Ogrenci bulunamadi!");
+            setError("Öğrenci bulunamadı!");
           }
         } else {
-          setError("Ogrenci numarasi veya sifre yanlis!");
+          setError("Öğrenci numarası veya şifre yanlış!");
         }
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError("Giris sirasinda hata olustu. Lutfen tekrar deneyin.");
+      setError("Giriş sırasında hata oluştu. Lütfen tekrar deneyin.");
     } finally {
       setLoading(false);
     }
   };
 
+  const loginStyles = `
+    @keyframes loginFadeIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes loginSpin {
+      to { transform: rotate(360deg); }
+    }
+    @keyframes loginShake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+    @keyframes auroraSway1 {
+      0%, 100% { d: path("M0,120 C200,60 400,140 600,80 C800,30 1000,110 1200,60 C1350,30 1440,70 1440,70 L1440,0 L0,0 Z"); opacity: 0.25; }
+      33% { d: path("M0,100 C180,140 380,50 580,110 C780,60 980,130 1180,50 C1340,80 1440,40 1440,40 L1440,0 L0,0 Z"); opacity: 0.35; }
+      66% { d: path("M0,130 C220,40 420,120 620,70 C820,120 1020,40 1220,90 C1360,50 1440,80 1440,80 L1440,0 L0,0 Z"); opacity: 0.2; }
+    }
+    @keyframes auroraSway2 {
+      0%, 100% { d: path("M0,160 C180,100 360,180 540,120 C720,70 900,160 1080,100 C1260,60 1440,110 1440,110 L1440,0 L0,0 Z"); opacity: 0.18; }
+      50% { d: path("M0,140 C200,180 400,90 600,150 C800,100 1000,170 1200,90 C1340,120 1440,80 1440,80 L1440,0 L0,0 Z"); opacity: 0.28; }
+    }
+    @keyframes auroraSway3 {
+      0%, 100% { d: path("M0,100 C240,150 480,60 720,130 C960,70 1200,140 1440,90 L1440,0 L0,0 Z"); opacity: 0.12; }
+      50% { d: path("M0,130 C240,70 480,150 720,80 C960,140 1200,60 1440,120 L1440,0 L0,0 Z"); opacity: 0.22; }
+    }
+    @keyframes starTwinkle {
+      0%, 100% { opacity: 0.15; }
+      50% { opacity: 0.85; }
+    }
+    @keyframes shootingStar {
+      0% { transform: translateX(0) translateY(0); opacity: 1; }
+      100% { transform: translateX(200px) translateY(120px); opacity: 0; }
+    }
+    @keyframes snowFall {
+      0% { transform: translateY(-10px) translateX(0); opacity: 0; }
+      10% { opacity: 0.6; }
+      90% { opacity: 0.6; }
+      100% { transform: translateY(100vh) translateX(30px); opacity: 0; }
+    }
+  `;
+
+  const stars = Array.from({ length: 50 }, (_, i) => ({
+    left: `${(i * 19 + 5) % 100}%`,
+    top: `${(i * 13 + 2) % 50}%`,
+    size: 1 + (i % 3),
+    delay: `${(i * 0.6) % 5}s`,
+    duration: `${2 + (i % 4)}s`,
+  }));
+
+  const snowflakes = Array.from({ length: 20 }, (_, i) => ({
+    left: `${(i * 5 + 1) % 100}%`,
+    size: 1.5 + (i % 3),
+    delay: `${(i * 1.2) % 8}s`,
+    duration: `${8 + (i % 6)}s`,
+  }));
+
   return (
     <div style={{
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center",
-      justifyContent: "center", zIndex: 10000, padding: 20,
+      background: "linear-gradient(180deg, #020b18 0%, #0a1628 25%, #0f1f3a 50%, #132844 70%, #1a3352 100%)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 10000, padding: 20, overflow: "hidden",
+      fontFamily: "'Source Sans 3', sans-serif",
     }}>
+      <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
+
+      {/* Yıldızlar */}
+      {stars.map((s, i) => (
+        <div key={`s-${i}`} style={{
+          position: "absolute", left: s.left, top: s.top,
+          width: s.size, height: s.size, borderRadius: "50%",
+          background: "#fff",
+          animation: `starTwinkle ${s.duration} ease-in-out ${s.delay} infinite`,
+          pointerEvents: "none",
+        }} />
+      ))}
+
+      {/* Aurora Borealis katmanları */}
+      <svg viewBox="0 0 1440 200" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "40%", pointerEvents: "none" }} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="aurora1" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#00ff87" stopOpacity="0" />
+            <stop offset="20%" stopColor="#00ff87" stopOpacity="0.5" />
+            <stop offset="40%" stopColor="#60efff" stopOpacity="0.6" />
+            <stop offset="60%" stopColor="#7c3aed" stopOpacity="0.4" />
+            <stop offset="80%" stopColor="#00ff87" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#60efff" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="aurora2" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#60efff" stopOpacity="0" />
+            <stop offset="25%" stopColor="#60efff" stopOpacity="0.4" />
+            <stop offset="50%" stopColor="#00ff87" stopOpacity="0.5" />
+            <stop offset="75%" stopColor="#a855f7" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#00ff87" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="aurora3" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#a855f7" stopOpacity="0" />
+            <stop offset="30%" stopColor="#7c3aed" stopOpacity="0.3" />
+            <stop offset="50%" stopColor="#60efff" stopOpacity="0.35" />
+            <stop offset="70%" stopColor="#00ff87" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
+          </linearGradient>
+          <filter id="auroraBlur">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="8" />
+          </filter>
+          <filter id="auroraBlur2">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="12" />
+          </filter>
+        </defs>
+        <path d="M0,120 C200,60 400,140 600,80 C800,30 1000,110 1200,60 C1350,30 1440,70 1440,70 L1440,0 L0,0 Z" fill="url(#aurora1)" filter="url(#auroraBlur)" style={{ animation: "auroraSway1 8s ease-in-out infinite" }} />
+        <path d="M0,160 C180,100 360,180 540,120 C720,70 900,160 1080,100 C1260,60 1440,110 1440,110 L1440,0 L0,0 Z" fill="url(#aurora2)" filter="url(#auroraBlur2)" style={{ animation: "auroraSway2 10s ease-in-out infinite" }} />
+        <path d="M0,100 C240,150 480,60 720,130 C960,70 1200,140 1440,90 L1440,0 L0,0 Z" fill="url(#aurora3)" filter="url(#auroraBlur)" style={{ animation: "auroraSway3 12s ease-in-out infinite" }} />
+      </svg>
+
+      {/* Aurora yansıma ışığı */}
+      <div style={{ position: "absolute", top: "5%", left: "20%", width: "60%", height: "30%", background: "radial-gradient(ellipse at center, rgba(0,255,135,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
+
+      {/* Dağ silüetleri (kar) */}
+      <svg viewBox="0 0 1440 320" style={{ position: "absolute", bottom: 0, left: 0, width: "100%", height: "35%", pointerEvents: "none" }} preserveAspectRatio="none">
+        <path d="M0,320 L0,260 L80,250 L150,190 L200,220 L280,140 L340,180 L400,100 L450,160 L520,80 L580,130 L640,60 L700,110 L760,50 L820,100 L880,70 L940,130 L1000,90 L1060,150 L1120,110 L1180,170 L1240,130 L1300,180 L1360,150 L1440,190 L1440,320 Z" fill="#0a1628" />
+        <path d="M0,320 L0,280 L100,270 L180,230 L250,260 L340,200 L420,240 L500,180 L580,220 L660,170 L740,210 L820,160 L900,200 L980,170 L1060,210 L1140,180 L1220,220 L1300,200 L1380,230 L1440,220 L1440,320 Z" fill="#0f1a2e" />
+        {/* Kar tepeleri */}
+        <path d="M270,144 L280,140 L290,147" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2"/>
+        <path d="M390,104 L400,100 L410,107" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2"/>
+        <path d="M510,84 L520,80 L530,87" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2"/>
+        <path d="M630,64 L640,60 L650,67" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2"/>
+        <path d="M750,54 L760,50 L770,57" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2"/>
+        <path d="M870,74 L880,70 L890,77" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2"/>
+      </svg>
+
+      {/* Kar taneleri */}
+      {snowflakes.map((sf, i) => (
+        <div key={`sf-${i}`} style={{
+          position: "absolute", left: sf.left, top: "-5px",
+          width: sf.size, height: sf.size, borderRadius: "50%",
+          background: "rgba(255,255,255,0.5)",
+          animation: `snowFall ${sf.duration} linear ${sf.delay} infinite`,
+          pointerEvents: "none",
+        }} />
+      ))}
+
       <div style={{
-        background: C.card, borderRadius: 16, maxWidth: 450, width: "100%",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.3)", overflow: "hidden",
+        maxWidth: 440, width: "100%", position: "relative", zIndex: 2,
+        animation: "loginFadeIn 0.5s ease-out",
       }}>
-        <div style={{
-          padding: 32, background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-          color: "white", textAlign: "center",
-        }}>
-          <h2 style={{
-            margin: 0, fontSize: 28, fontWeight: 700,
-            fontFamily: "'Playfair Display', serif", marginBottom: 8,
-          }}>CAKU Yonetim Sistemi</h2>
-          <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Cankiri Karatekin Universitesi</p>
-        </div>
-        <div style={{ display: "flex", padding: 24, paddingBottom: 0 }}>
-          <button onClick={() => setIsAdminMode(false)} style={{
-            flex: 1, padding: "12px 24px", border: "none",
-            background: !isAdminMode ? C.navy : "transparent",
-            color: !isAdminMode ? "white" : C.textMuted,
-            borderRadius: "8px 8px 0 0", cursor: "pointer", fontWeight: 600, fontSize: 14,
-          }}>Ogrenci Girisi</button>
-          <button onClick={() => setIsAdminMode(true)} style={{
-            flex: 1, padding: "12px 24px", border: "none",
-            background: isAdminMode ? C.navy : "transparent",
-            color: isAdminMode ? "white" : C.textMuted,
-            borderRadius: "8px 8px 0 0", cursor: "pointer", fontWeight: 600, fontSize: 14,
-          }}>Admin Girisi</button>
-        </div>
-        <form onSubmit={handleSubmit} style={{ padding: 24 }}>
-          {!isAdminMode && (
-            <FormField label="Ogrenci Numarasi">
-              <Input value={studentNumber} onChange={e => setStudentNumber(e.target.value)} placeholder="Orn: AND43" autoFocus />
-            </FormField>
-          )}
-          <FormField label="Sifre">
-            <Input type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder={isAdminMode ? "Admin sifresi" : "Ogrenci sifresi"} autoFocus={isAdminMode} />
-          </FormField>
-          {error && (
-            <div style={{ padding: 12, background: "#FEE2E2", color: "#991B1B", borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
-              {error}
-            </div>
-          )}
-          <button type="submit" disabled={loading} style={{
-            width: "100%", padding: "12px 18px", borderRadius: 8, border: "none",
-            background: loading ? C.border : C.navy, color: loading ? C.textMuted : "#fff",
-            fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
-            fontFamily: "'Source Sans 3', sans-serif", opacity: loading ? 0.5 : 1,
-          }}>{loading ? "Giris yapiliyor..." : (isAdminMode ? "Admin Olarak Giris Yap" : "Ogrenci Olarak Giris Yap")}</button>
-          <div style={{ marginTop: 16, padding: 12, background: C.bg, borderRadius: 8, fontSize: 12, color: C.textMuted }}>
-            <strong>Bilgi:</strong><br />
-            {isAdminMode ? (
-              <>Admin girisi icin yetkili sifrenizi kullanin.</>
-            ) : (
-              <>Varsayilan ogrenci sifresi: <code style={{background: "white", padding: "2px 6px", borderRadius: 4}}>1234</code></>
-            )}
+        {/* Logo & Başlık */}
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{
+            width: 76, height: 76, borderRadius: 22, margin: "0 auto 20px",
+            background: "linear-gradient(135deg, rgba(0,255,135,0.15) 0%, rgba(96,239,255,0.15) 100%)",
+            border: "1px solid rgba(0,255,135,0.2)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 32, fontWeight: 800, color: "#00ff87",
+            fontFamily: "'Playfair Display', serif",
+            boxShadow: "0 8px 40px rgba(0,255,135,0.15), inset 0 0 30px rgba(0,255,135,0.05)",
+          }}>Ç</div>
+          <h1 style={{
+            margin: 0, fontSize: 28, fontWeight: 700, color: "white",
+            fontFamily: "'Playfair Display', serif", letterSpacing: "0.02em",
+            textShadow: "0 0 30px rgba(0,255,135,0.15)",
+          }}>ÇAKÜ Yönetim Sistemi</h1>
+          <p style={{ margin: "8px 0 0", fontSize: 14, color: "rgba(96,239,255,0.5)" }}>
+            Çankırı Karatekin Üniversitesi
+          </p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 14 }}>
+            <div style={{ width: 50, height: 1, background: "linear-gradient(90deg, transparent, rgba(0,255,135,0.3))" }} />
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#00ff87", opacity: 0.4, boxShadow: "0 0 8px rgba(0,255,135,0.4)" }} />
+            <div style={{ width: 50, height: 1, background: "linear-gradient(90deg, rgba(0,255,135,0.3), transparent)" }} />
           </div>
-        </form>
+        </div>
+
+        {/* Kart */}
+        <div style={{
+          background: "rgba(10,22,40,0.7)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          border: "1px solid rgba(0,255,135,0.08)",
+          borderRadius: 20, overflow: "hidden",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(0,255,135,0.05)",
+        }}>
+          {/* Sekmeler */}
+          <div style={{ display: "flex", borderBottom: "1px solid rgba(0,255,135,0.06)" }}>
+            {[
+              { key: false, label: "Öğrenci Girişi", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+              { key: true, label: "Admin Girişi", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
+            ].map(tab => {
+              const active = isAdminMode === tab.key;
+              return (
+                <button key={String(tab.key)} onClick={() => { setIsAdminMode(tab.key); setError(""); }} style={{
+                  flex: 1, padding: "16px 20px", border: "none", cursor: "pointer",
+                  background: active ? "rgba(0,255,135,0.06)" : "transparent",
+                  color: active ? "#00ff87" : "rgba(255,255,255,0.35)",
+                  fontSize: 14, fontWeight: 600,
+                  borderBottom: active ? "2px solid #00ff87" : "2px solid transparent",
+                  transition: "all 0.25s ease",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  fontFamily: "'Source Sans 3', sans-serif",
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={tab.icon}/></svg>
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} style={{ padding: 28 }}>
+            {!isAdminMode && (
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                  Öğrenci Numarası
+                </label>
+                <div style={{ position: "relative" }}>
+                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(0,255,135,0.3)" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                  </div>
+                  <input value={studentNumber} onChange={e => setStudentNumber(e.target.value)} placeholder="Örn: AND43" autoFocus
+                    style={{
+                      width: "100%", padding: "14px 16px 14px 44px", borderRadius: 12,
+                      border: "1px solid rgba(0,255,135,0.1)", background: "rgba(0,255,135,0.03)",
+                      color: "white", fontSize: 15, outline: "none",
+                      fontFamily: "'Source Sans 3', sans-serif",
+                      transition: "border-color 0.2s, background 0.2s, box-shadow 0.2s",
+                    }}
+                    onFocus={e => { e.target.style.borderColor = "rgba(0,255,135,0.3)"; e.target.style.background = "rgba(0,255,135,0.05)"; e.target.style.boxShadow = "0 0 20px rgba(0,255,135,0.06)"; }}
+                    onBlur={e => { e.target.style.borderColor = "rgba(0,255,135,0.1)"; e.target.style.background = "rgba(0,255,135,0.03)"; e.target.style.boxShadow = "none"; }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                Şifre
+              </label>
+              <div style={{ position: "relative" }}>
+                <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(0,255,135,0.3)" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                </div>
+                <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
+                  placeholder={isAdminMode ? "Admin şifresi" : "Öğrenci şifresi"} autoFocus={isAdminMode}
+                  style={{
+                    width: "100%", padding: "14px 48px 14px 44px", borderRadius: 12,
+                    border: "1px solid rgba(0,255,135,0.1)", background: "rgba(0,255,135,0.03)",
+                    color: "white", fontSize: 15, outline: "none",
+                    fontFamily: "'Source Sans 3', sans-serif",
+                    transition: "border-color 0.2s, background 0.2s, box-shadow 0.2s",
+                  }}
+                  onFocus={e => { e.target.style.borderColor = "rgba(0,255,135,0.3)"; e.target.style.background = "rgba(0,255,135,0.05)"; e.target.style.boxShadow = "0 0 20px rgba(0,255,135,0.06)"; }}
+                  onBlur={e => { e.target.style.borderColor = "rgba(0,255,135,0.1)"; e.target.style.background = "rgba(0,255,135,0.03)"; e.target.style.boxShadow = "none"; }}
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{
+                  position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
+                  background: "none", border: "none", cursor: "pointer", color: "rgba(0,255,135,0.3)",
+                  padding: 4, display: "flex", alignItems: "center",
+                }}>
+                  {showPassword ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Hata mesajı */}
+            {error && (
+              <div style={{
+                padding: "12px 16px", marginBottom: 20, borderRadius: 12,
+                background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)",
+                color: "#fca5a5", fontSize: 13, display: "flex", alignItems: "center", gap: 10,
+                animation: "loginShake 0.4s ease",
+              }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                {error}
+              </div>
+            )}
+
+            {/* Giriş butonu */}
+            <button type="submit" disabled={loading} style={{
+              width: "100%", padding: "15px 20px", borderRadius: 12,
+              border: loading ? "1px solid rgba(0,255,135,0.1)" : "none",
+              background: loading ? "rgba(0,255,135,0.05)" : "linear-gradient(135deg, #00ff87 0%, #60efff 100%)",
+              color: loading ? "rgba(96,239,255,0.4)" : "#020b18",
+              fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
+              fontFamily: "'Source Sans 3', sans-serif",
+              transition: "all 0.25s ease",
+              boxShadow: loading ? "none" : "0 4px 24px rgba(0,255,135,0.2)",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+            }}>
+              {loading ? (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93"/></svg>
+                  Giriş yapılıyor...
+                </>
+              ) : (
+                <>
+                  {isAdminMode ? "Admin Olarak Giriş Yap" : "Öğrenci Olarak Giriş Yap"}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </>
+              )}
+            </button>
+
+            {/* Bilgi kutusu */}
+            <div style={{
+              marginTop: 20, padding: "12px 16px", borderRadius: 12,
+              background: "rgba(0,255,135,0.03)", border: "1px solid rgba(0,255,135,0.08)",
+              fontSize: 12, color: "rgba(96,239,255,0.4)",
+              display: "flex", alignItems: "flex-start", gap: 10,
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(0,255,135,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <span>
+                {isAdminMode
+                  ? "Admin girişi için yetkili şifrenizi kullanın."
+                  : <>Varsayılan öğrenci şifresi: <code style={{ background: "rgba(0,255,135,0.08)", padding: "2px 8px", borderRadius: 4, color: "#00ff87", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>1234</code></>
+                }
+              </span>
+            </div>
+          </form>
+        </div>
+
+        {/* Alt bilgi */}
+        <p style={{ textAlign: "center", marginTop: 24, fontSize: 12, color: "rgba(96,239,255,0.2)" }}>
+          © 2025 ÇAKÜ Bilgisayar Mühendisliği
+        </p>
       </div>
     </div>
   );
