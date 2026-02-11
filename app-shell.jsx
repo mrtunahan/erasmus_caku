@@ -47,7 +47,13 @@ const NAV_ITEMS = [
 const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isAdmin = currentUser?.role === 'admin';
-  const visibleItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
+  const isProfessor = currentUser?.role === 'professor';
+
+  // Professors see all items, Admins see all, Students see only non-admin items
+  const visibleItems = NAV_ITEMS.filter(item => {
+    if (isAdmin || isProfessor) return true;
+    return !item.adminOnly;
+  });
 
   return (
     <nav style={{
@@ -89,18 +95,22 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
         <div style={{ display: "flex", gap: 4, height: "100%" }}>
           {visibleItems.map(item => {
             const isActive = currentRoute === item.id;
+            // Professors can only access 'sinav'
+            const isDisabled = isProfessor && item.id !== 'sinav';
+
             return (
               <button
                 key={item.id}
-                onClick={() => onNavigate(item.id)}
+                onClick={() => !isDisabled && onNavigate(item.id)}
+                disabled={isDisabled}
                 style={{
                   padding: "0 20px",
                   border: "none",
                   background: isActive ? "rgba(255,255,255,0.15)" : "transparent",
-                  color: isActive ? "white" : "rgba(255,255,255,0.7)",
+                  color: isActive ? "white" : isDisabled ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
                   fontSize: 14,
                   fontWeight: isActive ? 600 : 400,
-                  cursor: "pointer",
+                  cursor: isDisabled ? "not-allowed" : "pointer",
                   fontFamily: "'Source Sans 3', sans-serif",
                   display: "flex",
                   alignItems: "center",
@@ -109,13 +119,14 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
                   transition: "all 0.2s",
                   height: "100%",
                 }}
-                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
-                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                onMouseEnter={e => { if (!isActive && !isDisabled) e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+                onMouseLeave={e => { if (!isActive && !isDisabled) e.currentTarget.style.background = "transparent"; }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d={item.icon} />
                 </svg>
                 {item.label}
+                {isDisabled && <span style={{ fontSize: 10, background: "rgba(255,255,255,0.1)", padding: "2px 6px", borderRadius: 4, marginLeft: 4 }}>Kilitli</span>}
               </button>
             );
           })}
@@ -128,7 +139,9 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
               {currentUser?.name || "Kullanıcı"}
             </div>
             <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>
-              {currentUser?.role === "admin" ? "Admin" : `Öğrenci (${currentUser?.studentNumber || ""})`}
+              {currentUser?.role === "admin" ? "Admin"
+                : currentUser?.role === "professor" ? "Akademisyen"
+                  : `Öğrenci (${currentUser?.studentNumber || ""})`}
             </div>
           </div>
           <button
@@ -175,20 +188,45 @@ function AppShell() {
   const handleLogin = (user) => {
     setCurrentUser(user);
     localStorage.setItem("caku_current_user", JSON.stringify(user));
+
+    // Redirect based on role immediately after login
+    if (user.role === 'professor') {
+      navigate('sinav');
+    } else if (user.role === 'admin') {
+      // Admin stays on current or goes to default
+    } else {
+      // Student defaults to erasmus if on restricting page
+      if (route === 'sinav' || route === 'muafiyet') {
+        navigate('erasmus');
+      }
+    }
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem("caku_current_user");
+    navigate('erasmus'); // Reset route on logout
   };
 
-  // Öğrenci admin-only sayfalara girmeye çalışırsa yönlendir
   const isAdmin = currentUser?.role === 'admin';
+  const isProfessor = currentUser?.role === 'professor';
+
+  // Routing Protection
   useEffect(() => {
-    if (currentUser && !isAdmin && (route === 'sinav' || route === 'muafiyet')) {
-      navigate('erasmus');
+    if (!currentUser) return;
+
+    if (isProfessor) {
+      // Professors can only be on 'sinav'
+      if (route !== 'sinav') {
+        navigate('sinav');
+      }
+    } else if (!isAdmin) {
+      // Students cannot access admin-only pages
+      if (route === 'sinav' || route === 'muafiyet') {
+        navigate('erasmus');
+      }
     }
-  }, [route, isAdmin, currentUser]);
+  }, [route, isAdmin, isProfessor, currentUser, navigate]);
 
   // Show login if not authenticated
   if (!currentUser) {
@@ -208,12 +246,11 @@ function AppShell() {
       muafiyet: window.DersMuafiyetApp,
       portal: window.OgrenciPortaliApp,
     };
-    // Admin-only routes: redirect non-admin to erasmus
-    if (!isAdmin && (route === 'sinav' || route === 'muafiyet')) {
-      const Fallback = components.erasmus;
-      if (!Fallback) return <div style={{ padding: 60, textAlign: "center", color: "#c00" }}>Modül yüklenemedi. Lütfen sayfayı yenileyin (Ctrl+Shift+R).</div>;
-      return React.createElement(Fallback, { currentUser });
-    }
+
+    // Safety check for rendering availability
+    if (isProfessor && route !== 'sinav') return null; // Wait for redirect
+    if (!isAdmin && !isProfessor && (route === 'sinav' || route === 'muafiyet')) return null; // Wait for redirect
+
     const Component = components[route] || components.erasmus;
     if (!Component) {
       return <div style={{ padding: 60, textAlign: "center", color: "#c00" }}>Modül yüklenemedi. Lütfen sayfayı yenileyin (Ctrl+Shift+R).</div>;
