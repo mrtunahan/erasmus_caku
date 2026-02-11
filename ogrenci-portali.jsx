@@ -1945,6 +1945,7 @@ function OgrenciPortaliApp({ currentUser }) {
   const [highlightedPostId, setHighlightedPostId] = useState(null);
   const loadMoreRef = useRef(null);
   var isMobile = useIsMobile(768);
+  var isAdmin = currentUser && (currentUser.isAdmin || currentUser.email === "tunahan@example.com"); // Geçici admin kontrolü
 
   useEffect(function () {
     var params = new URLSearchParams(window.location.search);
