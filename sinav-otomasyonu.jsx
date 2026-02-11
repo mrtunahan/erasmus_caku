@@ -1746,7 +1746,11 @@ function SinavOtomasyonuApp({ currentUser }) {
                       style={{ width: "100%", padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12 }}
                     >
                       <option value={0}>Tüm Sınıflar</option>
-                      {[1, 2, 3, 4].map(s => <option key={s} value={s}>{s}. Sınıf</option>)}
+                      <option value={1}>1. Sınıf</option>
+                      <option value={2}>2. Sınıf</option>
+                      <option value={3}>3. Sınıf</option>
+                      <option value={4}>4. Sınıf</option>
+                      <option value={5}>Seçmeli Dersler</option>
                     </select>
                   </div>
 

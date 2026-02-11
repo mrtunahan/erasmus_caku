@@ -1107,36 +1107,29 @@ const LoginModal = ({ onLogin }) => {
         {/* Logo & Başlık */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <img src="logo.png" alt="Logo" style={{
-            width: 76, height: 76, borderRadius: 22, margin: "0 auto 20px",
+            width: 80, height: 80, borderRadius: 20, margin: "0 auto 16px",
             objectFit: "cover",
-            boxShadow: "0 8px 40px rgba(0,255,135,0.15)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
           }} />
           <h1 style={{
-            margin: 0, fontSize: 28, fontWeight: 700, color: "white",
-            fontFamily: "'Playfair Display', serif", letterSpacing: "0.02em",
-            textShadow: "0 0 30px rgba(0,255,135,0.15)",
+            margin: 0, fontSize: 24, fontWeight: 600, color: "white",
+            fontFamily: "'Inter', sans-serif", letterSpacing: "0.5px",
           }}>Online Assistant</h1>
-          <p style={{ margin: "8px 0 0", fontSize: 14, color: "rgba(96,239,255,0.5)" }}>
+          <p style={{ margin: "8px 0 0", fontSize: 13, color: "rgba(255,255,255,0.6)", fontWeight: 400 }}>
             Çankırı Karatekin Üniversitesi
           </p>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 14 }}>
-            <div style={{ width: 50, height: 1, background: "linear-gradient(90deg, transparent, rgba(0,255,135,0.3))" }} />
-            <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#00ff87", opacity: 0.4, boxShadow: "0 0 8px rgba(0,255,135,0.4)" }} />
-            <div style={{ width: 50, height: 1, background: "linear-gradient(90deg, rgba(0,255,135,0.3), transparent)" }} />
-          </div>
         </div>
 
         {/* Kart */}
+        {/* Kart */}
         <div style={{
-          background: "rgba(10,22,40,0.7)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
-          border: "1px solid rgba(0,255,135,0.08)",
-          borderRadius: 20, overflow: "hidden",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(0,255,135,0.05)",
+          background: "#162032",
+          border: "1px solid #233044",
+          borderRadius: 12, overflow: "hidden",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.4)",
         }}>
           {/* Sekmeler */}
-          <div style={{ display: "flex", borderBottom: "1px solid rgba(0,255,135,0.06)" }}>
+          <div style={{ display: "flex", borderBottom: "1px solid #233044" }}>
             {[
               { key: "student", label: "Öğrenci", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
               { key: "professor", label: "Akademisyen", icon: "M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" },
@@ -1145,14 +1138,13 @@ const LoginModal = ({ onLogin }) => {
               const active = activeTab === tab.key;
               return (
                 <button key={tab.key} onClick={() => { setActiveTab(tab.key); setError(""); setIdentifier(""); setPassword(""); }} type="button" style={{
-                  flex: 1, padding: "16px 10px", border: "none", cursor: "pointer",
-                  background: active ? "rgba(0,255,135,0.06)" : "transparent",
-                  color: active ? "#00ff87" : "rgba(255,255,255,0.35)",
-                  fontSize: 13, fontWeight: 600,
-                  borderBottom: active ? "2px solid #00ff87" : "2px solid transparent",
-                  transition: "all 0.25s ease",
+                  flex: 1, padding: "14px 10px", border: "none", cursor: "pointer",
+                  background: active ? "#1E2B45" : "transparent",
+                  color: active ? "white" : "#6B7280",
+                  fontSize: 13, fontWeight: 500,
+                  transition: "all 0.2s ease",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  fontFamily: "'Source Sans 3', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={tab.icon} /></svg>
                   {tab.label}
@@ -1170,19 +1162,19 @@ const LoginModal = ({ onLogin }) => {
                   Öğrenci Numarası
                 </label>
                 <div style={{ position: "relative" }}>
-                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(0,255,135,0.3)" }}>
+                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF" }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                   </div>
                   <input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Örn: AND43" autoFocus
                     style={{
-                      width: "100%", padding: "14px 16px 14px 44px", borderRadius: 12,
-                      border: "1px solid rgba(0,255,135,0.1)", background: "rgba(0,255,135,0.03)",
-                      color: "white", fontSize: 15, outline: "none",
-                      fontFamily: "'Source Sans 3', sans-serif",
-                      transition: "border-color 0.2s, background 0.2s, box-shadow 0.2s",
+                      width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8,
+                      border: "1px solid #374151", background: "#1F2937",
+                      color: "white", fontSize: 14, outline: "none",
+                      fontFamily: "'Inter', sans-serif",
+                      transition: "border-color 0.2s",
                     }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(0,255,135,0.3)"; e.target.style.background = "rgba(0,255,135,0.05)"; e.target.style.boxShadow = "0 0 20px rgba(0,255,135,0.06)"; }}
-                    onBlur={e => { e.target.style.borderColor = "rgba(0,255,135,0.1)"; e.target.style.background = "rgba(0,255,135,0.03)"; e.target.style.boxShadow = "none"; }}
+                    onFocus={e => { e.target.style.borderColor = "#059669"; }}
+                    onBlur={e => { e.target.style.borderColor = "#374151"; }}
                   />
                 </div>
               </div>
@@ -1195,10 +1187,10 @@ const LoginModal = ({ onLogin }) => {
                 </label>
                 <select value={identifier} onChange={e => setIdentifier(e.target.value)}
                   style={{
-                    width: "100%", padding: "14px 16px", borderRadius: 12,
-                    border: "1px solid rgba(0,255,135,0.1)", background: "rgba(0,255,135,0.03)",
-                    color: "white", fontSize: 15, outline: "none",
-                    fontFamily: "'Source Sans 3', sans-serif", cursor: "pointer",
+                    width: "100%", padding: "12px 16px", borderRadius: 8,
+                    border: "1px solid #374151", background: "#1F2937",
+                    color: "white", fontSize: 14, outline: "none",
+                    fontFamily: "'Inter', sans-serif", cursor: "pointer",
                   }}
                 >
                   <option value="" style={{ color: "black" }}>İsim Seçiniz...</option>
@@ -1220,14 +1212,14 @@ const LoginModal = ({ onLogin }) => {
                 <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
                   placeholder={activeTab === "admin" ? "Admin şifresi" : "Şifreniz"} autoFocus={activeTab === "admin"}
                   style={{
-                    width: "100%", padding: "14px 48px 14px 44px", borderRadius: 12,
-                    border: "1px solid rgba(0,255,135,0.1)", background: "rgba(0,255,135,0.03)",
-                    color: "white", fontSize: 15, outline: "none",
-                    fontFamily: "'Source Sans 3', sans-serif",
-                    transition: "border-color 0.2s, background 0.2s, box-shadow 0.2s",
+                    width: "100%", padding: "12px 48px 12px 40px", borderRadius: 8,
+                    border: "1px solid #374151", background: "#1F2937",
+                    color: "white", fontSize: 14, outline: "none",
+                    fontFamily: "'Inter', sans-serif",
+                    transition: "border-color 0.2s",
                   }}
-                  onFocus={e => { e.target.style.borderColor = "rgba(0,255,135,0.3)"; e.target.style.background = "rgba(0,255,135,0.05)"; e.target.style.boxShadow = "0 0 20px rgba(0,255,135,0.06)"; }}
-                  onBlur={e => { e.target.style.borderColor = "rgba(0,255,135,0.1)"; e.target.style.background = "rgba(0,255,135,0.03)"; e.target.style.boxShadow = "none"; }}
+                  onFocus={e => { e.target.style.borderColor = "#059669"; }}
+                  onBlur={e => { e.target.style.borderColor = "#374151"; }}
                 />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} style={{
                   position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
@@ -1258,14 +1250,13 @@ const LoginModal = ({ onLogin }) => {
 
             {/* Giriş butonu */}
             <button type="submit" disabled={loading} style={{
-              width: "100%", padding: "15px 20px", borderRadius: 12,
-              border: loading ? "1px solid rgba(0,255,135,0.1)" : "none",
-              background: loading ? "rgba(0,255,135,0.05)" : "linear-gradient(135deg, #00ff87 0%, #60efff 100%)",
-              color: loading ? "rgba(96,239,255,0.4)" : "#020b18",
-              fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
-              fontFamily: "'Source Sans 3', sans-serif",
-              transition: "all 0.25s ease",
-              boxShadow: loading ? "none" : "0 4px 24px rgba(0,255,135,0.2)",
+              width: "100%", padding: "12px 20px", borderRadius: 8,
+              border: "none",
+              background: loading ? "#374151" : "#059669",
+              color: loading ? "#9CA3AF" : "white",
+              fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
+              fontFamily: "'Inter', sans-serif",
+              transition: "background 0.2s ease",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
             }}>
               {loading ? (
@@ -1280,19 +1271,6 @@ const LoginModal = ({ onLogin }) => {
                 </>
               )}
             </button>
-
-            {/* Bilgi kutusu */}
-            <div style={{
-              marginTop: 20, padding: "12px 16px", borderRadius: 12,
-              background: "rgba(0,255,135,0.03)", border: "1px solid rgba(0,255,135,0.08)",
-              fontSize: 12, color: "rgba(96,239,255,0.4)",
-              display: "flex", alignItems: "flex-start", gap: 10,
-            }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(0,255,135,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-              <span>
-                Varsayılan Şifre: <code style={{ background: "rgba(0,255,135,0.08)", padding: "2px 8px", borderRadius: 4, color: "#00ff87", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>1234</code>
-              </span>
-            </div>
           </form>
         </div>
 
