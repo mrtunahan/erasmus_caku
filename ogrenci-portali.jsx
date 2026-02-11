@@ -755,7 +755,7 @@ const CommentSection = ({ postId, currentUser }) => {
 };
 
 // ── Gönderi Kartı ──
-const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark }) => {
+const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor }) => {
   var cat = getCategoryInfo(post.category);
   var userId = getUserId(currentUser);
   var isAuthor = post.authorId === userId || currentUser.role === "admin";
@@ -814,7 +814,13 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
           <Avatar name={post.authorName} />
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontWeight: 700, fontSize: 15, color: PC.navy }}>{post.authorName}</span>
+              <span
+                onClick={function () { if (onFilterAuthor) onFilterAuthor(post.authorName); }}
+                style={{ fontWeight: 700, fontSize: 15, color: PC.navy, cursor: "pointer" }}
+                onMouseEnter={function (e) { e.currentTarget.style.textDecoration = "underline"; }}
+                onMouseLeave={function (e) { e.currentTarget.style.textDecoration = "none"; }}
+                title={"\"" + post.authorName + "\" gönderilerini filtrele"}
+              >{post.authorName}</span>
               <CategoryBadge category={post.category} small />
               {post.tag && (
                 <span style={{
@@ -996,6 +1002,29 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
             onReact={onReact}
           />
           <CommentSection postId={post.id} currentUser={currentUser} />
+          <button
+            onClick={function () {
+              var text = (post.title ? post.title + "\n" : "") + post.content;
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(text);
+              }
+            }}
+            title="Gönderiyi Kopyala"
+            style={{
+              padding: "6px 12px", border: "1px solid " + PC.border,
+              borderRadius: 20, background: "white",
+              cursor: "pointer", fontSize: 13, display: "flex",
+              alignItems: "center", gap: 6, color: PC.textMuted,
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={function (e) { e.currentTarget.style.borderColor = PC.blue; e.currentTarget.style.color = PC.blue; }}
+            onMouseLeave={function (e) { e.currentTarget.style.borderColor = PC.border; e.currentTarget.style.color = PC.textMuted; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" />
+            </svg>
+            Paylaş
+          </button>
           <button
             onClick={function () { onToggleBookmark(post.id); }}
             title={isBookmarked ? "Yer İminden Kaldır" : "Yer İmine Ekle"}
@@ -1372,6 +1401,7 @@ function OgrenciPortaliApp({ currentUser }) {
   const [showNewPost, setShowNewPost] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState("newest"); // newest, popular, comments, bookmarked
+  const [authorFilter, setAuthorFilter] = useState("");
   const [toasts, setToasts] = useState([]);
 
   var showToast = function (message, type) {
@@ -1523,6 +1553,10 @@ function OgrenciPortaliApp({ currentUser }) {
                (p.authorName && p.authorName.toLowerCase().includes(q));
       });
     }
+    // Yazar filtresi
+    if (authorFilter) {
+      result = result.filter(function (p) { return p.authorName === authorFilter; });
+    }
     // Kaydedilenler filtresi
     if (sortMode === "bookmarked") {
       result = result.filter(function (p) { return bookmarks.indexOf(p.id) >= 0; });
@@ -1538,7 +1572,7 @@ function OgrenciPortaliApp({ currentUser }) {
       });
     }
     return result;
-  }, [posts, searchQuery, sortMode, bookmarks]);
+  }, [posts, searchQuery, sortMode, bookmarks, authorFilter]);
 
   // Sabitlenmiş gönderileri ayır
   var pinnedPosts = filteredPosts.filter(function (p) { return p.pinned; });
@@ -1599,6 +1633,27 @@ function OgrenciPortaliApp({ currentUser }) {
         alignItems: "center", flexWrap: "wrap",
       }}>
         <SearchBar value={searchQuery} onChange={setSearchQuery} />
+
+        {/* Yazar filtresi badge */}
+        {authorFilter && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "6px 14px", borderRadius: 20,
+            background: PC.blueLight, border: "1px solid " + PC.blue,
+            fontSize: 12, fontWeight: 600, color: PC.blue,
+          }}>
+            <Avatar name={authorFilter} size={20} />
+            {authorFilter}
+            <button
+              onClick={function () { setAuthorFilter(""); }}
+              style={{
+                padding: 0, border: "none", background: "transparent",
+                cursor: "pointer", color: PC.blue, fontSize: 14, fontWeight: 700,
+                marginLeft: 4, lineHeight: 1,
+              }}
+            >{"\u2715"}</button>
+          </div>
+        )}
 
         {/* Sıralama */}
         <div style={{ display: "flex", gap: 4, background: PC.bg, borderRadius: 10, padding: 3 }}>
@@ -1718,6 +1773,7 @@ function OgrenciPortaliApp({ currentUser }) {
                 onTogglePin={handleTogglePin}
                 isBookmarked={bookmarks.indexOf(post.id) >= 0}
                 onToggleBookmark={handleToggleBookmark}
+                onFilterAuthor={setAuthorFilter}
               />
             );
           })}
@@ -1736,6 +1792,7 @@ function OgrenciPortaliApp({ currentUser }) {
                 onTogglePin={handleTogglePin}
                 isBookmarked={bookmarks.indexOf(post.id) >= 0}
                 onToggleBookmark={handleToggleBookmark}
+                onFilterAuthor={setAuthorFilter}
               />
             );
           })}
