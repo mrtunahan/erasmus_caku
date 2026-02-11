@@ -5,12 +5,15 @@
 
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
-// Toast animasyonu inject
+// Toast + ScrollTop animasyonları inject
 (function () {
   if (!document.getElementById("portal-toast-style")) {
     var s = document.createElement("style");
     s.id = "portal-toast-style";
-    s.textContent = "@keyframes fadeInRight{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}";
+    s.textContent =
+      "@keyframes fadeInRight{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}" +
+      "@keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}" +
+      "@keyframes fadeOutDown{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(20px)}}";
     document.head.appendChild(s);
   }
 })();
@@ -258,6 +261,32 @@ function hashColor(str) {
   for (var i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
   var colors = ["#3B82F6", "#8B5CF6", "#EC4899", "#EF4444", "#F59E0B", "#10B981", "#6366F1", "#14B8A6"];
   return colors[Math.abs(hash) % colors.length];
+}
+
+// ── Responsive Hook ──
+function useIsMobile(breakpoint) {
+  var bp = breakpoint || 768;
+  const [isMobile, setIsMobile] = useState(function () {
+    return typeof window !== "undefined" ? window.innerWidth < bp : false;
+  });
+  useEffect(function () {
+    var handler = function () { setIsMobile(window.innerWidth < bp); };
+    window.addEventListener("resize", handler);
+    return function () { window.removeEventListener("resize", handler); };
+  }, [bp]);
+  return isMobile;
+}
+
+// ── Scroll-to-top Hook ──
+function useScrollTop(threshold) {
+  var th = threshold || 400;
+  const [visible, setVisible] = useState(false);
+  useEffect(function () {
+    var handler = function () { setVisible(window.scrollY > th); };
+    window.addEventListener("scroll", handler, { passive: true });
+    return function () { window.removeEventListener("scroll", handler); };
+  }, [th]);
+  return visible;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -760,6 +789,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
   var userId = getUserId(currentUser);
   var isAuthor = post.authorId === userId || currentUser.role === "admin";
   var isAdmin = currentUser.role === "admin";
+  var isMobile = useIsMobile(768);
 
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(post.title || "");
@@ -808,7 +838,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
         </div>
       )}
 
-      <div style={{ padding: "20px 24px" }}>
+      <div style={{ padding: isMobile ? "16px" : "20px 24px" }}>
         {/* Üst kısım: avatar + yazar + zaman + kategori */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
           <Avatar name={post.authorName} />
@@ -1370,6 +1400,69 @@ const ToastContainer = ({ toasts }) => {
   );
 };
 
+// ── Yukarı Kaydır Butonu ──
+const ScrollToTopButton = () => {
+  var showBtn = useScrollTop(400);
+  if (!showBtn) return null;
+  return (
+    <button
+      onClick={function () { window.scrollTo({ top: 0, behavior: "smooth" }); }}
+      title="Yukarı Kaydır"
+      style={{
+        position: "fixed", bottom: 28, right: 28, zIndex: 9998,
+        width: 48, height: 48, borderRadius: "50%",
+        border: "none", background: "linear-gradient(135deg, " + PC.navy + ", " + PC.navyLight + ")",
+        color: "white", cursor: "pointer",
+        boxShadow: "0 4px 16px rgba(27,42,74,0.35)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        animation: "fadeInUp 0.3s ease",
+        transition: "transform 0.2s",
+      }}
+      onMouseEnter={function (e) { e.currentTarget.style.transform = "scale(1.1)"; }}
+      onMouseLeave={function (e) { e.currentTarget.style.transform = "scale(1)"; }}
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <polyline points="18 15 12 9 6 15" />
+      </svg>
+    </button>
+  );
+};
+
+// ── Mobil Sidebar Drawer ──
+const MobileSidebarToggle = ({ children }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        onClick={function () { setOpen(!open); }}
+        style={{
+          width: "100%", padding: "12px 16px", border: "1px solid " + PC.border,
+          borderRadius: 12, background: "white", cursor: "pointer",
+          fontSize: 13, fontWeight: 600, color: PC.navy,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: open ? 12 : 0,
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          Trend & İstatistikler
+        </span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          style={{ transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0)" }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 20 }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Arama Çubuğu ──
 const SearchBar = ({ value, onChange }) => (
   <div style={{ position: "relative", flex: 1, maxWidth: 400 }}>
@@ -1403,6 +1496,7 @@ function OgrenciPortaliApp({ currentUser }) {
   const [sortMode, setSortMode] = useState("newest"); // newest, popular, comments, bookmarked
   const [authorFilter, setAuthorFilter] = useState("");
   const [toasts, setToasts] = useState([]);
+  var isMobile = useIsMobile(768);
 
   var showToast = function (message, type) {
     var id = Date.now() + Math.random();
@@ -1588,15 +1682,19 @@ function OgrenciPortaliApp({ currentUser }) {
     <div>
       {/* Toast Bildirimler */}
       <ToastContainer toasts={toasts} />
+      {/* Yukarı Kaydır */}
+      <ScrollToTopButton />
 
       {/* Başlık */}
       <div style={{
         marginBottom: 24, display: "flex", justifyContent: "space-between",
-        alignItems: "flex-start", flexWrap: "wrap", gap: 16,
+        alignItems: isMobile ? "stretch" : "flex-start",
+        flexDirection: isMobile ? "column" : "row",
+        gap: isMobile ? 12 : 16,
       }}>
         <div>
           <h1 style={{
-            fontSize: 28, fontWeight: 700, color: PC.navy,
+            fontSize: isMobile ? 22 : 28, fontWeight: 700, color: PC.navy,
             fontFamily: "'Playfair Display', serif", marginBottom: 4,
           }}>Öğrenci Portalı</h1>
           <p style={{ color: PC.textMuted, fontSize: 14 }}>
@@ -1620,7 +1718,11 @@ function OgrenciPortaliApp({ currentUser }) {
       </div>
 
       {/* İstatistikler */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
+        gap: 12, marginBottom: 24,
+      }}>
         <StatCard label="Toplam Gönderi" value={posts.length} color="#3B82F6" icon={"\uD83D\uDCDD"} />
         <StatCard label="Tepkiler" value={totalReactions} color="#EF4444" icon={"\u2764\uFE0F"} />
         <StatCard label="Yorumlar" value={totalComments} color="#10B981" icon={"\uD83D\uDCAC"} />
@@ -1629,8 +1731,10 @@ function OgrenciPortaliApp({ currentUser }) {
 
       {/* Arama + Kategori Filtreleri */}
       <div style={{
-        display: "flex", gap: 16, marginBottom: 24,
-        alignItems: "center", flexWrap: "wrap",
+        display: "flex", gap: isMobile ? 10 : 16, marginBottom: 24,
+        alignItems: isMobile ? "stretch" : "center",
+        flexDirection: isMobile ? "column" : "row",
+        flexWrap: "wrap",
       }}>
         <SearchBar value={searchQuery} onChange={setSearchQuery} />
 
@@ -1641,6 +1745,7 @@ function OgrenciPortaliApp({ currentUser }) {
             padding: "6px 14px", borderRadius: 20,
             background: PC.blueLight, border: "1px solid " + PC.blue,
             fontSize: 12, fontWeight: 600, color: PC.blue,
+            alignSelf: isMobile ? "flex-start" : "center",
           }}>
             <Avatar name={authorFilter} size={20} />
             {authorFilter}
@@ -1656,7 +1761,11 @@ function OgrenciPortaliApp({ currentUser }) {
         )}
 
         {/* Sıralama */}
-        <div style={{ display: "flex", gap: 4, background: PC.bg, borderRadius: 10, padding: 3 }}>
+        <div style={{
+          display: "flex", gap: 4, background: PC.bg, borderRadius: 10, padding: 3,
+          overflowX: isMobile ? "auto" : "visible",
+          WebkitOverflowScrolling: "touch",
+        }}>
           {[
             { id: "newest", label: "En Yeni" },
             { id: "popular", label: "En Popüler" },
@@ -1671,7 +1780,7 @@ function OgrenciPortaliApp({ currentUser }) {
                 style={{
                   padding: "6px 14px", borderRadius: 8, fontSize: 12,
                   fontWeight: isActive ? 700 : 500, cursor: "pointer",
-                  border: "none",
+                  border: "none", whiteSpace: "nowrap",
                   background: isActive ? "white" : "transparent",
                   color: isActive ? PC.navy : PC.textMuted,
                   boxShadow: isActive ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
@@ -1682,7 +1791,13 @@ function OgrenciPortaliApp({ currentUser }) {
           })}
         </div>
 
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        <div style={{
+          display: "flex", gap: 4,
+          flexWrap: isMobile ? "nowrap" : "wrap",
+          overflowX: isMobile ? "auto" : "visible",
+          WebkitOverflowScrolling: "touch",
+          paddingBottom: isMobile ? 4 : 0,
+        }}>
           <button
             onClick={function () { setActiveCategory("tumu"); }}
             style={{
@@ -1691,6 +1806,7 @@ function OgrenciPortaliApp({ currentUser }) {
               border: activeCategory === "tumu" ? "2px solid " + PC.navy : "1px solid " + PC.border,
               background: activeCategory === "tumu" ? PC.navy : "white",
               color: activeCategory === "tumu" ? "white" : PC.textMuted,
+              whiteSpace: "nowrap", flexShrink: 0,
             }}
           >Tümü</button>
           {PORTAL_CATEGORIES.map(function (cat) {
@@ -1706,6 +1822,7 @@ function OgrenciPortaliApp({ currentUser }) {
                   background: isActive ? cat.bg : "white",
                   color: isActive ? cat.color : PC.textMuted,
                   transition: "all 0.15s",
+                  whiteSpace: "nowrap", flexShrink: 0,
                 }}
               >{cat.emoji} {cat.label}</button>
             );
@@ -1714,9 +1831,14 @@ function OgrenciPortaliApp({ currentUser }) {
       </div>
 
       {/* Ana İçerik: Feed + Sidebar */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 24, alignItems: "start" }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "1fr 300px",
+        gap: isMobile ? 16 : 24,
+        alignItems: "start",
+      }}>
         {/* Sol: Feed */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 16 : 20 }}>
           {/* Yeni gönderi formu */}
           {showNewPost && (
             <NewPostForm
@@ -1799,57 +1921,101 @@ function OgrenciPortaliApp({ currentUser }) {
         </div>
 
         {/* Sağ: Sidebar */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: 88 }}>
-          {/* Trend Konular */}
-          <TrendingSidebar posts={posts} />
-
-          {/* Hızlı Bilgi */}
-          <div style={{
-            background: "linear-gradient(135deg, " + PC.navy + ", " + PC.navyLight + ")",
-            borderRadius: 16, padding: 20, color: "white",
-          }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
-              <span>{"\uD83D\uDCA1"}</span> Portal Rehberi
-            </h3>
-            <div style={{ fontSize: 12, lineHeight: 1.8, opacity: 0.9 }}>
-              <div><strong>? Soru-Cevap:</strong> Derslerle ilgili sorularınızı sorun</div>
-              <div><strong>N Not Paylaşımı:</strong> Ders notlarını arkadaşlarınızla paylaşın</div>
-              <div><strong>! Duyuru:</strong> Önemli duyuruları paylaşın</div>
-              <div><strong>E Etkinlik:</strong> Kampüs etkinliklerini duyurun</div>
-              <div><strong>K Kaynak:</strong> Faydalı link ve kaynakları paylaşın</div>
-              <div><strong>S Sohbet:</strong> Serbest sohbet edin</div>
-              <div><strong>A Anket:</strong> Anket oluşturup oy toplayın</div>
+        {isMobile ? (
+          <MobileSidebarToggle>
+            <TrendingSidebar posts={posts} />
+            <div style={{
+              background: "linear-gradient(135deg, " + PC.navy + ", " + PC.navyLight + ")",
+              borderRadius: 16, padding: 20, color: "white",
+            }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+                <span>{"\uD83D\uDCA1"}</span> Portal Rehberi
+              </h3>
+              <div style={{ fontSize: 12, lineHeight: 1.8, opacity: 0.9 }}>
+                <div><strong>? Soru-Cevap:</strong> Derslerle ilgili sorularınızı sorun</div>
+                <div><strong>N Not Paylaşımı:</strong> Ders notlarını arkadaşlarınızla paylaşın</div>
+                <div><strong>! Duyuru:</strong> Önemli duyuruları paylaşın</div>
+                <div><strong>E Etkinlik:</strong> Kampüs etkinliklerini duyurun</div>
+                <div><strong>K Kaynak:</strong> Faydalı link ve kaynakları paylaşın</div>
+                <div><strong>S Sohbet:</strong> Serbest sohbet edin</div>
+                <div><strong>A Anket:</strong> Anket oluşturup oy toplayın</div>
+              </div>
+            </div>
+            <div style={{
+              background: "white", borderRadius: 16, padding: 20,
+              border: "1px solid " + PC.borderLight,
+            }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
+                Kategori Dağılımı
+              </h3>
+              {PORTAL_CATEGORIES.map(function (cat) {
+                var count = posts.filter(function (p) { return p.category === cat.id; }).length;
+                var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
+                return (
+                  <div key={cat.id} style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600, color: cat.color }}>{cat.emoji} {cat.label}</span>
+                      <span style={{ color: PC.textMuted }}>{count}</span>
+                    </div>
+                    <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%", width: pct + "%", background: cat.color,
+                        borderRadius: 3, transition: "width 0.5s ease",
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </MobileSidebarToggle>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: 88 }}>
+            <TrendingSidebar posts={posts} />
+            <div style={{
+              background: "linear-gradient(135deg, " + PC.navy + ", " + PC.navyLight + ")",
+              borderRadius: 16, padding: 20, color: "white",
+            }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+                <span>{"\uD83D\uDCA1"}</span> Portal Rehberi
+              </h3>
+              <div style={{ fontSize: 12, lineHeight: 1.8, opacity: 0.9 }}>
+                <div><strong>? Soru-Cevap:</strong> Derslerle ilgili sorularınızı sorun</div>
+                <div><strong>N Not Paylaşımı:</strong> Ders notlarını arkadaşlarınızla paylaşın</div>
+                <div><strong>! Duyuru:</strong> Önemli duyuruları paylaşın</div>
+                <div><strong>E Etkinlik:</strong> Kampüs etkinliklerini duyurun</div>
+                <div><strong>K Kaynak:</strong> Faydalı link ve kaynakları paylaşın</div>
+                <div><strong>S Sohbet:</strong> Serbest sohbet edin</div>
+                <div><strong>A Anket:</strong> Anket oluşturup oy toplayın</div>
+              </div>
+            </div>
+            <div style={{
+              background: "white", borderRadius: 16, padding: 20,
+              border: "1px solid " + PC.borderLight,
+            }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
+                Kategori Dağılımı
+              </h3>
+              {PORTAL_CATEGORIES.map(function (cat) {
+                var count = posts.filter(function (p) { return p.category === cat.id; }).length;
+                var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
+                return (
+                  <div key={cat.id} style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600, color: cat.color }}>{cat.emoji} {cat.label}</span>
+                      <span style={{ color: PC.textMuted }}>{count}</span>
+                    </div>
+                    <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%", width: pct + "%", background: cat.color,
+                        borderRadius: 3, transition: "width 0.5s ease",
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-
-          {/* Kategorilere göre dağılım */}
-          <div style={{
-            background: "white", borderRadius: 16, padding: 20,
-            border: "1px solid " + PC.borderLight,
-          }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
-              Kategori Dağılımı
-            </h3>
-            {PORTAL_CATEGORIES.map(function (cat) {
-              var count = posts.filter(function (p) { return p.category === cat.id; }).length;
-              var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
-              return (
-                <div key={cat.id} style={{ marginBottom: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                    <span style={{ fontWeight: 600, color: cat.color }}>{cat.emoji} {cat.label}</span>
-                    <span style={{ color: PC.textMuted }}>{count}</span>
-                  </div>
-                  <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{
-                      height: "100%", width: pct + "%", background: cat.color,
-                      borderRadius: 3, transition: "width 0.5s ease",
-                    }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
