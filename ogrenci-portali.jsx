@@ -152,6 +152,24 @@ var PortalDB = {
     });
   },
 
+  async toggleCommentLike(postId, commentId, userId) {
+    var ref = this.commentsRef(postId);
+    if (!ref) return [];
+    var docRef = ref.doc(String(commentId));
+    var doc = await docRef.get();
+    if (!doc.exists) return [];
+    var data = doc.data();
+    var likes = data.likes || [];
+    var idx = likes.indexOf(userId);
+    if (idx >= 0) {
+      likes.splice(idx, 1);
+    } else {
+      likes.push(userId);
+    }
+    await docRef.update({ likes: likes });
+    return likes;
+  },
+
   // Anket oyu
   async votePoll(postId, optionIndex, userId) {
     var ref = this.postsRef();
@@ -421,6 +439,22 @@ const CommentItem = ({ comment, postId, currentUser, onUpdate, onRemove }) => {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(comment.text || "");
   const [saving, setSaving] = useState(false);
+  const [likes, setLikes] = useState(comment.likes || []);
+  const [liking, setLiking] = useState(false);
+
+  var isLiked = likes.indexOf(userId) >= 0;
+
+  var handleToggleLike = async function () {
+    if (liking) return;
+    setLiking(true);
+    try {
+      var updated = await PortalDB.toggleCommentLike(postId, comment.id, userId);
+      setLikes(updated);
+    } catch (err) {
+      console.error("Beğeni hatası:", err);
+    }
+    setLiking(false);
+  };
 
   var handleSave = async function () {
     if (!editText.trim()) return;
@@ -536,7 +570,27 @@ const CommentItem = ({ comment, postId, currentUser, onUpdate, onRemove }) => {
             >Vazgeç</button>
           </div>
         ) : (
-          <div style={{ fontSize: 13, color: PC.text, marginTop: 4, lineHeight: 1.5 }}>{comment.text}</div>
+          <>
+            <div style={{ fontSize: 13, color: PC.text, marginTop: 4, lineHeight: 1.5 }}>{comment.text}</div>
+            <button
+              onClick={handleToggleLike}
+              disabled={liking}
+              style={{
+                marginTop: 4, padding: "2px 8px", border: "none",
+                background: "transparent", cursor: "pointer",
+                fontSize: 12, color: isLiked ? "#EF4444" : PC.textMuted,
+                display: "flex", alignItems: "center", gap: 4,
+                borderRadius: 10, transition: "all 0.15s",
+              }}
+              onMouseEnter={function (e) { e.currentTarget.style.background = PC.bg; }}
+              onMouseLeave={function (e) { e.currentTarget.style.background = "transparent"; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+              {likes.length > 0 && <span style={{ fontWeight: 600 }}>{likes.length}</span>}
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -691,7 +745,7 @@ const CommentSection = ({ postId, currentUser }) => {
 };
 
 // ── Gönderi Kartı ──
-const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogglePin }) => {
+const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark }) => {
   var cat = getCategoryInfo(post.category);
   var userId = getUserId(currentUser);
   var isAuthor = post.authorId === userId || currentUser.role === "admin";
@@ -908,7 +962,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
           </div>
         )}
 
-        {/* Alt kısım: reaksiyonlar + yorumlar */}
+        {/* Alt kısım: reaksiyonlar + yorumlar + yer imi */}
         <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <ReactionBar
             reactions={post.reactions}
@@ -917,6 +971,28 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
             onReact={onReact}
           />
           <CommentSection postId={post.id} currentUser={currentUser} />
+          <button
+            onClick={function () { onToggleBookmark(post.id); }}
+            title={isBookmarked ? "Yer İminden Kaldır" : "Yer İmine Ekle"}
+            style={{
+              marginLeft: "auto", padding: "6px 12px",
+              border: "1px solid " + (isBookmarked ? "#F59E0B" : PC.border),
+              borderRadius: 20, background: isBookmarked ? "#FEF3C7" : "white",
+              cursor: "pointer", fontSize: 13, display: "flex",
+              alignItems: "center", gap: 6, color: isBookmarked ? "#F59E0B" : PC.textMuted,
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={function (e) { e.currentTarget.style.borderColor = "#F59E0B"; e.currentTarget.style.color = "#F59E0B"; }}
+            onMouseLeave={function (e) {
+              e.currentTarget.style.borderColor = isBookmarked ? "#F59E0B" : PC.border;
+              e.currentTarget.style.color = isBookmarked ? "#F59E0B" : PC.textMuted;
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill={isBookmarked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+            {isBookmarked ? "Kaydedildi" : "Kaydet"}
+          </button>
         </div>
       </div>
     </div>
@@ -1237,7 +1313,29 @@ function OgrenciPortaliApp({ currentUser }) {
   const [activeCategory, setActiveCategory] = useState("tumu");
   const [showNewPost, setShowNewPost] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortMode, setSortMode] = useState("newest"); // newest, popular, comments
+  const [sortMode, setSortMode] = useState("newest"); // newest, popular, comments, bookmarked
+
+  // Yer imleri (localStorage)
+  const [bookmarks, setBookmarks] = useState(function () {
+    try {
+      var saved = localStorage.getItem("portal_bookmarks");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) { return []; }
+  });
+
+  var handleToggleBookmark = function (postId) {
+    setBookmarks(function (prev) {
+      var idx = prev.indexOf(postId);
+      var updated;
+      if (idx >= 0) {
+        updated = prev.filter(function (id) { return id !== postId; });
+      } else {
+        updated = [].concat(prev, [postId]);
+      }
+      try { localStorage.setItem("portal_bookmarks", JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+  };
 
   // Gerçek zamanlı dinleme (onSnapshot)
   useEffect(function () {
@@ -1350,6 +1448,10 @@ function OgrenciPortaliApp({ currentUser }) {
                (p.authorName && p.authorName.toLowerCase().includes(q));
       });
     }
+    // Kaydedilenler filtresi
+    if (sortMode === "bookmarked") {
+      result = result.filter(function (p) { return bookmarks.indexOf(p.id) >= 0; });
+    }
     // Sıralama
     if (sortMode === "popular") {
       result = [...result].sort(function (a, b) {
@@ -1361,7 +1463,7 @@ function OgrenciPortaliApp({ currentUser }) {
       });
     }
     return result;
-  }, [posts, searchQuery, sortMode]);
+  }, [posts, searchQuery, sortMode, bookmarks]);
 
   // Sabitlenmiş gönderileri ayır
   var pinnedPosts = filteredPosts.filter(function (p) { return p.pinned; });
@@ -1426,6 +1528,7 @@ function OgrenciPortaliApp({ currentUser }) {
             { id: "newest", label: "En Yeni" },
             { id: "popular", label: "En Popüler" },
             { id: "comments", label: "En Çok Yorum" },
+            { id: "bookmarked", label: "Kaydedilenler" },
           ].map(function (s) {
             var isActive = sortMode === s.id;
             return (
@@ -1535,6 +1638,8 @@ function OgrenciPortaliApp({ currentUser }) {
                 onDelete={handleDelete}
                 onEdit={handleEdit}
                 onTogglePin={handleTogglePin}
+                isBookmarked={bookmarks.indexOf(post.id) >= 0}
+                onToggleBookmark={handleToggleBookmark}
               />
             );
           })}
@@ -1551,6 +1656,8 @@ function OgrenciPortaliApp({ currentUser }) {
                 onDelete={handleDelete}
                 onEdit={handleEdit}
                 onTogglePin={handleTogglePin}
+                isBookmarked={bookmarks.indexOf(post.id) >= 0}
+                onToggleBookmark={handleToggleBookmark}
               />
             );
           })}
