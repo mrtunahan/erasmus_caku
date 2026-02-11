@@ -1501,328 +1501,330 @@ function SinavOtomasyonuApp({ currentUser }) {
   }
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif" }}>
-            Sınav Programı Otomasyonu
-          </h2>
-          <p style={{ fontSize: 13, color: "#666", marginTop: 4 }}>
-            Dersleri sürükleyerek takvime yerleştirin
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {isAdmin && courses.length === 0 && (
-            <Btn onClick={seedData} style={{ background: "#059669" }}>
-              Örnek Verileri Yükle
-            </Btn>
-          )}
-          {isAdmin && (
-            <GhostBtn onClick={() => setShowCourseModal(true)}>Ders Yönetimi</GhostBtn>
-          )}
-          {isAdmin && (
-            <GhostBtn onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }}>
-              + Yeni Dönem
-            </GhostBtn>
-          )}
-        </div>
-      </div>
-
-      {/* Period Selector */}
-      {periods.length > 0 && (
-        <Card style={{ marginBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: C.navy }}>Sınav Dönemi:</span>
-            {periods.map(p => (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <button
-                  onClick={() => setActivePeriodId(p.id)}
-                  style={{
-                    padding: "6px 16px",
-                    border: `2px solid ${p.id === activePeriodId ? C.blue : C.border}`,
-                    background: p.id === activePeriodId ? C.blueLight : "white",
-                    color: p.id === activePeriodId ? C.blue : "#666",
-                    borderRadius: 8,
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: p.id === activePeriodId ? 600 : 400,
-                  }}
-                >
-                  {p.label || `${p.examType} - ${p.semester}`}
-                </button>
-                {isAdmin && (
-                  <button
-                    onClick={() => { setEditingPeriod(p); setShowPeriodModal(true); }}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 14, padding: "4px" }}
-                    title="Düzenle"
-                  >&#9998;</button>
-                )}
-                {isAdmin && (
-                  <button
-                    onClick={() => handleDeletePeriod(p.id)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", fontSize: 14, padding: "4px" }}
-                    title="Sil"
-                  >&times;</button>
-                )}
-              </div>
-            ))}
+    <div className="portal-bg">
+      <div className="portal-wrap">
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div>
+            <h2 style={{ fontSize: 22, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif" }}>
+              Sınav Programı Otomasyonu
+            </h2>
+            <p style={{ fontSize: 13, color: "#666", marginTop: 4 }}>
+              Dersleri sürükleyerek takvime yerleştirin
+            </p>
           </div>
-        </Card>
-      )}
-
-      {/* No period selected */}
-      {!activePeriod && (
-        <Card>
-          <div style={{ padding: 60, textAlign: "center", color: "#999" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>&#128197;</div>
-            <div style={{ fontSize: 16, marginBottom: 8 }}>Sınav dönemi bulunamadı</div>
-            <div style={{ fontSize: 13 }}>
-              {isAdmin
-                ? "Yeni bir sınav dönemi oluşturun (Final, Vize veya Bütünleme)"
-                : "Yönetici henüz bir sınav dönemi oluşturmadı"}
-            </div>
-            {isAdmin && (
-              <Btn onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }} style={{ marginTop: 16 }}>
-                + Yeni Dönem Oluştur
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {isAdmin && courses.length === 0 && (
+              <Btn onClick={seedData} style={{ background: "#059669" }}>
+                Örnek Verileri Yükle
               </Btn>
             )}
+            {isAdmin && (
+              <GhostBtn onClick={() => setShowCourseModal(true)}>Ders Yönetimi</GhostBtn>
+            )}
+            {isAdmin && (
+              <GhostBtn onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }}>
+                + Yeni Dönem
+              </GhostBtn>
+            )}
           </div>
-        </Card>
-      )}
+        </div>
 
-      {/* Active period content */}
-      {activePeriod && (
-        <>
-          {/* Toolbar */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => setViewMode("calendar")}
-                style={{
-                  padding: "6px 14px", border: `1px solid ${C.border}`, borderRadius: "8px 0 0 8px",
-                  background: viewMode === "calendar" ? C.navy : "white",
-                  color: viewMode === "calendar" ? "white" : "#666",
-                  cursor: "pointer", fontSize: 13,
-                }}
-              >Takvim</button>
-              <button
-                onClick={() => setViewMode("table")}
-                style={{
-                  padding: "6px 14px", border: `1px solid ${C.border}`, borderRadius: "0 8px 8px 0",
-                  background: viewMode === "table" ? C.navy : "white",
-                  color: viewMode === "table" ? "white" : "#666",
-                  cursor: "pointer", fontSize: 13, borderLeft: "none",
-                }}
-              >Tablo</button>
-            </div>
-
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 12, color: "#666" }}>
-                {periodExams.length}/{courses.length} ders yerleştirildi
-              </span>
-              {periodExams.length > 0 && (
-                <>
-                  <GhostBtn onClick={() => exportToCSV(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
-                    CSV
-                  </GhostBtn>
-                  <GhostBtn onClick={() => exportToWord(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
-                    Word
-                  </GhostBtn>
-                  <GhostBtn onClick={() => exportToXLSX(periodExams, activePeriod.label, activePeriod)} style={{ fontSize: 12, padding: "4px 10px", background: "#059669", color: "white", border: "none" }}>
-                    XLSX
-                  </GhostBtn>
+        {/* Period Selector */}
+        {periods.length > 0 && (
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: C.navy }}>Sınav Dönemi:</span>
+              {periods.map(p => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <button
+                    onClick={() => setActivePeriodId(p.id)}
+                    style={{
+                      padding: "6px 16px",
+                      border: `2px solid ${p.id === activePeriodId ? C.blue : C.border}`,
+                      background: p.id === activePeriodId ? C.blueLight : "white",
+                      color: p.id === activePeriodId ? C.blue : "#666",
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: p.id === activePeriodId ? 600 : 400,
+                    }}
+                  >
+                    {p.label || `${p.examType} - ${p.semester}`}
+                  </button>
                   {isAdmin && (
-                    <GhostBtn onClick={handleResetPlacements} style={{ fontSize: 12, padding: "4px 10px", color: "#DC2626" }}>
-                      Sıfırla
-                    </GhostBtn>
+                    <button
+                      onClick={() => { setEditingPeriod(p); setShowPeriodModal(true); }}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 14, padding: "4px" }}
+                      title="Düzenle"
+                    >&#9998;</button>
                   )}
-                </>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleDeletePeriod(p.id)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", fontSize: 14, padding: "4px" }}
+                      title="Sil"
+                    >&times;</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {/* No period selected */}
+        {!activePeriod && (
+          <Card>
+            <div style={{ padding: 60, textAlign: "center", color: "#999" }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>&#128197;</div>
+              <div style={{ fontSize: 16, marginBottom: 8 }}>Sınav dönemi bulunamadı</div>
+              <div style={{ fontSize: 13 }}>
+                {isAdmin
+                  ? "Yeni bir sınav dönemi oluşturun (Final, Vize veya Bütünleme)"
+                  : "Yönetici henüz bir sınav dönemi oluşturmadı"}
+              </div>
+              {isAdmin && (
+                <Btn onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }} style={{ marginTop: 16 }}>
+                  + Yeni Dönem Oluştur
+                </Btn>
               )}
             </div>
-          </div>
+          </Card>
+        )}
 
-          {/* Legend */}
-          <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
-            {Object.entries(SINIF_COLORS).map(([s, color]) => (
-              <div key={s} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-                <div style={{ width: 16, height: 16, borderRadius: 4, background: color.bg, border: `1px solid ${color.text}30` }} />
-                <span style={{ color: color.text, fontWeight: 500 }}>{color.label}</span>
-              </div>
-            ))}
-          </div>
-
-          {viewMode === "calendar" ? (
-            <div style={{ display: "flex", gap: 16 }}>
-              {/* Course Pool Sidebar */}
-              <div style={{
-                width: 220, minWidth: 220, maxHeight: "calc(100vh - 260px)",
-                overflowY: "auto", background: "white", borderRadius: 10,
-                border: `1px solid ${C.border}`, padding: 12,
-              }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 8 }}>
-                  Ders Havuzu
-                </div>
-                <div style={{ marginBottom: 8, position: "relative" }}>
-                  <input
-                    type="text"
-                    value={courseSearch}
-                    onChange={e => setCourseSearch(e.target.value)}
-                    placeholder="Ders ara (kod, ad, hoca)..."
-                    style={{
-                      width: "100%", padding: "6px 28px 6px 8px",
-                      border: `1px solid ${C.border}`, borderRadius: 6,
-                      fontSize: 12, outline: "none", boxSizing: "border-box",
-                      background: "#FAFAFA",
-                    }}
-                  />
-                  {courseSearch && (
-                    <button
-                      onClick={() => setCourseSearch("")}
-                      style={{
-                        position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
-                        background: "none", border: "none", cursor: "pointer",
-                        fontSize: 14, color: "#999", padding: 0, lineHeight: 1,
-                      }}
-                    >✕</button>
-                  )}
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                  <select
-                    value={filterSinif}
-                    onChange={e => setFilterSinif(parseInt(e.target.value))}
-                    style={{ width: "100%", padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12 }}
-                  >
-                    <option value={0}>Tüm Sınıflar</option>
-                    {[1, 2, 3, 4].map(s => <option key={s} value={s}>{s}. Sınıf</option>)}
-                  </select>
-                </div>
-
-                {[1, 2, 3, 4].map(sinif => {
-                  if (filterSinif > 0 && filterSinif !== sinif) return null;
-                  const group = groupedPool[sinif];
-                  if (!group || group.length === 0) return null;
-                  return (
-                    <div key={sinif} style={{ marginBottom: 12 }}>
-                      <div style={{
-                        fontSize: 11, fontWeight: 600, color: SINIF_COLORS[sinif].text,
-                        background: SINIF_COLORS[sinif].bg, padding: "4px 8px", borderRadius: 4, marginBottom: 6,
-                      }}>
-                        {SINIF_COLORS[sinif].label} ({group.length})
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        {group.map((c, i) => (
-                          <DraggableCourseCard key={c.id || i} course={c} isPlaced={false} placedCount={c.placedCount} />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {poolCourses.length === 0 && (
-                  <div style={{ padding: 20, textAlign: "center", color: "#999", fontSize: 12 }}>
-                    Ders bulunamadı
-                  </div>
-                )}
+        {/* Active period content */}
+        {activePeriod && (
+          <>
+            {/* Toolbar */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => setViewMode("calendar")}
+                  style={{
+                    padding: "6px 14px", border: `1px solid ${C.border}`, borderRadius: "8px 0 0 8px",
+                    background: viewMode === "calendar" ? C.navy : "white",
+                    color: viewMode === "calendar" ? "white" : "#666",
+                    cursor: "pointer", fontSize: 13,
+                  }}
+                >Takvim</button>
+                <button
+                  onClick={() => setViewMode("table")}
+                  style={{
+                    padding: "6px 14px", border: `1px solid ${C.border}`, borderRadius: "0 8px 8px 0",
+                    background: viewMode === "table" ? C.navy : "white",
+                    color: viewMode === "table" ? "white" : "#666",
+                    cursor: "pointer", fontSize: 13, borderLeft: "none",
+                  }}
+                >Tablo</button>
               </div>
 
-              {/* Calendar Grid */}
-              <div style={{
-                flex: 1, overflowX: "auto", background: "white", borderRadius: 10,
-                border: `1px solid ${C.border}`,
-              }}>
-                {calendarDays.length === 0 ? (
-                  <div style={{ padding: 40, textAlign: "center", color: "#999" }}>
-                    Takvim günleri bulunamadı. Dönem tarihlerini kontrol edin.
-                  </div>
-                ) : (
-                  <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed" }}>
-                    <thead>
-                      <tr>
-                        <th style={{
-                          padding: "8px 4px", background: "#1B2A4A", color: "white",
-                          fontSize: 11, fontWeight: 600, width: 52, position: "sticky", left: 0, zIndex: 2,
-                          borderRight: "2px solid rgba(255,255,255,0.2)",
-                        }}>
-                          Saat
-                        </th>
-                        {calendarDays.map((day, i) => (
-                          <th key={i} style={{
-                            padding: "6px 4px", background: "#1B2A4A", color: "white",
-                            fontSize: 11, fontWeight: 500, textAlign: "center", minWidth: 100,
-                            borderLeft: "1px solid rgba(255,255,255,0.15)",
-                          }}>
-                            <div>{getDayNameShort(day)}</div>
-                            <div style={{ fontSize: 10, opacity: 0.7 }}>{formatDate(day)}</div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {TIME_SLOTS.map((slot, slotIdx) => (
-                        <tr key={slot}>
-                          <td style={{
-                            padding: "2px 4px", fontSize: 10, fontWeight: 500, color: "#666",
-                            textAlign: "center", background: "#F9FAFB",
-                            borderRight: "2px solid #E5E7EB", borderBottom: "1px solid #E5E7EB",
-                            position: "sticky", left: 0, zIndex: 1,
-                          }}>
-                            {slot}
-                          </td>
-                          {calendarDays.map((day, dayIdx) => (
-                            <CalendarCell
-                              key={dayIdx}
-                              day={day}
-                              timeSlot={slot}
-                              slotIndex={slotIdx}
-                              placedExams={periodExams}
-                              onDrop={handleDrop}
-                              onExamClick={setEditingExam}
-                              totalSlots={TIME_SLOTS.length}
-                            />
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: "#666" }}>
+                  {periodExams.length}/{courses.length} ders yerleştirildi
+                </span>
+                {periodExams.length > 0 && (
+                  <>
+                    <GhostBtn onClick={() => exportToCSV(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
+                      CSV
+                    </GhostBtn>
+                    <GhostBtn onClick={() => exportToWord(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
+                      Word
+                    </GhostBtn>
+                    <GhostBtn onClick={() => exportToXLSX(periodExams, activePeriod.label, activePeriod)} style={{ fontSize: 12, padding: "4px 10px", background: "#059669", color: "white", border: "none" }}>
+                      XLSX
+                    </GhostBtn>
+                    {isAdmin && (
+                      <GhostBtn onClick={handleResetPlacements} style={{ fontSize: 12, padding: "4px 10px", color: "#DC2626" }}>
+                        Sıfırla
+                      </GhostBtn>
+                    )}
+                  </>
                 )}
               </div>
             </div>
-          ) : (
-            <Card>
-              <ExamTableView placedExams={periodExams} onExamClick={setEditingExam} />
-            </Card>
-          )}
-        </>
-      )}
 
-      {/* Modals */}
-      {editingExam && (
-        <EditExamModal
-          exam={editingExam}
-          professors={professors}
-          onSave={handleUpdateExam}
-          onRemove={handleRemoveExam}
-          onClose={() => setEditingExam(null)}
-        />
-      )}
+            {/* Legend */}
+            <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
+              {Object.entries(SINIF_COLORS).map(([s, color]) => (
+                <div key={s} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: 4, background: color.bg, border: `1px solid ${color.text}30` }} />
+                  <span style={{ color: color.text, fontWeight: 500 }}>{color.label}</span>
+                </div>
+              ))}
+            </div>
 
-      {showPeriodModal && (
-        <PeriodConfigModal
-          period={editingPeriod}
-          onSave={handlePeriodSave}
-          onClose={() => { setShowPeriodModal(false); setEditingPeriod(null); }}
-        />
-      )}
+            {viewMode === "calendar" ? (
+              <div style={{ display: "flex", gap: 16 }}>
+                {/* Course Pool Sidebar */}
+                <div style={{
+                  width: 220, minWidth: 220, maxHeight: "calc(100vh - 260px)",
+                  overflowY: "auto", background: "white", borderRadius: 10,
+                  border: `1px solid ${C.border}`, padding: 12,
+                }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 8 }}>
+                    Ders Havuzu
+                  </div>
+                  <div style={{ marginBottom: 8, position: "relative" }}>
+                    <input
+                      type="text"
+                      value={courseSearch}
+                      onChange={e => setCourseSearch(e.target.value)}
+                      placeholder="Ders ara (kod, ad, hoca)..."
+                      style={{
+                        width: "100%", padding: "6px 28px 6px 8px",
+                        border: `1px solid ${C.border}`, borderRadius: 6,
+                        fontSize: 12, outline: "none", boxSizing: "border-box",
+                        background: "#FAFAFA",
+                      }}
+                    />
+                    {courseSearch && (
+                      <button
+                        onClick={() => setCourseSearch("")}
+                        style={{
+                          position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                          background: "none", border: "none", cursor: "pointer",
+                          fontSize: 14, color: "#999", padding: 0, lineHeight: 1,
+                        }}
+                      >✕</button>
+                    )}
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <select
+                      value={filterSinif}
+                      onChange={e => setFilterSinif(parseInt(e.target.value))}
+                      style={{ width: "100%", padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12 }}
+                    >
+                      <option value={0}>Tüm Sınıflar</option>
+                      {[1, 2, 3, 4].map(s => <option key={s} value={s}>{s}. Sınıf</option>)}
+                    </select>
+                  </div>
 
-      {showCourseModal && (
-        <CourseManagementModal
-          courses={courses.map(turkishifyCourse)}
-          professors={professors}
-          onSave={handleCourseSave}
-          onClose={() => setShowCourseModal(false)}
-        />
-      )}
+                  {[1, 2, 3, 4].map(sinif => {
+                    if (filterSinif > 0 && filterSinif !== sinif) return null;
+                    const group = groupedPool[sinif];
+                    if (!group || group.length === 0) return null;
+                    return (
+                      <div key={sinif} style={{ marginBottom: 12 }}>
+                        <div style={{
+                          fontSize: 11, fontWeight: 600, color: SINIF_COLORS[sinif].text,
+                          background: SINIF_COLORS[sinif].bg, padding: "4px 8px", borderRadius: 4, marginBottom: 6,
+                        }}>
+                          {SINIF_COLORS[sinif].label} ({group.length})
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          {group.map((c, i) => (
+                            <DraggableCourseCard key={c.id || i} course={c} isPlaced={false} placedCount={c.placedCount} />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {poolCourses.length === 0 && (
+                    <div style={{ padding: 20, textAlign: "center", color: "#999", fontSize: 12 }}>
+                      Ders bulunamadı
+                    </div>
+                  )}
+                </div>
+
+                {/* Calendar Grid */}
+                <div style={{
+                  flex: 1, overflowX: "auto", background: "white", borderRadius: 10,
+                  border: `1px solid ${C.border}`,
+                }}>
+                  {calendarDays.length === 0 ? (
+                    <div style={{ padding: 40, textAlign: "center", color: "#999" }}>
+                      Takvim günleri bulunamadı. Dönem tarihlerini kontrol edin.
+                    </div>
+                  ) : (
+                    <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed" }}>
+                      <thead>
+                        <tr>
+                          <th style={{
+                            padding: "8px 4px", background: "#1B2A4A", color: "white",
+                            fontSize: 11, fontWeight: 600, width: 52, position: "sticky", left: 0, zIndex: 2,
+                            borderRight: "2px solid rgba(255,255,255,0.2)",
+                          }}>
+                            Saat
+                          </th>
+                          {calendarDays.map((day, i) => (
+                            <th key={i} style={{
+                              padding: "6px 4px", background: "#1B2A4A", color: "white",
+                              fontSize: 11, fontWeight: 500, textAlign: "center", minWidth: 100,
+                              borderLeft: "1px solid rgba(255,255,255,0.15)",
+                            }}>
+                              <div>{getDayNameShort(day)}</div>
+                              <div style={{ fontSize: 10, opacity: 0.7 }}>{formatDate(day)}</div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {TIME_SLOTS.map((slot, slotIdx) => (
+                          <tr key={slot}>
+                            <td style={{
+                              padding: "2px 4px", fontSize: 10, fontWeight: 500, color: "#666",
+                              textAlign: "center", background: "#F9FAFB",
+                              borderRight: "2px solid #E5E7EB", borderBottom: "1px solid #E5E7EB",
+                              position: "sticky", left: 0, zIndex: 1,
+                            }}>
+                              {slot}
+                            </td>
+                            {calendarDays.map((day, dayIdx) => (
+                              <CalendarCell
+                                key={dayIdx}
+                                day={day}
+                                timeSlot={slot}
+                                slotIndex={slotIdx}
+                                placedExams={periodExams}
+                                onDrop={handleDrop}
+                                onExamClick={setEditingExam}
+                                totalSlots={TIME_SLOTS.length}
+                              />
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <Card>
+                <ExamTableView placedExams={periodExams} onExamClick={setEditingExam} />
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* Modals */}
+        {editingExam && (
+          <EditExamModal
+            exam={editingExam}
+            professors={professors}
+            onSave={handleUpdateExam}
+            onRemove={handleRemoveExam}
+            onClose={() => setEditingExam(null)}
+          />
+        )}
+
+        {showPeriodModal && (
+          <PeriodConfigModal
+            period={editingPeriod}
+            onSave={handlePeriodSave}
+            onClose={() => { setShowPeriodModal(false); setEditingPeriod(null); }}
+          />
+        )}
+
+        {showCourseModal && (
+          <CourseManagementModal
+            courses={courses.map(turkishifyCourse)}
+            professors={professors}
+            onSave={handleCourseSave}
+            onClose={() => setShowCourseModal(false)}
+          />
+        )}
+      </div>
     </div>
   );
 }
