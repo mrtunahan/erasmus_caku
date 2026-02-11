@@ -5,6 +5,19 @@
 
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
+// Toast + ScrollTop animasyonları inject
+(function () {
+  if (!document.getElementById("portal-toast-style")) {
+    var s = document.createElement("style");
+    s.id = "portal-toast-style";
+    s.textContent =
+      "@keyframes fadeInRight{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}" +
+      "@keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}" +
+      "@keyframes fadeOutDown{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(20px)}}";
+    document.head.appendChild(s);
+  }
+})();
+
 // ── Shared bileşenlerden import ──
 const PC = window.C;
 const PCard = window.Card;
@@ -135,6 +148,41 @@ var PortalDB = {
     });
   },
 
+  async updateComment(postId, commentId, data) {
+    var ref = this.commentsRef(postId);
+    if (!ref) throw new Error("Firebase bağlantısı yok");
+    await ref.doc(String(commentId)).update(data);
+  },
+
+  async deleteComment(postId, commentId) {
+    var ref = this.commentsRef(postId);
+    if (!ref) throw new Error("Firebase bağlantısı yok");
+    await ref.doc(String(commentId)).delete();
+    // Yorum sayısını azalt
+    var postRef = this.postsRef().doc(String(postId));
+    await postRef.update({
+      commentCount: window.firebase.firestore.FieldValue.increment(-1),
+    });
+  },
+
+  async toggleCommentLike(postId, commentId, userId) {
+    var ref = this.commentsRef(postId);
+    if (!ref) return [];
+    var docRef = ref.doc(String(commentId));
+    var doc = await docRef.get();
+    if (!doc.exists) return [];
+    var data = doc.data();
+    var likes = data.likes || [];
+    var idx = likes.indexOf(userId);
+    if (idx >= 0) {
+      likes.splice(idx, 1);
+    } else {
+      likes.push(userId);
+    }
+    await docRef.update({ likes: likes });
+    return likes;
+  },
+
   // Anket oyu
   async votePoll(postId, optionIndex, userId) {
     var ref = this.postsRef();
@@ -213,6 +261,32 @@ function hashColor(str) {
   for (var i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
   var colors = ["#3B82F6", "#8B5CF6", "#EC4899", "#EF4444", "#F59E0B", "#10B981", "#6366F1", "#14B8A6"];
   return colors[Math.abs(hash) % colors.length];
+}
+
+// ── Responsive Hook ──
+function useIsMobile(breakpoint) {
+  var bp = breakpoint || 768;
+  const [isMobile, setIsMobile] = useState(function () {
+    return typeof window !== "undefined" ? window.innerWidth < bp : false;
+  });
+  useEffect(function () {
+    var handler = function () { setIsMobile(window.innerWidth < bp); };
+    window.addEventListener("resize", handler);
+    return function () { window.removeEventListener("resize", handler); };
+  }, [bp]);
+  return isMobile;
+}
+
+// ── Scroll-to-top Hook ──
+function useScrollTop(threshold) {
+  var th = threshold || 400;
+  const [visible, setVisible] = useState(false);
+  useEffect(function () {
+    var handler = function () { setVisible(window.scrollY > th); };
+    window.addEventListener("scroll", handler, { passive: true });
+    return function () { window.removeEventListener("scroll", handler); };
+  }, [th]);
+  return visible;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -396,6 +470,172 @@ const PollWidget = ({ pollOptions, pollVotes, postId, userId, onVote }) => {
   );
 };
 
+// ── Tekil Yorum Öğesi ──
+const CommentItem = ({ comment, postId, currentUser, onUpdate, onRemove }) => {
+  var userId = getUserId(currentUser);
+  var isOwner = comment.authorId === userId || currentUser.role === "admin";
+
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(comment.text || "");
+  const [saving, setSaving] = useState(false);
+  const [likes, setLikes] = useState(comment.likes || []);
+  const [liking, setLiking] = useState(false);
+
+  var isLiked = likes.indexOf(userId) >= 0;
+
+  var handleToggleLike = async function () {
+    if (liking) return;
+    setLiking(true);
+    try {
+      var updated = await PortalDB.toggleCommentLike(postId, comment.id, userId);
+      setLikes(updated);
+    } catch (err) {
+      console.error("Beğeni hatası:", err);
+    }
+    setLiking(false);
+  };
+
+  var handleSave = async function () {
+    if (!editText.trim()) return;
+    setSaving(true);
+    try {
+      await PortalDB.updateComment(postId, comment.id, {
+        text: editText.trim(),
+        editedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      onUpdate(comment.id, editText.trim());
+      setEditing(false);
+    } catch (err) {
+      console.error("Yorum düzenleme hatası:", err);
+    }
+    setSaving(false);
+  };
+
+  var handleDelete = async function () {
+    if (!confirm("Bu yorumu silmek istediğinizden emin misiniz?")) return;
+    try {
+      await PortalDB.deleteComment(postId, comment.id);
+      onRemove(comment.id);
+    } catch (err) {
+      console.error("Yorum silme hatası:", err);
+    }
+  };
+
+  var handleCancel = function () {
+    setEditText(comment.text || "");
+    setEditing(false);
+  };
+
+  return (
+    <div style={{
+      display: "flex", gap: 10, padding: "10px 0",
+      borderBottom: "1px solid " + PC.borderLight,
+    }}>
+      <Avatar name={comment.authorName} size={32} />
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontWeight: 700, fontSize: 13, color: PC.navy }}>{comment.authorName}</span>
+          <span style={{ fontSize: 11, color: PC.textMuted }}>{timeAgo(comment.createdAt)}</span>
+          {comment.editedAt && (
+            <span style={{ fontSize: 10, color: PC.textMuted, fontStyle: "italic" }}>(düzenlendi)</span>
+          )}
+          {/* Düzenle/Sil butonları */}
+          {isOwner && !editing && (
+            <div style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
+              <button
+                onClick={function () { setEditing(true); }}
+                title="Düzenle"
+                style={{
+                  padding: 3, border: "none", background: "transparent",
+                  cursor: "pointer", borderRadius: 4, color: PC.textMuted, fontSize: 0,
+                }}
+                onMouseEnter={function (e) { e.currentTarget.style.color = PC.blue; }}
+                onMouseLeave={function (e) { e.currentTarget.style.color = PC.textMuted; }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </button>
+              <button
+                onClick={handleDelete}
+                title="Sil"
+                style={{
+                  padding: 3, border: "none", background: "transparent",
+                  cursor: "pointer", borderRadius: 4, color: PC.textMuted, fontSize: 0,
+                }}
+                onMouseEnter={function (e) { e.currentTarget.style.color = "#EF4444"; }}
+                onMouseLeave={function (e) { e.currentTarget.style.color = PC.textMuted; }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
+        {editing ? (
+          <div style={{ marginTop: 6, display: "flex", gap: 6, alignItems: "center" }}>
+            <input
+              value={editText}
+              onChange={function (e) { setEditText(e.target.value); }}
+              onKeyDown={function (e) {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSave(); }
+                if (e.key === "Escape") handleCancel();
+              }}
+              style={{
+                flex: 1, padding: "6px 12px", borderRadius: 16,
+                border: "1px solid " + PC.border, fontSize: 13,
+                outline: "none", background: "white",
+              }}
+            />
+            <button
+              onClick={handleSave}
+              disabled={saving || !editText.trim()}
+              style={{
+                padding: "4px 12px", borderRadius: 14, border: "none",
+                background: saving || !editText.trim() ? PC.border : PC.navy,
+                color: "white", cursor: saving ? "wait" : "pointer",
+                fontSize: 12, fontWeight: 600,
+              }}
+            >{saving ? "..." : "Kaydet"}</button>
+            <button
+              onClick={handleCancel}
+              style={{
+                padding: "4px 10px", borderRadius: 14,
+                border: "1px solid " + PC.border, background: "white",
+                cursor: "pointer", fontSize: 12, color: PC.textMuted,
+              }}
+            >Vazgeç</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: PC.text, marginTop: 4, lineHeight: 1.5 }}>{comment.text}</div>
+            <button
+              onClick={handleToggleLike}
+              disabled={liking}
+              style={{
+                marginTop: 4, padding: "2px 8px", border: "none",
+                background: "transparent", cursor: "pointer",
+                fontSize: 12, color: isLiked ? "#EF4444" : PC.textMuted,
+                display: "flex", alignItems: "center", gap: 4,
+                borderRadius: 10, transition: "all 0.15s",
+              }}
+              onMouseEnter={function (e) { e.currentTarget.style.background = PC.bg; }}
+              onMouseLeave={function (e) { e.currentTarget.style.background = "transparent"; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+              {likes.length > 0 && <span style={{ fontWeight: 600 }}>{likes.length}</span>}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ── Yorum Bölümü ──
 const CommentSection = ({ postId, currentUser }) => {
   const [comments, setComments] = useState([]);
@@ -403,6 +643,7 @@ const CommentSection = ({ postId, currentUser }) => {
   const [open, setOpen] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [sending, setSending] = useState(false);
+  var viewIncremented = useRef(false);
 
   const loadComments = async function () {
     setLoading(true);
@@ -419,6 +660,11 @@ const CommentSection = ({ postId, currentUser }) => {
     if (!open) {
       setOpen(true);
       loadComments();
+      // Görüntülenme sayacını artır (ilk açılışta)
+      if (!viewIncremented.current) {
+        viewIncremented.current = true;
+        PortalDB.incrementViews(postId);
+      }
     } else {
       setOpen(false);
     }
@@ -440,6 +686,20 @@ const CommentSection = ({ postId, currentUser }) => {
       console.error("Yorum eklenemedi:", err);
     }
     setSending(false);
+  };
+
+  var handleCommentUpdate = function (commentId, newText) {
+    setComments(function (prev) {
+      return prev.map(function (c) {
+        return c.id === commentId ? Object.assign({}, c, { text: newText, editedAt: new Date() }) : c;
+      });
+    });
+  };
+
+  var handleCommentRemove = function (commentId) {
+    setComments(function (prev) {
+      return prev.filter(function (c) { return c.id !== commentId; });
+    });
   };
 
   return (
@@ -475,19 +735,14 @@ const CommentSection = ({ postId, currentUser }) => {
               )}
               {comments.map(function (c) {
                 return (
-                  <div key={c.id} style={{
-                    display: "flex", gap: 10, padding: "10px 0",
-                    borderBottom: "1px solid " + PC.borderLight,
-                  }}>
-                    <Avatar name={c.authorName} size={32} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 700, fontSize: 13, color: PC.navy }}>{c.authorName}</span>
-                        <span style={{ fontSize: 11, color: PC.textMuted }}>{timeAgo(c.createdAt)}</span>
-                      </div>
-                      <div style={{ fontSize: 13, color: PC.text, marginTop: 4, lineHeight: 1.5 }}>{c.text}</div>
-                    </div>
-                  </div>
+                  <CommentItem
+                    key={c.id}
+                    comment={c}
+                    postId={postId}
+                    currentUser={currentUser}
+                    onUpdate={handleCommentUpdate}
+                    onRemove={handleCommentRemove}
+                  />
                 );
               })}
             </>
@@ -529,10 +784,40 @@ const CommentSection = ({ postId, currentUser }) => {
 };
 
 // ── Gönderi Kartı ──
-const PostCard = ({ post, currentUser, onReact, onVote, onDelete }) => {
+const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor }) => {
   var cat = getCategoryInfo(post.category);
   var userId = getUserId(currentUser);
   var isAuthor = post.authorId === userId || currentUser.role === "admin";
+  var isAdmin = currentUser.role === "admin";
+  var isMobile = useIsMobile(768);
+
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(post.title || "");
+  const [editContent, setEditContent] = useState(post.content || "");
+  const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  var TRUNCATE_LEN = 300;
+  var isLong = post.content && post.content.length > TRUNCATE_LEN;
+  var displayContent = (!expanded && isLong) ? post.content.substring(0, TRUNCATE_LEN) + "..." : post.content;
+
+  var handleSaveEdit = async function () {
+    if (!editContent.trim()) return;
+    setSaving(true);
+    try {
+      await onEdit(post.id, { title: editTitle.trim(), content: editContent.trim() });
+      setEditing(false);
+    } catch (err) {
+      console.error("Düzenleme hatası:", err);
+    }
+    setSaving(false);
+  };
+
+  var handleCancelEdit = function () {
+    setEditTitle(post.title || "");
+    setEditContent(post.content || "");
+    setEditing(false);
+  };
 
   return (
     <div style={{
@@ -553,13 +838,19 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete }) => {
         </div>
       )}
 
-      <div style={{ padding: "20px 24px" }}>
+      <div style={{ padding: isMobile ? "16px" : "20px 24px" }}>
         {/* Üst kısım: avatar + yazar + zaman + kategori */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
           <Avatar name={post.authorName} />
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontWeight: 700, fontSize: 15, color: PC.navy }}>{post.authorName}</span>
+              <span
+                onClick={function () { if (onFilterAuthor) onFilterAuthor(post.authorName); }}
+                style={{ fontWeight: 700, fontSize: 15, color: PC.navy, cursor: "pointer" }}
+                onMouseEnter={function (e) { e.currentTarget.style.textDecoration = "underline"; }}
+                onMouseLeave={function (e) { e.currentTarget.style.textDecoration = "none"; }}
+                title={"\"" + post.authorName + "\" gönderilerini filtrele"}
+              >{post.authorName}</span>
               <CategoryBadge category={post.category} small />
               {post.tag && (
                 <span style={{
@@ -573,36 +864,136 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete }) => {
               {post.views > 0 && <span> · {post.views} görüntülenme</span>}
             </div>
           </div>
-          {isAuthor && (
-            <button
-              onClick={function () { if (confirm("Bu gönderiyi silmek istediğinizden emin misiniz?")) onDelete(post.id); }}
-              style={{
-                padding: 6, border: "none", background: "transparent",
-                cursor: "pointer", borderRadius: 6, color: PC.textMuted,
-              }}
-              onMouseEnter={function (e) { e.currentTarget.style.color = "#EF4444"; }}
-              onMouseLeave={function (e) { e.currentTarget.style.color = PC.textMuted; }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-            </button>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {/* Admin: Pin/Unpin */}
+            {isAdmin && (
+              <button
+                onClick={function () { onTogglePin(post.id, !post.pinned); }}
+                title={post.pinned ? "Sabitlemeyi Kaldır" : "Sabitle"}
+                style={{
+                  padding: 6, border: "none", background: "transparent",
+                  cursor: "pointer", borderRadius: 6,
+                  color: post.pinned ? "#F59E0B" : PC.textMuted,
+                }}
+                onMouseEnter={function (e) { e.currentTarget.style.color = "#F59E0B"; }}
+                onMouseLeave={function (e) { e.currentTarget.style.color = post.pinned ? "#F59E0B" : PC.textMuted; }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill={post.pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2l2.09 6.26L21 9.27l-5 3.14L17.18 22 12 17.77 6.82 22 8 12.41l-5-3.14 6.91-1.01L12 2z" />
+                </svg>
+              </button>
+            )}
+            {/* Yazar/Admin: Düzenle */}
+            {isAuthor && !editing && (
+              <button
+                onClick={function () { setEditing(true); }}
+                title="Düzenle"
+                style={{
+                  padding: 6, border: "none", background: "transparent",
+                  cursor: "pointer", borderRadius: 6, color: PC.textMuted,
+                }}
+                onMouseEnter={function (e) { e.currentTarget.style.color = PC.blue; }}
+                onMouseLeave={function (e) { e.currentTarget.style.color = PC.textMuted; }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </button>
+            )}
+            {/* Yazar/Admin: Sil */}
+            {isAuthor && (
+              <button
+                onClick={function () { if (confirm("Bu gönderiyi silmek istediğinizden emin misiniz?")) onDelete(post.id); }}
+                title="Sil"
+                style={{
+                  padding: 6, border: "none", background: "transparent",
+                  cursor: "pointer", borderRadius: 6, color: PC.textMuted,
+                }}
+                onMouseEnter={function (e) { e.currentTarget.style.color = "#EF4444"; }}
+                onMouseLeave={function (e) { e.currentTarget.style.color = PC.textMuted; }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Başlık */}
-        {post.title && (
-          <h3 style={{
-            fontSize: 18, fontWeight: 700, color: PC.navy,
-            marginBottom: 8, lineHeight: 1.4,
-          }}>{post.title}</h3>
+        {/* Başlık + İçerik (düzenleme veya görüntüleme) */}
+        {editing ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <input
+              value={editTitle}
+              onChange={function (e) { setEditTitle(e.target.value); }}
+              placeholder="Başlık"
+              style={{
+                width: "100%", padding: "10px 14px", border: "1px solid " + PC.border,
+                borderRadius: 8, fontSize: 15, fontWeight: 600, outline: "none",
+                color: PC.navy,
+              }}
+            />
+            <textarea
+              value={editContent}
+              onChange={function (e) { setEditContent(e.target.value); }}
+              rows={4}
+              style={{
+                width: "100%", padding: "10px 14px", border: "1px solid " + PC.border,
+                borderRadius: 8, fontSize: 14, resize: "vertical",
+                outline: "none", lineHeight: 1.6, fontFamily: "inherit",
+              }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                onClick={handleCancelEdit}
+                style={{
+                  padding: "6px 16px", border: "1px solid " + PC.border,
+                  borderRadius: 8, background: "white", cursor: "pointer",
+                  fontSize: 13, color: PC.textMuted,
+                }}
+              >İptal</button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={saving || !editContent.trim()}
+                style={{
+                  padding: "6px 16px", border: "none", borderRadius: 8,
+                  background: saving || !editContent.trim() ? PC.border : PC.navy,
+                  color: "white", cursor: saving ? "wait" : "pointer",
+                  fontSize: 13, fontWeight: 600,
+                }}
+              >{saving ? "Kaydediliyor..." : "Kaydet"}</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {post.title && (
+              <h3 style={{
+                fontSize: 18, fontWeight: 700, color: PC.navy,
+                marginBottom: 8, lineHeight: 1.4,
+              }}>{post.title}</h3>
+            )}
+            <div style={{
+              fontSize: 14, color: PC.text, lineHeight: 1.7,
+              whiteSpace: "pre-wrap", wordBreak: "break-word",
+            }}>{displayContent}</div>
+            {isLong && (
+              <button
+                onClick={function () { setExpanded(!expanded); }}
+                style={{
+                  padding: 0, border: "none", background: "transparent",
+                  color: PC.blue, cursor: "pointer", fontSize: 13,
+                  fontWeight: 600, marginTop: 4,
+                }}
+              >{expanded ? "Daha az göster" : "Devamını oku"}</button>
+            )}
+            {post.editedAt && (
+              <div style={{ fontSize: 11, color: PC.textMuted, marginTop: 4, fontStyle: "italic" }}>
+                (düzenlendi)
+              </div>
+            )}
+          </>
         )}
-
-        {/* İçerik */}
-        <div style={{
-          fontSize: 14, color: PC.text, lineHeight: 1.7,
-          whiteSpace: "pre-wrap", wordBreak: "break-word",
-        }}>{post.content}</div>
 
         {/* Anket */}
         {post.category === "anket" && post.pollOptions && post.pollOptions.length > 0 && (
@@ -632,7 +1023,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete }) => {
           </div>
         )}
 
-        {/* Alt kısım: reaksiyonlar + yorumlar */}
+        {/* Alt kısım: reaksiyonlar + yorumlar + yer imi */}
         <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <ReactionBar
             reactions={post.reactions}
@@ -641,6 +1032,51 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete }) => {
             onReact={onReact}
           />
           <CommentSection postId={post.id} currentUser={currentUser} />
+          <button
+            onClick={function () {
+              var text = (post.title ? post.title + "\n" : "") + post.content;
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(text);
+              }
+            }}
+            title="Gönderiyi Kopyala"
+            style={{
+              padding: "6px 12px", border: "1px solid " + PC.border,
+              borderRadius: 20, background: "white",
+              cursor: "pointer", fontSize: 13, display: "flex",
+              alignItems: "center", gap: 6, color: PC.textMuted,
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={function (e) { e.currentTarget.style.borderColor = PC.blue; e.currentTarget.style.color = PC.blue; }}
+            onMouseLeave={function (e) { e.currentTarget.style.borderColor = PC.border; e.currentTarget.style.color = PC.textMuted; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" />
+            </svg>
+            Paylaş
+          </button>
+          <button
+            onClick={function () { onToggleBookmark(post.id); }}
+            title={isBookmarked ? "Yer İminden Kaldır" : "Yer İmine Ekle"}
+            style={{
+              marginLeft: "auto", padding: "6px 12px",
+              border: "1px solid " + (isBookmarked ? "#F59E0B" : PC.border),
+              borderRadius: 20, background: isBookmarked ? "#FEF3C7" : "white",
+              cursor: "pointer", fontSize: 13, display: "flex",
+              alignItems: "center", gap: 6, color: isBookmarked ? "#F59E0B" : PC.textMuted,
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={function (e) { e.currentTarget.style.borderColor = "#F59E0B"; e.currentTarget.style.color = "#F59E0B"; }}
+            onMouseLeave={function (e) {
+              e.currentTarget.style.borderColor = isBookmarked ? "#F59E0B" : PC.border;
+              e.currentTarget.style.color = isBookmarked ? "#F59E0B" : PC.textMuted;
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill={isBookmarked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+            {isBookmarked ? "Kaydedildi" : "Kaydet"}
+          </button>
         </div>
       </div>
     </div>
@@ -931,6 +1367,102 @@ const TrendingSidebar = ({ posts }) => {
   );
 };
 
+// ── Toast Bildirim ──
+const ToastContainer = ({ toasts }) => {
+  if (!toasts || toasts.length === 0) return null;
+  return (
+    <div style={{
+      position: "fixed", top: 20, right: 20, zIndex: 9999,
+      display: "flex", flexDirection: "column", gap: 8,
+      pointerEvents: "none",
+    }}>
+      {toasts.map(function (t) {
+        var bgColor = t.type === "error" ? "#FEE2E2" : t.type === "info" ? "#DBEAFE" : "#D1FAE5";
+        var borderColor = t.type === "error" ? "#EF4444" : t.type === "info" ? "#3B82F6" : "#10B981";
+        var textColor = t.type === "error" ? "#991B1B" : t.type === "info" ? "#1E40AF" : "#065F46";
+        var icon = t.type === "error" ? "\u2716" : t.type === "info" ? "\u2139" : "\u2714";
+        return (
+          <div key={t.id} style={{
+            padding: "12px 20px", borderRadius: 12,
+            background: bgColor, border: "1px solid " + borderColor,
+            color: textColor, fontSize: 13, fontWeight: 600,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+            display: "flex", alignItems: "center", gap: 8,
+            animation: "fadeInRight 0.3s ease",
+            pointerEvents: "auto",
+          }}>
+            <span style={{ fontSize: 15 }}>{icon}</span>
+            {t.message}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ── Yukarı Kaydır Butonu ──
+const ScrollToTopButton = () => {
+  var showBtn = useScrollTop(400);
+  if (!showBtn) return null;
+  return (
+    <button
+      onClick={function () { window.scrollTo({ top: 0, behavior: "smooth" }); }}
+      title="Yukarı Kaydır"
+      style={{
+        position: "fixed", bottom: 28, right: 28, zIndex: 9998,
+        width: 48, height: 48, borderRadius: "50%",
+        border: "none", background: "linear-gradient(135deg, " + PC.navy + ", " + PC.navyLight + ")",
+        color: "white", cursor: "pointer",
+        boxShadow: "0 4px 16px rgba(27,42,74,0.35)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        animation: "fadeInUp 0.3s ease",
+        transition: "transform 0.2s",
+      }}
+      onMouseEnter={function (e) { e.currentTarget.style.transform = "scale(1.1)"; }}
+      onMouseLeave={function (e) { e.currentTarget.style.transform = "scale(1)"; }}
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <polyline points="18 15 12 9 6 15" />
+      </svg>
+    </button>
+  );
+};
+
+// ── Mobil Sidebar Drawer ──
+const MobileSidebarToggle = ({ children }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        onClick={function () { setOpen(!open); }}
+        style={{
+          width: "100%", padding: "12px 16px", border: "1px solid " + PC.border,
+          borderRadius: 12, background: "white", cursor: "pointer",
+          fontSize: 13, fontWeight: 600, color: PC.navy,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: open ? 12 : 0,
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          Trend & İstatistikler
+        </span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          style={{ transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0)" }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 20 }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Arama Çubuğu ──
 const SearchBar = ({ value, onChange }) => (
   <div style={{ position: "relative", flex: 1, maxWidth: 400 }}>
@@ -961,21 +1493,63 @@ function OgrenciPortaliApp({ currentUser }) {
   const [activeCategory, setActiveCategory] = useState("tumu");
   const [showNewPost, setShowNewPost] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortMode, setSortMode] = useState("newest"); // newest, popular, comments, bookmarked
+  const [authorFilter, setAuthorFilter] = useState("");
+  const [toasts, setToasts] = useState([]);
+  var isMobile = useIsMobile(768);
 
-  // Gönderileri yükle
-  const loadPosts = async function (cat) {
-    setLoading(true);
-    try {
-      var fetched = await PortalDB.fetchPosts(cat === "tumu" ? null : cat, 50);
-      setPosts(fetched);
-    } catch (err) {
-      console.error("Gönderiler yüklenemedi:", err);
-    }
-    setLoading(false);
+  var showToast = function (message, type) {
+    var id = Date.now() + Math.random();
+    setToasts(function (prev) { return [].concat(prev, [{ id: id, message: message, type: type || "success" }]); });
+    setTimeout(function () {
+      setToasts(function (prev) { return prev.filter(function (t) { return t.id !== id; }); });
+    }, 3000);
   };
 
+  // Yer imleri (localStorage)
+  const [bookmarks, setBookmarks] = useState(function () {
+    try {
+      var saved = localStorage.getItem("portal_bookmarks");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) { return []; }
+  });
+
+  var handleToggleBookmark = function (postId) {
+    var wasBookmarked = bookmarks.indexOf(postId) >= 0;
+    setBookmarks(function (prev) {
+      var idx = prev.indexOf(postId);
+      var updated;
+      if (idx >= 0) {
+        updated = prev.filter(function (id) { return id !== postId; });
+      } else {
+        updated = [].concat(prev, [postId]);
+      }
+      try { localStorage.setItem("portal_bookmarks", JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+    showToast(wasBookmarked ? "Yer iminden kaldırıldı" : "Yer imine eklendi");
+  };
+
+  // Gerçek zamanlı dinleme (onSnapshot)
   useEffect(function () {
-    loadPosts(activeCategory);
+    var ref = PortalDB.postsRef();
+    if (!ref) { setLoading(false); return; }
+    var query = ref.orderBy("createdAt", "desc");
+    if (activeCategory && activeCategory !== "tumu") {
+      query = query.where("category", "==", activeCategory);
+    }
+    query = query.limit(50);
+    var unsubscribe = query.onSnapshot(function (snapshot) {
+      var fetched = snapshot.docs.map(function (doc) {
+        return Object.assign({}, doc.data(), { id: doc.id });
+      });
+      setPosts(fetched);
+      setLoading(false);
+    }, function (err) {
+      console.error("Gönderiler yüklenemedi:", err);
+      setLoading(false);
+    });
+    return function () { unsubscribe(); };
   }, [activeCategory]);
 
   // Yeni gönderi
@@ -983,6 +1557,7 @@ function OgrenciPortaliApp({ currentUser }) {
     var saved = await PortalDB.createPost(postData);
     setPosts(function (prev) { return [saved, ...prev]; });
     setShowNewPost(false);
+    showToast("Gönderi başarıyla paylaşıldı!");
   };
 
   // Reaksiyon
@@ -1020,21 +1595,78 @@ function OgrenciPortaliApp({ currentUser }) {
     try {
       await PortalDB.deletePost(postId);
       setPosts(function (prev) { return prev.filter(function (p) { return p.id !== postId; }); });
+      showToast("Gönderi silindi");
     } catch (err) {
       console.error("Silme hatası:", err);
+      showToast("Silme başarısız!", "error");
     }
   };
 
-  // Arama filtresi
+  // Gönderi düzenle
+  const handleEdit = async function (postId, updates) {
+    try {
+      await PortalDB.updatePost(postId, Object.assign({}, updates, {
+        editedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      }));
+      setPosts(function (prev) {
+        return prev.map(function (p) {
+          return p.id === postId ? Object.assign({}, p, updates, { editedAt: new Date() }) : p;
+        });
+      });
+      showToast("Gönderi düzenlendi");
+    } catch (err) {
+      console.error("Düzenleme hatası:", err);
+      showToast("Düzenleme başarısız!", "error");
+      throw err;
+    }
+  };
+
+  // Gönderi sabitle/kaldır (admin)
+  const handleTogglePin = async function (postId, pinned) {
+    try {
+      await PortalDB.updatePost(postId, { pinned: pinned });
+      setPosts(function (prev) {
+        return prev.map(function (p) {
+          return p.id === postId ? Object.assign({}, p, { pinned: pinned }) : p;
+        });
+      });
+      showToast(pinned ? "Gönderi sabitlendi" : "Sabitleme kaldırıldı");
+    } catch (err) {
+      console.error("Pin hatası:", err);
+    }
+  };
+
+  // Arama + sıralama filtresi
   var filteredPosts = useMemo(function () {
-    if (!searchQuery.trim()) return posts;
-    var q = searchQuery.toLowerCase();
-    return posts.filter(function (p) {
-      return (p.title && p.title.toLowerCase().includes(q)) ||
-             (p.content && p.content.toLowerCase().includes(q)) ||
-             (p.authorName && p.authorName.toLowerCase().includes(q));
-    });
-  }, [posts, searchQuery]);
+    var result = posts;
+    if (searchQuery.trim()) {
+      var q = searchQuery.toLowerCase();
+      result = result.filter(function (p) {
+        return (p.title && p.title.toLowerCase().includes(q)) ||
+               (p.content && p.content.toLowerCase().includes(q)) ||
+               (p.authorName && p.authorName.toLowerCase().includes(q));
+      });
+    }
+    // Yazar filtresi
+    if (authorFilter) {
+      result = result.filter(function (p) { return p.authorName === authorFilter; });
+    }
+    // Kaydedilenler filtresi
+    if (sortMode === "bookmarked") {
+      result = result.filter(function (p) { return bookmarks.indexOf(p.id) >= 0; });
+    }
+    // Sıralama
+    if (sortMode === "popular") {
+      result = [...result].sort(function (a, b) {
+        return (getReactionTotal(b.reactions) + (b.views || 0)) - (getReactionTotal(a.reactions) + (a.views || 0));
+      });
+    } else if (sortMode === "comments") {
+      result = [...result].sort(function (a, b) {
+        return (b.commentCount || 0) - (a.commentCount || 0);
+      });
+    }
+    return result;
+  }, [posts, searchQuery, sortMode, bookmarks, authorFilter]);
 
   // Sabitlenmiş gönderileri ayır
   var pinnedPosts = filteredPosts.filter(function (p) { return p.pinned; });
@@ -1048,14 +1680,21 @@ function OgrenciPortaliApp({ currentUser }) {
 
   return (
     <div>
+      {/* Toast Bildirimler */}
+      <ToastContainer toasts={toasts} />
+      {/* Yukarı Kaydır */}
+      <ScrollToTopButton />
+
       {/* Başlık */}
       <div style={{
         marginBottom: 24, display: "flex", justifyContent: "space-between",
-        alignItems: "flex-start", flexWrap: "wrap", gap: 16,
+        alignItems: isMobile ? "stretch" : "flex-start",
+        flexDirection: isMobile ? "column" : "row",
+        gap: isMobile ? 12 : 16,
       }}>
         <div>
           <h1 style={{
-            fontSize: 28, fontWeight: 700, color: PC.navy,
+            fontSize: isMobile ? 22 : 28, fontWeight: 700, color: PC.navy,
             fontFamily: "'Playfair Display', serif", marginBottom: 4,
           }}>Öğrenci Portalı</h1>
           <p style={{ color: PC.textMuted, fontSize: 14 }}>
@@ -1079,7 +1718,11 @@ function OgrenciPortaliApp({ currentUser }) {
       </div>
 
       {/* İstatistikler */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
+        gap: 12, marginBottom: 24,
+      }}>
         <StatCard label="Toplam Gönderi" value={posts.length} color="#3B82F6" icon={"\uD83D\uDCDD"} />
         <StatCard label="Tepkiler" value={totalReactions} color="#EF4444" icon={"\u2764\uFE0F"} />
         <StatCard label="Yorumlar" value={totalComments} color="#10B981" icon={"\uD83D\uDCAC"} />
@@ -1088,12 +1731,73 @@ function OgrenciPortaliApp({ currentUser }) {
 
       {/* Arama + Kategori Filtreleri */}
       <div style={{
-        display: "flex", gap: 16, marginBottom: 24,
-        alignItems: "center", flexWrap: "wrap",
+        display: "flex", gap: isMobile ? 10 : 16, marginBottom: 24,
+        alignItems: isMobile ? "stretch" : "center",
+        flexDirection: isMobile ? "column" : "row",
+        flexWrap: "wrap",
       }}>
         <SearchBar value={searchQuery} onChange={setSearchQuery} />
 
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        {/* Yazar filtresi badge */}
+        {authorFilter && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "6px 14px", borderRadius: 20,
+            background: PC.blueLight, border: "1px solid " + PC.blue,
+            fontSize: 12, fontWeight: 600, color: PC.blue,
+            alignSelf: isMobile ? "flex-start" : "center",
+          }}>
+            <Avatar name={authorFilter} size={20} />
+            {authorFilter}
+            <button
+              onClick={function () { setAuthorFilter(""); }}
+              style={{
+                padding: 0, border: "none", background: "transparent",
+                cursor: "pointer", color: PC.blue, fontSize: 14, fontWeight: 700,
+                marginLeft: 4, lineHeight: 1,
+              }}
+            >{"\u2715"}</button>
+          </div>
+        )}
+
+        {/* Sıralama */}
+        <div style={{
+          display: "flex", gap: 4, background: PC.bg, borderRadius: 10, padding: 3,
+          overflowX: isMobile ? "auto" : "visible",
+          WebkitOverflowScrolling: "touch",
+        }}>
+          {[
+            { id: "newest", label: "En Yeni" },
+            { id: "popular", label: "En Popüler" },
+            { id: "comments", label: "En Çok Yorum" },
+            { id: "bookmarked", label: "Kaydedilenler" },
+          ].map(function (s) {
+            var isActive = sortMode === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={function () { setSortMode(s.id); }}
+                style={{
+                  padding: "6px 14px", borderRadius: 8, fontSize: 12,
+                  fontWeight: isActive ? 700 : 500, cursor: "pointer",
+                  border: "none", whiteSpace: "nowrap",
+                  background: isActive ? "white" : "transparent",
+                  color: isActive ? PC.navy : PC.textMuted,
+                  boxShadow: isActive ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+                  transition: "all 0.2s",
+                }}
+              >{s.label}</button>
+            );
+          })}
+        </div>
+
+        <div style={{
+          display: "flex", gap: 4,
+          flexWrap: isMobile ? "nowrap" : "wrap",
+          overflowX: isMobile ? "auto" : "visible",
+          WebkitOverflowScrolling: "touch",
+          paddingBottom: isMobile ? 4 : 0,
+        }}>
           <button
             onClick={function () { setActiveCategory("tumu"); }}
             style={{
@@ -1102,6 +1806,7 @@ function OgrenciPortaliApp({ currentUser }) {
               border: activeCategory === "tumu" ? "2px solid " + PC.navy : "1px solid " + PC.border,
               background: activeCategory === "tumu" ? PC.navy : "white",
               color: activeCategory === "tumu" ? "white" : PC.textMuted,
+              whiteSpace: "nowrap", flexShrink: 0,
             }}
           >Tümü</button>
           {PORTAL_CATEGORIES.map(function (cat) {
@@ -1117,6 +1822,7 @@ function OgrenciPortaliApp({ currentUser }) {
                   background: isActive ? cat.bg : "white",
                   color: isActive ? cat.color : PC.textMuted,
                   transition: "all 0.15s",
+                  whiteSpace: "nowrap", flexShrink: 0,
                 }}
               >{cat.emoji} {cat.label}</button>
             );
@@ -1125,9 +1831,14 @@ function OgrenciPortaliApp({ currentUser }) {
       </div>
 
       {/* Ana İçerik: Feed + Sidebar */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 24, alignItems: "start" }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "1fr 300px",
+        gap: isMobile ? 16 : 24,
+        alignItems: "start",
+      }}>
         {/* Sol: Feed */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 16 : 20 }}>
           {/* Yeni gönderi formu */}
           {showNewPost && (
             <NewPostForm
@@ -1180,6 +1891,11 @@ function OgrenciPortaliApp({ currentUser }) {
                 onReact={handleReact}
                 onVote={handleVote}
                 onDelete={handleDelete}
+                onEdit={handleEdit}
+                onTogglePin={handleTogglePin}
+                isBookmarked={bookmarks.indexOf(post.id) >= 0}
+                onToggleBookmark={handleToggleBookmark}
+                onFilterAuthor={setAuthorFilter}
               />
             );
           })}
@@ -1194,63 +1910,112 @@ function OgrenciPortaliApp({ currentUser }) {
                 onReact={handleReact}
                 onVote={handleVote}
                 onDelete={handleDelete}
+                onEdit={handleEdit}
+                onTogglePin={handleTogglePin}
+                isBookmarked={bookmarks.indexOf(post.id) >= 0}
+                onToggleBookmark={handleToggleBookmark}
+                onFilterAuthor={setAuthorFilter}
               />
             );
           })}
         </div>
 
         {/* Sağ: Sidebar */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: 88 }}>
-          {/* Trend Konular */}
-          <TrendingSidebar posts={posts} />
-
-          {/* Hızlı Bilgi */}
-          <div style={{
-            background: "linear-gradient(135deg, " + PC.navy + ", " + PC.navyLight + ")",
-            borderRadius: 16, padding: 20, color: "white",
-          }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
-              <span>{"\uD83D\uDCA1"}</span> Portal Rehberi
-            </h3>
-            <div style={{ fontSize: 12, lineHeight: 1.8, opacity: 0.9 }}>
-              <div><strong>? Soru-Cevap:</strong> Derslerle ilgili sorularınızı sorun</div>
-              <div><strong>N Not Paylaşımı:</strong> Ders notlarını arkadaşlarınızla paylaşın</div>
-              <div><strong>! Duyuru:</strong> Önemli duyuruları paylaşın</div>
-              <div><strong>E Etkinlik:</strong> Kampüs etkinliklerini duyurun</div>
-              <div><strong>K Kaynak:</strong> Faydalı link ve kaynakları paylaşın</div>
-              <div><strong>S Sohbet:</strong> Serbest sohbet edin</div>
-              <div><strong>A Anket:</strong> Anket oluşturup oy toplayın</div>
+        {isMobile ? (
+          <MobileSidebarToggle>
+            <TrendingSidebar posts={posts} />
+            <div style={{
+              background: "linear-gradient(135deg, " + PC.navy + ", " + PC.navyLight + ")",
+              borderRadius: 16, padding: 20, color: "white",
+            }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+                <span>{"\uD83D\uDCA1"}</span> Portal Rehberi
+              </h3>
+              <div style={{ fontSize: 12, lineHeight: 1.8, opacity: 0.9 }}>
+                <div><strong>? Soru-Cevap:</strong> Derslerle ilgili sorularınızı sorun</div>
+                <div><strong>N Not Paylaşımı:</strong> Ders notlarını arkadaşlarınızla paylaşın</div>
+                <div><strong>! Duyuru:</strong> Önemli duyuruları paylaşın</div>
+                <div><strong>E Etkinlik:</strong> Kampüs etkinliklerini duyurun</div>
+                <div><strong>K Kaynak:</strong> Faydalı link ve kaynakları paylaşın</div>
+                <div><strong>S Sohbet:</strong> Serbest sohbet edin</div>
+                <div><strong>A Anket:</strong> Anket oluşturup oy toplayın</div>
+              </div>
+            </div>
+            <div style={{
+              background: "white", borderRadius: 16, padding: 20,
+              border: "1px solid " + PC.borderLight,
+            }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
+                Kategori Dağılımı
+              </h3>
+              {PORTAL_CATEGORIES.map(function (cat) {
+                var count = posts.filter(function (p) { return p.category === cat.id; }).length;
+                var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
+                return (
+                  <div key={cat.id} style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600, color: cat.color }}>{cat.emoji} {cat.label}</span>
+                      <span style={{ color: PC.textMuted }}>{count}</span>
+                    </div>
+                    <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%", width: pct + "%", background: cat.color,
+                        borderRadius: 3, transition: "width 0.5s ease",
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </MobileSidebarToggle>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: 88 }}>
+            <TrendingSidebar posts={posts} />
+            <div style={{
+              background: "linear-gradient(135deg, " + PC.navy + ", " + PC.navyLight + ")",
+              borderRadius: 16, padding: 20, color: "white",
+            }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+                <span>{"\uD83D\uDCA1"}</span> Portal Rehberi
+              </h3>
+              <div style={{ fontSize: 12, lineHeight: 1.8, opacity: 0.9 }}>
+                <div><strong>? Soru-Cevap:</strong> Derslerle ilgili sorularınızı sorun</div>
+                <div><strong>N Not Paylaşımı:</strong> Ders notlarını arkadaşlarınızla paylaşın</div>
+                <div><strong>! Duyuru:</strong> Önemli duyuruları paylaşın</div>
+                <div><strong>E Etkinlik:</strong> Kampüs etkinliklerini duyurun</div>
+                <div><strong>K Kaynak:</strong> Faydalı link ve kaynakları paylaşın</div>
+                <div><strong>S Sohbet:</strong> Serbest sohbet edin</div>
+                <div><strong>A Anket:</strong> Anket oluşturup oy toplayın</div>
+              </div>
+            </div>
+            <div style={{
+              background: "white", borderRadius: 16, padding: 20,
+              border: "1px solid " + PC.borderLight,
+            }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
+                Kategori Dağılımı
+              </h3>
+              {PORTAL_CATEGORIES.map(function (cat) {
+                var count = posts.filter(function (p) { return p.category === cat.id; }).length;
+                var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
+                return (
+                  <div key={cat.id} style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600, color: cat.color }}>{cat.emoji} {cat.label}</span>
+                      <span style={{ color: PC.textMuted }}>{count}</span>
+                    </div>
+                    <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%", width: pct + "%", background: cat.color,
+                        borderRadius: 3, transition: "width 0.5s ease",
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-
-          {/* Kategorilere göre dağılım */}
-          <div style={{
-            background: "white", borderRadius: 16, padding: 20,
-            border: "1px solid " + PC.borderLight,
-          }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
-              Kategori Dağılımı
-            </h3>
-            {PORTAL_CATEGORIES.map(function (cat) {
-              var count = posts.filter(function (p) { return p.category === cat.id; }).length;
-              var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
-              return (
-                <div key={cat.id} style={{ marginBottom: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                    <span style={{ fontWeight: 600, color: cat.color }}>{cat.emoji} {cat.label}</span>
-                    <span style={{ color: PC.textMuted }}>{count}</span>
-                  </div>
-                  <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{
-                      height: "100%", width: pct + "%", background: cat.color,
-                      borderRadius: 3, transition: "width 0.5s ease",
-                    }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
