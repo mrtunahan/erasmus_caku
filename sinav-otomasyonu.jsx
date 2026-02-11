@@ -224,33 +224,33 @@ const SEED_COURSES = [
   { code: "BIL482", name: "Yönetim Bilişim Sistemleri", sinif: 4, duration: 30, professor: "" },
   { code: "BIL494", name: "Bitirme Projesi", sinif: 4, duration: 30, professor: "" },
 
-  // ═══ Bölüm Seçmeli Dersler ═══
-  { code: "BIL432", name: "Kriptografi ve Bilgi Güvenliği", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL325", name: "Siber Güvenliğe Giriş", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL466", name: "Biyobilişim ve Biyoteknoloji", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL323", name: "Sayısal İşaret İşleme", sinif: 4, duration: 30, professor: "" },
-  { code: "MTH401", name: "Java & React JS ile Web Programlama Eğitimi", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL321", name: "Makine Öğrenmesi", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL411", name: "Sistem Mühendisliği", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL412", name: "İnsan Bilgisayar Etkileşimi", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL421", name: "E-Ticaret ve Dijital Dönüşüm", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL425", name: "Mobil Uygulama Geliştirme", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL427", name: "Oyun Teknolojileri", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL434", name: "Gömülü Sistemler", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL462", name: "Bulut Çözüme Giriş", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL471", name: "Sayısal Analiz Yöntemleri", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL473", name: "Bilgisayarlı Görme", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL476", name: "Veri Madenciliğine Giriş", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL477", name: "Örüntü Tanıma", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL481", name: "Yapay Zeka", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL483", name: "Çoklu Ortam Sistemleri", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL486", name: "Optimizasyon", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL493", name: "Gerçek Zamanlı Sistemler", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL496", name: "Sinyal İşleme Uygulamaları", sinif: 4, duration: 30, professor: "" },
-  { code: "OSD144", name: "Siber Güvenlik ve Etik Hacker", sinif: 4, duration: 30, professor: "" },
-  { code: "MTH404", name: "Yazılım Test ve Kalitesi", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL438", name: "Görüntü İşleme", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL474", name: "Tıp Bilişimi", sinif: 4, duration: 30, professor: "" },
+  // ═══ Bölüm Seçmeli Dersler (Sınıf 5 - Seçmeli) ═══
+  { code: "BIL432", name: "Kriptografi ve Bilgi Güvenliği", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL325", name: "Siber Güvenliğe Giriş", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL466", name: "Biyobilişim ve Biyoteknoloji", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL323", name: "Sayısal İşaret İşleme", sinif: 5, duration: 30, professor: "" },
+  { code: "MTH401", name: "Java & React JS ile Web Programlama Eğitimi", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL321", name: "Makine Öğrenmesi", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL411", name: "Sistem Mühendisliği", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL412", name: "İnsan Bilgisayar Etkileşimi", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL421", name: "E-Ticaret ve Dijital Dönüşüm", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL425", name: "Mobil Uygulama Geliştirme", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL427", name: "Oyun Teknolojileri", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL434", name: "Gömülü Sistemler", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL462", name: "Bulut Çözüme Giriş", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL471", name: "Sayısal Analiz Yöntemleri", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL473", name: "Bilgisayarlı Görme", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL476", name: "Veri Madenciliğine Giriş", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL477", name: "Örüntü Tanıma", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL481", name: "Yapay Zeka", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL483", name: "Çoklu Ortam Sistemleri", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL486", name: "Optimizasyon", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL493", name: "Gerçek Zamanlı Sistemler", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL496", name: "Sinyal İşleme Uygulamaları", sinif: 5, duration: 30, professor: "" },
+  { code: "OSD144", name: "Siber Güvenlik ve Etik Hacker", sinif: 5, duration: 30, professor: "" },
+  { code: "MTH404", name: "Yazılım Test ve Kalitesi", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL438", name: "Görüntü İşleme", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL474", name: "Tıp Bilişimi", sinif: 5, duration: 30, professor: "" },
 ];
 
 // ── Helper Functions ──
@@ -1248,10 +1248,10 @@ function SinavOtomasyonuApp({ currentUser }) {
 
   // ── Seed data to Firebase ──
   const seedData = async () => {
+    // ... existing seedData implementation ...
     const cRef = getCoursesRef();
     const pRef = getProfessorsRef();
     if (!cRef || !pRef) return;
-
     try {
       const existingCourses = await cRef.get();
       if (!existingCourses.empty) {
@@ -1260,27 +1260,67 @@ function SinavOtomasyonuApp({ currentUser }) {
         existingCourses.docs.forEach(doc => batch1.delete(doc.ref));
         await batch1.commit();
       }
-
       const existingProfs = await pRef.get();
       if (!existingProfs.empty) {
         const batch2 = window.firebase.firestore().batch();
         existingProfs.docs.forEach(doc => batch2.delete(doc.ref));
         await batch2.commit();
       }
-
       for (const prof of SEED_PROFESSORS) {
         await pRef.add({ ...prof, createdAt: new Date().toISOString() });
       }
-
       for (const course of SEED_COURSES) {
         await cRef.add({ ...course, studentCount: 0, createdAt: new Date().toISOString() });
       }
-
-      alert("Veriler başarıyla yüklendi! " + SEED_COURSES.length + " ders, " + SEED_PROFESSORS.length + " akademisyen eklendi.");
+      alert("Veriler başarıyla yüklendi!");
       loadData();
     } catch (e) {
       console.error("Seed error:", e);
       alert("Seed hatası: " + e.message);
+    }
+  };
+
+  const syncCourses = async () => {
+    if (!confirm("Eksik dersler eklenecek ve mevcut derslerin bilgileri güncellenecek. Onaylıyor musunuz?")) return;
+    setLoading(true);
+    try {
+      const cRef = getCoursesRef();
+      const snap = await cRef.get();
+      const existing = snap.docs.map(d => ({ fireId: d.id, ...d.data() }));
+
+      const batch = window.firebase.firestore().batch();
+      let added = 0;
+      let updated = 0;
+
+      for (const seedC of SEED_COURSES) {
+        const found = existing.find(e => e.code === seedC.code);
+        if (found) {
+          // Update if different
+          if (found.name !== seedC.name || found.sinif !== seedC.sinif) {
+            const docRef = cRef.doc(found.fireId);
+            batch.update(docRef, { name: seedC.name, sinif: seedC.sinif, duration: seedC.duration });
+            updated++;
+          }
+        } else {
+          // Add new
+          const newRef = cRef.doc();
+          batch.set(newRef, { ...seedC, studentCount: 0, createdAt: new Date().toISOString() });
+          added++;
+        }
+      }
+
+      if (added > 0 || updated > 0) {
+        await batch.commit();
+        alert(`İşlem tamamlandı: ${added} ders eklendi, ${updated} ders güncellendi.`);
+        loadData();
+      } else {
+        alert("Tüm dersler zaten güncel.");
+        setLoading(false);
+      }
+    } catch (e) {
+      console.error("Sync error:", e);
+      alert("Hata: " + e.message);
+      setLoading(false);
     }
   };
 
@@ -1524,6 +1564,11 @@ function SinavOtomasyonuApp({ currentUser }) {
               <Btn onClick={seedData} style={{ background: "#059669" }}>
                 Örnek Verileri Yükle
               </Btn>
+            )}
+            {isAdmin && courses.length > 0 && (
+              <GhostBtn onClick={syncCourses} style={{ color: "#059669", borderColor: "#059669" }}>
+                Verileri Güncelle
+              </GhostBtn>
             )}
             {isAdmin && (
               <GhostBtn onClick={() => setShowCourseModal(true)}>Ders Yönetimi</GhostBtn>
