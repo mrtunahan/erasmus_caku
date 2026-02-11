@@ -740,6 +740,15 @@ const LoginModal = ({ onLogin }) => {
       from { opacity: 0; transform: translateY(20px) scale(0.97); }
       to { opacity: 1; transform: translateY(0) scale(1); }
     }
+    @keyframes loginBgShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    @keyframes loginPulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 0.8; }
+    }
     @keyframes loginSpin {
       to { transform: rotate(360deg); }
     }
@@ -748,181 +757,57 @@ const LoginModal = ({ onLogin }) => {
       20%, 60% { transform: translateX(-6px); }
       40%, 80% { transform: translateX(6px); }
     }
-    @keyframes ringGlow {
-      0%, 100% { filter: drop-shadow(0 0 15px rgba(196,151,59,0.4)) drop-shadow(0 0 40px rgba(196,151,59,0.15)); }
-      50% { filter: drop-shadow(0 0 25px rgba(196,151,59,0.7)) drop-shadow(0 0 60px rgba(196,151,59,0.3)); }
-    }
-    @keyframes ringRotate {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-    @keyframes ember {
-      0% { transform: translateY(0) scale(1); opacity: 1; }
-      100% { transform: translateY(-120px) scale(0); opacity: 0; }
-    }
-    @keyframes starTwinkle {
-      0%, 100% { opacity: 0.2; }
-      50% { opacity: 0.8; }
-    }
-    @keyframes mountainFog {
-      0%, 100% { opacity: 0.03; transform: translateX(0); }
-      50% { opacity: 0.06; transform: translateX(20px); }
-    }
   `;
-
-  // Yıldız pozisyonları (sabit)
-  const stars = Array.from({ length: 40 }, (_, i) => ({
-    left: `${(i * 17 + 7) % 100}%`,
-    top: `${(i * 13 + 3) % 55}%`,
-    size: 1 + (i % 3),
-    delay: `${(i * 0.7) % 5}s`,
-    duration: `${2 + (i % 4)}s`,
-  }));
-
-  // Kıvılcım/ateş parçacıkları
-  const embers = Array.from({ length: 12 }, (_, i) => ({
-    left: `${10 + (i * 7) % 80}%`,
-    bottom: `${2 + (i * 3) % 10}%`,
-    size: 2 + (i % 3),
-    delay: `${(i * 0.8) % 4}s`,
-    duration: `${3 + (i % 3)}s`,
-    color: i % 3 === 0 ? '#C4973B' : i % 3 === 1 ? '#e8833a' : '#d4582a',
-  }));
 
   return (
     <div style={{
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: "linear-gradient(180deg, #0a0e1a 0%, #111827 30%, #1a1208 70%, #2d1a0a 100%)",
+      background: "linear-gradient(-45deg, #0f172a, #1e293b, #1B2A4A, #2D4A7A)",
+      backgroundSize: "400% 400%",
+      animation: "loginBgShift 15s ease infinite",
       display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 10000, padding: 20, overflow: "hidden",
+      zIndex: 10000, padding: 20,
       fontFamily: "'Source Sans 3', sans-serif",
     }}>
       <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
 
-      {/* Yıldızlı gökyüzü */}
-      {stars.map((s, i) => (
-        <div key={`star-${i}`} style={{
-          position: "absolute", left: s.left, top: s.top,
-          width: s.size, height: s.size, borderRadius: "50%",
-          background: "#fff",
-          animation: `starTwinkle ${s.duration} ease-in-out ${s.delay} infinite`,
-          pointerEvents: "none",
-        }} />
-      ))}
-
-      {/* Dağ silüetleri - Misty Mountains */}
-      <svg viewBox="0 0 1440 400" style={{
-        position: "absolute", bottom: 0, left: 0, width: "100%", height: "45%",
-        pointerEvents: "none",
-      }} preserveAspectRatio="none">
-        {/* Uzak dağlar (koyu) */}
-        <path d="M0,400 L0,280 Q80,180 160,220 Q200,140 280,200 Q340,100 420,180 Q480,80 560,160 Q620,60 700,150 Q760,50 840,140 Q900,70 980,160 Q1040,90 1120,170 Q1180,100 1260,190 Q1320,130 1400,210 L1440,200 L1440,400 Z" fill="#0d0d0d" opacity="0.9" />
-        {/* Yakın dağlar (biraz açık) */}
-        <path d="M0,400 L0,310 Q100,240 180,280 Q240,200 340,260 Q400,170 500,240 Q580,140 680,220 Q740,150 840,210 Q920,160 1020,230 Q1100,180 1200,250 Q1280,200 1360,270 L1440,260 L1440,400 Z" fill="#1a1208" opacity="0.95" />
-        {/* Mordor kırmızı ışıltı */}
-        <path d="M0,400 L0,350 Q200,320 400,340 Q600,310 800,330 Q1000,315 1200,335 Q1350,325 1440,340 L1440,400 Z" fill="url(#mordorGlow)" opacity="0.6" />
-        <defs>
-          <linearGradient id="mordorGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#1a0500" />
-            <stop offset="30%" stopColor="#3d1200" />
-            <stop offset="50%" stopColor="#5c1a00" />
-            <stop offset="70%" stopColor="#3d1200" />
-            <stop offset="100%" stopColor="#1a0500" />
-          </linearGradient>
-        </defs>
-      </svg>
-
-      {/* Sis efekti */}
-      <div style={{
-        position: "absolute", bottom: "20%", left: 0, right: 0, height: "15%",
-        background: "linear-gradient(180deg, transparent, rgba(26,18,8,0.4), transparent)",
-        animation: "mountainFog 12s ease-in-out infinite",
-        pointerEvents: "none",
-      }} />
-
-      {/* Kıvılcımlar / Ateş parçacıkları */}
-      {embers.map((e, i) => (
-        <div key={`ember-${i}`} style={{
-          position: "absolute", left: e.left, bottom: e.bottom,
-          width: e.size, height: e.size, borderRadius: "50%",
-          background: e.color,
-          boxShadow: `0 0 ${e.size * 2}px ${e.color}`,
-          animation: `ember ${e.duration} ease-out ${e.delay} infinite`,
-          pointerEvents: "none",
-        }} />
-      ))}
+      {/* Dekoratif arka plan daireleri */}
+      <div style={{ position: "absolute", top: "10%", left: "10%", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(196,151,59,0.08) 0%, transparent 70%)", animation: "loginPulse 4s ease-in-out infinite", pointerEvents: "none" }} />
+      <div style={{ position: "absolute", bottom: "15%", right: "10%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%)", animation: "loginPulse 5s ease-in-out infinite 1s", pointerEvents: "none" }} />
 
       <div style={{
-        maxWidth: 440, width: "100%", position: "relative", zIndex: 2,
+        maxWidth: 440, width: "100%",
         animation: "loginFadeIn 0.5s ease-out",
       }}>
-        {/* Tek Yüzük + Başlık */}
+        {/* Logo & Başlık */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          {/* The One Ring SVG */}
           <div style={{
-            width: 90, height: 90, margin: "0 auto 20px", position: "relative",
-            animation: "ringGlow 3s ease-in-out infinite",
-          }}>
-            <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%", animation: "ringRotate 20s linear infinite" }}>
-              {/* Dış halka */}
-              <circle cx="50" cy="50" r="42" fill="none" stroke="url(#ringGold)" strokeWidth="5" />
-              {/* İç halka */}
-              <circle cx="50" cy="50" r="34" fill="none" stroke="url(#ringGold2)" strokeWidth="2.5" />
-              {/* Elvish yazılar (stilize) */}
-              <path d="M50,12 A38,38 0 0,1 88,50" fill="none" stroke="#C4973B" strokeWidth="1" opacity="0.5" strokeDasharray="3,4" />
-              <path d="M88,50 A38,38 0 0,1 50,88" fill="none" stroke="#C4973B" strokeWidth="1" opacity="0.5" strokeDasharray="4,3" />
-              <path d="M50,88 A38,38 0 0,1 12,50" fill="none" stroke="#C4973B" strokeWidth="1" opacity="0.5" strokeDasharray="3,5" />
-              <path d="M12,50 A38,38 0 0,1 50,12" fill="none" stroke="#C4973B" strokeWidth="1" opacity="0.5" strokeDasharray="5,3" />
-              <defs>
-                <linearGradient id="ringGold" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#E8D5A8" />
-                  <stop offset="30%" stopColor="#C4973B" />
-                  <stop offset="60%" stopColor="#d4a94e" />
-                  <stop offset="100%" stopColor="#E8D5A8" />
-                </linearGradient>
-                <linearGradient id="ringGold2" x1="100%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#C4973B" />
-                  <stop offset="50%" stopColor="#E8D5A8" />
-                  <stop offset="100%" stopColor="#C4973B" />
-                </linearGradient>
-              </defs>
-            </svg>
-            {/* Ortadaki "Ç" harfi */}
-            <div style={{
-              position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-              fontSize: 28, fontWeight: 800, color: "#C4973B",
-              fontFamily: "'Playfair Display', serif",
-              textShadow: "0 0 20px rgba(196,151,59,0.6)",
-            }}>Ç</div>
-          </div>
-
+            width: 72, height: 72, borderRadius: 20, margin: "0 auto 20px",
+            background: "linear-gradient(135deg, #C4973B 0%, #E8D5A8 100%)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 32, fontWeight: 800, color: "#1B2A4A",
+            fontFamily: "'Playfair Display', serif",
+            boxShadow: "0 8px 32px rgba(196,151,59,0.3)",
+          }}>Ç</div>
           <h1 style={{
-            margin: 0, fontSize: 28, fontWeight: 700, color: "#E8D5A8",
-            fontFamily: "'Playfair Display', serif", letterSpacing: "0.04em",
-            textShadow: "0 2px 20px rgba(196,151,59,0.3)",
+            margin: 0, fontSize: 28, fontWeight: 700, color: "white",
+            fontFamily: "'Playfair Display', serif", letterSpacing: "0.02em",
           }}>ÇAKÜ Yönetim Sistemi</h1>
-          <p style={{ margin: "8px 0 0", fontSize: 13, color: "rgba(232,213,168,0.4)", fontStyle: "italic", letterSpacing: "0.1em" }}>
+          <p style={{ margin: "8px 0 0", fontSize: 14, color: "rgba(255,255,255,0.5)" }}>
             Çankırı Karatekin Üniversitesi
           </p>
-          {/* Elvish stil dekoratif çizgi */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 16 }}>
-            <div style={{ width: 60, height: 1, background: "linear-gradient(90deg, transparent, #C4973B)" }} />
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#C4973B", opacity: 0.6 }} />
-            <div style={{ width: 60, height: 1, background: "linear-gradient(90deg, #C4973B, transparent)" }} />
-          </div>
         </div>
 
         {/* Kart */}
         <div style={{
-          background: "rgba(10,14,26,0.75)",
+          background: "rgba(255,255,255,0.03)",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
-          border: "1px solid rgba(196,151,59,0.15)",
+          border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: 20, overflow: "hidden",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(196,151,59,0.1)",
         }}>
           {/* Sekmeler */}
-          <div style={{ display: "flex", borderBottom: "1px solid rgba(196,151,59,0.1)" }}>
+          <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             {[
               { key: false, label: "Öğrenci Girişi", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
               { key: true, label: "Admin Girişi", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
@@ -931,8 +816,8 @@ const LoginModal = ({ onLogin }) => {
               return (
                 <button key={String(tab.key)} onClick={() => { setIsAdminMode(tab.key); setError(""); }} style={{
                   flex: 1, padding: "16px 20px", border: "none", cursor: "pointer",
-                  background: active ? "rgba(196,151,59,0.08)" : "transparent",
-                  color: active ? "#E8D5A8" : "rgba(232,213,168,0.35)",
+                  background: active ? "rgba(255,255,255,0.06)" : "transparent",
+                  color: active ? "white" : "rgba(255,255,255,0.4)",
                   fontSize: 14, fontWeight: 600,
                   borderBottom: active ? "2px solid #C4973B" : "2px solid transparent",
                   transition: "all 0.25s ease",
@@ -950,51 +835,51 @@ const LoginModal = ({ onLogin }) => {
           <form onSubmit={handleSubmit} style={{ padding: 28 }}>
             {!isAdminMode && (
               <div style={{ marginBottom: 20 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(196,151,59,0.6)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
                   Öğrenci Numarası
                 </label>
                 <div style={{ position: "relative" }}>
-                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(196,151,59,0.35)" }}>
+                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)" }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                   </div>
                   <input value={studentNumber} onChange={e => setStudentNumber(e.target.value)} placeholder="Örn: AND43" autoFocus
                     style={{
                       width: "100%", padding: "14px 16px 14px 44px", borderRadius: 12,
-                      border: "1px solid rgba(196,151,59,0.15)", background: "rgba(196,151,59,0.04)",
-                      color: "#E8D5A8", fontSize: 15, outline: "none",
+                      border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)",
+                      color: "white", fontSize: 15, outline: "none",
                       fontFamily: "'Source Sans 3', sans-serif",
-                      transition: "border-color 0.2s, background 0.2s, box-shadow 0.2s",
+                      transition: "border-color 0.2s, background 0.2s",
                     }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(196,151,59,0.4)"; e.target.style.background = "rgba(196,151,59,0.06)"; e.target.style.boxShadow = "0 0 20px rgba(196,151,59,0.08)"; }}
-                    onBlur={e => { e.target.style.borderColor = "rgba(196,151,59,0.15)"; e.target.style.background = "rgba(196,151,59,0.04)"; e.target.style.boxShadow = "none"; }}
+                    onFocus={e => { e.target.style.borderColor = "rgba(196,151,59,0.5)"; e.target.style.background = "rgba(255,255,255,0.06)"; }}
+                    onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.background = "rgba(255,255,255,0.04)"; }}
                   />
                 </div>
               </div>
             )}
 
             <div style={{ marginBottom: 24 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(196,151,59,0.6)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
                 Şifre
               </label>
               <div style={{ position: "relative" }}>
-                <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(196,151,59,0.35)" }}>
+                <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)" }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
                 </div>
                 <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
                   placeholder={isAdminMode ? "Admin şifresi" : "Öğrenci şifresi"} autoFocus={isAdminMode}
                   style={{
                     width: "100%", padding: "14px 48px 14px 44px", borderRadius: 12,
-                    border: "1px solid rgba(196,151,59,0.15)", background: "rgba(196,151,59,0.04)",
-                    color: "#E8D5A8", fontSize: 15, outline: "none",
+                    border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)",
+                    color: "white", fontSize: 15, outline: "none",
                     fontFamily: "'Source Sans 3', sans-serif",
-                    transition: "border-color 0.2s, background 0.2s, box-shadow 0.2s",
+                    transition: "border-color 0.2s, background 0.2s",
                   }}
-                  onFocus={e => { e.target.style.borderColor = "rgba(196,151,59,0.4)"; e.target.style.background = "rgba(196,151,59,0.06)"; e.target.style.boxShadow = "0 0 20px rgba(196,151,59,0.08)"; }}
-                  onBlur={e => { e.target.style.borderColor = "rgba(196,151,59,0.15)"; e.target.style.background = "rgba(196,151,59,0.04)"; e.target.style.boxShadow = "none"; }}
+                  onFocus={e => { e.target.style.borderColor = "rgba(196,151,59,0.5)"; e.target.style.background = "rgba(255,255,255,0.06)"; }}
+                  onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.background = "rgba(255,255,255,0.04)"; }}
                 />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} style={{
                   position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
-                  background: "none", border: "none", cursor: "pointer", color: "rgba(196,151,59,0.35)",
+                  background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)",
                   padding: 4, display: "flex", alignItems: "center",
                 }}>
                   {showPassword ? (
@@ -1010,8 +895,8 @@ const LoginModal = ({ onLogin }) => {
             {error && (
               <div style={{
                 padding: "12px 16px", marginBottom: 20, borderRadius: 12,
-                background: "rgba(180,50,20,0.15)", border: "1px solid rgba(180,50,20,0.3)",
-                color: "#e8833a", fontSize: 13, display: "flex", alignItems: "center", gap: 10,
+                background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)",
+                color: "#fca5a5", fontSize: 13, display: "flex", alignItems: "center", gap: 10,
                 animation: "loginShake 0.4s ease",
               }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
@@ -1021,16 +906,14 @@ const LoginModal = ({ onLogin }) => {
 
             {/* Giriş butonu */}
             <button type="submit" disabled={loading} style={{
-              width: "100%", padding: "15px 20px", borderRadius: 12,
-              border: loading ? "1px solid rgba(196,151,59,0.1)" : "1px solid rgba(196,151,59,0.3)",
-              background: loading ? "rgba(196,151,59,0.05)" : "linear-gradient(135deg, #C4973B 0%, #d4a94e 50%, #C4973B 100%)",
-              color: loading ? "rgba(196,151,59,0.4)" : "#0a0e1a",
+              width: "100%", padding: "15px 20px", borderRadius: 12, border: "none",
+              background: loading ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #C4973B 0%, #d4a94e 100%)",
+              color: loading ? "rgba(255,255,255,0.3)" : "#1B2A4A",
               fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
               fontFamily: "'Source Sans 3', sans-serif",
               transition: "all 0.25s ease",
-              boxShadow: loading ? "none" : "0 4px 24px rgba(196,151,59,0.25), inset 0 1px 0 rgba(255,255,255,0.2)",
+              boxShadow: loading ? "none" : "0 4px 20px rgba(196,151,59,0.3)",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              letterSpacing: "0.02em",
             }}>
               {loading ? (
                 <>
@@ -1048,32 +931,25 @@ const LoginModal = ({ onLogin }) => {
             {/* Bilgi kutusu */}
             <div style={{
               marginTop: 20, padding: "12px 16px", borderRadius: 12,
-              background: "rgba(196,151,59,0.04)", border: "1px solid rgba(196,151,59,0.1)",
-              fontSize: 12, color: "rgba(232,213,168,0.4)",
+              background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.1)",
+              fontSize: 12, color: "rgba(255,255,255,0.45)",
               display: "flex", alignItems: "flex-start", gap: 10,
             }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(196,151,59,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(59,130,246,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
               <span>
                 {isAdminMode
                   ? "Admin girişi için yetkili şifrenizi kullanın."
-                  : <>Varsayılan öğrenci şifresi: <code style={{ background: "rgba(196,151,59,0.1)", padding: "2px 8px", borderRadius: 4, color: "#C4973B", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>1234</code></>
+                  : <>Varsayılan öğrenci şifresi: <code style={{ background: "rgba(255,255,255,0.08)", padding: "2px 8px", borderRadius: 4, color: "rgba(255,255,255,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>1234</code></>
                 }
               </span>
             </div>
           </form>
         </div>
 
-        {/* Alt bilgi - Elvish stil */}
-        <div style={{ textAlign: "center", marginTop: 24 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginBottom: 8 }}>
-            <div style={{ width: 40, height: 1, background: "linear-gradient(90deg, transparent, rgba(196,151,59,0.2))" }} />
-            <div style={{ width: 4, height: 4, borderRadius: "50%", background: "rgba(196,151,59,0.3)" }} />
-            <div style={{ width: 40, height: 1, background: "linear-gradient(90deg, rgba(196,151,59,0.2), transparent)" }} />
-          </div>
-          <p style={{ fontSize: 11, color: "rgba(232,213,168,0.2)", fontStyle: "italic", letterSpacing: "0.05em" }}>
-            "Tek Yüzük hepsine hükmedecek" — © 2025 ÇAKÜ
-          </p>
-        </div>
+        {/* Alt bilgi */}
+        <p style={{ textAlign: "center", marginTop: 24, fontSize: 12, color: "rgba(255,255,255,0.2)" }}>
+          © 2025 ÇAKÜ Bilgisayar Mühendisliği
+        </p>
       </div>
     </div>
   );
