@@ -86,12 +86,30 @@ const ALL_FACULTY_CLASSROOMS = [
 ];
 
 function assignClassroom(studentCount) {
-  if (!studentCount || studentCount <= 0) return "M10Z07";
-  const sorted = [...DEPT_CLASSROOMS].sort((a, b) => a.capacity - b.capacity);
-  for (const room of sorted) {
-    if (studentCount <= room.capacity) return room.name;
+  if (!studentCount || studentCount <= 0) return "M11101";
+  // 42 ve altı → M11101
+  if (studentCount <= 42) return "M11101";
+  // 42 üstü → kapasiteleri toplamı öğrenci sayısına en yakın 2 salon
+  let bestPair = null;
+  let bestDiff = Infinity;
+  for (let i = 0; i < DEPT_CLASSROOMS.length; i++) {
+    for (let j = i + 1; j < DEPT_CLASSROOMS.length; j++) {
+      const cap = DEPT_CLASSROOMS[i].capacity + DEPT_CLASSROOMS[j].capacity;
+      if (cap >= studentCount) {
+        const diff = cap - studentCount;
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestPair = DEPT_CLASSROOMS[i].name + " - " + DEPT_CLASSROOMS[j].name;
+        }
+      }
+    }
   }
-  return "M10Z07 - M11103";
+  // Hiçbir çift yetmezse en büyük kapasiteli çifti al
+  if (!bestPair) {
+    const sorted = [...DEPT_CLASSROOMS].sort((a, b) => b.capacity - a.capacity);
+    bestPair = sorted[0].name + " - " + sorted[1].name;
+  }
+  return bestPair;
 }
 
 function assignSupervisorsToExams(exams) {
@@ -106,7 +124,7 @@ function assignSupervisorsToExams(exams) {
   shuffled.forEach(exam => {
     const room = assignClassroom(exam.studentCount);
     const isMultiRoom = room.includes(" - ");
-    const numSupervisors = isMultiRoom ? 3 : 2;
+    const numSupervisors = isMultiRoom ? 3 : (exam.studentCount < 30 ? 1 : 2);
     const sortedSups = [...DEPT_SUPERVISORS].sort((a, b) => counts[a] - counts[b]);
     const assigned = sortedSups.slice(0, numSupervisors);
     assigned.forEach(s => counts[s]++);
@@ -415,6 +433,10 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
+    if (!studentCount || parseInt(studentCount) <= 0) {
+      alert("Öğrenci sayısı girilmesi zorunludur.");
+      return;
+    }
     setSaving(true);
     try {
       await onSave({
@@ -449,8 +471,11 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
             {[30, 45, 60, 75, 90, 105, 120].map(d => <option key={d} value={d}>{d} dakika</option>)}
           </Select>
         </FormField>
-        <FormField label="Öğrenci Sayısı">
-          <Input type="number" value={studentCount} onChange={e => setStudentCount(e.target.value)} placeholder="Örn: 45" />
+        <FormField label="Öğrenci Sayısı *">
+          <Input type="number" value={studentCount} onChange={e => setStudentCount(e.target.value)} placeholder="Örn: 45" style={(!studentCount || parseInt(studentCount) <= 0) ? { borderColor: "#DC2626" } : {}} />
+          {(!studentCount || parseInt(studentCount) <= 0) && (
+            <div style={{ color: "#DC2626", fontSize: 11, marginTop: 4 }}>Öğrenci sayısı zorunludur</div>
+          )}
         </FormField>
         <FormField label="Gözetmen">
           <Input value={supervisor} onChange={e => setSupervisor(e.target.value)} placeholder="Gözetmen adı" />
@@ -464,7 +489,7 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
           </GhostBtn>
           <div style={{ display: "flex", gap: 12 }}>
             <GhostBtn onClick={onClose}>İptal</GhostBtn>
-            <Btn onClick={handleSave} disabled={saving}>{saving ? "..." : "Kaydet"}</Btn>
+            <Btn onClick={handleSave} disabled={saving || !studentCount || parseInt(studentCount) <= 0}>{saving ? "..." : "Kaydet"}</Btn>
           </div>
         </div>
       </div>
@@ -717,7 +742,7 @@ const CalendarCell = ({ day, timeSlot, slotIndex, placedExams, onDrop, onExamCli
 // Table View
 // ══════════════════════════════════════════════════════════════
 const ExamTableView = ({ placedExams, onExamClick }) => {
-  const sorted = [...placedExams].sort((a, b) => {
+  const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
     if (a.sinif !== b.sinif) return a.sinif - b.sinif;
     if (a.date !== b.date) return a.date.localeCompare(b.date);
     return a.timeSlot.localeCompare(b.timeSlot);
@@ -799,13 +824,13 @@ function normalizeToASCII(str) {
 
 // Build lookup maps from SEED data (Turkish) keyed by ASCII-normalized names
 var TURKISH_COURSE_MAP = {};
-SEED_COURSES.forEach(function(c) {
+SEED_COURSES.forEach(function (c) {
   var key = c.code + "|" + normalizeToASCII(c.name).toLowerCase();
   TURKISH_COURSE_MAP[key] = c.name;
 });
 
 var TURKISH_PROF_MAP = {};
-SEED_PROFESSORS.forEach(function(p) {
+SEED_PROFESSORS.forEach(function (p) {
   var key = normalizeToASCII(p.name).toLowerCase();
   TURKISH_PROF_MAP[key] = p.name;
 });
@@ -827,6 +852,14 @@ function turkishifyExam(exam) {
     ...exam,
     name: getTurkishCourseName(exam.code, exam.name),
     professor: getTurkishProfName(exam.professor),
+  };
+}
+
+function turkishifyCourse(course) {
+  return {
+    ...course,
+    name: getTurkishCourseName(course.code, course.name),
+    professor: getTurkishProfName(course.professor),
   };
 }
 
@@ -1035,7 +1068,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
     }
   } else {
     // Derive weekdays from exam dates
-    var dates = [...new Set(enriched.map(function(e) { return e.date; }))].sort();
+    var dates = [...new Set(enriched.map(function (e) { return e.date; }))].sort();
     if (dates.length > 0) {
       var first = parseDateISO(dates[0]);
       var last = parseDateISO(dates[dates.length - 1]);
@@ -1059,7 +1092,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
   // Group exams by date
   var examsByDate = {};
-  enriched.forEach(function(e) {
+  enriched.forEach(function (e) {
     if (!examsByDate[e.date]) examsByDate[e.date] = [];
     examsByDate[e.date].push(e);
   });
@@ -1082,7 +1115,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
   var numCols = ALL_FACULTY_CLASSROOMS.length + 1; // +1 for column A (time)
 
   // ══════ Create day sheet for EACH weekday ══════
-  allWeekdays.forEach(function(dateObj) {
+  allWeekdays.forEach(function (dateObj) {
     var dayName = getDayName(dateObj);
     var dd = String(dateObj.getDate()).padStart(2, "0");
     var mm = String(dateObj.getMonth() + 1).padStart(2, "0");
@@ -1099,24 +1132,24 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
     // Row 1: Kapasite
     var row1 = ["Kapasite"];
-    ALL_FACULTY_CLASSROOMS.forEach(function(c) { row1.push(c.capacity === "" ? "" : c.capacity); });
+    ALL_FACULTY_CLASSROOMS.forEach(function (c) { row1.push(c.capacity === "" ? "" : c.capacity); });
     data.push(row1);
 
     // Row 2: Saatler / Room names
     var row2 = ["Saatler"];
-    ALL_FACULTY_CLASSROOMS.forEach(function(c) { row2.push(c.name); });
+    ALL_FACULTY_CLASSROOMS.forEach(function (c) { row2.push(c.name); });
     data.push(row2);
 
     // Time slot rows
-    dayTimeSlots.forEach(function(slot) {
+    dayTimeSlots.forEach(function (slot) {
       var row = [slot];
       var slotStart = slot.split("-")[0];
       var parts = slotStart.split(":");
       var slotMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
 
-      ALL_FACULTY_CLASSROOMS.forEach(function(classroom) {
-        var exam = dayExams.find(function(e) {
-          var rooms = e.assignedRoom.split(" - ").map(function(r) { return r.trim(); });
+      ALL_FACULTY_CLASSROOMS.forEach(function (classroom) {
+        var exam = dayExams.find(function (e) {
+          var rooms = e.assignedRoom.split(" - ").map(function (r) { return r.trim(); });
           if (rooms.indexOf(classroom.name) === -1) return false;
           var eParts = e.timeSlot.split(":");
           var examStart = parseInt(eParts[0]) * 60 + parseInt(eParts[1]);
@@ -1186,7 +1219,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
     // Column widths
     var cols = [{ wch: 14 }];
-    ALL_FACULTY_CLASSROOMS.forEach(function() { cols.push({ wch: 12 }); });
+    ALL_FACULTY_CLASSROOMS.forEach(function () { cols.push({ wch: 12 }); });
     ws["!cols"] = cols;
 
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
@@ -1216,6 +1249,7 @@ function SinavOtomasyonuApp({ currentUser }) {
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState(null);
   const [filterSinif, setFilterSinif] = useState(0);
+  const [courseSearch, setCourseSearch] = useState("");
 
   // ── Seed data to Firebase ──
   const seedData = async () => {
@@ -1252,38 +1286,6 @@ function SinavOtomasyonuApp({ currentUser }) {
     } catch (e) {
       console.error("Seed error:", e);
       alert("Seed hatası: " + e.message);
-    }
-  };
-
-  // ── Sync: add missing courses from SEED_COURSES to Firebase ──
-  const syncCourses = async () => {
-    const cRef = getCoursesRef();
-    if (!cRef) return;
-
-    try {
-      const existingSnap = await cRef.get();
-      const existingCourses = existingSnap.docs.map(d => d.data());
-
-      const missing = SEED_COURSES.filter(seed => {
-        return !existingCourses.some(ex => ex.code === seed.code && ex.name === seed.name);
-      });
-
-      if (missing.length === 0) {
-        alert("Tüm dersler zaten mevcut, eklenecek yeni ders yok.");
-        return;
-      }
-
-      if (!confirm(missing.length + " yeni ders eklenecek. Devam edilsin mi?")) return;
-
-      for (const course of missing) {
-        await cRef.add({ ...course, studentCount: 0, createdAt: new Date().toISOString() });
-      }
-
-      alert(missing.length + " ders başarıyla eklendi!");
-      loadData();
-    } catch (e) {
-      console.error("Sync error:", e);
-      alert("Senkronizasyon hatası: " + e.message);
     }
   };
 
@@ -1337,11 +1339,19 @@ function SinavOtomasyonuApp({ currentUser }) {
     if (filterSinif > 0) {
       filtered = filtered.filter(c => c.sinif === filterSinif);
     }
+    if (courseSearch.trim()) {
+      const q = courseSearch.trim().toLowerCase();
+      filtered = filtered.filter(c =>
+        c.code.toLowerCase().includes(q) ||
+        c.name.toLowerCase().includes(q) ||
+        (c.professor && c.professor.toLowerCase().includes(q))
+      );
+    }
     return filtered.map(c => ({
-      ...c,
+      ...turkishifyCourse(c),
       placedCount: periodExams.filter(e => e.courseId === c.id).length,
     }));
-  }, [courses, periodExams, filterSinif]);
+  }, [courses, periodExams, filterSinif, courseSearch]);
 
   const groupedPool = useMemo(() => {
     const groups = { 1: [], 2: [], 3: [], 4: [] };
@@ -1508,11 +1518,6 @@ function SinavOtomasyonuApp({ currentUser }) {
               Örnek Verileri Yükle
             </Btn>
           )}
-          {isAdmin && courses.length > 0 && (
-            <GhostBtn onClick={syncCourses} style={{ fontSize: 12 }}>
-              Eksik Dersleri Ekle
-            </GhostBtn>
-          )}
           {isAdmin && (
             <GhostBtn onClick={() => setShowCourseModal(true)}>Ders Yönetimi</GhostBtn>
           )}
@@ -1658,6 +1663,30 @@ function SinavOtomasyonuApp({ currentUser }) {
                 <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 8 }}>
                   Ders Havuzu
                 </div>
+                <div style={{ marginBottom: 8, position: "relative" }}>
+                  <input
+                    type="text"
+                    value={courseSearch}
+                    onChange={e => setCourseSearch(e.target.value)}
+                    placeholder="Ders ara (kod, ad, hoca)..."
+                    style={{
+                      width: "100%", padding: "6px 28px 6px 8px",
+                      border: `1px solid ${C.border}`, borderRadius: 6,
+                      fontSize: 12, outline: "none", boxSizing: "border-box",
+                      background: "#FAFAFA",
+                    }}
+                  />
+                  {courseSearch && (
+                    <button
+                      onClick={() => setCourseSearch("")}
+                      style={{
+                        position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                        background: "none", border: "none", cursor: "pointer",
+                        fontSize: 14, color: "#999", padding: 0, lineHeight: 1,
+                      }}
+                    >✕</button>
+                  )}
+                </div>
                 <div style={{ marginBottom: 8 }}>
                   <select
                     value={filterSinif}
@@ -1788,7 +1817,7 @@ function SinavOtomasyonuApp({ currentUser }) {
 
       {showCourseModal && (
         <CourseManagementModal
-          courses={courses}
+          courses={courses.map(turkishifyCourse)}
           professors={professors}
           onSave={handleCourseSave}
           onClose={() => setShowCourseModal(false)}
