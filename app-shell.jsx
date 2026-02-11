@@ -182,6 +182,14 @@ function AppShell() {
     localStorage.removeItem("caku_current_user");
   };
 
+  // Öğrenci admin-only sayfalara girmeye çalışırsa yönlendir
+  const isAdmin = currentUser?.role === 'admin';
+  useEffect(() => {
+    if (currentUser && !isAdmin && (route === 'sinav' || route === 'muafiyet')) {
+      navigate('erasmus');
+    }
+  }, [route, isAdmin, currentUser]);
+
   // Show login if not authenticated
   if (!currentUser) {
     return (
@@ -191,14 +199,6 @@ function AppShell() {
       </div>
     );
   }
-
-  // Öğrenci admin-only sayfalara girmeye çalışırsa yönlendir
-  const isAdmin = currentUser?.role === 'admin';
-  useEffect(() => {
-    if (!isAdmin && (route === 'sinav' || route === 'muafiyet')) {
-      navigate('erasmus');
-    }
-  }, [route, isAdmin]);
 
   // Render active module
   const renderModule = () => {
