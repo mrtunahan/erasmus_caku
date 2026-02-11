@@ -709,10 +709,10 @@ const LoginModal = ({ onLogin }) => {
         if (password === ADMIN_PASSWORD) {
           onLogin({ role: 'admin', name: 'Admin', studentNumber: null });
         } else {
-          setError("Admin sifresi yanlis!");
+          setError("Admin şifresi yanlış!");
         }
       } else {
-        if (!studentNumber.trim()) { setError("Ogrenci numarasi gerekli!"); return; }
+        if (!studentNumber.trim()) { setError("Öğrenci numarası gerekli!"); return; }
         const passwords = await FirebaseDB.fetchPasswords();
         if (passwords[studentNumber] === password) {
           const students = await FirebaseDB.fetchStudents();
@@ -720,15 +720,15 @@ const LoginModal = ({ onLogin }) => {
           if (student) {
             onLogin({ role: 'student', name: `${student.firstName} ${student.lastName}`, studentNumber });
           } else {
-            setError("Ogrenci bulunamadi!");
+            setError("Öğrenci bulunamadı!");
           }
         } else {
-          setError("Ogrenci numarasi veya sifre yanlis!");
+          setError("Öğrenci numarası veya şifre yanlış!");
         }
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError("Giris sirasinda hata olustu. Lutfen tekrar deneyin.");
+      setError("Giriş sırasında hata oluştu. Lütfen tekrar deneyin.");
     } finally {
       setLoading(false);
     }
@@ -751,8 +751,8 @@ const LoginModal = ({ onLogin }) => {
           <h2 style={{
             margin: 0, fontSize: 28, fontWeight: 700,
             fontFamily: "'Playfair Display', serif", marginBottom: 8,
-          }}>CAKU Yonetim Sistemi</h2>
-          <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Cankiri Karatekin Universitesi</p>
+          }}>ÇAKÜ Yönetim Sistemi</h2>
+          <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Çankırı Karatekin Üniversitesi</p>
         </div>
         <div style={{ display: "flex", padding: 24, paddingBottom: 0 }}>
           <button onClick={() => setIsAdminMode(false)} style={{
@@ -760,23 +760,23 @@ const LoginModal = ({ onLogin }) => {
             background: !isAdminMode ? C.navy : "transparent",
             color: !isAdminMode ? "white" : C.textMuted,
             borderRadius: "8px 8px 0 0", cursor: "pointer", fontWeight: 600, fontSize: 14,
-          }}>Ogrenci Girisi</button>
+          }}>Öğrenci Girişi</button>
           <button onClick={() => setIsAdminMode(true)} style={{
             flex: 1, padding: "12px 24px", border: "none",
             background: isAdminMode ? C.navy : "transparent",
             color: isAdminMode ? "white" : C.textMuted,
             borderRadius: "8px 8px 0 0", cursor: "pointer", fontWeight: 600, fontSize: 14,
-          }}>Admin Girisi</button>
+          }}>Admin Girişi</button>
         </div>
         <form onSubmit={handleSubmit} style={{ padding: 24 }}>
           {!isAdminMode && (
-            <FormField label="Ogrenci Numarasi">
-              <Input value={studentNumber} onChange={e => setStudentNumber(e.target.value)} placeholder="Orn: AND43" autoFocus />
+            <FormField label="Öğrenci Numarası">
+              <Input value={studentNumber} onChange={e => setStudentNumber(e.target.value)} placeholder="Örn: AND43" autoFocus />
             </FormField>
           )}
-          <FormField label="Sifre">
+          <FormField label="Şifre">
             <Input type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder={isAdminMode ? "Admin sifresi" : "Ogrenci sifresi"} autoFocus={isAdminMode} />
+              placeholder={isAdminMode ? "Admin şifresi" : "Öğrenci şifresi"} autoFocus={isAdminMode} />
           </FormField>
           {error && (
             <div style={{ padding: 12, background: "#FEE2E2", color: "#991B1B", borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
@@ -788,13 +788,13 @@ const LoginModal = ({ onLogin }) => {
             background: loading ? C.border : C.navy, color: loading ? C.textMuted : "#fff",
             fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
             fontFamily: "'Source Sans 3', sans-serif", opacity: loading ? 0.5 : 1,
-          }}>{loading ? "Giris yapiliyor..." : (isAdminMode ? "Admin Olarak Giris Yap" : "Ogrenci Olarak Giris Yap")}</button>
+          }}>{loading ? "Giriş yapılıyor..." : (isAdminMode ? "Admin Olarak Giriş Yap" : "Öğrenci Olarak Giriş Yap")}</button>
           <div style={{ marginTop: 16, padding: 12, background: C.bg, borderRadius: 8, fontSize: 12, color: C.textMuted }}>
             <strong>Bilgi:</strong><br />
             {isAdminMode ? (
-              <>Admin girisi icin yetkili sifrenizi kullanin.</>
+              <>Admin girişi için yetkili şifrenizi kullanın.</>
             ) : (
-              <>Varsayilan ogrenci sifresi: <code style={{background: "white", padding: "2px 6px", borderRadius: 4}}>1234</code></>
+              <>Varsayılan öğrenci şifresi: <code style={{background: "white", padding: "2px 6px", borderRadius: 4}}>1234</code></>
             )}
           </div>
         </form>
