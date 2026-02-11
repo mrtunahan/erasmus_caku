@@ -529,10 +529,34 @@ const CommentSection = ({ postId, currentUser }) => {
 };
 
 // ── Gönderi Kartı ──
-const PostCard = ({ post, currentUser, onReact, onVote, onDelete }) => {
+const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogglePin }) => {
   var cat = getCategoryInfo(post.category);
   var userId = getUserId(currentUser);
   var isAuthor = post.authorId === userId || currentUser.role === "admin";
+  var isAdmin = currentUser.role === "admin";
+
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(post.title || "");
+  const [editContent, setEditContent] = useState(post.content || "");
+  const [saving, setSaving] = useState(false);
+
+  var handleSaveEdit = async function () {
+    if (!editContent.trim()) return;
+    setSaving(true);
+    try {
+      await onEdit(post.id, { title: editTitle.trim(), content: editContent.trim() });
+      setEditing(false);
+    } catch (err) {
+      console.error("Düzenleme hatası:", err);
+    }
+    setSaving(false);
+  };
+
+  var handleCancelEdit = function () {
+    setEditTitle(post.title || "");
+    setEditContent(post.content || "");
+    setEditing(false);
+  };
 
   return (
     <div style={{
@@ -573,36 +597,126 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete }) => {
               {post.views > 0 && <span> · {post.views} görüntülenme</span>}
             </div>
           </div>
-          {isAuthor && (
-            <button
-              onClick={function () { if (confirm("Bu gönderiyi silmek istediğinizden emin misiniz?")) onDelete(post.id); }}
-              style={{
-                padding: 6, border: "none", background: "transparent",
-                cursor: "pointer", borderRadius: 6, color: PC.textMuted,
-              }}
-              onMouseEnter={function (e) { e.currentTarget.style.color = "#EF4444"; }}
-              onMouseLeave={function (e) { e.currentTarget.style.color = PC.textMuted; }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-            </button>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {/* Admin: Pin/Unpin */}
+            {isAdmin && (
+              <button
+                onClick={function () { onTogglePin(post.id, !post.pinned); }}
+                title={post.pinned ? "Sabitlemeyi Kaldır" : "Sabitle"}
+                style={{
+                  padding: 6, border: "none", background: "transparent",
+                  cursor: "pointer", borderRadius: 6,
+                  color: post.pinned ? "#F59E0B" : PC.textMuted,
+                }}
+                onMouseEnter={function (e) { e.currentTarget.style.color = "#F59E0B"; }}
+                onMouseLeave={function (e) { e.currentTarget.style.color = post.pinned ? "#F59E0B" : PC.textMuted; }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill={post.pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2l2.09 6.26L21 9.27l-5 3.14L17.18 22 12 17.77 6.82 22 8 12.41l-5-3.14 6.91-1.01L12 2z" />
+                </svg>
+              </button>
+            )}
+            {/* Yazar/Admin: Düzenle */}
+            {isAuthor && !editing && (
+              <button
+                onClick={function () { setEditing(true); }}
+                title="Düzenle"
+                style={{
+                  padding: 6, border: "none", background: "transparent",
+                  cursor: "pointer", borderRadius: 6, color: PC.textMuted,
+                }}
+                onMouseEnter={function (e) { e.currentTarget.style.color = PC.blue; }}
+                onMouseLeave={function (e) { e.currentTarget.style.color = PC.textMuted; }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </button>
+            )}
+            {/* Yazar/Admin: Sil */}
+            {isAuthor && (
+              <button
+                onClick={function () { if (confirm("Bu gönderiyi silmek istediğinizden emin misiniz?")) onDelete(post.id); }}
+                title="Sil"
+                style={{
+                  padding: 6, border: "none", background: "transparent",
+                  cursor: "pointer", borderRadius: 6, color: PC.textMuted,
+                }}
+                onMouseEnter={function (e) { e.currentTarget.style.color = "#EF4444"; }}
+                onMouseLeave={function (e) { e.currentTarget.style.color = PC.textMuted; }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Başlık */}
-        {post.title && (
-          <h3 style={{
-            fontSize: 18, fontWeight: 700, color: PC.navy,
-            marginBottom: 8, lineHeight: 1.4,
-          }}>{post.title}</h3>
+        {/* Başlık + İçerik (düzenleme veya görüntüleme) */}
+        {editing ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <input
+              value={editTitle}
+              onChange={function (e) { setEditTitle(e.target.value); }}
+              placeholder="Başlık"
+              style={{
+                width: "100%", padding: "10px 14px", border: "1px solid " + PC.border,
+                borderRadius: 8, fontSize: 15, fontWeight: 600, outline: "none",
+                color: PC.navy,
+              }}
+            />
+            <textarea
+              value={editContent}
+              onChange={function (e) { setEditContent(e.target.value); }}
+              rows={4}
+              style={{
+                width: "100%", padding: "10px 14px", border: "1px solid " + PC.border,
+                borderRadius: 8, fontSize: 14, resize: "vertical",
+                outline: "none", lineHeight: 1.6, fontFamily: "inherit",
+              }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                onClick={handleCancelEdit}
+                style={{
+                  padding: "6px 16px", border: "1px solid " + PC.border,
+                  borderRadius: 8, background: "white", cursor: "pointer",
+                  fontSize: 13, color: PC.textMuted,
+                }}
+              >İptal</button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={saving || !editContent.trim()}
+                style={{
+                  padding: "6px 16px", border: "none", borderRadius: 8,
+                  background: saving || !editContent.trim() ? PC.border : PC.navy,
+                  color: "white", cursor: saving ? "wait" : "pointer",
+                  fontSize: 13, fontWeight: 600,
+                }}
+              >{saving ? "Kaydediliyor..." : "Kaydet"}</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {post.title && (
+              <h3 style={{
+                fontSize: 18, fontWeight: 700, color: PC.navy,
+                marginBottom: 8, lineHeight: 1.4,
+              }}>{post.title}</h3>
+            )}
+            <div style={{
+              fontSize: 14, color: PC.text, lineHeight: 1.7,
+              whiteSpace: "pre-wrap", wordBreak: "break-word",
+            }}>{post.content}</div>
+            {post.editedAt && (
+              <div style={{ fontSize: 11, color: PC.textMuted, marginTop: 4, fontStyle: "italic" }}>
+                (düzenlendi)
+              </div>
+            )}
+          </>
         )}
-
-        {/* İçerik */}
-        <div style={{
-          fontSize: 14, color: PC.text, lineHeight: 1.7,
-          whiteSpace: "pre-wrap", wordBreak: "break-word",
-        }}>{post.content}</div>
 
         {/* Anket */}
         {post.category === "anket" && post.pollOptions && post.pollOptions.length > 0 && (
@@ -1032,6 +1146,37 @@ function OgrenciPortaliApp({ currentUser }) {
     }
   };
 
+  // Gönderi düzenle
+  const handleEdit = async function (postId, updates) {
+    try {
+      await PortalDB.updatePost(postId, Object.assign({}, updates, {
+        editedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      }));
+      setPosts(function (prev) {
+        return prev.map(function (p) {
+          return p.id === postId ? Object.assign({}, p, updates, { editedAt: new Date() }) : p;
+        });
+      });
+    } catch (err) {
+      console.error("Düzenleme hatası:", err);
+      throw err;
+    }
+  };
+
+  // Gönderi sabitle/kaldır (admin)
+  const handleTogglePin = async function (postId, pinned) {
+    try {
+      await PortalDB.updatePost(postId, { pinned: pinned });
+      setPosts(function (prev) {
+        return prev.map(function (p) {
+          return p.id === postId ? Object.assign({}, p, { pinned: pinned }) : p;
+        });
+      });
+    } catch (err) {
+      console.error("Pin hatası:", err);
+    }
+  };
+
   // Arama + sıralama filtresi
   var filteredPosts = useMemo(function () {
     var result = posts;
@@ -1226,6 +1371,8 @@ function OgrenciPortaliApp({ currentUser }) {
                 onReact={handleReact}
                 onVote={handleVote}
                 onDelete={handleDelete}
+                onEdit={handleEdit}
+                onTogglePin={handleTogglePin}
               />
             );
           })}
@@ -1240,6 +1387,8 @@ function OgrenciPortaliApp({ currentUser }) {
                 onReact={handleReact}
                 onVote={handleVote}
                 onDelete={handleDelete}
+                onEdit={handleEdit}
+                onTogglePin={handleTogglePin}
               />
             );
           })}
