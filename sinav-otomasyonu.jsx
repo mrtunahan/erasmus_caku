@@ -727,7 +727,7 @@ const CalendarCell = ({ day, timeSlot, slotIndex, placedExams, onDrop, onExamCli
 // Table View
 // ══════════════════════════════════════════════════════════════
 const ExamTableView = ({ placedExams, onExamClick }) => {
-  const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
+  const sorted = [...placedExams].sort((a, b) => {
     if (a.sinif !== b.sinif) return a.sinif - b.sinif;
     if (a.date !== b.date) return a.date.localeCompare(b.date);
     return a.timeSlot.localeCompare(b.timeSlot);
@@ -1314,6 +1314,12 @@ function SinavOtomasyonuApp({ currentUser }) {
   const activePeriod = periods.find(p => p.id === activePeriodId);
   const periodExams = placedExams.filter(e => e.periodId === activePeriodId);
 
+  // Create a turkishified version of exams for consistent display
+  const turkishifiedPeriodExams = useMemo(() =>
+    periodExams.map(turkishifyExam),
+    [periodExams]
+  );
+
   const calendarDays = useMemo(() => {
     if (!activePeriod?.startDate) return [];
     return getWeekDays(parseDateISO(activePeriod.startDate), activePeriod.weeks || 2);
@@ -1761,7 +1767,7 @@ function SinavOtomasyonuApp({ currentUser }) {
                                 day={day}
                                 timeSlot={slot}
                                 slotIndex={slotIdx}
-                                placedExams={periodExams}
+                                placedExams={turkishifiedPeriodExams}
                                 onDrop={handleDrop}
                                 onExamClick={setEditingExam}
                                 totalSlots={TIME_SLOTS.length}
@@ -1776,7 +1782,7 @@ function SinavOtomasyonuApp({ currentUser }) {
               </div>
             ) : (
               <Card>
-                <ExamTableView placedExams={periodExams} onExamClick={setEditingExam} />
+                <ExamTableView placedExams={turkishifiedPeriodExams} onExamClick={setEditingExam} />
               </Card>
             )}
           </>
