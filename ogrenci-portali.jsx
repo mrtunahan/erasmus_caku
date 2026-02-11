@@ -2190,306 +2190,308 @@ function OgrenciPortaliApp({ currentUser }) {
               {showNewPost ? "Kapat" : "Yeni Gönderi"}
             </button>
           </div>
+        </div>
 
-          {/* İstatistikler */}
+        {/* İstatistikler */}
+
+        {/* İstatistikler */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
+          gap: 12, marginBottom: 24,
+        }}>
+          <StatCard label="Toplam Gönderi" value={posts.length} color="#F59E0B" icon="file" />
+          <StatCard label="Tepkiler" value={totalReactions} color="#EF4444" icon="heart" />
+          <StatCard label="Yorumlar" value={totalComments} color="#10B981" icon="chat" />
+          <StatCard label="Üyeler" value={new Set(posts.map(function (p) { return p.authorId; })).size || 0} color="#8B5CF6" icon="users" />
+        </div>
+        {highlightedPostId && (
           <div style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
-            gap: 12, marginBottom: 24,
+            marginBottom: 16, padding: "12px 16px", background: DY.goldLight,
+            border: "1px solid " + DY.gold, borderRadius: 12,
+            display: "flex", justifyContent: "space-between", alignItems: "center"
           }}>
-            <StatCard label="Toplam Gönderi" value={posts.length} color="#F59E0B" icon="file" />
-            <StatCard label="Tepkiler" value={totalReactions} color="#EF4444" icon="heart" />
-            <StatCard label="Yorumlar" value={totalComments} color="#10B981" icon="chat" />
-            <StatCard label="Üyeler" value={new Set(posts.map(function (p) { return p.authorId; })).size || 0} color="#8B5CF6" icon="users" />
+            <span style={{ fontWeight: 600, color: DY.goldDark, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+              <SvgIcon path={ICONS.pin} size={16} color={DY.goldDark} /> Tek bir gönderi görüntüleniyor
+            </span>
+            <button
+              onClick={function () {
+                setHighlightedPostId(null);
+                window.history.pushState({}, document.title, window.location.pathname);
+              }}
+              style={{
+                border: "none", background: "white", padding: "6px 12px", borderRadius: 8,
+                fontSize: 12, fontWeight: 700, color: PC.navy, cursor: "pointer",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+              }}
+            >Tümünü Gör</button>
           </div>
-          {highlightedPostId && (
+        )}
+
+
+        {/* Arama + Kategori Filtreleri */}
+        <div style={{
+          display: "flex", gap: isMobile ? 10 : 16, marginBottom: 24,
+          alignItems: isMobile ? "stretch" : "center",
+          flexDirection: isMobile ? "column" : "row",
+          flexWrap: "wrap",
+        }}>
+          <SearchBar value={searchQuery} onChange={setSearchQuery} />
+
+          {/* Yazar filtresi badge */}
+          {authorFilter && (
             <div style={{
-              marginBottom: 16, padding: "12px 16px", background: DY.goldLight,
-              border: "1px solid " + DY.gold, borderRadius: 12,
-              display: "flex", justifyContent: "space-between", alignItems: "center"
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "6px 14px", borderRadius: 20,
+              background: PC.blueLight, border: "1px solid " + PC.blue,
+              fontSize: 12, fontWeight: 600, color: PC.blue,
+              alignSelf: isMobile ? "flex-start" : "center",
             }}>
-              <span style={{ fontWeight: 600, color: DY.goldDark, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                <SvgIcon path={ICONS.pin} size={16} color={DY.goldDark} /> Tek bir gönderi görüntüleniyor
-              </span>
+              <Avatar name={authorFilter} size={20} />
+              {authorFilter}
               <button
-                onClick={function () {
-                  setHighlightedPostId(null);
-                  window.history.pushState({}, document.title, window.location.pathname);
-                }}
+                onClick={function () { setAuthorFilter(""); }}
                 style={{
-                  border: "none", background: "white", padding: "6px 12px", borderRadius: 8,
-                  fontSize: 12, fontWeight: 700, color: PC.navy, cursor: "pointer",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+                  padding: 0, border: "none", background: "transparent",
+                  cursor: "pointer", color: PC.blue, fontSize: 14, fontWeight: 700,
+                  marginLeft: 4, lineHeight: 1,
                 }}
-              >Tümünü Gör</button>
+              >{"\u2715"}</button>
             </div>
           )}
 
-
-          {/* Arama + Kategori Filtreleri */}
+          {/* Sıralama */}
           <div style={{
-            display: "flex", gap: isMobile ? 10 : 16, marginBottom: 24,
-            alignItems: isMobile ? "stretch" : "center",
-            flexDirection: isMobile ? "column" : "row",
-            flexWrap: "wrap",
+            display: "flex", gap: 4, background: PC.bg, borderRadius: 10, padding: 3,
+            overflowX: isMobile ? "auto" : "visible",
+            WebkitOverflowScrolling: "touch",
           }}>
-            <SearchBar value={searchQuery} onChange={setSearchQuery} />
-
-            {/* Yazar filtresi badge */}
-            {authorFilter && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "6px 14px", borderRadius: 20,
-                background: PC.blueLight, border: "1px solid " + PC.blue,
-                fontSize: 12, fontWeight: 600, color: PC.blue,
-                alignSelf: isMobile ? "flex-start" : "center",
-              }}>
-                <Avatar name={authorFilter} size={20} />
-                {authorFilter}
+            {[
+              { id: "newest", label: "En Yeni" },
+              { id: "popular", label: "En Popüler" },
+              { id: "comments", label: "En Çok Yorum" },
+              { id: "bookmarked", label: "Kaydedilenler" },
+            ].map(function (s) {
+              var isActive = sortMode === s.id;
+              return (
                 <button
-                  onClick={function () { setAuthorFilter(""); }}
+                  key={s.id}
+                  onClick={function () { setSortMode(s.id); }}
                   style={{
-                    padding: 0, border: "none", background: "transparent",
-                    cursor: "pointer", color: PC.blue, fontSize: 14, fontWeight: 700,
-                    marginLeft: 4, lineHeight: 1,
+                    padding: "6px 14px", borderRadius: 8, fontSize: 12,
+                    fontWeight: isActive ? 700 : 500, cursor: "pointer",
+                    border: "none", whiteSpace: "nowrap",
+                    background: isActive ? "white" : "transparent",
+                    color: isActive ? PC.navy : PC.textMuted,
+                    boxShadow: isActive ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+                    transition: "all 0.2s",
                   }}
-                >{"\u2715"}</button>
-              </div>
-            )}
-
-            {/* Sıralama */}
-            <div style={{
-              display: "flex", gap: 4, background: PC.bg, borderRadius: 10, padding: 3,
-              overflowX: isMobile ? "auto" : "visible",
-              WebkitOverflowScrolling: "touch",
-            }}>
-              {[
-                { id: "newest", label: "En Yeni" },
-                { id: "popular", label: "En Popüler" },
-                { id: "comments", label: "En Çok Yorum" },
-                { id: "bookmarked", label: "Kaydedilenler" },
-              ].map(function (s) {
-                var isActive = sortMode === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    onClick={function () { setSortMode(s.id); }}
-                    style={{
-                      padding: "6px 14px", borderRadius: 8, fontSize: 12,
-                      fontWeight: isActive ? 700 : 500, cursor: "pointer",
-                      border: "none", whiteSpace: "nowrap",
-                      background: isActive ? "white" : "transparent",
-                      color: isActive ? PC.navy : PC.textMuted,
-                      boxShadow: isActive ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
-                      transition: "all 0.2s",
-                    }}
-                  >{s.label}</button>
-                );
-              })}
-            </div>
-
-            <div style={{
-              display: "flex", gap: 4,
-              flexWrap: isMobile ? "nowrap" : "wrap",
-              overflowX: isMobile ? "auto" : "visible",
-              WebkitOverflowScrolling: "touch",
-              paddingBottom: isMobile ? 4 : 0,
-            }}>
-              <button
-                onClick={function () { setActiveCategory("tumu"); }}
-                style={{
-                  padding: "8px 16px", borderRadius: 20, fontSize: 13,
-                  fontWeight: activeCategory === "tumu" ? 700 : 500, cursor: "pointer",
-                  border: activeCategory === "tumu" ? "2px solid " + PC.navy : "1px solid " + PC.border,
-                  background: activeCategory === "tumu" ? PC.navy : "white",
-                  color: activeCategory === "tumu" ? "white" : PC.textMuted,
-                  whiteSpace: "nowrap", flexShrink: 0,
-                }}
-              >Tümü</button>
-              {PORTAL_CATEGORIES.map(function (cat) {
-                var isActive = activeCategory === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={function () { setActiveCategory(cat.id); }}
-                    style={{
-                      padding: "8px 14px", borderRadius: 20, fontSize: 12,
-                      fontWeight: isActive ? 700 : 500, cursor: "pointer",
-                      border: isActive ? "2px solid " + cat.color : "1px solid " + PC.border,
-                      background: isActive ? cat.bg : "white",
-                      color: isActive ? cat.color : PC.textMuted,
-                      transition: "all 0.15s",
-                      whiteSpace: "nowrap", flexShrink: 0,
-                    }}
-                  ><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><SvgIcon path={ICONS[cat.icon]} size={13} color={isActive ? cat.color : PC.textMuted} /> {cat.label}</span></button>
-                );
-              })}
-            </div>
+                >{s.label}</button>
+              );
+            })}
           </div>
 
-          {/* Ana İçerik: Feed + Sidebar */}
           <div style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "1fr 300px",
-            gap: isMobile ? 16 : 24,
-            alignItems: "start",
+            display: "flex", gap: 4,
+            flexWrap: isMobile ? "nowrap" : "wrap",
+            overflowX: isMobile ? "auto" : "visible",
+            WebkitOverflowScrolling: "touch",
+            paddingBottom: isMobile ? 4 : 0,
           }}>
-            {/* Sol: Feed */}
-            <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 16 : 20 }}>
-              {/* Yeni gönderi formu */}
-              {showNewPost && (
-                <NewPostForm
+            <button
+              onClick={function () { setActiveCategory("tumu"); }}
+              style={{
+                padding: "8px 16px", borderRadius: 20, fontSize: 13,
+                fontWeight: activeCategory === "tumu" ? 700 : 500, cursor: "pointer",
+                border: activeCategory === "tumu" ? "2px solid " + PC.navy : "1px solid " + PC.border,
+                background: activeCategory === "tumu" ? PC.navy : "white",
+                color: activeCategory === "tumu" ? "white" : PC.textMuted,
+                whiteSpace: "nowrap", flexShrink: 0,
+              }}
+            >Tümü</button>
+            {PORTAL_CATEGORIES.map(function (cat) {
+              var isActive = activeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={function () { setActiveCategory(cat.id); }}
+                  style={{
+                    padding: "8px 14px", borderRadius: 20, fontSize: 12,
+                    fontWeight: isActive ? 700 : 500, cursor: "pointer",
+                    border: isActive ? "2px solid " + cat.color : "1px solid " + PC.border,
+                    background: isActive ? cat.bg : "white",
+                    color: isActive ? cat.color : PC.textMuted,
+                    transition: "all 0.15s",
+                    whiteSpace: "nowrap", flexShrink: 0,
+                  }}
+                ><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><SvgIcon path={ICONS[cat.icon]} size={13} color={isActive ? cat.color : PC.textMuted} /> {cat.label}</span></button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Ana İçerik: Feed + Sidebar */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 300px",
+          gap: isMobile ? 16 : 24,
+          alignItems: "start",
+        }}>
+          {/* Sol: Feed */}
+          <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 16 : 20 }}>
+            {/* Yeni gönderi formu */}
+            {showNewPost && (
+              <NewPostForm
+                currentUser={currentUser}
+                onPost={handleNewPost}
+                onClose={function () { setShowNewPost(false); }}
+              />
+            )}
+
+            {/* Yükleniyor */}
+            {loading && (
+              <div style={{ padding: 40, textAlign: "center", color: PC.textMuted }}>
+                <div style={{ fontSize: 16, marginBottom: 8 }}>Gönderiler yükleniyor...</div>
+              </div>
+            )}
+
+            {/* Boş durum */}
+            {!loading && filteredPosts.length === 0 && (
+              <div className="daisy-card" style={{
+                padding: 60, textAlign: "center",
+              }}>
+                <div style={{ marginBottom: 16 }}><SvgIcon path={ICONS.file} size={48} color={DY.gold} /></div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: PC.navy, marginBottom: 8 }}>
+                  {searchQuery ? "Sonuç bulunamadı" : "Henüz gönderi yok"}
+                </div>
+                <div style={{ fontSize: 14, color: PC.textMuted }}>
+                  {searchQuery ? "Farklı bir arama terimi deneyin." : "İlk gönderiyi oluşturarak topluluğu başlatın!"}
+                </div>
+                {!searchQuery && (
+                  <button
+                    onClick={function () { setShowNewPost(true); }}
+                    style={{
+                      marginTop: 16, padding: "10px 24px", border: "none",
+                      borderRadius: 10, background: PC.navy, color: "white",
+                      cursor: "pointer", fontSize: 14, fontWeight: 600,
+                    }}
+                  >İlk Gönderiyi Yaz</button>
+                )}
+              </div>
+            )}
+
+            {/* Sabitlenmiş gönderiler */}
+            {pinnedPosts.map(function (post) {
+              return (
+                <PostCard
+                  key={post.id}
+                  post={post}
                   currentUser={currentUser}
-                  onPost={handleNewPost}
-                  onClose={function () { setShowNewPost(false); }}
+                  onReact={handleReact}
+                  onVote={handleVote}
+                  onDelete={handleDelete}
+                  onEdit={handleEdit}
+                  onTogglePin={handleTogglePin}
+                  isBookmarked={bookmarks.indexOf(post.id) >= 0}
+                  onToggleBookmark={handleToggleBookmark}
+                  onFilterAuthor={setAuthorFilter}
                 />
-              )}
+              );
+            })}
 
-              {/* Yükleniyor */}
-              {loading && (
-                <div style={{ padding: 40, textAlign: "center", color: PC.textMuted }}>
-                  <div style={{ fontSize: 16, marginBottom: 8 }}>Gönderiler yükleniyor...</div>
-                </div>
-              )}
-
-              {/* Boş durum */}
-              {!loading && filteredPosts.length === 0 && (
-                <div className="daisy-card" style={{
-                  padding: 60, textAlign: "center",
-                }}>
-                  <div style={{ marginBottom: 16 }}><SvgIcon path={ICONS.file} size={48} color={DY.gold} /></div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: PC.navy, marginBottom: 8 }}>
-                    {searchQuery ? "Sonuç bulunamadı" : "Henüz gönderi yok"}
-                  </div>
-                  <div style={{ fontSize: 14, color: PC.textMuted }}>
-                    {searchQuery ? "Farklı bir arama terimi deneyin." : "İlk gönderiyi oluşturarak topluluğu başlatın!"}
-                  </div>
-                  {!searchQuery && (
-                    <button
-                      onClick={function () { setShowNewPost(true); }}
-                      style={{
-                        marginTop: 16, padding: "10px 24px", border: "none",
-                        borderRadius: 10, background: PC.navy, color: "white",
-                        cursor: "pointer", fontSize: 14, fontWeight: 600,
-                      }}
-                    >İlk Gönderiyi Yaz</button>
-                  )}
-                </div>
-              )}
-
-              {/* Sabitlenmiş gönderiler */}
-              {pinnedPosts.map(function (post) {
-                return (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    currentUser={currentUser}
-                    onReact={handleReact}
-                    onVote={handleVote}
-                    onDelete={handleDelete}
-                    onEdit={handleEdit}
-                    onTogglePin={handleTogglePin}
-                    isBookmarked={bookmarks.indexOf(post.id) >= 0}
-                    onToggleBookmark={handleToggleBookmark}
-                    onFilterAuthor={setAuthorFilter}
-                  />
-                );
-              })}
-
-              {/* Normal gönderiler */}
-              {regularPosts.slice(0, visibleCount).map(function (post) {
-                return (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    userId={getUserId(currentUser)}
-                    currentUser={currentUser}
-                    onReact={handleReact}
-                    onVote={handleVote}
-                    onDelete={handleDelete}
-                    onEdit={handleEdit}
-                    onTogglePin={handleTogglePin}
-                    onToggleBookmark={handleToggleBookmark}
-                    isBookmarked={bookmarks.indexOf(post.id) >= 0}
-                    isAdmin={isAdmin}
-                    onFilterAuthor={setAuthorFilter}
-                  />
-                );
-              })}
-              {regularPosts.length > visibleCount && (
-                <div ref={loadMoreRef} style={{ padding: 20, textAlign: "center", color: PC.textMuted }}>
-                  <SvgIcon path={ICONS.daisy} size={24} color={DY.gold} spin />
-                </div>
-              )}
-            </div>
-
-            {/* Sağ: Sidebar */}
-            {isMobile ? (
-              <MobileSidebarToggle>
-                <UserProfileCard currentUser={currentUser} posts={posts} />
-                <TrendingSidebar posts={posts} />
-
-                <div style={{
-                  background: "white", borderRadius: 16, padding: 20,
-                  border: "1px solid " + PC.borderLight,
-                }}>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
-                    Kategori Dağılımı
-                  </h3>
-                  {PORTAL_CATEGORIES.map(function (cat) {
-                    var count = posts.filter(function (p) { return p.category === cat.id; }).length;
-                    var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
-                    return (
-                      <div key={cat.id} style={{ marginBottom: 10 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                          <span style={{ fontWeight: 600, color: cat.color, display: "inline-flex", alignItems: "center", gap: 4 }}><SvgIcon path={ICONS[cat.icon]} size={12} color={cat.color} /> {cat.label}</span>
-                          <span style={{ color: PC.textMuted }}>{count}</span>
-                        </div>
-                        <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
-                          <div style={{
-                            height: "100%", width: pct + "%", background: cat.color,
-                            borderRadius: 3, transition: "width 0.5s ease",
-                          }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </MobileSidebarToggle>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: 88 }}>
-                <UserProfileCard currentUser={currentUser} posts={posts} />
-                <TrendingSidebar posts={posts} />
-
-                <div style={{
-                  background: "white", borderRadius: 16, padding: 20,
-                  border: "1px solid " + PC.borderLight,
-                }}>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
-                    Kategori Dağılımı
-                  </h3>
-                  {PORTAL_CATEGORIES.map(function (cat) {
-                    var count = posts.filter(function (p) { return p.category === cat.id; }).length;
-                    var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
-                    return (
-                      <div key={cat.id} style={{ marginBottom: 10 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                          <span style={{ fontWeight: 600, color: cat.color, display: "inline-flex", alignItems: "center", gap: 4 }}><SvgIcon path={ICONS[cat.icon]} size={12} color={cat.color} /> {cat.label}</span>
-                          <span style={{ color: PC.textMuted }}>{count}</span>
-                        </div>
-                        <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
-                          <div style={{
-                            height: "100%", width: pct + "%", background: cat.color,
-                            borderRadius: 3, transition: "width 0.5s ease",
-                          }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+            {/* Normal gönderiler */}
+            {regularPosts.slice(0, visibleCount).map(function (post) {
+              return (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  userId={getUserId(currentUser)}
+                  currentUser={currentUser}
+                  onReact={handleReact}
+                  onVote={handleVote}
+                  onDelete={handleDelete}
+                  onEdit={handleEdit}
+                  onTogglePin={handleTogglePin}
+                  onToggleBookmark={handleToggleBookmark}
+                  isBookmarked={bookmarks.indexOf(post.id) >= 0}
+                  isAdmin={isAdmin}
+                  onFilterAuthor={setAuthorFilter}
+                />
+              );
+            })}
+            {regularPosts.length > visibleCount && (
+              <div ref={loadMoreRef} style={{ padding: 20, textAlign: "center", color: PC.textMuted }}>
+                <SvgIcon path={ICONS.daisy} size={24} color={DY.gold} spin />
               </div>
             )}
           </div>
+
+          {/* Sağ: Sidebar */}
+          {isMobile ? (
+            <MobileSidebarToggle>
+              <UserProfileCard currentUser={currentUser} posts={posts} />
+              <TrendingSidebar posts={posts} />
+
+              <div style={{
+                background: "white", borderRadius: 16, padding: 20,
+                border: "1px solid " + PC.borderLight,
+              }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
+                  Kategori Dağılımı
+                </h3>
+                {PORTAL_CATEGORIES.map(function (cat) {
+                  var count = posts.filter(function (p) { return p.category === cat.id; }).length;
+                  var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
+                  return (
+                    <div key={cat.id} style={{ marginBottom: 10 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                        <span style={{ fontWeight: 600, color: cat.color, display: "inline-flex", alignItems: "center", gap: 4 }}><SvgIcon path={ICONS[cat.icon]} size={12} color={cat.color} /> {cat.label}</span>
+                        <span style={{ color: PC.textMuted }}>{count}</span>
+                      </div>
+                      <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{
+                          height: "100%", width: pct + "%", background: cat.color,
+                          borderRadius: 3, transition: "width 0.5s ease",
+                        }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </MobileSidebarToggle>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: 88 }}>
+              <UserProfileCard currentUser={currentUser} posts={posts} />
+              <TrendingSidebar posts={posts} />
+
+              <div style={{
+                background: "white", borderRadius: 16, padding: 20,
+                border: "1px solid " + PC.borderLight,
+              }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
+                  Kategori Dağılımı
+                </h3>
+                {PORTAL_CATEGORIES.map(function (cat) {
+                  var count = posts.filter(function (p) { return p.category === cat.id; }).length;
+                  var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
+                  return (
+                    <div key={cat.id} style={{ marginBottom: 10 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                        <span style={{ fontWeight: 600, color: cat.color, display: "inline-flex", alignItems: "center", gap: 4 }}><SvgIcon path={ICONS[cat.icon]} size={12} color={cat.color} /> {cat.label}</span>
+                        <span style={{ color: PC.textMuted }}>{count}</span>
+                      </div>
+                      <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{
+                          height: "100%", width: pct + "%", background: cat.color,
+                          borderRadius: 3, transition: "width 0.5s ease",
+                        }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
