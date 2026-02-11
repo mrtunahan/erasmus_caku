@@ -5,6 +5,16 @@
 
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
+// Toast animasyonu inject
+(function () {
+  if (!document.getElementById("portal-toast-style")) {
+    var s = document.createElement("style");
+    s.id = "portal-toast-style";
+    s.textContent = "@keyframes fadeInRight{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}";
+    document.head.appendChild(s);
+  }
+})();
+
 // ── Shared bileşenlerden import ──
 const PC = window.C;
 const PCard = window.Card;
@@ -755,6 +765,11 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
   const [editTitle, setEditTitle] = useState(post.title || "");
   const [editContent, setEditContent] = useState(post.content || "");
   const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  var TRUNCATE_LEN = 300;
+  var isLong = post.content && post.content.length > TRUNCATE_LEN;
+  var displayContent = (!expanded && isLong) ? post.content.substring(0, TRUNCATE_LEN) + "..." : post.content;
 
   var handleSaveEdit = async function () {
     if (!editContent.trim()) return;
@@ -925,7 +940,17 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
             <div style={{
               fontSize: 14, color: PC.text, lineHeight: 1.7,
               whiteSpace: "pre-wrap", wordBreak: "break-word",
-            }}>{post.content}</div>
+            }}>{displayContent}</div>
+            {isLong && (
+              <button
+                onClick={function () { setExpanded(!expanded); }}
+                style={{
+                  padding: 0, border: "none", background: "transparent",
+                  color: PC.blue, cursor: "pointer", fontSize: 13,
+                  fontWeight: 600, marginTop: 4,
+                }}
+              >{expanded ? "Daha az göster" : "Devamını oku"}</button>
+            )}
             {post.editedAt && (
               <div style={{ fontSize: 11, color: PC.textMuted, marginTop: 4, fontStyle: "italic" }}>
                 (düzenlendi)
@@ -1283,6 +1308,39 @@ const TrendingSidebar = ({ posts }) => {
   );
 };
 
+// ── Toast Bildirim ──
+const ToastContainer = ({ toasts }) => {
+  if (!toasts || toasts.length === 0) return null;
+  return (
+    <div style={{
+      position: "fixed", top: 20, right: 20, zIndex: 9999,
+      display: "flex", flexDirection: "column", gap: 8,
+      pointerEvents: "none",
+    }}>
+      {toasts.map(function (t) {
+        var bgColor = t.type === "error" ? "#FEE2E2" : t.type === "info" ? "#DBEAFE" : "#D1FAE5";
+        var borderColor = t.type === "error" ? "#EF4444" : t.type === "info" ? "#3B82F6" : "#10B981";
+        var textColor = t.type === "error" ? "#991B1B" : t.type === "info" ? "#1E40AF" : "#065F46";
+        var icon = t.type === "error" ? "\u2716" : t.type === "info" ? "\u2139" : "\u2714";
+        return (
+          <div key={t.id} style={{
+            padding: "12px 20px", borderRadius: 12,
+            background: bgColor, border: "1px solid " + borderColor,
+            color: textColor, fontSize: 13, fontWeight: 600,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+            display: "flex", alignItems: "center", gap: 8,
+            animation: "fadeInRight 0.3s ease",
+            pointerEvents: "auto",
+          }}>
+            <span style={{ fontSize: 15 }}>{icon}</span>
+            {t.message}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 // ── Arama Çubuğu ──
 const SearchBar = ({ value, onChange }) => (
   <div style={{ position: "relative", flex: 1, maxWidth: 400 }}>
@@ -1314,6 +1372,15 @@ function OgrenciPortaliApp({ currentUser }) {
   const [showNewPost, setShowNewPost] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState("newest"); // newest, popular, comments, bookmarked
+  const [toasts, setToasts] = useState([]);
+
+  var showToast = function (message, type) {
+    var id = Date.now() + Math.random();
+    setToasts(function (prev) { return [].concat(prev, [{ id: id, message: message, type: type || "success" }]); });
+    setTimeout(function () {
+      setToasts(function (prev) { return prev.filter(function (t) { return t.id !== id; }); });
+    }, 3000);
+  };
 
   // Yer imleri (localStorage)
   const [bookmarks, setBookmarks] = useState(function () {
@@ -1324,6 +1391,7 @@ function OgrenciPortaliApp({ currentUser }) {
   });
 
   var handleToggleBookmark = function (postId) {
+    var wasBookmarked = bookmarks.indexOf(postId) >= 0;
     setBookmarks(function (prev) {
       var idx = prev.indexOf(postId);
       var updated;
@@ -1335,6 +1403,7 @@ function OgrenciPortaliApp({ currentUser }) {
       try { localStorage.setItem("portal_bookmarks", JSON.stringify(updated)); } catch (e) {}
       return updated;
     });
+    showToast(wasBookmarked ? "Yer iminden kaldırıldı" : "Yer imine eklendi");
   };
 
   // Gerçek zamanlı dinleme (onSnapshot)
@@ -1364,6 +1433,7 @@ function OgrenciPortaliApp({ currentUser }) {
     var saved = await PortalDB.createPost(postData);
     setPosts(function (prev) { return [saved, ...prev]; });
     setShowNewPost(false);
+    showToast("Gönderi başarıyla paylaşıldı!");
   };
 
   // Reaksiyon
@@ -1401,8 +1471,10 @@ function OgrenciPortaliApp({ currentUser }) {
     try {
       await PortalDB.deletePost(postId);
       setPosts(function (prev) { return prev.filter(function (p) { return p.id !== postId; }); });
+      showToast("Gönderi silindi");
     } catch (err) {
       console.error("Silme hatası:", err);
+      showToast("Silme başarısız!", "error");
     }
   };
 
@@ -1417,8 +1489,10 @@ function OgrenciPortaliApp({ currentUser }) {
           return p.id === postId ? Object.assign({}, p, updates, { editedAt: new Date() }) : p;
         });
       });
+      showToast("Gönderi düzenlendi");
     } catch (err) {
       console.error("Düzenleme hatası:", err);
+      showToast("Düzenleme başarısız!", "error");
       throw err;
     }
   };
@@ -1432,6 +1506,7 @@ function OgrenciPortaliApp({ currentUser }) {
           return p.id === postId ? Object.assign({}, p, { pinned: pinned }) : p;
         });
       });
+      showToast(pinned ? "Gönderi sabitlendi" : "Sabitleme kaldırıldı");
     } catch (err) {
       console.error("Pin hatası:", err);
     }
@@ -1477,6 +1552,9 @@ function OgrenciPortaliApp({ currentUser }) {
 
   return (
     <div>
+      {/* Toast Bildirimler */}
+      <ToastContainer toasts={toasts} />
+
       {/* Başlık */}
       <div style={{
         marginBottom: 24, display: "flex", justifyContent: "space-between",
