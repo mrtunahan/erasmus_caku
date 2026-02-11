@@ -5,15 +5,30 @@
 
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
-// Toast + ScrollTop animasyonları inject
+// Tema + animasyonlar inject
 (function () {
-  if (!document.getElementById("portal-toast-style")) {
+  if (!document.getElementById("portal-daisy-style")) {
     var s = document.createElement("style");
-    s.id = "portal-toast-style";
+    s.id = "portal-daisy-style";
     s.textContent =
       "@keyframes fadeInRight{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}" +
       "@keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}" +
-      "@keyframes fadeOutDown{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(20px)}}";
+      "@keyframes fadeOutDown{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(20px)}}" +
+      "@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}" +
+      "@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}" +
+      ".portal-bg{background:linear-gradient(135deg,#FFFDF7 0%,#FFF9E6 30%,#FFF4CC 70%,#FFFDF7 100%);position:relative;min-height:100vh;}" +
+      ".portal-bg::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:0;" +
+      "background:" +
+      "radial-gradient(ellipse 120px 120px at 10% 15%,rgba(255,215,0,0.12) 0%,transparent 70%)," +
+      "radial-gradient(ellipse 100px 100px at 85% 20%,rgba(255,193,7,0.10) 0%,transparent 70%)," +
+      "radial-gradient(ellipse 80px 80px at 20% 80%,rgba(255,235,59,0.08) 0%,transparent 70%)," +
+      "radial-gradient(ellipse 90px 90px at 75% 75%,rgba(255,215,0,0.10) 0%,transparent 70%)," +
+      "radial-gradient(ellipse 60px 60px at 50% 50%,rgba(255,193,7,0.06) 0%,transparent 70%);}" +
+      ".daisy-card{background:rgba(255,255,255,0.92);backdrop-filter:blur(8px);border:1px solid rgba(255,215,0,0.18);border-radius:16px;box-shadow:0 2px 16px rgba(255,193,7,0.08);transition:box-shadow 0.25s,transform 0.25s;}" +
+      ".daisy-card:hover{box-shadow:0 6px 24px rgba(255,193,7,0.15);transform:translateY(-1px);}" +
+      ".daisy-btn{background:linear-gradient(135deg,#F59E0B,#D97706);color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(245,158,11,0.3);transition:all 0.2s;}" +
+      ".daisy-btn:hover{box-shadow:0 6px 20px rgba(245,158,11,0.4);transform:translateY(-1px);}" +
+      ".portal-wrap{position:relative;z-index:1;}";
     document.head.appendChild(s);
   }
 })();
@@ -26,18 +41,67 @@ const PInput = window.Input;
 const PModal = window.Modal;
 const PBadge = window.Badge;
 
+// ── Daisy Tema Renkleri ──
+const DY = {
+  gold: "#F59E0B", goldDark: "#D97706", goldLight: "#FEF3C7", goldBorder: "rgba(255,215,0,0.25)",
+  warm: "#92400E", warmLight: "#FFFBEB", cream: "#FFFDF7",
+  accent: "#B45309", accentLight: "#FDE68A",
+};
+
+// ══════════════════════════════════════════════════════════════
+// SVG İKON YARDIMCILARI
+// ══════════════════════════════════════════════════════════════
+var SvgIcon = function ({ path, size, color, fill, strokeW }) {
+  return React.createElement("svg", {
+    width: size || 16, height: size || 16, viewBox: "0 0 24 24",
+    fill: fill || "none", stroke: color || "currentColor", strokeWidth: strokeW || 2,
+    strokeLinecap: "round", strokeLinejoin: "round",
+    style: { flexShrink: 0 }
+  }, React.createElement("path", { d: path }));
+};
+
+var ICONS = {
+  question: "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z",
+  book: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5V5a2 2 0 0 1 2-2h14v14H6.5A2.5 2.5 0 0 0 4 19.5z",
+  megaphone: "M3 11l18-5v12L3 13v-2zM11.6 16.8a3 3 0 1 1-5.8-1.6",
+  calendar: "M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM16 2v4M8 2v4M3 10h18",
+  link: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
+  chat: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+  barChart: "M18 20V10M12 20V4M6 20v-6",
+  edit: "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z",
+  trash: "M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
+  star: "M12 2l2.09 6.26L21 9.27l-5 3.14L17.18 22 12 17.77 6.82 22 8 12.41l-5-3.14 6.91-1.01L12 2z",
+  pin: "M12 2l2.09 6.26L21 9.27l-5 3.14L17.18 22 12 17.77 6.82 22 8 12.41l-5-3.14 6.91-1.01L12 2z",
+  bookmark: "M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z",
+  share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13",
+  search: "M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM21 21l-4.35-4.35",
+  bell: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0",
+  user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+  users: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
+  heart: "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z",
+  file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8",
+  upload: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12",
+  image: "M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM21 15l-5-5L5 21",
+  flag: "M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7",
+  check: "M20 6L9 17l-5-5",
+  x: "M18 6L6 18M6 6l12 12",
+  clock: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v6l4 2",
+  trending: "M23 6l-9.5 9.5-5-5L1 18M17 6h6v6",
+  daisy: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 2.09 3 4.5S13.66 14 12 14s-3-2.59-3-4.5S10.34 5 12 5z",
+};
+
 // ══════════════════════════════════════════════════════════════
 // SABİTLER
 // ══════════════════════════════════════════════════════════════
 
 const PORTAL_CATEGORIES = [
-  { id: "soru", label: "Soru-Cevap", emoji: "?", color: "#3B82F6", bg: "#DBEAFE" },
-  { id: "not", label: "Not Paylaşımı", emoji: "N", color: "#8B5CF6", bg: "#EDE9FE" },
-  { id: "duyuru", label: "Duyuru", emoji: "!", color: "#EF4444", bg: "#FEE2E2" },
-  { id: "etkinlik", label: "Etkinlik", emoji: "E", color: "#F59E0B", bg: "#FEF3C7" },
-  { id: "kaynak", label: "Kaynak", emoji: "K", color: "#10B981", bg: "#D1FAE5" },
-  { id: "sohbet", label: "Sohbet", emoji: "S", color: "#EC4899", bg: "#FCE7F3" },
-  { id: "anket", label: "Anket", emoji: "A", color: "#6366F1", bg: "#E0E7FF" },
+  { id: "soru", label: "Soru-Cevap", icon: "question", color: "#3B82F6", bg: "#DBEAFE" },
+  { id: "not", label: "Not Paylaşımı", icon: "book", color: "#8B5CF6", bg: "#EDE9FE" },
+  { id: "duyuru", label: "Duyuru", icon: "megaphone", color: "#EF4444", bg: "#FEE2E2" },
+  { id: "etkinlik", label: "Etkinlik", icon: "calendar", color: "#F59E0B", bg: "#FEF3C7" },
+  { id: "kaynak", label: "Kaynak", icon: "link", color: "#10B981", bg: "#D1FAE5" },
+  { id: "sohbet", label: "Sohbet", icon: "chat", color: "#EC4899", bg: "#FCE7F3" },
+  { id: "anket", label: "Anket", icon: "barChart", color: "#6366F1", bg: "#E0E7FF" },
 ];
 
 const REACTION_TYPES = [
@@ -50,6 +114,23 @@ const REACTION_TYPES = [
 ];
 
 const SINIF_TAGS = ["1. Sınıf", "2. Sınıf", "3. Sınıf", "4. Sınıf", "Yüksek Lisans", "Genel"];
+
+const REPORT_REASONS = [
+  "Uygunsuz içerik",
+  "Spam / Reklam",
+  "Yanıltıcı bilgi",
+  "Hakaret / Küfür",
+  "Diğer",
+];
+
+const POPULAR_COURSES = [
+  "BIL101", "BIL201", "BIL301", "BIL305", "BIL401",
+  "MAT101", "MAT165", "MAT201", "FIZ101", "FIZ102",
+  "ING101", "ING102", "TUR101", "ATA101", "MDB101",
+];
+
+const FILE_MAX_SIZE = 5 * 1024 * 1024; // 5MB
+const POSTS_PER_PAGE = 15;
 
 // ══════════════════════════════════════════════════════════════
 // FIREBASE CRUD
@@ -215,6 +296,86 @@ var PortalDB = {
       views: window.firebase.firestore.FieldValue.increment(1),
     });
   },
+
+  // ── Dosya Yükleme (Firebase Storage) ──
+  async uploadFile(file) {
+    var storage = window.firebase.storage();
+    var ext = file.name.split(".").pop();
+    var filename = "portal_files/" + Date.now() + "_" + Math.random().toString(36).substr(2) + "." + ext;
+    var ref = storage.ref(filename);
+    await ref.put(file);
+    var url = await ref.getDownloadURL();
+    return { url: url, name: file.name, type: file.type, size: file.size };
+  },
+
+  // ── Bildirimler ──
+  notificationsRef: function (userId) {
+    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_notifications").doc(String(userId)).collection("items") : null;
+  },
+
+  async addNotification(targetUserId, notification) {
+    var ref = this.notificationsRef(targetUserId);
+    if (!ref) return;
+    await ref.add(Object.assign({}, notification, {
+      createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      read: false,
+    }));
+  },
+
+  async fetchNotifications(userId, limit) {
+    var ref = this.notificationsRef(userId);
+    if (!ref) return [];
+    var query = ref.orderBy("createdAt", "desc").limit(limit || 20);
+    var snapshot = await query.get();
+    return snapshot.docs.map(function (doc) {
+      return Object.assign({}, doc.data(), { id: doc.id });
+    });
+  },
+
+  async markNotificationRead(userId, notifId) {
+    var ref = this.notificationsRef(userId);
+    if (!ref) return;
+    await ref.doc(String(notifId)).update({ read: true });
+  },
+
+  async markAllNotificationsRead(userId) {
+    var ref = this.notificationsRef(userId);
+    if (!ref) return;
+    var snapshot = await ref.where("read", "==", false).get();
+    var batch = window.FirebaseDB.db().batch();
+    snapshot.docs.forEach(function (doc) { batch.update(doc.ref, { read: true }); });
+    await batch.commit();
+  },
+
+  // ── Raporlama ──
+  reportsRef: function () {
+    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_reports") : null;
+  },
+
+  async reportPost(postId, reportData) {
+    var ref = this.reportsRef();
+    if (!ref) throw new Error("Firebase bağlantısı yok");
+    await ref.add(Object.assign({}, reportData, {
+      postId: postId,
+      createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      status: "pending",
+    }));
+  },
+
+  async fetchReports() {
+    var ref = this.reportsRef();
+    if (!ref) return [];
+    var snapshot = await ref.orderBy("createdAt", "desc").get();
+    return snapshot.docs.map(function (doc) {
+      return Object.assign({}, doc.data(), { id: doc.id });
+    });
+  },
+
+  async resolveReport(reportId) {
+    var ref = this.reportsRef();
+    if (!ref) return;
+    await ref.doc(String(reportId)).update({ status: "resolved" });
+  },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -314,12 +475,14 @@ const CategoryBadge = ({ category, small }) => {
   var cat = getCategoryInfo(category);
   return (
     <span style={{
-      display: "inline-flex", alignItems: "center", gap: 4,
-      padding: small ? "2px 8px" : "4px 12px",
+      display: "inline-flex", alignItems: "center", gap: 5,
+      padding: small ? "3px 10px" : "5px 14px",
       borderRadius: 20, fontSize: small ? 11 : 12,
       fontWeight: 600, color: cat.color, background: cat.bg,
+      transition: "all 0.15s",
     }}>
-      <span style={{ fontSize: small ? 10 : 12 }}>{cat.emoji}</span> {cat.label}
+      <SvgIcon path={ICONS[cat.icon]} size={small ? 12 : 14} color={cat.color} />
+      {cat.label}
     </span>
   );
 };
@@ -820,12 +983,8 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
   };
 
   return (
-    <div style={{
-      background: "white", borderRadius: 16, padding: 0,
-      boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-      border: "1px solid " + PC.borderLight,
-      transition: "box-shadow 0.2s",
-      overflow: "hidden",
+    <div className="daisy-card" style={{
+      padding: 0, overflow: "hidden",
     }}>
       {/* Pinned banner */}
       {post.pinned && (
@@ -834,7 +993,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
           padding: "4px 16px", fontSize: 11, fontWeight: 700,
           color: "white", display: "flex", alignItems: "center", gap: 6,
         }}>
-          <span>{"\uD83D\uDCCC"}</span> Sabitlenmiş Gönderi
+          <SvgIcon path={ICONS.pin} size={12} color="white" fill="white" /> Sabitlenmiş Gönderi
         </div>
       )}
 
@@ -857,6 +1016,16 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
                   fontSize: 11, padding: "2px 8px", borderRadius: 4,
                   background: PC.bg, color: PC.textMuted, fontWeight: 600,
                 }}>{post.tag}</span>
+              )}
+              {post.courseCode && (
+                <span style={{
+                  fontSize: 10, padding: "2px 8px", borderRadius: 4,
+                  background: DY.goldLight, color: DY.goldDark, fontWeight: 700,
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                }}>
+                  <SvgIcon path={ICONS.book} size={10} color={DY.goldDark} />
+                  {post.courseCode}
+                </span>
               )}
             </div>
             <div style={{ fontSize: 12, color: PC.textMuted, marginTop: 2 }}>
@@ -1023,6 +1192,31 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
           </div>
         )}
 
+        {/* Eklenen dosya */}
+        {post.attachment && (
+          <div style={{
+            marginTop: 12, borderRadius: 10, overflow: "hidden",
+            border: "1px solid " + PC.borderLight,
+          }}>
+            {post.attachment.type && post.attachment.type.startsWith("image/") ? (
+              <img src={post.attachment.url} alt={post.attachment.name}
+                style={{ width: "100%", maxHeight: 400, objectFit: "cover", display: "block" }} />
+            ) : (
+              <a href={post.attachment.url} target="_blank" rel="noopener noreferrer"
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "12px 16px",
+                  background: DY.warmLight, textDecoration: "none",
+                }}>
+                <SvgIcon path={ICONS.file} size={24} color={DY.gold} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy }}>{post.attachment.name}</div>
+                  <div style={{ fontSize: 11, color: PC.textMuted }}>{post.attachment.size ? (post.attachment.size / 1024).toFixed(0) + " KB" : "Dosya"}</div>
+                </div>
+              </a>
+            )}
+          </div>
+        )}
+
         {/* Alt kısım: reaksiyonlar + yorumlar + yer imi */}
         <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <ReactionBar
@@ -1034,12 +1228,14 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
           <CommentSection postId={post.id} currentUser={currentUser} />
           <button
             onClick={function () {
-              var text = (post.title ? post.title + "\n" : "") + post.content;
+              var url = window.location.origin + window.location.pathname + "?post=" + post.id;
               if (navigator.clipboard) {
-                navigator.clipboard.writeText(text);
+                navigator.clipboard.writeText(url).then(function () { alert("Link kopyalandı!"); });
+              } else {
+                prompt("Link:", url);
               }
             }}
-            title="Gönderiyi Kopyala"
+            title="Link Kopyala"
             style={{
               padding: "6px 12px", border: "1px solid " + PC.border,
               borderRadius: 20, background: "white",
@@ -1077,6 +1273,31 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
             </svg>
             {isBookmarked ? "Kaydedildi" : "Kaydet"}
           </button>
+          {/* Raporla */}
+          {!isAuthor && (
+            <button
+              onClick={function () {
+                var reason = prompt("Raporlama sebebi:\n" + REPORT_REASONS.join("\n"));
+                if (reason) {
+                  PortalDB.reportPost(post.id, {
+                    reason: reason, reporterId: userId, reporterName: currentUser.name || "Anonim",
+                    postTitle: post.title || "", postAuthor: post.authorName,
+                  }).then(function () { alert("Rapor gönderildi. Teşekkürler!"); });
+                }
+              }}
+              title="Gönderiyi Raporla"
+              style={{
+                padding: "6px 8px", border: "1px solid " + PC.border,
+                borderRadius: 20, background: "white",
+                cursor: "pointer", display: "flex", alignItems: "center",
+                color: PC.textMuted, transition: "all 0.2s",
+              }}
+              onMouseEnter={function (e) { e.currentTarget.style.borderColor = "#EF4444"; e.currentTarget.style.color = "#EF4444"; }}
+              onMouseLeave={function (e) { e.currentTarget.style.borderColor = PC.border; e.currentTarget.style.color = PC.textMuted; }}
+            >
+              <SvgIcon path={ICONS.flag} size={14} />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1091,33 +1312,67 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
   const [tag, setTag] = useState("");
   const [resourceUrl, setResourceUrl] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [pollAnonymous, setPollAnonymous] = useState(false);
+  const [pollMultiSelect, setPollMultiSelect] = useState(false);
+  const [pollDeadline, setPollDeadline] = useState("");
+  const [courseCode, setCourseCode] = useState("");
+  const [showCourseSuggestions, setShowCourseSuggestions] = useState(false);
+  const [file, setFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  var courseSuggestions = useMemo(function () {
+    if (!courseCode.trim()) return [];
+    var q = courseCode.toUpperCase();
+    return POPULAR_COURSES.filter(function (c) { return c.includes(q); }).slice(0, 5);
+  }, [courseCode]);
+
+  var handleFileSelect = function (f) {
+    if (!f) return;
+    if (f.size > FILE_MAX_SIZE) { alert("Dosya boyutu 5MB'dan büyük olamaz."); return; }
+    setFile(f);
+    if (f.type.startsWith("image/")) {
+      var reader = new FileReader();
+      reader.onload = function (e) { setFilePreview(e.target.result); };
+      reader.readAsDataURL(f);
+    } else { setFilePreview(null); }
+  };
+
+  var handleDrop = function (e) {
+    e.preventDefault(); setDragOver(false);
+    if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files[0]);
+  };
 
   const handleSubmit = async function () {
     if (!content.trim()) return;
     setPosting(true);
     try {
       var post = {
-        category: category,
-        title: title.trim(),
-        content: content.trim(),
-        tag: tag || "",
-        authorName: currentUser.name || "Anonim",
-        authorId: getUserId(currentUser),
+        category: category, title: title.trim(), content: content.trim(),
+        tag: tag || "", courseCode: courseCode.trim().toUpperCase() || "",
+        authorName: currentUser.name || "Anonim", authorId: getUserId(currentUser),
       };
-      if (category === "kaynak" && resourceUrl.trim()) {
-        post.resourceUrl = resourceUrl.trim();
+      if (file) {
+        setUploading(true);
+        try { var uploaded = await PortalDB.uploadFile(file); post.attachment = uploaded; }
+        catch (err) { console.warn("Dosya yüklenemedi:", err); }
+        setUploading(false);
       }
+      if (category === "kaynak" && resourceUrl.trim()) { post.resourceUrl = resourceUrl.trim(); }
       if (category === "anket") {
         post.pollOptions = pollOptions.filter(function (o) { return o.trim(); });
         post.pollVotes = {};
+        post.pollAnonymous = pollAnonymous;
+        post.pollMultiSelect = pollMultiSelect;
+        if (pollDeadline) post.pollDeadline = pollDeadline;
       }
       await onPost(post);
-      setTitle("");
-      setContent("");
-      setResourceUrl("");
-      setPollOptions(["", ""]);
+      setTitle(""); setContent(""); setResourceUrl(""); setCourseCode("");
+      setPollOptions(["", ""]); setFile(null); setFilePreview(null);
       if (onClose) onClose();
     } catch (err) {
       alert("Gönderi oluşturulamadı: " + err.message);
@@ -1130,11 +1385,8 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
   };
 
   return (
-    <div style={{
-      background: "white", borderRadius: 16, padding: 24,
-      boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-      border: "1px solid " + PC.borderLight,
-      marginBottom: 24,
+    <div className="daisy-card" style={{
+      padding: 24, marginBottom: 24,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <Avatar name={currentUser.name} />
@@ -1161,7 +1413,7 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
                 transition: "all 0.15s",
               }}
             >
-              {cat.emoji} {cat.label}
+              <span style={{ display: "flex", alignItems: "center", gap: 5 }}><SvgIcon path={ICONS[cat.icon]} size={12} color={isActive ? cat.color : PC.textMuted} /> {cat.label}</span>
             </button>
           );
         })}
@@ -1186,7 +1438,7 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
         onChange={function (e) { setContent(e.target.value); }}
         placeholder={category === "soru" ? "Sorunuzu detaylı bir şekilde yazın..."
           : category === "anket" ? "Anket açıklamanızı yazın..."
-          : "Ne paylaşmak istiyorsunuz?"}
+            : "Ne paylaşmak istiyorsunuz?"}
         rows={4}
         style={{
           width: "100%", padding: "12px 16px", border: "1px solid " + PC.border,
@@ -1195,24 +1447,97 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
         }}
       />
 
-      {/* Tag seçimi */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
-        {SINIF_TAGS.map(function (t) {
-          var isActive = tag === t;
-          return (
-            <button
-              key={t}
-              onClick={function () { setTag(isActive ? "" : t); }}
-              style={{
-                padding: "4px 12px", borderRadius: 6, fontSize: 11,
-                fontWeight: isActive ? 700 : 500, cursor: "pointer",
-                border: "1px solid " + (isActive ? PC.navy : PC.border),
-                background: isActive ? PC.navy : "white",
-                color: isActive ? "white" : PC.textMuted,
-              }}
-            >{t}</button>
-          );
-        })}
+      {/* Ders Kodu + Tag seçimi */}
+      <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+        <div style={{ position: "relative", minWidth: 160 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted, marginBottom: 4 }}>Ders Kodu</div>
+          <input
+            value={courseCode}
+            onChange={function (e) { setCourseCode(e.target.value); setShowCourseSuggestions(true); }}
+            onBlur={function () { setTimeout(function () { setShowCourseSuggestions(false); }, 200); }}
+            placeholder="Örn: BIL301"
+            style={{ width: "100%", padding: "8px 12px", border: "1px solid " + PC.border, borderRadius: 8, fontSize: 12, outline: "none" }}
+          />
+          {showCourseSuggestions && courseSuggestions.length > 0 && (
+            <div style={{
+              position: "absolute", top: "100%", left: 0, right: 0,
+              background: "white", border: "1px solid " + PC.border,
+              borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", zIndex: 10, marginTop: 2,
+            }}>
+              {courseSuggestions.map(function (c) {
+                return (
+                  <div key={c}
+                    onMouseDown={function () { setCourseCode(c); setShowCourseSuggestions(false); }}
+                    style={{ padding: "8px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, color: PC.navy }}
+                    onMouseEnter={function (e) { e.currentTarget.style.background = DY.goldLight; }}
+                    onMouseLeave={function (e) { e.currentTarget.style.background = "white"; }}
+                  >{c}</div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted, marginBottom: 4 }}>Sınıf</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {SINIF_TAGS.map(function (t) {
+              var isActive = tag === t;
+              return (
+                <button key={t} onClick={function () { setTag(isActive ? "" : t); }} style={{
+                  padding: "4px 10px", borderRadius: 6, fontSize: 11,
+                  fontWeight: isActive ? 700 : 500, cursor: "pointer",
+                  border: "1px solid " + (isActive ? DY.gold : PC.border),
+                  background: isActive ? DY.goldLight : "white",
+                  color: isActive ? DY.goldDark : PC.textMuted,
+                }}>{t}</button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Dosya Ekleme */}
+      <div
+        onDragOver={function (e) { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={function () { setDragOver(false); }}
+        onDrop={handleDrop}
+        style={{
+          marginTop: 12, padding: file ? "10px 14px" : "16px",
+          border: "2px dashed " + (dragOver ? DY.gold : file ? DY.goldBorder : PC.border),
+          borderRadius: 10, textAlign: "center",
+          background: dragOver ? DY.warmLight : file ? DY.goldLight + "60" : "transparent",
+          cursor: "pointer", transition: "all 0.2s",
+        }}
+        onClick={function () { if (!file && fileInputRef.current) fileInputRef.current.click(); }}
+      >
+        <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.xlsx,.pptx,.txt"
+          style={{ display: "none" }}
+          onChange={function (e) { if (e.target.files[0]) handleFileSelect(e.target.files[0]); }}
+        />
+        {file ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {filePreview ? (
+              <img src={filePreview} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover" }} />
+            ) : (
+              <SvgIcon path={ICONS.file} size={28} color={DY.gold} />
+            )}
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy }}>{file.name}</div>
+              <div style={{ fontSize: 11, color: PC.textMuted }}>{(file.size / 1024).toFixed(0)} KB</div>
+            </div>
+            <button onClick={function (e) { e.stopPropagation(); setFile(null); setFilePreview(null); }}
+              style={{ padding: 4, border: "none", background: "transparent", cursor: "pointer" }}
+            ><SvgIcon path={ICONS.x} size={16} color="#EF4444" /></button>
+          </div>
+        ) : (
+          <div>
+            <SvgIcon path={ICONS.upload} size={24} color={DY.gold} />
+            <div style={{ fontSize: 12, color: PC.textMuted, marginTop: 6 }}>
+              Dosya sürükleyin veya <span style={{ color: DY.gold, fontWeight: 600 }}>seçin</span>
+            </div>
+            <div style={{ fontSize: 10, color: PC.textMuted, marginTop: 2 }}>Resim, PDF, DOC, XLSX (max 5MB)</div>
+          </div>
+        )}
       </div>
 
       {/* Kaynak URL */}
@@ -1268,6 +1593,24 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
               }}
             >+ Seçenek Ekle</button>
           )}
+          {/* Anket Ayarları */}
+          <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: PC.textMuted, cursor: "pointer" }}>
+              <input type="checkbox" checked={pollAnonymous} onChange={function (e) { setPollAnonymous(e.target.checked); }} />
+              Anonim oylama
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: PC.textMuted, cursor: "pointer" }}>
+              <input type="checkbox" checked={pollMultiSelect} onChange={function (e) { setPollMultiSelect(e.target.checked); }} />
+              Çoklu seçim
+            </label>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <SvgIcon path={ICONS.clock} size={14} color={PC.textMuted} />
+              <input type="datetime-local" value={pollDeadline}
+                onChange={function (e) { setPollDeadline(e.target.value); }}
+                style={{ padding: "4px 8px", border: "1px solid " + PC.border, borderRadius: 6, fontSize: 11, outline: "none" }}
+              />
+            </div>
+          </div>
         </div>
       )}
 
@@ -1285,15 +1628,15 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
         )}
         <button
           onClick={handleSubmit}
-          disabled={posting || !content.trim()}
+          disabled={posting || uploading || !content.trim()}
           style={{
             padding: "10px 24px", border: "none", borderRadius: 10,
-            background: posting || !content.trim() ? PC.border : "linear-gradient(135deg, " + PC.navy + ", " + PC.navyLight + ")",
+            background: posting || !content.trim() ? PC.border : "linear-gradient(135deg, " + DY.gold + ", " + DY.goldDark + ")",
             color: "white", cursor: posting ? "wait" : "pointer",
             fontSize: 14, fontWeight: 700,
-            boxShadow: "0 4px 12px rgba(27,42,74,0.3)",
+            boxShadow: "0 4px 12px rgba(245,158,11,0.3)",
           }}
-        >{posting ? "Gönderiliyor..." : "Paylaş"}</button>
+        >{uploading ? "Yükleniyor..." : posting ? "Gönderiliyor..." : "Paylaş"}</button>
       </div>
     </div>
   );
@@ -1301,20 +1644,20 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
 
 // ── İstatistik Kartı ──
 const StatCard = ({ label, value, color, icon }) => (
-  <div style={{
-    background: "white", borderRadius: 12, padding: 16,
-    border: "1px solid " + PC.borderLight,
-    display: "flex", alignItems: "center", gap: 14,
+  <div className="daisy-card" style={{
+    padding: 18, display: "flex", alignItems: "center", gap: 14,
     flex: 1, minWidth: 140,
   }}>
     <div style={{
-      width: 44, height: 44, borderRadius: 10,
-      background: color + "15",
+      width: 46, height: 46, borderRadius: 12,
+      background: "linear-gradient(135deg, " + color + "20, " + color + "10)",
       display: "flex", alignItems: "center", justifyContent: "center",
-      fontSize: 22,
-    }}>{icon}</div>
+      border: "1px solid " + color + "25",
+    }}>
+      <SvgIcon path={ICONS[icon]} size={22} color={color} />
+    </div>
     <div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: PC.navy }}>{value}</div>
+      <div style={{ fontSize: 24, fontWeight: 800, color: DY.warm }}>{value}</div>
       <div style={{ fontSize: 12, color: PC.textMuted, fontWeight: 500 }}>{label}</div>
     </div>
   </div>
@@ -1337,8 +1680,8 @@ const TrendingSidebar = ({ posts }) => {
       background: "white", borderRadius: 16, padding: 20,
       border: "1px solid " + PC.borderLight,
     }}>
-      <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-        <span>{"\uD83D\uDD25"}</span> Trend Konular
+      <h3 style={{ fontSize: 15, fontWeight: 700, color: DY.warm, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+        <SvgIcon path={ICONS.trending} size={18} color={DY.gold} /> Trend Konular
       </h3>
       {trending.map(function (p, idx) {
         return (
@@ -1428,6 +1771,108 @@ const ScrollToTopButton = () => {
   );
 };
 
+// ── Bildirim Zili ──
+const NotificationBell = ({ currentUser }) => {
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unread, setUnread] = useState(0);
+  var userId = getUserId(currentUser);
+
+  useEffect(function () {
+    var load = function () {
+      PortalDB.fetchNotifications(userId, 10).then(function (notifs) {
+        setNotifications(notifs);
+        setUnread(notifs.filter(function (n) { return !n.read; }).length);
+      }).catch(function () { });
+    };
+    load();
+    var interval = setInterval(load, 30000);
+    return function () { clearInterval(interval); };
+  }, [userId]);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button onClick={function () { setOpen(!open); }}
+        style={{ padding: 8, border: "none", background: "transparent", cursor: "pointer", position: "relative", borderRadius: 8 }}
+        title="Bildirimler"
+      >
+        <SvgIcon path={ICONS.bell} size={22} color={DY.warm} />
+        {unread > 0 && (
+          <span style={{
+            position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: "50%",
+            background: "#EF4444", color: "white", fontSize: 10, fontWeight: 700,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>{unread > 9 ? "9+" : unread}</span>
+        )}
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "100%", right: 0, width: 320, maxHeight: 400, overflow: "auto",
+          background: "white", borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+          border: "1px solid " + PC.borderLight, zIndex: 100,
+        }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid " + PC.borderLight, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: DY.warm }}>Bildirimler</span>
+            {unread > 0 && (
+              <button onClick={function () {
+                PortalDB.markAllNotificationsRead(userId).then(function () {
+                  setNotifications(notifications.map(function (n) { return Object.assign({}, n, { read: true }); }));
+                  setUnread(0);
+                });
+              }} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 11, color: DY.gold, fontWeight: 600 }}>
+                Tümünü Okundu İşaretle
+              </button>
+            )}
+          </div>
+          {notifications.length === 0 ? (
+            <div style={{ padding: 24, textAlign: "center", color: PC.textMuted, fontSize: 13 }}>Henüz bildirim yok</div>
+          ) : notifications.map(function (n) {
+            return (
+              <div key={n.id} style={{ padding: "10px 16px", borderBottom: "1px solid " + PC.borderLight, background: n.read ? "transparent" : DY.warmLight }}>
+                <div style={{ fontSize: 13, color: PC.navy }}>{n.message || "Bildirim"}</div>
+                <div style={{ fontSize: 11, color: PC.textMuted, marginTop: 2 }}>{n.createdAt ? timeAgo(n.createdAt) : ""}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Kullanıcı Profil Kartı ──
+const UserProfileCard = ({ currentUser, posts }) => {
+  var userId = getUserId(currentUser);
+  var userPosts = posts.filter(function (p) { return p.authorId === userId; });
+  var totalReactions = 0;
+  userPosts.forEach(function (p) { totalReactions += getReactionTotal(p.reactions); });
+  return (
+    <div className="daisy-card" style={{ padding: 20, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+        <Avatar name={currentUser.name} />
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: DY.warm }}>{currentUser.name || "Anonim"}</div>
+          <div style={{ fontSize: 12, color: PC.textMuted }}>{currentUser.email || ""}</div>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+        {[
+          { v: userPosts.length, l: "Gönderi" },
+          { v: totalReactions, l: "Tepki" },
+          { v: userPosts.reduce(function (s, p) { return s + (p.commentCount || 0); }, 0), l: "Yorum" },
+        ].map(function (item) {
+          return (
+            <div key={item.l} style={{ textAlign: "center", padding: "8px 0", background: DY.warmLight, borderRadius: 8 }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: DY.warm }}>{item.v}</div>
+              <div style={{ fontSize: 10, color: PC.textMuted }}>{item.l}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ── Mobil Sidebar Drawer ──
 const MobileSidebarToggle = ({ children }) => {
   const [open, setOpen] = useState(false);
@@ -1496,7 +1941,16 @@ function OgrenciPortaliApp({ currentUser }) {
   const [sortMode, setSortMode] = useState("newest"); // newest, popular, comments, bookmarked
   const [authorFilter, setAuthorFilter] = useState("");
   const [toasts, setToasts] = useState([]);
+  const [visibleCount, setVisibleCount] = useState(POSTS_PER_PAGE);
+  const [highlightedPostId, setHighlightedPostId] = useState(null);
+  const loadMoreRef = useRef(null);
   var isMobile = useIsMobile(768);
+
+  useEffect(function () {
+    var params = new URLSearchParams(window.location.search);
+    var pid = params.get("post");
+    if (pid) setHighlightedPostId(pid);
+  }, []);
 
   var showToast = function (message, type) {
     var id = Date.now() + Math.random();
@@ -1524,7 +1978,7 @@ function OgrenciPortaliApp({ currentUser }) {
       } else {
         updated = [].concat(prev, [postId]);
       }
-      try { localStorage.setItem("portal_bookmarks", JSON.stringify(updated)); } catch (e) {}
+      try { localStorage.setItem("portal_bookmarks", JSON.stringify(updated)); } catch (e) { }
       return updated;
     });
     showToast(wasBookmarked ? "Yer iminden kaldırıldı" : "Yer imine eklendi");
@@ -1551,6 +2005,17 @@ function OgrenciPortaliApp({ currentUser }) {
     });
     return function () { unsubscribe(); };
   }, [activeCategory]);
+
+  // Sonsuz kaydırma
+  useEffect(function () {
+    var observer = new IntersectionObserver(function (entries) {
+      if (entries[0].isIntersecting) {
+        setVisibleCount(function (prev) { return prev + POSTS_PER_PAGE; });
+      }
+    }, { threshold: 0.1 });
+    if (loadMoreRef.current) observer.observe(loadMoreRef.current);
+    return function () { if (loadMoreRef.current) observer.unobserve(loadMoreRef.current); };
+  }, [visibleCount]);
 
   // Yeni gönderi
   const handleNewPost = async function (postData) {
@@ -1638,13 +2103,14 @@ function OgrenciPortaliApp({ currentUser }) {
 
   // Arama + sıralama filtresi
   var filteredPosts = useMemo(function () {
+    if (highlightedPostId) return posts.filter(function (p) { return p.id === highlightedPostId; });
     var result = posts;
     if (searchQuery.trim()) {
       var q = searchQuery.toLowerCase();
       result = result.filter(function (p) {
         return (p.title && p.title.toLowerCase().includes(q)) ||
-               (p.content && p.content.toLowerCase().includes(q)) ||
-               (p.authorName && p.authorName.toLowerCase().includes(q));
+          (p.content && p.content.toLowerCase().includes(q)) ||
+          (p.authorName && p.authorName.toLowerCase().includes(q));
       });
     }
     // Yazar filtresi
@@ -1679,343 +2145,351 @@ function OgrenciPortaliApp({ currentUser }) {
   posts.forEach(function (p) { totalComments += (p.commentCount || 0); });
 
   return (
-    <div>
-      {/* Toast Bildirimler */}
-      <ToastContainer toasts={toasts} />
-      {/* Yukarı Kaydır */}
-      <ScrollToTopButton />
+    <div className="portal-bg">
+      <div className="portal-wrap">
+        {/* Toast Bildirimler */}
+        <ToastContainer toasts={toasts} />
+        {/* Yukarı Kaydır */}
+        <ScrollToTopButton />
 
-      {/* Başlık */}
-      <div style={{
-        marginBottom: 24, display: "flex", justifyContent: "space-between",
-        alignItems: isMobile ? "stretch" : "flex-start",
-        flexDirection: isMobile ? "column" : "row",
-        gap: isMobile ? 12 : 16,
-      }}>
-        <div>
-          <h1 style={{
-            fontSize: isMobile ? 22 : 28, fontWeight: 700, color: PC.navy,
-            fontFamily: "'Playfair Display', serif", marginBottom: 4,
-          }}>Öğrenci Portalı</h1>
-          <p style={{ color: PC.textMuted, fontSize: 14 }}>
-            Yardımlaşma, bilgi paylaşımı ve sosyal etkileşim platformu
-          </p>
-        </div>
-        <button
-          onClick={function () { setShowNewPost(!showNewPost); }}
-          style={{
-            padding: "12px 24px", border: "none", borderRadius: 12,
-            background: showNewPost ? PC.textMuted : "linear-gradient(135deg, " + PC.navy + ", " + PC.navyLight + ")",
-            color: "white", cursor: "pointer", fontSize: 14, fontWeight: 700,
-            display: "flex", alignItems: "center", gap: 8,
-            boxShadow: "0 4px 16px rgba(27,42,74,0.25)",
-            transition: "all 0.2s",
-          }}
-        >
-          <span style={{ fontSize: 18 }}>{showNewPost ? "\u2715" : "+"}</span>
-          {showNewPost ? "Kapat" : "Yeni Gönderi"}
-        </button>
-      </div>
-
-      {/* İstatistikler */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
-        gap: 12, marginBottom: 24,
-      }}>
-        <StatCard label="Toplam Gönderi" value={posts.length} color="#3B82F6" icon={"\uD83D\uDCDD"} />
-        <StatCard label="Tepkiler" value={totalReactions} color="#EF4444" icon={"\u2764\uFE0F"} />
-        <StatCard label="Yorumlar" value={totalComments} color="#10B981" icon={"\uD83D\uDCAC"} />
-        <StatCard label="Üyeler" value={new Set(posts.map(function (p) { return p.authorId; })).size || 0} color="#8B5CF6" icon={"\uD83D\uDC65"} />
-      </div>
-
-      {/* Arama + Kategori Filtreleri */}
-      <div style={{
-        display: "flex", gap: isMobile ? 10 : 16, marginBottom: 24,
-        alignItems: isMobile ? "stretch" : "center",
-        flexDirection: isMobile ? "column" : "row",
-        flexWrap: "wrap",
-      }}>
-        <SearchBar value={searchQuery} onChange={setSearchQuery} />
-
-        {/* Yazar filtresi badge */}
-        {authorFilter && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "6px 14px", borderRadius: 20,
-            background: PC.blueLight, border: "1px solid " + PC.blue,
-            fontSize: 12, fontWeight: 600, color: PC.blue,
-            alignSelf: isMobile ? "flex-start" : "center",
-          }}>
-            <Avatar name={authorFilter} size={20} />
-            {authorFilter}
-            <button
-              onClick={function () { setAuthorFilter(""); }}
-              style={{
-                padding: 0, border: "none", background: "transparent",
-                cursor: "pointer", color: PC.blue, fontSize: 14, fontWeight: 700,
-                marginLeft: 4, lineHeight: 1,
-              }}
-            >{"\u2715"}</button>
+        {/* Başlık */}
+        <div style={{
+          marginBottom: 24, display: "flex", justifyContent: "space-between",
+          alignItems: isMobile ? "stretch" : "flex-start",
+          flexDirection: isMobile ? "column" : "row",
+          gap: isMobile ? 12 : 16,
+        }}>
+          <div>
+            <h1 style={{
+              fontSize: isMobile ? 22 : 28, fontWeight: 700, color: PC.navy,
+              fontFamily: "'Playfair Display', serif", marginBottom: 4,
+            }}>Öğrenci Portalı
+              <span style={{ display: "inline-block", marginLeft: 8 }}>
+                <SvgIcon path={ICONS.daisy} size={28} color={DY.gold} fill={DY.goldLight} />
+              </span>
+            </h1>
+            <p style={{ color: PC.textMuted, fontSize: 14 }}>
+              Yardımlaşma, bilgi paylaşımı ve sosyal etkileşim platformu
+            </p>
           </div>
-        )}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <NotificationBell currentUser={currentUser} />
+            <button
+              onClick={function () { setShowNewPost(!showNewPost); }}
+              style={{
+                padding: "12px 24px", border: "none", borderRadius: 12,
+                background: showNewPost ? PC.textMuted : "linear-gradient(135deg, " + DY.gold + ", " + DY.goldDark + ")",
+                color: "white", cursor: "pointer", fontSize: 14, fontWeight: 700,
+                display: "flex", alignItems: "center", gap: 8,
+                boxShadow: "0 4px 16px rgba(27,42,74,0.25)",
+                transition: "all 0.2s",
+              }}
+            >
+              <span style={{ fontSize: 18 }}>{showNewPost ? "\u2715" : "+"}</span>
+              {showNewPost ? "Kapat" : "Yeni Gönderi"}
+            </button>
+          </div>
 
-        {/* Sıralama */}
-        <div style={{
-          display: "flex", gap: 4, background: PC.bg, borderRadius: 10, padding: 3,
-          overflowX: isMobile ? "auto" : "visible",
-          WebkitOverflowScrolling: "touch",
-        }}>
-          {[
-            { id: "newest", label: "En Yeni" },
-            { id: "popular", label: "En Popüler" },
-            { id: "comments", label: "En Çok Yorum" },
-            { id: "bookmarked", label: "Kaydedilenler" },
-          ].map(function (s) {
-            var isActive = sortMode === s.id;
-            return (
+          {/* İstatistikler */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
+            gap: 12, marginBottom: 24,
+          }}>
+            <StatCard label="Toplam Gönderi" value={posts.length} color="#F59E0B" icon="file" />
+            <StatCard label="Tepkiler" value={totalReactions} color="#EF4444" icon="heart" />
+            <StatCard label="Yorumlar" value={totalComments} color="#10B981" icon="chat" />
+            <StatCard label="Üyeler" value={new Set(posts.map(function (p) { return p.authorId; })).size || 0} color="#8B5CF6" icon="users" />
+          </div>
+          {highlightedPostId && (
+            <div style={{
+              marginBottom: 16, padding: "12px 16px", background: DY.goldLight,
+              border: "1px solid " + DY.gold, borderRadius: 12,
+              display: "flex", justifyContent: "space-between", alignItems: "center"
+            }}>
+              <span style={{ fontWeight: 600, color: DY.goldDark, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                <SvgIcon path={ICONS.pin} size={16} color={DY.goldDark} /> Tek bir gönderi görüntüleniyor
+              </span>
               <button
-                key={s.id}
-                onClick={function () { setSortMode(s.id); }}
-                style={{
-                  padding: "6px 14px", borderRadius: 8, fontSize: 12,
-                  fontWeight: isActive ? 700 : 500, cursor: "pointer",
-                  border: "none", whiteSpace: "nowrap",
-                  background: isActive ? "white" : "transparent",
-                  color: isActive ? PC.navy : PC.textMuted,
-                  boxShadow: isActive ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
-                  transition: "all 0.2s",
+                onClick={function () {
+                  setHighlightedPostId(null);
+                  window.history.pushState({}, document.title, window.location.pathname);
                 }}
-              >{s.label}</button>
-            );
-          })}
-        </div>
-
-        <div style={{
-          display: "flex", gap: 4,
-          flexWrap: isMobile ? "nowrap" : "wrap",
-          overflowX: isMobile ? "auto" : "visible",
-          WebkitOverflowScrolling: "touch",
-          paddingBottom: isMobile ? 4 : 0,
-        }}>
-          <button
-            onClick={function () { setActiveCategory("tumu"); }}
-            style={{
-              padding: "8px 16px", borderRadius: 20, fontSize: 13,
-              fontWeight: activeCategory === "tumu" ? 700 : 500, cursor: "pointer",
-              border: activeCategory === "tumu" ? "2px solid " + PC.navy : "1px solid " + PC.border,
-              background: activeCategory === "tumu" ? PC.navy : "white",
-              color: activeCategory === "tumu" ? "white" : PC.textMuted,
-              whiteSpace: "nowrap", flexShrink: 0,
-            }}
-          >Tümü</button>
-          {PORTAL_CATEGORIES.map(function (cat) {
-            var isActive = activeCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={function () { setActiveCategory(cat.id); }}
                 style={{
-                  padding: "8px 14px", borderRadius: 20, fontSize: 12,
-                  fontWeight: isActive ? 700 : 500, cursor: "pointer",
-                  border: isActive ? "2px solid " + cat.color : "1px solid " + PC.border,
-                  background: isActive ? cat.bg : "white",
-                  color: isActive ? cat.color : PC.textMuted,
-                  transition: "all 0.15s",
+                  border: "none", background: "white", padding: "6px 12px", borderRadius: 8,
+                  fontSize: 12, fontWeight: 700, color: PC.navy, cursor: "pointer",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+                }}
+              >Tümünü Gör</button>
+            </div>
+          )}
+
+
+          {/* Arama + Kategori Filtreleri */}
+          <div style={{
+            display: "flex", gap: isMobile ? 10 : 16, marginBottom: 24,
+            alignItems: isMobile ? "stretch" : "center",
+            flexDirection: isMobile ? "column" : "row",
+            flexWrap: "wrap",
+          }}>
+            <SearchBar value={searchQuery} onChange={setSearchQuery} />
+
+            {/* Yazar filtresi badge */}
+            {authorFilter && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "6px 14px", borderRadius: 20,
+                background: PC.blueLight, border: "1px solid " + PC.blue,
+                fontSize: 12, fontWeight: 600, color: PC.blue,
+                alignSelf: isMobile ? "flex-start" : "center",
+              }}>
+                <Avatar name={authorFilter} size={20} />
+                {authorFilter}
+                <button
+                  onClick={function () { setAuthorFilter(""); }}
+                  style={{
+                    padding: 0, border: "none", background: "transparent",
+                    cursor: "pointer", color: PC.blue, fontSize: 14, fontWeight: 700,
+                    marginLeft: 4, lineHeight: 1,
+                  }}
+                >{"\u2715"}</button>
+              </div>
+            )}
+
+            {/* Sıralama */}
+            <div style={{
+              display: "flex", gap: 4, background: PC.bg, borderRadius: 10, padding: 3,
+              overflowX: isMobile ? "auto" : "visible",
+              WebkitOverflowScrolling: "touch",
+            }}>
+              {[
+                { id: "newest", label: "En Yeni" },
+                { id: "popular", label: "En Popüler" },
+                { id: "comments", label: "En Çok Yorum" },
+                { id: "bookmarked", label: "Kaydedilenler" },
+              ].map(function (s) {
+                var isActive = sortMode === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={function () { setSortMode(s.id); }}
+                    style={{
+                      padding: "6px 14px", borderRadius: 8, fontSize: 12,
+                      fontWeight: isActive ? 700 : 500, cursor: "pointer",
+                      border: "none", whiteSpace: "nowrap",
+                      background: isActive ? "white" : "transparent",
+                      color: isActive ? PC.navy : PC.textMuted,
+                      boxShadow: isActive ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+                      transition: "all 0.2s",
+                    }}
+                  >{s.label}</button>
+                );
+              })}
+            </div>
+
+            <div style={{
+              display: "flex", gap: 4,
+              flexWrap: isMobile ? "nowrap" : "wrap",
+              overflowX: isMobile ? "auto" : "visible",
+              WebkitOverflowScrolling: "touch",
+              paddingBottom: isMobile ? 4 : 0,
+            }}>
+              <button
+                onClick={function () { setActiveCategory("tumu"); }}
+                style={{
+                  padding: "8px 16px", borderRadius: 20, fontSize: 13,
+                  fontWeight: activeCategory === "tumu" ? 700 : 500, cursor: "pointer",
+                  border: activeCategory === "tumu" ? "2px solid " + PC.navy : "1px solid " + PC.border,
+                  background: activeCategory === "tumu" ? PC.navy : "white",
+                  color: activeCategory === "tumu" ? "white" : PC.textMuted,
                   whiteSpace: "nowrap", flexShrink: 0,
                 }}
-              >{cat.emoji} {cat.label}</button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Ana İçerik: Feed + Sidebar */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: isMobile ? "1fr" : "1fr 300px",
-        gap: isMobile ? 16 : 24,
-        alignItems: "start",
-      }}>
-        {/* Sol: Feed */}
-        <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 16 : 20 }}>
-          {/* Yeni gönderi formu */}
-          {showNewPost && (
-            <NewPostForm
-              currentUser={currentUser}
-              onPost={handleNewPost}
-              onClose={function () { setShowNewPost(false); }}
-            />
-          )}
-
-          {/* Yükleniyor */}
-          {loading && (
-            <div style={{ padding: 40, textAlign: "center", color: PC.textMuted }}>
-              <div style={{ fontSize: 16, marginBottom: 8 }}>Gönderiler yükleniyor...</div>
-            </div>
-          )}
-
-          {/* Boş durum */}
-          {!loading && filteredPosts.length === 0 && (
-            <div style={{
-              padding: 60, textAlign: "center", background: "white",
-              borderRadius: 16, border: "1px solid " + PC.borderLight,
-            }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>{"\uD83D\uDCED"}</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: PC.navy, marginBottom: 8 }}>
-                {searchQuery ? "Sonuç bulunamadı" : "Henüz gönderi yok"}
-              </div>
-              <div style={{ fontSize: 14, color: PC.textMuted }}>
-                {searchQuery ? "Farklı bir arama terimi deneyin." : "İlk gönderiyi oluşturarak topluluğu başlatın!"}
-              </div>
-              {!searchQuery && (
-                <button
-                  onClick={function () { setShowNewPost(true); }}
-                  style={{
-                    marginTop: 16, padding: "10px 24px", border: "none",
-                    borderRadius: 10, background: PC.navy, color: "white",
-                    cursor: "pointer", fontSize: 14, fontWeight: 600,
-                  }}
-                >İlk Gönderiyi Yaz</button>
-              )}
-            </div>
-          )}
-
-          {/* Sabitlenmiş gönderiler */}
-          {pinnedPosts.map(function (post) {
-            return (
-              <PostCard
-                key={post.id}
-                post={post}
-                currentUser={currentUser}
-                onReact={handleReact}
-                onVote={handleVote}
-                onDelete={handleDelete}
-                onEdit={handleEdit}
-                onTogglePin={handleTogglePin}
-                isBookmarked={bookmarks.indexOf(post.id) >= 0}
-                onToggleBookmark={handleToggleBookmark}
-                onFilterAuthor={setAuthorFilter}
-              />
-            );
-          })}
-
-          {/* Normal gönderiler */}
-          {regularPosts.map(function (post) {
-            return (
-              <PostCard
-                key={post.id}
-                post={post}
-                currentUser={currentUser}
-                onReact={handleReact}
-                onVote={handleVote}
-                onDelete={handleDelete}
-                onEdit={handleEdit}
-                onTogglePin={handleTogglePin}
-                isBookmarked={bookmarks.indexOf(post.id) >= 0}
-                onToggleBookmark={handleToggleBookmark}
-                onFilterAuthor={setAuthorFilter}
-              />
-            );
-          })}
-        </div>
-
-        {/* Sağ: Sidebar */}
-        {isMobile ? (
-          <MobileSidebarToggle>
-            <TrendingSidebar posts={posts} />
-            <div style={{
-              background: "linear-gradient(135deg, " + PC.navy + ", " + PC.navyLight + ")",
-              borderRadius: 16, padding: 20, color: "white",
-            }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
-                <span>{"\uD83D\uDCA1"}</span> Portal Rehberi
-              </h3>
-              <div style={{ fontSize: 12, lineHeight: 1.8, opacity: 0.9 }}>
-                <div><strong>? Soru-Cevap:</strong> Derslerle ilgili sorularınızı sorun</div>
-                <div><strong>N Not Paylaşımı:</strong> Ders notlarını arkadaşlarınızla paylaşın</div>
-                <div><strong>! Duyuru:</strong> Önemli duyuruları paylaşın</div>
-                <div><strong>E Etkinlik:</strong> Kampüs etkinliklerini duyurun</div>
-                <div><strong>K Kaynak:</strong> Faydalı link ve kaynakları paylaşın</div>
-                <div><strong>S Sohbet:</strong> Serbest sohbet edin</div>
-                <div><strong>A Anket:</strong> Anket oluşturup oy toplayın</div>
-              </div>
-            </div>
-            <div style={{
-              background: "white", borderRadius: 16, padding: 20,
-              border: "1px solid " + PC.borderLight,
-            }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
-                Kategori Dağılımı
-              </h3>
+              >Tümü</button>
               {PORTAL_CATEGORIES.map(function (cat) {
-                var count = posts.filter(function (p) { return p.category === cat.id; }).length;
-                var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
+                var isActive = activeCategory === cat.id;
                 return (
-                  <div key={cat.id} style={{ marginBottom: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                      <span style={{ fontWeight: 600, color: cat.color }}>{cat.emoji} {cat.label}</span>
-                      <span style={{ color: PC.textMuted }}>{count}</span>
-                    </div>
-                    <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
-                      <div style={{
-                        height: "100%", width: pct + "%", background: cat.color,
-                        borderRadius: 3, transition: "width 0.5s ease",
-                      }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </MobileSidebarToggle>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: 88 }}>
-            <TrendingSidebar posts={posts} />
-            <div style={{
-              background: "linear-gradient(135deg, " + PC.navy + ", " + PC.navyLight + ")",
-              borderRadius: 16, padding: 20, color: "white",
-            }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
-                <span>{"\uD83D\uDCA1"}</span> Portal Rehberi
-              </h3>
-              <div style={{ fontSize: 12, lineHeight: 1.8, opacity: 0.9 }}>
-                <div><strong>? Soru-Cevap:</strong> Derslerle ilgili sorularınızı sorun</div>
-                <div><strong>N Not Paylaşımı:</strong> Ders notlarını arkadaşlarınızla paylaşın</div>
-                <div><strong>! Duyuru:</strong> Önemli duyuruları paylaşın</div>
-                <div><strong>E Etkinlik:</strong> Kampüs etkinliklerini duyurun</div>
-                <div><strong>K Kaynak:</strong> Faydalı link ve kaynakları paylaşın</div>
-                <div><strong>S Sohbet:</strong> Serbest sohbet edin</div>
-                <div><strong>A Anket:</strong> Anket oluşturup oy toplayın</div>
-              </div>
-            </div>
-            <div style={{
-              background: "white", borderRadius: 16, padding: 20,
-              border: "1px solid " + PC.borderLight,
-            }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
-                Kategori Dağılımı
-              </h3>
-              {PORTAL_CATEGORIES.map(function (cat) {
-                var count = posts.filter(function (p) { return p.category === cat.id; }).length;
-                var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
-                return (
-                  <div key={cat.id} style={{ marginBottom: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                      <span style={{ fontWeight: 600, color: cat.color }}>{cat.emoji} {cat.label}</span>
-                      <span style={{ color: PC.textMuted }}>{count}</span>
-                    </div>
-                    <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
-                      <div style={{
-                        height: "100%", width: pct + "%", background: cat.color,
-                        borderRadius: 3, transition: "width 0.5s ease",
-                      }} />
-                    </div>
-                  </div>
+                  <button
+                    key={cat.id}
+                    onClick={function () { setActiveCategory(cat.id); }}
+                    style={{
+                      padding: "8px 14px", borderRadius: 20, fontSize: 12,
+                      fontWeight: isActive ? 700 : 500, cursor: "pointer",
+                      border: isActive ? "2px solid " + cat.color : "1px solid " + PC.border,
+                      background: isActive ? cat.bg : "white",
+                      color: isActive ? cat.color : PC.textMuted,
+                      transition: "all 0.15s",
+                      whiteSpace: "nowrap", flexShrink: 0,
+                    }}
+                  ><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><SvgIcon path={ICONS[cat.icon]} size={13} color={isActive ? cat.color : PC.textMuted} /> {cat.label}</span></button>
                 );
               })}
             </div>
           </div>
-        )}
+
+          {/* Ana İçerik: Feed + Sidebar */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "1fr 300px",
+            gap: isMobile ? 16 : 24,
+            alignItems: "start",
+          }}>
+            {/* Sol: Feed */}
+            <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 16 : 20 }}>
+              {/* Yeni gönderi formu */}
+              {showNewPost && (
+                <NewPostForm
+                  currentUser={currentUser}
+                  onPost={handleNewPost}
+                  onClose={function () { setShowNewPost(false); }}
+                />
+              )}
+
+              {/* Yükleniyor */}
+              {loading && (
+                <div style={{ padding: 40, textAlign: "center", color: PC.textMuted }}>
+                  <div style={{ fontSize: 16, marginBottom: 8 }}>Gönderiler yükleniyor...</div>
+                </div>
+              )}
+
+              {/* Boş durum */}
+              {!loading && filteredPosts.length === 0 && (
+                <div className="daisy-card" style={{
+                  padding: 60, textAlign: "center",
+                }}>
+                  <div style={{ marginBottom: 16 }}><SvgIcon path={ICONS.file} size={48} color={DY.gold} /></div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: PC.navy, marginBottom: 8 }}>
+                    {searchQuery ? "Sonuç bulunamadı" : "Henüz gönderi yok"}
+                  </div>
+                  <div style={{ fontSize: 14, color: PC.textMuted }}>
+                    {searchQuery ? "Farklı bir arama terimi deneyin." : "İlk gönderiyi oluşturarak topluluğu başlatın!"}
+                  </div>
+                  {!searchQuery && (
+                    <button
+                      onClick={function () { setShowNewPost(true); }}
+                      style={{
+                        marginTop: 16, padding: "10px 24px", border: "none",
+                        borderRadius: 10, background: PC.navy, color: "white",
+                        cursor: "pointer", fontSize: 14, fontWeight: 600,
+                      }}
+                    >İlk Gönderiyi Yaz</button>
+                  )}
+                </div>
+              )}
+
+              {/* Sabitlenmiş gönderiler */}
+              {pinnedPosts.map(function (post) {
+                return (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    currentUser={currentUser}
+                    onReact={handleReact}
+                    onVote={handleVote}
+                    onDelete={handleDelete}
+                    onEdit={handleEdit}
+                    onTogglePin={handleTogglePin}
+                    isBookmarked={bookmarks.indexOf(post.id) >= 0}
+                    onToggleBookmark={handleToggleBookmark}
+                    onFilterAuthor={setAuthorFilter}
+                  />
+                );
+              })}
+
+              {/* Normal gönderiler */}
+              {regularPosts.slice(0, visibleCount).map(function (post) {
+                return (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    userId={getUserId(currentUser)}
+                    currentUser={currentUser}
+                    onReact={handleReact}
+                    onVote={handleVote}
+                    onDelete={handleDelete}
+                    onEdit={handleEdit}
+                    onTogglePin={handleTogglePin}
+                    onToggleBookmark={handleToggleBookmark}
+                    isBookmarked={bookmarks.indexOf(post.id) >= 0}
+                    isAdmin={isAdmin}
+                    onFilterAuthor={setAuthorFilter}
+                  />
+                );
+              })}
+              {regularPosts.length > visibleCount && (
+                <div ref={loadMoreRef} style={{ padding: 20, textAlign: "center", color: PC.textMuted }}>
+                  <SvgIcon path={ICONS.daisy} size={24} color={DY.gold} spin />
+                </div>
+              )}
+            </div>
+
+            {/* Sağ: Sidebar */}
+            {isMobile ? (
+              <MobileSidebarToggle>
+                <UserProfileCard currentUser={currentUser} posts={posts} />
+                <TrendingSidebar posts={posts} />
+
+                <div style={{
+                  background: "white", borderRadius: 16, padding: 20,
+                  border: "1px solid " + PC.borderLight,
+                }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
+                    Kategori Dağılımı
+                  </h3>
+                  {PORTAL_CATEGORIES.map(function (cat) {
+                    var count = posts.filter(function (p) { return p.category === cat.id; }).length;
+                    var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
+                    return (
+                      <div key={cat.id} style={{ marginBottom: 10 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                          <span style={{ fontWeight: 600, color: cat.color, display: "inline-flex", alignItems: "center", gap: 4 }}><SvgIcon path={ICONS[cat.icon]} size={12} color={cat.color} /> {cat.label}</span>
+                          <span style={{ color: PC.textMuted }}>{count}</span>
+                        </div>
+                        <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{
+                            height: "100%", width: pct + "%", background: cat.color,
+                            borderRadius: 3, transition: "width 0.5s ease",
+                          }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </MobileSidebarToggle>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: 88 }}>
+                <UserProfileCard currentUser={currentUser} posts={posts} />
+                <TrendingSidebar posts={posts} />
+
+                <div style={{
+                  background: "white", borderRadius: 16, padding: 20,
+                  border: "1px solid " + PC.borderLight,
+                }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: PC.navy, marginBottom: 14 }}>
+                    Kategori Dağılımı
+                  </h3>
+                  {PORTAL_CATEGORIES.map(function (cat) {
+                    var count = posts.filter(function (p) { return p.category === cat.id; }).length;
+                    var pct = posts.length > 0 ? Math.round((count / posts.length) * 100) : 0;
+                    return (
+                      <div key={cat.id} style={{ marginBottom: 10 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                          <span style={{ fontWeight: 600, color: cat.color, display: "inline-flex", alignItems: "center", gap: 4 }}><SvgIcon path={ICONS[cat.icon]} size={12} color={cat.color} /> {cat.label}</span>
+                          <span style={{ color: PC.textMuted }}>{count}</span>
+                        </div>
+                        <div style={{ height: 6, background: PC.bg, borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{
+                            height: "100%", width: pct + "%", background: cat.color,
+                            borderRadius: 3, transition: "width 0.5s ease",
+                          }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
