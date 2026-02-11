@@ -961,21 +961,28 @@ function OgrenciPortaliApp({ currentUser }) {
   const [activeCategory, setActiveCategory] = useState("tumu");
   const [showNewPost, setShowNewPost] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortMode, setSortMode] = useState("newest"); // newest, popular, comments
 
-  // Gönderileri yükle
-  const loadPosts = async function (cat) {
-    setLoading(true);
-    try {
-      var fetched = await PortalDB.fetchPosts(cat === "tumu" ? null : cat, 50);
-      setPosts(fetched);
-    } catch (err) {
-      console.error("Gönderiler yüklenemedi:", err);
-    }
-    setLoading(false);
-  };
-
+  // Gerçek zamanlı dinleme (onSnapshot)
   useEffect(function () {
-    loadPosts(activeCategory);
+    var ref = PortalDB.postsRef();
+    if (!ref) { setLoading(false); return; }
+    var query = ref.orderBy("createdAt", "desc");
+    if (activeCategory && activeCategory !== "tumu") {
+      query = query.where("category", "==", activeCategory);
+    }
+    query = query.limit(50);
+    var unsubscribe = query.onSnapshot(function (snapshot) {
+      var fetched = snapshot.docs.map(function (doc) {
+        return Object.assign({}, doc.data(), { id: doc.id });
+      });
+      setPosts(fetched);
+      setLoading(false);
+    }, function (err) {
+      console.error("Gönderiler yüklenemedi:", err);
+      setLoading(false);
+    });
+    return function () { unsubscribe(); };
   }, [activeCategory]);
 
   // Yeni gönderi
@@ -1025,16 +1032,29 @@ function OgrenciPortaliApp({ currentUser }) {
     }
   };
 
-  // Arama filtresi
+  // Arama + sıralama filtresi
   var filteredPosts = useMemo(function () {
-    if (!searchQuery.trim()) return posts;
-    var q = searchQuery.toLowerCase();
-    return posts.filter(function (p) {
-      return (p.title && p.title.toLowerCase().includes(q)) ||
-             (p.content && p.content.toLowerCase().includes(q)) ||
-             (p.authorName && p.authorName.toLowerCase().includes(q));
-    });
-  }, [posts, searchQuery]);
+    var result = posts;
+    if (searchQuery.trim()) {
+      var q = searchQuery.toLowerCase();
+      result = result.filter(function (p) {
+        return (p.title && p.title.toLowerCase().includes(q)) ||
+               (p.content && p.content.toLowerCase().includes(q)) ||
+               (p.authorName && p.authorName.toLowerCase().includes(q));
+      });
+    }
+    // Sıralama
+    if (sortMode === "popular") {
+      result = [...result].sort(function (a, b) {
+        return (getReactionTotal(b.reactions) + (b.views || 0)) - (getReactionTotal(a.reactions) + (a.views || 0));
+      });
+    } else if (sortMode === "comments") {
+      result = [...result].sort(function (a, b) {
+        return (b.commentCount || 0) - (a.commentCount || 0);
+      });
+    }
+    return result;
+  }, [posts, searchQuery, sortMode]);
 
   // Sabitlenmiş gönderileri ayır
   var pinnedPosts = filteredPosts.filter(function (p) { return p.pinned; });
@@ -1092,6 +1112,32 @@ function OgrenciPortaliApp({ currentUser }) {
         alignItems: "center", flexWrap: "wrap",
       }}>
         <SearchBar value={searchQuery} onChange={setSearchQuery} />
+
+        {/* Sıralama */}
+        <div style={{ display: "flex", gap: 4, background: PC.bg, borderRadius: 10, padding: 3 }}>
+          {[
+            { id: "newest", label: "En Yeni" },
+            { id: "popular", label: "En Popüler" },
+            { id: "comments", label: "En Çok Yorum" },
+          ].map(function (s) {
+            var isActive = sortMode === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={function () { setSortMode(s.id); }}
+                style={{
+                  padding: "6px 14px", borderRadius: 8, fontSize: 12,
+                  fontWeight: isActive ? 700 : 500, cursor: "pointer",
+                  border: "none",
+                  background: isActive ? "white" : "transparent",
+                  color: isActive ? PC.navy : PC.textMuted,
+                  boxShadow: isActive ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+                  transition: "all 0.2s",
+                }}
+              >{s.label}</button>
+            );
+          })}
+        </div>
 
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           <button
