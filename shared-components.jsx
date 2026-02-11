@@ -895,6 +895,21 @@ const LoginModal = ({ onLogin }) => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [professorList, setProfessorList] = useState([]);
+
+  useEffect(() => {
+    const loadProfessors = async () => {
+      try {
+        const profs = await FirebaseDB.fetchProfessors();
+        setProfessorList(profs || []);
+      } catch (e) {
+        console.error("Error loading professors:", e);
+        // Fallback to seed if fetch fails, though ideally we want dynamic
+        setProfessorList(window.SEED_PROFESSORS || []);
+      }
+    };
+    loadProfessors();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1091,20 +1106,16 @@ const LoginModal = ({ onLogin }) => {
       }}>
         {/* Logo & Başlık */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{
+          <img src="logo.png" alt="Logo" style={{
             width: 76, height: 76, borderRadius: 22, margin: "0 auto 20px",
-            background: "linear-gradient(135deg, rgba(0,255,135,0.15) 0%, rgba(96,239,255,0.15) 100%)",
-            border: "1px solid rgba(0,255,135,0.2)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 32, fontWeight: 800, color: "#00ff87",
-            fontFamily: "'Playfair Display', serif",
-            boxShadow: "0 8px 40px rgba(0,255,135,0.15), inset 0 0 30px rgba(0,255,135,0.05)",
-          }}>Ç</div>
+            objectFit: "cover",
+            boxShadow: "0 8px 40px rgba(0,255,135,0.15)",
+          }} />
           <h1 style={{
             margin: 0, fontSize: 28, fontWeight: 700, color: "white",
             fontFamily: "'Playfair Display', serif", letterSpacing: "0.02em",
             textShadow: "0 0 30px rgba(0,255,135,0.15)",
-          }}>ÇAKÜ Yönetim Sistemi</h1>
+          }}>Online Assistant</h1>
           <p style={{ margin: "8px 0 0", fontSize: 14, color: "rgba(96,239,255,0.5)" }}>
             Çankırı Karatekin Üniversitesi
           </p>
@@ -1191,8 +1202,8 @@ const LoginModal = ({ onLogin }) => {
                   }}
                 >
                   <option value="" style={{ color: "black" }}>İsim Seçiniz...</option>
-                  {SEED_PROFESSORS.map(p => (
-                    <option key={p.name} value={p.name} style={{ color: "black" }}>{p.name}</option>
+                  {professorList.map(p => (
+                    <option key={p.id || p.name} value={p.name} style={{ color: "black" }}>{p.name}</option>
                   ))}
                 </select>
               </div>
@@ -1300,6 +1311,8 @@ const PasswordManagementModal = ({ students, onClose }) => {
   const [studentPasses, setStudentPasses] = useState({});
   const [professorPasses, setProfessorPasses] = useState({});
   const [adminPass, setAdminPass] = useState("");
+  const [professorList, setProfessorList] = useState([]);
+  const [editingProf, setEditingProf] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -1307,14 +1320,16 @@ const PasswordManagementModal = ({ students, onClose }) => {
 
   const loadAllPasswords = async () => {
     try {
-      const [sPass, pPass, aPass] = await Promise.all([
+      const [sPass, pPass, aPass, profs] = await Promise.all([
         FirebaseDB.fetchPasswords(),
         FirebaseDB.fetchProfessorPasswords(),
         FirebaseDB.fetchAdminPassword(),
+        FirebaseDB.fetchProfessors(),
       ]);
       setStudentPasses(sPass || {});
       setProfessorPasses(pPass || {});
       setAdminPass(aPass || "1605");
+      setProfessorList(profs || []);
     } catch (error) {
       console.error('Error loading passwords:', error);
     } finally {
@@ -1322,7 +1337,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
     }
   };
 
-  const handleSave = async () => {
+  const handleSavePasswords = async () => {
     setSaving(true);
     try {
       if (activeTab === "student") {
@@ -1341,8 +1356,37 @@ const PasswordManagementModal = ({ students, onClose }) => {
     }
   };
 
+  const handleDeleteProf = async (id, name) => {
+    if (!confirm(`${name} isimli akademisyeni silmek istediğinize emin misiniz?`)) return;
+    setSaving(true);
+    try {
+      await FirebaseDB.deleteProfessor(id);
+      const newProfs = await FirebaseDB.fetchProfessors();
+      setProfessorList(newProfs);
+    } catch (e) {
+      alert("Hata: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveProfessorValues = async () => {
+    if (!editingProf.name || !editingProf.department) return alert("İsim ve Bölüm zorunludur.");
+    setSaving(true);
+    try {
+      await FirebaseDB.saveProfessor(editingProf);
+      const newProfs = await FirebaseDB.fetchProfessors();
+      setProfessorList(newProfs);
+      setEditingProf(null);
+    } catch (e) {
+      alert("Hata: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <Modal open={true} onClose={onClose} title="Şifre Yönetimi" width={800}>
+    <Modal open={true} onClose={onClose} title="Yönetim Paneli" width={900}>
       <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
         {["student", "professor", "admin"].map(tab => (
           <Btn key={tab}
@@ -1358,7 +1402,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
         <div style={{ padding: 40, textAlign: 'center', color: C.textMuted }}>Yükleniyor...</div>
       ) : (
         <div>
-          <div style={{ maxHeight: 400, overflowY: 'auto', marginBottom: 24, paddingRight: 8 }}>
+          <div style={{ maxHeight: 500, overflowY: 'auto', marginBottom: 24, paddingRight: 8 }}>
 
             {activeTab === "student" && (
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1396,38 +1440,87 @@ const PasswordManagementModal = ({ students, onClose }) => {
             )}
 
             {activeTab === "professor" && (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: C.bg }}>
-                    <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Unvan & İsim</th>
-                    <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Bölüm</th>
-                    <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Şifre</th>
-                    <th style={{ padding: 12, textAlign: 'center', borderBottom: `2px solid ${C.border}` }}>İşlem</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {SEED_PROFESSORS.map((prof, idx) => (
-                    <tr key={idx} style={{ borderBottom: `1px solid ${C.border}` }}>
-                      <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{prof.name}</td>
-                      <td style={{ padding: 12 }}>{prof.department}</td>
-                      <td style={{ padding: 12 }}>
-                        <Input type="text" value={professorPasses[prof.name] || '1234'}
-                          onChange={e => setProfessorPasses(p => ({ ...p, [prof.name]: e.target.value }))} />
-                      </td>
-                      <td style={{ padding: 12, textAlign: 'center' }}>
-                        <button onClick={() => {
-                          if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz?')) {
-                            setProfessorPasses(p => ({ ...p, [prof.name]: '1234' }));
-                          }
-                        }} style={{
-                          padding: "6px 12px", fontSize: 12, border: `1px solid ${C.border}`,
-                          borderRadius: 6, background: "white", cursor: "pointer", color: C.accent,
-                        }}>Sıfırla</button>
-                      </td>
+              <div>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                  <Btn small onClick={() => setEditingProf({ name: "", department: "" })} icon={<PlusIcon />}>Yeni Ekle</Btn>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: C.bg }}>
+                      <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Unvan & İsim</th>
+                      <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Bölüm</th>
+                      <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Şifre</th>
+                      <th style={{ padding: 12, textAlign: 'center', borderBottom: `2px solid ${C.border}` }}>İşlemler</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {/* New/Editing Row at top if adding new */}
+                    {editingProf && !editingProf.id && (
+                      <tr style={{ background: "rgba(0,255,135,0.05)", borderBottom: `1px solid ${C.border}` }}>
+                        <td style={{ padding: 12 }}>
+                          <Input autoFocus value={editingProf.name} onChange={e => setEditingProf({ ...editingProf, name: e.target.value })} placeholder="Örn: Dr. Ali Veli" />
+                        </td>
+                        <td style={{ padding: 12 }}>
+                          <Input value={editingProf.department} onChange={e => setEditingProf({ ...editingProf, department: e.target.value })} placeholder="Örn: Bilgisayar Müh." />
+                        </td>
+                        <td style={{ padding: 12, color: C.textMuted }}>-</td>
+                        <td style={{ padding: 12, display: "flex", gap: 6, justifyContent: "center" }}>
+                          <Btn small onClick={handleSaveProfessorValues} disabled={saving}>Kaydet</Btn>
+                          <Btn small variant="secondary" onClick={() => setEditingProf(null)}>İptal</Btn>
+                        </td>
+                      </tr>
+                    )}
+
+                    {professorList.map((prof, idx) => {
+                      const isEditing = editingProf && editingProf.id === prof.id;
+                      return isEditing ? (
+                        <tr key={prof.id} style={{ background: "rgba(0,255,135,0.05)", borderBottom: `1px solid ${C.border}` }}>
+                          <td style={{ padding: 12 }}>
+                            <Input value={editingProf.name} onChange={e => setEditingProf({ ...editingProf, name: e.target.value })} />
+                          </td>
+                          <td style={{ padding: 12 }}>
+                            <Input value={editingProf.department} onChange={e => setEditingProf({ ...editingProf, department: e.target.value })} />
+                          </td>
+                          <td style={{ padding: 12, color: C.textMuted }}>
+                            (Şifre değişmez)
+                          </td>
+                          <td style={{ padding: 12, display: "flex", gap: 6, justifyContent: "center" }}>
+                            <Btn small onClick={handleSaveProfessorValues} disabled={saving}>Kaydet</Btn>
+                            <Btn small variant="secondary" onClick={() => setEditingProf(null)}>İptal</Btn>
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr key={prof.id || idx} style={{ borderBottom: `1px solid ${C.border}` }}>
+                          <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{prof.name}</td>
+                          <td style={{ padding: 12 }}>{prof.department}</td>
+                          <td style={{ padding: 12 }}>
+                            <Input type="text" value={professorPasses[prof.name] || '1234'}
+                              onChange={e => setProfessorPasses(p => ({ ...p, [prof.name]: e.target.value }))} />
+                          </td>
+                          <td style={{ padding: 12, display: "flex", gap: 6, justifyContent: "center" }}>
+                            <button onClick={() => setEditingProf({ ...prof })} style={{
+                              padding: "6px", border: `1px solid ${C.border}`, borderRadius: 6,
+                              background: "white", cursor: "pointer", color: C.blue, display: "flex"
+                            }} title="Düzenle"><EditIcon /></button>
+                            <button onClick={() => handleDeleteProf(prof.id, prof.name)} style={{
+                              padding: "6px", border: `1px solid ${C.border}`, borderRadius: 6,
+                              background: "white", cursor: "pointer", color: C.accent, display: "flex"
+                            }} title="Sil"><TrashIcon /></button>
+                            <button onClick={() => {
+                              if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz?')) {
+                                setProfessorPasses(p => ({ ...p, [prof.name]: '1234' }));
+                              }
+                            }} style={{
+                              padding: "6px 12px", fontSize: 12, border: `1px solid ${C.border}`,
+                              borderRadius: 6, background: "white", cursor: "pointer", color: C.accent,
+                            }}>Şifre Sıfırla</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
 
             {activeTab === "admin" && (
@@ -1445,7 +1538,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
             <Btn onClick={onClose} variant="secondary">Kapat</Btn>
-            <Btn onClick={handleSave} disabled={saving}>{saving ? 'Kaydediliyor...' : 'Kaydet'}</Btn>
+            <Btn onClick={handleSavePasswords} disabled={saving}>{saving ? 'Kaydediliyor...' : 'Şifreleri Kaydet'}</Btn>
           </div>
         </div>
       )}

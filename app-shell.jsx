@@ -74,16 +74,13 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
       }}>
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{
+          <img src="logo.png" alt="Logo" style={{
             width: 40, height: 40, borderRadius: 10,
-            background: "rgba(255,255,255,0.15)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 20, fontWeight: 700, color: "#C4973B",
-            fontFamily: "'Playfair Display', serif",
-          }}>Ç</div>
+            objectFit: "cover"
+          }} />
           <div>
             <div style={{ color: "white", fontSize: 16, fontWeight: 700, fontFamily: "'Playfair Display', serif", letterSpacing: "0.02em" }}>
-              ÇAKÜ Yönetim Sistemi
+              Online Assistant
             </div>
             <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>
               Çankırı Karatekin Üniversitesi
