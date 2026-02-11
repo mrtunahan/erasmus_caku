@@ -54,6 +54,7 @@ const SINIF_COLORS = {
   2: { bg: "#C8E6C9", text: "#1B5E20", label: "2. Sınıf" },
   3: { bg: "#FFE0B2", text: "#E65100", label: "3. Sınıf" },
   4: { bg: "#F8BBD0", text: "#880E4F", label: "4. Sınıf" },
+  5: { bg: "#E1BEE7", text: "#4A148C", label: "Seçmeli Dersler" },
 };
 
 // ── Bölüm Sınıfları ve Gözetmenler ──
@@ -322,7 +323,7 @@ function getCoursesRef() {
 
 function getProfessorsRef() {
   if (!window.firebase || !window.firebase.firestore) return null;
-  return window.firebase.firestore().collection("sinav_hocalar");
+  return window.firebase.firestore().collection("professors"); // Global collection
 }
 
 function getPeriodsRef() {
@@ -445,11 +446,17 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
         <div style={{ padding: 12, background: SINIF_COLORS[exam.sinif]?.bg || "#f0f0f0", borderRadius: 8, fontSize: 14 }}>
           <strong>{exam.code}</strong> - {exam.name}
         </div>
-        <FormField label="Öğretim Üyesi">
-          <Input value={professor} onChange={e => setProfessor(e.target.value)} placeholder="Hoca adı" list="prof-list" />
+        <FormField label="Akademisyen">
+          <Input value={professor} onChange={e => setProfessor(e.target.value)} placeholder="Akademisyen ismi" list="prof-list" />
           <datalist id="prof-list">
             {(professors || []).map((p, i) => <option key={i} value={p.name} />)}
           </datalist>
+        </FormField>
+
+        <FormField label="Sınıf (Dersin ait olduğu sınıfı değiştirebilirsiniz)">
+          <Select value={exam.sinif} onChange={e => onSave({ ...exam, sinif: parseInt(e.target.value) })}>
+            {[1, 2, 3, 4].map(s => <option key={s} value={s}>{s}. Sınıf</option>)}
+          </Select>
         </FormField>
         <FormField label="Sınav Süresi (dk)">
           <Select value={duration} onChange={e => setDuration(e.target.value)}>
@@ -515,7 +522,7 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
               <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: `2px solid ${C.border}` }}>Ders Adı</th>
               <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>Sınıf</th>
               <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>Süre</th>
-              <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: `2px solid ${C.border}` }}>Hoca</th>
+              <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: `2px solid ${C.border}` }}>Akademisyen</th>
               <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>İşlem</th>
             </tr>
           </thead>
@@ -560,11 +567,11 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
                 {[30, 45, 60, 75, 90, 105, 120].map(d => <option key={d} value={d}>{d} dk</option>)}
               </Select>
             </FormField>
-            <FormField label="Hoca">
+            <FormField label="Akademisyen">
               <Input
                 value={form.professor}
                 onChange={e => setForm({ ...form, professor: e.target.value })}
-                placeholder="Hoca adı yazın..."
+                placeholder="Akademisyen ismi yazın..."
                 list="course-prof-list"
               />
               <datalist id="course-prof-list">
@@ -1266,7 +1273,7 @@ function SinavOtomasyonuApp({ currentUser }) {
         await cRef.add({ ...course, studentCount: 0, createdAt: new Date().toISOString() });
       }
 
-      alert("Veriler başarıyla yüklendi! " + SEED_COURSES.length + " ders, " + SEED_PROFESSORS.length + " hoca eklendi.");
+      alert("Veriler başarıyla yüklendi! " + SEED_COURSES.length + " ders, " + SEED_PROFESSORS.length + " akademisyen eklendi.");
       loadData();
     } catch (e) {
       console.error("Seed error:", e);
@@ -1345,9 +1352,14 @@ function SinavOtomasyonuApp({ currentUser }) {
   }, [courses, periodExams, filterSinif, courseSearch]);
 
   const groupedPool = useMemo(() => {
-    const groups = { 1: [], 2: [], 3: [], 4: [] };
+    const groups = { 1: [], 2: [], 3: [], 4: [], 5: [] };
     poolCourses.forEach(c => {
-      if (groups[c.sinif]) groups[c.sinif].push(c);
+      // Check for Elective (Seçmeli)
+      if (c.name.toLowerCase().includes("seçmeli") || c.name.toLowerCase().includes("secimlik") || c.code.startsWith("SEÇ")) {
+        groups[5].push(c);
+      } else {
+        if (groups[c.sinif]) groups[c.sinif].push(c);
+      }
     });
     return groups;
   }, [poolCourses]);
@@ -1660,7 +1672,7 @@ function SinavOtomasyonuApp({ currentUser }) {
                       type="text"
                       value={courseSearch}
                       onChange={e => setCourseSearch(e.target.value)}
-                      placeholder="Ders ara (kod, ad, hoca)..."
+                      placeholder="Ders ara (kod, ad, akademisyen)..."
                       style={{
                         width: "100%", padding: "6px 28px 6px 8px",
                         border: `1px solid ${C.border}`, borderRadius: 6,
@@ -1690,7 +1702,7 @@ function SinavOtomasyonuApp({ currentUser }) {
                     </select>
                   </div>
 
-                  {[1, 2, 3, 4].map(sinif => {
+                  {[1, 2, 3, 4, 5].map(sinif => {
                     if (filterSinif > 0 && filterSinif !== sinif) return null;
                     const group = groupedPool[sinif];
                     if (!group || group.length === 0) return null;
