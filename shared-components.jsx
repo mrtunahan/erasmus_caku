@@ -141,7 +141,39 @@ const ICONS = {
 window.DY = DY;
 window.ICONS = ICONS;
 
-const FONTS_LINK = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap";
+// ── Utility Functions ──
+const generateColorFromString = (str) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = [
+    "#EF4444", "#F97316", "#EAB308", "#22C55E", "#10B981",
+    "#06B6D4", "#3B82F6", "#6366F1", "#8B5CF6", "#A855F7",
+    "#EC4899", "#F43F5E"
+  ];
+  return colors[Math.abs(hash) % colors.length];
+};
+
+// ── Shared Constants ──
+const SEED_PROFESSORS = [
+  { name: "Prof. Dr. Hamit ALYAR", department: "Fizik", isExternal: true },
+  { name: "Prof. Dr. Çiğdem YÜKSEKTEPE ATAOL", department: "Kimya", isExternal: true },
+  { name: "Dr. Öğr. Üyesi Celalettin KAYA", department: "Matematik", isExternal: true },
+  { name: "Dr. Öğr. Üyesi Esma Baran ÖZKAN", department: "Matematik", isExternal: true },
+  { name: "Dr. Öğr. Üyesi Taha ETEM", department: "Bilgisayar", isExternal: false },
+  { name: "Dr. Öğr. Üyesi Seda ŞAHİN", department: "Bilgisayar", isExternal: false },
+  { name: "Dr. Öğr. Üyesi Fatih ISSI", department: "Bilgisayar", isExternal: false },
+  { name: "Doç. Dr. Selim BÜYÜKOĞLU", department: "Bilgisayar", isExternal: false },
+  { name: "Dr. Mehmet Akif ALPER", department: "Bilgisayar", isExternal: false },
+  { name: "Prof. Dr. İlyas İNCİ", department: "Matematik", isExternal: true },
+  { name: "Dr. Selim SÜRÜCÜ", department: "Bilgisayar", isExternal: false },
+  { name: "Dr. Uğur BİNZAT", department: "İstatistik", isExternal: true },
+  { name: "Dr. Alime YILMAZ", department: "Yabancı Diller", isExternal: true },
+  { name: "Dr. Öğr. Üyesi Osman GÜLER", department: "Bilgisayar", isExternal: false },
+];
+
+const FONTS_LINK = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap";
 
 // ── Styles ──
 const sharedStyles = {
@@ -398,6 +430,54 @@ const FirebaseDB = {
       return true;
     } catch (error) {
       console.error('Error updating password:', error);
+      throw error;
+    }
+  },
+
+  // ── Admin Password ──
+  async fetchAdminPassword() {
+    try {
+      const ref = FirebaseDB.passwordsRef();
+      if (!ref) return null;
+      const doc = await ref.doc('admin').get();
+      return doc.exists ? doc.data().password : null;
+    } catch (error) {
+      console.error('Error fetching admin password:', error);
+      return null;
+    }
+  },
+  async saveAdminPassword(password) {
+    try {
+      const ref = FirebaseDB.passwordsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      await ref.doc('admin').set({ password, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+      return true;
+    } catch (error) {
+      console.error('Error saving admin password:', error);
+      throw error;
+    }
+  },
+
+  // ── Professor Passwords ──
+  async fetchProfessorPasswords() {
+    try {
+      const ref = FirebaseDB.passwordsRef();
+      if (!ref) return {};
+      const doc = await ref.doc('professor_passwords').get();
+      return doc.exists ? doc.data() : {};
+    } catch (error) {
+      console.error('Error fetching professor passwords:', error);
+      return {};
+    }
+  },
+  async saveProfessorPasswords(passwords) {
+    try {
+      const ref = FirebaseDB.passwordsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      await ref.doc('professor_passwords').set(passwords, { merge: true });
+      return true;
+    } catch (error) {
+      console.error('Error saving professor passwords:', error);
       throw error;
     }
   },
@@ -809,33 +889,45 @@ const Badge = ({ children, color = C.green, bg = C.greenLight }) => (
 
 // ── Login Modal ──
 const LoginModal = ({ onLogin }) => {
-  const [studentNumber, setStudentNumber] = useState("");
+  const [activeTab, setActiveTab] = useState("student"); // student, professor, admin
+  const [identifier, setIdentifier] = useState(""); // studentNo or professorName
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [isAdminMode, setIsAdminMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const ADMIN_PASSWORD = "\x31\x36\x30\x35";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
+
     try {
-      if (isAdminMode) {
-        if (password === ADMIN_PASSWORD) {
-          onLogin({ role: 'admin', name: 'Admin', studentNumber: null });
+      if (activeTab === "admin") {
+        const storedAdminPassword = await FirebaseDB.fetchAdminPassword();
+        const validPassword = storedAdminPassword || "1605"; // Default fallback if not set
+        if (password === validPassword) {
+          onLogin({ role: "admin", name: "Admin", studentNumber: null });
         } else {
           setError("Admin şifresi yanlış!");
         }
-      } else {
-        if (!studentNumber.trim()) { setError("Öğrenci numarası gerekli!"); setLoading(false); return; }
+      } else if (activeTab === "professor") {
+        if (!identifier.trim()) { setError("Akademisyen seçimi gerekli!"); setLoading(false); return; }
+        const passwords = await FirebaseDB.fetchProfessorPasswords();
+        const validPassword = passwords[identifier] || "1234"; // Default
+        if (password === validPassword) {
+          onLogin({ role: "professor", name: identifier, studentNumber: null });
+        } else {
+          setError("Şifre yanlış!");
+        }
+      } else { // student
+        if (!identifier.trim()) { setError("Öğrenci numarası gerekli!"); setLoading(false); return; }
         const passwords = await FirebaseDB.fetchPasswords();
-        if (passwords[studentNumber] === password) {
+        const validPassword = passwords[identifier] || "1234"; // Default
+        if (password === validPassword) {
           const students = await FirebaseDB.fetchStudents();
-          const student = students.find(s => s.studentNumber === studentNumber);
+          const student = students.find(s => s.studentNumber === identifier);
           if (student) {
-            onLogin({ role: 'student', name: `${student.firstName} ${student.lastName}`, studentNumber });
+            onLogin({ role: "student", name: `${student.firstName} ${student.lastName}`, studentNumber: identifier });
           } else {
             setError("Öğrenci bulunamadı!");
           }
@@ -844,8 +936,8 @@ const LoginModal = ({ onLogin }) => {
         }
       }
     } catch (err) {
-      console.error('Login error:', err);
-      setError("Giriş sırasında hata oluştu. Lütfen tekrar deneyin.");
+      console.error("Login error:", err);
+      setError("Giriş hatası: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -1035,22 +1127,23 @@ const LoginModal = ({ onLogin }) => {
           {/* Sekmeler */}
           <div style={{ display: "flex", borderBottom: "1px solid rgba(0,255,135,0.06)" }}>
             {[
-              { key: false, label: "Öğrenci Girişi", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
-              { key: true, label: "Admin Girişi", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
+              { key: "student", label: "Öğrenci", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+              { key: "professor", label: "Akademisyen", icon: "M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" },
+              { key: "admin", label: "Admin", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
             ].map(tab => {
-              const active = isAdminMode === tab.key;
+              const active = activeTab === tab.key;
               return (
-                <button key={String(tab.key)} onClick={() => { setIsAdminMode(tab.key); setError(""); }} style={{
-                  flex: 1, padding: "16px 20px", border: "none", cursor: "pointer",
+                <button key={tab.key} onClick={() => { setActiveTab(tab.key); setError(""); setIdentifier(""); setPassword(""); }} type="button" style={{
+                  flex: 1, padding: "16px 10px", border: "none", cursor: "pointer",
                   background: active ? "rgba(0,255,135,0.06)" : "transparent",
                   color: active ? "#00ff87" : "rgba(255,255,255,0.35)",
-                  fontSize: 14, fontWeight: 600,
+                  fontSize: 13, fontWeight: 600,
                   borderBottom: active ? "2px solid #00ff87" : "2px solid transparent",
                   transition: "all 0.25s ease",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                   fontFamily: "'Source Sans 3', sans-serif",
                 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={tab.icon} /></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={tab.icon} /></svg>
                   {tab.label}
                 </button>
               );
@@ -1059,7 +1152,8 @@ const LoginModal = ({ onLogin }) => {
 
           {/* Form */}
           <form onSubmit={handleSubmit} style={{ padding: 28 }}>
-            {!isAdminMode && (
+
+            {activeTab === "student" && (
               <div style={{ marginBottom: 20 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
                   Öğrenci Numarası
@@ -1068,7 +1162,7 @@ const LoginModal = ({ onLogin }) => {
                   <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(0,255,135,0.3)" }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                   </div>
-                  <input value={studentNumber} onChange={e => setStudentNumber(e.target.value)} placeholder="Örn: AND43" autoFocus
+                  <input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Örn: AND43" autoFocus
                     style={{
                       width: "100%", padding: "14px 16px 14px 44px", borderRadius: 12,
                       border: "1px solid rgba(0,255,135,0.1)", background: "rgba(0,255,135,0.03)",
@@ -1083,6 +1177,27 @@ const LoginModal = ({ onLogin }) => {
               </div>
             )}
 
+            {activeTab === "professor" && (
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                  Akademisyen Seçimi
+                </label>
+                <select value={identifier} onChange={e => setIdentifier(e.target.value)}
+                  style={{
+                    width: "100%", padding: "14px 16px", borderRadius: 12,
+                    border: "1px solid rgba(0,255,135,0.1)", background: "rgba(0,255,135,0.03)",
+                    color: "white", fontSize: 15, outline: "none",
+                    fontFamily: "'Source Sans 3', sans-serif", cursor: "pointer",
+                  }}
+                >
+                  <option value="" style={{ color: "black" }}>İsim Seçiniz...</option>
+                  {SEED_PROFESSORS.map(p => (
+                    <option key={p.name} value={p.name} style={{ color: "black" }}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div style={{ marginBottom: 24 }}>
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
                 Şifre
@@ -1092,7 +1207,7 @@ const LoginModal = ({ onLogin }) => {
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                 </div>
                 <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder={isAdminMode ? "Admin şifresi" : "Öğrenci şifresi"} autoFocus={isAdminMode}
+                  placeholder={activeTab === "admin" ? "Admin şifresi" : "Şifreniz"} autoFocus={activeTab === "admin"}
                   style={{
                     width: "100%", padding: "14px 48px 14px 44px", borderRadius: 12,
                     border: "1px solid rgba(0,255,135,0.1)", background: "rgba(0,255,135,0.03)",
@@ -1149,7 +1264,7 @@ const LoginModal = ({ onLogin }) => {
                 </>
               ) : (
                 <>
-                  {isAdminMode ? "Admin Olarak Giriş Yap" : "Öğrenci Olarak Giriş Yap"}
+                  Giriş Yap
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
                 </>
               )}
@@ -1164,10 +1279,7 @@ const LoginModal = ({ onLogin }) => {
             }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(0,255,135,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
               <span>
-                {isAdminMode
-                  ? "Admin girişi için yetkili şifrenizi kullanın."
-                  : <>Varsayılan öğrenci şifresi: <code style={{ background: "rgba(0,255,135,0.08)", padding: "2px 8px", borderRadius: 4, color: "#00ff87", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>1234</code></>
-                }
+                Varsayılan Şifre: <code style={{ background: "rgba(0,255,135,0.08)", padding: "2px 8px", borderRadius: 4, color: "#00ff87", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>1234</code>. Admin için: <code style={{ background: "rgba(0,255,135,0.08)", padding: "2px 8px", borderRadius: 4, color: "#00ff87", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>1605</code>
               </span>
             </div>
           </form>
@@ -1184,16 +1296,25 @@ const LoginModal = ({ onLogin }) => {
 
 // ── Password Management Modal ──
 const PasswordManagementModal = ({ students, onClose }) => {
-  const [passwords, setPasswords] = useState({});
+  const [activeTab, setActiveTab] = useState("student"); // student, professor, admin
+  const [studentPasses, setStudentPasses] = useState({});
+  const [professorPasses, setProfessorPasses] = useState({});
+  const [adminPass, setAdminPass] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { loadPasswords(); }, []);
+  useEffect(() => { loadAllPasswords(); }, []);
 
-  const loadPasswords = async () => {
+  const loadAllPasswords = async () => {
     try {
-      const fetched = await FirebaseDB.fetchPasswords();
-      setPasswords(fetched);
+      const [sPass, pPass, aPass] = await Promise.all([
+        FirebaseDB.fetchPasswords(),
+        FirebaseDB.fetchProfessorPasswords(),
+        FirebaseDB.fetchAdminPassword(),
+      ]);
+      setStudentPasses(sPass || {});
+      setProfessorPasses(pPass || {});
+      setAdminPass(aPass || "1605");
     } catch (error) {
       console.error('Error loading passwords:', error);
     } finally {
@@ -1204,60 +1325,127 @@ const PasswordManagementModal = ({ students, onClose }) => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await FirebaseDB.passwordsRef().doc('student_passwords').set(passwords);
-      alert('Sifreler kaydedildi!');
-      onClose();
+      if (activeTab === "student") {
+        await FirebaseDB.passwordsRef().doc('student_passwords').set(studentPasses);
+      } else if (activeTab === "professor") {
+        await FirebaseDB.saveProfessorPasswords(professorPasses);
+      } else if (activeTab === "admin") {
+        await FirebaseDB.saveAdminPassword(adminPass);
+      }
+      alert('Şifreler kaydedildi!');
     } catch (error) {
       console.error('Error saving passwords:', error);
-      alert('Sifreler kaydedilirken hata olustu.');
+      alert('Hata: ' + error.message);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Modal open={true} onClose={onClose} title="Sifre Yonetimi" width={800}>
+    <Modal open={true} onClose={onClose} title="Şifre Yönetimi" width={800}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+        {["student", "professor", "admin"].map(tab => (
+          <Btn key={tab}
+            variant={activeTab === tab ? "primary" : "secondary"}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab === "student" ? "Öğrenciler" : tab === "professor" ? "Akademisyenler" : "Admin"}
+          </Btn>
+        ))}
+      </div>
+
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: C.textMuted }}>Yukleniyor...</div>
+        <div style={{ padding: 40, textAlign: 'center', color: C.textMuted }}>Yükleniyor...</div>
       ) : (
         <div>
-          <div style={{ maxHeight: 400, overflowY: 'auto', marginBottom: 24 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: C.bg }}>
-                  <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Ogrenci No</th>
-                  <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Ad Soyad</th>
-                  <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Sifre</th>
-                  <th style={{ padding: 12, textAlign: 'center', borderBottom: `2px solid ${C.border}` }}>Islem</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map(student => (
-                  <tr key={student.studentNumber} style={{ borderBottom: `1px solid ${C.border}` }}>
-                    <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{student.studentNumber}</td>
-                    <td style={{ padding: 12 }}>{student.firstName} {student.lastName}</td>
-                    <td style={{ padding: 12 }}>
-                      <Input type="text" value={passwords[student.studentNumber] || '1234'}
-                        onChange={e => setPasswords(p => ({ ...p, [student.studentNumber]: e.target.value }))} />
-                    </td>
-                    <td style={{ padding: 12, textAlign: 'center' }}>
-                      <button onClick={() => {
-                        if (confirm('Sifreyi sifirlamak istediginizden emin misiniz?')) {
-                          setPasswords(p => ({ ...p, [student.studentNumber]: '1234' }));
-                        }
-                      }} style={{
-                        padding: "6px 12px", fontSize: 12, border: `1px solid ${C.border}`,
-                        borderRadius: 6, background: "white", cursor: "pointer", color: C.accent,
-                      }}>Sifirla</button>
-                    </td>
+          <div style={{ maxHeight: 400, overflowY: 'auto', marginBottom: 24, paddingRight: 8 }}>
+
+            {activeTab === "student" && (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: C.bg }}>
+                    <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Öğrenci No</th>
+                    <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Ad Soyad</th>
+                    <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Şifre</th>
+                    <th style={{ padding: 12, textAlign: 'center', borderBottom: `2px solid ${C.border}` }}>İşlem</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {students.map(student => (
+                    <tr key={student.studentNumber} style={{ borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{student.studentNumber}</td>
+                      <td style={{ padding: 12 }}>{student.firstName} {student.lastName}</td>
+                      <td style={{ padding: 12 }}>
+                        <Input type="text" value={studentPasses[student.studentNumber] || '1234'}
+                          onChange={e => setStudentPasses(p => ({ ...p, [student.studentNumber]: e.target.value }))} />
+                      </td>
+                      <td style={{ padding: 12, textAlign: 'center' }}>
+                        <button onClick={() => {
+                          if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz?')) {
+                            setStudentPasses(p => ({ ...p, [student.studentNumber]: '1234' }));
+                          }
+                        }} style={{
+                          padding: "6px 12px", fontSize: 12, border: `1px solid ${C.border}`,
+                          borderRadius: 6, background: "white", cursor: "pointer", color: C.accent,
+                        }}>Sıfırla</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {activeTab === "professor" && (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: C.bg }}>
+                    <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Unvan & İsim</th>
+                    <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Bölüm</th>
+                    <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Şifre</th>
+                    <th style={{ padding: 12, textAlign: 'center', borderBottom: `2px solid ${C.border}` }}>İşlem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SEED_PROFESSORS.map((prof, idx) => (
+                    <tr key={idx} style={{ borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{prof.name}</td>
+                      <td style={{ padding: 12 }}>{prof.department}</td>
+                      <td style={{ padding: 12 }}>
+                        <Input type="text" value={professorPasses[prof.name] || '1234'}
+                          onChange={e => setProfessorPasses(p => ({ ...p, [prof.name]: e.target.value }))} />
+                      </td>
+                      <td style={{ padding: 12, textAlign: 'center' }}>
+                        <button onClick={() => {
+                          if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz?')) {
+                            setProfessorPasses(p => ({ ...p, [prof.name]: '1234' }));
+                          }
+                        }} style={{
+                          padding: "6px 12px", fontSize: 12, border: `1px solid ${C.border}`,
+                          borderRadius: 6, background: "white", cursor: "pointer", color: C.accent,
+                        }}>Sıfırla</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {activeTab === "admin" && (
+              <div style={{ padding: 20, textAlign: 'center' }}>
+                <div style={{ marginBottom: 16, fontWeight: 600, color: C.navy }}>Admin Giriş Şifresi</div>
+                <div style={{ maxWidth: 300, margin: '0 auto' }}>
+                  <Input type="text" value={adminPass} onChange={e => setAdminPass(e.target.value)} style={{ textAlign: 'center', fontSize: 18, letterSpacing: 2 }} />
+                </div>
+                <div style={{ marginTop: 12, fontSize: 13, color: C.textMuted }}>
+                  Bu şifre ile Admin paneline erişim sağlanır.
+                </div>
+              </div>
+            )}
+
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-            <Btn onClick={onClose} variant="secondary">Iptal</Btn>
-            <Btn onClick={handleSave} disabled={saving}>{saving ? 'Kaydediliyor...' : 'Tumunu Kaydet'}</Btn>
+            <Btn onClick={onClose} variant="secondary">Kapat</Btn>
+            <Btn onClick={handleSave} disabled={saving}>{saving ? 'Kaydediliyor...' : 'Kaydet'}</Btn>
           </div>
         </div>
       )}
@@ -1336,6 +1524,7 @@ window.Select = Select;
 window.FormField = FormField;
 window.Modal = Modal;
 window.Badge = Badge;
+window.SEED_PROFESSORS = SEED_PROFESSORS;
 window.LoginModal = LoginModal;
 window.PasswordManagementModal = PasswordManagementModal;
 window.GradeConverter = GradeConverter;

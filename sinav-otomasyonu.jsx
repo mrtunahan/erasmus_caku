@@ -152,22 +152,7 @@ const EXAM_TYPES = [
 ];
 
 // ── Seed Data: 14 Hoca ──
-const SEED_PROFESSORS = [
-  { name: "Prof. Dr. Hamit ALYAR", department: "Fizik", isExternal: true },
-  { name: "Prof. Dr. Çiğdem YÜKSEKTEPE ATAOL", department: "Kimya", isExternal: true },
-  { name: "Dr. Öğr. Üyesi Celalettin KAYA", department: "Matematik", isExternal: true },
-  { name: "Dr. Öğr. Üyesi Esma Baran ÖZKAN", department: "Matematik", isExternal: true },
-  { name: "Dr. Öğr. Üyesi Taha ETEM", department: "Bilgisayar", isExternal: false },
-  { name: "Dr. Öğr. Üyesi Seda ŞAHİN", department: "Bilgisayar", isExternal: false },
-  { name: "Dr. Öğr. Üyesi Fatih ISSI", department: "Bilgisayar", isExternal: false },
-  { name: "Doç. Dr. Selim BÜYÜKOĞLU", department: "Bilgisayar", isExternal: false },
-  { name: "Dr. Mehmet Akif ALPER", department: "Bilgisayar", isExternal: false },
-  { name: "Prof. Dr. İlyas İNCİ", department: "Matematik", isExternal: true },
-  { name: "Dr. Selim SÜRÜCÜ", department: "Bilgisayar", isExternal: false },
-  { name: "Dr. Uğur BİNZAT", department: "İstatistik", isExternal: true },
-  { name: "Dr. Alime YILMAZ", department: "Yabancı Diller", isExternal: true },
-  { name: "Dr. Öğr. Üyesi Osman GÜLER", department: "Bilgisayar", isExternal: false },
-];
+const SEED_PROFESSORS = window.SEED_PROFESSORS; // Shared component'ten geliyor
 
 // ── Seed Data: Dersler ──
 const SEED_COURSES = [
