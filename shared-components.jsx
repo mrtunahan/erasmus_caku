@@ -1329,7 +1329,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
       setStudentPasses(sPass || {});
       setProfessorPasses(pPass || {});
       setAdminPass(aPass || "1605");
-      setProfessorList(profs || []);
+      setProfessorList((profs || []).sort((a, b) => a.name.localeCompare(b.name)));
     } catch (error) {
       console.error('Error loading passwords:', error);
     } finally {

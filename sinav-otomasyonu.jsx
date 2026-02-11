@@ -527,13 +527,16 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
             </tr>
           </thead>
           <tbody>
-            {courses.map((c, i) => (
+            {[...courses].sort((a, b) => {
+              if (a.sinif !== b.sinif) return a.sinif - b.sinif;
+              return a.code.localeCompare(b.code);
+            }).map((c, i) => (
               <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
                 <td style={{ padding: "8px 12px" }}>
                   <Badge style={{ background: SINIF_COLORS[c.sinif]?.bg, color: SINIF_COLORS[c.sinif]?.text }}>{c.code}</Badge>
                 </td>
                 <td style={{ padding: "8px 12px" }}>{c.name}</td>
-                <td style={{ padding: "8px 12px", textAlign: "center" }}>{c.sinif}. Sınıf</td>
+                <td style={{ padding: "8px 12px", textAlign: "center" }}>{c.sinif === 5 ? "Seçmeli" : `${c.sinif}. Sınıf`}</td>
                 <td style={{ padding: "8px 12px", textAlign: "center" }}>{c.duration} dk</td>
                 <td style={{ padding: "8px 12px", fontSize: 12 }}>{c.professor || "-"}</td>
                 <td style={{ padding: "8px 12px", textAlign: "center" }}>
@@ -559,7 +562,7 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 12 }}>
             <FormField label="Sınıf">
               <Select value={form.sinif} onChange={e => setForm({ ...form, sinif: parseInt(e.target.value) })}>
-                {[1, 2, 3, 4].map(s => <option key={s} value={s}>{s}. Sınıf</option>)}
+                {[1, 2, 3, 4, 5].map(s => <option key={s} value={s}>{s === 5 ? "Seçmeli" : `${s}. Sınıf`}</option>)}
               </Select>
             </FormField>
             <FormField label="Süre (dk)">
@@ -1296,7 +1299,7 @@ function SinavOtomasyonuApp({ currentUser }) {
       }
       if (pRef) {
         const snap = await pRef.get();
-        setProfessors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setProfessors(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name)));
       }
       if (perRef) {
         const snap = await perRef.get();
