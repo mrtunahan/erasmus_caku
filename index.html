@@ -146,12 +146,17 @@
       const response = await fetch(file + '?v=' + Date.now());
       if (!response.ok) throw new Error(`${file} yuklenemedi (HTTP ${response.status})`);
       const jsxCode = await response.text();
-      const transformedCode = Babel.transform(jsxCode, {
-        presets: ['react'],
-        filename: file,
-      }).code;
-      eval(transformedCode);
-      console.log(`Loaded: ${file}`);
+      try {
+        const transformedCode = Babel.transform(jsxCode, {
+          presets: ['react'],
+          filename: file,
+        }).code;
+        eval(transformedCode);
+        console.log(`Loaded: ${file}`);
+      } catch (e) {
+        console.error(`Babel/eval error in ${file}:`, e);
+        throw e;
+      }
     }
 
     async function loadApp() {

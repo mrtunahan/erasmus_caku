@@ -190,14 +190,15 @@ function AppShell() {
 
   // Render active module
   const renderModule = () => {
-    switch (route) {
-      case "erasmus":
-        return React.createElement(window.ErasmusLearningAgreementApp, { currentUser });
-      case "sinav":
-        return React.createElement(window.SinavOtomasyonuApp, { currentUser });
-      default:
-        return React.createElement(window.ErasmusLearningAgreementApp, { currentUser });
+    const components = {
+      erasmus: window.ErasmusLearningAgreementApp,
+      sinav: window.SinavOtomasyonuApp,
+    };
+    const Component = components[route] || components.erasmus;
+    if (!Component) {
+      return <div style={{ padding: 60, textAlign: "center", color: "#c00" }}>Modül yüklenemedi. Lütfen sayfayı yenileyin (Ctrl+Shift+R).</div>;
     }
+    return React.createElement(Component, { currentUser });
   };
 
   return (
