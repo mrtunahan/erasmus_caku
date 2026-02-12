@@ -686,7 +686,7 @@ const generateOutgoingWordDoc = (student) => {
   const semester = student.semester || "Fall 2025";
   const [season, year] = semester.split(" ");
   const seasonTR = season === "Fall" ? "Güz" : "Bahar";
-  const academicYear = season === "Fall" ? `${year}-${parseInt(year)+1}` : `${parseInt(year)-1}-${year}`;
+  const academicYear = season === "Fall" ? `${year}-${parseInt(year) + 1}` : `${parseInt(year) - 1}-${year}`;
   const donemText = seasonTR;
 
   // Determine Statüsü: S for elective, Z for others
@@ -760,7 +760,7 @@ const generateReturnWordDoc = (student) => {
   const semester = student.semester || "Fall 2025";
   const [season, year] = semester.split(" ");
   const seasonTR = season === "Fall" ? "Güz" : "Bahar";
-  const academicYear = season === "Fall" ? `${year}-${parseInt(year)+1}` : `${parseInt(year)-1}-${year}`;
+  const academicYear = season === "Fall" ? `${year}-${parseInt(year) + 1}` : `${parseInt(year) - 1}-${year}`;
 
   // Determine Statüsü: S for elective, Z for others
   const getStatus = (course) => {
@@ -947,107 +947,109 @@ function ErasmusLearningAgreementApp({ currentUser }) {
   }
 
   return (
-    <div>
-      {/* Actions Bar */}
-      <Card>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: 12, flex: 1, minWidth: 300 }}>
-            <div style={{ flex: 1, maxWidth: 350 }}>
-              <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Öğrenci ara (ad, numara, kurum)..." />
+    <div className="portal-bg">
+      <div className="portal-wrap">
+        {/* Actions Bar */}
+        <Card>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 12, flex: 1, minWidth: 300 }}>
+              <div style={{ flex: 1, maxWidth: 350 }}>
+                <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Öğrenci ara (ad, numara, kurum)..." />
+              </div>
+              <select value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}
+                style={{ padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer", minWidth: 150 }}>
+                {semesters.map(sem => {
+                  let displayText = sem === "all" ? "Tüm Dönemler" : sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Güz");
+                  return <option key={sem} value={sem}>{displayText}</option>;
+                })}
+              </select>
             </div>
-            <select value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}
-              style={{ padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer", minWidth: 150 }}>
-              {semesters.map(sem => {
-                let displayText = sem === "all" ? "Tüm Dönemler" : sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Güz");
-                return <option key={sem} value={sem}>{displayText}</option>;
-              })}
-            </select>
+            <div style={{ display: "flex", gap: 10 }}>
+              {currentUser?.role === 'admin' && (
+                <>
+                  <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
+                  <Btn onClick={() => fileInputRef.current?.click()} variant="secondary" icon={<UploadIcon />}>İçe Aktar</Btn>
+                  <Btn onClick={exportAllData} variant="secondary" icon={<DownloadIcon />}>Tümünü Dışa Aktar</Btn>
+                  <Btn onClick={handleAddStudent} icon={<PlusIcon />}>Yeni Öğrenci Ekle</Btn>
+                  <Btn onClick={() => setShowPasswordModal(true)} variant="secondary">Şifre Yönetimi</Btn>
+                </>
+              )}
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            {currentUser?.role === 'admin' && (
-              <>
-                <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
-                <Btn onClick={() => fileInputRef.current?.click()} variant="secondary" icon={<UploadIcon />}>İçe Aktar</Btn>
-                <Btn onClick={exportAllData} variant="secondary" icon={<DownloadIcon />}>Tümünü Dışa Aktar</Btn>
-                <Btn onClick={handleAddStudent} icon={<PlusIcon />}>Yeni Öğrenci Ekle</Btn>
-                <Btn onClick={() => setShowPasswordModal(true)} variant="secondary">Şifre Yönetimi</Btn>
-              </>
-            )}
-          </div>
+        </Card>
+
+        {/* Statistics */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 24 }}>
+          {[
+            { label: "Toplam Öğrenci", value: students.length, color: C.navy },
+            { label: "Gidiş Eşleştirmeleri", value: students.reduce((sum, s) => sum + s.outgoingMatches.length, 0), color: C.green },
+            { label: "Dönüş Eşleştirmeleri", value: students.reduce((sum, s) => sum + s.returnMatches.length, 0), color: C.gold },
+            { label: "Ortalama Eşleştirme", value: students.length > 0 ? ((students.reduce((sum, s) => sum + s.outgoingMatches.length + s.returnMatches.length, 0)) / students.length).toFixed(1) : 0, color: C.accent },
+          ].map((stat, i) => (
+            <Card key={i} noPadding>
+              <div style={{ padding: 24, textAlign: "center" }}>
+                <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 8 }}>{stat.label}</div>
+                <div style={{ fontSize: 36, fontWeight: 700, color: stat.color, fontFamily: "'Playfair Display', serif" }}>{stat.value}</div>
+              </div>
+            </Card>
+          ))}
         </div>
-      </Card>
 
-      {/* Statistics */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 24 }}>
-        {[
-          { label: "Toplam Öğrenci", value: students.length, color: C.navy },
-          { label: "Gidiş Eşleştirmeleri", value: students.reduce((sum, s) => sum + s.outgoingMatches.length, 0), color: C.green },
-          { label: "Dönüş Eşleştirmeleri", value: students.reduce((sum, s) => sum + s.returnMatches.length, 0), color: C.gold },
-          { label: "Ortalama Eşleştirme", value: students.length > 0 ? ((students.reduce((sum, s) => sum + s.outgoingMatches.length + s.returnMatches.length, 0)) / students.length).toFixed(1) : 0, color: C.accent },
-        ].map((stat, i) => (
-          <Card key={i} noPadding>
-            <div style={{ padding: 24, textAlign: "center" }}>
-              <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 8 }}>{stat.label}</div>
-              <div style={{ fontSize: 36, fontWeight: 700, color: stat.color, fontFamily: "'Playfair Display', serif" }}>{stat.value}</div>
-            </div>
-          </Card>
-        ))}
-      </div>
+        {/* Grade Conversion */}
+        <Card title="Not Dönüşüm Hesaplayıcı"><GradeConverter /></Card>
 
-      {/* Grade Conversion */}
-      <Card title="Not Dönüşüm Hesaplayıcı"><GradeConverter /></Card>
-
-      {/* Students Table */}
-      <Card title="Öğrenciler" noPadding>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: C.bg, borderBottom: `2px solid ${C.border}` }}>
-                {["Öğrenci No", "Ad Soyad", "Karşı Kurum", "Gidiş", "Dönüş", "İşlemler"].map((h, i) => (
-                  <th key={i} style={{ padding: "16px 24px", textAlign: i === 3 || i === 4 ? "center" : i === 5 ? "right" : "left", fontSize: 11, fontWeight: 700, color: C.navy, letterSpacing: "0.1em", textTransform: "uppercase" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStudents.map(student => (
-                <tr key={student.id} style={{ borderBottom: `1px solid ${C.border}`, transition: "all 0.15s" }}
-                  onMouseEnter={e => { e.currentTarget.style.background = C.bg; }} onMouseLeave={e => { e.currentTarget.style.background = ""; }}>
-                  <td style={{ padding: "16px 24px" }}><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: C.navy }}>{student.studentNumber}</span></td>
-                  <td style={{ padding: "16px 24px", fontWeight: 500 }}>
-                    {student.firstName} {student.lastName}
-                    {student.semester && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{student.semester}</div>}
-                  </td>
-                  <td style={{ padding: "16px 24px" }}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{student.hostInstitution}</div>
-                    <div style={{ fontSize: 12, color: C.textMuted }}>{student.hostCountry}</div>
-                  </td>
-                  <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.green} bg={C.greenLight}>{student.outgoingMatches.length} eşleştirme</Badge></td>
-                  <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.gold} bg={C.goldPale}>{student.returnMatches.length} eşleştirme</Badge></td>
-                  <td style={{ padding: "16px 24px", textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                      <Btn onClick={() => setSelectedStudent(student)} variant="secondary" small icon={<FileTextIcon />}>{canEdit(student) ? 'Detay & Düzenle' : 'Detay'}</Btn>
-                      <button onClick={() => generateOutgoingWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#E6F4EA", color: "#1E7E34", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Gidiş</button>
-                      {student.returnMatches.length > 0 && (
-                        <button onClick={() => generateReturnWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FFF3E0", color: "#E65100", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Dönüş</button>
-                      )}
-                      {canEdit(student) && (
-                        <button onClick={() => handleDeleteStudent(student.id)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FAEBED", color: C.accent, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}><TrashIcon /></button>
-                      )}
-                    </div>
-                  </td>
+        {/* Students Table */}
+        <Card title="Öğrenciler" noPadding>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: C.bg, borderBottom: `2px solid ${C.border}` }}>
+                  {["Öğrenci No", "Ad Soyad", "Karşı Kurum", "Gidiş", "Dönüş", "İşlemler"].map((h, i) => (
+                    <th key={i} style={{ padding: "16px 24px", textAlign: i === 3 || i === 4 ? "center" : i === 5 ? "right" : "left", fontSize: 11, fontWeight: 700, color: C.navy, letterSpacing: "0.1em", textTransform: "uppercase" }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+              </thead>
+              <tbody>
+                {filteredStudents.map(student => (
+                  <tr key={student.id} style={{ borderBottom: `1px solid ${C.border}`, transition: "all 0.15s" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = C.bg; }} onMouseLeave={e => { e.currentTarget.style.background = ""; }}>
+                    <td style={{ padding: "16px 24px" }}><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: C.navy }}>{student.studentNumber}</span></td>
+                    <td style={{ padding: "16px 24px", fontWeight: 500 }}>
+                      {student.firstName} {student.lastName}
+                      {student.semester && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{student.semester}</div>}
+                    </td>
+                    <td style={{ padding: "16px 24px" }}>
+                      <div style={{ fontSize: 14, fontWeight: 500 }}>{student.hostInstitution}</div>
+                      <div style={{ fontSize: 12, color: C.textMuted }}>{student.hostCountry}</div>
+                    </td>
+                    <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.green} bg={C.greenLight}>{student.outgoingMatches.length} eşleştirme</Badge></td>
+                    <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.gold} bg={C.goldPale}>{student.returnMatches.length} eşleştirme</Badge></td>
+                    <td style={{ padding: "16px 24px", textAlign: "right" }}>
+                      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                        <Btn onClick={() => setSelectedStudent(student)} variant="secondary" small icon={<FileTextIcon />}>{canEdit(student) ? 'Detay & Düzenle' : 'Detay'}</Btn>
+                        <button onClick={() => generateOutgoingWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#E6F4EA", color: "#1E7E34", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Gidiş</button>
+                        {student.returnMatches.length > 0 && (
+                          <button onClick={() => generateReturnWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FFF3E0", color: "#E65100", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Dönüş</button>
+                        )}
+                        {canEdit(student) && (
+                          <button onClick={() => handleDeleteStudent(student.id)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FAEBED", color: C.accent, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}><TrashIcon /></button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
 
-      {selectedStudent && (
-        <StudentDetailModal student={selectedStudent} onClose={() => setSelectedStudent(null)} onSave={handleSaveStudent} readOnly={!canEdit(selectedStudent)} />
-      )}
-      {showPasswordModal && currentUser?.role === 'admin' && (
-        <PasswordManagementModal students={students} onClose={() => setShowPasswordModal(false)} />
-      )}
+        {selectedStudent && (
+          <StudentDetailModal student={selectedStudent} onClose={() => setSelectedStudent(null)} onSave={handleSaveStudent} readOnly={!canEdit(selectedStudent)} />
+        )}
+        {showPasswordModal && currentUser?.role === 'admin' && (
+          <PasswordManagementModal students={students} onClose={() => setShowPasswordModal(false)} />
+        )}
+      </div>
     </div>
   );
 }

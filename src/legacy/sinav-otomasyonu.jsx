@@ -54,6 +54,7 @@ const SINIF_COLORS = {
   2: { bg: "#C8E6C9", text: "#1B5E20", label: "2. Sınıf" },
   3: { bg: "#FFE0B2", text: "#E65100", label: "3. Sınıf" },
   4: { bg: "#F8BBD0", text: "#880E4F", label: "4. Sınıf" },
+  5: { bg: "#E1BEE7", text: "#4A148C", label: "Seçmeli Dersler" },
 };
 
 // ── Bölüm Sınıfları ve Gözetmenler ──
@@ -86,12 +87,30 @@ const ALL_FACULTY_CLASSROOMS = [
 ];
 
 function assignClassroom(studentCount) {
-  if (!studentCount || studentCount <= 0) return "M10Z07";
-  const sorted = [...DEPT_CLASSROOMS].sort((a, b) => a.capacity - b.capacity);
-  for (const room of sorted) {
-    if (studentCount <= room.capacity) return room.name;
+  if (!studentCount || studentCount <= 0) return "M11101";
+  // 42 ve altı → M11101
+  if (studentCount <= 42) return "M11101";
+  // 42 üstü → kapasiteleri toplamı öğrenci sayısına en yakın 2 salon
+  let bestPair = null;
+  let bestDiff = Infinity;
+  for (let i = 0; i < DEPT_CLASSROOMS.length; i++) {
+    for (let j = i + 1; j < DEPT_CLASSROOMS.length; j++) {
+      const cap = DEPT_CLASSROOMS[i].capacity + DEPT_CLASSROOMS[j].capacity;
+      if (cap >= studentCount) {
+        const diff = cap - studentCount;
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestPair = DEPT_CLASSROOMS[i].name + " - " + DEPT_CLASSROOMS[j].name;
+        }
+      }
+    }
   }
-  return "M10Z07 - M11103";
+  // Hiçbir çift yetmezse en büyük kapasiteli çifti al
+  if (!bestPair) {
+    const sorted = [...DEPT_CLASSROOMS].sort((a, b) => b.capacity - a.capacity);
+    bestPair = sorted[0].name + " - " + sorted[1].name;
+  }
+  return bestPair;
 }
 
 function assignSupervisorsToExams(exams) {
@@ -106,7 +125,7 @@ function assignSupervisorsToExams(exams) {
   shuffled.forEach(exam => {
     const room = assignClassroom(exam.studentCount);
     const isMultiRoom = room.includes(" - ");
-    const numSupervisors = isMultiRoom ? 3 : 2;
+    const numSupervisors = isMultiRoom ? 3 : (exam.studentCount < 30 ? 1 : 2);
     const sortedSups = [...DEPT_SUPERVISORS].sort((a, b) => counts[a] - counts[b]);
     const assigned = sortedSups.slice(0, numSupervisors);
     assigned.forEach(s => counts[s]++);
@@ -116,10 +135,10 @@ function assignSupervisorsToExams(exams) {
 }
 
 const TIME_SLOTS = [];
-for (let h = 8; h <= 18; h++) {
+for (let h = 8; h <= 17; h++) { // End at 17:30 (last slot 17:00 or 17:30)
   for (let m = 0; m < 60; m += 30) {
     if (h === 8 && m === 0) continue; // Start from 08:30
-    if (h === 18 && m > 30) continue;
+    // if (h === 12) continue; // Skip 12:00 - 13:00 (Lunch) - REVERTED
     const hh = String(h).padStart(2, "0");
     const mm = String(m).padStart(2, "0");
     TIME_SLOTS.push(`${hh}:${mm}`);
@@ -134,22 +153,7 @@ const EXAM_TYPES = [
 ];
 
 // ── Seed Data: 14 Hoca ──
-const SEED_PROFESSORS = [
-  { name: "Prof. Dr. Hamit ALYAR", department: "Fizik", isExternal: true },
-  { name: "Prof. Dr. Çiğdem YÜKSEKTEPE ATAOL", department: "Kimya", isExternal: true },
-  { name: "Dr. Öğr. Üyesi Celalettin KAYA", department: "Matematik", isExternal: true },
-  { name: "Dr. Öğr. Üyesi Esma Baran ÖZKAN", department: "Matematik", isExternal: true },
-  { name: "Dr. Öğr. Üyesi Taha ETEM", department: "Bilgisayar", isExternal: false },
-  { name: "Dr. Öğr. Üyesi Seda ŞAHİN", department: "Bilgisayar", isExternal: false },
-  { name: "Dr. Öğr. Üyesi Fatih ISSI", department: "Bilgisayar", isExternal: false },
-  { name: "Doç. Dr. Selim BÜYÜKOĞLU", department: "Bilgisayar", isExternal: false },
-  { name: "Dr. Mehmet Akif ALPER", department: "Bilgisayar", isExternal: false },
-  { name: "Prof. Dr. İlyas İNCİ", department: "Matematik", isExternal: true },
-  { name: "Dr. Selim SÜRÜCÜ", department: "Bilgisayar", isExternal: false },
-  { name: "Dr. Uğur BİNZAT", department: "İstatistik", isExternal: true },
-  { name: "Dr. Alime YILMAZ", department: "Yabancı Diller", isExternal: true },
-  { name: "Dr. Öğr. Üyesi Osman GÜLER", department: "Bilgisayar", isExternal: false },
-];
+const SEED_PROFESSORS = window.SEED_PROFESSORS; // Shared component'ten geliyor
 
 // ── Seed Data: Dersler ──
 const SEED_COURSES = [
@@ -220,33 +224,33 @@ const SEED_COURSES = [
   { code: "BIL482", name: "Yönetim Bilişim Sistemleri", sinif: 4, duration: 30, professor: "" },
   { code: "BIL494", name: "Bitirme Projesi", sinif: 4, duration: 30, professor: "" },
 
-  // ═══ Bölüm Seçmeli Dersler ═══
-  { code: "BIL432", name: "Kriptografi ve Bilgi Güvenliği", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL325", name: "Siber Güvenliğe Giriş", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL466", name: "Biyobilişim ve Biyoteknoloji", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL323", name: "Sayısal İşaret İşleme", sinif: 4, duration: 30, professor: "" },
-  { code: "MTH401", name: "Java & React JS ile Web Programlama Eğitimi", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL321", name: "Makine Öğrenmesi", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL411", name: "Sistem Mühendisliği", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL412", name: "İnsan Bilgisayar Etkileşimi", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL421", name: "E-Ticaret ve Dijital Dönüşüm", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL425", name: "Mobil Uygulama Geliştirme", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL427", name: "Oyun Teknolojileri", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL434", name: "Gömülü Sistemler", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL462", name: "Bulut Çözüme Giriş", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL471", name: "Sayısal Analiz Yöntemleri", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL473", name: "Bilgisayarlı Görme", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL476", name: "Veri Madenciliğine Giriş", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL477", name: "Örüntü Tanıma", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL481", name: "Yapay Zeka", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL483", name: "Çoklu Ortam Sistemleri", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL486", name: "Optimizasyon", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL493", name: "Gerçek Zamanlı Sistemler", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL496", name: "Sinyal İşleme Uygulamaları", sinif: 4, duration: 30, professor: "" },
-  { code: "OSD144", name: "Siber Güvenlik ve Etik Hacker", sinif: 4, duration: 30, professor: "" },
-  { code: "MTH404", name: "Yazılım Test ve Kalitesi", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL438", name: "Görüntü İşleme", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL474", name: "Tıp Bilişimi", sinif: 4, duration: 30, professor: "" },
+  // ═══ Bölüm Seçmeli Dersler (Sınıf 5 - Seçmeli) ═══
+  { code: "BIL432", name: "Kriptografi ve Bilgi Güvenliği", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL325", name: "Siber Güvenliğe Giriş", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL466", name: "Biyobilişim ve Biyoteknoloji", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL323", name: "Sayısal İşaret İşleme", sinif: 5, duration: 30, professor: "" },
+  { code: "MTH401", name: "Java & React JS ile Web Programlama Eğitimi", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL321", name: "Makine Öğrenmesi", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL411", name: "Sistem Mühendisliği", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL412", name: "İnsan Bilgisayar Etkileşimi", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL421", name: "E-Ticaret ve Dijital Dönüşüm", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL425", name: "Mobil Uygulama Geliştirme", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL427", name: "Oyun Teknolojileri", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL434", name: "Gömülü Sistemler", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL462", name: "Bulut Çözüme Giriş", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL471", name: "Sayısal Analiz Yöntemleri", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL473", name: "Bilgisayarlı Görme", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL476", name: "Veri Madenciliğine Giriş", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL477", name: "Örüntü Tanıma", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL481", name: "Yapay Zeka", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL483", name: "Çoklu Ortam Sistemleri", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL486", name: "Optimizasyon", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL493", name: "Gerçek Zamanlı Sistemler", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL496", name: "Sinyal İşleme Uygulamaları", sinif: 5, duration: 30, professor: "" },
+  { code: "OSD144", name: "Siber Güvenlik ve Etik Hacker", sinif: 5, duration: 30, professor: "" },
+  { code: "MTH404", name: "Yazılım Test ve Kalitesi", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL438", name: "Görüntü İşleme", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL474", name: "Tıp Bilişimi", sinif: 5, duration: 30, professor: "" },
 ];
 
 // ── Helper Functions ──
@@ -290,7 +294,7 @@ function getWeekDays(startDate, weeks) {
   for (let i = 0; i < totalDays; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    if (d.getDay() >= 1 && d.getDay() <= 6) {
+    if (d.getDay() >= 1 && d.getDay() <= 5) {
       days.push(new Date(d));
     }
   }
@@ -319,7 +323,7 @@ function getCoursesRef() {
 
 function getProfessorsRef() {
   if (!window.firebase || !window.firebase.firestore) return null;
-  return window.firebase.firestore().collection("sinav_hocalar");
+  return window.firebase.firestore().collection("professors"); // Global collection
 }
 
 function getPeriodsRef() {
@@ -376,7 +380,14 @@ const PeriodConfigModal = ({ period, onSave, onClose }) => {
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <FormField label="Dönem">
           <Select value={semester} onChange={e => setSemester(e.target.value)}>
-            {["Güz 2024-2025", "Bahar 2024-2025", "Güz 2025-2026", "Bahar 2025-2026"].map(s =>
+            {(() => {
+              const semList = [];
+              for (let y = 2024; y <= 2030; y++) {
+                semList.push(`Güz ${y}-${y + 1}`);
+                semList.push(`Bahar ${y}-${y + 1}`);
+              }
+              return semList;
+            })().map(s =>
               <option key={s} value={s}>{s}</option>
             )}
           </Select>
@@ -415,6 +426,10 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
+    if (!studentCount || parseInt(studentCount) <= 0) {
+      alert("Öğrenci sayısı girilmesi zorunludur.");
+      return;
+    }
     setSaving(true);
     try {
       await onSave({
@@ -438,19 +453,28 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
         <div style={{ padding: 12, background: SINIF_COLORS[exam.sinif]?.bg || "#f0f0f0", borderRadius: 8, fontSize: 14 }}>
           <strong>{exam.code}</strong> - {exam.name}
         </div>
-        <FormField label="Öğretim Üyesi">
-          <Input value={professor} onChange={e => setProfessor(e.target.value)} placeholder="Hoca adı" list="prof-list" />
+        <FormField label="Akademisyen">
+          <Input value={professor} onChange={e => setProfessor(e.target.value)} placeholder="Akademisyen ismi" list="prof-list" />
           <datalist id="prof-list">
             {(professors || []).map((p, i) => <option key={i} value={p.name} />)}
           </datalist>
+        </FormField>
+
+        <FormField label="Sınıf (Dersin ait olduğu sınıfı değiştirebilirsiniz)">
+          <Select value={exam.sinif} onChange={e => onSave({ ...exam, sinif: parseInt(e.target.value) })}>
+            {[1, 2, 3, 4].map(s => <option key={s} value={s}>{s}. Sınıf</option>)}
+          </Select>
         </FormField>
         <FormField label="Sınav Süresi (dk)">
           <Select value={duration} onChange={e => setDuration(e.target.value)}>
             {[30, 45, 60, 75, 90, 105, 120].map(d => <option key={d} value={d}>{d} dakika</option>)}
           </Select>
         </FormField>
-        <FormField label="Öğrenci Sayısı">
-          <Input type="number" value={studentCount} onChange={e => setStudentCount(e.target.value)} placeholder="Örn: 45" />
+        <FormField label="Öğrenci Sayısı *">
+          <Input type="number" value={studentCount} onChange={e => setStudentCount(e.target.value)} placeholder="Örn: 45" style={(!studentCount || parseInt(studentCount) <= 0) ? { borderColor: "#DC2626" } : {}} />
+          {(!studentCount || parseInt(studentCount) <= 0) && (
+            <div style={{ color: "#DC2626", fontSize: 11, marginTop: 4 }}>Öğrenci sayısı zorunludur</div>
+          )}
         </FormField>
         <FormField label="Gözetmen">
           <Input value={supervisor} onChange={e => setSupervisor(e.target.value)} placeholder="Gözetmen adı" />
@@ -464,7 +488,7 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
           </GhostBtn>
           <div style={{ display: "flex", gap: 12 }}>
             <GhostBtn onClick={onClose}>İptal</GhostBtn>
-            <Btn onClick={handleSave} disabled={saving}>{saving ? "..." : "Kaydet"}</Btn>
+            <Btn onClick={handleSave} disabled={saving || !studentCount || parseInt(studentCount) <= 0}>{saving ? "..." : "Kaydet"}</Btn>
           </div>
         </div>
       </div>
@@ -475,7 +499,7 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
 // ══════════════════════════════════════════════════════════════
 // Course Management Modal
 // ══════════════════════════════════════════════════════════════
-const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
+const CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose }) => {
   const [editingCourse, setEditingCourse] = useState(null);
   const [form, setForm] = useState({ code: "", name: "", sinif: 1, duration: 30, professor: "" });
 
@@ -505,22 +529,28 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
               <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: `2px solid ${C.border}` }}>Ders Adı</th>
               <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>Sınıf</th>
               <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>Süre</th>
-              <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: `2px solid ${C.border}` }}>Hoca</th>
+              <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: `2px solid ${C.border}` }}>Akademisyen</th>
               <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>İşlem</th>
             </tr>
           </thead>
           <tbody>
-            {courses.map((c, i) => (
+            {[...courses].sort((a, b) => {
+              if (a.sinif !== b.sinif) return a.sinif - b.sinif;
+              return a.code.localeCompare(b.code);
+            }).map((c, i) => (
               <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
                 <td style={{ padding: "8px 12px" }}>
                   <Badge style={{ background: SINIF_COLORS[c.sinif]?.bg, color: SINIF_COLORS[c.sinif]?.text }}>{c.code}</Badge>
                 </td>
                 <td style={{ padding: "8px 12px" }}>{c.name}</td>
-                <td style={{ padding: "8px 12px", textAlign: "center" }}>{c.sinif}. Sınıf</td>
+                <td style={{ padding: "8px 12px", textAlign: "center" }}>{c.sinif === 5 ? "Seçmeli" : `${c.sinif}. Sınıf`}</td>
                 <td style={{ padding: "8px 12px", textAlign: "center" }}>{c.duration} dk</td>
                 <td style={{ padding: "8px 12px", fontSize: 12 }}>{c.professor || "-"}</td>
                 <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                  <button onClick={() => startEdit(c)} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13 }}>Düzenle</button>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                    <button onClick={() => startEdit(c)} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13 }}>Düzenle</button>
+                    <button onClick={() => onDelete(c)} style={{ background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 13 }}>Sil</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -542,7 +572,7 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 12 }}>
             <FormField label="Sınıf">
               <Select value={form.sinif} onChange={e => setForm({ ...form, sinif: parseInt(e.target.value) })}>
-                {[1, 2, 3, 4].map(s => <option key={s} value={s}>{s}. Sınıf</option>)}
+                {[1, 2, 3, 4, 5].map(s => <option key={s} value={s}>{s === 5 ? "Seçmeli" : `${s}. Sınıf`}</option>)}
               </Select>
             </FormField>
             <FormField label="Süre (dk)">
@@ -550,11 +580,11 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
                 {[30, 45, 60, 75, 90, 105, 120].map(d => <option key={d} value={d}>{d} dk</option>)}
               </Select>
             </FormField>
-            <FormField label="Hoca">
+            <FormField label="Akademisyen">
               <Input
                 value={form.professor}
                 onChange={e => setForm({ ...form, professor: e.target.value })}
-                placeholder="Hoca adı yazın..."
+                placeholder="Akademisyen ismi yazın..."
                 list="course-prof-list"
               />
               <datalist id="course-prof-list">
@@ -666,7 +696,7 @@ const CalendarCell = ({ day, timeSlot, slotIndex, placedExams, onDrop, onExamCli
     }
   };
 
-  const cellHeight = 28;
+  const cellHeight = 40;
 
   return (
     <td
@@ -679,8 +709,8 @@ const CalendarCell = ({ day, timeSlot, slotIndex, placedExams, onDrop, onExamCli
         border: "1px solid #E5E7EB",
         padding: 0,
         height: examHere ? cellHeight * examSpan : cellHeight,
-        minWidth: 100,
-        maxWidth: 140,
+        minWidth: 140,
+        maxWidth: 180,
         verticalAlign: "top",
         background: examHere
           ? color.bg
@@ -701,6 +731,11 @@ const CalendarCell = ({ day, timeSlot, slotIndex, placedExams, onDrop, onExamCli
           height: "100%",
           overflow: "hidden",
           fontWeight: 600,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          textAlign: "center",
         }}>
           <div>{examHere.code}</div>
           <div style={{ fontWeight: 400, fontSize: 9 }}>{examHere.name}</div>
@@ -799,13 +834,13 @@ function normalizeToASCII(str) {
 
 // Build lookup maps from SEED data (Turkish) keyed by ASCII-normalized names
 var TURKISH_COURSE_MAP = {};
-SEED_COURSES.forEach(function(c) {
+SEED_COURSES.forEach(function (c) {
   var key = c.code + "|" + normalizeToASCII(c.name).toLowerCase();
   TURKISH_COURSE_MAP[key] = c.name;
 });
 
 var TURKISH_PROF_MAP = {};
-SEED_PROFESSORS.forEach(function(p) {
+SEED_PROFESSORS.forEach(function (p) {
   var key = normalizeToASCII(p.name).toLowerCase();
   TURKISH_PROF_MAP[key] = p.name;
 });
@@ -830,6 +865,14 @@ function turkishifyExam(exam) {
   };
 }
 
+function turkishifyCourse(course) {
+  return {
+    ...course,
+    name: getTurkishCourseName(course.code, course.name),
+    professor: getTurkishProfName(course.professor),
+  };
+}
+
 // ══════════════════════════════════════════════════════════════
 // Export Functions
 // ══════════════════════════════════════════════════════════════
@@ -839,19 +882,19 @@ function exportToCSV(placedExams, periodLabel) {
     return a.date.localeCompare(b.date) || a.timeSlot.localeCompare(b.timeSlot);
   });
 
-  const header = "Sınıf;Ders Kodu;Ders Adı;Öğretim Üyesi;Tarih;Gün;Saat;Süre (dk);Öğrenci Sayısı;Gözetmen;Salon";
+  const header = "Sınıf;Ders Kodu;Ders Adı;Sınava Girecek Toplam Öğrenci Sayısı;Öğretim Üyesi;Tarih;Gün;Saat;Süre (dk);Gözetmen;Salon";
   const rows = sorted.map(e => {
     const d = parseDateISO(e.date);
     return [
       `${e.sinif}. Sınıf`,
       e.code,
       e.name,
+      e.studentCount || "",
       e.professor,
       formatDate(d),
       getDayName(d),
       e.timeSlot,
       e.duration,
-      e.studentCount || "",
       e.supervisor || "",
       e.room || "",
     ].join(";");
@@ -879,9 +922,9 @@ function exportToWord(placedExams, periodLabel) {
     return `<tr>
       <td style="padding:6px;text-align:center">${e.sinif}. Sınıf</td>
       <td style="padding:6px"><b>${e.code}</b> - ${e.name}</td>
+      <td style="padding:6px;text-align:center;font-weight:bold">${e.studentCount || "-"}</td>
       <td style="padding:6px;font-size:12px">${e.professor}</td>
       <td style="padding:6px;text-align:center">${formatDate(d)} ${getDayName(d)}<br/>${e.timeSlot} (${e.duration} dk)</td>
-      <td style="padding:6px;text-align:center;font-weight:bold">${e.studentCount || "-"}</td>
       <td style="padding:6px">${e.supervisor || "-"}</td>
       <td style="padding:6px;text-align:center">${e.room || "-"}</td>
     </tr>`;
@@ -897,9 +940,9 @@ function exportToWord(placedExams, periodLabel) {
         <tr style="background:white;font-weight:bold">
           <th style="padding:8px;border:1px solid #000">Sınıf</th>
           <th style="padding:8px;border:1px solid #000">Ders Kodu - İsmi</th>
+          <th style="padding:8px;border:1px solid #000">Sınava Girecek Toplam Öğrenci Sayısı</th>
           <th style="padding:8px;border:1px solid #000">Öğretim Üyesi</th>
           <th style="padding:8px;border:1px solid #000">Tarih - Saat - Süre</th>
-          <th style="padding:8px;border:1px solid #000">Öğrenci Sayısı</th>
           <th style="padding:8px;border:1px solid #000">Gözetmen</th>
           <th style="padding:8px;border:1px solid #000">Salon</th>
         </tr>
@@ -978,11 +1021,11 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
   // ══════ Sheet 1: Liste (Tarihe göre sıralı) ══════
   const listHeader = [
-    "Dersin Adı", "Dersin Kodu", "Sınavın Başlama Tarihi ve Saati",
+    "Dersin Adı", "Dersin Kodu", "Sınava Girecek Toplam Öğrenci Sayısı", "Sınavın Başlama Tarihi ve Saati",
     "Sınavın Bitiş Tarihi ve Saati", "Sınav Süresi", "GÖZETMEN", "SINIF",
   ];
   const listData = [listHeader, ...enriched.map(e => [
-    e.name, e.code, e.startStr, e.endStr, e.durationStr, e.assignedSupervisors, e.assignedRoom,
+    e.name, e.code, e.studentCount || "", e.startStr, e.endStr, e.durationStr, e.assignedSupervisors, e.assignedRoom,
   ])];
 
   const ws1 = XLSX.utils.aoa_to_sheet(listData);
@@ -1013,7 +1056,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
   }
 
   ws1["!cols"] = [
-    { wch: 35 }, { wch: 18 }, { wch: 28 }, { wch: 28 }, { wch: 12 }, { wch: 60 }, { wch: 20 },
+    { wch: 35 }, { wch: 18 }, { wch: 35 }, { wch: 28 }, { wch: 28 }, { wch: 12 }, { wch: 60 }, { wch: 20 },
   ];
   XLSX.utils.book_append_sheet(wb, ws1, "Liste (Tarihe göre sıralı)");
 
@@ -1035,7 +1078,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
     }
   } else {
     // Derive weekdays from exam dates
-    var dates = [...new Set(enriched.map(function(e) { return e.date; }))].sort();
+    var dates = [...new Set(enriched.map(function (e) { return e.date; }))].sort();
     if (dates.length > 0) {
       var first = parseDateISO(dates[0]);
       var last = parseDateISO(dates[dates.length - 1]);
@@ -1059,17 +1102,17 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
   // Group exams by date
   var examsByDate = {};
-  enriched.forEach(function(e) {
+  enriched.forEach(function (e) {
     if (!examsByDate[e.date]) examsByDate[e.date] = [];
     examsByDate[e.date].push(e);
   });
 
   // Day time slots
   var dayTimeSlots = [];
-  for (var h = 8; h <= 18; h++) {
+  for (var h = 8; h <= 17; h++) { // End at 17:30
     for (var m = 0; m < 60; m += 30) {
       if (h === 8 && m === 0) continue;
-      if (h === 18 && m > 30) continue;
+      // if (h === 12) continue; // Skip lunch - REVERTED
       var sH = String(h).padStart(2, "0");
       var sM = String(m).padStart(2, "0");
       var eMin = h * 60 + m + 30;
@@ -1082,7 +1125,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
   var numCols = ALL_FACULTY_CLASSROOMS.length + 1; // +1 for column A (time)
 
   // ══════ Create day sheet for EACH weekday ══════
-  allWeekdays.forEach(function(dateObj) {
+  allWeekdays.forEach(function (dateObj) {
     var dayName = getDayName(dateObj);
     var dd = String(dateObj.getDate()).padStart(2, "0");
     var mm = String(dateObj.getMonth() + 1).padStart(2, "0");
@@ -1099,24 +1142,24 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
     // Row 1: Kapasite
     var row1 = ["Kapasite"];
-    ALL_FACULTY_CLASSROOMS.forEach(function(c) { row1.push(c.capacity === "" ? "" : c.capacity); });
+    ALL_FACULTY_CLASSROOMS.forEach(function (c) { row1.push(c.capacity === "" ? "" : c.capacity); });
     data.push(row1);
 
     // Row 2: Saatler / Room names
     var row2 = ["Saatler"];
-    ALL_FACULTY_CLASSROOMS.forEach(function(c) { row2.push(c.name); });
+    ALL_FACULTY_CLASSROOMS.forEach(function (c) { row2.push(c.name); });
     data.push(row2);
 
     // Time slot rows
-    dayTimeSlots.forEach(function(slot) {
+    dayTimeSlots.forEach(function (slot) {
       var row = [slot];
       var slotStart = slot.split("-")[0];
       var parts = slotStart.split(":");
       var slotMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
 
-      ALL_FACULTY_CLASSROOMS.forEach(function(classroom) {
-        var exam = dayExams.find(function(e) {
-          var rooms = e.assignedRoom.split(" - ").map(function(r) { return r.trim(); });
+      ALL_FACULTY_CLASSROOMS.forEach(function (classroom) {
+        var exam = dayExams.find(function (e) {
+          var rooms = e.assignedRoom.split(" - ").map(function (r) { return r.trim(); });
           if (rooms.indexOf(classroom.name) === -1) return false;
           var eParts = e.timeSlot.split(":");
           var examStart = parseInt(eParts[0]) * 60 + parseInt(eParts[1]);
@@ -1186,7 +1229,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
     // Column widths
     var cols = [{ wch: 14 }];
-    ALL_FACULTY_CLASSROOMS.forEach(function() { cols.push({ wch: 12 }); });
+    ALL_FACULTY_CLASSROOMS.forEach(function () { cols.push({ wch: 12 }); });
     ws["!cols"] = cols;
 
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
@@ -1216,13 +1259,14 @@ function SinavOtomasyonuApp({ currentUser }) {
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState(null);
   const [filterSinif, setFilterSinif] = useState(0);
+  const [courseSearch, setCourseSearch] = useState("");
 
   // ── Seed data to Firebase ──
   const seedData = async () => {
+    // ... existing seedData implementation ...
     const cRef = getCoursesRef();
     const pRef = getProfessorsRef();
     if (!cRef || !pRef) return;
-
     try {
       const existingCourses = await cRef.get();
       if (!existingCourses.empty) {
@@ -1231,23 +1275,19 @@ function SinavOtomasyonuApp({ currentUser }) {
         existingCourses.docs.forEach(doc => batch1.delete(doc.ref));
         await batch1.commit();
       }
-
       const existingProfs = await pRef.get();
       if (!existingProfs.empty) {
         const batch2 = window.firebase.firestore().batch();
         existingProfs.docs.forEach(doc => batch2.delete(doc.ref));
         await batch2.commit();
       }
-
       for (const prof of SEED_PROFESSORS) {
         await pRef.add({ ...prof, createdAt: new Date().toISOString() });
       }
-
       for (const course of SEED_COURSES) {
         await cRef.add({ ...course, studentCount: 0, createdAt: new Date().toISOString() });
       }
-
-      alert("Veriler başarıyla yüklendi! " + SEED_COURSES.length + " ders, " + SEED_PROFESSORS.length + " hoca eklendi.");
+      alert("Veriler başarıyla yüklendi!");
       loadData();
     } catch (e) {
       console.error("Seed error:", e);
@@ -1255,35 +1295,47 @@ function SinavOtomasyonuApp({ currentUser }) {
     }
   };
 
-  // ── Sync: add missing courses from SEED_COURSES to Firebase ──
   const syncCourses = async () => {
-    const cRef = getCoursesRef();
-    if (!cRef) return;
-
+    if (!confirm("Eksik dersler eklenecek ve mevcut derslerin bilgileri güncellenecek. Onaylıyor musunuz?")) return;
+    setLoading(true);
     try {
-      const existingSnap = await cRef.get();
-      const existingCourses = existingSnap.docs.map(d => d.data());
+      const cRef = getCoursesRef();
+      const snap = await cRef.get();
+      const existing = snap.docs.map(d => ({ fireId: d.id, ...d.data() }));
 
-      const missing = SEED_COURSES.filter(seed => {
-        return !existingCourses.some(ex => ex.code === seed.code && ex.name === seed.name);
-      });
+      const batch = window.firebase.firestore().batch();
+      let added = 0;
+      let updated = 0;
 
-      if (missing.length === 0) {
-        alert("Tüm dersler zaten mevcut, eklenecek yeni ders yok.");
-        return;
+      for (const seedC of SEED_COURSES) {
+        const found = existing.find(e => e.code === seedC.code);
+        if (found) {
+          // Update if different
+          if (found.name !== seedC.name || found.sinif !== seedC.sinif) {
+            const docRef = cRef.doc(found.fireId);
+            batch.update(docRef, { name: seedC.name, sinif: seedC.sinif, duration: seedC.duration });
+            updated++;
+          }
+        } else {
+          // Add new
+          const newRef = cRef.doc();
+          batch.set(newRef, { ...seedC, studentCount: 0, createdAt: new Date().toISOString() });
+          added++;
+        }
       }
 
-      if (!confirm(missing.length + " yeni ders eklenecek. Devam edilsin mi?")) return;
-
-      for (const course of missing) {
-        await cRef.add({ ...course, studentCount: 0, createdAt: new Date().toISOString() });
+      if (added > 0 || updated > 0) {
+        await batch.commit();
+        alert(`İşlem tamamlandı: ${added} ders eklendi, ${updated} ders güncellendi.`);
+        loadData();
+      } else {
+        alert("Tüm dersler zaten güncel.");
+        setLoading(false);
       }
-
-      alert(missing.length + " ders başarıyla eklendi!");
-      loadData();
     } catch (e) {
       console.error("Sync error:", e);
-      alert("Senkronizasyon hatası: " + e.message);
+      alert("Hata: " + e.message);
+      setLoading(false);
     }
   };
 
@@ -1302,7 +1354,7 @@ function SinavOtomasyonuApp({ currentUser }) {
       }
       if (pRef) {
         const snap = await pRef.get();
-        setProfessors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setProfessors(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name)));
       }
       if (perRef) {
         const snap = await perRef.get();
@@ -1327,6 +1379,12 @@ function SinavOtomasyonuApp({ currentUser }) {
   const activePeriod = periods.find(p => p.id === activePeriodId);
   const periodExams = placedExams.filter(e => e.periodId === activePeriodId);
 
+  // Create a turkishified version of exams for consistent display
+  const turkishifiedPeriodExams = useMemo(() =>
+    periodExams.map(turkishifyExam),
+    [periodExams]
+  );
+
   const calendarDays = useMemo(() => {
     if (!activePeriod?.startDate) return [];
     return getWeekDays(parseDateISO(activePeriod.startDate), activePeriod.weeks || 2);
@@ -1337,16 +1395,29 @@ function SinavOtomasyonuApp({ currentUser }) {
     if (filterSinif > 0) {
       filtered = filtered.filter(c => c.sinif === filterSinif);
     }
+    if (courseSearch.trim()) {
+      const q = courseSearch.trim().toLowerCase();
+      filtered = filtered.filter(c =>
+        c.code.toLowerCase().includes(q) ||
+        c.name.toLowerCase().includes(q) ||
+        (c.professor && c.professor.toLowerCase().includes(q))
+      );
+    }
     return filtered.map(c => ({
-      ...c,
+      ...turkishifyCourse(c),
       placedCount: periodExams.filter(e => e.courseId === c.id).length,
     }));
-  }, [courses, periodExams, filterSinif]);
+  }, [courses, periodExams, filterSinif, courseSearch]);
 
   const groupedPool = useMemo(() => {
-    const groups = { 1: [], 2: [], 3: [], 4: [] };
+    const groups = { 1: [], 2: [], 3: [], 4: [], 5: [] };
     poolCourses.forEach(c => {
-      if (groups[c.sinif]) groups[c.sinif].push(c);
+      // Check for Elective (Seçmeli)
+      if (c.name.toLowerCase().includes("seçmeli") || c.name.toLowerCase().includes("secimlik") || c.code.startsWith("SEÇ")) {
+        groups[5].push(c);
+      } else {
+        if (groups[c.sinif]) groups[c.sinif].push(c);
+      }
     });
     return groups;
   }, [poolCourses]);
@@ -1421,6 +1492,37 @@ function SinavOtomasyonuApp({ currentUser }) {
     }
   };
 
+  const handleDeleteCourse = async (course) => {
+    if (!confirm(`${course.code} - ${course.name} dersini silmek istediğinize emin misiniz?`)) return;
+
+    try {
+      const cRef = getCoursesRef();
+      const exRef = getExamsRef();
+      if (!cRef || !exRef) throw new Error("Firebase hazır değil");
+
+      // Check for placed exams
+      const linkedExams = placedExams.filter(e => e.courseId === course.id);
+      if (linkedExams.length > 0) {
+        if (!confirm(`Bu derse ait ${linkedExams.length} adet sınav planlanmış durumda. Dersi silerseniz bu sınavlar da takvimden silinecek. Devam etmek istiyor musunuz?`)) return;
+
+        // Cascade delete exams
+        const batch = window.firebase.firestore().batch();
+        linkedExams.forEach(e => {
+          batch.delete(exRef.doc(e.id));
+        });
+        await batch.commit();
+        setPlacedExams(prev => prev.filter(e => e.courseId !== course.id));
+      }
+
+      await cRef.doc(course.id).delete();
+      alert("Ders silindi.");
+      loadData();
+    } catch (e) {
+      console.error("Delete course error:", e);
+      alert("Silme hatası: " + e.message);
+    }
+  };
+
   const handleCourseSave = async (existingCourse, formData) => {
     try {
       const ref = getCoursesRef();
@@ -1491,309 +1593,340 @@ function SinavOtomasyonuApp({ currentUser }) {
   }
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif" }}>
-            Sınav Programı Otomasyonu
-          </h2>
-          <p style={{ fontSize: 13, color: "#666", marginTop: 4 }}>
-            Dersleri sürükleyerek takvime yerleştirin
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {isAdmin && courses.length === 0 && (
-            <Btn onClick={seedData} style={{ background: "#059669" }}>
-              Örnek Verileri Yükle
-            </Btn>
-          )}
-          {isAdmin && courses.length > 0 && (
-            <GhostBtn onClick={syncCourses} style={{ fontSize: 12 }}>
-              Eksik Dersleri Ekle
-            </GhostBtn>
-          )}
-          {isAdmin && (
-            <GhostBtn onClick={() => setShowCourseModal(true)}>Ders Yönetimi</GhostBtn>
-          )}
-          {isAdmin && (
-            <GhostBtn onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }}>
-              + Yeni Dönem
-            </GhostBtn>
-          )}
-        </div>
-      </div>
-
-      {/* Period Selector */}
-      {periods.length > 0 && (
-        <Card style={{ marginBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: C.navy }}>Sınav Dönemi:</span>
-            {periods.map(p => (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <button
-                  onClick={() => setActivePeriodId(p.id)}
-                  style={{
-                    padding: "6px 16px",
-                    border: `2px solid ${p.id === activePeriodId ? C.blue : C.border}`,
-                    background: p.id === activePeriodId ? C.blueLight : "white",
-                    color: p.id === activePeriodId ? C.blue : "#666",
-                    borderRadius: 8,
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: p.id === activePeriodId ? 600 : 400,
-                  }}
-                >
-                  {p.label || `${p.examType} - ${p.semester}`}
-                </button>
-                {isAdmin && (
-                  <button
-                    onClick={() => { setEditingPeriod(p); setShowPeriodModal(true); }}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 14, padding: "4px" }}
-                    title="Düzenle"
-                  >&#9998;</button>
-                )}
-                {isAdmin && (
-                  <button
-                    onClick={() => handleDeletePeriod(p.id)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", fontSize: 14, padding: "4px" }}
-                    title="Sil"
-                  >&times;</button>
-                )}
-              </div>
-            ))}
+    <div className="portal-bg">
+      <div className="portal-wrap">
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div>
+            <h2 style={{ fontSize: 22, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif" }}>
+              Sınav Programı Otomasyonu
+            </h2>
+            <p style={{ fontSize: 13, color: "#666", marginTop: 4 }}>
+              Dersleri sürükleyerek takvime yerleştirin
+            </p>
           </div>
-        </Card>
-      )}
-
-      {/* No period selected */}
-      {!activePeriod && (
-        <Card>
-          <div style={{ padding: 60, textAlign: "center", color: "#999" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>&#128197;</div>
-            <div style={{ fontSize: 16, marginBottom: 8 }}>Sınav dönemi bulunamadı</div>
-            <div style={{ fontSize: 13 }}>
-              {isAdmin
-                ? "Yeni bir sınav dönemi oluşturun (Final, Vize veya Bütünleme)"
-                : "Yönetici henüz bir sınav dönemi oluşturmadı"}
-            </div>
-            {isAdmin && (
-              <Btn onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }} style={{ marginTop: 16 }}>
-                + Yeni Dönem Oluştur
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {isAdmin && courses.length === 0 && (
+              <Btn onClick={seedData} style={{ background: "#059669" }}>
+                Örnek Verileri Yükle
               </Btn>
             )}
+            {isAdmin && courses.length > 0 && (
+              <GhostBtn onClick={syncCourses} style={{ color: "#059669", borderColor: "#059669" }}>
+                Verileri Güncelle
+              </GhostBtn>
+            )}
+            {isAdmin && (
+              <GhostBtn onClick={() => setShowCourseModal(true)}>Ders Yönetimi</GhostBtn>
+            )}
+            {isAdmin && (
+              <GhostBtn onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }}>
+                + Yeni Dönem
+              </GhostBtn>
+            )}
           </div>
-        </Card>
-      )}
+        </div>
 
-      {/* Active period content */}
-      {activePeriod && (
-        <>
-          {/* Toolbar */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => setViewMode("calendar")}
-                style={{
-                  padding: "6px 14px", border: `1px solid ${C.border}`, borderRadius: "8px 0 0 8px",
-                  background: viewMode === "calendar" ? C.navy : "white",
-                  color: viewMode === "calendar" ? "white" : "#666",
-                  cursor: "pointer", fontSize: 13,
-                }}
-              >Takvim</button>
-              <button
-                onClick={() => setViewMode("table")}
-                style={{
-                  padding: "6px 14px", border: `1px solid ${C.border}`, borderRadius: "0 8px 8px 0",
-                  background: viewMode === "table" ? C.navy : "white",
-                  color: viewMode === "table" ? "white" : "#666",
-                  cursor: "pointer", fontSize: 13, borderLeft: "none",
-                }}
-              >Tablo</button>
-            </div>
-
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 12, color: "#666" }}>
-                {periodExams.length}/{courses.length} ders yerleştirildi
-              </span>
-              {periodExams.length > 0 && (
-                <>
-                  <GhostBtn onClick={() => exportToCSV(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
-                    CSV
-                  </GhostBtn>
-                  <GhostBtn onClick={() => exportToWord(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
-                    Word
-                  </GhostBtn>
-                  <GhostBtn onClick={() => exportToXLSX(periodExams, activePeriod.label, activePeriod)} style={{ fontSize: 12, padding: "4px 10px", background: "#059669", color: "white", border: "none" }}>
-                    XLSX
-                  </GhostBtn>
+        {/* Period Selector */}
+        {periods.length > 0 && (
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: C.navy }}>Sınav Dönemi:</span>
+              {periods.map(p => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <button
+                    onClick={() => setActivePeriodId(p.id)}
+                    style={{
+                      padding: "6px 16px",
+                      border: `2px solid ${p.id === activePeriodId ? C.blue : C.border}`,
+                      background: p.id === activePeriodId ? C.blueLight : "white",
+                      color: p.id === activePeriodId ? C.blue : "#666",
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: p.id === activePeriodId ? 600 : 400,
+                    }}
+                  >
+                    {p.label || `${p.examType} - ${p.semester}`}
+                  </button>
                   {isAdmin && (
-                    <GhostBtn onClick={handleResetPlacements} style={{ fontSize: 12, padding: "4px 10px", color: "#DC2626" }}>
-                      Sıfırla
-                    </GhostBtn>
+                    <button
+                      onClick={() => { setEditingPeriod(p); setShowPeriodModal(true); }}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 14, padding: "4px" }}
+                      title="Düzenle"
+                    >&#9998;</button>
                   )}
-                </>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleDeletePeriod(p.id)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", fontSize: 14, padding: "4px" }}
+                      title="Sil"
+                    >&times;</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {/* No period selected */}
+        {!activePeriod && (
+          <Card>
+            <div style={{ padding: 60, textAlign: "center", color: "#999" }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>&#128197;</div>
+              <div style={{ fontSize: 16, marginBottom: 8 }}>Sınav dönemi bulunamadı</div>
+              <div style={{ fontSize: 13 }}>
+                {isAdmin
+                  ? "Yeni bir sınav dönemi oluşturun (Final, Vize veya Bütünleme)"
+                  : "Yönetici henüz bir sınav dönemi oluşturmadı"}
+              </div>
+              {isAdmin && (
+                <Btn onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }} style={{ marginTop: 16 }}>
+                  + Yeni Dönem Oluştur
+                </Btn>
               )}
             </div>
-          </div>
+          </Card>
+        )}
 
-          {/* Legend */}
-          <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
-            {Object.entries(SINIF_COLORS).map(([s, color]) => (
-              <div key={s} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-                <div style={{ width: 16, height: 16, borderRadius: 4, background: color.bg, border: `1px solid ${color.text}30` }} />
-                <span style={{ color: color.text, fontWeight: 500 }}>{color.label}</span>
-              </div>
-            ))}
-          </div>
-
-          {viewMode === "calendar" ? (
-            <div style={{ display: "flex", gap: 16 }}>
-              {/* Course Pool Sidebar */}
-              <div style={{
-                width: 220, minWidth: 220, maxHeight: "calc(100vh - 260px)",
-                overflowY: "auto", background: "white", borderRadius: 10,
-                border: `1px solid ${C.border}`, padding: 12,
-              }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 8 }}>
-                  Ders Havuzu
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                  <select
-                    value={filterSinif}
-                    onChange={e => setFilterSinif(parseInt(e.target.value))}
-                    style={{ width: "100%", padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12 }}
-                  >
-                    <option value={0}>Tüm Sınıflar</option>
-                    {[1, 2, 3, 4].map(s => <option key={s} value={s}>{s}. Sınıf</option>)}
-                  </select>
-                </div>
-
-                {[1, 2, 3, 4].map(sinif => {
-                  if (filterSinif > 0 && filterSinif !== sinif) return null;
-                  const group = groupedPool[sinif];
-                  if (!group || group.length === 0) return null;
-                  return (
-                    <div key={sinif} style={{ marginBottom: 12 }}>
-                      <div style={{
-                        fontSize: 11, fontWeight: 600, color: SINIF_COLORS[sinif].text,
-                        background: SINIF_COLORS[sinif].bg, padding: "4px 8px", borderRadius: 4, marginBottom: 6,
-                      }}>
-                        {SINIF_COLORS[sinif].label} ({group.length})
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        {group.map((c, i) => (
-                          <DraggableCourseCard key={c.id || i} course={c} isPlaced={false} placedCount={c.placedCount} />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {poolCourses.length === 0 && (
-                  <div style={{ padding: 20, textAlign: "center", color: "#999", fontSize: 12 }}>
-                    Ders bulunamadı
-                  </div>
-                )}
+        {/* Active period content */}
+        {activePeriod && (
+          <>
+            {/* Toolbar */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => setViewMode("calendar")}
+                  style={{
+                    padding: "6px 14px", border: `1px solid ${C.border}`, borderRadius: "8px 0 0 8px",
+                    background: viewMode === "calendar" ? C.navy : "white",
+                    color: viewMode === "calendar" ? "white" : "#666",
+                    cursor: "pointer", fontSize: 13,
+                  }}
+                >Takvim</button>
+                <button
+                  onClick={() => setViewMode("table")}
+                  style={{
+                    padding: "6px 14px", border: `1px solid ${C.border}`, borderRadius: "0 8px 8px 0",
+                    background: viewMode === "table" ? C.navy : "white",
+                    color: viewMode === "table" ? "white" : "#666",
+                    cursor: "pointer", fontSize: 13, borderLeft: "none",
+                  }}
+                >Tablo</button>
               </div>
 
-              {/* Calendar Grid */}
-              <div style={{
-                flex: 1, overflowX: "auto", background: "white", borderRadius: 10,
-                border: `1px solid ${C.border}`,
-              }}>
-                {calendarDays.length === 0 ? (
-                  <div style={{ padding: 40, textAlign: "center", color: "#999" }}>
-                    Takvim günleri bulunamadı. Dönem tarihlerini kontrol edin.
-                  </div>
-                ) : (
-                  <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed" }}>
-                    <thead>
-                      <tr>
-                        <th style={{
-                          padding: "8px 4px", background: "#1B2A4A", color: "white",
-                          fontSize: 11, fontWeight: 600, width: 52, position: "sticky", left: 0, zIndex: 2,
-                          borderRight: "2px solid rgba(255,255,255,0.2)",
-                        }}>
-                          Saat
-                        </th>
-                        {calendarDays.map((day, i) => (
-                          <th key={i} style={{
-                            padding: "6px 4px", background: "#1B2A4A", color: "white",
-                            fontSize: 11, fontWeight: 500, textAlign: "center", minWidth: 100,
-                            borderLeft: "1px solid rgba(255,255,255,0.15)",
-                          }}>
-                            <div>{getDayNameShort(day)}</div>
-                            <div style={{ fontSize: 10, opacity: 0.7 }}>{formatDate(day)}</div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {TIME_SLOTS.map((slot, slotIdx) => (
-                        <tr key={slot}>
-                          <td style={{
-                            padding: "2px 4px", fontSize: 10, fontWeight: 500, color: "#666",
-                            textAlign: "center", background: "#F9FAFB",
-                            borderRight: "2px solid #E5E7EB", borderBottom: "1px solid #E5E7EB",
-                            position: "sticky", left: 0, zIndex: 1,
-                          }}>
-                            {slot}
-                          </td>
-                          {calendarDays.map((day, dayIdx) => (
-                            <CalendarCell
-                              key={dayIdx}
-                              day={day}
-                              timeSlot={slot}
-                              slotIndex={slotIdx}
-                              placedExams={periodExams}
-                              onDrop={handleDrop}
-                              onExamClick={setEditingExam}
-                              totalSlots={TIME_SLOTS.length}
-                            />
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: "#666" }}>
+                  {periodExams.length}/{courses.length} ders yerleştirildi
+                </span>
+                {periodExams.length > 0 && (
+                  <>
+                    <GhostBtn onClick={() => exportToCSV(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
+                      CSV
+                    </GhostBtn>
+                    <GhostBtn onClick={() => exportToWord(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
+                      Word
+                    </GhostBtn>
+                    <GhostBtn onClick={() => exportToXLSX(periodExams, activePeriod.label, activePeriod)} style={{ fontSize: 12, padding: "4px 10px", background: "#059669", color: "white", border: "none" }}>
+                      XLSX
+                    </GhostBtn>
+                    {isAdmin && (
+                      <GhostBtn onClick={handleResetPlacements} style={{ fontSize: 12, padding: "4px 10px", color: "#DC2626" }}>
+                        Sıfırla
+                      </GhostBtn>
+                    )}
+                  </>
                 )}
               </div>
             </div>
-          ) : (
-            <Card>
-              <ExamTableView placedExams={periodExams} onExamClick={setEditingExam} />
-            </Card>
-          )}
-        </>
-      )}
 
-      {/* Modals */}
-      {editingExam && (
-        <EditExamModal
-          exam={editingExam}
-          professors={professors}
-          onSave={handleUpdateExam}
-          onRemove={handleRemoveExam}
-          onClose={() => setEditingExam(null)}
-        />
-      )}
+            {/* Legend */}
+            <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
+              {Object.entries(SINIF_COLORS).map(([s, color]) => (
+                <div key={s} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: 4, background: color.bg, border: `1px solid ${color.text}30` }} />
+                  <span style={{ color: color.text, fontWeight: 500 }}>{color.label}</span>
+                </div>
+              ))}
+            </div>
 
-      {showPeriodModal && (
-        <PeriodConfigModal
-          period={editingPeriod}
-          onSave={handlePeriodSave}
-          onClose={() => { setShowPeriodModal(false); setEditingPeriod(null); }}
-        />
-      )}
+            {viewMode === "calendar" ? (
+              <div style={{ display: "flex", gap: 16 }}>
+                {/* Course Pool Sidebar */}
+                <div style={{
+                  width: 220, minWidth: 220, maxHeight: "calc(100vh - 260px)",
+                  overflowY: "auto", background: "white", borderRadius: 10,
+                  border: `1px solid ${C.border}`, padding: 12,
+                }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 8 }}>
+                    Ders Havuzu
+                  </div>
+                  <div style={{ marginBottom: 8, position: "relative" }}>
+                    <input
+                      type="text"
+                      value={courseSearch}
+                      onChange={e => setCourseSearch(e.target.value)}
+                      placeholder="Ders ara (kod, ad, akademisyen)..."
+                      style={{
+                        width: "100%", padding: "6px 28px 6px 8px",
+                        border: `1px solid ${C.border}`, borderRadius: 6,
+                        fontSize: 12, outline: "none", boxSizing: "border-box",
+                        background: "#FAFAFA",
+                      }}
+                    />
+                    {courseSearch && (
+                      <button
+                        onClick={() => setCourseSearch("")}
+                        style={{
+                          position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                          background: "none", border: "none", cursor: "pointer",
+                          fontSize: 14, color: "#999", padding: 0, lineHeight: 1,
+                        }}
+                      >✕</button>
+                    )}
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <select
+                      value={filterSinif}
+                      onChange={e => setFilterSinif(parseInt(e.target.value))}
+                      style={{ width: "100%", padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12 }}
+                    >
+                      <option value={0}>Tüm Sınıflar</option>
+                      <option value={1}>1. Sınıf</option>
+                      <option value={2}>2. Sınıf</option>
+                      <option value={3}>3. Sınıf</option>
+                      <option value={4}>4. Sınıf</option>
+                      <option value={5}>Seçmeli Dersler</option>
+                    </select>
+                  </div>
 
-      {showCourseModal && (
-        <CourseManagementModal
-          courses={courses}
-          professors={professors}
-          onSave={handleCourseSave}
-          onClose={() => setShowCourseModal(false)}
-        />
-      )}
+                  {[1, 2, 3, 4, 5].map(sinif => {
+                    if (filterSinif > 0 && filterSinif !== sinif) return null;
+                    const group = groupedPool[sinif];
+                    if (!group || group.length === 0) return null;
+                    return (
+                      <div key={sinif} style={{ marginBottom: 12 }}>
+                        <div style={{
+                          fontSize: 11, fontWeight: 600, color: SINIF_COLORS[sinif].text,
+                          background: SINIF_COLORS[sinif].bg, padding: "4px 8px", borderRadius: 4, marginBottom: 6,
+                        }}>
+                          {SINIF_COLORS[sinif].label} ({group.length})
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          {group.map((c, i) => (
+                            <DraggableCourseCard key={c.id || i} course={c} isPlaced={false} placedCount={c.placedCount} />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {poolCourses.length === 0 && (
+                    <div style={{ padding: 20, textAlign: "center", color: "#999", fontSize: 12 }}>
+                      Ders bulunamadı
+                    </div>
+                  )}
+                </div>
+
+                {/* Calendar Grid */}
+                <div style={{
+                  flex: 1, overflowX: "auto", background: "white", borderRadius: 10,
+                  border: `1px solid ${C.border}`,
+                }}>
+                  {calendarDays.length === 0 ? (
+                    <div style={{ padding: 40, textAlign: "center", color: "#999" }}>
+                      Takvim günleri bulunamadı. Dönem tarihlerini kontrol edin.
+                    </div>
+                  ) : (
+                    <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed" }}>
+                      <thead>
+                        <tr>
+                          <th style={{
+                            padding: "8px 4px", background: "#1B2A4A", color: "white",
+                            fontSize: 11, fontWeight: 600, width: 52, position: "sticky", left: 0, zIndex: 2,
+                            borderRight: "2px solid rgba(255,255,255,0.2)",
+                          }}>
+                            Saat
+                          </th>
+                          {calendarDays.map((day, i) => (
+                            <th key={i} style={{
+                              padding: "6px 4px", background: "#1B2A4A", color: "white",
+                              fontSize: 11, fontWeight: 500, textAlign: "center", minWidth: 100,
+                              borderLeft: "1px solid rgba(255,255,255,0.15)",
+                            }}>
+                              <div>{getDayNameShort(day)}</div>
+                              <div style={{ fontSize: 10, opacity: 0.7 }}>{formatDate(day)}</div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {TIME_SLOTS.map((slot, slotIdx) => (
+                          <tr key={slot}>
+                            <td style={{
+                              padding: "2px 4px", fontSize: 10, fontWeight: 500, color: "#666",
+                              textAlign: "center", background: "#F9FAFB",
+                              borderRight: "2px solid #E5E7EB", borderBottom: "1px solid #E5E7EB",
+                              position: "sticky", left: 0, zIndex: 1,
+                            }}>
+                              {slot}
+                            </td>
+                            {calendarDays.map((day, dayIdx) => (
+                              <CalendarCell
+                                key={dayIdx}
+                                day={day}
+                                timeSlot={slot}
+                                slotIndex={slotIdx}
+                                placedExams={turkishifiedPeriodExams}
+                                onDrop={handleDrop}
+                                onExamClick={setEditingExam}
+                                totalSlots={TIME_SLOTS.length}
+                              />
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <Card>
+                <ExamTableView placedExams={turkishifiedPeriodExams} onExamClick={setEditingExam} />
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* Modals */}
+        {editingExam && (
+          <EditExamModal
+            exam={editingExam}
+            professors={professors}
+            onSave={handleUpdateExam}
+            onRemove={handleRemoveExam}
+            onClose={() => setEditingExam(null)}
+          />
+        )}
+
+        {showPeriodModal && (
+          <PeriodConfigModal
+            period={editingPeriod}
+            onSave={handlePeriodSave}
+            onClose={() => { setShowPeriodModal(false); setEditingPeriod(null); }}
+          />
+        )}
+
+        {showCourseModal && (
+          <CourseManagementModal
+            courses={courses.map(turkishifyCourse)}
+            professors={professors}
+            onSave={handleCourseSave}
+            onDelete={handleDeleteCourse}
+            onClose={() => setShowCourseModal(false)}
+          />
+        )}
+      </div>
     </div>
   );
 }
