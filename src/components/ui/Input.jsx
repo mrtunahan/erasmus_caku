@@ -13,7 +13,7 @@ const Input = ({ value, onChange, placeholder, type = "text", disabled, ...rest 
             width: "100%",
             padding: "10px 14px",
             borderRadius: 8,
-            border: \`1px solid \${C.border}\`,
+            border: `1px solid ${C.border}`,
       fontSize: 14,
       fontFamily: "'Source Sans 3', sans-serif",
       outline: "none",

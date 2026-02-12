@@ -1,6 +1,6 @@
-import firebase from 'firebase/app';
-import 'firebase/firestore';
-import 'firebase/auth';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
+import 'firebase/compat/auth';
 
 const firebaseConfig = {
     apiKey: "AIzaSyAv7jWo-91xUkrhQ7o8stRoo6en5Ft1XXw",
@@ -21,4 +21,17 @@ db.settings({ experimentalAutoDetectLongPolling: true });
 
 const auth = firebase.auth();
 
+// Make firebase available on window for legacy service code
+if (typeof window !== 'undefined') {
+    window.firebase = firebase;
+}
+
+// Default export for services that import as FirebaseDB
+const FirebaseDB = {
+    db: () => db,
+    auth: () => auth,
+    firebase: firebase,
+};
+
 export { firebase, db, auth };
+export default FirebaseDB;

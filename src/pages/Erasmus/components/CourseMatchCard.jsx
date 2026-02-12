@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { C } from '../../../constants/theme';
-import { EditIcon, TrashIcon, ArrowRightIcon } from '../../../components/ui/icons';
+import { EditIcon, TrashIcon, ArrowRightIcon } from '../../../components/ui/Icons';
 
 const CourseMatchCard = ({ match, onDelete, onEdit, showGrade, type, readOnly = false }) => {
     const homeTotal = match.homeCourses.reduce((sum, c) => sum + (parseFloat(c.credits) || 0), 0);

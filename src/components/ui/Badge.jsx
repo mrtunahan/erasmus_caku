@@ -11,7 +11,7 @@ const Badge = ({ children, color }) => {
             borderRadius: 16,
             fontSize: 11,
             fontWeight: 700,
-            background: \`\${bg}20\`,
+            background: `${bg}20`,
       color: bg,
       letterSpacing: "0.02em",
       boxShadow: "0 1px 2px rgba(0,0,0,0.05)",

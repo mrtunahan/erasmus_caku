@@ -112,7 +112,7 @@ export const LoginModal = ({ onLogin }) => {
                                 style={{
                                     flex: 1, padding: "8px 0",
                                     border: "none", background: "transparent",
-                                    borderBottom: mode === tab.id ?\`2px solid \${C.navy}\` : "2px solid transparent",
+                                    borderBottom: mode === tab.id ? `2px solid ${C.navy}` : "2px solid transparent",
                         color: mode === tab.id ? C.navy : C.textMuted,
                         fontWeight: 600, cursor: "pointer"
                 }}

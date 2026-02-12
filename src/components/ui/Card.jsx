@@ -6,13 +6,13 @@ const Card = ({ children, title, actions, noPadding }) => (
         background: C.card,
         borderRadius: 12,
         boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-        border: \`1px solid \${C.border}\`,
+        border: `1px solid ${C.border}`,
     marginBottom: 24,
   }}>
     {title && (
       <div style={{
         padding: "20px 24px",
-        borderBottom: \`1px solid \${C.border}\`,
+        borderBottom: `1px solid ${C.border}`,
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",

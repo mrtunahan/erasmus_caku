@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { C as PC } from '../../../constants/theme';
 import Card from '../../../components/ui/Card';
-import Btn from '../../../components/ui/Btn';
+import { Btn } from '../../../components/ui';
 import FormField from '../../../components/ui/FormField';
 import Input from '../../../components/ui/Input';
 import FileDropZone from './FileDropZone';

@@ -17,22 +17,18 @@ import { Btn, Input } from './ui'; // Import from index
 // In a real scenario, I'd check Icons.jsx content first. 
 // For now, I'll assume they will be there or I'll add missing ones.
 
-const NAV_ITEMS = [
-    { id: "erasmus", label: "Erasmus Başvurusu", icon: <BookIcon />, adminOnly: false },
-    { id: "sinav", label: "Sınav Otomasyonu", icon: <CalendarIcon />, adminOnly: false },
-    { id: "muafiyet", label: "Ders Muafiyet", icon: <FileTextIcon />, adminOnly: false },
-    { id: "portal", label: "Öğrenci Portalı", icon: <UserIcon />, adminOnly: false },
-];
-
-// Helper to get Icon by component name or similar logic if needed, 
-// but here we are importing directly.
-
 const FileTextIcon = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
     </svg>
 );
 
+const NAV_ITEMS = [
+    { id: "erasmus", label: "Erasmus Başvurusu", icon: <BookIcon />, adminOnly: false },
+    { id: "sinav", label: "Sınav Otomasyonu", icon: <CalendarIcon />, adminOnly: false },
+    { id: "muafiyet", label: "Ders Muafiyet", icon: <FileTextIcon />, adminOnly: false },
+    { id: "portal", label: "Öğrenci Portalı", icon: <UserIcon />, adminOnly: false },
+];
 
 const Navbar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -46,7 +42,7 @@ const Navbar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
 
     return (
         <nav style={{
-            background: \`linear-gradient(135deg, \${C.navy} 0%, \${C.navyLight} 100%)\`,
+            background: `linear-gradient(135deg, ${C.navy} 0%, ${C.navyLight} 100%)`,
       boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
       position: "sticky",
       top: 0,
@@ -83,7 +79,6 @@ const Navbar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 16px",
                   borderRadius: 10,
-                  border: "none",
                   background: currentRoute === item.id ? "rgba(255,255,255,0.15)" : "transparent",
                   color: currentRoute === item.id ? "white" : "rgba(255,255,255,0.7)",
                   fontSize: 14, fontWeight: 600, cursor: "pointer",

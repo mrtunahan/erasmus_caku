@@ -20,7 +20,7 @@ const Btn = ({ children, onClick, variant = "primary", icon, small, disabled, st
             style={{
                 padding: small ? "8px 14px" : "10px 18px",
                 borderRadius: 8,
-                border: variant === "ghost" ?\`1px solid \${C.border}\` : "none",
+                border: variant === "ghost" ? `1px solid ${C.border}` : "none",
         background: disabled ? C.border : (hover ? s.hoverBg : s.bg),
         color: disabled ? C.textMuted : s.color,
         fontSize: small ? 13 : 14,
