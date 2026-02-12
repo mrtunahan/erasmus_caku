@@ -380,7 +380,14 @@ const PeriodConfigModal = ({ period, onSave, onClose }) => {
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <FormField label="Dönem">
           <Select value={semester} onChange={e => setSemester(e.target.value)}>
-            {["Güz 2024-2025", "Bahar 2024-2025", "Güz 2025-2026", "Bahar 2025-2026"].map(s =>
+            {(() => {
+              const semList = [];
+              for (let y = 2024; y <= 2030; y++) {
+                semList.push(`Güz ${y}-${y + 1}`);
+                semList.push(`Bahar ${y}-${y + 1}`);
+              }
+              return semList;
+            })().map(s =>
               <option key={s} value={s}>{s}</option>
             )}
           </Select>
