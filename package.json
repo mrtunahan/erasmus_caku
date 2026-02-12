@@ -4,6 +4,9 @@
   "description": "Çankırı Karatekin Üniversitesi için geliştirilmiş Erasmus öğrenci ders eşleştirme ve yönetim sistemi.",
   "main": "index.js",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
