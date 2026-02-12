@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { C } from '../constants/theme';
-import logoImg from '../../logo.png';
+import logoImg from '../assets/logo.png';
 import {
     HomeIcon,
     BookIcon,
