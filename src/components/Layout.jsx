@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { C } from '../constants/theme';
+import logoImg from '../../logo.png';
 import {
     HomeIcon,
     BookIcon,
@@ -57,7 +58,7 @@ const Navbar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
                 display: "flex", alignItems: "center", justifyContent: "center",
                 boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
              }}>
-                 <img src="/logo.png" alt="Logo" style={{ width: 40, height: 40, objectFit: "contain" }} />
+                 <img src={logoImg} alt="Logo" style={{ width: 40, height: 40, objectFit: "contain" }} />
              </div>
              <div>
                <h1 style={{ color: "white", fontSize: 18, fontWeight: 700, letterSpacing: -0.5, lineHeight: 1.2 }}>
