@@ -135,7 +135,7 @@ function assignSupervisorsToExams(exams) {
 }
 
 const TIME_SLOTS = [];
-for (let h = 8; h < 17; h++) { // End at 17:00 (last slot 16:30)
+for (let h = 8; h <= 17; h++) { // End at 17:30 (last slot 17:00 or 17:30)
   for (let m = 0; m < 60; m += 30) {
     if (h === 8 && m === 0) continue; // Start from 08:30
     // if (h === 12) continue; // Skip 12:00 - 13:00 (Lunch) - REVERTED
@@ -294,7 +294,7 @@ function getWeekDays(startDate, weeks) {
   for (let i = 0; i < totalDays; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    if (d.getDay() >= 1 && d.getDay() <= 6) {
+    if (d.getDay() >= 1 && d.getDay() <= 5) {
       days.push(new Date(d));
     }
   }
@@ -689,7 +689,7 @@ const CalendarCell = ({ day, timeSlot, slotIndex, placedExams, onDrop, onExamCli
     }
   };
 
-  const cellHeight = 28;
+  const cellHeight = 40;
 
   return (
     <td
@@ -702,8 +702,8 @@ const CalendarCell = ({ day, timeSlot, slotIndex, placedExams, onDrop, onExamCli
         border: "1px solid #E5E7EB",
         padding: 0,
         height: examHere ? cellHeight * examSpan : cellHeight,
-        minWidth: 100,
-        maxWidth: 140,
+        minWidth: 140,
+        maxWidth: 180,
         verticalAlign: "top",
         background: examHere
           ? color.bg
@@ -1102,7 +1102,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
   // Day time slots
   var dayTimeSlots = [];
-  for (var h = 8; h < 17; h++) { // End at 17:00
+  for (var h = 8; h <= 17; h++) { // End at 17:30
     for (var m = 0; m < 60; m += 30) {
       if (h === 8 && m === 0) continue;
       // if (h === 12) continue; // Skip lunch - REVERTED
