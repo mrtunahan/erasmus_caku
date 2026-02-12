@@ -1526,48 +1526,339 @@ const PasswordManagementModal = ({ students, onClose }) => {
 
 // ── Grade Converter Widget ──
 const GradeConverter = () => {
+  const [activeTab, setActiveTab] = useState("table1");
   const [inputGrade, setInputGrade] = useState("");
-  const [convertedResult, setConvertedResult] = useState(null);
-  const handleConvert = () => {
-    if (inputGrade.trim()) setConvertedResult(convertGrade(inputGrade));
+  const [result, setResult] = useState(null);
+
+  // ── Table Definitions ──
+  const TABLE_DATA = {
+    table1: {
+      title: "Tablo 1 (100'lük)",
+      desc: "100'lük Sistem -> Harf Notu",
+      placeholder: "Not (0-100)",
+      type: "range",
+      columns: ["Tanım (English)", "Sayısal (Numeric)", "Karsılık"],
+      data: [
+        { text: "very good", range: "90-100", min: 90, max: 100, eq: "A", color: "#10B981" },
+        { text: "good +", range: "85-89", min: 85, max: 89, eq: "B1", color: "#3B82F6" },
+        { text: "good", range: "80-84", min: 80, max: 84, eq: "B2", color: "#60A5FA" },
+        { text: "sufficient +", range: "75-79", min: 75, max: 79, eq: "B3", color: "#93C5FD" },
+        { text: "sufficient", range: "70-74", min: 70, max: 74, eq: "C1", color: "#F59E0B" },
+        { text: "allowing +", range: "65-69", min: 65, max: 69, eq: "C2", color: "#FBBF24" },
+        { text: "allowing", range: "60-64", min: 60, max: 64, eq: "C3", color: "#FCD34D" },
+        { text: "insufficient", range: "50-59", min: 50, max: 59, eq: "F1", color: "#EF4444" },
+        { text: "insufficient", range: "0-49", min: 0, max: 49, eq: "F2", color: "#DC2626" },
+      ]
+    },
+    table2: {
+      title: "Tablo 2 (Katsayı)",
+      desc: "100'lük -> Katsayı -> Harf",
+      placeholder: "Not (0-100)",
+      type: "range",
+      columns: ["Sayısal Notlar", "Katsayılar", "Karsılık"],
+      data: [
+        { range: "90-100", min: 90, max: 100, coef: "4,00", eq: "A", color: "#10B981" },
+        { range: "85-89", min: 85, max: 89, coef: "3,50", eq: "B1", color: "#3B82F6" },
+        { range: "80-84", min: 80, max: 84, coef: "3,25", eq: "B2", color: "#60A5FA" },
+        { range: "75-79", min: 75, max: 79, coef: "3,00", eq: "B3", color: "#93C5FD" },
+        { range: "70-74", min: 70, max: 74, coef: "2,50", eq: "C1", color: "#F59E0B" },
+        { range: "65-69", min: 65, max: 69, coef: "2,25", eq: "C2", color: "#FBBF24" },
+        { range: "60-64", min: 60, max: 64, coef: "2,00", eq: "C3", color: "#FCD34D" },
+        { range: "50-59", min: 50, max: 59, coef: "1,50", eq: "F1", color: "#EF4444" },
+        { range: "0-49", min: 0, max: 49, coef: "0,00", eq: "F2", color: "#DC2626" },
+      ]
+    },
+    table3: {
+      title: "Tablo 3 (Harf/4'lük)",
+      desc: "Basarı Notu / Harf -> Karsılık",
+      placeholder: "Not (örn: 3.50 veya BA)",
+      type: "mixed",
+      columns: ["Basarı Notu", "Harf Notu", "Karsılık"],
+      data: [
+        { val: 4.00, letter: "AA", eq: "A", color: "#10B981" },
+        { val: 3.50, letter: "BA", eq: "B1", color: "#3B82F6" },
+        { val: 3.00, letter: "BB", eq: "B2", color: "#60A5FA" },
+        { val: 2.50, letter: "CB", eq: "B3", color: "#93C5FD" },
+        { val: 2.00, letter: "CC", eq: "C1", color: "#F59E0B" },
+        { val: 1.50, letter: "DC", eq: "C2", color: "#FBBF24" },
+        { val: 1.00, letter: "DD", eq: "C3", color: "#FCD34D" },
+        { val: 0.00, letter: "FF", eq: "F1", color: "#EF4444" },
+        { val: 0.00, letter: "FD", eq: "F2", color: "#DC2626" },
+        { text: "-", letter: "Sınava girmedi", eq: "FF1", color: "#991B1B" },
+        { text: "-", letter: "Devamsızlıktan kaldı", eq: "FF2", color: "#7F1D1D" },
+      ]
+    },
+    ects_conv: {
+      title: "ECTS Dönüşüm",
+      desc: "ECTS Notu -> Kurum Notu",
+      placeholder: "ECTS Notu (A, B...)",
+      type: "match",
+      columns: ["ECTS Notu", "Acıklama", "Karsılık"],
+      data: [
+        { eq: "A", def: "excellent", u_eq: "A", color: "#10B981" },
+        { eq: "B", def: "very good", u_eq: "B1", color: "#3B82F6" },
+        { eq: "C", def: "good", u_eq: "B2", color: "#60A5FA" },
+        { eq: "D", def: "satisfactory", u_eq: "C1", color: "#F59E0B" },
+        { eq: "E", def: "sufficient", u_eq: "C3", color: "#FCD34D" },
+        { eq: "FX", def: "failed", u_eq: "F1", color: "#EF4444" },
+        { eq: "F", def: "failed", u_eq: "F2", color: "#DC2626" },
+      ]
+    },
+    table4: {
+      title: "ECTS Tanım",
+      desc: "ECTS Notu -> Tanım (Referans)",
+      placeholder: "ECTS Notu (A, B, C...)",
+      type: "match",
+      columns: ["ECTS Grade", "% of successful students", "Definition"],
+      data: [
+        { eq: "A", pct: "10", def: "EXCELLENT - outstanding performance with only minor errors", color: "#10B981" },
+        { eq: "B", pct: "25", def: "VERY GOOD - above the average standard but with some errors", color: "#3B82F6" },
+        { eq: "C", pct: "30", def: "GOOD - generally sound work with a number of notable errors", color: "#60A5FA" },
+        { eq: "D", pct: "25", def: "SATISFACTORY - fair but with significant shortcomings", color: "#F59E0B" },
+        { eq: "E", pct: "10", def: "SUFFICIENT - performance meets the minimum criteria", color: "#FBBF24" },
+        { eq: "FX", pct: "-", def: "FAIL - some more work required before the credit can be awarded", color: "#EF4444" },
+        { eq: "F", pct: "-", def: "FAIL - considerable further work is required", color: "#DC2626" },
+      ]
+    },
+    system10: {
+      title: "10'luk Sistem",
+      desc: "10'luk Sistem -> Harf Notu",
+      placeholder: "Not (0-10)",
+      type: "exact",
+      columns: ["Not", "Acıklama", "Karsılık"],
+      data: [
+        { val: 10, text: "with distinctions", eq: "A", color: "#10B981" },
+        { val: 9, text: "excellent", eq: "B1", color: "#3B82F6" },
+        { val: 8, text: "very good", eq: "B2", color: "#60A5FA" },
+        { val: 7, text: "good", eq: "B3", color: "#93C5FD" },
+        { val: 6, text: "almost good", eq: "C1", color: "#F59E0B" },
+        { val: 5, text: "satisfactory", eq: "C2", color: "#FBBF24" },
+        { val: 4, text: "almost satisfactory", eq: "C3", color: "#FCD34D" },
+        { val: 3, text: "not passed or failed", eq: "F2", color: "#EF4444" },
+        { val: 2, text: "not passed or failed", eq: "F2", color: "#EF4444" },
+        { val: 1, text: "not passed or failed", eq: "F2", color: "#EF4444" },
+        { val: 0, text: "not passed or failed", eq: "F2", color: "#EF4444" },
+      ]
+    },
+    system5a: {
+      title: "5'lik (A)",
+      desc: "5'lik Sistem (Tip A) -> Harf",
+      placeholder: "Not (0-5)",
+      type: "exact",
+      columns: ["Not", "Acıklama", "Karsılık"],
+      data: [
+        { val: 5, text: "very good", eq: "A", color: "#10B981" },
+        { val: 4.5, text: "good +", eq: "B1", color: "#3B82F6" },
+        { val: 4, text: "good", eq: "B2", color: "#60A5FA" },
+        { val: 3.5, text: "sufficient +", eq: "B3", color: "#93C5FD" },
+        { val: 3, text: "sufficient", eq: "C1", color: "#F59E0B" },
+        { val: 2.5, text: "allowing +", eq: "C2", color: "#FBBF24" },
+        { val: 2, text: "allowing", eq: "C3", color: "#FCD34D" },
+        { val: 1.5, text: "insufficient", eq: "F2", color: "#EF4444" },
+        { val: 1, text: "insufficient", eq: "F2", color: "#EF4444" },
+        { val: 0.5, text: "insufficient", eq: "F2", color: "#EF4444" },
+        { val: 0, text: "insufficient", eq: "F2", color: "#EF4444" },
+      ]
+    },
+    system5b: {
+      title: "5'lik (B/D)",
+      desc: "5'lik Sistem (Tip B/D) -> Harf",
+      placeholder: "Not (0-5)",
+      type: "exact",
+      columns: ["Not", "Acıklama", "Karsılık"],
+      data: [
+        { val: 5, text: "very good", eq: "A", color: "#10B981" },
+        { val: 4.5, text: "better than good", eq: "B1", color: "#3B82F6" },
+        { val: 4, text: "good", eq: "B2", color: "#60A5FA" },
+        { val: 3.5, text: "better than satisfactory", eq: "C1", color: "#F59E0B" },
+        { val: 3, text: "satisfactory", eq: "C2", color: "#FBBF24" },
+        { val: 2.5, text: "satisfactory", eq: "C3", color: "#FCD34D" },
+        { val: 2, text: "failure", eq: "F2", color: "#EF4444" },
+        { val: 1.5, text: "failure", eq: "F2", color: "#EF4444" },
+        { val: 1, text: "failure", eq: "F2", color: "#EF4444" },
+        { val: 0.5, text: "failure", eq: "F2", color: "#EF4444" },
+        { val: 0, text: "failure", eq: "F2", color: "#EF4444" },
+      ]
+    },
+    system5c: {
+      title: "5'lik (C)",
+      desc: "5'lik Sistem (Tip C - Tam Sayı) -> Harf",
+      placeholder: "Not (0-5)",
+      type: "exact",
+      columns: ["Not", "Acıklama", "Karsılık"],
+      data: [
+        { val: 5, text: "excellent", eq: "A", color: "#10B981" },
+        { val: 4, text: "good", eq: "B2", color: "#60A5FA" },
+        { val: 3, text: "satisfactory", eq: "C1", color: "#F59E0B" },
+        { val: 2, text: "passed", eq: "C3", color: "#FCD34D" },
+        { val: 1, text: "failed", eq: "F1", color: "#EF4444" },
+        { val: 0, text: "failed", eq: "F2", color: "#DC2626" },
+      ]
+    },
   };
-  const examples = [
-    { input: "A", system: "ECTS" }, { input: "BA", system: "Harf" },
-    { input: "85", system: "100'luk" }, { input: "8", system: "10'luk" }, { input: "4.5", system: "5'lik" },
-  ];
+
+  const calculateGrade = (val, tableKey) => {
+    if (!val) return null;
+    const table = TABLE_DATA[tableKey];
+    const num = parseFloat(val);
+    const str = String(val).trim().toUpperCase();
+
+    if (table.type === "range") {
+      if (isNaN(num)) return null;
+      return table.data.find(row => num >= row.min && num <= row.max) || null;
+    }
+    else if (table.type === "exact") {
+      if (isNaN(num)) return null;
+      // Precision handle for 4.5 vs 4,5
+      return table.data.find(row => Math.abs(row.val - num) < 0.1) || null;
+    }
+    else if (table.type === "mixed") {
+      // Try string match (AA, BA...)
+      const strMatch = table.data.find(row => row.letter && row.letter.toUpperCase() === str);
+      if (strMatch) return strMatch;
+      // Try number match (4.00, 3.50...)
+      if (!isNaN(num)) return table.data.find(row => row.val !== undefined && Math.abs(row.val - num) < 0.01) || null;
+      return null;
+    }
+    else if (table.type === "match") {
+      return table.data.find(row => row.eq === str) || null;
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    setResult(calculateGrade(inputGrade, activeTab));
+  }, [inputGrade, activeTab]);
+
+  const activeData = TABLE_DATA[activeTab];
+
   return (
-    <div>
-      <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-        <Input value={inputGrade} onChange={e => setInputGrade(e.target.value)}
-          placeholder="Notu girin (orn: A, BA, 85, 8.5, 4.0)"
-          onKeyPress={e => e.key === 'Enter' && handleConvert()} style={{ flex: 1 }} />
-        <Btn onClick={handleConvert}>Donustur</Btn>
+    <div style={{ fontFamily: "'Inter', sans-serif" }}>
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 12, borderBottom: "1px solid #E5E7EB", marginBottom: 20 }}>
+        {Object.entries(TABLE_DATA).map(([key, t]) => (
+          <button
+            key={key}
+            onClick={() => { setActiveTab(key); setInputGrade(""); setResult(null); }}
+            style={{
+              padding: "8px 12px", borderRadius: 8, fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", cursor: "pointer",
+              background: activeTab === key ? "#EEF2FF" : "transparent",
+              color: activeTab === key ? "#4F46E5" : "#6B7280",
+              border: activeTab === key ? "1px solid #C7D2FE" : "1px solid transparent",
+              transition: "all 0.2s"
+            }}
+          >
+            {t.title}
+          </button>
+        ))}
       </div>
-      {convertedResult && (
-        <div style={{
-          padding: 20, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          borderRadius: 12, textAlign: 'center', color: 'white', marginBottom: 12,
-        }}>
-          <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8 }}>{inputGrade} → CAKU Not Sistemi</div>
-          <div style={{ fontSize: 48, fontWeight: 700, fontFamily: "'Playfair Display', serif" }}>{convertedResult}</div>
+
+      {/* Input Section */}
+      <div style={{ background: "#F3F4F6", padding: 20, borderRadius: 12, marginBottom: 24, textAlign: "center" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#6B7280", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          {activeData.desc}
         </div>
-      )}
-      <div style={{ padding: 16, background: C.bg, borderRadius: 8, border: `1px solid ${C.border}` }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.navy, marginBottom: 12 }}>Ornek Notlar:</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {examples.map((ex, idx) => (
-            <button key={idx} onClick={() => { setInputGrade(ex.input); setConvertedResult(convertGrade(ex.input)); }}
-              style={{
-                padding: "6px 12px", background: "white", border: `1px solid ${C.border}`,
-                borderRadius: 6, fontSize: 12, cursor: "pointer",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = C.navy; e.currentTarget.style.color = "white"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "white"; e.currentTarget.style.color = C.text; }}
-            >
-              {ex.input} <span style={{ opacity: 0.6 }}>({ex.system})</span>
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: 12, maxWidth: 320, margin: "0 auto" }}>
+          <Input
+            value={inputGrade}
+            onChange={e => setInputGrade(e.target.value)}
+            placeholder={activeData.placeholder}
+            style={{ textAlign: "center", fontSize: 16, padding: 12 }}
+          />
         </div>
+
+        {result && (
+          <div style={{ marginTop: 20, animation: "fadeIn 0.3s ease" }}>
+            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 4 }}>Dönüştürülen Not</div>
+            <div style={{
+              fontSize: 48, fontWeight: 700,
+              color: result.color || "#374151",
+              fontFamily: "'Playfair Display', serif",
+              lineHeight: 1
+            }}>
+              {result.u_eq || result.eq || result.def}
+            </div>
+            {result.text && <div style={{ fontSize: 14, fontWeight: 500, color: "#374151", marginTop: 8 }}>{result.text}</div>}
+            {activeTab === "ects_conv" && <div style={{ fontSize: 14, fontWeight: 500, color: "#374151", marginTop: 8 }}>{result.def}</div>}
+            {activeTab === "table4" && <div style={{ fontSize: 12, color: "#6B7280", marginTop: 8, maxWidth: 300, margin: "8px auto" }}>{result.def}</div>}
+          </div>
+        )}
+      </div>
+
+      {/* Reference Table */}
+      <div style={{ border: "1px solid #E5E7EB", borderRadius: 12, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+              {activeData.columns.map((col, i) => (
+                <th key={i} style={{ padding: "12px 16px", textAlign: i === 0 ? "left" : "center", color: "#6B7280", fontWeight: 600 }}>{col}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {activeData.data.map((row, i) => {
+              // Highlight logic varies by table
+              let isActive = false;
+              if (result) {
+                if (activeTab === "table4") isActive = result.eq === row.eq;
+                else if (activeTab === "ects_conv") isActive = result.eq === row.eq;
+                else if (row.eq) isActive = result.eq === row.eq;
+              }
+
+              return (
+                <tr key={i} style={{
+                  background: isActive ? `${row.color}15` : "white",
+                  borderBottom: i !== activeData.data.length - 1 ? "1px solid #F3F4F6" : "none",
+                  transition: "background 0.2s"
+                }}>
+                  {/* Render columns based on table type */}
+                  {activeTab === "table1" && (
+                    <>
+                      <td style={{ padding: "10px 16px", color: "#111827", fontWeight: 500 }}>{row.text}</td>
+                      <td style={{ padding: "10px 16px", textAlign: "center", fontFamily: "'JetBrains Mono', monospace" }}>{row.range}</td>
+                      <td style={{ padding: "10px 16px", textAlign: "center" }}><Badge color="white" bg={result && result.eq === row.eq ? row.color : "#9CA3AF"}>{row.eq}</Badge></td>
+                    </>
+                  )}
+                  {activeTab === "table2" && (
+                    <>
+                      <td style={{ padding: "10px 16px", color: "#111827", fontWeight: 500 }}>{row.range}</td>
+                      <td style={{ padding: "10px 16px", textAlign: "center", fontFamily: "'JetBrains Mono', monospace" }}>{row.coef}</td>
+                      <td style={{ padding: "10px 16px", textAlign: "center" }}><Badge color="white" bg={result && result.eq === row.eq ? row.color : "#9CA3AF"}>{row.eq}</Badge></td>
+                    </>
+                  )}
+                  {activeTab === "table3" && (
+                    <>
+                      <td style={{ padding: "10px 16px", color: "#111827", fontWeight: 500 }}>{row.val !== undefined ? row.val.toFixed(2) : row.text}</td>
+                      <td style={{ padding: "10px 16px", textAlign: "center", fontFamily: "'JetBrains Mono', monospace" }}>{row.letter}</td>
+                      <td style={{ padding: "10px 16px", textAlign: "center" }}><Badge color="white" bg={result && result.eq === row.eq ? row.color : "#9CA3AF"}>{row.eq}</Badge></td>
+                    </>
+                  )}
+                  {activeTab === "ects_conv" && (
+                    <>
+                      <td style={{ padding: "10px 16px", color: "#111827", fontWeight: 500, textAlign: "center" }}><Badge color="white" bg={row.color}>{row.eq}</Badge></td>
+                      <td style={{ padding: "10px 16px", textAlign: "center" }}>{row.def}</td>
+                      <td style={{ padding: "10px 16px", textAlign: "center" }}><Badge color="white" bg={result && result.u_eq === row.u_eq ? row.color : "#9CA3AF"}>{row.u_eq}</Badge></td>
+                    </>
+                  )}
+                  {activeTab === "table4" && (
+                    <>
+                      <td style={{ padding: "10px 16px", color: "#111827", fontWeight: 500, textAlign: "center" }}><Badge color="white" bg={row.color}>{row.eq}</Badge></td>
+                      <td style={{ padding: "10px 16px", textAlign: "center" }}>{row.pct}</td>
+                      <td style={{ padding: "10px 16px", fontSize: 12, color: "#4B5563" }}>{row.def}</td>
+                    </>
+                  )}
+                  {(activeTab.startsWith("system10") || activeTab.startsWith("system5")) && (
+                    <>
+                      <td style={{ padding: "10px 16px", color: "#111827", fontWeight: 500 }}>{row.val}</td>
+                      <td style={{ padding: "10px 16px", textAlign: "center" }}>{row.text}</td>
+                      <td style={{ padding: "10px 16px", textAlign: "center" }}><Badge color="white" bg={result && result.eq === row.eq ? row.color : "#9CA3AF"}>{row.eq}</Badge></td>
+                    </>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
