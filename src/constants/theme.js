@@ -1,0 +1,36 @@
+export const DY = {
+    bg: "#fffdf5", // Creamy background
+    card: "#ffffff",
+    gold: "#d4af37",
+    goldLight: "#f3e5ab",
+    goldDark: "#b4941f",
+    navy: "#1e3a8a",
+    navyLight: "#3b82f6",
+    green: "#059669",
+    greenLight: "#d1fae5",
+    text: "#1f2937",
+    textLight: "#4b5563",
+    border: "#e5e7eb",
+    shadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+    hover: "#fffbe6",
+};
+
+export const C = {
+    bg: "#F7F5F0",
+    card: "#FFFFFF",
+    navy: "#1B2A4A",
+    navyLight: "#2D4A7A",
+    gold: "#C4973B",
+    goldLight: "#E8D5A8",
+    goldPale: "#FBF6EC",
+    accent: "#8B2635",
+    accentLight: "#D4A0A7",
+    green: "#2E7D52",
+    greenLight: "#D4EDDA",
+    text: "#2C2C2C",
+    textMuted: "#6B7280",
+    border: "#E5E1D8",
+    borderLight: "#F0EDE6",
+    blue: "#3B82F6",
+    blueLight: "#DBEAFE",
+};
