@@ -2,7 +2,7 @@
 import React from 'react';
 import { C as PC } from '../../../constants/theme';
 import Card from '../../../components/ui/Card';
-import Btn from '../../../components/ui/Btn';
+import { Btn } from '../../../components/ui';
 import { timeAgo } from '../../StudentPortal/utils'; // Reusing from StudentPortal utils if possible, or duplicate logic
 
 const ExemptionHistory = ({ records, loading, onDelete, onExportWord }) => {

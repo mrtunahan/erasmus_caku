@@ -1,5 +1,5 @@
 import React from 'react';
-import { Badge } from '../../components/ui';
+import { Badge } from '../../../components/ui';
 import { SINIF_COLORS } from '../constants';
 import { formatDateISO, getDayName, formatDate, parseDateISO } from '../utils';
 import { C } from '../../../constants/theme';

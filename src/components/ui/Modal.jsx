@@ -29,12 +29,12 @@ const Modal = ({ open, onClose, title, children, width = 600 }) => {
         display: "flex",
         flexDirection: "column",
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-        border: \`1px solid \${C.border}\`,
+        border: `1px solid ${C.border}`,
         animation: "slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
       }} onClick={e => e.stopPropagation()}>
         <div style={{
           padding: "20px 24px",
-          borderBottom: \`1px solid \${C.border}\`,
+          borderBottom: `1px solid ${C.border}`,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -46,9 +46,9 @@ const Modal = ({ open, onClose, title, children, width = 600 }) => {
         </div>
         <div style={{ padding: 24, overflowY: "auto", flex: 1 }}>{children}</div>
       </div >
-    <style>{\`
+    <style>{`
         @keyframes slideIn {from {transform: translateY(20px); opacity: 0; } to {transform: translateY(0); opacity: 1; } }
-      \`}</style>
+      `}</style>
     </div >,
     document.body
   );

@@ -1,5 +1,5 @@
 
-import FirebaseDB from '../../../services/firebase';
+import FirebaseDB from '../../services/firebase';
 
 const PortalService = {
     postsRef: function () {

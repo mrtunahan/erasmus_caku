@@ -7,7 +7,7 @@ import SettingsPanel from './components/SettingsPanel';
 import NewExemption from './components/NewExemption';
 import ExemptionHistory from './components/ExemptionHistory';
 import { exportMuafiyetWord } from './utils';
-import { Card } from '../../components/ui/Card'; // Assuming Card is exported from ui/Card or we need to use the one from extracted components if customized
+import { Card } from '../../components/ui';
 
 // Re-using the style injection approach for consistency if needed, or relying on global styles
 // For now, let's implement the refined design
