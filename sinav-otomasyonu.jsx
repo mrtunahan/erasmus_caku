@@ -135,10 +135,10 @@ function assignSupervisorsToExams(exams) {
 }
 
 const TIME_SLOTS = [];
-for (let h = 8; h <= 18; h++) {
+for (let h = 8; h < 17; h++) { // End at 17:00 (last slot 16:30)
   for (let m = 0; m < 60; m += 30) {
     if (h === 8 && m === 0) continue; // Start from 08:30
-    if (h === 18 && m > 30) continue;
+    if (h === 12) continue; // Skip 12:00 - 13:00 (Lunch)
     const hh = String(h).padStart(2, "0");
     const mm = String(m).padStart(2, "0");
     TIME_SLOTS.push(`${hh}:${mm}`);
@@ -492,7 +492,7 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
 // ══════════════════════════════════════════════════════════════
 // Course Management Modal
 // ══════════════════════════════════════════════════════════════
-const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
+const CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose }) => {
   const [editingCourse, setEditingCourse] = useState(null);
   const [form, setForm] = useState({ code: "", name: "", sinif: 1, duration: 30, professor: "" });
 
@@ -540,7 +540,10 @@ const CourseManagementModal = ({ courses, professors, onSave, onClose }) => {
                 <td style={{ padding: "8px 12px", textAlign: "center" }}>{c.duration} dk</td>
                 <td style={{ padding: "8px 12px", fontSize: 12 }}>{c.professor || "-"}</td>
                 <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                  <button onClick={() => startEdit(c)} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13 }}>Düzenle</button>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                    <button onClick={() => startEdit(c)} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13 }}>Düzenle</button>
+                    <button onClick={() => onDelete(c)} style={{ background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 13 }}>Sil</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1094,10 +1097,10 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
   // Day time slots
   var dayTimeSlots = [];
-  for (var h = 8; h <= 18; h++) {
+  for (var h = 8; h < 17; h++) { // End at 17:00
     for (var m = 0; m < 60; m += 30) {
       if (h === 8 && m === 0) continue;
-      if (h === 18 && m > 30) continue;
+      if (h === 12) continue; // Skip lunch
       var sH = String(h).padStart(2, "0");
       var sM = String(m).padStart(2, "0");
       var eMin = h * 60 + m + 30;
@@ -1473,6 +1476,37 @@ function SinavOtomasyonuApp({ currentUser }) {
       setPlacedExams(prev => prev.filter(e => e.id !== exam.id));
     } catch (e) {
       console.error("Remove error:", e);
+      alert("Silme hatası: " + e.message);
+    }
+  };
+
+  const handleDeleteCourse = async (course) => {
+    if (!confirm(`${course.code} - ${course.name} dersini silmek istediğinize emin misiniz?`)) return;
+
+    try {
+      const cRef = getCoursesRef();
+      const exRef = getExamsRef();
+      if (!cRef || !exRef) throw new Error("Firebase hazır değil");
+
+      // Check for placed exams
+      const linkedExams = placedExams.filter(e => e.courseId === course.id);
+      if (linkedExams.length > 0) {
+        if (!confirm(`Bu derse ait ${linkedExams.length} adet sınav planlanmış durumda. Dersi silerseniz bu sınavlar da takvimden silinecek. Devam etmek istiyor musunuz?`)) return;
+
+        // Cascade delete exams
+        const batch = window.firebase.firestore().batch();
+        linkedExams.forEach(e => {
+          batch.delete(exRef.doc(e.id));
+        });
+        await batch.commit();
+        setPlacedExams(prev => prev.filter(e => e.courseId !== course.id));
+      }
+
+      await cRef.doc(course.id).delete();
+      alert("Ders silindi.");
+      loadData();
+    } catch (e) {
+      console.error("Delete course error:", e);
       alert("Silme hatası: " + e.message);
     }
   };
@@ -1876,6 +1910,7 @@ function SinavOtomasyonuApp({ currentUser }) {
             courses={courses.map(turkishifyCourse)}
             professors={professors}
             onSave={handleCourseSave}
+            onDelete={handleDeleteCourse}
             onClose={() => setShowCourseModal(false)}
           />
         )}
