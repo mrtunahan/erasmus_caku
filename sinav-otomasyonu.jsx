@@ -138,7 +138,7 @@ const TIME_SLOTS = [];
 for (let h = 8; h < 17; h++) { // End at 17:00 (last slot 16:30)
   for (let m = 0; m < 60; m += 30) {
     if (h === 8 && m === 0) continue; // Start from 08:30
-    if (h === 12) continue; // Skip 12:00 - 13:00 (Lunch)
+    // if (h === 12) continue; // Skip 12:00 - 13:00 (Lunch) - REVERTED
     const hh = String(h).padStart(2, "0");
     const mm = String(m).padStart(2, "0");
     TIME_SLOTS.push(`${hh}:${mm}`);
@@ -724,6 +724,11 @@ const CalendarCell = ({ day, timeSlot, slotIndex, placedExams, onDrop, onExamCli
           height: "100%",
           overflow: "hidden",
           fontWeight: 600,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          textAlign: "center",
         }}>
           <div>{examHere.code}</div>
           <div style={{ fontWeight: 400, fontSize: 9 }}>{examHere.name}</div>
@@ -870,19 +875,19 @@ function exportToCSV(placedExams, periodLabel) {
     return a.date.localeCompare(b.date) || a.timeSlot.localeCompare(b.timeSlot);
   });
 
-  const header = "Sınıf;Ders Kodu;Ders Adı;Öğretim Üyesi;Tarih;Gün;Saat;Süre (dk);Öğrenci Sayısı;Gözetmen;Salon";
+  const header = "Sınıf;Ders Kodu;Ders Adı;Sınava Girecek Toplam Öğrenci Sayısı;Öğretim Üyesi;Tarih;Gün;Saat;Süre (dk);Gözetmen;Salon";
   const rows = sorted.map(e => {
     const d = parseDateISO(e.date);
     return [
       `${e.sinif}. Sınıf`,
       e.code,
       e.name,
+      e.studentCount || "",
       e.professor,
       formatDate(d),
       getDayName(d),
       e.timeSlot,
       e.duration,
-      e.studentCount || "",
       e.supervisor || "",
       e.room || "",
     ].join(";");
@@ -910,9 +915,9 @@ function exportToWord(placedExams, periodLabel) {
     return `<tr>
       <td style="padding:6px;text-align:center">${e.sinif}. Sınıf</td>
       <td style="padding:6px"><b>${e.code}</b> - ${e.name}</td>
+      <td style="padding:6px;text-align:center;font-weight:bold">${e.studentCount || "-"}</td>
       <td style="padding:6px;font-size:12px">${e.professor}</td>
       <td style="padding:6px;text-align:center">${formatDate(d)} ${getDayName(d)}<br/>${e.timeSlot} (${e.duration} dk)</td>
-      <td style="padding:6px;text-align:center;font-weight:bold">${e.studentCount || "-"}</td>
       <td style="padding:6px">${e.supervisor || "-"}</td>
       <td style="padding:6px;text-align:center">${e.room || "-"}</td>
     </tr>`;
@@ -928,9 +933,9 @@ function exportToWord(placedExams, periodLabel) {
         <tr style="background:white;font-weight:bold">
           <th style="padding:8px;border:1px solid #000">Sınıf</th>
           <th style="padding:8px;border:1px solid #000">Ders Kodu - İsmi</th>
+          <th style="padding:8px;border:1px solid #000">Sınava Girecek Toplam Öğrenci Sayısı</th>
           <th style="padding:8px;border:1px solid #000">Öğretim Üyesi</th>
           <th style="padding:8px;border:1px solid #000">Tarih - Saat - Süre</th>
-          <th style="padding:8px;border:1px solid #000">Öğrenci Sayısı</th>
           <th style="padding:8px;border:1px solid #000">Gözetmen</th>
           <th style="padding:8px;border:1px solid #000">Salon</th>
         </tr>
@@ -1009,11 +1014,11 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
   // ══════ Sheet 1: Liste (Tarihe göre sıralı) ══════
   const listHeader = [
-    "Dersin Adı", "Dersin Kodu", "Sınavın Başlama Tarihi ve Saati",
+    "Dersin Adı", "Dersin Kodu", "Sınava Girecek Toplam Öğrenci Sayısı", "Sınavın Başlama Tarihi ve Saati",
     "Sınavın Bitiş Tarihi ve Saati", "Sınav Süresi", "GÖZETMEN", "SINIF",
   ];
   const listData = [listHeader, ...enriched.map(e => [
-    e.name, e.code, e.startStr, e.endStr, e.durationStr, e.assignedSupervisors, e.assignedRoom,
+    e.name, e.code, e.studentCount || "", e.startStr, e.endStr, e.durationStr, e.assignedSupervisors, e.assignedRoom,
   ])];
 
   const ws1 = XLSX.utils.aoa_to_sheet(listData);
@@ -1044,7 +1049,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
   }
 
   ws1["!cols"] = [
-    { wch: 35 }, { wch: 18 }, { wch: 28 }, { wch: 28 }, { wch: 12 }, { wch: 60 }, { wch: 20 },
+    { wch: 35 }, { wch: 18 }, { wch: 35 }, { wch: 28 }, { wch: 28 }, { wch: 12 }, { wch: 60 }, { wch: 20 },
   ];
   XLSX.utils.book_append_sheet(wb, ws1, "Liste (Tarihe göre sıralı)");
 
@@ -1100,7 +1105,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
   for (var h = 8; h < 17; h++) { // End at 17:00
     for (var m = 0; m < 60; m += 30) {
       if (h === 8 && m === 0) continue;
-      if (h === 12) continue; // Skip lunch
+      // if (h === 12) continue; // Skip lunch - REVERTED
       var sH = String(h).padStart(2, "0");
       var sM = String(m).padStart(2, "0");
       var eMin = h * 60 + m + 30;
