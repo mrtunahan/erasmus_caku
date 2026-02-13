@@ -1320,3 +1320,20 @@ function DersMuafiyetApp({ currentUser }) {
 
 // ── Window'a export ──
 window.DersMuafiyetApp = DersMuafiyetApp;
+
+// Benzerlik motoru ve yardımcı fonksiyonları diğer modüllere paylaş
+window.MuafiyetUtils = {
+  normalizeText,
+  tokenize,
+  jaccardSimilarity,
+  cosineSimilarity,
+  combinedSimilarity,
+  autoMatchCourses,
+  extractFromFile,
+  parseCoursesFromTable,
+  parseCoursesFromText,
+  ensureLibsLoaded,
+  FileDropZone,
+  TR_STOPWORDS,
+  SIMILARITY_THRESHOLD,
+};
