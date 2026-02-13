@@ -156,101 +156,103 @@ const EXAM_TYPES = [
 const SEED_PROFESSORS = window.SEED_PROFESSORS; // Shared component'ten geliyor
 
 // ── Seed Data: Dersler ──
+// donem: "guz" = Güz dönemi (tek dönemler: 1,3,5,7), "bahar" = Bahar dönemi (çift dönemler: 2,4,6,8)
 const SEED_COURSES = [
-  // ═══ 1. Sınıf (1. ve 2. Dönem) ═══
-  { code: "FZK181", name: "Fizik I (Şube 1)", sinif: 1, duration: 30, professor: "Prof. Dr. Hamit ALYAR" },
-  { code: "FZK181", name: "Fizik I (Şube 2)", sinif: 1, duration: 30, professor: "Prof. Dr. Hamit ALYAR" },
-  { code: "MAT165", name: "Matematik I (Şube 1)", sinif: 1, duration: 30, professor: "Dr. Öğr. Üyesi Esma Baran ÖZKAN" },
-  { code: "MAT165", name: "Matematik I (Şube 2)", sinif: 1, duration: 30, professor: "Dr. Öğr. Üyesi Esma Baran ÖZKAN" },
-  { code: "BLM103", name: "Programlamaya Giriş", sinif: 1, duration: 30, professor: "Dr. Öğr. Üyesi Taha ETEM" },
-  { code: "MAT241", name: "Doğrusal Cebir (Şube 1-2)", sinif: 1, duration: 30, professor: "Dr. Öğr. Üyesi Celalettin KAYA" },
-  { code: "BLM101", name: "Bilgisayar Mühendisliğine Giriş", sinif: 1, duration: 30, professor: "Dr. Öğr. Üyesi Seda ŞAHİN" },
-  // 2. Dönem
-  { code: "MAT162", name: "Matematik II", sinif: 1, duration: 30, professor: "" },
-  { code: "FIZ162", name: "Genel Fizik II", sinif: 1, duration: 30, professor: "" },
-  { code: "ATA102", name: "Atatürk İlkeleri ve İnkılap Tarihi II", sinif: 1, duration: 30, professor: "" },
-  { code: "TDI102", name: "Türk Dili II", sinif: 1, duration: 30, professor: "" },
-  { code: "BIL132", name: "Bilgisayar Programlama II", sinif: 1, duration: 30, professor: "" },
-  { code: "MAT142", name: "Ayrık Matematik ve Uygulamaları", sinif: 1, duration: 30, professor: "" },
+  // ═══ 1. Sınıf ═══
+  // — Güz (1. Dönem) —
+  { code: "FZK181", name: "Fizik I (Şube 1)", sinif: 1, duration: 30, professor: "Prof. Dr. Hamit ALYAR", donem: "guz" },
+  { code: "FZK181", name: "Fizik I (Şube 2)", sinif: 1, duration: 30, professor: "Prof. Dr. Hamit ALYAR", donem: "guz" },
+  { code: "MAT165", name: "Matematik I (Şube 1)", sinif: 1, duration: 30, professor: "Dr. Öğr. Üyesi Esma Baran ÖZKAN", donem: "guz" },
+  { code: "MAT165", name: "Matematik I (Şube 2)", sinif: 1, duration: 30, professor: "Dr. Öğr. Üyesi Esma Baran ÖZKAN", donem: "guz" },
+  { code: "BLM103", name: "Programlamaya Giriş", sinif: 1, duration: 30, professor: "Dr. Öğr. Üyesi Taha ETEM", donem: "guz" },
+  { code: "MAT241", name: "Doğrusal Cebir (Şube 1-2)", sinif: 1, duration: 30, professor: "Dr. Öğr. Üyesi Celalettin KAYA", donem: "guz" },
+  { code: "BLM101", name: "Bilgisayar Mühendisliğine Giriş", sinif: 1, duration: 30, professor: "Dr. Öğr. Üyesi Seda ŞAHİN", donem: "guz" },
+  // — Bahar (2. Dönem) —
+  { code: "MAT162", name: "Matematik II", sinif: 1, duration: 30, professor: "", donem: "bahar" },
+  { code: "FIZ162", name: "Genel Fizik II", sinif: 1, duration: 30, professor: "", donem: "bahar" },
+  { code: "ATA102", name: "Atatürk İlkeleri ve İnkılap Tarihi II", sinif: 1, duration: 30, professor: "", donem: "bahar" },
+  { code: "TDI102", name: "Türk Dili II", sinif: 1, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL132", name: "Bilgisayar Programlama II", sinif: 1, duration: 30, professor: "", donem: "bahar" },
+  { code: "MAT142", name: "Ayrık Matematik ve Uygulamaları", sinif: 1, duration: 30, professor: "", donem: "bahar" },
 
-  // ═══ 2. Sınıf (3. ve 4. Dönem) ═══
-  { code: "BIL113", name: "Web Programlama", sinif: 2, duration: 30, professor: "Dr. Öğr. Üyesi Fatih ISSI" },
-  { code: "BLM205", name: "İşletim Sistemleri", sinif: 2, duration: 30, professor: "Doç. Dr. Selim BÜYÜKOĞLU" },
-  { code: "BLM209", name: "Veritabanı Yönetim Sistemleri / BIL303", sinif: 2, duration: 30, professor: "Dr. Öğr. Üyesi Fatih ISSI" },
-  { code: "BLM203", name: "Veri Yapıları", sinif: 2, duration: 30, professor: "Dr. Öğr. Üyesi Taha ETEM" },
-  { code: "MAT242", name: "Diferansiyel Denklemler", sinif: 2, duration: 30, professor: "Prof. Dr. İlyas İNCİ" },
-  { code: "BLM201", name: "Nesneye Yönelik Programlama", sinif: 2, duration: 30, professor: "Doç. Dr. Selim BÜYÜKOĞLU" },
-  { code: "IST235", name: "Olasılık ve İstatistik", sinif: 2, duration: 30, professor: "Dr. Uğur BİNZAT" },
-  { code: "BIL231", name: "İngilizce I", sinif: 2, duration: 30, professor: "Dr. Alime YILMAZ" },
-  // 3. Dönem
-  { code: "BIL201", name: "Algoritma ve Veri Yapıları I", sinif: 2, duration: 30, professor: "" },
-  { code: "BIL203", name: "Nesnesel Tasarım ve Programlama", sinif: 2, duration: 30, professor: "" },
-  { code: "BIL205", name: "Sayısal Sistem Tasarımı", sinif: 2, duration: 30, professor: "" },
-  { code: "BIL231", name: "Bilgisayar Mühendisliğinde Mesleki İngilizce", sinif: 2, duration: 30, professor: "" },
-  { code: "MAT221", name: "Doğrusal Cebir", sinif: 2, duration: 30, professor: "" },
-  // 4. Dönem
-  { code: "BIL222", name: "Diferansiyel Denklemler", sinif: 2, duration: 30, professor: "" },
-  { code: "BIL232", name: "Mühendislik Ekonomisi", sinif: 2, duration: 30, professor: "" },
-  { code: "BIL202", name: "Algoritma ve Veri Yapıları II", sinif: 2, duration: 30, professor: "" },
-  { code: "BIL206", name: "Elektrik ve Elektronik Devrelerinin Temelleri", sinif: 2, duration: 30, professor: "" },
-  { code: "BIL212", name: "Olasılık Teorisi ve İstatistik", sinif: 2, duration: 30, professor: "" },
+  // ═══ 2. Sınıf ═══
+  // — Güz (3. Dönem) —
+  { code: "BIL113", name: "Web Programlama", sinif: 2, duration: 30, professor: "Dr. Öğr. Üyesi Fatih ISSI", donem: "guz" },
+  { code: "BLM205", name: "İşletim Sistemleri", sinif: 2, duration: 30, professor: "Doç. Dr. Selim BÜYÜKOĞLU", donem: "guz" },
+  { code: "BLM209", name: "Veritabanı Yönetim Sistemleri / BIL303", sinif: 2, duration: 30, professor: "Dr. Öğr. Üyesi Fatih ISSI", donem: "guz" },
+  { code: "BLM203", name: "Veri Yapıları", sinif: 2, duration: 30, professor: "Dr. Öğr. Üyesi Taha ETEM", donem: "guz" },
+  { code: "MAT242", name: "Diferansiyel Denklemler", sinif: 2, duration: 30, professor: "Prof. Dr. İlyas İNCİ", donem: "guz" },
+  { code: "BLM201", name: "Nesneye Yönelik Programlama", sinif: 2, duration: 30, professor: "Doç. Dr. Selim BÜYÜKOĞLU", donem: "guz" },
+  { code: "IST235", name: "Olasılık ve İstatistik", sinif: 2, duration: 30, professor: "Dr. Uğur BİNZAT", donem: "guz" },
+  { code: "BIL231", name: "İngilizce I", sinif: 2, duration: 30, professor: "Dr. Alime YILMAZ", donem: "guz" },
+  { code: "BIL201", name: "Algoritma ve Veri Yapıları I", sinif: 2, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL203", name: "Nesnesel Tasarım ve Programlama", sinif: 2, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL205", name: "Sayısal Sistem Tasarımı", sinif: 2, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL231", name: "Bilgisayar Mühendisliğinde Mesleki İngilizce", sinif: 2, duration: 30, professor: "", donem: "guz" },
+  { code: "MAT221", name: "Doğrusal Cebir", sinif: 2, duration: 30, professor: "", donem: "guz" },
+  // — Bahar (4. Dönem) —
+  { code: "BIL222", name: "Diferansiyel Denklemler", sinif: 2, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL232", name: "Mühendislik Ekonomisi", sinif: 2, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL202", name: "Algoritma ve Veri Yapıları II", sinif: 2, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL206", name: "Elektrik ve Elektronik Devrelerinin Temelleri", sinif: 2, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL212", name: "Olasılık Teorisi ve İstatistik", sinif: 2, duration: 30, professor: "", donem: "bahar" },
 
-  // ═══ 3. Sınıf (5. ve 6. Dönem) ═══
-  { code: "BIL305", name: "Bilgisayar Ağları", sinif: 3, duration: 30, professor: "Dr. Mehmet Akif ALPER" },
-  { code: "BIL307", name: "Yazılım Mühendisliği", sinif: 3, duration: 30, professor: "Dr. Öğr. Üyesi Osman GÜLER" },
-  { code: "BIL301", name: "Mikroişlemciler", sinif: 3, duration: 30, professor: "Dr. Selim SÜRÜCÜ" },
-  // 5. Dönem
-  { code: "BIL301", name: "Programlama Dilleri", sinif: 3, duration: 30, professor: "" },
-  { code: "BIL303", name: "Veritabanı Sistemleri", sinif: 3, duration: 30, professor: "" },
-  { code: "BIL305", name: "İşletim Sistemleri", sinif: 3, duration: 30, professor: "" },
-  { code: "BIL307", name: "Mikroişlemciler", sinif: 3, duration: 30, professor: "" },
-  // 6. Dönem
-  { code: "BIL308", name: "Bilgisayar Mimarisi ve Organizasyonu", sinif: 3, duration: 30, professor: "" },
-  { code: "BIL312", name: "Web Tasarımı ve Programlama", sinif: 3, duration: 30, professor: "" },
-  { code: "BIL314", name: "Otomata Teorisi ve Formal Diller", sinif: 3, duration: 30, professor: "" },
+  // ═══ 3. Sınıf ═══
+  // — Güz (5. Dönem) —
+  { code: "BIL305", name: "Bilgisayar Ağları", sinif: 3, duration: 30, professor: "Dr. Mehmet Akif ALPER", donem: "guz" },
+  { code: "BIL307", name: "Yazılım Mühendisliği", sinif: 3, duration: 30, professor: "Dr. Öğr. Üyesi Osman GÜLER", donem: "guz" },
+  { code: "BIL301", name: "Mikroişlemciler", sinif: 3, duration: 30, professor: "Dr. Selim SÜRÜCÜ", donem: "guz" },
+  { code: "BIL301", name: "Programlama Dilleri", sinif: 3, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL303", name: "Veritabanı Sistemleri", sinif: 3, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL305", name: "İşletim Sistemleri", sinif: 3, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL307", name: "Mikroişlemciler", sinif: 3, duration: 30, professor: "", donem: "guz" },
+  // — Bahar (6. Dönem) —
+  { code: "BIL308", name: "Bilgisayar Mimarisi ve Organizasyonu", sinif: 3, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL312", name: "Web Tasarımı ve Programlama", sinif: 3, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL314", name: "Otomata Teorisi ve Formal Diller", sinif: 3, duration: 30, professor: "", donem: "bahar" },
 
-  // ═══ 4. Sınıf (7. ve 8. Dönem) ═══
-  { code: "BIL425", name: "Derin Öğrenme", sinif: 4, duration: 30, professor: "Doç. Dr. Selim BÜYÜKOĞLU" },
-  { code: "BIL401", name: "Bilgisayar Projesi I", sinif: 4, duration: 30, professor: "Dr. Öğr. Üyesi Fatih ISSI" },
-  { code: "BIL325", name: "Mobil Programlama", sinif: 4, duration: 30, professor: "Dr. Öğr. Üyesi Osman GÜLER" },
-  { code: "BIL403", name: "Yapay Zeka", sinif: 4, duration: 30, professor: "Dr. Öğr. Üyesi Taha ETEM" },
-  { code: "BIL473", name: "Bilgi Güvenliği", sinif: 4, duration: 30, professor: "Dr. Mehmet Akif ALPER" },
-  { code: "BIL432", name: "Görüntü İşleme", sinif: 4, duration: 30, professor: "Dr. Öğr. Üyesi Seda ŞAHİN" },
-  { code: "BIL466", name: "Girişimcilik", sinif: 4, duration: 30, professor: "Dr. Öğr. Üyesi Osman GÜLER" },
-  // 7. Dönem
-  { code: "BIL401", name: "Bilgisayar Ağları", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL403", name: "Yazılım Mühendisliği İlkeleri", sinif: 4, duration: 30, professor: "" },
-  // 8. Dönem
-  { code: "BIL482", name: "Yönetim Bilişim Sistemleri", sinif: 4, duration: 30, professor: "" },
-  { code: "BIL494", name: "Bitirme Projesi", sinif: 4, duration: 30, professor: "" },
+  // ═══ 4. Sınıf ═══
+  // — Güz (7. Dönem) —
+  { code: "BIL425", name: "Derin Öğrenme", sinif: 4, duration: 30, professor: "Doç. Dr. Selim BÜYÜKOĞLU", donem: "guz" },
+  { code: "BIL401", name: "Bilgisayar Projesi I", sinif: 4, duration: 30, professor: "Dr. Öğr. Üyesi Fatih ISSI", donem: "guz" },
+  { code: "BIL325", name: "Mobil Programlama", sinif: 4, duration: 30, professor: "Dr. Öğr. Üyesi Osman GÜLER", donem: "guz" },
+  { code: "BIL403", name: "Yapay Zeka", sinif: 4, duration: 30, professor: "Dr. Öğr. Üyesi Taha ETEM", donem: "guz" },
+  { code: "BIL473", name: "Bilgi Güvenliği", sinif: 4, duration: 30, professor: "Dr. Mehmet Akif ALPER", donem: "guz" },
+  { code: "BIL432", name: "Görüntü İşleme", sinif: 4, duration: 30, professor: "Dr. Öğr. Üyesi Seda ŞAHİN", donem: "guz" },
+  { code: "BIL466", name: "Girişimcilik", sinif: 4, duration: 30, professor: "Dr. Öğr. Üyesi Osman GÜLER", donem: "guz" },
+  { code: "BIL401", name: "Bilgisayar Ağları", sinif: 4, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL403", name: "Yazılım Mühendisliği İlkeleri", sinif: 4, duration: 30, professor: "", donem: "guz" },
+  // — Bahar (8. Dönem) —
+  { code: "BIL482", name: "Yönetim Bilişim Sistemleri", sinif: 4, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL494", name: "Bitirme Projesi", sinif: 4, duration: 30, professor: "", donem: "bahar" },
 
   // ═══ Bölüm Seçmeli Dersler (Sınıf 5 - Seçmeli) ═══
-  { code: "BIL432", name: "Kriptografi ve Bilgi Güvenliği", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL325", name: "Siber Güvenliğe Giriş", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL466", name: "Biyobilişim ve Biyoteknoloji", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL323", name: "Sayısal İşaret İşleme", sinif: 5, duration: 30, professor: "" },
-  { code: "MTH401", name: "Java & React JS ile Web Programlama Eğitimi", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL321", name: "Makine Öğrenmesi", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL411", name: "Sistem Mühendisliği", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL412", name: "İnsan Bilgisayar Etkileşimi", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL421", name: "E-Ticaret ve Dijital Dönüşüm", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL425", name: "Mobil Uygulama Geliştirme", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL427", name: "Oyun Teknolojileri", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL434", name: "Gömülü Sistemler", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL462", name: "Bulut Çözüme Giriş", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL471", name: "Sayısal Analiz Yöntemleri", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL473", name: "Bilgisayarlı Görme", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL476", name: "Veri Madenciliğine Giriş", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL477", name: "Örüntü Tanıma", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL481", name: "Yapay Zeka", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL483", name: "Çoklu Ortam Sistemleri", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL486", name: "Optimizasyon", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL493", name: "Gerçek Zamanlı Sistemler", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL496", name: "Sinyal İşleme Uygulamaları", sinif: 5, duration: 30, professor: "" },
-  { code: "OSD144", name: "Siber Güvenlik ve Etik Hacker", sinif: 5, duration: 30, professor: "" },
-  { code: "MTH404", name: "Yazılım Test ve Kalitesi", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL438", name: "Görüntü İşleme", sinif: 5, duration: 30, professor: "" },
-  { code: "BIL474", name: "Tıp Bilişimi", sinif: 5, duration: 30, professor: "" },
+  { code: "BIL432", name: "Kriptografi ve Bilgi Güvenliği", sinif: 5, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL325", name: "Siber Güvenliğe Giriş", sinif: 5, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL466", name: "Biyobilişim ve Biyoteknoloji", sinif: 5, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL323", name: "Sayısal İşaret İşleme", sinif: 5, duration: 30, professor: "", donem: "guz" },
+  { code: "MTH401", name: "Java & React JS ile Web Programlama Eğitimi", sinif: 5, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL321", name: "Makine Öğrenmesi", sinif: 5, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL411", name: "Sistem Mühendisliği", sinif: 5, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL412", name: "İnsan Bilgisayar Etkileşimi", sinif: 5, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL421", name: "E-Ticaret ve Dijital Dönüşüm", sinif: 5, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL425", name: "Mobil Uygulama Geliştirme", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL427", name: "Oyun Teknolojileri", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL434", name: "Gömülü Sistemler", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL462", name: "Bulut Çözüme Giriş", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL471", name: "Sayısal Analiz Yöntemleri", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL473", name: "Bilgisayarlı Görme", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL476", name: "Veri Madenciliğine Giriş", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL477", name: "Örüntü Tanıma", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL481", name: "Yapay Zeka", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL483", name: "Çoklu Ortam Sistemleri", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL486", name: "Optimizasyon", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL493", name: "Gerçek Zamanlı Sistemler", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL496", name: "Sinyal İşleme Uygulamaları", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "OSD144", name: "Siber Güvenlik ve Etik Hacker", sinif: 5, duration: 30, professor: "", donem: "guz" },
+  { code: "MTH404", name: "Yazılım Test ve Kalitesi", sinif: 5, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL438", name: "Görüntü İşleme", sinif: 5, duration: 30, professor: "", donem: "bahar" },
+  { code: "BIL474", name: "Tıp Bilişimi", sinif: 5, duration: 30, professor: "", donem: "bahar" },
 ];
 
 // ── Helper Functions ──
@@ -501,16 +503,16 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
 // ══════════════════════════════════════════════════════════════
 const CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose }) => {
   const [editingCourse, setEditingCourse] = useState(null);
-  const [form, setForm] = useState({ code: "", name: "", sinif: 1, duration: 30, professor: "" });
+  const [form, setForm] = useState({ code: "", name: "", sinif: 1, duration: 30, professor: "", donem: "guz" });
 
   const startEdit = (c) => {
     setEditingCourse(c);
-    setForm({ code: c.code, name: c.name, sinif: c.sinif, duration: c.duration, professor: c.professor });
+    setForm({ code: c.code, name: c.name, sinif: c.sinif, duration: c.duration, professor: c.professor, donem: c.donem || "guz" });
   };
 
   const startNew = () => {
     setEditingCourse("new");
-    setForm({ code: "", name: "", sinif: 1, duration: 30, professor: "" });
+    setForm({ code: "", name: "", sinif: 1, duration: 30, professor: "", donem: "guz" });
   };
 
   const handleSave = () => {
@@ -528,6 +530,7 @@ const CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose 
               <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: `2px solid ${C.border}` }}>Kod</th>
               <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: `2px solid ${C.border}` }}>Ders Adı</th>
               <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>Sınıf</th>
+              <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>Dönem</th>
               <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>Süre</th>
               <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: `2px solid ${C.border}` }}>Akademisyen</th>
               <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>İşlem</th>
@@ -544,6 +547,11 @@ const CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose 
                 </td>
                 <td style={{ padding: "8px 12px" }}>{c.name}</td>
                 <td style={{ padding: "8px 12px", textAlign: "center" }}>{c.sinif === 5 ? "Seçmeli" : `${c.sinif}. Sınıf`}</td>
+                <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                  <Badge style={{ background: c.donem === "bahar" ? "#C8E6C9" : "#BBDEFB", color: c.donem === "bahar" ? "#1B5E20" : "#0D47A1", fontSize: 11 }}>
+                    {c.donem === "bahar" ? "Bahar" : "Güz"}
+                  </Badge>
+                </td>
                 <td style={{ padding: "8px 12px", textAlign: "center" }}>{c.duration} dk</td>
                 <td style={{ padding: "8px 12px", fontSize: 12 }}>{c.professor || "-"}</td>
                 <td style={{ padding: "8px 12px", textAlign: "center" }}>
@@ -569,10 +577,16 @@ const CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose 
               <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
             </FormField>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 2fr", gap: 12 }}>
             <FormField label="Sınıf">
               <Select value={form.sinif} onChange={e => setForm({ ...form, sinif: parseInt(e.target.value) })}>
                 {[1, 2, 3, 4, 5].map(s => <option key={s} value={s}>{s === 5 ? "Seçmeli" : `${s}. Sınıf`}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Dönem">
+              <Select value={form.donem} onChange={e => setForm({ ...form, donem: e.target.value })}>
+                <option value="guz">Güz</option>
+                <option value="bahar">Bahar</option>
               </Select>
             </FormField>
             <FormField label="Süre (dk)">
@@ -1259,6 +1273,7 @@ function SinavOtomasyonuApp({ currentUser }) {
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState(null);
   const [filterSinif, setFilterSinif] = useState(0);
+  const [filterDonem, setFilterDonem] = useState("all");
   const [courseSearch, setCourseSearch] = useState("");
 
   // ── Seed data to Firebase ──
@@ -1311,9 +1326,9 @@ function SinavOtomasyonuApp({ currentUser }) {
         const found = existing.find(e => e.code === seedC.code);
         if (found) {
           // Update if different
-          if (found.name !== seedC.name || found.sinif !== seedC.sinif) {
+          if (found.name !== seedC.name || found.sinif !== seedC.sinif || found.donem !== seedC.donem) {
             const docRef = cRef.doc(found.fireId);
-            batch.update(docRef, { name: seedC.name, sinif: seedC.sinif, duration: seedC.duration });
+            batch.update(docRef, { name: seedC.name, sinif: seedC.sinif, duration: seedC.duration, donem: seedC.donem || "guz" });
             updated++;
           }
         } else {
@@ -1392,6 +1407,9 @@ function SinavOtomasyonuApp({ currentUser }) {
 
   const poolCourses = useMemo(() => {
     let filtered = courses;
+    if (filterDonem !== "all") {
+      filtered = filtered.filter(c => (c.donem || "guz") === filterDonem);
+    }
     if (filterSinif > 0) {
       filtered = filtered.filter(c => c.sinif === filterSinif);
     }
@@ -1407,7 +1425,7 @@ function SinavOtomasyonuApp({ currentUser }) {
       ...turkishifyCourse(c),
       placedCount: periodExams.filter(e => e.courseId === c.id).length,
     }));
-  }, [courses, periodExams, filterSinif, courseSearch]);
+  }, [courses, periodExams, filterDonem, filterSinif, courseSearch]);
 
   const groupedPool = useMemo(() => {
     const groups = { 1: [], 2: [], 3: [], 4: [], 5: [] };
@@ -1784,6 +1802,17 @@ function SinavOtomasyonuApp({ currentUser }) {
                         }}
                       >✕</button>
                     )}
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <select
+                      value={filterDonem}
+                      onChange={e => setFilterDonem(e.target.value)}
+                      style={{ width: "100%", padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, fontWeight: 600, background: filterDonem === "guz" ? "#BBDEFB" : filterDonem === "bahar" ? "#C8E6C9" : "white" }}
+                    >
+                      <option value="all">Tüm Dönemler</option>
+                      <option value="guz">🍂 Güz Dönemi</option>
+                      <option value="bahar">🌸 Bahar Dönemi</option>
+                    </select>
                   </div>
                   <div style={{ marginBottom: 8 }}>
                     <select
