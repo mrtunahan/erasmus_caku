@@ -4,7 +4,7 @@ import Layout from './components/Layout';
 import { LoginModal } from './components/auth/LoginModal'; // We need to extract this
 import { C } from './constants/theme';
 
-import { ExamAutomationPage, ErasmusPage, StudentPortalPage, CourseExemptionPage } from './pages';
+import { ExamAutomationPage, ErasmusPage, StudentPortalPage, CourseExemptionPage, YazOkuluPage } from './pages';
 
 // Placeholder components for pages we haven't extracted yet
 // ErasmusPage imported from ./pages
@@ -73,6 +73,8 @@ function AppContent() {
                 } />
 
                 <Route path="/portal" element={<StudentPortalPage currentUser={currentUser} />} />
+
+                <Route path="/yazokulu" element={<YazOkuluPage currentUser={currentUser} />} />
             </Routes>
         </Layout>
     );
