@@ -36,8 +36,9 @@ const TR_STOPWORDS = new Set([
   "from", "that", "which", "or", "be", "it", "its", "has", "have",
 ]);
 
-// Varsayılan benzerlik eşiği
-const SIMILARITY_THRESHOLD = 0.25;
+// Varsayılan benzerlik eşiği (%80 içerik uyumu gerekli)
+const SIMILARITY_THRESHOLD = 0.80;
+const AKTS_CHECK_ENABLED = true;
 
 // ══════════════════════════════════════════════════════════════
 // KÜTÜPHANELERİ YÜKLEME (pdf.js, mammoth.js, SheetJS)
@@ -159,7 +160,12 @@ function parseCoursesFromTable(sheets) {
           if (cell.includes("adı") || cell.includes("adi") || (cell.includes("ders") && !cell.includes("kod"))) colMap.name = idx;
           if (cell.includes("akts") || cell.includes("ects") || cell.includes("kredi") || cell.includes("credit")) colMap.akts = idx;
           if (cell.includes("not") || cell.includes("grade") || cell.includes("başarı") || cell.includes("basari") || cell.includes("harf")) colMap.grade = idx;
-          if (cell.includes("içerik") || cell.includes("icerik") || cell.includes("content") || cell.includes("açıklama") || cell.includes("aciklama")) colMap.content = idx;
+          // Haftalık ders içeriği sütunu (öncelikli)
+          if (cell.includes("haftalık") || cell.includes("haftalik") || cell.includes("weekly")) {
+            colMap.weeklyContent = idx;
+          } else if (cell.includes("içerik") || cell.includes("icerik") || cell.includes("content") || cell.includes("açıklama") || cell.includes("aciklama")) {
+            colMap.content = idx;
+          }
           if (cell.includes("statü") || cell.includes("statu") || cell.includes("tür") || cell.includes("tur") || cell.includes("type")) colMap.status = idx;
         });
         break;
@@ -175,7 +181,7 @@ function parseCoursesFromTable(sheets) {
         colMap.name = 1;
         if (rows[0].length >= 3) colMap.akts = 2;
         if (rows[0].length >= 4) colMap.grade = 3;
-        if (rows[0].length >= 5) colMap.content = 4;
+        if (rows[0].length >= 5) colMap.weeklyContent = 4;
       }
     }
 
@@ -191,6 +197,7 @@ function parseCoursesFromTable(sheets) {
         akts: colMap.akts !== undefined ? String(row[colMap.akts] || "").trim() : "",
         grade: colMap.grade !== undefined ? String(row[colMap.grade] || "").trim() : "",
         content: colMap.content !== undefined ? String(row[colMap.content] || "").trim() : "",
+        weeklyContent: colMap.weeklyContent !== undefined ? String(row[colMap.weeklyContent] || "").trim() : "",
         status: colMap.status !== undefined ? String(row[colMap.status] || "").trim() : "",
       };
       courses.push(course);
@@ -204,34 +211,70 @@ function parseCoursesFromText(text) {
   var courses = [];
   var lines = text.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
 
-  // Ders kodu pattern: 2-4 harf + 3-4 rakam (örn: BİL101, MAT221, CS101)
-  var codePattern = /([A-ZÇĞİÖŞÜa-zçğıöşü]{2,5}\s?\d{3,4})/g;
+  // Ders kodu: Satır başı, 2-5 harf, opsiyonel boşluk, 3-4 rakam
+  // Örn: BIL101, MAT 101, ECON202
+  var codePattern = /^([A-ZÇĞİÖŞÜa-zçğıöşü]{2,5}\s?\d{3,4})(.*)$/;
+
+  var currentCourse = null;
 
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
-    var matches = line.match(codePattern);
-    if (matches) {
-      matches.forEach(function (code) {
-        code = code.replace(/\s/g, "");
-        // Kod sonrasındaki metni ders adı olarak al
-        var afterCode = line.split(code)[1] || "";
-        // AKTS/kredi bul
-        var aktsMatch = afterCode.match(/(\d+)\s*(AKTS|ECTS|kredi|credit)/i);
-        var akts = aktsMatch ? aktsMatch[1] : "";
-        // Not bul
-        var gradeMatch = afterCode.match(/\b(AA|BA|BB|CB|CC|DC|DD|FF|FD|[A-F][+-]?)\b/);
-        var grade = gradeMatch ? gradeMatch[1] : "";
-        // Ders adı: koddan sonra, sayısal verilere kadar olan kısım
-        var nameText = afterCode.replace(/\d+\s*(AKTS|ECTS|kredi|credit)/gi, "")
-          .replace(/\b(AA|BA|BB|CB|CC|DC|DD|FF|FD|[A-F][+-]?)\b/g, "")
-          .replace(/[|,;]/g, " ").trim();
 
-        if (nameText.length > 2) {
-          courses.push({ code: code, name: nameText, akts: akts, grade: grade, content: "", status: "" });
-        }
-      });
+    // Sayfa numarası veya ÇAKÜ başlıklarını atla (basit filtre)
+    if (line.match(/^\d+$/) || line.includes("ÇANKIRI KARATEKİN")) continue;
+
+    var match = line.match(codePattern);
+    if (match) {
+      // Yeni ders bulundu -> Öncekini kaydet
+      if (currentCourse) {
+        courses.push(currentCourse);
+      }
+
+      var code = match[1].replace(/\s/g, ""); // Kod (boşluksuz)
+      var rest = match[2].trim(); // Satırın geri kalanı
+
+      // Satırın geri kalanından AKTS ve Not bulmaya çalış
+      var aktsMatch = rest.match(/(\d+)\s*(AKTS|ECTS|kredi|credit)/i);
+      var akts = aktsMatch ? aktsMatch[1] : "";
+
+      var gradeMatch = rest.match(/\b(AA|BA|BB|CB|CC|DC|DD|FF|FD|[A-F][+-]?)\b/);
+      var grade = gradeMatch ? gradeMatch[1] : "";
+
+      // İsim: AKTS ve Not kısımlarını temizle
+      var name = rest
+        .replace(/(\d+)\s*(AKTS|ECTS|kredi|credit)/gi, "")
+        .replace(/\b(AA|BA|BB|CB|CC|DC|DD|FF|FD|[A-F][+-]?)\b/g, "")
+        .replace(/[|,;]/g, " ") // Ayıraçları temizle
+        .trim();
+
+      // İsmi temizle (başındaki/sonundaki tire vs)
+      name = name.replace(/^[-–:\s]+|[-–:\s]+$/g, "");
+
+      currentCourse = {
+        code: code,
+        name: name,
+        akts: akts,
+        grade: grade,
+        content: "",       // Eski alan uyumluluğu
+        weeklyContent: ""  // Yeni detaylı içerik
+      };
+    } else if (currentCourse) {
+      // Mevcut dersin devamı
+      // Eğer AKTS henüz bulunamadıysa ve bu satırda varsa al
+      if (!currentCourse.akts) {
+        var aktsMatch = line.match(/(\d+)\s*(AKTS|ECTS|kredi|credit)/i);
+        if (aktsMatch) currentCourse.akts = aktsMatch[1];
+      }
+
+      // İçeriğe ekle - Haftalık ders içeriklerini yakalamak için tüm metni biriktiriyoruz
+      currentCourse.weeklyContent += (currentCourse.weeklyContent ? " " : "") + line;
     }
   }
+  // Son dersi ekle
+  if (currentCourse) {
+    courses.push(currentCourse);
+  }
+
   return courses;
 }
 
@@ -312,44 +355,56 @@ function autoMatchCourses(sourceCourses, targetCourses, threshold) {
 
   sourceCourses.forEach(function (src) {
     var bestMatch = null;
-    var bestScore = 0;
+    var bestContentScore = 0;
+    var bestAktsPass = false;
+    var bestRejectReason = "";
+
+    // Öğrenci ders içeriği metni
+    var srcText = src.weeklyContent || src.content || "";
 
     targetCourses.forEach(function (tgt) {
-      // Ders adı benzerliği
-      var nameScore = combinedSimilarity(src.name, tgt.name);
-      // İçerik benzerliği (varsa)
+      // ═══ Adım 1: AKTS Kontrolü ═══
+      var srcAkts = parseInt(src.akts) || 0;
+      var tgtAkts = parseInt(tgt.akts) || 0;
+      var aktsPass = !AKTS_CHECK_ENABLED || srcAkts >= tgtAkts;
+
+      // ═══ Adım 2: İçerik Benzerliği ═══
+      var tgtText = tgt.weeklyContent || tgt.content || "";
       var contentScore = 0;
-      if (src.content && tgt.content) {
-        contentScore = combinedSimilarity(src.content, tgt.content);
-      }
-      // Ders kodu benzerliği (basit karşılaştırma)
-      var codeScore = 0;
-      if (src.code && tgt.code) {
-        // Aynı harf öneki varsa bonus
-        var srcLetters = src.code.replace(/[0-9]/g, "").toLowerCase();
-        var tgtLetters = tgt.code.replace(/[0-9]/g, "").toLowerCase();
-        if (srcLetters === tgtLetters) codeScore = 0.3;
+      if (srcText && tgtText) {
+        contentScore = combinedSimilarity(srcText, tgtText);
       }
 
-      // Toplam skor: ad ağırlıklı, içerik varsa o da eklenir
-      var totalScore;
-      if (contentScore > 0) {
-        totalScore = nameScore * 0.3 + contentScore * 0.5 + codeScore * 0.2;
-      } else {
-        totalScore = nameScore * 0.7 + codeScore * 0.3;
+      // En iyi eşleşmeyi seç (önce AKTS geçen, sonra en yüksek içerik skoru)
+      var isBetter = false;
+      if (aktsPass && !bestAktsPass) {
+        isBetter = true;
+      } else if (aktsPass === bestAktsPass && contentScore > bestContentScore) {
+        isBetter = true;
       }
 
-      if (totalScore > bestScore) {
-        bestScore = totalScore;
+      if (isBetter) {
+        bestContentScore = contentScore;
+        bestAktsPass = aktsPass;
         bestMatch = tgt;
       }
     });
 
+    // Sonuç değerlendirme
+    var isMatched = bestAktsPass && bestContentScore >= threshold;
+    if (!bestAktsPass) {
+      bestRejectReason = "AKTS yetersiz";
+    } else if (bestContentScore < threshold) {
+      bestRejectReason = "İçerik uyumsuz (" + Math.round(bestContentScore * 100) + "%)";
+    }
+
     matches.push({
       source: src,
-      target: bestScore >= threshold ? bestMatch : null,
-      score: bestScore,
-      matched: bestScore >= threshold,
+      target: bestMatch,
+      aktsPass: bestAktsPass,
+      contentScore: bestContentScore,
+      matched: isMatched,
+      rejectReason: bestRejectReason,
     });
   });
 
@@ -452,82 +507,99 @@ function exportMuafiyetWord(record) {
   // En az 8 satır göster
   var rowCount = Math.max(matches.length, 8);
   for (var i = 0; i < rowCount; i++) {
-    var m = matches[i];
-    var srcCode = m ? (m.source.code || "") : "";
-    var srcName = m ? (m.source.name || "") : "";
-    var srcAkts = m ? (m.source.akts || "") : "";
-    var srcGrade = m ? (m.source.grade || "") : "";
-    var tgtCode = m && m.target ? (m.target.code || "") : "";
-    var tgtName = m && m.target ? (m.target.name || "") : "";
-    var tgtAkts = m && m.target ? (m.target.akts || "") : "";
-    var tgtGrade = m ? (m.convertedGrade || "") : "";
-    var tgtStatus = m && m.target ? (m.target.status || m.target.type || "") : "";
+    var m = matches[i] || {};
+    var src = m.source || {};
+    var tgt = m.target || {};
+
+    var srcCode = src.code || "";
+    var srcName = src.name || "";
+    var srcAkts = src.akts || "";
+    var srcGrade = src.grade || "";
+
+    var tgtCode = tgt.code || "";
+    var tgtName = tgt.name || "";
+    var tgtAkts = tgt.akts || "";
+    var tgtGrade = m.convertedGrade || "";
+    var tgtStatus = tgt.status || tgt.type || "";
 
     if (srcAkts) totalAktsSource += parseInt(srcAkts) || 0;
     if (tgtAkts) totalAktsTarget += parseInt(tgtAkts) || 0;
 
     dataRows += '<tr>' +
-      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;">' + srcCode + '</td>' +
-      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;">' + srcName + '</td>' +
-      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;">' + srcAkts + '</td>' +
-      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;">' + srcGrade + '</td>' +
-      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;">' + tgtCode + '</td>' +
-      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;">' + tgtName + '</td>' +
-      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;">' + tgtAkts + '</td>' +
-      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;">' + tgtGrade + '</td>' +
-      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;">' + tgtStatus + '</td>' +
+      // Source Side (4 cols)
+      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;">' + srcCode + '</td>' +
+      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;">' + srcName + '</td>' +
+      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;">' + srcAkts + '</td>' +
+      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;">' + srcGrade + '</td>' +
+      // Target Side (5 cols)
+      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;">' + tgtCode + '</td>' +
+      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;">' + tgtName + '</td>' +
+      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;">' + tgtAkts + '</td>' +
+      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;">' + tgtGrade + '</td>' +
+      '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;">' + tgtStatus + '</td>' +
       '</tr>';
   }
+
+  var localDept = record.localDepartment || "Bilgisayar";
 
   var html = '\uFEFF' +
     '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
     '<head><meta charset="utf-8"><style>' +
     'body { font-family: "Times New Roman", Times, serif; font-size: 12pt; }' +
-    'table { border-collapse: collapse; width: 100%; }' +
-    'td, th { border: 1px solid black; padding: 4px 6px; text-align: center; font-size: 11pt; font-family: "Times New Roman", Times, serif; }' +
+    'table { border-collapse: collapse; width: 100%; table-layout: fixed; }' +
+    'td, th { border: 1px solid black; padding: 4px; font-family: "Times New Roman", Times, serif; }' +
     '</style></head><body>' +
-    '<p style="font-family:Times New Roman;font-size:14pt;font-weight:bold;margin-bottom:12pt;">' +
-    '<span style="background-color:yellow;">DERS MUAFİYET İSTEĞİ ŞABLONU</span></p>' +
-    '<p style="font-family:Times New Roman;font-size:12pt;text-align:justify;line-height:1.5;margin-bottom:16pt;">' +
-    '<b>3-</b> Bölümümüz <b>' + studentNo + '</b> numaralı öğrencisi <b>' + studentName + '\'nun</b>, ' +
+
+    // Header Info
+    '<p style="font-family:Times New Roman;font-size:12pt;text-align:justify;line-height:1.5;margin-bottom:12pt;">' +
+    'Bölümümüz <b>' + studentNo + '</b> numaralı öğrencisi <b>' + studentName + '\'nun</b>, ' +
     'ders muafiyet talebi hakkında vermiş olduğu dilekçesi incelenmiş olup, ' +
     '<b>Çankırı Karatekin Üniversitesi Önlisans ve Lisans Eğitim Öğretim Yönetmeliğinin 12. maddesi</b> ' +
     'uyarınca aşağıda tabloda verildiği gibi uygun olduğuna ve gereği için Fakültemiz ilgili kurullarında ' +
     'görüşülmek üzere Dekanlık Makamına sunulmasına,</p>' +
+
+    // Table
     '<table>' +
-    // Üst başlık satırı
+    // HEADERS
     '<tr>' +
-    '<td colspan="4" style="border:1px solid black;padding:6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;">' +
+    // Source Header (4 cols)
+    '<td colspan="4" style="border:1px solid black;padding:6px;text-align:center;font-weight:bold;font-size:11pt;">' +
     '<u>' + otherUni + ' ' + otherFaculty + ' ' + otherDept + '<br/>Bölümünden Aldığı Dersin</u></td>' +
-    '<td colspan="5" style="border:1px solid black;padding:6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;">' +
-    '<u>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi xxxxx<br/>Mühendisliği Bölümünde Muaf Olacağı Dersin</u></td>' +
+    // Target Header (5 cols)
+    '<td colspan="5" style="border:1px solid black;padding:6px;text-align:center;font-weight:bold;font-size:11pt;">' +
+    '<u>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi ' + localDept + '<br/>Mühendisliği Bölümünde Muaf Olacağı Dersin</u></td>' +
     '</tr>' +
-    // Alt başlık satırı
     '<tr>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;"><u>Kodu</u></td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;"><u>Adı</u></td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;">AKTS</td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;">Başarı<br/>Notu</td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;">Kodu</td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;"><u>Adı</u></td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;">AKTS</td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;">Başarı<br/>Notu</td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;"><u>Statüsü</u></td>' +
+    // Source Cols
+    '<td style="width:10%;border:1px solid black;padding:4px;text-align:center;font-weight:bold;font-size:11pt;">Kodu</td>' +
+    '<td style="width:25%;border:1px solid black;padding:4px;text-align:center;font-weight:bold;font-size:11pt;">Adı</td>' +
+    '<td style="width:6%;border:1px solid black;padding:4px;text-align:center;font-weight:bold;font-size:11pt;">AKTS</td>' +
+    '<td style="width:7%;border:1px solid black;padding:4px;text-align:center;font-weight:bold;font-size:11pt;">Başarı<br/>Notu</td>' +
+    // Target Cols
+    '<td style="width:10%;border:1px solid black;padding:4px;text-align:center;font-weight:bold;font-size:11pt;">Kodu</td>' +
+    '<td style="width:25%;border:1px solid black;padding:4px;text-align:center;font-weight:bold;font-size:11pt;">Adı</td>' +
+    '<td style="width:6%;border:1px solid black;padding:4px;text-align:center;font-weight:bold;font-size:11pt;">AKTS</td>' +
+    '<td style="width:7%;border:1px solid black;padding:4px;text-align:center;font-weight:bold;font-size:11pt;">Başarı<br/>Notu</td>' +
+    '<td style="width:10%;border:1px solid black;padding:4px;text-align:center;font-weight:bold;font-size:11pt;">Statüsü</td>' +
     '</tr>' +
-    // Veri satırları
+
+    // DATA
     dataRows +
-    // Toplam satırı
+
+    // FOOTER (Totals)
     '<tr>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;"></td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;"><u>Toplam</u></td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;">' + (totalAktsSource || "X") + '</td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;"></td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;"></td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;"><u>Toplam</u></td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-weight:bold;font-size:11pt;font-family:Times New Roman;">' + (totalAktsTarget || "X") + '</td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;"></td>' +
-    '<td style="border:1px solid black;padding:4px 6px;text-align:center;font-size:11pt;font-family:Times New Roman;"></td>' +
+    '<td style="border:1px solid black;"></td>' +
+    '<td style="border:1px solid black;text-align:center;font-weight:bold;"><u>Toplam</u></td>' +
+    '<td style="border:1px solid black;text-align:center;font-weight:bold;">' + (totalAktsSource || "X") + '</td>' +
+    '<td style="border:1px solid black;"></td>' +
+
+    '<td style="border:1px solid black;"></td>' +
+    '<td style="border:1px solid black;text-align:center;font-weight:bold;"><u>Toplam</u></td>' +
+    '<td style="border:1px solid black;text-align:center;font-weight:bold;">' + (totalAktsTarget || "X") + '</td>' +
+    '<td style="border:1px solid black;"></td>' +
+    '<td style="border:1px solid black;"></td>' +
     '</tr>' +
+
     '</table>' +
     '</body></html>';
 
@@ -705,8 +777,8 @@ const SettingsPanel = ({ courseContents, setCourseContents, gradingSystem, setGr
         {/* ÇAKÜ Ders İçerikleri */}
         <_Card title="ÇAKÜ Ders İçerikleri">
           <p style={{ fontSize: 13, color: _C.textMuted, marginBottom: 16 }}>
-            ÇAKÜ Bilgisayar Mühendisliği ders bilgilerini (kod, ad, AKTS, içerik) yükleyin.
-            Excel formatında: Kodu | Adı | AKTS | İçerik sütunları olmalı.
+            ÇAKÜ Bilgisayar Mühendisliği ders bilgilerini (kod, ad, AKTS, haftalık içerik) yükleyin.
+            Excel veya PDF/Word formatında yükleyebilirsiniz. (PDF için ders kodu ile başlayan bloklar aranır)
           </p>
           <FileDropZone
             label="ÇAKÜ Ders İçerikleri Yükle"
@@ -722,7 +794,7 @@ const SettingsPanel = ({ courseContents, setCourseContents, gradingSystem, setGr
                     <th style={{ padding: 8, textAlign: "left", borderBottom: "2px solid " + _C.border }}>Kod</th>
                     <th style={{ padding: 8, textAlign: "left", borderBottom: "2px solid " + _C.border }}>Ad</th>
                     <th style={{ padding: 8, textAlign: "center", borderBottom: "2px solid " + _C.border }}>AKTS</th>
-                    <th style={{ padding: 8, textAlign: "left", borderBottom: "2px solid " + _C.border }}>İçerik</th>
+                    <th style={{ padding: 8, textAlign: "left", borderBottom: "2px solid " + _C.border }}>Haftalık İçerik</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -732,7 +804,9 @@ const SettingsPanel = ({ courseContents, setCourseContents, gradingSystem, setGr
                         <td style={{ padding: 6, fontWeight: 600 }}>{c.code}</td>
                         <td style={{ padding: 6 }}>{c.name}</td>
                         <td style={{ padding: 6, textAlign: "center" }}>{c.akts}</td>
-                        <td style={{ padding: 6, fontSize: 11, color: _C.textMuted, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.content || "-"}</td>
+                        <td style={{ padding: 6, fontSize: 11, color: _C.textMuted, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {c.weeklyContent || c.content || "-"}
+                        </td>
                       </tr>
                     );
                   })}
@@ -806,16 +880,14 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
   const [otherUni, setOtherUni] = useState("");
   const [otherFaculty, setOtherFaculty] = useState("");
   const [otherDept, setOtherDept] = useState("");
+  const [localDept, setLocalDept] = useState("Bilgisayar");
 
   // Dosya yükleme
-  const [transcriptFile, setTranscriptFile] = useState("");
-  const [matchTableFile, setMatchTableFile] = useState("");
-  const [loadingTranscript, setLoadingTranscript] = useState(false);
-  const [loadingMatchTable, setLoadingMatchTable] = useState(false);
+  const [studentCoursesFile, setStudentCoursesFile] = useState("");
+  const [loadingStudentCourses, setLoadingStudentCourses] = useState(false);
 
   // Parse edilen veriler
-  const [transcriptCourses, setTranscriptCourses] = useState([]);
-  const [matchTableCourses, setMatchTableCourses] = useState([]);
+  const [studentCourses, setStudentCourses] = useState([]);
 
   // Eşleştirme sonuçları
   const [matches, setMatches] = useState([]);
@@ -844,9 +916,9 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
     return _convertGrade(inputGrade);
   }
 
-  // Transkript yükle
-  const handleTranscript = async function (file) {
-    setLoadingTranscript(true);
+  // Öğrenci ders bilgileri dosyasını yükle
+  const handleStudentCourses = async function (file) {
+    setLoadingStudentCourses(true);
     try {
       var result = await extractFromFile(file);
       var courses = [];
@@ -855,42 +927,19 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
       } else {
         courses = parseCoursesFromText(result.data);
       }
-      setTranscriptCourses(courses);
-      setTranscriptFile(file.name);
-      setMsg(courses.length + " ders transkriptten okundu.");
+      setStudentCourses(courses);
+      setStudentCoursesFile(file.name);
+      setMsg(courses.length + " öğrenci dersi okundu.");
     } catch (err) {
-      setMsg("Transkript okunamadı: " + err.message);
+      setMsg("Dosya okunamadı: " + err.message);
     }
-    setLoadingTranscript(false);
-  };
-
-  // Ders eşleştirme tablosu yükle
-  const handleMatchTable = async function (file) {
-    setLoadingMatchTable(true);
-    try {
-      var result = await extractFromFile(file);
-      var courses = [];
-      if (result.type === "table") {
-        courses = parseCoursesFromTable(result.data);
-      } else {
-        courses = parseCoursesFromText(result.data);
-      }
-      setMatchTableCourses(courses);
-      setMatchTableFile(file.name);
-      setMsg(courses.length + " ders eşleştirme tablosundan okundu.");
-    } catch (err) {
-      setMsg("Eşleştirme tablosu okunamadı: " + err.message);
-    }
-    setLoadingMatchTable(false);
+    setLoadingStudentCourses(false);
   };
 
   // Otomatik eşleştir
   const runAutoMatch = function () {
-    var sourceCourses = transcriptCourses.length > 0 ? transcriptCourses :
-      (matchTableCourses.length > 0 ? matchTableCourses : []);
-
-    if (sourceCourses.length === 0) {
-      setMsg("Eşleştirme için önce transkript veya eşleştirme tablosu yükleyin.");
+    if (studentCourses.length === 0) {
+      setMsg("Eşleştirme için önce 'Öğrenci Ders Bilgileri' dosyasını yükleyin.");
       return;
     }
     if (targetCourses.length === 0) {
@@ -898,7 +947,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
       return;
     }
 
-    var autoMatches = autoMatchCourses(sourceCourses, targetCourses);
+    var autoMatches = autoMatchCourses(studentCourses, targetCourses);
 
     // Not dönüşümü uygula
     var enrichedMatches = autoMatches.map(function (m) {
@@ -937,15 +986,18 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
     var record = {
       studentName: studentName,
       studentNo: studentNo,
+      studentNo: studentNo,
       otherUniversity: otherUni,
       otherFaculty: otherFaculty,
       otherDepartment: otherDept,
+      localDepartment: localDept,
       matches: matches.filter(function (m) { return m.matched; }).map(function (m) {
         return {
           source: { code: m.source.code, name: m.source.name, akts: m.source.akts, grade: m.source.grade },
           target: m.target ? { code: m.target.code, name: m.target.name, akts: m.target.akts, status: m.target.status || m.target.type || "" } : null,
           convertedGrade: m.convertedGrade,
-          score: m.score,
+          score: m.contentScore,
+          aktsPass: m.aktsPass,
         };
       }),
     };
@@ -966,6 +1018,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
       otherUniversity: otherUni || "xxxxx Üniversitesi",
       otherFaculty: otherFaculty || "xxxxx Fakültesi",
       otherDepartment: otherDept || "xxxxx Mühendisliği",
+      localDepartment: localDept || "Bilgisayar",
       matches: matches.filter(function (m) { return m.matched; }).map(function (m) {
         return {
           source: m.source,
@@ -997,44 +1050,37 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
           <_FormField label="Karşı Bölüm">
             <_Input value={otherDept} onChange={function (e) { setOtherDept(e.target.value); }} placeholder="Örn: Bilgisayar Mühendisliği" />
           </_FormField>
+          <_FormField label="ÇAKÜ Bölümünüz (Sadece Mühendislik)">
+            <_Input value={localDept} onChange={function (e) { setLocalDept(e.target.value); }} placeholder="Örn: Bilgisayar" />
+          </_FormField>
         </div>
       </_Card>
 
       {/* Belge Yükleme */}
       <_Card title="Belge Yükleme">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+        <p style={{ fontSize: 13, color: _C.textMuted, marginBottom: 16 }}>
+          Muafiyet talep edilen derslerin listesini içeren Excel veya PDF/Word dosyasını yükleyin.<br />
+          Excel Formatı: <strong>Kodu | Adı | AKTS | Başarı Notu | Haftalık Ders İçeriği</strong><br />
+          PDF Formatı: Ders kodu (örn: CS101) ile başlayan satırlar ve altındaki içerikler okunur.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24 }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: _C.navy, marginBottom: 8 }}>Transkript</div>
             <FileDropZone
-              label="Transkript Yükle"
-              onFile={handleTranscript}
-              fileName={transcriptFile}
-              loading={loadingTranscript}
+              label="Öğrenci Ders Bilgileri (Excel)"
+              onFile={handleStudentCourses}
+              fileName={studentCoursesFile}
+              loading={loadingStudentCourses}
             />
-            {transcriptCourses.length > 0 && (
+            {studentCourses.length > 0 && (
               <div style={{ marginTop: 8, fontSize: 12, color: _C.green, fontWeight: 600 }}>
-                {transcriptCourses.length} ders okundu
-              </div>
-            )}
-          </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: _C.navy, marginBottom: 8 }}>Ders Eşleştirme Tablosu</div>
-            <FileDropZone
-              label="Eşleştirme Tablosu Yükle"
-              onFile={handleMatchTable}
-              fileName={matchTableFile}
-              loading={loadingMatchTable}
-            />
-            {matchTableCourses.length > 0 && (
-              <div style={{ marginTop: 8, fontSize: 12, color: _C.green, fontWeight: 600 }}>
-                {matchTableCourses.length} ders okundu
+                {studentCourses.length} ders okundu
               </div>
             )}
           </div>
         </div>
 
         <div style={{ marginTop: 20, display: "flex", gap: 12 }}>
-          <_Btn onClick={runAutoMatch} disabled={transcriptCourses.length === 0 && matchTableCourses.length === 0}>
+          <_Btn onClick={runAutoMatch} disabled={studentCourses.length === 0}>
             Otomatik Eşleştir
           </_Btn>
         </div>
@@ -1053,47 +1099,53 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
       {showResults && matches.length > 0 && (
         <_Card title="Eşleştirme Sonuçları">
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr style={{ background: _C.bg }}>
-                  <th colSpan="4" style={{ padding: 10, textAlign: "center", borderBottom: "2px solid " + _C.border, color: _C.navy, fontWeight: 700 }}>Karşı Kurum</th>
-                  <th style={{ borderBottom: "2px solid " + _C.border, width: 40 }}></th>
-                  <th colSpan="4" style={{ padding: 10, textAlign: "center", borderBottom: "2px solid " + _C.border, color: _C.green, fontWeight: 700 }}>ÇAKÜ Eşleşme</th>
-                  <th style={{ padding: 10, textAlign: "center", borderBottom: "2px solid " + _C.border }}>Skor</th>
+                  <th colSpan="4" style={{ padding: 8, textAlign: "center", borderBottom: "2px solid " + _C.border, color: _C.navy, fontWeight: 700 }}>Karşı Kurum</th>
+                  <th style={{ borderBottom: "2px solid " + _C.border, width: 30 }}></th>
+                  <th colSpan="4" style={{ padding: 8, textAlign: "center", borderBottom: "2px solid " + _C.border, color: _C.green, fontWeight: 700 }}>ÇAKÜ Eşleşme</th>
+                  <th colSpan="3" style={{ padding: 8, textAlign: "center", borderBottom: "2px solid " + _C.border }}>Analiz</th>
                 </tr>
                 <tr style={{ background: _C.bg }}>
-                  <th style={{ padding: 8, textAlign: "left", borderBottom: "1px solid " + _C.border }}>Kod</th>
-                  <th style={{ padding: 8, textAlign: "left", borderBottom: "1px solid " + _C.border }}>Ders Adı</th>
-                  <th style={{ padding: 8, textAlign: "center", borderBottom: "1px solid " + _C.border }}>AKTS</th>
-                  <th style={{ padding: 8, textAlign: "center", borderBottom: "1px solid " + _C.border }}>Not</th>
+                  <th style={{ padding: 6, textAlign: "left", borderBottom: "1px solid " + _C.border }}>Kod</th>
+                  <th style={{ padding: 6, textAlign: "left", borderBottom: "1px solid " + _C.border }}>Ders Adı</th>
+                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border }}>AKTS</th>
+                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border }}>Not</th>
                   <th style={{ borderBottom: "1px solid " + _C.border }}></th>
-                  <th style={{ padding: 8, textAlign: "left", borderBottom: "1px solid " + _C.border }}>Kod</th>
-                  <th style={{ padding: 8, textAlign: "left", borderBottom: "1px solid " + _C.border }}>Ders Adı</th>
-                  <th style={{ padding: 8, textAlign: "center", borderBottom: "1px solid " + _C.border }}>AKTS</th>
-                  <th style={{ padding: 8, textAlign: "center", borderBottom: "1px solid " + _C.border }}>Dönüşen Not</th>
-                  <th style={{ padding: 8, textAlign: "center", borderBottom: "1px solid " + _C.border }}>%</th>
+                  <th style={{ padding: 6, textAlign: "left", borderBottom: "1px solid " + _C.border }}>Kod</th>
+                  <th style={{ padding: 6, textAlign: "left", borderBottom: "1px solid " + _C.border }}>Ders Adı</th>
+                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border }}>AKTS</th>
+                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border }}>Dönüşen</th>
+                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border }}>AKTS</th>
+                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border }}>İçerik</th>
+                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border }}>Sonuç</th>
                 </tr>
               </thead>
               <tbody>
                 {matches.map(function (m, idx) {
-                  var scoreColor = m.score >= 0.5 ? _C.green : (m.score >= SIMILARITY_THRESHOLD ? "#D97706" : _C.accent);
+                  var aktsColor = m.aktsPass ? _C.green : "#DC2626";
+                  var contentColor = m.contentScore >= 0.80 ? _C.green : (m.contentScore >= 0.50 ? "#D97706" : "#DC2626");
+                  var resultBg = m.matched ? _C.greenLight : "#FEE2E2";
+                  var resultColor = m.matched ? "#166534" : "#991B1B";
+
                   return (
                     <tr key={idx} style={{ borderBottom: "1px solid " + _C.borderLight, background: m.matched ? "white" : "#FFF7ED" }}>
-                      <td style={{ padding: 8, fontWeight: 600 }}>{m.source.code}</td>
-                      <td style={{ padding: 8 }}>{m.source.name}</td>
-                      <td style={{ padding: 8, textAlign: "center" }}>{m.source.akts}</td>
-                      <td style={{ padding: 8, textAlign: "center", fontWeight: 600 }}>{m.source.grade}</td>
+                      <td style={{ padding: 6, fontWeight: 600 }}>{m.source.code}</td>
+                      <td style={{ padding: 6 }}>{m.source.name}</td>
+                      <td style={{ padding: 6, textAlign: "center" }}>{m.source.akts}</td>
+                      <td style={{ padding: 6, textAlign: "center", fontWeight: 600 }}>{m.source.grade}</td>
                       <td style={{ padding: 4, textAlign: "center" }}>
-                        <span style={{ color: m.matched ? _C.green : _C.textMuted, fontSize: 18 }}>{m.matched ? "\u2192" : "\u2717"}</span>
+                        <span style={{ color: _C.textMuted, fontSize: 16 }}>{"\u2192"}</span>
                       </td>
-                      <td style={{ padding: 8 }}>
+                      <td style={{ padding: 6 }}>
                         <select
                           value={m.target ? m.target.code : ""}
                           onChange={function (e) { updateMatch(idx, "targetCode", e.target.value); }}
                           style={{
-                            padding: "4px 8px", fontSize: 12, borderRadius: 6,
+                            padding: "4px", fontSize: 11, borderRadius: 4,
                             border: "1px solid " + _C.border, background: "white", cursor: "pointer",
-                            width: "100%",
+                            width: "100%", maxWidth: 120
                           }}
                         >
                           <option value="">-- Seçiniz --</option>
@@ -1102,27 +1154,45 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                           })}
                         </select>
                       </td>
-                      <td style={{ padding: 8, fontSize: 12 }}>{m.target ? m.target.name : ""}</td>
-                      <td style={{ padding: 8, textAlign: "center" }}>{m.target ? m.target.akts : ""}</td>
-                      <td style={{ padding: 8, textAlign: "center" }}>
+                      <td style={{ padding: 6, fontSize: 11 }}>{m.target ? m.target.name : ""}</td>
+                      <td style={{ padding: 6, textAlign: "center" }}>{m.target ? m.target.akts : ""}</td>
+                      <td style={{ padding: 6, textAlign: "center" }}>
                         <input
                           type="text"
                           value={m.convertedGrade}
                           onChange={function (e) { updateMatch(idx, "convertedGrade", e.target.value); }}
                           style={{
-                            width: 60, padding: "4px 8px", fontSize: 12,
-                            border: "1px solid " + _C.border, borderRadius: 6, textAlign: "center",
+                            width: 40, padding: "2px", fontSize: 11,
+                            border: "1px solid " + _C.border, borderRadius: 4, textAlign: "center",
                           }}
                         />
                       </td>
-                      <td style={{ padding: 8, textAlign: "center" }}>
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, color: scoreColor,
-                          background: m.matched ? _C.greenLight : "#FEE2E2",
-                          padding: "2px 8px", borderRadius: 4,
-                        }}>
-                          {Math.round(m.score * 100)}%
+                      {/* Analiz Sütunları */}
+                      <td style={{ padding: 6, textAlign: "center" }}>
+                        <span style={{ color: aktsColor, fontSize: 16, fontWeight: 700 }} title={m.aktsPass ? "AKTS Yeterli" : "AKTS Yetersiz"}>
+                          {m.aktsPass ? "✓" : "✗"}
                         </span>
+                      </td>
+                      <td style={{ padding: 6, textAlign: "center" }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, color: contentColor,
+                          padding: "2px 4px", borderRadius: 4, border: "1px solid " + contentColor
+                        }}>
+                          %{Math.round(m.contentScore * 100)}
+                        </span>
+                      </td>
+                      <td style={{ padding: 6, textAlign: "center" }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, color: resultColor,
+                          background: resultBg,
+                          padding: "2px 6px", borderRadius: 4,
+                          display: "inline-block", minWidth: 40
+                        }}>
+                          {m.matched ? "MUAF" : "RED"}
+                        </span>
+                        {!m.matched && m.rejectReason && (
+                          <div style={{ fontSize: 9, color: "#DC2626", marginTop: 2 }}>{m.rejectReason}</div>
+                        )}
                       </td>
                     </tr>
                   );
