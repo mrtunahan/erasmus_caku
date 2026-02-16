@@ -248,6 +248,49 @@ function stripHtmlTags(html) {
   return (html || "").replace(/<[^>]*>/g, "");
 }
 
+// ── Etiket (Tag) Yardımcıları ──
+var COURSE_CODE_REGEX = /^[A-ZÇĞİÖŞÜa-zçğıöşü]{2,5}\d{3,4}$/;
+
+function extractTags(text) {
+  if (!text) return [];
+  var plain = stripHtmlTags(text);
+  var matches = plain.match(/#[A-Za-zÇĞİÖŞÜçğıöşü0-9_]+/g);
+  return matches ? matches.map(function (t) { return t.substring(1); }).filter(function (t) { return t.length > 1; }) : [];
+}
+
+function isCourseCode(tag) {
+  return COURSE_CODE_REGEX.test(tag);
+}
+
+function getAllTags(posts) {
+  var tagCount = {};
+  posts.forEach(function (p) {
+    var tags = p.tags || [];
+    tags.forEach(function (t) {
+      tagCount[t] = (tagCount[t] || 0) + 1;
+    });
+    if (p.courseCode) {
+      tagCount[p.courseCode] = (tagCount[p.courseCode] || 0) + 1;
+    }
+  });
+  return tagCount;
+}
+
+function highlightText(text, query) {
+  if (!query || !text) return text;
+  var escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  var parts = text.split(new RegExp("(" + escaped + ")", "gi"));
+  return parts.map(function (part, i) {
+    if (part.toLowerCase() === query.toLowerCase()) {
+      return React.createElement("mark", {
+        key: i,
+        style: { background: DY.goldLight, color: DY.warm, padding: "1px 2px", borderRadius: 2 }
+      }, part);
+    }
+    return part;
+  });
+}
+
 // ══════════════════════════════════════════════════════════════
 // FIREBASE CRUD
 // ══════════════════════════════════════════════════════════════
@@ -1509,7 +1552,7 @@ const RichTextEditor = ({ value, onChange, placeholder, onImageUpload }) => {
 };
 
 // ── Gönderi Kartı ──
-const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor }) => {
+const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor, onFilterTag }) => {
   var cat = getCategoryInfo(post.category);
   var userId = getUserId(currentUser);
   var isAuthor = post.authorId === userId || currentUser.role === "admin";
@@ -1594,16 +1637,44 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
                 }}>{post.tag}</span>
               )}
               {post.courseCode && (
-                <span style={{
-                  fontSize: 10, padding: "2px 8px", borderRadius: 4,
-                  background: DY.goldLight, color: DY.goldDark, fontWeight: 700,
-                  display: "inline-flex", alignItems: "center", gap: 3,
-                }}>
+                <span
+                  onClick={function () { if (onFilterTag) onFilterTag(post.courseCode); }}
+                  style={{
+                    fontSize: 10, padding: "2px 8px", borderRadius: 4,
+                    background: DY.goldLight, color: DY.goldDark, fontWeight: 700,
+                    display: "inline-flex", alignItems: "center", gap: 3,
+                    cursor: "pointer",
+                  }}
+                  title={"#" + post.courseCode + " etiketine göre filtrele"}
+                >
                   <SvgIcon path={ICONS.book} size={10} color={DY.goldDark} />
                   {post.courseCode}
                 </span>
               )}
             </div>
+            {/* Etiketler */}
+            {post.tags && post.tags.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                {post.tags.filter(function (t) { return t !== post.courseCode; }).map(function (t, idx) {
+                  return (
+                    <span
+                      key={idx}
+                      onClick={function () { if (onFilterTag) onFilterTag(t); }}
+                      style={{
+                        fontSize: 11, padding: "2px 8px", borderRadius: 10,
+                        background: isCourseCode(t) ? DY.goldLight : "#E0E7FF",
+                        color: isCourseCode(t) ? DY.goldDark : "#4F46E5",
+                        fontWeight: 600, cursor: "pointer",
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={function (e) { e.currentTarget.style.opacity = "0.7"; }}
+                      onMouseLeave={function (e) { e.currentTarget.style.opacity = "1"; }}
+                      title={"#" + t + " etiketine göre filtrele"}
+                    >#{t}</span>
+                  );
+                })}
+              </div>
+            )}
             <div style={{ fontSize: 12, color: PC.textMuted, marginTop: 2 }}>
               {timeAgo(post.createdAt)}
               {post.views > 0 && <span> · {post.views} görüntülenme</span>}
@@ -1919,6 +1990,8 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
   const [posting, setPosting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [postResetKey, setPostResetKey] = useState(0);
+  const [tags, setTags] = useState([]);
+  const [tagInput, setTagInput] = useState("");
   const fileInputRef = useRef(null);
 
   var courseSuggestions = useMemo(function () {
@@ -1951,10 +2024,22 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
     if (isHtmlEmpty(content)) return;
     setPosting(true);
     try {
+      // Etiketleri birleştir: elle eklenenler + içerikten otomatik çıkarılanlar
+      var contentTags = extractTags(content).concat(extractTags(title));
+      var allTags = tags.slice();
+      contentTags.forEach(function (t) {
+        var upper = t.toUpperCase();
+        if (allTags.map(function (x) { return x.toUpperCase(); }).indexOf(upper) < 0) allTags.push(t);
+      });
+      // Ders kodunu da etiket olarak ekle
+      var cc = courseCode.trim().toUpperCase();
+      if (cc && allTags.map(function (x) { return x.toUpperCase(); }).indexOf(cc) < 0) allTags.push(cc);
+
       var post = {
         category: category, title: title.trim(), content: content,
         contentFormat: "html",
-        tag: tag || "", courseCode: courseCode.trim().toUpperCase() || "",
+        tag: tag || "", courseCode: cc || "",
+        tags: allTags,
         authorName: currentUser.name || "Anonim", authorId: getUserId(currentUser),
       };
       if (file) {
@@ -1972,7 +2057,7 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
         if (pollDeadline) post.pollDeadline = pollDeadline;
       }
       await onPost(post);
-      setTitle(""); setContent(""); setResourceUrl(""); setCourseCode("");
+      setTitle(""); setContent(""); setResourceUrl(""); setCourseCode(""); setTags([]); setTagInput("");
       setPollOptions(["", ""]); setFile(null); setFilePreview(null);
       setPostResetKey(function (k) { return k + 1; });
       if (onClose) onClose();
@@ -2092,6 +2177,61 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
               );
             })}
           </div>
+        </div>
+      </div>
+
+      {/* Etiket Ekleme */}
+      <div style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted, marginBottom: 4 }}>Etiketler</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: tags.length > 0 ? 8 : 0 }}>
+          {tags.map(function (t, idx) {
+            return (
+              <span key={idx} style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                padding: "3px 10px", borderRadius: 12, fontSize: 12, fontWeight: 600,
+                background: isCourseCode(t) ? DY.goldLight : "#E0E7FF",
+                color: isCourseCode(t) ? DY.goldDark : "#4F46E5",
+                border: "1px solid " + (isCourseCode(t) ? DY.goldBorder : "#C7D2FE"),
+              }}>
+                #{t}
+                <button
+                  onClick={function () { setTags(function (prev) { return prev.filter(function (_, i) { return i !== idx; }); }); }}
+                  style={{
+                    padding: 0, border: "none", background: "transparent",
+                    cursor: "pointer", fontSize: 14, lineHeight: 1, fontWeight: 700,
+                    color: isCourseCode(t) ? DY.goldDark : "#4F46E5",
+                  }}
+                >{"\u2715"}</button>
+              </span>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <input
+            value={tagInput}
+            onChange={function (e) { setTagInput(e.target.value.replace(/\s/g, "")); }}
+            onKeyDown={function (e) {
+              if ((e.key === "Enter" || e.key === ",") && tagInput.trim()) {
+                e.preventDefault();
+                var newTag = tagInput.replace(/^#/, "").trim();
+                if (newTag && tags.map(function (t) { return t.toUpperCase(); }).indexOf(newTag.toUpperCase()) < 0) {
+                  setTags(function (prev) { return prev.concat([newTag]); });
+                }
+                setTagInput("");
+              }
+              if (e.key === "Backspace" && !tagInput && tags.length > 0) {
+                setTags(function (prev) { return prev.slice(0, -1); });
+              }
+            }}
+            placeholder="#FinalHazırlık, #MAT101..."
+            style={{
+              flex: 1, padding: "6px 12px", border: "1px solid " + PC.border,
+              borderRadius: 8, fontSize: 12, outline: "none",
+            }}
+          />
+        </div>
+        <div style={{ fontSize: 10, color: PC.textMuted, marginTop: 3 }}>
+          Enter veya virgül ile ekleyin. İçerikteki #etiketler otomatik algılanır.
         </div>
       </div>
 
@@ -2309,6 +2449,68 @@ const TrendingSidebar = ({ posts }) => {
   );
 };
 
+// ── Popüler Etiketler Bulutu ──
+const TagCloud = ({ posts, onFilterTag, activeTag }) => {
+  var tagCounts = useMemo(function () { return getAllTags(posts); }, [posts]);
+
+  var sortedTags = useMemo(function () {
+    return Object.keys(tagCounts)
+      .map(function (t) { return { tag: t, count: tagCounts[t] }; })
+      .sort(function (a, b) { return b.count - a.count; })
+      .slice(0, 20);
+  }, [tagCounts]);
+
+  if (sortedTags.length === 0) return null;
+
+  var maxCount = sortedTags[0].count;
+
+  return (
+    <div style={{
+      background: "white", borderRadius: 16, padding: 20,
+      border: "1px solid " + PC.borderLight,
+    }}>
+      <h3 style={{ fontSize: 15, fontWeight: 700, color: DY.warm, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={DY.gold} strokeWidth="2">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+          <line x1="7" y1="7" x2="7.01" y2="7" />
+        </svg>
+        Popüler Etiketler
+      </h3>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {sortedTags.map(function (item) {
+          var isActive = activeTag === item.tag;
+          var intensity = Math.max(0.4, item.count / maxCount);
+          var isCourse = isCourseCode(item.tag);
+          return (
+            <button
+              key={item.tag}
+              onClick={function () { onFilterTag(isActive ? "" : item.tag); }}
+              style={{
+                padding: "4px 10px", borderRadius: 12,
+                fontSize: 10 + Math.round(intensity * 4), fontWeight: isActive ? 700 : 500,
+                border: isActive ? "2px solid " + (isCourse ? DY.gold : "#6366F1") : "1px solid " + PC.border,
+                background: isActive
+                  ? (isCourse ? DY.goldLight : "#E0E7FF")
+                  : "rgba(255,255,255," + (1 - intensity * 0.3) + ")",
+                color: isCourse ? DY.goldDark : "#4F46E5",
+                cursor: "pointer",
+                transition: "all 0.15s",
+                opacity: isActive ? 1 : (0.6 + intensity * 0.4),
+              }}
+              onMouseEnter={function (e) { e.currentTarget.style.transform = "scale(1.05)"; }}
+              onMouseLeave={function (e) { e.currentTarget.style.transform = "scale(1)"; }}
+              title={item.count + " gönderi"}
+            >
+              #{item.tag}
+              <span style={{ fontSize: 9, marginLeft: 3, opacity: 0.7 }}>{item.count}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ── Toast Bildirim ──
 const ToastContainer = ({ toasts }) => {
   if (!toasts || toasts.length === 0) return null;
@@ -2507,25 +2709,209 @@ const MobileSidebarToggle = ({ children }) => {
   );
 };
 
-// ── Arama Çubuğu ──
-const SearchBar = ({ value, onChange }) => (
-  <div style={{ position: "relative", flex: 1, maxWidth: 400 }}>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={PC.textMuted}
-      strokeWidth="2" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}>
-      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-    <input
-      value={value}
-      onChange={function (e) { onChange(e.target.value); }}
-      placeholder="Gönderi ara..."
-      style={{
-        width: "100%", padding: "10px 14px 10px 42px",
-        border: "1px solid " + PC.border, borderRadius: 12,
-        fontSize: 14, outline: "none", background: "white",
-      }}
-    />
-  </div>
-);
+// ── Gelişmiş Arama Çubuğu ──
+const AdvancedSearchBar = ({ value, onChange, posts, onFilterTag, dateRange, onDateRangeChange, tagFilter, onTagFilterChange }) => {
+  const [focused, setFocused] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  var inputRef = useRef(null);
+
+  // Otomatik tamamlama önerileri
+  var suggestions = useMemo(function () {
+    if (!value || value.length < 2 || !focused) return [];
+    var q = value.toLowerCase();
+    var results = [];
+    var seen = {};
+
+    // Başlık eşleşmeleri
+    posts.forEach(function (p) {
+      if (p.title && p.title.toLowerCase().includes(q) && !seen["title:" + p.id]) {
+        seen["title:" + p.id] = true;
+        results.push({ type: "post", text: p.title, id: p.id, category: p.category });
+      }
+    });
+
+    // Yazar eşleşmeleri
+    posts.forEach(function (p) {
+      if (p.authorName && p.authorName.toLowerCase().includes(q) && !seen["author:" + p.authorName]) {
+        seen["author:" + p.authorName] = true;
+        results.push({ type: "author", text: p.authorName });
+      }
+    });
+
+    // Etiket eşleşmeleri
+    var allTagCounts = getAllTags(posts);
+    Object.keys(allTagCounts).forEach(function (t) {
+      if (t.toLowerCase().includes(q) && !seen["tag:" + t]) {
+        seen["tag:" + t] = true;
+        results.push({ type: "tag", text: t, count: allTagCounts[t] });
+      }
+    });
+
+    return results.slice(0, 8);
+  }, [value, posts, focused]);
+
+  var handleSuggestionClick = function (s) {
+    if (s.type === "tag") {
+      if (onFilterTag) onFilterTag(s.text);
+      onChange("");
+    } else {
+      onChange(s.text);
+    }
+    setFocused(false);
+    if (inputRef.current) inputRef.current.blur();
+  };
+
+  return (
+    <div style={{ flex: 1, maxWidth: 500, position: "relative" }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <div style={{ position: "relative", flex: 1 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={focused ? DY.gold : PC.textMuted}
+            strokeWidth="2" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", transition: "all 0.2s" }}>
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            ref={inputRef}
+            value={value}
+            onChange={function (e) { onChange(e.target.value); }}
+            onFocus={function () { setFocused(true); }}
+            onBlur={function () { setTimeout(function () { setFocused(false); }, 200); }}
+            placeholder="Gönderi, yazar veya #etiket ara..."
+            style={{
+              width: "100%", padding: "10px 14px 10px 42px",
+              border: "1px solid " + (focused ? DY.gold : PC.border), borderRadius: 12,
+              fontSize: 14, outline: "none", background: "white",
+              transition: "border-color 0.2s",
+              boxShadow: focused ? "0 0 0 3px " + DY.goldLight : "none",
+            }}
+          />
+          {value && (
+            <button
+              onClick={function () { onChange(""); if (inputRef.current) inputRef.current.focus(); }}
+              style={{
+                position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                padding: 2, border: "none", background: "transparent",
+                cursor: "pointer", color: PC.textMuted, fontSize: 14, lineHeight: 1,
+              }}
+            >{"\u2715"}</button>
+          )}
+        </div>
+        {/* Gelişmiş Filtreler Toggle */}
+        <button
+          onClick={function () { setShowAdvanced(!showAdvanced); }}
+          title="Gelişmiş Filtreler"
+          style={{
+            padding: "10px 12px", border: "1px solid " + (showAdvanced ? DY.gold : PC.border),
+            borderRadius: 12, background: showAdvanced ? DY.goldLight : "white",
+            cursor: "pointer", color: showAdvanced ? DY.goldDark : PC.textMuted,
+            display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600,
+            transition: "all 0.2s",
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          Filtre
+        </button>
+      </div>
+
+      {/* Autocomplete Dropdown */}
+      {focused && suggestions.length > 0 && (
+        <div style={{
+          position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4,
+          background: "white", borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+          border: "1px solid " + PC.borderLight, zIndex: 100, overflow: "hidden",
+        }}>
+          {suggestions.map(function (s, idx) {
+            var icon, label, color;
+            if (s.type === "post") { icon = "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"; label = "Gönderi"; color = PC.navy; }
+            else if (s.type === "author") { icon = "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"; label = "Yazar"; color = "#3B82F6"; }
+            else { icon = "M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z M7 7h.01"; label = "#Etiket"; color = "#6366F1"; }
+            return (
+              <div
+                key={idx}
+                onMouseDown={function () { handleSuggestionClick(s); }}
+                style={{
+                  padding: "10px 16px", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 10,
+                  borderBottom: idx < suggestions.length - 1 ? "1px solid " + PC.borderLight : "none",
+                }}
+                onMouseEnter={function (e) { e.currentTarget.style.background = PC.bg; }}
+                onMouseLeave={function (e) { e.currentTarget.style.background = "white"; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+                  <path d={icon} />
+                </svg>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy }}>{highlightText(s.text, value)}</div>
+                  <div style={{ fontSize: 10, color: PC.textMuted }}>{label}{s.count ? " (" + s.count + " gönderi)" : ""}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Gelişmiş Filtreler Paneli */}
+      {showAdvanced && (
+        <div style={{
+          marginTop: 8, padding: 16, background: "white",
+          borderRadius: 12, border: "1px solid " + PC.border,
+          display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end",
+        }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted, marginBottom: 4 }}>Başlangıç Tarihi</div>
+            <input
+              type="date"
+              value={dateRange.start || ""}
+              onChange={function (e) { onDateRangeChange({ start: e.target.value, end: dateRange.end }); }}
+              style={{
+                padding: "6px 10px", border: "1px solid " + PC.border,
+                borderRadius: 8, fontSize: 12, outline: "none",
+              }}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted, marginBottom: 4 }}>Bitiş Tarihi</div>
+            <input
+              type="date"
+              value={dateRange.end || ""}
+              onChange={function (e) { onDateRangeChange({ start: dateRange.start, end: e.target.value }); }}
+              style={{
+                padding: "6px 10px", border: "1px solid " + PC.border,
+                borderRadius: 8, fontSize: 12, outline: "none",
+              }}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted, marginBottom: 4 }}>Etiket Filtresi</div>
+            <input
+              value={tagFilter}
+              onChange={function (e) { onTagFilterChange(e.target.value); }}
+              placeholder="#etiket"
+              style={{
+                padding: "6px 10px", border: "1px solid " + PC.border,
+                borderRadius: 8, fontSize: 12, outline: "none", width: 120,
+              }}
+            />
+          </div>
+          {(dateRange.start || dateRange.end || tagFilter) && (
+            <button
+              onClick={function () { onDateRangeChange({ start: "", end: "" }); onTagFilterChange(""); }}
+              style={{
+                padding: "6px 14px", border: "1px solid " + PC.border,
+                borderRadius: 8, background: "white", cursor: "pointer",
+                fontSize: 12, color: "#EF4444", fontWeight: 600,
+              }}
+            >Filtreleri Temizle</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ══════════════════════════════════════════════════════════════
 // ANA MODÜL BİLEŞENİ
@@ -2539,6 +2925,8 @@ function OgrenciPortaliApp({ currentUser }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState("newest"); // newest, popular, comments, bookmarked
   const [authorFilter, setAuthorFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [toasts, setToasts] = useState([]);
   const [visibleCount, setVisibleCount] = useState(POSTS_PER_PAGE);
   const [highlightedPostId, setHighlightedPostId] = useState(null);
@@ -2705,20 +3093,51 @@ function OgrenciPortaliApp({ currentUser }) {
   var filteredPosts = useMemo(function () {
     if (highlightedPostId) return posts.filter(function (p) { return p.id === highlightedPostId; });
     var result = posts;
+    // Tam metin arama
     if (searchQuery.trim()) {
       var q = searchQuery.toLowerCase();
       result = result.filter(function (p) {
         var searchContent = p.contentFormat === "html"
           ? stripHtmlTags(p.content).toLowerCase()
           : (p.content || "").toLowerCase();
+        var tagText = (p.tags || []).join(" ").toLowerCase();
         return (p.title && p.title.toLowerCase().includes(q)) ||
           searchContent.includes(q) ||
-          (p.authorName && p.authorName.toLowerCase().includes(q));
+          (p.authorName && p.authorName.toLowerCase().includes(q)) ||
+          tagText.includes(q) ||
+          (p.courseCode && p.courseCode.toLowerCase().includes(q));
       });
     }
     // Yazar filtresi
     if (authorFilter) {
       result = result.filter(function (p) { return p.authorName === authorFilter; });
+    }
+    // Etiket filtresi
+    if (tagFilter) {
+      var tf = tagFilter.replace(/^#/, "").toLowerCase();
+      result = result.filter(function (p) {
+        var postTags = (p.tags || []).map(function (t) { return t.toLowerCase(); });
+        return postTags.indexOf(tf) >= 0 || (p.courseCode && p.courseCode.toLowerCase() === tf);
+      });
+    }
+    // Tarih aralığı filtresi
+    if (dateRange.start) {
+      var startDate = new Date(dateRange.start);
+      startDate.setHours(0, 0, 0, 0);
+      result = result.filter(function (p) {
+        if (!p.createdAt) return false;
+        var postDate = p.createdAt.toDate ? p.createdAt.toDate() : new Date(p.createdAt);
+        return postDate >= startDate;
+      });
+    }
+    if (dateRange.end) {
+      var endDate = new Date(dateRange.end);
+      endDate.setHours(23, 59, 59, 999);
+      result = result.filter(function (p) {
+        if (!p.createdAt) return false;
+        var postDate = p.createdAt.toDate ? p.createdAt.toDate() : new Date(p.createdAt);
+        return postDate <= endDate;
+      });
     }
     // Kaydedilenler filtresi
     if (sortMode === "bookmarked") {
@@ -2735,7 +3154,7 @@ function OgrenciPortaliApp({ currentUser }) {
       });
     }
     return result;
-  }, [posts, searchQuery, sortMode, bookmarks, authorFilter]);
+  }, [posts, searchQuery, sortMode, bookmarks, authorFilter, tagFilter, dateRange]);
 
   // Sabitlenmiş gönderileri ayır
   var pinnedPosts = filteredPosts.filter(function (p) { return p.pinned; });
@@ -2838,7 +3257,16 @@ function OgrenciPortaliApp({ currentUser }) {
           flexDirection: isMobile ? "column" : "row",
           flexWrap: "wrap",
         }}>
-          <SearchBar value={searchQuery} onChange={setSearchQuery} />
+          <AdvancedSearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            posts={posts}
+            onFilterTag={setTagFilter}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            tagFilter={tagFilter}
+            onTagFilterChange={setTagFilter}
+          />
 
           {/* Yazar filtresi badge */}
           {authorFilter && (
@@ -2856,6 +3284,29 @@ function OgrenciPortaliApp({ currentUser }) {
                 style={{
                   padding: 0, border: "none", background: "transparent",
                   cursor: "pointer", color: PC.blue, fontSize: 14, fontWeight: 700,
+                  marginLeft: 4, lineHeight: 1,
+                }}
+              >{"\u2715"}</button>
+            </div>
+          )}
+
+          {/* Etiket filtresi badge */}
+          {tagFilter && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "6px 14px", borderRadius: 20,
+              background: isCourseCode(tagFilter.replace(/^#/, "")) ? DY.goldLight : "#E0E7FF",
+              border: "1px solid " + (isCourseCode(tagFilter.replace(/^#/, "")) ? DY.gold : "#6366F1"),
+              fontSize: 12, fontWeight: 600,
+              color: isCourseCode(tagFilter.replace(/^#/, "")) ? DY.goldDark : "#4F46E5",
+              alignSelf: isMobile ? "flex-start" : "center",
+            }}>
+              #{tagFilter.replace(/^#/, "")}
+              <button
+                onClick={function () { setTagFilter(""); }}
+                style={{
+                  padding: 0, border: "none", background: "transparent",
+                  cursor: "pointer", color: "inherit", fontSize: 14, fontWeight: 700,
                   marginLeft: 4, lineHeight: 1,
                 }}
               >{"\u2715"}</button>
@@ -2964,10 +3415,12 @@ function OgrenciPortaliApp({ currentUser }) {
               }}>
                 <div style={{ marginBottom: 16 }}><SvgIcon path={ICONS.file} size={48} color={DY.gold} /></div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: PC.navy, marginBottom: 8 }}>
-                  {searchQuery ? "Sonuç bulunamadı" : "Henüz gönderi yok"}
+                  {(searchQuery || tagFilter || authorFilter || dateRange.start || dateRange.end) ? "Sonuç bulunamadı" : "Henüz gönderi yok"}
                 </div>
                 <div style={{ fontSize: 14, color: PC.textMuted }}>
-                  {searchQuery ? "Farklı bir arama terimi deneyin." : "İlk gönderiyi oluşturarak topluluğu başlatın!"}
+                  {(searchQuery || tagFilter || authorFilter || dateRange.start || dateRange.end)
+                    ? "Farklı bir arama terimi veya filtre deneyin."
+                    : "İlk gönderiyi oluşturarak topluluğu başlatın!"}
                 </div>
                 {!searchQuery && (
                   <button
@@ -2997,6 +3450,7 @@ function OgrenciPortaliApp({ currentUser }) {
                   isBookmarked={bookmarks.indexOf(post.id) >= 0}
                   onToggleBookmark={handleToggleBookmark}
                   onFilterAuthor={setAuthorFilter}
+                  onFilterTag={setTagFilter}
                 />
               );
             })}
@@ -3018,6 +3472,7 @@ function OgrenciPortaliApp({ currentUser }) {
                   isBookmarked={bookmarks.indexOf(post.id) >= 0}
                   isAdmin={isAdmin}
                   onFilterAuthor={setAuthorFilter}
+                  onFilterTag={setTagFilter}
                 />
               );
             })}
@@ -3033,6 +3488,7 @@ function OgrenciPortaliApp({ currentUser }) {
             <MobileSidebarToggle>
               <UserProfileCard currentUser={currentUser} posts={posts} />
               <TrendingSidebar posts={posts} />
+              <TagCloud posts={posts} onFilterTag={setTagFilter} activeTag={tagFilter.replace(/^#/, "")} />
 
               <div style={{
                 background: "white", borderRadius: 16, padding: 20,
@@ -3065,6 +3521,7 @@ function OgrenciPortaliApp({ currentUser }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: 88 }}>
               <UserProfileCard currentUser={currentUser} posts={posts} />
               <TrendingSidebar posts={posts} />
+              <TagCloud posts={posts} onFilterTag={setTagFilter} activeTag={tagFilter.replace(/^#/, "")} />
 
               <div style={{
                 background: "white", borderRadius: 16, padding: 20,
