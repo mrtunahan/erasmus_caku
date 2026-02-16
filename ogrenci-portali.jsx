@@ -28,7 +28,30 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
       ".daisy-card:hover{box-shadow:0 6px 24px rgba(255,193,7,0.15);transform:translateY(-1px);}" +
       ".daisy-btn{background:linear-gradient(135deg,#F59E0B,#D97706);color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(245,158,11,0.3);transition:all 0.2s;}" +
       ".daisy-btn:hover{box-shadow:0 6px 20px rgba(245,158,11,0.4);transform:translateY(-1px);}" +
-      ".portal-wrap{position:relative;z-index:1;}";
+      ".portal-wrap{position:relative;z-index:1;}" +
+      ".ql-toolbar.ql-snow{border:none !important;border-bottom:1px solid rgba(255,215,0,0.25) !important;background:linear-gradient(135deg,#FFFDF7,#FFF9E6) !important;border-radius:10px 10px 0 0 !important;padding:8px 12px !important;font-family:'Source Sans 3','Inter',sans-serif !important;flex-wrap:wrap !important;}" +
+      ".ql-container.ql-snow{border:none !important;font-family:'Source Sans 3','Inter',sans-serif !important;font-size:14px !important;}" +
+      ".ql-editor{min-height:150px !important;line-height:1.7 !important;color:#2C2C2C !important;padding:12px 16px !important;}" +
+      ".ql-editor.ql-blank::before{color:#6B7280 !important;font-style:normal !important;font-size:14px !important;}" +
+      ".ql-snow .ql-stroke{stroke:#1B2A4A !important;}" +
+      ".ql-snow .ql-fill,.ql-snow .ql-stroke.ql-fill{fill:#1B2A4A !important;}" +
+      ".ql-snow .ql-picker-label{color:#1B2A4A !important;}" +
+      ".ql-snow .ql-active .ql-stroke,.ql-snow button:hover .ql-stroke{stroke:#F59E0B !important;}" +
+      ".ql-snow .ql-active .ql-fill,.ql-snow button:hover .ql-fill{fill:#F59E0B !important;}" +
+      ".ql-snow .ql-active{color:#F59E0B !important;}" +
+      ".ql-snow button:hover,.ql-snow .ql-picker-label:hover{color:#F59E0B !important;}" +
+      ".ql-snow .ql-picker-options{border-radius:8px !important;box-shadow:0 4px 16px rgba(0,0,0,0.12) !important;border:1px solid #E5E1D8 !important;}" +
+      ".ql-editor img{max-width:100% !important;border-radius:8px !important;margin:8px 0 !important;}" +
+      ".ql-editor blockquote{border-left:4px solid #F59E0B !important;padding-left:12px !important;color:#6B7280 !important;}" +
+      ".ql-editor pre.ql-syntax{background:#1B2A4A !important;color:#FEF3C7 !important;border-radius:8px !important;padding:12px 16px !important;font-family:'JetBrains Mono',monospace !important;}" +
+      ".portal-post-content img{max-width:100%;border-radius:8px;margin:8px 0;}" +
+      ".portal-post-content blockquote{border-left:4px solid #F59E0B;padding-left:12px;color:#6B7280;margin:8px 0;}" +
+      ".portal-post-content pre{background:#1B2A4A;color:#FEF3C7;border-radius:8px;padding:12px 16px;font-family:'JetBrains Mono',monospace;overflow-x:auto;}" +
+      ".portal-post-content a{color:#3B82F6;text-decoration:underline;}" +
+      ".portal-post-content ul,.portal-post-content ol{padding-left:24px;margin:4px 0;}" +
+      ".portal-post-content h2{font-size:18px;font-weight:700;color:#1B2A4A;margin:12px 0 6px;}" +
+      ".portal-post-content h3{font-size:16px;font-weight:600;color:#1B2A4A;margin:10px 0 4px;}" +
+      ".portal-post-content p{margin:4px 0;}";
     document.head.appendChild(s);
   }
 })();
@@ -131,6 +154,99 @@ const POPULAR_COURSES = [
 
 const FILE_MAX_SIZE = 5 * 1024 * 1024; // 5MB
 const POSTS_PER_PAGE = 15;
+
+// ── Dosya Doğrulama ──
+var ALLOWED_FILE_TYPES = {
+  "image/jpeg": { ext: ".jpg", label: "JPEG Görsel" },
+  "image/png": { ext: ".png", label: "PNG Görsel" },
+  "image/gif": { ext: ".gif", label: "GIF Görsel" },
+  "image/webp": { ext: ".webp", label: "WebP Görsel" },
+  "application/pdf": { ext: ".pdf", label: "PDF Doküman" },
+  "application/msword": { ext: ".doc", label: "Word Doküman" },
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { ext: ".docx", label: "Word Doküman" },
+  "application/vnd.ms-excel": { ext: ".xls", label: "Excel Tablosu" },
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { ext: ".xlsx", label: "Excel Tablosu" },
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": { ext: ".pptx", label: "PowerPoint Sunumu" },
+  "text/plain": { ext: ".txt", label: "Metin Dosyası" },
+};
+
+function validateFile(file, isInlineImage) {
+  var errors = [];
+  if (!file) return { valid: false, errors: ["Dosya seçilmedi."] };
+
+  if (file.size > FILE_MAX_SIZE) {
+    errors.push("Dosya boyutu 5MB'dan büyük olamaz. Seçilen dosya: " + (file.size / (1024 * 1024)).toFixed(1) + "MB");
+  }
+
+  if (file.size === 0) {
+    errors.push("Dosya boş görünüyor.");
+  }
+
+  if (isInlineImage) {
+    if (!file.type.startsWith("image/")) {
+      errors.push("Editöre sadece görsel dosyaları yüklenebilir. Seçilen dosya türü: " + (file.type || "bilinmiyor"));
+    }
+  } else {
+    if (!ALLOWED_FILE_TYPES[file.type]) {
+      var allowedExts = Object.values(ALLOWED_FILE_TYPES).map(function (t) { return t.ext; }).join(", ");
+      errors.push("Desteklenmeyen dosya türü: " + (file.type || "bilinmiyor") + ". İzin verilen türler: " + allowedExts);
+    }
+  }
+
+  return { valid: errors.length === 0, errors: errors };
+}
+
+function isHtmlEmpty(html) {
+  if (!html) return true;
+  var tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  var text = tmp.textContent || tmp.innerText || "";
+  return !text.trim();
+}
+
+function sanitizeHtml(html) {
+  if (!html) return "";
+  if (typeof DOMPurify !== "undefined") {
+    return DOMPurify.sanitize(html, { ADD_TAGS: ["iframe"], ADD_ATTR: ["target"] });
+  }
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/\s*on\w+\s*=\s*"[^"]*"/gi, "")
+    .replace(/\s*on\w+\s*=\s*'[^']*'/gi, "")
+    .replace(/javascript\s*:/gi, "");
+}
+
+function truncateHtml(html, maxTextLen) {
+  var div = document.createElement("div");
+  div.innerHTML = html;
+  var text = div.textContent || div.innerText || "";
+  if (text.length <= maxTextLen) return html;
+  var count = 0;
+  var truncated = false;
+  function walk(node) {
+    if (truncated) {
+      if (node.parentNode) node.parentNode.removeChild(node);
+      return;
+    }
+    if (node.nodeType === 3) {
+      var remaining = maxTextLen - count;
+      if (node.textContent.length > remaining) {
+        node.textContent = node.textContent.substring(0, remaining) + "...";
+        truncated = true;
+      }
+      count += node.textContent.length;
+    } else if (node.nodeType === 1) {
+      var children = Array.from(node.childNodes);
+      children.forEach(walk);
+    }
+  }
+  walk(div);
+  return div.innerHTML;
+}
+
+function stripHtmlTags(html) {
+  return (html || "").replace(/<[^>]*>/g, "");
+}
 
 // ══════════════════════════════════════════════════════════════
 // FIREBASE CRUD
@@ -946,6 +1062,143 @@ const CommentSection = ({ postId, currentUser }) => {
   );
 };
 
+// ── Zengin İçerik Editörü (Quill.js) ──
+const RichTextEditor = ({ value, onChange, placeholder, onImageUpload }) => {
+  const editorRef = useRef(null);
+  const quillRef = useRef(null);
+
+  // Quill yoksa fallback textarea
+  if (typeof Quill === "undefined") {
+    return (
+      <textarea
+        value={value || ""}
+        onChange={function (e) { if (onChange) onChange(e.target.value); }}
+        placeholder={placeholder}
+        rows={5}
+        style={{
+          width: "100%", padding: "12px 16px", border: "1px solid " + PC.border,
+          borderRadius: 10, fontSize: 14, resize: "vertical",
+          outline: "none", lineHeight: 1.6, fontFamily: "inherit",
+        }}
+      />
+    );
+  }
+
+  useEffect(function () {
+    if (!editorRef.current || quillRef.current) return;
+
+    var handleDirectImageUpload = function (file, quill) {
+      var validation = validateFile(file, true);
+      if (!validation.valid) {
+        alert(validation.errors.join("\n"));
+        return;
+      }
+      var range = quill.getSelection(true) || { index: quill.getLength() };
+      quill.insertText(range.index, "Yükleniyor...", { italic: true, color: "#999" });
+      quill.setSelection(range.index + 13);
+
+      if (onImageUpload) {
+        onImageUpload(file).then(function (result) {
+          quill.deleteText(range.index, 13);
+          quill.insertEmbed(range.index, "image", result.url);
+          quill.setSelection(range.index + 1);
+        }).catch(function (err) {
+          quill.deleteText(range.index, 13);
+          alert("Görsel yüklenemedi: " + err.message);
+        });
+      }
+    };
+
+    var imageHandler = function () {
+      var input = document.createElement("input");
+      input.setAttribute("type", "file");
+      input.setAttribute("accept", "image/*");
+      input.click();
+      input.onchange = function () {
+        var file = input.files[0];
+        if (!file) return;
+        handleDirectImageUpload(file, quillRef.current);
+      };
+    };
+
+    var quill = new Quill(editorRef.current, {
+      theme: "snow",
+      placeholder: placeholder || "İçerik yazın...",
+      modules: {
+        toolbar: {
+          container: [
+            [{ header: [2, 3, false] }],
+            ["bold", "italic", "underline", "strike"],
+            [{ color: [] }, { background: [] }],
+            [{ list: "ordered" }, { list: "bullet" }],
+            ["blockquote", "code-block"],
+            ["link", "image"],
+            ["clean"],
+          ],
+          handlers: {
+            image: imageHandler,
+          },
+        },
+      },
+    });
+
+    if (value) {
+      quill.root.innerHTML = value;
+    }
+
+    quill.on("text-change", function () {
+      var html = quill.root.innerHTML;
+      if (html === "<p><br></p>") html = "";
+      if (onChange) onChange(html);
+    });
+
+    // Sürükle-bırak görsel desteği
+    quill.root.addEventListener("drop", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files.length > 0) {
+        var file = files[0];
+        if (file.type.startsWith("image/")) {
+          handleDirectImageUpload(file, quill);
+        }
+      }
+    }, false);
+
+    // Yapıştırma görsel desteği
+    quill.root.addEventListener("paste", function (e) {
+      var items = e.clipboardData && e.clipboardData.items;
+      if (items) {
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf("image") !== -1) {
+            e.preventDefault();
+            var file = items[i].getAsFile();
+            handleDirectImageUpload(file, quill);
+            break;
+          }
+        }
+      }
+    }, false);
+
+    quillRef.current = quill;
+
+    return function () {
+      quillRef.current = null;
+    };
+  }, []);
+
+  return (
+    <div style={{
+      border: "1px solid " + PC.border,
+      borderRadius: 10,
+      overflow: "hidden",
+      background: "white",
+    }}>
+      <div ref={editorRef} />
+    </div>
+  );
+};
+
 // ── Gönderi Kartı ──
 const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor }) => {
   var cat = getCategoryInfo(post.category);
@@ -961,14 +1214,28 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
   const [expanded, setExpanded] = useState(false);
 
   var TRUNCATE_LEN = 300;
-  var isLong = post.content && post.content.length > TRUNCATE_LEN;
-  var displayContent = (!expanded && isLong) ? post.content.substring(0, TRUNCATE_LEN) + "..." : post.content;
+  var isLong, displayContent;
+  if (post.contentFormat === "html") {
+    var textContent = stripHtmlTags(post.content);
+    isLong = textContent.length > TRUNCATE_LEN;
+    if (!expanded && isLong) {
+      displayContent = truncateHtml(post.content, TRUNCATE_LEN);
+    } else {
+      displayContent = post.content;
+    }
+  } else {
+    isLong = post.content && post.content.length > TRUNCATE_LEN;
+    displayContent = (!expanded && isLong) ? post.content.substring(0, TRUNCATE_LEN) + "..." : post.content;
+  }
 
   var handleSaveEdit = async function () {
-    if (!editContent.trim()) return;
+    var isEmpty = post.contentFormat === "html" ? isHtmlEmpty(editContent) : !editContent.trim();
+    if (isEmpty) return;
     setSaving(true);
     try {
-      await onEdit(post.id, { title: editTitle.trim(), content: editContent.trim() });
+      var updateData = { title: editTitle.trim(), content: post.contentFormat === "html" ? editContent : editContent.trim() };
+      if (post.contentFormat === "html") updateData.contentFormat = "html";
+      await onEdit(post.id, updateData);
       setEditing(false);
     } catch (err) {
       console.error("Düzenleme hatası:", err);
@@ -1103,16 +1370,25 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
                 color: PC.navy,
               }}
             />
-            <textarea
-              value={editContent}
-              onChange={function (e) { setEditContent(e.target.value); }}
-              rows={4}
-              style={{
-                width: "100%", padding: "10px 14px", border: "1px solid " + PC.border,
-                borderRadius: 8, fontSize: 14, resize: "vertical",
-                outline: "none", lineHeight: 1.6, fontFamily: "inherit",
-              }}
-            />
+            {post.contentFormat === "html" ? (
+              <RichTextEditor
+                value={editContent}
+                onChange={function (html) { setEditContent(html); }}
+                placeholder="İçerik"
+                onImageUpload={function (file) { return PortalDB.uploadFile(file); }}
+              />
+            ) : (
+              <textarea
+                value={editContent}
+                onChange={function (e) { setEditContent(e.target.value); }}
+                rows={4}
+                style={{
+                  width: "100%", padding: "10px 14px", border: "1px solid " + PC.border,
+                  borderRadius: 8, fontSize: 14, resize: "vertical",
+                  outline: "none", lineHeight: 1.6, fontFamily: "inherit",
+                }}
+              />
+            )}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button
                 onClick={handleCancelEdit}
@@ -1124,10 +1400,10 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
               >İptal</button>
               <button
                 onClick={handleSaveEdit}
-                disabled={saving || !editContent.trim()}
+                disabled={saving || (post.contentFormat === "html" ? isHtmlEmpty(editContent) : !editContent.trim())}
                 style={{
                   padding: "6px 16px", border: "none", borderRadius: 8,
-                  background: saving || !editContent.trim() ? PC.border : PC.navy,
+                  background: saving || (post.contentFormat === "html" ? isHtmlEmpty(editContent) : !editContent.trim()) ? PC.border : PC.navy,
                   color: "white", cursor: saving ? "wait" : "pointer",
                   fontSize: 13, fontWeight: 600,
                 }}
@@ -1142,10 +1418,21 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
                 marginBottom: 8, lineHeight: 1.4,
               }}>{post.title}</h3>
             )}
-            <div style={{
-              fontSize: 14, color: PC.text, lineHeight: 1.7,
-              whiteSpace: "pre-wrap", wordBreak: "break-word",
-            }}>{displayContent}</div>
+            {post.contentFormat === "html" ? (
+              <div
+                className="portal-post-content"
+                style={{
+                  fontSize: 14, color: PC.text, lineHeight: 1.7,
+                  wordBreak: "break-word",
+                }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(displayContent) }}
+              />
+            ) : (
+              <div style={{
+                fontSize: 14, color: PC.text, lineHeight: 1.7,
+                whiteSpace: "pre-wrap", wordBreak: "break-word",
+              }}>{displayContent}</div>
+            )}
             {isLong && (
               <button
                 onClick={function () { setExpanded(!expanded); }}
@@ -1322,7 +1609,7 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
   const [uploading, setUploading] = useState(false);
   const [posting, setPosting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const textareaRef = useRef(null);
+  const [postResetKey, setPostResetKey] = useState(0);
   const fileInputRef = useRef(null);
 
   var courseSuggestions = useMemo(function () {
@@ -1333,7 +1620,11 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
 
   var handleFileSelect = function (f) {
     if (!f) return;
-    if (f.size > FILE_MAX_SIZE) { alert("Dosya boyutu 5MB'dan büyük olamaz."); return; }
+    var validation = validateFile(f, false);
+    if (!validation.valid) {
+      alert(validation.errors.join("\n"));
+      return;
+    }
     setFile(f);
     if (f.type.startsWith("image/")) {
       var reader = new FileReader();
@@ -1348,11 +1639,12 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
   };
 
   const handleSubmit = async function () {
-    if (!content.trim()) return;
+    if (isHtmlEmpty(content)) return;
     setPosting(true);
     try {
       var post = {
-        category: category, title: title.trim(), content: content.trim(),
+        category: category, title: title.trim(), content: content,
+        contentFormat: "html",
         tag: tag || "", courseCode: courseCode.trim().toUpperCase() || "",
         authorName: currentUser.name || "Anonim", authorId: getUserId(currentUser),
       };
@@ -1373,6 +1665,7 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
       await onPost(post);
       setTitle(""); setContent(""); setResourceUrl(""); setCourseCode("");
       setPollOptions(["", ""]); setFile(null); setFilePreview(null);
+      setPostResetKey(function (k) { return k + 1; });
       if (onClose) onClose();
     } catch (err) {
       alert("Gönderi oluşturulamadı: " + err.message);
@@ -1431,19 +1724,16 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
         }}
       />
 
-      {/* İçerik */}
-      <textarea
-        ref={textareaRef}
+      {/* İçerik - Zengin Metin Editörü */}
+      <RichTextEditor
+        key={postResetKey}
         value={content}
-        onChange={function (e) { setContent(e.target.value); }}
+        onChange={function (html) { setContent(html); }}
         placeholder={category === "soru" ? "Sorunuzu detaylı bir şekilde yazın..."
           : category === "anket" ? "Anket açıklamanızı yazın..."
             : "Ne paylaşmak istiyorsunuz?"}
-        rows={4}
-        style={{
-          width: "100%", padding: "12px 16px", border: "1px solid " + PC.border,
-          borderRadius: 10, fontSize: 14, resize: "vertical",
-          outline: "none", lineHeight: 1.6, fontFamily: "inherit",
+        onImageUpload={function (file) {
+          return PortalDB.uploadFile(file);
         }}
       />
 
@@ -1628,10 +1918,10 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
         )}
         <button
           onClick={handleSubmit}
-          disabled={posting || uploading || !content.trim()}
+          disabled={posting || uploading || isHtmlEmpty(content)}
           style={{
             padding: "10px 24px", border: "none", borderRadius: 10,
-            background: posting || !content.trim() ? PC.border : "linear-gradient(135deg, " + DY.gold + ", " + DY.goldDark + ")",
+            background: posting || isHtmlEmpty(content) ? PC.border : "linear-gradient(135deg, " + DY.gold + ", " + DY.goldDark + ")",
             color: "white", cursor: posting ? "wait" : "pointer",
             fontSize: 14, fontWeight: 700,
             boxShadow: "0 4px 12px rgba(245,158,11,0.3)",
@@ -1696,7 +1986,7 @@ const TrendingSidebar = ({ posts }) => {
               }}>{idx + 1}</span>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy, lineHeight: 1.4 }}>
-                  {p.title || p.content.substring(0, 50) + "..."}
+                  {p.title || (p.contentFormat === "html" ? stripHtmlTags(p.content).substring(0, 50) : (p.content || "").substring(0, 50)) + "..."}
                 </div>
                 <div style={{ fontSize: 11, color: PC.textMuted, marginTop: 4 }}>
                   {getReactionTotal(p.reactions)} tepki · {p.commentCount || 0} yorum
@@ -2109,8 +2399,11 @@ function OgrenciPortaliApp({ currentUser }) {
     if (searchQuery.trim()) {
       var q = searchQuery.toLowerCase();
       result = result.filter(function (p) {
+        var searchContent = p.contentFormat === "html"
+          ? stripHtmlTags(p.content).toLowerCase()
+          : (p.content || "").toLowerCase();
         return (p.title && p.title.toLowerCase().includes(q)) ||
-          (p.content && p.content.toLowerCase().includes(q)) ||
+          searchContent.includes(q) ||
           (p.authorName && p.authorName.toLowerCase().includes(q));
       });
     }
