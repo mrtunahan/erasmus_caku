@@ -354,12 +354,22 @@ var PortalDB = {
   async deleteComment(postId, commentId) {
     var ref = this.commentsRef(postId);
     if (!ref) throw new Error("Firebase bağlantısı yok");
-    await ref.doc(String(commentId)).delete();
+    // Alt yorumları da sil
+    var children = await ref.where("parentId", "==", commentId).get();
+    var deleteCount = 1;
+    var batch = window.FirebaseDB.db().batch();
+    children.docs.forEach(function (doc) {
+      batch.delete(doc.ref);
+      deleteCount++;
+    });
+    batch.delete(ref.doc(String(commentId)));
+    await batch.commit();
     // Yorum sayısını azalt
     var postRef = this.postsRef().doc(String(postId));
     await postRef.update({
-      commentCount: window.firebase.firestore.FieldValue.increment(-1),
+      commentCount: window.firebase.firestore.FieldValue.increment(-deleteCount),
     });
+    return deleteCount;
   },
 
   async toggleCommentLike(postId, commentId, userId) {
@@ -378,6 +388,17 @@ var PortalDB = {
     }
     await docRef.update({ likes: likes });
     return likes;
+  },
+
+  // En iyi cevap işaretleme
+  async markBestAnswer(postId, commentId) {
+    var postRef = this.postsRef().doc(String(postId));
+    var doc = await postRef.get();
+    if (!doc.exists) return null;
+    var data = doc.data();
+    var newBestAnswer = data.bestAnswerId === commentId ? null : commentId;
+    await postRef.update({ bestAnswerId: newBestAnswer });
+    return newBestAnswer;
   },
 
   // Anket oyu
@@ -750,17 +771,25 @@ const PollWidget = ({ pollOptions, pollVotes, postId, userId, onVote }) => {
 };
 
 // ── Tekil Yorum Öğesi ──
-const CommentItem = ({ comment, postId, currentUser, onUpdate, onRemove }) => {
+const CommentItem = ({ comment, postId, currentUser, onUpdate, onRemove, onReply, replies, isBestAnswer, onMarkBestAnswer, isQuestionPost, isPostAuthor, depth }) => {
   var userId = getUserId(currentUser);
   var isOwner = comment.authorId === userId || currentUser.role === "admin";
 
   const [editing, setEditing] = useState(false);
-  const [editText, setEditText] = useState(comment.text || "");
+  const [editContent, setEditContent] = useState(comment.text || "");
+  const [editResetKey, setEditResetKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [likes, setLikes] = useState(comment.likes || []);
   const [liking, setLiking] = useState(false);
+  const [showReplyInput, setShowReplyInput] = useState(false);
+  const [replyContent, setReplyContent] = useState("");
+  const [replyResetKey, setReplyResetKey] = useState(0);
+  const [replySending, setReplySending] = useState(false);
+  const [showReplies, setShowReplies] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   var isLiked = likes.indexOf(userId) >= 0;
+  var currentDepth = depth || 0;
 
   var handleToggleLike = async function () {
     if (liking) return;
@@ -775,14 +804,17 @@ const CommentItem = ({ comment, postId, currentUser, onUpdate, onRemove }) => {
   };
 
   var handleSave = async function () {
-    if (!editText.trim()) return;
+    var isEmpty = comment.contentFormat === "html" ? isHtmlEmpty(editContent) : !editContent.trim();
+    if (isEmpty) return;
     setSaving(true);
     try {
-      await PortalDB.updateComment(postId, comment.id, {
-        text: editText.trim(),
+      var updateData = {
+        text: comment.contentFormat === "html" ? editContent : editContent.trim(),
         editedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      });
-      onUpdate(comment.id, editText.trim());
+      };
+      if (comment.contentFormat === "html") updateData.contentFormat = "html";
+      await PortalDB.updateComment(postId, comment.id, updateData);
+      onUpdate(comment.id, comment.contentFormat === "html" ? editContent : editContent.trim(), comment.contentFormat);
       setEditing(false);
     } catch (err) {
       console.error("Yorum düzenleme hatası:", err);
@@ -791,138 +823,347 @@ const CommentItem = ({ comment, postId, currentUser, onUpdate, onRemove }) => {
   };
 
   var handleDelete = async function () {
-    if (!confirm("Bu yorumu silmek istediğinizden emin misiniz?")) return;
+    var hasReplies = replies && replies.length > 0;
+    var msg = hasReplies
+      ? "Bu yorumu ve " + replies.length + " alt yorumu silmek istediğinizden emin misiniz?"
+      : "Bu yorumu silmek istediğinizden emin misiniz?";
+    if (!confirm(msg)) return;
+    setDeleting(true);
     try {
       await PortalDB.deleteComment(postId, comment.id);
       onRemove(comment.id);
     } catch (err) {
       console.error("Yorum silme hatası:", err);
     }
+    setDeleting(false);
   };
 
   var handleCancel = function () {
-    setEditText(comment.text || "");
+    setEditContent(comment.text || "");
+    setEditResetKey(function (k) { return k + 1; });
     setEditing(false);
   };
 
+  var handleReplySubmit = async function () {
+    if (isHtmlEmpty(replyContent)) return;
+    setReplySending(true);
+    try {
+      await onReply(comment.id, replyContent);
+      setReplyContent("");
+      setReplyResetKey(function (k) { return k + 1; });
+      setShowReplyInput(false);
+    } catch (err) {
+      console.error("Yanıt eklenemedi:", err);
+    }
+    setReplySending(false);
+  };
+
+  var handleStartEdit = function () {
+    setEditContent(comment.text || "");
+    setEditResetKey(function (k) { return k + 1; });
+    setEditing(true);
+  };
+
+  var editIsEmpty = comment.contentFormat === "html" ? isHtmlEmpty(editContent) : !editContent.trim();
+
   return (
     <div style={{
-      display: "flex", gap: 10, padding: "10px 0",
-      borderBottom: "1px solid " + PC.borderLight,
+      marginLeft: currentDepth > 0 ? 24 : 0,
+      borderLeft: currentDepth > 0 ? "2px solid " + DY.goldBorder : "none",
+      paddingLeft: currentDepth > 0 ? 14 : 0,
     }}>
-      <Avatar name={comment.authorName} size={32} />
-      <div style={{ flex: 1 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontWeight: 700, fontSize: 13, color: PC.navy }}>{comment.authorName}</span>
-          <span style={{ fontSize: 11, color: PC.textMuted }}>{timeAgo(comment.createdAt)}</span>
-          {comment.editedAt && (
-            <span style={{ fontSize: 10, color: PC.textMuted, fontStyle: "italic" }}>(düzenlendi)</span>
+      <div style={{
+        display: "flex", gap: 10, padding: "10px 0",
+        borderBottom: "1px solid " + PC.borderLight,
+        position: "relative",
+      }}>
+        {/* En İyi Cevap Rozeti */}
+        {isBestAnswer && (
+          <div style={{
+            position: "absolute", top: 0, right: 0,
+            background: "linear-gradient(135deg, #10B981, #059669)",
+            color: "white", fontSize: 10, fontWeight: 700,
+            padding: "3px 10px", borderRadius: "0 0 8px 8px",
+            display: "flex", alignItems: "center", gap: 4,
+          }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            En İyi Cevap
+          </div>
+        )}
+        <Avatar name={comment.authorName} size={32} />
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: PC.navy }}>{comment.authorName}</span>
+            <span style={{ fontSize: 11, color: PC.textMuted }}>{timeAgo(comment.createdAt)}</span>
+            {comment.editedAt && (
+              <span style={{ fontSize: 10, color: PC.textMuted, fontStyle: "italic" }}>(düzenlendi)</span>
+            )}
+            {comment.parentId && (
+              <span style={{ fontSize: 10, color: DY.gold, fontWeight: 600 }}>yanıt</span>
+            )}
+            {/* Düzenle/Sil butonları */}
+            {isOwner && !editing && (
+              <div style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
+                <button
+                  onClick={handleStartEdit}
+                  title="Düzenle"
+                  style={{
+                    padding: 3, border: "none", background: "transparent",
+                    cursor: "pointer", borderRadius: 4, color: PC.textMuted, fontSize: 0,
+                  }}
+                  onMouseEnter={function (e) { e.currentTarget.style.color = PC.blue; }}
+                  onMouseLeave={function (e) { e.currentTarget.style.color = PC.textMuted; }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  title="Sil"
+                  style={{
+                    padding: 3, border: "none", background: "transparent",
+                    cursor: deleting ? "wait" : "pointer", borderRadius: 4, color: PC.textMuted, fontSize: 0,
+                  }}
+                  onMouseEnter={function (e) { e.currentTarget.style.color = "#EF4444"; }}
+                  onMouseLeave={function (e) { e.currentTarget.style.color = PC.textMuted; }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Düzenleme Modu */}
+          {editing ? (
+            <div style={{ marginTop: 6 }}>
+              {comment.contentFormat === "html" ? (
+                <RichTextEditor
+                  key={"edit-" + editResetKey}
+                  value={editContent}
+                  onChange={function (html) { setEditContent(html); }}
+                  placeholder="Yorumunuzu düzenleyin..."
+                  onImageUpload={function (file) { return PortalDB.uploadFile(file); }}
+                />
+              ) : (
+                <input
+                  value={editContent}
+                  onChange={function (e) { setEditContent(e.target.value); }}
+                  onKeyDown={function (e) {
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSave(); }
+                    if (e.key === "Escape") handleCancel();
+                  }}
+                  style={{
+                    width: "100%", padding: "6px 12px", borderRadius: 16,
+                    border: "1px solid " + PC.border, fontSize: 13,
+                    outline: "none", background: "white",
+                  }}
+                />
+              )}
+              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || editIsEmpty}
+                  style={{
+                    padding: "4px 12px", borderRadius: 14, border: "none",
+                    background: saving || editIsEmpty ? PC.border : PC.navy,
+                    color: "white", cursor: saving ? "wait" : "pointer",
+                    fontSize: 12, fontWeight: 600,
+                  }}
+                >{saving ? "..." : "Kaydet"}</button>
+                <button
+                  onClick={handleCancel}
+                  style={{
+                    padding: "4px 10px", borderRadius: 14,
+                    border: "1px solid " + PC.border, background: "white",
+                    cursor: "pointer", fontSize: 12, color: PC.textMuted,
+                  }}
+                >Vazgeç</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Yorum İçeriği */}
+              {comment.contentFormat === "html" ? (
+                <div
+                  className="portal-post-content"
+                  style={{ fontSize: 13, color: PC.text, marginTop: 4, lineHeight: 1.5 }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(comment.text) }}
+                />
+              ) : (
+                <div style={{ fontSize: 13, color: PC.text, marginTop: 4, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{comment.text}</div>
+              )}
+
+              {/* Aksiyon Butonları */}
+              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+                {/* Beğen */}
+                <button
+                  onClick={handleToggleLike}
+                  disabled={liking}
+                  style={{
+                    padding: "2px 8px", border: "none",
+                    background: "transparent", cursor: "pointer",
+                    fontSize: 12, color: isLiked ? "#EF4444" : PC.textMuted,
+                    display: "flex", alignItems: "center", gap: 4,
+                    borderRadius: 10, transition: "all 0.15s",
+                  }}
+                  onMouseEnter={function (e) { e.currentTarget.style.background = PC.bg; }}
+                  onMouseLeave={function (e) { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                  </svg>
+                  {likes.length > 0 && <span style={{ fontWeight: 600 }}>{likes.length}</span>}
+                </button>
+
+                {/* Yanıtla (max 2 seviye iç içe) */}
+                {currentDepth < 2 && (
+                  <button
+                    onClick={function () { setShowReplyInput(!showReplyInput); }}
+                    style={{
+                      padding: "2px 8px", border: "none",
+                      background: "transparent", cursor: "pointer",
+                      fontSize: 12, color: showReplyInput ? DY.gold : PC.textMuted,
+                      display: "flex", alignItems: "center", gap: 4,
+                      borderRadius: 10, transition: "all 0.15s",
+                    }}
+                    onMouseEnter={function (e) { e.currentTarget.style.background = PC.bg; }}
+                    onMouseLeave={function (e) { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    Yanıtla
+                  </button>
+                )}
+
+                {/* En İyi Cevap İşaretle (sadece soru kategorisi + gönderi sahibi veya admin) */}
+                {isQuestionPost && (isPostAuthor || currentUser.role === "admin") && !comment.parentId && (
+                  <button
+                    onClick={function () { if (onMarkBestAnswer) onMarkBestAnswer(comment.id); }}
+                    style={{
+                      padding: "2px 8px", border: "none",
+                      background: "transparent", cursor: "pointer",
+                      fontSize: 12, color: isBestAnswer ? "#10B981" : PC.textMuted,
+                      display: "flex", alignItems: "center", gap: 4,
+                      borderRadius: 10, transition: "all 0.15s",
+                    }}
+                    onMouseEnter={function (e) { e.currentTarget.style.background = PC.bg; }}
+                    onMouseLeave={function (e) { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill={isBestAnswer ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                      <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
+                    {isBestAnswer ? "En İyi Cevap" : "En İyi Olarak İşaretle"}
+                  </button>
+                )}
+              </div>
+            </>
           )}
-          {/* Düzenle/Sil butonları */}
-          {isOwner && !editing && (
-            <div style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-              <button
-                onClick={function () { setEditing(true); }}
-                title="Düzenle"
-                style={{
-                  padding: 3, border: "none", background: "transparent",
-                  cursor: "pointer", borderRadius: 4, color: PC.textMuted, fontSize: 0,
-                }}
-                onMouseEnter={function (e) { e.currentTarget.style.color = PC.blue; }}
-                onMouseLeave={function (e) { e.currentTarget.style.color = PC.textMuted; }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-              </button>
-              <button
-                onClick={handleDelete}
-                title="Sil"
-                style={{
-                  padding: 3, border: "none", background: "transparent",
-                  cursor: "pointer", borderRadius: 4, color: PC.textMuted, fontSize: 0,
-                }}
-                onMouseEnter={function (e) { e.currentTarget.style.color = "#EF4444"; }}
-                onMouseLeave={function (e) { e.currentTarget.style.color = PC.textMuted; }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
+
+          {/* Yanıt Girdi Alanı */}
+          {showReplyInput && (
+            <div style={{ marginTop: 8 }}>
+              <RichTextEditor
+                key={"reply-" + replyResetKey}
+                value={replyContent}
+                onChange={function (html) { setReplyContent(html); }}
+                placeholder={"@" + comment.authorName + " kullanıcısına yanıt yazın..."}
+                onImageUpload={function (file) { return PortalDB.uploadFile(file); }}
+              />
+              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                <button
+                  onClick={handleReplySubmit}
+                  disabled={replySending || isHtmlEmpty(replyContent)}
+                  style={{
+                    padding: "4px 12px", borderRadius: 14, border: "none",
+                    background: replySending || isHtmlEmpty(replyContent) ? PC.border : DY.gold,
+                    color: "white", cursor: replySending ? "wait" : "pointer",
+                    fontSize: 12, fontWeight: 600,
+                  }}
+                >{replySending ? "..." : "Yanıtla"}</button>
+                <button
+                  onClick={function () { setShowReplyInput(false); setReplyContent(""); }}
+                  style={{
+                    padding: "4px 10px", borderRadius: 14,
+                    border: "1px solid " + PC.border, background: "white",
+                    cursor: "pointer", fontSize: 12, color: PC.textMuted,
+                  }}
+                >Vazgeç</button>
+              </div>
             </div>
           )}
         </div>
-        {editing ? (
-          <div style={{ marginTop: 6, display: "flex", gap: 6, alignItems: "center" }}>
-            <input
-              value={editText}
-              onChange={function (e) { setEditText(e.target.value); }}
-              onKeyDown={function (e) {
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSave(); }
-                if (e.key === "Escape") handleCancel();
-              }}
-              style={{
-                flex: 1, padding: "6px 12px", borderRadius: 16,
-                border: "1px solid " + PC.border, fontSize: 13,
-                outline: "none", background: "white",
-              }}
-            />
-            <button
-              onClick={handleSave}
-              disabled={saving || !editText.trim()}
-              style={{
-                padding: "4px 12px", borderRadius: 14, border: "none",
-                background: saving || !editText.trim() ? PC.border : PC.navy,
-                color: "white", cursor: saving ? "wait" : "pointer",
-                fontSize: 12, fontWeight: 600,
-              }}
-            >{saving ? "..." : "Kaydet"}</button>
-            <button
-              onClick={handleCancel}
-              style={{
-                padding: "4px 10px", borderRadius: 14,
-                border: "1px solid " + PC.border, background: "white",
-                cursor: "pointer", fontSize: 12, color: PC.textMuted,
-              }}
-            >Vazgeç</button>
-          </div>
-        ) : (
-          <>
-            <div style={{ fontSize: 13, color: PC.text, marginTop: 4, lineHeight: 1.5 }}>{comment.text}</div>
-            <button
-              onClick={handleToggleLike}
-              disabled={liking}
-              style={{
-                marginTop: 4, padding: "2px 8px", border: "none",
-                background: "transparent", cursor: "pointer",
-                fontSize: 12, color: isLiked ? "#EF4444" : PC.textMuted,
-                display: "flex", alignItems: "center", gap: 4,
-                borderRadius: 10, transition: "all 0.15s",
-              }}
-              onMouseEnter={function (e) { e.currentTarget.style.background = PC.bg; }}
-              onMouseLeave={function (e) { e.currentTarget.style.background = "transparent"; }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-              </svg>
-              {likes.length > 0 && <span style={{ fontWeight: 600 }}>{likes.length}</span>}
-            </button>
-          </>
-        )}
       </div>
+
+      {/* Alt Yorumlar (Replies) */}
+      {replies && replies.length > 0 && (
+        <div>
+          {replies.length > 2 && !showReplies && (
+            <button
+              onClick={function () { setShowReplies(true); }}
+              style={{
+                padding: "4px 0", border: "none", background: "transparent",
+                cursor: "pointer", fontSize: 12, color: DY.gold, fontWeight: 600,
+                marginLeft: 24,
+              }}
+            >{replies.length} yanıtı göster</button>
+          )}
+          {(showReplies || replies.length <= 2) && replies.map(function (reply) {
+            return (
+              <CommentItem
+                key={reply.id}
+                comment={reply}
+                postId={postId}
+                currentUser={currentUser}
+                onUpdate={onUpdate}
+                onRemove={onRemove}
+                onReply={onReply}
+                replies={[]}
+                isBestAnswer={false}
+                onMarkBestAnswer={onMarkBestAnswer}
+                isQuestionPost={isQuestionPost}
+                isPostAuthor={isPostAuthor}
+                depth={currentDepth + 1}
+              />
+            );
+          })}
+          {showReplies && replies.length > 2 && (
+            <button
+              onClick={function () { setShowReplies(false); }}
+              style={{
+                padding: "4px 0", border: "none", background: "transparent",
+                cursor: "pointer", fontSize: 12, color: PC.textMuted,
+                marginLeft: 24,
+              }}
+            >Yanıtları gizle</button>
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
 // ── Yorum Bölümü ──
-const CommentSection = ({ postId, currentUser }) => {
+const CommentSection = ({ postId, currentUser, post }) => {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [newComment, setNewComment] = useState("");
+  const [newCommentResetKey, setNewCommentResetKey] = useState(0);
   const [sending, setSending] = useState(false);
+  const [bestAnswerId, setBestAnswerId] = useState(post ? post.bestAnswerId || null : null);
   var viewIncremented = useRef(false);
+
+  var isQuestionPost = post && post.category === "soru";
+  var isPostAuthor = post && post.authorId === getUserId(currentUser);
 
   const loadComments = async function () {
     setLoading(true);
@@ -939,7 +1180,6 @@ const CommentSection = ({ postId, currentUser }) => {
     if (!open) {
       setOpen(true);
       loadComments();
-      // Görüntülenme sayacını artır (ilk açılışta)
       if (!viewIncremented.current) {
         viewIncremented.current = true;
         PortalDB.incrementViews(postId);
@@ -950,36 +1190,80 @@ const CommentSection = ({ postId, currentUser }) => {
   };
 
   const handleSubmit = async function () {
-    if (!newComment.trim()) return;
+    if (isHtmlEmpty(newComment)) return;
     setSending(true);
     try {
       var comment = {
-        text: newComment.trim(),
+        text: newComment,
+        contentFormat: "html",
         authorName: currentUser.name || "Anonim",
         authorId: getUserId(currentUser),
       };
       var saved = await PortalDB.addComment(postId, comment);
       setComments(function (prev) { return [...prev, saved]; });
       setNewComment("");
+      setNewCommentResetKey(function (k) { return k + 1; });
     } catch (err) {
       console.error("Yorum eklenemedi:", err);
     }
     setSending(false);
   };
 
-  var handleCommentUpdate = function (commentId, newText) {
+  var handleReply = async function (parentId, replyContent) {
+    var comment = {
+      text: replyContent,
+      contentFormat: "html",
+      parentId: parentId,
+      authorName: currentUser.name || "Anonim",
+      authorId: getUserId(currentUser),
+    };
+    var saved = await PortalDB.addComment(postId, comment);
+    setComments(function (prev) { return [...prev, saved]; });
+  };
+
+  var handleCommentUpdate = function (commentId, newText, contentFormat) {
     setComments(function (prev) {
       return prev.map(function (c) {
-        return c.id === commentId ? Object.assign({}, c, { text: newText, editedAt: new Date() }) : c;
+        var updates = { text: newText, editedAt: new Date() };
+        if (contentFormat) updates.contentFormat = contentFormat;
+        return c.id === commentId ? Object.assign({}, c, updates) : c;
       });
     });
   };
 
   var handleCommentRemove = function (commentId) {
     setComments(function (prev) {
-      return prev.filter(function (c) { return c.id !== commentId; });
+      return prev.filter(function (c) { return c.id !== commentId && c.parentId !== commentId; });
     });
   };
+
+  var handleMarkBestAnswer = async function (commentId) {
+    try {
+      var newBestId = await PortalDB.markBestAnswer(postId, commentId);
+      setBestAnswerId(newBestId);
+    } catch (err) {
+      console.error("En iyi cevap işaretleme hatası:", err);
+    }
+  };
+
+  // Yorumları thread'lere ayır
+  var rootComments = comments.filter(function (c) { return !c.parentId; });
+  var replyMap = {};
+  comments.forEach(function (c) {
+    if (c.parentId) {
+      if (!replyMap[c.parentId]) replyMap[c.parentId] = [];
+      replyMap[c.parentId].push(c);
+    }
+  });
+
+  // En iyi cevabı en üste taşı
+  if (bestAnswerId) {
+    rootComments.sort(function (a, b) {
+      if (a.id === bestAnswerId) return -1;
+      if (b.id === bestAnswerId) return 1;
+      return 0;
+    });
+  }
 
   return (
     <div style={{ marginTop: 8 }}>
@@ -1003,6 +1287,22 @@ const CommentSection = ({ postId, currentUser }) => {
           marginTop: 12, padding: 16, background: PC.bg,
           borderRadius: 12, border: "1px solid " + PC.border,
         }}>
+          {/* Soru-Cevap bilgi notu */}
+          {isQuestionPost && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
+              background: DY.goldLight + "80", borderRadius: 8, marginBottom: 12,
+              fontSize: 12, color: DY.warm,
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              {isPostAuthor
+                ? "En iyi cevabı işaretleyerek diğer kullanıcılara yardımcı olabilirsiniz."
+                : "Gönderi sahibi en iyi cevabı işaretleyebilir."}
+            </div>
+          )}
+
           {loading ? (
             <div style={{ textAlign: "center", color: PC.textMuted, padding: 12 }}>Yükleniyor...</div>
           ) : (
@@ -1012,7 +1312,7 @@ const CommentSection = ({ postId, currentUser }) => {
                   Henüz yorum yok. İlk yorumu siz yapın!
                 </div>
               )}
-              {comments.map(function (c) {
+              {rootComments.map(function (c) {
                 return (
                   <CommentItem
                     key={c.id}
@@ -1021,39 +1321,48 @@ const CommentSection = ({ postId, currentUser }) => {
                     currentUser={currentUser}
                     onUpdate={handleCommentUpdate}
                     onRemove={handleCommentRemove}
+                    onReply={handleReply}
+                    replies={replyMap[c.id] || []}
+                    isBestAnswer={bestAnswerId === c.id}
+                    onMarkBestAnswer={handleMarkBestAnswer}
+                    isQuestionPost={isQuestionPost}
+                    isPostAuthor={isPostAuthor}
+                    depth={0}
                   />
                 );
               })}
             </>
           )}
 
-          {/* Yeni yorum */}
-          <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "flex-start" }}>
-            <Avatar name={currentUser.name} size={32} />
-            <div style={{ flex: 1, display: "flex", gap: 8 }}>
-              <input
-                value={newComment}
-                onChange={function (e) { setNewComment(e.target.value); }}
-                onKeyDown={function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
-                placeholder="Yorumunuzu yazın..."
-                style={{
-                  flex: 1, padding: "10px 14px", borderRadius: 20,
-                  border: "1px solid " + PC.border, fontSize: 13,
-                  outline: "none", background: "white",
-                }}
-              />
-              <button
-                onClick={handleSubmit}
-                disabled={sending || !newComment.trim()}
-                style={{
-                  padding: "8px 16px", borderRadius: 20,
-                  border: "none", background: PC.navy, color: "white",
-                  fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  opacity: (!newComment.trim() || sending) ? 0.5 : 1,
-                }}
-              >
-                {sending ? "..." : "Gönder"}
-              </button>
+          {/* Yeni yorum - Zengin Metin Editörü */}
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <Avatar name={currentUser.name} size={32} />
+              <div style={{ flex: 1 }}>
+                <RichTextEditor
+                  key={"new-comment-" + newCommentResetKey}
+                  value={newComment}
+                  onChange={function (html) { setNewComment(html); }}
+                  placeholder="Yorumunuzu yazın..."
+                  onImageUpload={function (file) { return PortalDB.uploadFile(file); }}
+                />
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={sending || isHtmlEmpty(newComment)}
+                    style={{
+                      padding: "8px 20px", borderRadius: 20,
+                      border: "none",
+                      background: isHtmlEmpty(newComment) || sending ? PC.border : "linear-gradient(135deg, " + DY.gold + ", " + DY.goldDark + ")",
+                      color: "white",
+                      fontSize: 13, fontWeight: 600, cursor: sending ? "wait" : "pointer",
+                      boxShadow: isHtmlEmpty(newComment) ? "none" : "0 2px 8px rgba(245,158,11,0.3)",
+                    }}
+                  >
+                    {sending ? "Gönderiliyor..." : "Yorum Yap"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1512,7 +1821,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
             userId={userId}
             onReact={onReact}
           />
-          <CommentSection postId={post.id} currentUser={currentUser} />
+          <CommentSection postId={post.id} currentUser={currentUser} post={post} />
           <button
             onClick={function () {
               var url = window.location.origin + window.location.pathname + "?post=" + post.id;
