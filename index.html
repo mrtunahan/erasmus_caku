@@ -181,6 +181,122 @@
     .follow-btn-inline:active {
       transform: scale(0.95);
     }
+
+    /* ── Profil Sayfası Stilleri ── */
+    .profile-overlay {
+      animation: profileFadeIn 0.25s ease-out;
+    }
+    @keyframes profileFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .profile-card-enter {
+      animation: profileSlideUp 0.3s ease-out;
+    }
+    @keyframes profileSlideUp {
+      from { opacity: 0; transform: translateY(30px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .profile-edit-field:focus {
+      outline: none;
+      border-color: #F59E0B !important;
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+    }
+    .profile-tab-btn {
+      transition: all 0.2s ease;
+    }
+    .profile-tab-btn:hover {
+      background: rgba(245, 158, 11, 0.08);
+    }
+
+    /* ── Seviye Çubuğu Stilleri ── */
+    .level-bar-container {
+      position: relative;
+      overflow: hidden;
+    }
+    .level-bar-fill {
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .level-bar-fill::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+      animation: levelShimmer 2s infinite;
+    }
+    @keyframes levelShimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+    .level-badge {
+      transition: all 0.2s ease;
+    }
+    .level-badge:hover {
+      transform: scale(1.08);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+
+    /* ── Rozet Stilleri ── */
+    .badge-item {
+      transition: all 0.2s ease;
+      cursor: default;
+    }
+    .badge-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .badge-item-locked {
+      opacity: 0.45;
+      filter: grayscale(0.5);
+    }
+    .badge-item-locked:hover {
+      opacity: 0.65;
+      filter: grayscale(0.2);
+    }
+    @keyframes badgeUnlock {
+      0% { transform: scale(0.5) rotate(-10deg); opacity: 0; }
+      60% { transform: scale(1.15) rotate(3deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+    .badge-new {
+      animation: badgeUnlock 0.5s ease-out;
+    }
+
+    /* ── Liderlik Tablosu Stilleri ── */
+    .leaderboard-row {
+      transition: all 0.2s ease;
+    }
+    .leaderboard-row:hover {
+      background: rgba(245, 158, 11, 0.06) !important;
+      transform: translateX(2px);
+    }
+    .leaderboard-medal {
+      animation: medalBounce 0.4s ease-out;
+    }
+    @keyframes medalBounce {
+      0% { transform: scale(0); }
+      70% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+    .leaderboard-filter-btn {
+      transition: all 0.15s ease;
+    }
+    .leaderboard-filter-btn:hover {
+      opacity: 0.85;
+    }
+
+    /* ── Seviye Atlama Bildirimi ── */
+    .level-up-notification {
+      animation: levelUpSlide 0.5s ease-out, levelUpFade 0.5s ease-in 3.5s forwards;
+    }
+    @keyframes levelUpSlide {
+      from { opacity: 0; transform: translateY(-20px) scale(0.9); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes levelUpFade {
+      from { opacity: 1; }
+      to { opacity: 0; pointer-events: none; }
+    }
   </style>
 </head>
 <body>

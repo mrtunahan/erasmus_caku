@@ -162,6 +162,111 @@ const POPULAR_COURSES = [
 const FILE_MAX_SIZE = 5 * 1024 * 1024; // 5MB
 const POSTS_PER_PAGE = 15;
 
+// ── Rozet Tanımları ──
+const BADGES = [
+  { id: "yeni_uye", emoji: "\uD83C\uDF31", label: "Yeni Üye", desc: "İlk gönderiyi paylaştı", check: function (s) { return s.postCount >= 1; } },
+  { id: "aktif_katilimci", emoji: "\uD83D\uDCAC", label: "Aktif Katılımcı", desc: "10 yorum yaptı", check: function (s) { return s.commentCount >= 10; } },
+  { id: "yardimsever", emoji: "\u2B50", label: "Yardımsever", desc: "5 'En İyi Cevap' aldı", check: function (s) { return s.bestAnswerCount >= 5; } },
+  { id: "not_paylasimci", emoji: "\uD83D\uDCDA", label: "Not Paylaşımcısı", desc: "10 not paylaşımı yaptı", check: function (s) { return s.noteCount >= 10; } },
+  { id: "topluluk_lideri", emoji: "\uD83C\uDFC6", label: "Topluluk Lideri", desc: "100+ oy puanı kazandı", check: function (s) { return s.totalVoteScore >= 100; } },
+  { id: "ilk_adim", emoji: "\uD83D\uDC63", label: "İlk Adım", desc: "İlk yorumu yaptı", check: function (s) { return s.commentCount >= 1; } },
+  { id: "populer", emoji: "\uD83D\uDD25", label: "Popüler", desc: "50+ tepki aldı", check: function (s) { return s.totalReactions >= 50; } },
+  { id: "soru_soran", emoji: "\u2753", label: "Meraklı", desc: "5 soru sordu", check: function (s) { return s.questionCount >= 5; } },
+  { id: "oylayici", emoji: "\uD83D\uDDF3\uFE0F", label: "Demokrat", desc: "20+ oy verdi", check: function (s) { return s.votesGiven >= 20; } },
+  { id: "usta", emoji: "\uD83C\uDF1F", label: "Usta Paylaşımcı", desc: "25 gönderi paylaştı", check: function (s) { return s.postCount >= 25; } },
+];
+
+// ── Seviye Sistemi ──
+const LEVELS = [
+  { level: 1, label: "Çaylak", minXP: 0, color: "#9CA3AF" },
+  { level: 2, label: "Öğrenci", minXP: 50, color: "#60A5FA" },
+  { level: 3, label: "Aktif Üye", minXP: 150, color: "#34D399" },
+  { level: 4, label: "Katkıcı", minXP: 350, color: "#A78BFA" },
+  { level: 5, label: "Uzman", minXP: 700, color: "#F59E0B" },
+  { level: 6, label: "Lider", minXP: 1200, color: "#F97316" },
+  { level: 7, label: "Efsane", minXP: 2000, color: "#EF4444" },
+];
+
+const BOLUMLER = [
+  "Bilgisayar Mühendisliği",
+  "Elektrik-Elektronik Mühendisliği",
+  "Makine Mühendisliği",
+  "İnşaat Mühendisliği",
+  "Endüstri Mühendisliği",
+  "Gıda Mühendisliği",
+  "İşletme",
+  "İktisat",
+  "Hukuk",
+  "Tıp",
+  "Diğer",
+];
+
+// ── Puan Hesaplama Fonksiyonları ──
+function calculateUserStats(userId, posts, allComments) {
+  var userPosts = posts.filter(function (p) { return p.authorId === userId; });
+  var postCount = userPosts.length;
+  var noteCount = userPosts.filter(function (p) { return p.category === "not"; }).length;
+  var questionCount = userPosts.filter(function (p) { return p.category === "soru"; }).length;
+  var totalReactions = 0;
+  var totalVoteScore = 0;
+  var bestAnswerCount = 0;
+  var commentCount = 0;
+  var votesGiven = 0;
+
+  userPosts.forEach(function (p) {
+    totalReactions += getReactionTotal(p.reactions);
+    totalVoteScore += getVoteScore(p);
+    if (p.bestAnswerId) bestAnswerCount++;
+  });
+
+  // Yorum sayısı — tüm gönderilerdeki yorumlardan hesapla
+  posts.forEach(function (p) {
+    commentCount += (p.commentCount || 0);
+  });
+  // Basitleştirilmiş: kullanıcının kendi gönderi sayısına göre oran tahmin
+  commentCount = Math.round(commentCount * (postCount / Math.max(posts.length, 1)));
+
+  // Verdiği oy sayısı
+  posts.forEach(function (p) {
+    if ((p.upvotes || []).indexOf(userId) >= 0) votesGiven++;
+    if ((p.downvotes || []).indexOf(userId) >= 0) votesGiven++;
+  });
+
+  return {
+    postCount: postCount,
+    noteCount: noteCount,
+    questionCount: questionCount,
+    totalReactions: totalReactions,
+    totalVoteScore: totalVoteScore,
+    bestAnswerCount: bestAnswerCount,
+    commentCount: commentCount,
+    votesGiven: votesGiven,
+  };
+}
+
+function calculateXP(stats) {
+  return (stats.postCount * 10) +
+    (stats.commentCount * 3) +
+    (stats.totalReactions * 2) +
+    (Math.max(0, stats.totalVoteScore) * 5) +
+    (stats.bestAnswerCount * 20) +
+    (stats.noteCount * 5);
+}
+
+function getUserLevel(xp) {
+  var lvl = LEVELS[0];
+  for (var i = LEVELS.length - 1; i >= 0; i--) {
+    if (xp >= LEVELS[i].minXP) { lvl = LEVELS[i]; break; }
+  }
+  var nextLvl = LEVELS[LEVELS.indexOf(lvl) + 1] || null;
+  var progress = nextLvl ? ((xp - lvl.minXP) / (nextLvl.minXP - lvl.minXP)) * 100 : 100;
+  return { current: lvl, next: nextLvl, progress: Math.min(100, Math.max(0, progress)), xp: xp };
+}
+
+function getUserBadges(stats) {
+  return BADGES.filter(function (b) { return b.check(stats); });
+}
+
 // ── Dosya Doğrulama ──
 var ALLOWED_FILE_TYPES = {
   "image/jpeg": { ext: ".jpg", label: "JPEG Görsel" },
@@ -573,6 +678,26 @@ var PortalDB = {
     var batch = window.FirebaseDB.db().batch();
     snapshot.docs.forEach(function (doc) { batch.update(doc.ref, { read: true }); });
     await batch.commit();
+  },
+
+  // ── Kullanıcı Profilleri ──
+  profilesRef: function () {
+    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_profiles") : null;
+  },
+
+  async getProfile(userId) {
+    var ref = this.profilesRef();
+    if (!ref) return null;
+    var doc = await ref.doc(String(userId)).get();
+    return doc.exists ? doc.data() : null;
+  },
+
+  async updateProfile(userId, data) {
+    var ref = this.profilesRef();
+    if (!ref) return;
+    await ref.doc(String(userId)).set(Object.assign({}, data, {
+      updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+    }), { merge: true });
   },
 
   // ── Takip Sistemi ──
@@ -1909,7 +2034,7 @@ const RichTextEditor = ({ value, onChange, placeholder, onImageUpload, allUsers 
 };
 
 // ── Gönderi Kartı ──
-const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor, onFilterTag, allUsers, onFollowUser, followedUsers }) => {
+const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor, onFilterTag, allUsers, onFollowUser, followedUsers, onViewProfile }) => {
   var cat = getCategoryInfo(post.category);
   var userId = getUserId(currentUser);
   var isAuthor = post.authorId === userId || currentUser.role === "admin";
@@ -1985,11 +2110,11 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <span
-                onClick={function () { if (onFilterAuthor) onFilterAuthor(post.authorName); }}
+                onClick={function () { if (onViewProfile) onViewProfile(post.authorId, post.authorName); else if (onFilterAuthor) onFilterAuthor(post.authorName); }}
                 style={{ fontWeight: 700, fontSize: 15, color: PC.navy, cursor: "pointer" }}
                 onMouseEnter={function (e) { e.currentTarget.style.textDecoration = "underline"; }}
                 onMouseLeave={function (e) { e.currentTarget.style.textDecoration = "none"; }}
-                title={"\"" + post.authorName + "\" gönderilerini filtrele"}
+                title={"\"" + post.authorName + "\" profilini görüntüle"}
               >{post.authorName}</span>
               {/* Takip butonu (kendi gönderisi değilse) */}
               {post.authorId !== userId && onFollowUser && (
@@ -2768,6 +2893,529 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
   );
 };
 
+// ── Seviye Çubuğu ──
+const LevelBar = ({ xp }) => {
+  var lvlInfo = getUserLevel(xp);
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <span style={{
+          fontSize: 11, fontWeight: 700, color: lvlInfo.current.color,
+          display: "inline-flex", alignItems: "center", gap: 4,
+        }}>
+          Seviye {lvlInfo.current.level} — {lvlInfo.current.label}
+        </span>
+        <span style={{ fontSize: 10, color: PC.textMuted }}>{xp} XP</span>
+      </div>
+      <div className="level-bar-container" style={{
+        height: 8, background: PC.bg, borderRadius: 4, overflow: "hidden",
+        border: "1px solid " + PC.borderLight,
+      }}>
+        <div className="level-bar-fill" style={{
+          height: "100%", width: lvlInfo.progress + "%",
+          background: "linear-gradient(90deg, " + lvlInfo.current.color + ", " + (lvlInfo.next ? lvlInfo.next.color : lvlInfo.current.color) + ")",
+          borderRadius: 4, transition: "width 0.8s ease",
+          position: "relative",
+        }} />
+      </div>
+      {lvlInfo.next && (
+        <div style={{ fontSize: 9, color: PC.textMuted, marginTop: 2, textAlign: "right" }}>
+          Sonraki: {lvlInfo.next.label} ({lvlInfo.next.minXP} XP)
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Rozet Gösterimi ──
+const BadgeDisplay = ({ badges, compact }) => {
+  if (!badges || badges.length === 0) return null;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: compact ? 4 : 6 }}>
+      {badges.map(function (b) {
+        return (
+          <span key={b.id} title={b.label + " — " + b.desc} className="badge-item" style={{
+            display: "inline-flex", alignItems: "center", gap: 3,
+            padding: compact ? "2px 6px" : "4px 10px",
+            borderRadius: 10, fontSize: compact ? 11 : 12,
+            background: "linear-gradient(135deg, #FFFBEB, #FEF3C7)",
+            border: "1px solid " + DY.goldBorder,
+            cursor: "default", transition: "all 0.15s",
+            fontWeight: 600, color: DY.warm,
+          }}>
+            <span style={{ fontSize: compact ? 13 : 16 }}>{b.emoji}</span>
+            {!compact && b.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
+
+// ── Kullanıcı Profil Sayfası (Detaylı) ──
+const UserProfilePage = ({ targetUserId, targetUserName, currentUser, posts, onClose, onFollowUser, followedUsers }) => {
+  var userId = getUserId(currentUser);
+  var isOwnProfile = targetUserId === userId;
+  const [profile, setProfile] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [editBio, setEditBio] = useState("");
+  const [editBolum, setEditBolum] = useState("");
+  const [editSinif, setEditSinif] = useState("");
+  const [editCourses, setEditCourses] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState("posts");
+
+  var userPosts = posts.filter(function (p) { return p.authorId === targetUserId; });
+  var stats = calculateUserStats(targetUserId, posts);
+  var xp = calculateXP(stats);
+  var lvlInfo = getUserLevel(xp);
+  var badges = getUserBadges(stats);
+  var isFollowed = followedUsers && followedUsers.indexOf(targetUserId) >= 0;
+
+  useEffect(function () {
+    PortalDB.getProfile(targetUserId).then(function (p) {
+      if (p) {
+        setProfile(p);
+        setEditBio(p.bio || "");
+        setEditBolum(p.bolum || "");
+        setEditSinif(p.sinif || "");
+        setEditCourses((p.courses || []).join(", "));
+      }
+    }).catch(function () { });
+  }, [targetUserId]);
+
+  var handleSave = async function () {
+    setSaving(true);
+    var data = {
+      bio: editBio.trim(),
+      bolum: editBolum,
+      sinif: editSinif,
+      courses: editCourses.split(",").map(function (c) { return c.trim(); }).filter(Boolean),
+      name: currentUser.name || "Anonim",
+    };
+    await PortalDB.updateProfile(targetUserId, data);
+    setProfile(Object.assign({}, profile, data));
+    setEditing(false);
+    setSaving(false);
+  };
+
+  var tabPosts = useMemo(function () {
+    if (activeTab === "posts") return userPosts;
+    if (activeTab === "notes") return userPosts.filter(function (p) { return p.category === "not"; });
+    if (activeTab === "questions") return userPosts.filter(function (p) { return p.category === "soru"; });
+    return userPosts;
+  }, [activeTab, userPosts]);
+
+  return (
+    <div className="daisy-card" style={{ padding: 0, overflow: "hidden" }}>
+      {/* Başlık bandı */}
+      <div style={{
+        background: "linear-gradient(135deg, " + lvlInfo.current.color + "20, " + DY.goldLight + ")",
+        padding: "24px 24px 16px", position: "relative",
+        borderBottom: "1px solid " + PC.borderLight,
+      }}>
+        <button onClick={onClose} style={{
+          position: "absolute", top: 12, right: 12, padding: "4px 10px",
+          border: "1px solid " + PC.border, borderRadius: 8, background: "white",
+          cursor: "pointer", fontSize: 12, fontWeight: 600, color: PC.textMuted,
+        }}>{"\u2715"} Kapat</button>
+
+        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <Avatar name={targetUserName} size={64} />
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: PC.navy, margin: 0 }}>{targetUserName}</h2>
+              <span className="level-badge" style={{
+                padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700,
+                background: lvlInfo.current.color + "20", color: lvlInfo.current.color,
+                border: "1px solid " + lvlInfo.current.color + "40",
+              }}>Lv.{lvlInfo.current.level} {lvlInfo.current.label}</span>
+              {!isOwnProfile && onFollowUser && (
+                <button onClick={function () { onFollowUser(targetUserId); }}
+                  className="follow-btn-inline" style={{
+                    padding: "4px 12px", borderRadius: 12, fontSize: 11, fontWeight: 700,
+                    border: "1px solid " + (isFollowed ? "#10B981" : DY.gold),
+                    background: isFollowed ? "#D1FAE5" : DY.goldLight,
+                    color: isFollowed ? "#059669" : DY.goldDark, cursor: "pointer",
+                  }}>{isFollowed ? "Takip Ediliyor" : "+ Takip Et"}</button>
+              )}
+            </div>
+            {profile && profile.bolum && (
+              <div style={{ fontSize: 12, color: PC.textMuted, marginTop: 4 }}>
+                {profile.bolum}{profile.sinif ? " · " + profile.sinif : ""}
+              </div>
+            )}
+            {profile && profile.bio && (
+              <div style={{ fontSize: 13, color: PC.text, marginTop: 6, lineHeight: 1.5 }}>{profile.bio}</div>
+            )}
+            <LevelBar xp={xp} />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: "16px 24px" }}>
+        {/* İstatistikler */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 16 }}>
+          {[
+            { v: stats.postCount, l: "Gönderi", c: "#F59E0B" },
+            { v: stats.totalVoteScore, l: "Oy Puanı", c: stats.totalVoteScore >= 0 ? "#16A34A" : "#DC2626" },
+            { v: stats.totalReactions, l: "Tepki", c: "#EC4899" },
+            { v: stats.bestAnswerCount, l: "En İyi Cevap", c: "#8B5CF6" },
+            { v: xp, l: "XP", c: lvlInfo.current.color },
+          ].map(function (s) {
+            return (
+              <div key={s.l} style={{ textAlign: "center", padding: "10px 4px", background: s.c + "10", borderRadius: 10, border: "1px solid " + s.c + "20" }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: s.c }}>{s.v}</div>
+                <div style={{ fontSize: 10, color: PC.textMuted, fontWeight: 500 }}>{s.l}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Rozetler */}
+        <div style={{ marginBottom: 16 }}>
+          <h4 style={{ fontSize: 13, fontWeight: 700, color: DY.warm, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+            <SvgIcon path={ICONS.star} size={14} color={DY.gold} /> Rozetler ({badges.length}/{BADGES.length})
+          </h4>
+          {badges.length > 0 ? (
+            <BadgeDisplay badges={badges} />
+          ) : (
+            <div style={{ fontSize: 12, color: PC.textMuted }}>Henüz rozet kazanılmadı. Paylaşarak ve yardım ederek rozetler kazanın!</div>
+          )}
+          {/* Kazanılmamış rozetler */}
+          <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {BADGES.filter(function (b) { return !b.check(stats); }).map(function (b) {
+              return (
+                <span key={b.id} title={b.desc} className="badge-item badge-item-locked" style={{
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                  padding: "3px 8px", borderRadius: 8, fontSize: 11,
+                  background: PC.bg, color: PC.textMuted,
+                  border: "1px dashed " + PC.border,
+                }}>
+                  <span style={{ fontSize: 13 }}>{b.emoji}</span>
+                  {b.label}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Dersler */}
+        {profile && profile.courses && profile.courses.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, color: DY.warm, marginBottom: 6 }}>Aldığı Dersler</h4>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+              {profile.courses.map(function (c, i) {
+                return (
+                  <span key={i} style={{
+                    padding: "3px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+                    background: isCourseCode(c) ? DY.goldLight : "#E0E7FF",
+                    color: isCourseCode(c) ? DY.goldDark : "#4F46E5",
+                  }}>{c}</span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Profil Düzenleme (kendi profili ise) */}
+        {isOwnProfile && (
+          <div style={{ marginBottom: 16 }}>
+            {editing ? (
+              <div style={{ padding: 16, background: PC.bg, borderRadius: 12, border: "1px solid " + PC.border }}>
+                <h4 style={{ fontSize: 13, fontWeight: 700, color: DY.warm, marginBottom: 10 }}>Profili Düzenle</h4>
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted }}>Biyografi</label>
+                  <textarea value={editBio} onChange={function (e) { setEditBio(e.target.value); }} rows={3}
+                    placeholder="Kendinizden bahsedin..." className="profile-edit-field"
+                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid " + PC.border, fontSize: 13, resize: "vertical", marginTop: 4, outline: "none", fontFamily: "inherit" }} />
+                </div>
+                <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted }}>Bölüm</label>
+                    <select value={editBolum} onChange={function (e) { setEditBolum(e.target.value); }}
+                      style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid " + PC.border, fontSize: 12, marginTop: 4, outline: "none" }}>
+                      <option value="">Seçiniz</option>
+                      {BOLUMLER.map(function (b) { return <option key={b} value={b}>{b}</option>; })}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted }}>Sınıf</label>
+                    <select value={editSinif} onChange={function (e) { setEditSinif(e.target.value); }}
+                      style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid " + PC.border, fontSize: 12, marginTop: 4, outline: "none" }}>
+                      <option value="">Seçiniz</option>
+                      {SINIF_TAGS.map(function (s) { return <option key={s} value={s}>{s}</option>; })}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted }}>Aldığı Dersler (virgülle ayırın)</label>
+                  <input value={editCourses} onChange={function (e) { setEditCourses(e.target.value); }}
+                    placeholder="BIL301, MAT201, FIZ101"
+                    style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid " + PC.border, fontSize: 12, marginTop: 4, outline: "none" }} />
+                </div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <button onClick={function () { setEditing(false); }}
+                    style={{ padding: "6px 16px", borderRadius: 8, border: "1px solid " + PC.border, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                    İptal
+                  </button>
+                  <button onClick={handleSave} disabled={saving}
+                    style={{ padding: "6px 16px", borderRadius: 8, border: "none", background: "linear-gradient(135deg, " + DY.gold + ", " + DY.goldDark + ")", color: "white", cursor: "pointer", fontSize: 12, fontWeight: 700, opacity: saving ? 0.6 : 1 }}>
+                    {saving ? "Kaydediliyor..." : "Kaydet"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={function () { setEditing(true); }}
+                style={{
+                  padding: "8px 16px", border: "1px solid " + PC.border, borderRadius: 10,
+                  background: "white", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                  color: PC.navy, display: "flex", alignItems: "center", gap: 6,
+                }}>
+                <SvgIcon path={ICONS.edit} size={14} color={PC.navy} /> Profili Düzenle
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Gönderi Geçmişi */}
+        <div>
+          <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+            {[
+              { id: "posts", label: "Tüm Gönderiler (" + userPosts.length + ")" },
+              { id: "notes", label: "Notlar" },
+              { id: "questions", label: "Sorular" },
+            ].map(function (tab) {
+              var isActive = activeTab === tab.id;
+              return (
+                <button key={tab.id} onClick={function () { setActiveTab(tab.id); }}
+                  style={{
+                    padding: "5px 12px", borderRadius: 8, fontSize: 11, fontWeight: isActive ? 700 : 500,
+                    border: "none", background: isActive ? DY.goldLight : PC.bg,
+                    color: isActive ? DY.warm : PC.textMuted, cursor: "pointer",
+                  }}>{tab.label}</button>
+              );
+            })}
+          </div>
+          {tabPosts.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: PC.textMuted, fontSize: 13 }}>Gönderi bulunamadı.</div>
+          ) : (
+            <div style={{ maxHeight: 300, overflowY: "auto" }}>
+              {tabPosts.slice(0, 10).map(function (p) {
+                var cat = getCategoryInfo(p.category);
+                return (
+                  <div key={p.id} style={{
+                    padding: "10px 0", borderBottom: "1px solid " + PC.borderLight,
+                    display: "flex", gap: 10, alignItems: "flex-start",
+                  }}>
+                    <CategoryBadge category={p.category} small />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy, lineHeight: 1.4 }}>
+                        {p.title || (p.contentFormat === "html" ? stripHtmlTags(p.content).substring(0, 60) : (p.content || "").substring(0, 60))}
+                      </div>
+                      <div style={{ fontSize: 10, color: PC.textMuted, marginTop: 2 }}>
+                        {timeAgo(p.createdAt)} · {getVoteScore(p)} oy · {getReactionTotal(p.reactions)} tepki · {p.commentCount || 0} yorum
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Liderlik Tablosu ──
+const LeaderboardPanel = ({ posts, allUsers, currentUser }) => {
+  const [period, setPeriod] = useState("all"); // all, month, week
+  const [category, setCategory] = useState("general"); // general, notes, questions
+  const [deptFilter, setDeptFilter] = useState("all");
+  const [profiles, setProfiles] = useState({});
+
+  // Profil verilerini yükle (bölüm filtresi için)
+  useEffect(function () {
+    var ref = PortalDB.profilesRef();
+    if (!ref) return;
+    ref.get().then(function (snap) {
+      var data = {};
+      snap.forEach(function (doc) { data[doc.id] = doc.data(); });
+      setProfiles(data);
+    }).catch(function () {});
+  }, []);
+
+  var leaderboard = useMemo(function () {
+    var now = new Date();
+    var filteredPosts = posts;
+
+    // Zaman filtresi
+    if (period === "week") {
+      var weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      filteredPosts = posts.filter(function (p) {
+        var d = p.createdAt && p.createdAt.toDate ? p.createdAt.toDate() : new Date(p.createdAt);
+        return d >= weekAgo;
+      });
+    } else if (period === "month") {
+      var monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      filteredPosts = posts.filter(function (p) {
+        var d = p.createdAt && p.createdAt.toDate ? p.createdAt.toDate() : new Date(p.createdAt);
+        return d >= monthAgo;
+      });
+    }
+
+    // Kullanıcı bazlı toplama
+    var userMap = {};
+    filteredPosts.forEach(function (p) {
+      if (!p.authorId) return;
+      if (!userMap[p.authorId]) {
+        userMap[p.authorId] = { id: p.authorId, name: p.authorName, postCount: 0, noteCount: 0, questionCount: 0, voteScore: 0, reactions: 0, bestAnswers: 0 };
+      }
+      var u = userMap[p.authorId];
+      u.postCount++;
+      if (p.category === "not") u.noteCount++;
+      if (p.category === "soru") u.questionCount++;
+      u.voteScore += getVoteScore(p);
+      u.reactions += getReactionTotal(p.reactions);
+      if (p.bestAnswerId) u.bestAnswers++;
+    });
+
+    var users = Object.values(userMap);
+
+    // Bölüm filtresi
+    if (deptFilter !== "all") {
+      users = users.filter(function (u) {
+        var prof = profiles[u.id];
+        return prof && prof.bolum === deptFilter;
+      });
+    }
+
+    // Kategori sıralaması
+    if (category === "notes") {
+      users.sort(function (a, b) { return b.noteCount - a.noteCount; });
+    } else if (category === "questions") {
+      users.sort(function (a, b) { return b.bestAnswers - a.bestAnswers; });
+    } else {
+      // Genel: XP bazlı
+      users.forEach(function (u) {
+        u.score = (u.postCount * 10) + (u.reactions * 2) + (Math.max(0, u.voteScore) * 5) + (u.bestAnswers * 20) + (u.noteCount * 5);
+      });
+      users.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
+    }
+
+    return users.slice(0, 10);
+  }, [posts, period, category, deptFilter, profiles]);
+
+  var medalColors = ["#F59E0B", "#9CA3AF", "#CD7F32"];
+
+  return (
+    <div style={{
+      background: "white", borderRadius: 16, padding: 20,
+      border: "1px solid " + PC.borderLight,
+    }}>
+      <h3 style={{ fontSize: 15, fontWeight: 700, color: DY.warm, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+        <SvgIcon path={ICONS.trending} size={18} color={DY.gold} /> Liderlik Tablosu
+      </h3>
+
+      {/* Dönem seçici */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+        {[
+          { id: "all", label: "Tüm Zamanlar" },
+          { id: "month", label: "Bu Ay" },
+          { id: "week", label: "Bu Hafta" },
+        ].map(function (p) {
+          var isActive = period === p.id;
+          return (
+            <button key={p.id} onClick={function () { setPeriod(p.id); }}
+              style={{
+                padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: isActive ? 700 : 500,
+                border: "none", background: isActive ? DY.goldLight : PC.bg,
+                color: isActive ? DY.warm : PC.textMuted, cursor: "pointer",
+              }}>{p.label}</button>
+          );
+        })}
+      </div>
+
+      {/* Kategori seçici */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+        {[
+          { id: "general", label: "Genel" },
+          { id: "notes", label: "Not Paylaşımı" },
+          { id: "questions", label: "Cevaplar" },
+        ].map(function (c) {
+          var isActive = category === c.id;
+          return (
+            <button key={c.id} onClick={function () { setCategory(c.id); }}
+              style={{
+                padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: isActive ? 700 : 500,
+                border: "none", background: isActive ? "#E0E7FF" : PC.bg,
+                color: isActive ? "#4F46E5" : PC.textMuted, cursor: "pointer",
+              }}>{c.label}</button>
+          );
+        })}
+      </div>
+
+      {/* Bölüm filtresi */}
+      <div style={{ marginBottom: 12 }}>
+        <select
+          value={deptFilter}
+          onChange={function (e) { setDeptFilter(e.target.value); }}
+          style={{
+            width: "100%", padding: "4px 8px", borderRadius: 6, fontSize: 10,
+            border: "1px solid " + PC.borderLight, background: PC.bg, color: PC.navy,
+            cursor: "pointer",
+          }}
+        >
+          <option value="all">Tüm Bölümler</option>
+          {BOLUMLER.map(function (b) { return <option key={b} value={b}>{b}</option>; })}
+        </select>
+      </div>
+
+      {/* Liste */}
+      {leaderboard.length === 0 ? (
+        <div style={{ padding: 16, textAlign: "center", color: PC.textMuted, fontSize: 12 }}>Bu dönemde veri yok.</div>
+      ) : (
+        leaderboard.map(function (user, idx) {
+          var isSelf = user.id === getUserId(currentUser);
+          var stats = calculateUserStats(user.id, posts);
+          var userXP = calculateXP(stats);
+          var userLvl = getUserLevel(userXP);
+          return (
+            <div key={user.id} className="leaderboard-row" style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "8px 0",
+              borderBottom: idx < leaderboard.length - 1 ? "1px solid " + PC.borderLight : "none",
+              background: isSelf ? DY.goldLight + "40" : "transparent",
+              borderRadius: isSelf ? 8 : 0,
+              padding: isSelf ? "8px 6px" : "8px 0",
+            }}>
+              <span style={{
+                width: 22, textAlign: "center", fontWeight: 800, fontSize: 14,
+                color: idx < 3 ? medalColors[idx] : PC.textMuted,
+              }}>
+                {idx < 3 ? ["\uD83E\uDD47", "\uD83E\uDD48", "\uD83E\uDD49"][idx] : (idx + 1)}
+              </span>
+              <Avatar name={user.name} size={28} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: isSelf ? DY.warm : PC.navy }}>
+                  {user.name} {isSelf && <span style={{ fontSize: 9, opacity: 0.6 }}>(sen)</span>}
+                </div>
+                <div style={{ fontSize: 10, color: PC.textMuted }}>
+                  Lv.{userLvl.current.level} · {category === "notes" ? user.noteCount + " not" : category === "questions" ? user.bestAnswers + " cevap" : (user.score || 0) + " puan"}
+                </div>
+              </div>
+              <span style={{
+                padding: "2px 8px", borderRadius: 8, fontSize: 10, fontWeight: 700,
+                background: userLvl.current.color + "20", color: userLvl.current.color,
+              }}>{userLvl.current.label}</span>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+};
+
 // ── İstatistik Kartı ──
 const StatCard = ({ label, value, color, icon }) => (
   <div className="daisy-card" style={{
@@ -3028,6 +3676,28 @@ const ToastContainer = ({ toasts }) => {
   );
 };
 
+// ── Seviye Atlama Bildirimi ──
+const LevelUpNotification = ({ levelInfo, onClose }) => {
+  if (!levelInfo) return null;
+  return (
+    <div className="level-up-notification" style={{
+      position: "fixed", top: 80, left: "50%", transform: "translateX(-50%)",
+      zIndex: 10000, background: "linear-gradient(135deg, " + (levelInfo.color || DY.gold) + ", " + DY.goldDark + ")",
+      color: "white", padding: "16px 32px", borderRadius: 16,
+      boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+      display: "flex", alignItems: "center", gap: 14, cursor: "pointer",
+      minWidth: 280, justifyContent: "center",
+    }} onClick={onClose}>
+      <span style={{ fontSize: 32 }}>{"\uD83C\uDF89"}</span>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9, textTransform: "uppercase", letterSpacing: 1 }}>Seviye Atladın!</div>
+        <div style={{ fontSize: 20, fontWeight: 800 }}>Lv.{levelInfo.level} {levelInfo.label}</div>
+      </div>
+      <span style={{ fontSize: 32 }}>{"\u2B50"}</span>
+    </div>
+  );
+};
+
 // ── Yukarı Kaydır Butonu ──
 const ScrollToTopButton = () => {
   var showBtn = useScrollTop(400);
@@ -3126,36 +3796,68 @@ const NotificationBell = ({ currentUser }) => {
 };
 
 // ── Kullanıcı Profil Kartı ──
-const UserProfileCard = ({ currentUser, posts }) => {
+const UserProfileCard = ({ currentUser, posts, onViewProfile }) => {
   var userId = getUserId(currentUser);
-  var userPosts = posts.filter(function (p) { return p.authorId === userId; });
-  var totalReactions = 0;
-  var totalVoteScore = 0;
-  userPosts.forEach(function (p) { totalReactions += getReactionTotal(p.reactions); totalVoteScore += getVoteScore(p); });
+  var stats = calculateUserStats(userId, posts);
+  var xp = calculateXP(stats);
+  var lvlInfo = getUserLevel(xp);
+  var badges = getUserBadges(stats);
+
   return (
     <div className="daisy-card" style={{ padding: 20, marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 12, marginBottom: 10,
+        cursor: onViewProfile ? "pointer" : "default",
+      }}
+        onClick={function () { if (onViewProfile) onViewProfile(userId, currentUser.name); }}
+      >
         <Avatar name={currentUser.name} />
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 15, color: DY.warm }}>{currentUser.name || "Anonim"}</div>
-          <div style={{ fontSize: 12, color: PC.textMuted }}>{currentUser.email || ""}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontWeight: 700, fontSize: 15, color: DY.warm }}>{currentUser.name || "Anonim"}</span>
+            <span className="level-badge" style={{
+              padding: "1px 7px", borderRadius: 8, fontSize: 9, fontWeight: 700,
+              background: lvlInfo.current.color + "20", color: lvlInfo.current.color,
+            }}>Lv.{lvlInfo.current.level}</span>
+          </div>
+          <div style={{ fontSize: 11, color: PC.textMuted }}>{lvlInfo.current.label} · {xp} XP</div>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+      <LevelBar xp={xp} />
+      {badges.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <BadgeDisplay badges={badges} compact />
+        </div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, marginTop: 10 }}>
         {[
-          { v: userPosts.length, l: "Gönderi" },
-          { v: totalVoteScore, l: "Oy Puanı", color: totalVoteScore > 0 ? "#16A34A" : totalVoteScore < 0 ? "#DC2626" : undefined },
-          { v: totalReactions, l: "Tepki" },
-          { v: userPosts.reduce(function (s, p) { return s + (p.commentCount || 0); }, 0), l: "Yorum" },
+          { v: stats.postCount, l: "Gönderi" },
+          { v: stats.totalVoteScore, l: "Oy", color: stats.totalVoteScore > 0 ? "#16A34A" : stats.totalVoteScore < 0 ? "#DC2626" : undefined },
+          { v: stats.totalReactions, l: "Tepki" },
+          { v: stats.bestAnswerCount, l: "Çözüm" },
         ].map(function (item) {
           return (
-            <div key={item.l} style={{ textAlign: "center", padding: "8px 0", background: DY.warmLight, borderRadius: 8 }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: item.color || DY.warm }}>{item.v}</div>
-              <div style={{ fontSize: 10, color: PC.textMuted }}>{item.l}</div>
+            <div key={item.l} style={{ textAlign: "center", padding: "6px 0", background: DY.warmLight, borderRadius: 8 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: item.color || DY.warm }}>{item.v}</div>
+              <div style={{ fontSize: 9, color: PC.textMuted }}>{item.l}</div>
             </div>
           );
         })}
       </div>
+      {onViewProfile && (
+        <button onClick={function () { onViewProfile(userId, currentUser.name); }}
+          style={{
+            width: "100%", marginTop: 10, padding: "8px 0", border: "1px solid " + PC.border,
+            borderRadius: 10, background: "white", cursor: "pointer",
+            fontSize: 12, fontWeight: 600, color: PC.navy,
+            transition: "all 0.2s",
+          }}
+          onMouseEnter={function (e) { e.currentTarget.style.background = DY.goldLight; e.currentTarget.style.borderColor = DY.gold; }}
+          onMouseLeave={function (e) { e.currentTarget.style.background = "white"; e.currentTarget.style.borderColor = PC.border; }}
+        >
+          <SvgIcon path={ICONS.user} size={13} color={PC.navy} /> Profilimi Gör
+        </button>
+      )}
     </div>
   );
 };
@@ -3418,6 +4120,9 @@ function OgrenciPortaliApp({ currentUser }) {
   const [highlightedPostId, setHighlightedPostId] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
   const [followData, setFollowData] = useState({ users: [], tags: [] });
+  const [viewProfile, setViewProfile] = useState(null); // { userId, userName }
+  const [levelUpInfo, setLevelUpInfo] = useState(null);
+  const prevLevelRef = useRef(null);
   const loadMoreRef = useRef(null);
   var isMobile = useIsMobile(768);
   var isAdmin = currentUser && (currentUser.isAdmin || currentUser.email === "tunahan@example.com"); // Geçici admin kontrolü
@@ -3439,6 +4144,19 @@ function OgrenciPortaliApp({ currentUser }) {
     PortalDB.getFollows(userId).then(function (data) { setFollowData(data); }).catch(function () { });
   }, [userId]);
 
+  // Seviye atlama kontrolü
+  useEffect(function () {
+    if (!userId || posts.length === 0) return;
+    var stats = calculateUserStats(userId, posts);
+    var xp = calculateXP(stats);
+    var lvlInfo = getUserLevel(xp);
+    if (prevLevelRef.current !== null && lvlInfo.current.level > prevLevelRef.current) {
+      setLevelUpInfo(lvlInfo.current);
+      setTimeout(function () { setLevelUpInfo(null); }, 4000);
+    }
+    prevLevelRef.current = lvlInfo.current.level;
+  }, [posts, userId]);
+
   // Takip fonksiyonları
   var handleFollowUser = async function (targetUserId) {
     try {
@@ -3456,6 +4174,10 @@ function OgrenciPortaliApp({ currentUser }) {
       var wasFollowing = followData.tags.indexOf(tag) >= 0;
       showToast(wasFollowing ? "Etiket takipten çıkıldı" : "Etiket takip edildi");
     } catch (err) { console.error("Etiket takip hatası:", err); }
+  };
+
+  var handleViewProfile = function (uid, name) {
+    setViewProfile({ userId: uid, userName: name });
   };
 
   var showToast = function (message, type) {
@@ -3734,6 +4456,7 @@ function OgrenciPortaliApp({ currentUser }) {
       <div className="portal-wrap">
         {/* Toast Bildirimler */}
         <ToastContainer toasts={toasts} />
+        <LevelUpNotification levelInfo={levelUpInfo} onClose={function () { setLevelUpInfo(null); }} />
         {/* Yukarı Kaydır */}
         <ScrollToTopButton />
 
@@ -4021,6 +4744,7 @@ function OgrenciPortaliApp({ currentUser }) {
                   allUsers={allUsers}
                   onFollowUser={handleFollowUser}
                   followedUsers={followData.users}
+                  onViewProfile={handleViewProfile}
                 />
               );
             })}
@@ -4047,6 +4771,7 @@ function OgrenciPortaliApp({ currentUser }) {
                   allUsers={allUsers}
                   onFollowUser={handleFollowUser}
                   followedUsers={followData.users}
+                  onViewProfile={handleViewProfile}
                 />
               );
             })}
@@ -4060,10 +4785,11 @@ function OgrenciPortaliApp({ currentUser }) {
           {/* Sağ: Sidebar */}
           {isMobile ? (
             <MobileSidebarToggle>
-              <UserProfileCard currentUser={currentUser} posts={posts} />
+              <UserProfileCard currentUser={currentUser} posts={posts} onViewProfile={handleViewProfile} />
               <TrendingSidebar posts={posts} />
               <FollowingSidebar followData={followData} onFollowUser={handleFollowUser} onFollowTag={handleFollowTag} allUsers={allUsers} posts={posts} />
               <TagCloud posts={posts} onFilterTag={setTagFilter} activeTag={tagFilter.replace(/^#/, "")} onFollowTag={handleFollowTag} followedTags={followData.tags} />
+              <LeaderboardPanel posts={posts} allUsers={allUsers} currentUser={currentUser} />
 
               <div style={{
                 background: "white", borderRadius: 16, padding: 20,
@@ -4094,10 +4820,11 @@ function OgrenciPortaliApp({ currentUser }) {
             </MobileSidebarToggle>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: 88 }}>
-              <UserProfileCard currentUser={currentUser} posts={posts} />
+              <UserProfileCard currentUser={currentUser} posts={posts} onViewProfile={handleViewProfile} />
               <TrendingSidebar posts={posts} />
               <FollowingSidebar followData={followData} onFollowUser={handleFollowUser} onFollowTag={handleFollowTag} allUsers={allUsers} posts={posts} />
               <TagCloud posts={posts} onFilterTag={setTagFilter} activeTag={tagFilter.replace(/^#/, "")} onFollowTag={handleFollowTag} followedTags={followData.tags} />
+              <LeaderboardPanel posts={posts} allUsers={allUsers} currentUser={currentUser} />
 
               <div style={{
                 background: "white", borderRadius: 16, padding: 20,
@@ -4129,6 +4856,28 @@ function OgrenciPortaliApp({ currentUser }) {
           )}
         </div>
       </div>
+
+      {/* Profil Sayfası Overlay */}
+      {viewProfile && (
+        <div className="profile-overlay" style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.5)", zIndex: 9999,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 20, overflowY: "auto",
+        }} onClick={function (e) { if (e.target === e.currentTarget) setViewProfile(null); }}>
+          <div className="profile-card-enter" style={{ width: "100%", maxWidth: 700, maxHeight: "90vh", overflowY: "auto", borderRadius: 20 }}>
+            <UserProfilePage
+              targetUserId={viewProfile.userId}
+              targetUserName={viewProfile.userName}
+              currentUser={currentUser}
+              posts={posts}
+              onClose={function () { setViewProfile(null); }}
+              onFollowUser={handleFollowUser}
+              followedUsers={followData.users}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
