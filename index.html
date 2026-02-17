@@ -149,6 +149,38 @@
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
+
+    /* ── Mention (Bahsetme) Stilleri ── */
+    .mention-tag {
+      background: linear-gradient(135deg, #DBEAFE, #EFF6FF);
+      color: #2563EB;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.95em;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid rgba(37, 99, 235, 0.15);
+    }
+    .mention-tag:hover {
+      background: #BFDBFE;
+      border-color: rgba(37, 99, 235, 0.3);
+    }
+    .mention-autocomplete {
+      animation: fadeInUp 0.12s ease-out;
+    }
+
+    /* ── Takip Butonu Stilleri ── */
+    .follow-btn-inline {
+      transition: all 0.2s ease;
+    }
+    .follow-btn-inline:hover {
+      transform: scale(1.05);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .follow-btn-inline:active {
+      transform: scale(0.95);
+    }
   </style>
 </head>
 <body>

@@ -48,6 +48,7 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
       ".portal-post-content blockquote{border-left:4px solid #F59E0B;padding-left:12px;color:#6B7280;margin:8px 0;}" +
       ".portal-post-content pre{background:#1B2A4A;color:#FEF3C7;border-radius:8px;padding:12px 16px;font-family:'JetBrains Mono',monospace;overflow-x:auto;}" +
       ".portal-post-content a{color:#3B82F6;text-decoration:underline;}" +
+      ".portal-post-content .mention-tag{background:linear-gradient(135deg,#DBEAFE,#EFF6FF);color:#2563EB;padding:1px 6px;border-radius:4px;font-weight:600;font-size:0.95em;cursor:pointer;border:1px solid rgba(37,99,235,0.15);}" +
       ".portal-post-content ul,.portal-post-content ol{padding-left:24px;margin:4px 0;}" +
       ".portal-post-content h2{font-size:18px;font-weight:700;color:#1B2A4A;margin:12px 0 6px;}" +
       ".portal-post-content h3{font-size:16px;font-weight:600;color:#1B2A4A;margin:10px 0 4px;}" +
@@ -574,6 +575,71 @@ var PortalDB = {
     await batch.commit();
   },
 
+  // ── Takip Sistemi ──
+  followsRef: function () {
+    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_follows") : null;
+  },
+
+  async getFollows(userId) {
+    var ref = this.followsRef();
+    if (!ref) return { users: [], tags: [] };
+    var doc = await ref.doc(String(userId)).get();
+    if (!doc.exists) return { users: [], tags: [] };
+    var data = doc.data();
+    return { users: data.users || [], tags: data.tags || [] };
+  },
+
+  async toggleFollowUser(currentUserId, targetUserId) {
+    var ref = this.followsRef();
+    if (!ref) return;
+    var docRef = ref.doc(String(currentUserId));
+    var doc = await docRef.get();
+    var data = doc.exists ? doc.data() : {};
+    var users = data.users || [];
+    var idx = users.indexOf(targetUserId);
+    if (idx >= 0) {
+      users.splice(idx, 1);
+    } else {
+      users.push(targetUserId);
+    }
+    await docRef.set(Object.assign({}, data, { users: users }), { merge: true });
+    return users;
+  },
+
+  async toggleFollowTag(currentUserId, tag) {
+    var ref = this.followsRef();
+    if (!ref) return;
+    var docRef = ref.doc(String(currentUserId));
+    var doc = await docRef.get();
+    var data = doc.exists ? doc.data() : {};
+    var tags = data.tags || [];
+    var idx = tags.indexOf(tag);
+    if (idx >= 0) {
+      tags.splice(idx, 1);
+    } else {
+      tags.push(tag);
+    }
+    await docRef.set(Object.assign({}, data, { tags: tags }), { merge: true });
+    return tags;
+  },
+
+  // ── Kullanıcı Listesi (Bahsetme için) ──
+  async fetchAllUsers() {
+    var ref = this.postsRef();
+    if (!ref) return [];
+    var snapshot = await ref.orderBy("createdAt", "desc").limit(200).get();
+    var usersMap = {};
+    snapshot.docs.forEach(function (doc) {
+      var data = doc.data();
+      if (data.authorId && data.authorName) {
+        usersMap[data.authorId] = data.authorName;
+      }
+    });
+    return Object.keys(usersMap).map(function (id) {
+      return { id: id, name: usersMap[id] };
+    });
+  },
+
   // ── Raporlama ──
   reportsRef: function () {
     return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_reports") : null;
@@ -634,6 +700,22 @@ function getReactionTotal(reactions) {
 
 function getVoteScore(post) {
   return (post.voteScore || 0) || ((post.upvotes || []).length - (post.downvotes || []).length);
+}
+
+// ── Mention Yardımcıları ──
+function extractMentions(html) {
+  if (!html) return [];
+  var plain = stripHtmlTags(html);
+  var matches = plain.match(/@[A-Za-zÇĞİÖŞÜçğıöşü\s]+(?=[^A-Za-zÇĞİÖŞÜçğıöşü]|$)/g);
+  if (!matches) return [];
+  return matches.map(function (m) { return m.substring(1).trim(); }).filter(function (m) { return m.length > 1; });
+}
+
+function renderMentions(html) {
+  if (!html) return html;
+  return html.replace(/@([A-Za-zÇĞİÖŞÜçğıöşü\s]{2,}?)(?=[\s<.,;:!?)}\]&]|$)/g,
+    '<span class="mention-tag">@$1</span>'
+  );
 }
 
 function getUserId(currentUser) {
@@ -1164,7 +1246,7 @@ const CommentItem = ({ comment, postId, currentUser, onUpdate, onRemove, onReply
                 <div
                   className="portal-post-content"
                   style={{ fontSize: 13, color: PC.text, marginTop: 4, lineHeight: 1.5 }}
-                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(comment.text) }}
+                  dangerouslySetInnerHTML={{ __html: renderMentions(sanitizeHtml(comment.text)) }}
                 />
               ) : (
                 <div style={{ fontSize: 13, color: PC.text, marginTop: 4, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{comment.text}</div>
@@ -1322,7 +1404,7 @@ const CommentItem = ({ comment, postId, currentUser, onUpdate, onRemove, onReply
 };
 
 // ── Yorum Bölümü ──
-const CommentSection = ({ postId, currentUser, post }) => {
+const CommentSection = ({ postId, currentUser, post, allUsers }) => {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -1373,6 +1455,20 @@ const CommentSection = ({ postId, currentUser, post }) => {
       setComments(function (prev) { return [...prev, saved]; });
       setNewComment("");
       setNewCommentResetKey(function (k) { return k + 1; });
+      // Mention bildirimleri gönder
+      var curUserId = getUserId(currentUser);
+      var mentions = extractMentions(newComment);
+      mentions.forEach(function (mentionedName) {
+        var mentionedUser = (allUsers || []).find(function (u) { return u.name.toLowerCase() === mentionedName.toLowerCase(); });
+        if (mentionedUser && mentionedUser.id !== curUserId) {
+          PortalDB.addNotification(mentionedUser.id, {
+            type: "mention",
+            message: (currentUser.name || "Birisi") + " sizi bir yorumda bahsetti",
+            postId: postId,
+            fromUser: currentUser.name,
+          });
+        }
+      });
     } catch (err) {
       console.error("Yorum eklenemedi:", err);
     }
@@ -1513,8 +1609,9 @@ const CommentSection = ({ postId, currentUser, post }) => {
                   key={"new-comment-" + newCommentResetKey}
                   value={newComment}
                   onChange={function (html) { setNewComment(html); }}
-                  placeholder="Yorumunuzu yazın..."
+                  placeholder="Yorumunuzu yazın... (@kullanıcı ile bahsetebilirsiniz)"
                   onImageUpload={function (file) { return PortalDB.uploadFile(file); }}
+                  allUsers={allUsers}
                 />
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
                   <button
@@ -1541,8 +1638,137 @@ const CommentSection = ({ postId, currentUser, post }) => {
   );
 };
 
+// ── Mention Autocomplete Overlay ──
+const MentionAutocomplete = ({ quillRef, allUsers }) => {
+  const [visible, setVisible] = useState(false);
+  const [query, setQuery] = useState("");
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [mentionStart, setMentionStart] = useState(null);
+  const listRef = useRef(null);
+
+  var filtered = useMemo(function () {
+    if (!query) return allUsers.slice(0, 6);
+    var q = query.toLowerCase();
+    return allUsers.filter(function (u) {
+      return u.name.toLowerCase().includes(q);
+    }).slice(0, 6);
+  }, [query, allUsers]);
+
+  useEffect(function () {
+    var quill = quillRef.current;
+    if (!quill) return;
+
+    var handleTextChange = function () {
+      var sel = quill.getSelection();
+      if (!sel) { setVisible(false); return; }
+      var text = quill.getText(0, sel.index);
+      // @ karakterinden sonraki metni bul
+      var atIdx = text.lastIndexOf("@");
+      if (atIdx < 0) { setVisible(false); return; }
+      // @ dan önceki karakter boşluk veya satır başı olmalı
+      if (atIdx > 0 && text[atIdx - 1] !== " " && text[atIdx - 1] !== "\n") { setVisible(false); return; }
+      var afterAt = text.substring(atIdx + 1);
+      // Boşluk varsa daha sona ermiştir, ama kullanıcı adı boşluk içerebilir
+      // Sadece 20 karaktere kadar arayalım
+      if (afterAt.length > 20) { setVisible(false); return; }
+      setMentionStart(atIdx);
+      setQuery(afterAt);
+      setSelectedIdx(0);
+
+      // Pozisyon hesapla
+      var bounds = quill.getBounds(sel.index);
+      setPosition({ top: bounds.top + bounds.height + 4, left: bounds.left });
+      setVisible(true);
+    };
+
+    quill.on("text-change", handleTextChange);
+    quill.on("selection-change", function (range) {
+      if (!range) setVisible(false);
+    });
+
+    return function () {
+      quill.off("text-change", handleTextChange);
+    };
+  }, [quillRef.current]);
+
+  var insertMention = function (user) {
+    var quill = quillRef.current;
+    if (!quill || mentionStart === null) return;
+    var sel = quill.getSelection();
+    if (!sel) return;
+    var deleteLen = sel.index - mentionStart;
+    quill.deleteText(mentionStart, deleteLen);
+    var mentionText = "@" + user.name + " ";
+    quill.insertText(mentionStart, mentionText, { bold: true, color: "#3B82F6" });
+    quill.setSelection(mentionStart + mentionText.length);
+    setVisible(false);
+  };
+
+  useEffect(function () {
+    if (!visible || !quillRef.current) return;
+    var handleKeydown = function (e) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIdx(function (i) { return Math.min(i + 1, filtered.length - 1); });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIdx(function (i) { return Math.max(i - 1, 0); });
+      } else if (e.key === "Enter" && filtered.length > 0) {
+        e.preventDefault();
+        insertMention(filtered[selectedIdx]);
+      } else if (e.key === "Escape") {
+        setVisible(false);
+      }
+    };
+    quillRef.current.root.addEventListener("keydown", handleKeydown);
+    return function () {
+      if (quillRef.current) quillRef.current.root.removeEventListener("keydown", handleKeydown);
+    };
+  }, [visible, filtered, selectedIdx]);
+
+  if (!visible || filtered.length === 0) return null;
+
+  return (
+    <div ref={listRef} className="mention-autocomplete" style={{
+      position: "absolute", top: position.top, left: position.left,
+      background: "white", borderRadius: 10, padding: 4,
+      boxShadow: "0 8px 30px rgba(0,0,0,0.18)",
+      border: "1px solid " + PC.border, zIndex: 200,
+      minWidth: 200, maxWidth: 280,
+      animation: "fadeInUp 0.12s ease-out",
+    }}>
+      <div style={{ padding: "4px 10px 6px", fontSize: 10, fontWeight: 700, color: PC.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+        Kullanıcılar
+      </div>
+      {filtered.map(function (user, idx) {
+        var isSelected = idx === selectedIdx;
+        return (
+          <div
+            key={user.id}
+            onMouseDown={function (e) { e.preventDefault(); insertMention(user); }}
+            onMouseEnter={function () { setSelectedIdx(idx); }}
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 10px", borderRadius: 8, cursor: "pointer",
+              background: isSelected ? DY.goldLight : "transparent",
+              transition: "background 0.1s",
+            }}
+          >
+            <Avatar name={user.name} size={28} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy }}>{user.name}</div>
+              <div style={{ fontSize: 10, color: PC.textMuted }}>{user.id}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 // ── Zengin İçerik Editörü (Quill.js) ──
-const RichTextEditor = ({ value, onChange, placeholder, onImageUpload }) => {
+const RichTextEditor = ({ value, onChange, placeholder, onImageUpload, allUsers }) => {
   const editorRef = useRef(null);
   const quillRef = useRef(null);
 
@@ -1672,14 +1898,18 @@ const RichTextEditor = ({ value, onChange, placeholder, onImageUpload }) => {
       borderRadius: 10,
       overflow: "hidden",
       background: "white",
+      position: "relative",
     }}>
       <div ref={editorRef} />
+      {allUsers && allUsers.length > 0 && (
+        <MentionAutocomplete quillRef={quillRef} allUsers={allUsers} />
+      )}
     </div>
   );
 };
 
 // ── Gönderi Kartı ──
-const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor, onFilterTag }) => {
+const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor, onFilterTag, allUsers, onFollowUser, followedUsers }) => {
   var cat = getCategoryInfo(post.category);
   var userId = getUserId(currentUser);
   var isAuthor = post.authorId === userId || currentUser.role === "admin";
@@ -1761,6 +1991,22 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
                 onMouseLeave={function (e) { e.currentTarget.style.textDecoration = "none"; }}
                 title={"\"" + post.authorName + "\" gönderilerini filtrele"}
               >{post.authorName}</span>
+              {/* Takip butonu (kendi gönderisi değilse) */}
+              {post.authorId !== userId && onFollowUser && (
+                <button
+                  onClick={function (e) { e.stopPropagation(); onFollowUser(post.authorId); }}
+                  className="follow-btn-inline"
+                  style={{
+                    padding: "2px 8px", borderRadius: 10, fontSize: 10, fontWeight: 700,
+                    border: "1px solid " + (followedUsers && followedUsers.indexOf(post.authorId) >= 0 ? "#10B981" : PC.border),
+                    background: followedUsers && followedUsers.indexOf(post.authorId) >= 0 ? "#D1FAE5" : "white",
+                    color: followedUsers && followedUsers.indexOf(post.authorId) >= 0 ? "#059669" : PC.textMuted,
+                    cursor: "pointer", transition: "all 0.2s",
+                  }}
+                >
+                  {followedUsers && followedUsers.indexOf(post.authorId) >= 0 ? "Takip Ediliyor" : "+ Takip Et"}
+                </button>
+              )}
               <CategoryBadge category={post.category} small />
               {post.tag && (
                 <span style={{
@@ -1942,7 +2188,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
                   fontSize: 14, color: PC.text, lineHeight: 1.7,
                   wordBreak: "break-word",
                 }}
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(displayContent) }}
+                dangerouslySetInnerHTML={{ __html: renderMentions(sanitizeHtml(displayContent)) }}
               />
             ) : (
               <div style={{
@@ -2029,7 +2275,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
             userId={userId}
             onReact={onReact}
           />
-          <CommentSection postId={post.id} currentUser={currentUser} post={post} />
+          <CommentSection postId={post.id} currentUser={currentUser} post={post} allUsers={allUsers} />
           <button
             onClick={function () {
               var url = window.location.origin + window.location.pathname + "?post=" + post.id;
@@ -2110,7 +2356,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
 };
 
 // ── Yeni Gönderi Formu ──
-const NewPostForm = ({ currentUser, onPost, onClose }) => {
+const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
   const [category, setCategory] = useState("sohbet");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -2257,17 +2503,20 @@ const NewPostForm = ({ currentUser, onPost, onClose }) => {
       />
 
       {/* İçerik - Zengin Metin Editörü */}
-      <RichTextEditor
-        key={postResetKey}
-        value={content}
-        onChange={function (html) { setContent(html); }}
-        placeholder={category === "soru" ? "Sorunuzu detaylı bir şekilde yazın..."
-          : category === "anket" ? "Anket açıklamanızı yazın..."
-            : "Ne paylaşmak istiyorsunuz?"}
-        onImageUpload={function (file) {
-          return PortalDB.uploadFile(file);
-        }}
-      />
+      <div style={{ position: "relative" }}>
+        <RichTextEditor
+          key={postResetKey}
+          value={content}
+          onChange={function (html) { setContent(html); }}
+          placeholder={category === "soru" ? "Sorunuzu detaylı bir şekilde yazın... (@kullanıcı ile bahsetebilirsiniz)"
+            : category === "anket" ? "Anket açıklamanızı yazın..."
+              : "Ne paylaşmak istiyorsunuz? (@kullanıcı ile bahsetebilirsiniz)"}
+          onImageUpload={function (file) {
+            return PortalDB.uploadFile(file);
+          }}
+          allUsers={allUsers}
+        />
+      </div>
 
       {/* Ders Kodu + Tag seçimi */}
       <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
@@ -2590,8 +2839,92 @@ const TrendingSidebar = ({ posts }) => {
   );
 };
 
+// ── Takip Edilen Sidebar ──
+const FollowingSidebar = ({ followData, onFollowUser, onFollowTag, allUsers, posts }) => {
+  var followedUserNames = useMemo(function () {
+    return followData.users.map(function (uid) {
+      var user = allUsers.find(function (u) { return u.id === uid; });
+      return user ? user.name : uid;
+    });
+  }, [followData.users, allUsers]);
+
+  if (followData.users.length === 0 && followData.tags.length === 0) return null;
+
+  return (
+    <div style={{
+      background: "white", borderRadius: 16, padding: 20,
+      border: "1px solid " + PC.borderLight,
+    }}>
+      <h3 style={{ fontSize: 15, fontWeight: 700, color: DY.warm, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+        <SvgIcon path={ICONS.heart} size={16} color={DY.gold} /> Takip Edilenler
+      </h3>
+
+      {/* Takip edilen kullanıcılar */}
+      {followData.users.length > 0 && (
+        <div style={{ marginBottom: followData.tags.length > 0 ? 14 : 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: PC.textMuted, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Kullanıcılar ({followData.users.length})
+          </div>
+          {followData.users.map(function (uid, idx) {
+            var userName = followedUserNames[idx];
+            return (
+              <div key={uid} style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "6px 0",
+                borderBottom: idx < followData.users.length - 1 ? "1px solid " + PC.borderLight : "none",
+              }}>
+                <Avatar name={userName} size={24} />
+                <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: PC.navy }}>{userName}</span>
+                <button
+                  onClick={function () { onFollowUser(uid); }}
+                  style={{
+                    padding: "2px 8px", borderRadius: 8, fontSize: 10, fontWeight: 600,
+                    border: "1px solid #EF4444", background: "#FEF2F2", color: "#EF4444",
+                    cursor: "pointer",
+                  }}
+                >{"\u2715"}</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Takip edilen etiketler */}
+      {followData.tags.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: PC.textMuted, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Etiketler ({followData.tags.length})
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {followData.tags.map(function (tag) {
+              return (
+                <span key={tag} style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600,
+                  background: isCourseCode(tag) ? DY.goldLight : "#E0E7FF",
+                  color: isCourseCode(tag) ? DY.goldDark : "#4F46E5",
+                  cursor: "pointer",
+                }}>
+                  #{tag}
+                  <button
+                    onClick={function () { onFollowTag(tag); }}
+                    style={{
+                      padding: 0, border: "none", background: "transparent",
+                      cursor: "pointer", color: "inherit", fontSize: 12, fontWeight: 700,
+                      lineHeight: 1, marginLeft: 2,
+                    }}
+                  >{"\u2715"}</button>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Popüler Etiketler Bulutu ──
-const TagCloud = ({ posts, onFilterTag, activeTag }) => {
+const TagCloud = ({ posts, onFilterTag, activeTag, onFollowTag, followedTags }) => {
   var tagCounts = useMemo(function () { return getAllTags(posts); }, [posts]);
 
   var sortedTags = useMemo(function () {
@@ -2644,6 +2977,16 @@ const TagCloud = ({ posts, onFilterTag, activeTag }) => {
             >
               #{item.tag}
               <span style={{ fontSize: 9, marginLeft: 3, opacity: 0.7 }}>{item.count}</span>
+              {onFollowTag && (
+                <span
+                  onClick={function (e) { e.stopPropagation(); onFollowTag(item.tag); }}
+                  title={followedTags && followedTags.indexOf(item.tag) >= 0 ? "Takipten çık" : "Takip et"}
+                  style={{
+                    marginLeft: 4, fontSize: 10, fontWeight: 700,
+                    color: followedTags && followedTags.indexOf(item.tag) >= 0 ? "#10B981" : PC.textMuted,
+                  }}
+                >{followedTags && followedTags.indexOf(item.tag) >= 0 ? "\u2713" : "+"}</span>
+              )}
             </button>
           );
         })}
@@ -3066,22 +3409,54 @@ function OgrenciPortaliApp({ currentUser }) {
   const [activeCategory, setActiveCategory] = useState("tumu");
   const [showNewPost, setShowNewPost] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortMode, setSortMode] = useState("newest"); // newest, popular, comments, bookmarked
+  const [sortMode, setSortMode] = useState("newest"); // newest, popular, comments, bookmarked, following
   const [authorFilter, setAuthorFilter] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [toasts, setToasts] = useState([]);
   const [visibleCount, setVisibleCount] = useState(POSTS_PER_PAGE);
   const [highlightedPostId, setHighlightedPostId] = useState(null);
+  const [allUsers, setAllUsers] = useState([]);
+  const [followData, setFollowData] = useState({ users: [], tags: [] });
   const loadMoreRef = useRef(null);
   var isMobile = useIsMobile(768);
   var isAdmin = currentUser && (currentUser.isAdmin || currentUser.email === "tunahan@example.com"); // Geçici admin kontrolü
+  var userId = getUserId(currentUser);
 
   useEffect(function () {
     var params = new URLSearchParams(window.location.search);
     var pid = params.get("post");
     if (pid) setHighlightedPostId(pid);
   }, []);
+
+  // Kullanıcı listesini yükle (mention autocomplete için)
+  useEffect(function () {
+    PortalDB.fetchAllUsers().then(function (users) { setAllUsers(users); }).catch(function () { });
+  }, [posts.length]);
+
+  // Takip verilerini yükle
+  useEffect(function () {
+    PortalDB.getFollows(userId).then(function (data) { setFollowData(data); }).catch(function () { });
+  }, [userId]);
+
+  // Takip fonksiyonları
+  var handleFollowUser = async function (targetUserId) {
+    try {
+      var updatedUsers = await PortalDB.toggleFollowUser(userId, targetUserId);
+      setFollowData(function (prev) { return Object.assign({}, prev, { users: updatedUsers }); });
+      var wasFollowing = followData.users.indexOf(targetUserId) >= 0;
+      showToast(wasFollowing ? "Takipten çıkıldı" : "Takip edildi");
+    } catch (err) { console.error("Takip hatası:", err); }
+  };
+
+  var handleFollowTag = async function (tag) {
+    try {
+      var updatedTags = await PortalDB.toggleFollowTag(userId, tag);
+      setFollowData(function (prev) { return Object.assign({}, prev, { tags: updatedTags }); });
+      var wasFollowing = followData.tags.indexOf(tag) >= 0;
+      showToast(wasFollowing ? "Etiket takipten çıkıldı" : "Etiket takip edildi");
+    } catch (err) { console.error("Etiket takip hatası:", err); }
+  };
 
   var showToast = function (message, type) {
     var id = Date.now() + Math.random();
@@ -3154,6 +3529,19 @@ function OgrenciPortaliApp({ currentUser }) {
     setPosts(function (prev) { return [saved, ...prev]; });
     setShowNewPost(false);
     showToast("Gönderi başarıyla paylaşıldı!");
+    // Mention bildirimleri gönder
+    var mentions = extractMentions(postData.content);
+    mentions.forEach(function (mentionedName) {
+      var mentionedUser = allUsers.find(function (u) { return u.name.toLowerCase() === mentionedName.toLowerCase(); });
+      if (mentionedUser && mentionedUser.id !== userId) {
+        PortalDB.addNotification(mentionedUser.id, {
+          type: "mention",
+          message: (currentUser.name || "Birisi") + " sizi bir gönderide bahsetti: \"" + (postData.title || "Gönderi") + "\"",
+          postId: saved.id,
+          fromUser: currentUser.name,
+        });
+      }
+    });
   };
 
   // Reaksiyon
@@ -3301,6 +3689,21 @@ function OgrenciPortaliApp({ currentUser }) {
     if (sortMode === "bookmarked") {
       result = result.filter(function (p) { return bookmarks.indexOf(p.id) >= 0; });
     }
+    // Takip edilen akış filtresi
+    if (sortMode === "following") {
+      result = result.filter(function (p) {
+        // Takip edilen kullanıcıların gönderileri
+        if (followData.users.indexOf(p.authorId) >= 0) return true;
+        // Takip edilen etiketlerin gönderileri
+        var postTags = (p.tags || []).map(function (t) { return t.toLowerCase(); });
+        if (p.courseCode) postTags.push(p.courseCode.toLowerCase());
+        var followedTags = followData.tags.map(function (t) { return t.toLowerCase(); });
+        for (var i = 0; i < followedTags.length; i++) {
+          if (postTags.indexOf(followedTags[i]) >= 0) return true;
+        }
+        return false;
+      });
+    }
     // Sıralama
     if (sortMode === "popular") {
       result = [...result].sort(function (a, b) {
@@ -3314,7 +3717,7 @@ function OgrenciPortaliApp({ currentUser }) {
       });
     }
     return result;
-  }, [posts, searchQuery, sortMode, bookmarks, authorFilter, tagFilter, dateRange]);
+  }, [posts, searchQuery, sortMode, bookmarks, authorFilter, tagFilter, dateRange, followData]);
 
   // Sabitlenmiş gönderileri ayır
   var pinnedPosts = filteredPosts.filter(function (p) { return p.pinned; });
@@ -3482,6 +3885,7 @@ function OgrenciPortaliApp({ currentUser }) {
             {[
               { id: "newest", label: "En Yeni", icon: "clock" },
               { id: "popular", label: "En Popüler", icon: "trending" },
+              { id: "following", label: "Takip", icon: "heart" },
               { id: "comments", label: "En Çok Yorum", icon: "chat" },
               { id: "bookmarked", label: "Kaydedilenler", icon: "bookmark" },
             ].map(function (s) {
@@ -3559,6 +3963,7 @@ function OgrenciPortaliApp({ currentUser }) {
                 currentUser={currentUser}
                 onPost={handleNewPost}
                 onClose={function () { setShowNewPost(false); }}
+                allUsers={allUsers}
               />
             )}
 
@@ -3613,6 +4018,9 @@ function OgrenciPortaliApp({ currentUser }) {
                   onToggleBookmark={handleToggleBookmark}
                   onFilterAuthor={setAuthorFilter}
                   onFilterTag={setTagFilter}
+                  allUsers={allUsers}
+                  onFollowUser={handleFollowUser}
+                  followedUsers={followData.users}
                 />
               );
             })}
@@ -3636,6 +4044,9 @@ function OgrenciPortaliApp({ currentUser }) {
                   isAdmin={isAdmin}
                   onFilterAuthor={setAuthorFilter}
                   onFilterTag={setTagFilter}
+                  allUsers={allUsers}
+                  onFollowUser={handleFollowUser}
+                  followedUsers={followData.users}
                 />
               );
             })}
@@ -3651,7 +4062,8 @@ function OgrenciPortaliApp({ currentUser }) {
             <MobileSidebarToggle>
               <UserProfileCard currentUser={currentUser} posts={posts} />
               <TrendingSidebar posts={posts} />
-              <TagCloud posts={posts} onFilterTag={setTagFilter} activeTag={tagFilter.replace(/^#/, "")} />
+              <FollowingSidebar followData={followData} onFollowUser={handleFollowUser} onFollowTag={handleFollowTag} allUsers={allUsers} posts={posts} />
+              <TagCloud posts={posts} onFilterTag={setTagFilter} activeTag={tagFilter.replace(/^#/, "")} onFollowTag={handleFollowTag} followedTags={followData.tags} />
 
               <div style={{
                 background: "white", borderRadius: 16, padding: 20,
@@ -3684,7 +4096,8 @@ function OgrenciPortaliApp({ currentUser }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: 88 }}>
               <UserProfileCard currentUser={currentUser} posts={posts} />
               <TrendingSidebar posts={posts} />
-              <TagCloud posts={posts} onFilterTag={setTagFilter} activeTag={tagFilter.replace(/^#/, "")} />
+              <FollowingSidebar followData={followData} onFollowUser={handleFollowUser} onFollowTag={handleFollowTag} allUsers={allUsers} posts={posts} />
+              <TagCloud posts={posts} onFilterTag={setTagFilter} activeTag={tagFilter.replace(/^#/, "")} onFollowTag={handleFollowTag} followedTags={followData.tags} />
 
               <div style={{
                 background: "white", borderRadius: 16, padding: 20,
