@@ -355,6 +355,19 @@ const FirebaseDB = {
   examPeriodsRef: () => FirebaseDB.db()?.collection('exam_periods'),
   professorsRef: () => FirebaseDB.db()?.collection('professors'),
 
+  // Course Groups collections
+  courseGroupsRef: () => FirebaseDB.db()?.collection('course_groups'),
+  courseGroupPostsRef: () => FirebaseDB.db()?.collection('course_group_posts'),
+
+  // Survey collections
+  surveysRef: () => FirebaseDB.db()?.collection('surveys'),
+
+  // Event collections
+  eventsRef: () => FirebaseDB.db()?.collection('events'),
+
+  // Resource Library collections
+  resourcesRef: () => FirebaseDB.db()?.collection('resources'),
+
   // ── Erasmus Student CRUD ──
   async fetchStudents() {
     try {
