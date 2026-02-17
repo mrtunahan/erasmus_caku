@@ -111,6 +111,8 @@ var ICONS = {
   clock: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v6l4 2",
   trending: "M23 6l-9.5 9.5-5-5L1 18M17 6h6v6",
   daisy: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 2.09 3 4.5S13.66 14 12 14s-3-2.59-3-4.5S10.34 5 12 5z",
+  chevronUp: "M18 15l-6-6-6 6",
+  chevronDown: "M6 9l6 6 6-6",
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -128,12 +130,16 @@ const PORTAL_CATEGORIES = [
 ];
 
 const REACTION_TYPES = [
-  { id: "like", emoji: "\uD83D\uDC4D" },
-  { id: "love", emoji: "\u2764\uFE0F" },
-  { id: "haha", emoji: "\uD83D\uDE04" },
-  { id: "wow", emoji: "\uD83D\uDE2E" },
-  { id: "fire", emoji: "\uD83D\uDD25" },
-  { id: "clap", emoji: "\uD83D\uDC4F" },
+  { id: "like", emoji: "\uD83D\uDC4D", label: "Beğeni" },
+  { id: "love", emoji: "\u2764\uFE0F", label: "Sevgi" },
+  { id: "clap", emoji: "\uD83D\uDC4F", label: "Alkış" },
+  { id: "thanks", emoji: "\uD83D\uDE4F", label: "Teşekkür" },
+  { id: "question", emoji: "\u2753", label: "Soru" },
+  { id: "haha", emoji: "\uD83D\uDE04", label: "Komik" },
+  { id: "wow", emoji: "\uD83D\uDE2E", label: "Şaşkın" },
+  { id: "fire", emoji: "\uD83D\uDD25", label: "Ateş" },
+  { id: "idea", emoji: "\uD83D\uDCA1", label: "Fikir" },
+  { id: "hundred", emoji: "\uD83D\uDCAF", label: "Mükemmel" },
 ];
 
 const SINIF_TAGS = ["1. Sınıf", "2. Sınıf", "3. Sınıf", "4. Sınıf", "Yüksek Lisans", "Genel"];
@@ -310,6 +316,9 @@ var PortalDB = {
     var docRef = await ref.add(Object.assign({}, post, {
       createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
       reactions: {},
+      upvotes: [],
+      downvotes: [],
+      voteScore: 0,
       commentCount: 0,
       views: 0,
       pinned: false,
@@ -361,6 +370,44 @@ var PortalDB = {
     reactions[reactionType] = reactionList;
     await docRef.update({ reactions: reactions });
     return reactions;
+  },
+
+  // Yukarı/Aşağı Oy (Stack Overflow modeli)
+  async toggleVote(postId, voteType, userId) {
+    var ref = this.postsRef();
+    if (!ref) return;
+    var docRef = ref.doc(String(postId));
+    var doc = await docRef.get();
+    if (!doc.exists) return;
+    var data = doc.data();
+    var upvotes = data.upvotes || [];
+    var downvotes = data.downvotes || [];
+    var upIdx = upvotes.indexOf(userId);
+    var downIdx = downvotes.indexOf(userId);
+
+    if (voteType === "up") {
+      if (upIdx >= 0) {
+        // Zaten yukarı oy verdiyse, geri al
+        upvotes.splice(upIdx, 1);
+      } else {
+        // Aşağı oyu varsa kaldır, yukarı oy ekle
+        if (downIdx >= 0) downvotes.splice(downIdx, 1);
+        upvotes.push(userId);
+      }
+    } else if (voteType === "down") {
+      if (downIdx >= 0) {
+        // Zaten aşağı oy verdiyse, geri al
+        downvotes.splice(downIdx, 1);
+      } else {
+        // Yukarı oyu varsa kaldır, aşağı oy ekle
+        if (upIdx >= 0) upvotes.splice(upIdx, 1);
+        downvotes.push(userId);
+      }
+    }
+
+    var voteScore = upvotes.length - downvotes.length;
+    await docRef.update({ upvotes: upvotes, downvotes: downvotes, voteScore: voteScore });
+    return { upvotes: upvotes, downvotes: downvotes, voteScore: voteScore };
   },
 
   // Yorumlar
@@ -585,6 +632,10 @@ function getReactionTotal(reactions) {
   return total;
 }
 
+function getVoteScore(post) {
+  return (post.voteScore || 0) || ((post.upvotes || []).length - (post.downvotes || []).length);
+}
+
 function getUserId(currentUser) {
   return currentUser ? (currentUser.email || currentUser.name || "anon") : "anon";
 }
@@ -667,37 +718,107 @@ const CategoryBadge = ({ category, small }) => {
   );
 };
 
-// ── Reaction Bar ──
+// ── Oy Widget (Stack Overflow modeli) ──
+const VoteWidget = ({ post, userId, onVote }) => {
+  var upvotes = post.upvotes || [];
+  var downvotes = post.downvotes || [];
+  var score = getVoteScore(post);
+  var userUpvoted = upvotes.indexOf(userId) >= 0;
+  var userDownvoted = downvotes.indexOf(userId) >= 0;
+
+  return (
+    <div className="vote-widget" style={{
+      display: "flex", flexDirection: "column", alignItems: "center",
+      gap: 2, minWidth: 44, userSelect: "none",
+    }}>
+      <button
+        onClick={function () { onVote(post.id, "up"); }}
+        className={"vote-btn vote-up" + (userUpvoted ? " vote-active-up" : "")}
+        title="Yukarı Oy"
+        style={{
+          width: 36, height: 36, border: "none", borderRadius: 8,
+          background: userUpvoted ? "#DCFCE7" : "transparent",
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "all 0.2s",
+          color: userUpvoted ? "#16A34A" : PC.textMuted,
+        }}
+        onMouseEnter={function (e) { if (!userUpvoted) { e.currentTarget.style.background = "#F0FDF4"; e.currentTarget.style.color = "#16A34A"; } }}
+        onMouseLeave={function (e) { if (!userUpvoted) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = PC.textMuted; } }}
+      >
+        <SvgIcon path={ICONS.chevronUp} size={22} color="currentColor" strokeW={userUpvoted ? 3 : 2} />
+      </button>
+      <span className="vote-score" style={{
+        fontSize: 16, fontWeight: 800, lineHeight: 1.2,
+        color: score > 0 ? "#16A34A" : score < 0 ? "#DC2626" : PC.navy,
+        minWidth: 24, textAlign: "center",
+      }}>{score}</span>
+      <button
+        onClick={function () { onVote(post.id, "down"); }}
+        className={"vote-btn vote-down" + (userDownvoted ? " vote-active-down" : "")}
+        title="Aşağı Oy"
+        style={{
+          width: 36, height: 36, border: "none", borderRadius: 8,
+          background: userDownvoted ? "#FEE2E2" : "transparent",
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "all 0.2s",
+          color: userDownvoted ? "#DC2626" : PC.textMuted,
+        }}
+        onMouseEnter={function (e) { if (!userDownvoted) { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.color = "#DC2626"; } }}
+        onMouseLeave={function (e) { if (!userDownvoted) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = PC.textMuted; } }}
+      >
+        <SvgIcon path={ICONS.chevronDown} size={22} color="currentColor" strokeW={userDownvoted ? 3 : 2} />
+      </button>
+    </div>
+  );
+};
+
+// ── Reaction Bar (Gelişmiş Emoji Tepkileri) ──
 const ReactionBar = ({ reactions, postId, userId, onReact }) => {
   const [showPicker, setShowPicker] = useState(false);
+  const pickerRef = useRef(null);
 
   var totalCount = getReactionTotal(reactions);
 
+  // Dışarı tıklanınca picker'ı kapat
+  useEffect(function () {
+    if (!showPicker) return;
+    var handleClick = function (e) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) {
+        setShowPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return function () { document.removeEventListener("mousedown", handleClick); };
+  }, [showPicker]);
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative", flexWrap: "wrap" }}>
       <button
         onClick={function () { setShowPicker(!showPicker); }}
+        className="reaction-trigger-btn"
         style={{
           padding: "6px 12px", border: "1px solid " + PC.border,
           borderRadius: 20, background: "white", cursor: "pointer",
           fontSize: 13, display: "flex", alignItems: "center", gap: 6,
           transition: "all 0.2s",
         }}
-        onMouseEnter={function (e) { e.currentTarget.style.background = PC.bg; }}
-        onMouseLeave={function (e) { e.currentTarget.style.background = "white"; }}
+        onMouseEnter={function (e) { e.currentTarget.style.background = PC.bg; e.currentTarget.style.borderColor = DY.gold; }}
+        onMouseLeave={function (e) { e.currentTarget.style.background = "white"; e.currentTarget.style.borderColor = PC.border; }}
       >
-        <span>{"\uD83D\uDC4D"}</span>
-        {totalCount > 0 && <span style={{ fontWeight: 600, color: PC.navy }}>{totalCount}</span>}
+        <span style={{ fontSize: 16 }}>{showPicker ? "\u2715" : "\u{1F600}"}</span>
+        <span style={{ fontWeight: 500, color: PC.textMuted }}>Tepki</span>
+        {totalCount > 0 && <span style={{ fontWeight: 700, color: PC.navy, background: PC.bg, padding: "1px 7px", borderRadius: 10, fontSize: 11 }}>{totalCount}</span>}
       </button>
 
       {/* Emoji Picker */}
       {showPicker && (
-        <div style={{
-          position: "absolute", bottom: "100%", left: 0,
-          background: "white", borderRadius: 12, padding: 8,
-          boxShadow: "0 8px 30px rgba(0,0,0,0.15)",
-          display: "flex", gap: 4, zIndex: 100,
-          border: "1px solid " + PC.border,
+        <div ref={pickerRef} className="emoji-picker-popup" style={{
+          position: "absolute", bottom: "100%", left: 0, marginBottom: 6,
+          background: "white", borderRadius: 14, padding: "10px 8px",
+          boxShadow: "0 8px 30px rgba(0,0,0,0.18)",
+          display: "flex", flexWrap: "wrap", gap: 4, zIndex: 100,
+          border: "1px solid " + PC.border, maxWidth: 280,
+          animation: "fadeInUp 0.15s ease-out",
         }}>
           {REACTION_TYPES.map(function (r) {
             var count = (reactions && reactions[r.id]) ? reactions[r.id].length : 0;
@@ -709,25 +830,27 @@ const ReactionBar = ({ reactions, postId, userId, onReact }) => {
                   onReact(postId, r.id);
                   setShowPicker(false);
                 }}
+                title={r.label}
+                className="emoji-picker-item"
                 style={{
-                  padding: "6px 10px", border: isActive ? "2px solid " + PC.blue : "1px solid transparent",
-                  borderRadius: 8, background: isActive ? PC.blueLight : "transparent",
-                  cursor: "pointer", fontSize: 20, display: "flex",
+                  padding: "6px 8px", border: isActive ? "2px solid " + DY.gold : "1px solid transparent",
+                  borderRadius: 10, background: isActive ? DY.goldLight : "transparent",
+                  cursor: "pointer", fontSize: 22, display: "flex",
                   flexDirection: "column", alignItems: "center", gap: 2,
-                  transition: "transform 0.15s",
+                  transition: "all 0.15s", position: "relative",
                 }}
-                onMouseEnter={function (e) { e.currentTarget.style.transform = "scale(1.2)"; }}
-                onMouseLeave={function (e) { e.currentTarget.style.transform = "scale(1)"; }}
+                onMouseEnter={function (e) { e.currentTarget.style.transform = "scale(1.25)"; e.currentTarget.style.background = PC.bg; }}
+                onMouseLeave={function (e) { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.background = isActive ? DY.goldLight : "transparent"; }}
               >
                 {r.emoji}
-                {count > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: PC.navy }}>{count}</span>}
+                {count > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: DY.warm }}>{count}</span>}
               </button>
             );
           })}
         </div>
       )}
 
-      {/* Mevcut reaksiyonlar */}
+      {/* Mevcut reaksiyonlar (aktif olanlar) */}
       {reactions && Object.keys(reactions).map(function (key) {
         var arr = reactions[key] || [];
         if (arr.length === 0) return null;
@@ -738,14 +861,18 @@ const ReactionBar = ({ reactions, postId, userId, onReact }) => {
           <button
             key={key}
             onClick={function () { onReact(postId, key); }}
+            title={r.label + " (" + arr.length + ")"}
+            className={"reaction-chip" + (isActive ? " reaction-chip-active" : "")}
             style={{
-              padding: "4px 10px", border: isActive ? "1px solid " + PC.blue : "1px solid " + PC.border,
-              borderRadius: 16, background: isActive ? PC.blueLight : "white",
-              cursor: "pointer", fontSize: 14, display: "flex",
-              alignItems: "center", gap: 4,
+              padding: "4px 10px", border: isActive ? "1.5px solid " + DY.gold : "1px solid " + PC.border,
+              borderRadius: 16, background: isActive ? DY.goldLight : "white",
+              cursor: "pointer", fontSize: 15, display: "flex",
+              alignItems: "center", gap: 4, transition: "all 0.2s",
             }}
+            onMouseEnter={function (e) { e.currentTarget.style.transform = "scale(1.05)"; }}
+            onMouseLeave={function (e) { e.currentTarget.style.transform = "scale(1)"; }}
           >
-            {r.emoji} <span style={{ fontSize: 12, fontWeight: 600, color: PC.navy }}>{arr.length}</span>
+            {r.emoji} <span style={{ fontSize: 12, fontWeight: 700, color: isActive ? DY.warm : PC.navy }}>{arr.length}</span>
           </button>
         );
       })}
@@ -1552,7 +1679,7 @@ const RichTextEditor = ({ value, onChange, placeholder, onImageUpload }) => {
 };
 
 // ── Gönderi Kartı ──
-const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor, onFilterTag }) => {
+const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor, onFilterTag }) => {
   var cat = getCategoryInfo(post.category);
   var userId = getUserId(currentUser);
   var isAuthor = post.authorId === userId || currentUser.role === "admin";
@@ -1616,7 +1743,12 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
         </div>
       )}
 
-      <div style={{ padding: isMobile ? "16px" : "20px 24px" }}>
+      <div style={{ padding: isMobile ? "16px" : "20px 24px", display: "flex", gap: isMobile ? 10 : 16 }}>
+        {/* Sol: Oylama Widget */}
+        <VoteWidget post={post} userId={userId} onVote={onVotePost} />
+
+        {/* Sağ: İçerik */}
+        <div style={{ flex: 1, minWidth: 0 }}>
         {/* Üst kısım: avatar + yazar + zaman + kategori */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
           <Avatar name={post.authorName} />
@@ -1675,9 +1807,14 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
                 })}
               </div>
             )}
-            <div style={{ fontSize: 12, color: PC.textMuted, marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: PC.textMuted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
               {timeAgo(post.createdAt)}
               {post.views > 0 && <span> · {post.views} görüntülenme</span>}
+              {getVoteScore(post) !== 0 && (
+                <span style={{ color: getVoteScore(post) > 0 ? "#16A34A" : "#DC2626", fontWeight: 600 }}>
+                  {" · "}{getVoteScore(post) > 0 ? "+" : ""}{getVoteScore(post)} oy
+                </span>
+              )}
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -1966,6 +2103,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onDelete, onEdit, onTogg
             </button>
           )}
         </div>
+        </div>{/* /Sağ: İçerik */}
       </div>
     </div>
   );
@@ -2407,7 +2545,7 @@ const TrendingSidebar = ({ posts }) => {
   // En çok etkileşim alan 5 gönderi
   var trending = [...posts]
     .map(function (p) {
-      return Object.assign({}, p, { engagement: getReactionTotal(p.reactions) + (p.commentCount || 0) + (p.views || 0) });
+      return Object.assign({}, p, { engagement: getVoteScore(p) * 3 + getReactionTotal(p.reactions) + (p.commentCount || 0) + (p.views || 0) });
     })
     .sort(function (a, b) { return b.engagement - a.engagement; })
     .slice(0, 5);
@@ -2437,8 +2575,11 @@ const TrendingSidebar = ({ posts }) => {
                 <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy, lineHeight: 1.4 }}>
                   {p.title || (p.contentFormat === "html" ? stripHtmlTags(p.content).substring(0, 50) : (p.content || "").substring(0, 50)) + "..."}
                 </div>
-                <div style={{ fontSize: 11, color: PC.textMuted, marginTop: 4 }}>
-                  {getReactionTotal(p.reactions)} tepki · {p.commentCount || 0} yorum
+                <div style={{ fontSize: 11, color: PC.textMuted, marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: getVoteScore(p) > 0 ? "#16A34A" : getVoteScore(p) < 0 ? "#DC2626" : PC.textMuted, fontWeight: 600 }}>
+                    {getVoteScore(p) > 0 ? "+" : ""}{getVoteScore(p)} oy
+                  </span>
+                  · {getReactionTotal(p.reactions)} tepki · {p.commentCount || 0} yorum
                 </div>
               </div>
             </div>
@@ -2646,7 +2787,8 @@ const UserProfileCard = ({ currentUser, posts }) => {
   var userId = getUserId(currentUser);
   var userPosts = posts.filter(function (p) { return p.authorId === userId; });
   var totalReactions = 0;
-  userPosts.forEach(function (p) { totalReactions += getReactionTotal(p.reactions); });
+  var totalVoteScore = 0;
+  userPosts.forEach(function (p) { totalReactions += getReactionTotal(p.reactions); totalVoteScore += getVoteScore(p); });
   return (
     <div className="daisy-card" style={{ padding: 20, marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
@@ -2656,15 +2798,16 @@ const UserProfileCard = ({ currentUser, posts }) => {
           <div style={{ fontSize: 12, color: PC.textMuted }}>{currentUser.email || ""}</div>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
         {[
           { v: userPosts.length, l: "Gönderi" },
+          { v: totalVoteScore, l: "Oy Puanı", color: totalVoteScore > 0 ? "#16A34A" : totalVoteScore < 0 ? "#DC2626" : undefined },
           { v: totalReactions, l: "Tepki" },
           { v: userPosts.reduce(function (s, p) { return s + (p.commentCount || 0); }, 0), l: "Yorum" },
         ].map(function (item) {
           return (
             <div key={item.l} style={{ textAlign: "center", padding: "8px 0", background: DY.warmLight, borderRadius: 8 }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: DY.warm }}>{item.v}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: item.color || DY.warm }}>{item.v}</div>
               <div style={{ fontSize: 10, color: PC.textMuted }}>{item.l}</div>
             </div>
           );
@@ -3028,6 +3171,21 @@ function OgrenciPortaliApp({ currentUser }) {
     }
   };
 
+  // Gönderi oyu (yukarı/aşağı)
+  const handleVotePost = async function (postId, voteType) {
+    var userId = getUserId(currentUser);
+    try {
+      var result = await PortalDB.toggleVote(postId, voteType, userId);
+      setPosts(function (prev) {
+        return prev.map(function (p) {
+          return p.id === postId ? Object.assign({}, p, result) : p;
+        });
+      });
+    } catch (err) {
+      console.error("Oy hatası:", err);
+    }
+  };
+
   // Anket oyu
   const handleVote = async function (postId, optionIndex) {
     var userId = getUserId(currentUser);
@@ -3146,7 +3304,9 @@ function OgrenciPortaliApp({ currentUser }) {
     // Sıralama
     if (sortMode === "popular") {
       result = [...result].sort(function (a, b) {
-        return (getReactionTotal(b.reactions) + (b.views || 0)) - (getReactionTotal(a.reactions) + (a.views || 0));
+        var scoreA = getVoteScore(a) * 3 + getReactionTotal(a.reactions) + (a.views || 0) * 0.1;
+        var scoreB = getVoteScore(b) * 3 + getReactionTotal(b.reactions) + (b.views || 0) * 0.1;
+        return scoreB - scoreA;
       });
     } else if (sortMode === "comments") {
       result = [...result].sort(function (a, b) {
@@ -3320,10 +3480,10 @@ function OgrenciPortaliApp({ currentUser }) {
             WebkitOverflowScrolling: "touch",
           }}>
             {[
-              { id: "newest", label: "En Yeni" },
-              { id: "popular", label: "En Popüler" },
-              { id: "comments", label: "En Çok Yorum" },
-              { id: "bookmarked", label: "Kaydedilenler" },
+              { id: "newest", label: "En Yeni", icon: "clock" },
+              { id: "popular", label: "En Popüler", icon: "trending" },
+              { id: "comments", label: "En Çok Yorum", icon: "chat" },
+              { id: "bookmarked", label: "Kaydedilenler", icon: "bookmark" },
             ].map(function (s) {
               var isActive = sortMode === s.id;
               return (
@@ -3338,8 +3498,9 @@ function OgrenciPortaliApp({ currentUser }) {
                     color: isActive ? PC.navy : PC.textMuted,
                     boxShadow: isActive ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
                     transition: "all 0.2s",
+                    display: "flex", alignItems: "center", gap: 5,
                   }}
-                >{s.label}</button>
+                ><SvgIcon path={ICONS[s.icon]} size={13} color={isActive ? DY.gold : PC.textMuted} />{s.label}</button>
               );
             })}
           </div>
@@ -3444,6 +3605,7 @@ function OgrenciPortaliApp({ currentUser }) {
                   currentUser={currentUser}
                   onReact={handleReact}
                   onVote={handleVote}
+                  onVotePost={handleVotePost}
                   onDelete={handleDelete}
                   onEdit={handleEdit}
                   onTogglePin={handleTogglePin}
@@ -3465,6 +3627,7 @@ function OgrenciPortaliApp({ currentUser }) {
                   currentUser={currentUser}
                   onReact={handleReact}
                   onVote={handleVote}
+                  onVotePost={handleVotePost}
                   onDelete={handleDelete}
                   onEdit={handleEdit}
                   onTogglePin={handleTogglePin}
