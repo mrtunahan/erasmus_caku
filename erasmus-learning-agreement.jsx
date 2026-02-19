@@ -277,11 +277,28 @@ const CourseMatchCard = ({ match, onDelete, onEdit, showGrade, type, readOnly = 
           <div style={{ fontSize: 13, fontWeight: 600, color: C.green, marginTop: 8 }}>Toplam: {hostTotal} AKTS</div>
         </div>
         {showGrade && (
-          <div style={{ background: C.card, padding: "12px 16px", borderRadius: 8, border: `2px solid ${C.navy}`, textAlign: "center", minWidth: 120 }}>
+          <div style={{ background: C.card, padding: "12px 16px", borderRadius: 8, border: `2px solid ${C.navy}`, textAlign: "center", minWidth: 140 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", marginBottom: 4 }}>Notlar</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif" }}>
-              {match.hostGrade || "A"} → {match.homeGrade || "Muaf"}
-            </div>
+            {match.hostGrades && Object.keys(match.hostGrades).length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {match.hostCourses.map((hc, idx) => {
+                  const hGrade = match.hostGrades?.[idx] || match.hostGrade || "A";
+                  const hmGrade = match.homeGrades?.[idx] || match.homeGrade || "Muaf";
+                  return (
+                    <div key={idx}>
+                      <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>{hc.code}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif" }}>
+                        {hGrade} → {hmGrade}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif" }}>
+                {match.hostGrade || "A"} → {match.homeGrade || "Muaf"}
+              </div>
+            )}
             <div style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>Karşı → Kendi</div>
           </div>
         )}
@@ -355,19 +372,58 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
       {type === "return" && (
         <div style={{ marginTop: 24, padding: 20, background: C.goldPale, borderRadius: 10, border: `1px solid ${C.goldLight}` }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: C.navy, marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.05em" }}>Not Bilgileri</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <FormField label="Karşı Kurumdan Alinan Not">
-              <Input value={editedMatch.hostGrade || ""} onChange={e => setEditedMatch(prev => ({ ...prev, hostGrade: e.target.value }))} placeholder="A, B+, 85, vb." />
-              {editedMatch.hostGrade && (
-                <div style={{ marginTop: 8, padding: 8, background: '#fffacd', borderRadius: 6, fontSize: 12, fontWeight: 600, color: C.navy, border: '2px solid #ffd700' }}>
-                  Donusum: <strong>{convertGrade(editedMatch.hostGrade)}</strong>
-                </div>
-              )}
-            </FormField>
-            <FormField label="Kendi Kurumumuzdaki Karsilik">
-              <Input value={editedMatch.homeGrade || "Muaf"} onChange={e => setEditedMatch(prev => ({ ...prev, homeGrade: e.target.value }))} placeholder="Muaf, AA, BB, vb." />
-            </FormField>
-          </div>
+          {editedMatch.hostCourses.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {editedMatch.hostCourses.map((course, idx) => {
+                const gradeKey = `hostGrade_${idx}`;
+                const gradeVal = editedMatch.hostGrades?.[idx] ?? editedMatch.hostGrade ?? "";
+                return (
+                  <div key={idx} style={{ padding: 14, background: "rgba(255,255,255,0.7)", borderRadius: 8, border: `1px solid ${C.goldLight}` }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.navy, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ background: C.greenLight, color: C.green, padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>{course.code}</span>
+                      <span>{course.name}</span>
+                      <span style={{ color: C.textMuted, fontSize: 11 }}>({course.credits} AKTS)</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <FormField label={`Karşı Kurumdan Alinan Not`}>
+                        <Input value={gradeVal} onChange={e => {
+                          const newGrades = { ...(editedMatch.hostGrades || {}) };
+                          newGrades[idx] = e.target.value;
+                          setEditedMatch(prev => ({ ...prev, hostGrades: newGrades }));
+                        }} placeholder="A, B+, 85, vb." />
+                        {gradeVal && (
+                          <div style={{ marginTop: 6, padding: 6, background: '#fffacd', borderRadius: 6, fontSize: 11, fontWeight: 600, color: C.navy, border: '2px solid #ffd700' }}>
+                            Donusum: <strong>{convertGrade(gradeVal)}</strong>
+                          </div>
+                        )}
+                      </FormField>
+                      <FormField label={`Kendi Kurumumuzdaki Karsilik`}>
+                        <Input value={editedMatch.homeGrades?.[idx] ?? editedMatch.homeGrade ?? "Muaf"} onChange={e => {
+                          const newGrades = { ...(editedMatch.homeGrades || {}) };
+                          newGrades[idx] = e.target.value;
+                          setEditedMatch(prev => ({ ...prev, homeGrades: newGrades }));
+                        }} placeholder="Muaf, AA, BB, vb." />
+                      </FormField>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <FormField label="Karşı Kurumdan Alinan Not">
+                <Input value={editedMatch.hostGrade || ""} onChange={e => setEditedMatch(prev => ({ ...prev, hostGrade: e.target.value }))} placeholder="A, B+, 85, vb." />
+                {editedMatch.hostGrade && (
+                  <div style={{ marginTop: 8, padding: 8, background: '#fffacd', borderRadius: 6, fontSize: 12, fontWeight: 600, color: C.navy, border: '2px solid #ffd700' }}>
+                    Donusum: <strong>{convertGrade(editedMatch.hostGrade)}</strong>
+                  </div>
+                )}
+              </FormField>
+              <FormField label="Kendi Kurumumuzdaki Karsilik">
+                <Input value={editedMatch.homeGrade || "Muaf"} onChange={e => setEditedMatch(prev => ({ ...prev, homeGrade: e.target.value }))} placeholder="Muaf, AA, BB, vb." />
+              </FormField>
+            </div>
+          )}
         </div>
       )}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
@@ -535,13 +591,15 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
   const updateStudent = (field, value) => setEditedStudent(prev => ({ ...prev, [field]: value }));
 
   const addMatch = (type) => {
-    const newMatch = { id: `${type}${Date.now()}`, homeCourses: [], hostCourses: [], ...(type === "return" ? { hostGrade: "", homeGrade: "Muaf" } : {}) };
+    const newMatch = { id: `${type}${Date.now()}`, homeCourses: [], hostCourses: [], ...(type === "return" ? { hostGrade: "", homeGrade: "Muaf", hostGrades: {}, homeGrades: {} } : {}) };
     setEditedStudent(prev => ({ ...prev, [`${type}Matches`]: [...prev[`${type}Matches`], newMatch] }));
     setEditingMatch({ type, match: newMatch });
   };
 
   const copyFromOutgoing = (outgoingMatch) => {
-    const newReturnMatch = { id: `return${Date.now()}`, homeCourses: JSON.parse(JSON.stringify(outgoingMatch.homeCourses)), hostCourses: JSON.parse(JSON.stringify(outgoingMatch.hostCourses)), hostGrade: "A", homeGrade: "Muaf" };
+    const hostGrades = {}; const homeGrades = {};
+    outgoingMatch.hostCourses.forEach((_, idx) => { hostGrades[idx] = "A"; homeGrades[idx] = "Muaf"; });
+    const newReturnMatch = { id: `return${Date.now()}`, homeCourses: JSON.parse(JSON.stringify(outgoingMatch.homeCourses)), hostCourses: JSON.parse(JSON.stringify(outgoingMatch.hostCourses)), hostGrade: "A", homeGrade: "Muaf", hostGrades, homeGrades };
     setEditedStudent(prev => ({ ...prev, returnMatches: [...prev.returnMatches, newReturnMatch] }));
   };
 
@@ -556,8 +614,8 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
       })),
       "Dönüş Eşleştirmeleri": editedStudent.returnMatches.map(m => ({
         "Kendi Derslerimiz": m.homeCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
-        "Karşı Kurum Dersleri": m.hostCourses.map(c => `${c.code} - ${c.name} (${c.credits} AKTS)`).join(" | "),
-        "Not": m.grade, "Puan": m.gradePoints,
+        "Karşı Kurum Dersleri": m.hostCourses.map((c, idx) => `${c.code} - ${c.name} (${c.credits} AKTS) [Not: ${m.hostGrades?.[idx] || m.hostGrade || ""}]`).join(" | "),
+        "Notlar": m.hostGrades || { 0: m.hostGrade || "" },
       })),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -775,8 +833,15 @@ const generateReturnWordDoc = (student) => {
   // Build rows: use rowspan when one course matches multiple on the other side
   const rows = [];
   student.returnMatches.forEach(match => {
-    const originalHostGrade = match.hostGrade || 'A';
-    const converted = convertGrade(originalHostGrade);
+    // Per-course grades: use hostGrades/homeGrades objects if available, else fall back to single hostGrade/homeGrade
+    const getHostGrade = (idx) => match.hostGrades?.[idx] || match.hostGrade || 'A';
+    const getHomeGrade = (idx) => {
+      const hg = match.homeGrades?.[idx] || match.homeGrade || 'Muaf';
+      // If homeGrade looks like a conversion target, use it; otherwise convert from host
+      return hg;
+    };
+    const getConvertedGrade = (idx) => convertGrade(getHostGrade(idx));
+
     const hostLen = match.hostCourses.length;
     const homeLen = match.homeCourses.length;
     const maxLen = Math.max(hostLen, homeLen);
@@ -784,17 +849,19 @@ const generateReturnWordDoc = (student) => {
     for (let i = 0; i < maxLen; i++) {
       let hostCells = '';
       let homeCells = '';
+      const hostGradeForRow = getHostGrade(i);
+      const convertedForRow = getConvertedGrade(i);
       // Host side (4 cols: Kodu, Adı, AKTS, Başarı Notu)
       if (hostLen === 1 && homeLen > 1) {
-        if (i === 0) { const hc = match.hostCourses[0]; hostCells = `<td rowspan='${homeLen}' style='${bd} vertical-align: middle;'>${hc.code || '-'}</td><td rowspan='${homeLen}' style='${bd} vertical-align: middle;'>${hc.name}</td><td rowspan='${homeLen}' style='${bd} text-align: center; vertical-align: middle;'>${hc.credits}</td><td rowspan='${homeLen}' style='${bd} text-align: center; vertical-align: middle;'>${originalHostGrade}</td>`; }
+        if (i === 0) { const hc = match.hostCourses[0]; hostCells = `<td rowspan='${homeLen}' style='${bd} vertical-align: middle;'>${hc.code || '-'}</td><td rowspan='${homeLen}' style='${bd} vertical-align: middle;'>${hc.name}</td><td rowspan='${homeLen}' style='${bd} text-align: center; vertical-align: middle;'>${hc.credits}</td><td rowspan='${homeLen}' style='${bd} text-align: center; vertical-align: middle;'>${hostGradeForRow}</td>`; }
       } else {
-        const hc = match.hostCourses[i]; hostCells = `<td style='${bd}'>${hc ? (hc.code || '-') : ''}</td><td style='${bd}'>${hc ? hc.name : ''}</td><td style='${bd} text-align: center;'>${hc ? hc.credits : ''}</td><td style='${bd} text-align: center;'>${hc ? originalHostGrade : ''}</td>`;
+        const hc = match.hostCourses[i]; hostCells = `<td style='${bd}'>${hc ? (hc.code || '-') : ''}</td><td style='${bd}'>${hc ? hc.name : ''}</td><td style='${bd} text-align: center;'>${hc ? hc.credits : ''}</td><td style='${bd} text-align: center;'>${hc ? hostGradeForRow : ''}</td>`;
       }
       // Home side (5 cols: Kodu, Adı, AKTS, Başarı Notu, Statüsü)
       if (homeLen === 1 && hostLen > 1) {
-        if (i === 0) { const mc = match.homeCourses[0]; homeCells = `<td rowspan='${hostLen}' style='${bd} vertical-align: middle;'>${mc.code || '-'}</td><td rowspan='${hostLen}' style='${bd} vertical-align: middle;'>${mc.name}</td><td rowspan='${hostLen}' style='${bd} text-align: center; vertical-align: middle;'>${mc.credits}</td><td rowspan='${hostLen}' style='${bd} text-align: center; vertical-align: middle;'>${converted}</td><td rowspan='${hostLen}' style='${bd} text-align: center; vertical-align: middle;'>${getStatus(mc)}</td>`; }
+        if (i === 0) { const mc = match.homeCourses[0]; homeCells = `<td rowspan='${hostLen}' style='${bd} vertical-align: middle;'>${mc.code || '-'}</td><td rowspan='${hostLen}' style='${bd} vertical-align: middle;'>${mc.name}</td><td rowspan='${hostLen}' style='${bd} text-align: center; vertical-align: middle;'>${mc.credits}</td><td rowspan='${hostLen}' style='${bd} text-align: center; vertical-align: middle;'>${convertedForRow}</td><td rowspan='${hostLen}' style='${bd} text-align: center; vertical-align: middle;'>${getStatus(mc)}</td>`; }
       } else {
-        const mc = match.homeCourses[i]; homeCells = `<td style='${bd}'>${mc ? (mc.code || '-') : ''}</td><td style='${bd}'>${mc ? mc.name : ''}</td><td style='${bd} text-align: center;'>${mc ? mc.credits : ''}</td><td style='${bd} text-align: center;'>${mc ? converted : ''}</td><td style='${bd} text-align: center;'>${getStatus(mc)}</td>`;
+        const mc = match.homeCourses[i]; homeCells = `<td style='${bd}'>${mc ? (mc.code || '-') : ''}</td><td style='${bd}'>${mc ? mc.name : ''}</td><td style='${bd} text-align: center;'>${mc ? mc.credits : ''}</td><td style='${bd} text-align: center;'>${mc ? convertedForRow : ''}</td><td style='${bd} text-align: center;'>${getStatus(mc)}</td>`;
       }
       rows.push(`<tr>${hostCells}${homeCells}</tr>`);
     }
