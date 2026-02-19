@@ -493,6 +493,116 @@ const CourseCatalogModal = ({ university, onClose, onSelect }) => {
   );
 };
 
+// ── Institution Matches Modal (Önceki Eşleştirmelerden Seç) ──
+const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentId, onClose, onSelect, matchType = "outgoing" }) => {
+  const [selectedMatches, setSelectedMatches] = useState([]);
+
+  // Collect unique matches from all students at the same institution
+  const institutionMatches = [];
+  const seen = new Set();
+  allStudents.forEach(s => {
+    if (s.id === currentStudentId) return;
+    if (s.hostInstitution !== hostInstitution) return;
+    const matches = matchType === "outgoing" ? (s.outgoingMatches || []) : (s.returnMatches || []);
+    matches.forEach(m => {
+      const key = JSON.stringify({ home: m.homeCourses.map(c => c.code).sort(), host: m.hostCourses.map(c => c.code).sort() });
+      if (!seen.has(key) && m.homeCourses.length > 0 && m.hostCourses.length > 0) {
+        seen.add(key);
+        institutionMatches.push({ ...m, fromStudent: `${s.firstName} ${s.lastName}` });
+      }
+    });
+  });
+
+  const toggleMatch = (match) => {
+    const key = JSON.stringify({ home: match.homeCourses.map(c => c.code).sort(), host: match.hostCourses.map(c => c.code).sort() });
+    setSelectedMatches(prev => {
+      const exists = prev.find(p => JSON.stringify({ home: p.homeCourses.map(c => c.code).sort(), host: p.hostCourses.map(c => c.code).sort() }) === key);
+      return exists ? prev.filter(p => JSON.stringify({ home: p.homeCourses.map(c => c.code).sort(), host: p.hostCourses.map(c => c.code).sort() }) !== key) : [...prev, match];
+    });
+  };
+
+  const isSelected = (match) => {
+    const key = JSON.stringify({ home: match.homeCourses.map(c => c.code).sort(), host: match.hostCourses.map(c => c.code).sort() });
+    return selectedMatches.some(p => JSON.stringify({ home: p.homeCourses.map(c => c.code).sort(), host: p.hostCourses.map(c => c.code).sort() }) === key);
+  };
+
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10001, padding: 20 }}>
+      <div style={{ background: C.card, borderRadius: 16, maxWidth: 950, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+        <div style={{ padding: 24, borderBottom: `2px solid ${C.border}` }}>
+          <h3 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 6 }}>
+            Onceki Eslestirmelerden Sec
+          </h3>
+          <p style={{ margin: 0, color: C.textMuted, fontSize: 14 }}>
+            {hostInstitution} icin daha once yapilmis {matchType === "outgoing" ? "gidis" : "donus"} eslestirmeleri
+          </p>
+          {institutionMatches.length === 0 && (
+            <div style={{ marginTop: 16, padding: 16, background: "#FFF9E6", border: "2px dashed #FDB022", borderRadius: 10, color: C.navy, fontSize: 14, textAlign: "center" }}>
+              Bu kurum icin daha once yapilmis eslestirme bulunamadi.
+            </div>
+          )}
+        </div>
+        {institutionMatches.length > 0 && (
+          <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {institutionMatches.map((match, idx) => {
+                const selected = isSelected(match);
+                return (
+                  <div key={idx} onClick={() => toggleMatch(match)} style={{ padding: 16, border: `2px solid ${selected ? C.green : C.border}`, borderRadius: 12, cursor: "pointer", background: selected ? C.greenLight : "white", transition: "all 0.2s" }}>
+                    <div style={{ display: "flex", alignItems: "start", gap: 12 }}>
+                      <div style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${selected ? C.green : C.border}`, background: selected ? C.green : "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                        {selected && <div style={{ color: "white", fontSize: 14, fontWeight: 700 }}>✓</div>}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", gap: 16, alignItems: "start", marginBottom: 8 }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: C.navy, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>Kendi Kurumumuz</div>
+                            {match.homeCourses.map((c, ci) => (
+                              <div key={ci} style={{ fontSize: 13, marginBottom: 2 }}>
+                                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{c.code}</span>
+                                {" "}<span style={{ fontWeight: 500 }}>{c.name}</span>
+                                <span style={{ color: C.textMuted, fontSize: 11 }}> ({c.credits} AKTS)</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ color: C.gold, flexShrink: 0, paddingTop: 16 }}><ArrowRightIcon /></div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>Karsi Kurum</div>
+                            {match.hostCourses.map((c, ci) => (
+                              <div key={ci} style={{ fontSize: 13, marginBottom: 2 }}>
+                                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{c.code}</span>
+                                {" "}<span style={{ fontWeight: 500 }}>{c.name}</span>
+                                <span style={{ color: C.textMuted, fontSize: 11 }}> ({c.credits} AKTS)</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 11, color: C.textMuted, fontStyle: "italic" }}>Kaynak: {match.fromStudent}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <div style={{ padding: 24, borderTop: `2px solid ${C.border}`, background: C.bg }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 14, color: C.textMuted }}>Secili: <strong>{selectedMatches.length}</strong> eslestirme</div>
+            <div style={{ fontSize: 14, color: C.navy, fontWeight: 600 }}>Toplam: <strong>{institutionMatches.length}</strong> mevcut eslestirme</div>
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <Btn onClick={onClose} variant="secondary">Iptal</Btn>
+            <Btn onClick={() => selectedMatches.length > 0 && onSelect(selectedMatches)} disabled={selectedMatches.length === 0}>
+              {selectedMatches.length} Eslestirme Ekle
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Home Institution Catalog Modal ──
 const HomeInstitutionCatalogModal = ({ onClose, onSelect }) => {
   const [selectedCourses, setSelectedCourses] = useState([]);
@@ -575,11 +685,12 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect }) => {
 };
 
 // ── Student Detail Modal ──
-const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
+const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStudents = [] }) => {
   const [editedStudent, setEditedStudent] = useState(student);
   const [activeTab, setActiveTab] = useState("outgoing");
   const [editingMatch, setEditingMatch] = useState(null);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [showInstitutionMatches, setShowInstitutionMatches] = useState(false);
 
   const generateSemesters = () => {
     const semesters = [];
@@ -680,20 +791,31 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
             {editedStudent.hostInstitution && UNIVERSITY_CATALOGS[editedStudent.hostInstitution] && (
               <div style={{ padding: 16, background: "#E3F2FD", border: "2px solid #2196F3", borderRadius: 12, marginBottom: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: "#1565C0", marginBottom: 12 }}>{editedStudent.hostInstitution} Ders Kataloğu</div>
-                {!readOnly && <Btn onClick={() => setShowCatalogModal(true)} variant="secondary" icon={<PlusIcon />}>Katalogdan Ders Seç ve Ekle</Btn>}
+                {!readOnly && (
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <Btn onClick={() => setShowCatalogModal(true)} variant="secondary" icon={<PlusIcon />}>Katalogdan Ders Sec ve Ekle</Btn>
+                    <Btn onClick={() => setShowInstitutionMatches("outgoing")} variant="secondary" icon={<FileTextIcon />}>Onceki Eslestirmelerden Sec</Btn>
+                  </div>
+                )}
               </div>
             )}
             {editedStudent.outgoingMatches.map(match => (
               <CourseMatchCard key={match.id} match={match} onDelete={id => deleteMatch("outgoing", id)} onEdit={m => setEditingMatch({ type: "outgoing", match: m })} showGrade={false} type="outgoing" readOnly={readOnly} />
             ))}
-            {!readOnly && <Btn onClick={() => addMatch("outgoing")} variant="secondary" icon={<PlusIcon />}>Manuel Eşleştirme Ekle</Btn>}
+            {!readOnly && <Btn onClick={() => addMatch("outgoing")} variant="secondary" icon={<PlusIcon />}>Manuel Eslestirme Ekle</Btn>}
           </>
         )}
         {activeTab === "return" && (
           <>
+            {!readOnly && editedStudent.hostInstitution && (
+              <div style={{ padding: 16, background: "#E8F5E9", border: "2px solid #4CAF50", borderRadius: 12, marginBottom: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#2E7D32", marginBottom: 12 }}>Onceki Donus Eslestirmeleri</div>
+                <Btn onClick={() => setShowInstitutionMatches("return")} variant="secondary" icon={<FileTextIcon />}>Onceki Eslestirmelerden Sec</Btn>
+              </div>
+            )}
             {!readOnly && editedStudent.outgoingMatches.length > 0 && (
               <div style={{ padding: 20, background: "#FFF9E6", border: "2px dashed #FDB022", borderRadius: 12, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 12 }}>Gidiş Eşleştirmelerinden Hızlı Doldur</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 12 }}>Gidis Eslestirmelerinden Hizli Doldur</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                   {editedStudent.outgoingMatches.map((outMatch, idx) => {
                     const alreadyExists = editedStudent.returnMatches.some(retMatch => JSON.stringify(retMatch.homeCourses) === JSON.stringify(outMatch.homeCourses) && JSON.stringify(retMatch.hostCourses) === JSON.stringify(outMatch.hostCourses));
@@ -731,6 +853,29 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false }) => {
       {showCatalogModal && (
         <CourseCatalogModal university={editedStudent.hostInstitution} onClose={() => setShowCatalogModal(false)}
           onSelect={hostCourses => { const newMatch = { id: `outgoing${Date.now()}`, homeCourses: [], hostCourses }; setEditedStudent(prev => ({ ...prev, outgoingMatches: [...prev.outgoingMatches, newMatch] })); setShowCatalogModal(false); setEditingMatch({ type: "outgoing", match: newMatch }); }} />
+      )}
+      {showInstitutionMatches && (
+        <InstitutionMatchesModal
+          hostInstitution={editedStudent.hostInstitution}
+          allStudents={allStudents}
+          currentStudentId={editedStudent.id}
+          matchType={showInstitutionMatches}
+          onClose={() => setShowInstitutionMatches(false)}
+          onSelect={(matches) => {
+            const type = showInstitutionMatches;
+            const newMatches = matches.map(m => {
+              const base = { id: `${type}${Date.now()}${Math.random().toString(36).substr(2, 5)}`, homeCourses: JSON.parse(JSON.stringify(m.homeCourses)), hostCourses: JSON.parse(JSON.stringify(m.hostCourses)) };
+              if (type === "return") {
+                const hostGrades = {}; const homeGrades = {};
+                m.hostCourses.forEach((_, idx) => { hostGrades[idx] = m.hostGrades?.[idx] || m.hostGrade || ""; homeGrades[idx] = m.homeGrades?.[idx] || m.homeGrade || "Muaf"; });
+                return { ...base, hostGrade: m.hostGrade || "", homeGrade: m.homeGrade || "Muaf", hostGrades, homeGrades };
+              }
+              return base;
+            });
+            setEditedStudent(prev => ({ ...prev, [`${type}Matches`]: [...prev[`${type}Matches`], ...newMatches] }));
+            setShowInstitutionMatches(false);
+          }}
+        />
       )}
     </Modal>
   );
@@ -1111,7 +1256,7 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         </Card>
 
         {selectedStudent && (
-          <StudentDetailModal student={selectedStudent} onClose={() => setSelectedStudent(null)} onSave={handleSaveStudent} readOnly={!canEdit(selectedStudent)} />
+          <StudentDetailModal student={selectedStudent} onClose={() => setSelectedStudent(null)} onSave={handleSaveStudent} readOnly={!canEdit(selectedStudent)} allStudents={students} />
         )}
         {showPasswordModal && currentUser?.role === 'admin' && (
           <PasswordManagementModal students={students} onClose={() => setShowPasswordModal(false)} />
