@@ -45,7 +45,6 @@ const NAV_ITEMS = [
   { id: "gruplar", label: "Ders Grupları", icon: "M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" },
   { id: "anketler", label: "Anketler", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
   { id: "takvim", label: "Etkinlik Takvimi", icon: "M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zM16 2v4M8 2v4M3 10h18" },
-  { id: "kutuphane", label: "Kaynak Kütüphanesi", icon: "M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" },
 ];
 
 // ── Navigation Bar ──
@@ -250,7 +249,6 @@ function AppShell() {
       gruplar: window.DersGruplariApp,
       anketler: window.AnketModuluApp,
       takvim: window.EtkinlikTakvimiApp,
-      kutuphane: window.KaynakKutuphanesiApp,
     };
 
     // Safety check for rendering availability
