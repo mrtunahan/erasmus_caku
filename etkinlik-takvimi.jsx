@@ -169,6 +169,9 @@ function EtkinlikTakvimiApp({ currentUser }) {
       setEvents(prev => prev.map(e =>
         e.id === event.id ? { ...e, attendees: updatedAttendees, attendeeCount: updatedAttendees.length } : e
       ));
+      if (selectedEvent?.id === event.id) {
+        setSelectedEvent(prev => ({ ...prev, attendees: updatedAttendees, attendeeCount: updatedAttendees.length }));
+      }
     } catch (e) {
       console.error("Katilim hatasi:", e);
     }
@@ -229,7 +232,10 @@ function EtkinlikTakvimiApp({ currentUser }) {
   }, [currentDate]);
 
   const getEventsForDate = (date) => {
-    const dateStr = date.toISOString().split("T")[0];
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
     return events.filter(e => e.date === dateStr);
   };
 
@@ -391,7 +397,6 @@ function EtkinlikTakvimiApp({ currentUser }) {
                     >
                       <div style={{
                         fontSize: 13, fontWeight: today ? 700 : 500,
-                        color: today ? ETK.primary : ETK.text,
                         padding: "2px 6px",
                         background: today ? ETK.primary : "transparent",
                         color: today ? "white" : dayInfo.isCurrentMonth ? ETK.text : ETK.textMuted,

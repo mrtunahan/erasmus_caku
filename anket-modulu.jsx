@@ -3,7 +3,7 @@
 // Çoktan seçmeli anket oluşturma, oylama, anlık sonuç grafikleri
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useRef, useCallback, useMemo } = React;
+const { useState, useEffect, useMemo } = React;
 
 // ── Renkler ──
 const ANK = {
@@ -315,7 +315,6 @@ function SurveyCard({ survey, userId, isAdmin, isEnded, onVote, onDelete, expand
   const showResults = hasVoted || isEnded || isAdmin;
 
   const optionEntries = Object.entries(survey.options || {}).sort((a, b) => a[0].localeCompare(b[0]));
-  const maxVotes = Math.max(...optionEntries.map(([, o]) => o.votes || 0), 1);
   const totalOptionVotes = optionEntries.reduce((sum, [, o]) => sum + (o.votes || 0), 0);
 
   const handleToggleOption = (optKey) => {
