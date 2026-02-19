@@ -5,10 +5,6 @@
 
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
-// ── Shared bileşenlerden import ──
-const GC = window.C;
-const GDY = window.DY;
-
 // ── Renkler ──
 const GRP_COLORS = {
   primary: "#1e40af",
@@ -336,7 +332,9 @@ function DersGruplariApp({ currentUser }) {
           }}>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               <div style={{ position: "relative", flex: 1 }}>
-                <GrpIcon path={GRP_ICONS.search} size={16} color="#9ca3af" />
+                <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", display: "flex", alignItems: "center" }}>
+                  <GrpIcon path={GRP_ICONS.search} size={16} color="#9ca3af" />
+                </div>
                 <input
                   type="text"
                   placeholder="Ders kodu veya isim ara..."
@@ -676,7 +674,7 @@ function GroupDetail({ group, posts, currentUser, userId, isAdmin, isMember, onC
           Henüz gönderi yok. İlk gönderiyi siz paylaşın!
         </div>
       ) : (
-        sortedPosts.map(post => (
+        posts.map(post => (
           <PostCard
             key={post.id}
             post={post}
