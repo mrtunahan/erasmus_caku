@@ -47,61 +47,210 @@ const KATEGORI_RENKLERI = {
   genel: { bg: "#f3f4f6", text: "#374151", label: "Genel" },
 };
 
-// ── Scraper JSON Dosya Yolu ──────────────────────────────────────────────────
-// scraper.py çıktısı: python scraper.py --output json
-const DUYURU_JSON_URL = "duyurular/duyurular.json";
+// ── CORS Proxy'ler (birden fazla fallback) ───────────────────────────────────
+const CORS_PROXIES = [
+  function(url) { return "https://api.allorigins.win/get?url=" + encodeURIComponent(url); },
+  function(url) { return "https://corsproxy.io/?" + encodeURIComponent(url); },
+  function(url) { return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url); },
+];
 
-// ── Scraper verisini React formatına dönüştür ───────────────────────────────
-function scraperVerisiniFarmatla(scraperData) {
-  return scraperData.map((d) => {
-    // Kaynak tespiti: URL'den hangi kaynak olduğunu çıkar
-    let kaynak = "bmu";
-    if (d.kaynak) {
-      const k = d.kaynak.toLowerCase();
-      if (k.includes("oidb") || k.includes("ogrenci")) kaynak = "oidb";
-      else if (k.includes("mf") || k.includes("muhendislik")) kaynak = "mf";
-      else if (k.includes("univ") || k.includes("genel")) kaynak = "univ";
-      else kaynak = "bmu";
-    } else if (d.url) {
-      if (d.url.includes("oidb.")) kaynak = "oidb";
-      else if (d.url.includes("mf.")) kaynak = "mf";
-      else if (d.url.includes("www.karatekin")) kaynak = "univ";
-    }
+// ── Kategori tespiti: başlık metninden otomatik kategori çıkar ──────────────
+function kategoriBelirle(baslik) {
+  var metin = baslik.toLowerCase();
+  if (metin.includes("sinav") || metin.includes("sınav") || metin.includes("vize") || metin.includes("final") || metin.includes("mazeret")) return "sinav";
+  if (metin.includes("burs") || metin.includes("staj") || metin.includes("tubitak") || metin.includes("tübitak")) return "burs";
+  if (metin.includes("seminer") || metin.includes("etkinlik") || metin.includes("toplant") || metin.includes("konferans") || metin.includes("workshop")) return "etkinlik";
+  if (metin.includes("kayit") || metin.includes("kayıt") || metin.includes("ders") || metin.includes("erasmus") || metin.includes("akademik") || metin.includes("müfredat")) return "akademik";
+  if (metin.includes("kutuphane") || metin.includes("kütüphane") || metin.includes("idari") || metin.includes("personel") || metin.includes("yemekhane")) return "idari";
+  return "genel";
+}
 
-    // Kategori tespiti: başlık/özetten çıkar
-    let kategori = d.kategori || "genel";
-    if (kategori === "Duyuru" || kategori === "duyuru") {
-      const metin = (d.baslik + " " + (d.ozet || "")).toLowerCase();
-      if (metin.includes("sinav") || metin.includes("vize") || metin.includes("final")) kategori = "sinav";
-      else if (metin.includes("burs") || metin.includes("staj") || metin.includes("tubitak")) kategori = "burs";
-      else if (metin.includes("seminer") || metin.includes("etkinlik") || metin.includes("toplanti") || metin.includes("konferans")) kategori = "etkinlik";
-      else if (metin.includes("kayit") || metin.includes("ders") || metin.includes("erasmus") || metin.includes("akademik")) kategori = "akademik";
-      else if (metin.includes("kutuphane") || metin.includes("idari") || metin.includes("personel")) kategori = "idari";
-      else kategori = "genel";
-    }
+// ── HTML'den duyuruları parse et (DOMParser) ────────────────────────────────
+function htmldenDuyurulariCikar(htmlString, kaynakId, kaynakBaseUrl) {
+  var parser = new DOMParser();
+  var doc = parser.parseFromString(htmlString, "text/html");
+  var duyurular = [];
+  var idSayac = 0;
 
-    // Tarih normalizasyonu
-    let tarih = d.tarih || d.cekilme_tarihi || new Date().toISOString().split("T")[0];
-    // ISO formatına dönüştür (YYYY-MM-DD)
-    try {
-      const parsed = new Date(tarih);
-      if (!isNaN(parsed.getTime())) {
-        tarih = parsed.toISOString().split("T")[0];
+  // Strateji 1: Tablo yapısı (Karatekin CMS genelde tablo kullanır)
+  var satirlar = doc.querySelectorAll("table tr, table tbody tr");
+  if (satirlar.length > 1) {
+    satirlar.forEach(function(tr) {
+      var link = tr.querySelector("a[href]");
+      var hucreler = tr.querySelectorAll("td");
+      if (!link || hucreler.length < 1) return;
+
+      var baslik = link.textContent.trim();
+      if (!baslik || baslik.length < 5) return;
+
+      var href = link.getAttribute("href") || "";
+      if (href && !href.startsWith("http")) {
+        href = kaynakBaseUrl + (href.startsWith("/") ? "" : "/") + href;
       }
-    } catch (_) {}
 
-    return {
-      id: d.id || d.scraper_id || Math.random().toString(36).substr(2, 12),
-      baslik: d.baslik || "Başlıksız Duyuru",
-      ozet: d.ozet || d.icerik?.substring(0, 300) || "",
-      tarih: tarih,
-      kaynak: kaynak,
-      kategori: kategori,
-      url: d.url || d.kaynak_url || "#",
-      okundu: false,
-      pinli: false,
-    };
-  });
+      // Son hücreden tarih çıkarmayı dene
+      var tarih = "";
+      for (var i = hucreler.length - 1; i >= 0; i--) {
+        var hucreMetin = hucreler[i].textContent.trim();
+        var tarihMatch = hucreMetin.match(/(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
+        if (tarihMatch) {
+          var gun = tarihMatch[1].padStart(2, "0");
+          var ay = tarihMatch[2].padStart(2, "0");
+          var yil = tarihMatch[3].length === 2 ? "20" + tarihMatch[3] : tarihMatch[3];
+          tarih = yil + "-" + ay + "-" + gun;
+          break;
+        }
+      }
+
+      duyurular.push({
+        id: kaynakId + "_" + (++idSayac),
+        baslik: baslik,
+        ozet: "",
+        tarih: tarih || new Date().toISOString().split("T")[0],
+        kaynak: kaynakId,
+        kategori: kategoriBelirle(baslik),
+        url: href,
+        okundu: false,
+        pinli: false,
+      });
+    });
+  }
+
+  // Strateji 2: Kart/Liste yapısı
+  if (duyurular.length === 0) {
+    var kartSeciciler = [
+      "div.duyuru-item", "div.duyuru-listesi li", "div.content-list .item",
+      "div.news-list .item", "div.icerik-listesi li", "article",
+      "div.card", "li.list-group-item",
+    ];
+    kartSeciciler.forEach(function(sel) {
+      if (duyurular.length > 0) return;
+      var elemanlar = doc.querySelectorAll(sel);
+      elemanlar.forEach(function(el) {
+        var link = el.querySelector("a[href]");
+        if (!link) return;
+        var baslik = link.textContent.trim();
+        if (!baslik || baslik.length < 5) return;
+
+        var href = link.getAttribute("href") || "";
+        if (href && !href.startsWith("http")) {
+          href = kaynakBaseUrl + (href.startsWith("/") ? "" : "/") + href;
+        }
+
+        var tarihEl = el.querySelector("time, span.tarih, small.tarih, span.date, small");
+        var tarih = "";
+        if (tarihEl) {
+          var tarihMatch = tarihEl.textContent.match(/(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
+          if (tarihMatch) {
+            var gun = tarihMatch[1].padStart(2, "0");
+            var ay = tarihMatch[2].padStart(2, "0");
+            var yil = tarihMatch[3].length === 2 ? "20" + tarihMatch[3] : tarihMatch[3];
+            tarih = yil + "-" + ay + "-" + gun;
+          }
+        }
+
+        var ozetEl = el.querySelector("p, div.ozet, span.aciklama, div.summary");
+        var ozet = (ozetEl && ozetEl !== link) ? ozetEl.textContent.trim().substring(0, 300) : "";
+
+        duyurular.push({
+          id: kaynakId + "_" + (++idSayac),
+          baslik: baslik,
+          ozet: ozet,
+          tarih: tarih || new Date().toISOString().split("T")[0],
+          kaynak: kaynakId,
+          kategori: kategoriBelirle(baslik),
+          url: href,
+          okundu: false,
+          pinli: false,
+        });
+      });
+    });
+  }
+
+  // Strateji 3: Fallback — sayfadaki duyuru/haber/icerik linklerini topla
+  if (duyurular.length === 0) {
+    var tumLinkler = doc.querySelectorAll("a[href]");
+    var gorulenUrl = {};
+    tumLinkler.forEach(function(a) {
+      var href = a.getAttribute("href") || "";
+      var baslik = a.textContent.trim();
+      if (!baslik || baslik.length < 10) return;
+
+      var anahtar = ["duyur", "haber", "icerik", "etkinlik", "announce"];
+      var eslesti = anahtar.some(function(kw) { return href.toLowerCase().includes(kw); });
+      if (!eslesti) return;
+
+      if (!href.startsWith("http")) {
+        href = kaynakBaseUrl + (href.startsWith("/") ? "" : "/") + href;
+      }
+      if (gorulenUrl[href]) return;
+      gorulenUrl[href] = true;
+
+      duyurular.push({
+        id: kaynakId + "_" + (++idSayac),
+        baslik: baslik,
+        ozet: "",
+        tarih: new Date().toISOString().split("T")[0],
+        kaynak: kaynakId,
+        kategori: kategoriBelirle(baslik),
+        url: href,
+        okundu: false,
+        pinli: false,
+      });
+    });
+  }
+
+  return duyurular;
+}
+
+// ── CORS proxy ile sayfa HTML'ini fetch et ──────────────────────────────────
+async function sayfayiFetchEt(url) {
+  for (var i = 0; i < CORS_PROXIES.length; i++) {
+    var proxyUrl = CORS_PROXIES[i](url);
+    try {
+      var response = await fetch(proxyUrl, { signal: AbortSignal.timeout(12000) });
+      if (!response.ok) continue;
+
+      var contentType = response.headers.get("content-type") || "";
+
+      // allorigins.win JSON döndürür
+      if (contentType.includes("application/json") || proxyUrl.includes("allorigins")) {
+        var json = await response.json();
+        var html = json.contents || json.body || json.data || "";
+        if (html && html.length > 500) return html;
+      } else {
+        var text = await response.text();
+        if (text && text.length > 500) return text;
+      }
+    } catch (e) {
+      console.warn("Proxy " + i + " basarisiz:", e.message);
+    }
+  }
+  return null;
+}
+
+// ── Tüm kaynaklardan duyuruları çek ─────────────────────────────────────────
+async function tumKaynaklardanCek(aktifKaynaklar) {
+  var tumDuyurular = [];
+
+  for (var k = 0; k < DUYURU_KAYNAKLARI.length; k++) {
+    var kaynak = DUYURU_KAYNAKLARI[k];
+    if (!aktifKaynaklar.includes(kaynak.id)) continue;
+
+    console.log("Duyurular cekiliyor: " + kaynak.label + " (" + kaynak.url + ")");
+    var html = await sayfayiFetchEt(kaynak.url);
+    if (!html) {
+      console.warn(kaynak.label + " icin HTML alinamadi");
+      continue;
+    }
+
+    var baseUrl = kaynak.url.replace(/\/tr\/.*$/, "");
+    var duyurular = htmldenDuyurulariCikar(html, kaynak.id, baseUrl);
+    console.log(kaynak.label + ": " + duyurular.length + " duyuru bulundu");
+    tumDuyurular = tumDuyurular.concat(duyurular);
+  }
+
+  return tumDuyurular;
 }
 
 // ── Yardımcı Fonksiyonlar ───────────────────────────────────────────────────
@@ -874,25 +1023,25 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
       return new Date(b.tarih) - new Date(a.tarih);
     });
 
-  // ── Duyuruları JSON dosyasından yükle ───────────────────────────────────
-  // scraper.py çalıştırıldığında duyurular/duyurular.json dosyasını günceller
+  // ── Duyuruları canlı olarak kaynak sitelerden çek ───────────────────────
   const duyurulariGuncelle = useCallback(async () => {
     setYukleniyor(true);
     setHata(null);
     try {
-      const response = await fetch(DUYURU_JSON_URL + "?v=" + Date.now());
-      if (!response.ok) {
-        throw new Error("HTTP " + response.status);
+      const yeniDuyurular = await tumKaynaklardanCek(ayarlar.aktifKaynaklar);
+
+      if (yeniDuyurular.length === 0) {
+        setHata("Kaynak sitelerden duyuru çekilemedi. Siteler geçici olarak erişilemez olabilir.");
+        setYukleniyor(false);
+        return;
       }
-      const scraperData = await response.json();
-      const formatlanmis = scraperVerisiniFarmatla(scraperData);
 
       setDuyurular((prev) => {
         // Okundu durumlarını koru
         const okunduMap = {};
         prev.forEach((d) => { if (d.okundu) okunduMap[d.id] = true; });
 
-        const sonuc = formatlanmis.map((d) => ({
+        const sonuc = yeniDuyurular.map((d) => ({
           ...d,
           okundu: okunduMap[d.id] || false,
         }));
@@ -915,12 +1064,10 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
       );
     } catch (err) {
       console.error("Duyuru yukleme hatasi:", err);
-      setHata(
-        "Duyuru verisi yüklenemedi. Scraper'i çalıştırın: python scraper.py --output json"
-      );
+      setHata("Duyuru verisi yüklenirken hata oluştu: " + err.message);
     }
     setYukleniyor(false);
-  }, []);
+  }, [ayarlar.aktifKaynaklar]);
 
   // ── İlk yükleme ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -1322,19 +1469,10 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
             lineHeight: 1.6,
           }}
         >
-          <strong>Veri bulunamadı:</strong> {hata}
+          <strong>Bağlantı hatası:</strong> {hata}
           <div style={{ marginTop: "8px", fontSize: "12px", color: "#b91c1c" }}>
-            <code
-              style={{
-                backgroundColor: "#fee2e2",
-                padding: "2px 8px",
-                borderRadius: "4px",
-                fontSize: "11px",
-              }}
-            >
-              python scraper.py --output json
-            </code>
-            {" "}komutunu çalıştırarak duyuruları çekin.
+            Kaynak sitelere erişim sağlanamıyor. Lütfen internet bağlantınızı kontrol edip
+            {" "}<strong>Şimdi Güncelle</strong> butonuna tekrar basın.
           </div>
         </div>
       )}
