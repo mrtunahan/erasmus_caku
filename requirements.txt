@@ -1,0 +1,16 @@
+# Duyuru Scraper - Gereksinimler
+
+# Temel
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0            # XML/RSS parse icin
+
+# Opsiyonel - Selenium (JS ile render edilen sayfalar icin)
+# selenium>=4.15.0
+# webdriver-manager>=4.0.0
+
+# Django entegrasyonu
+# django>=4.2
+# celery>=5.3.0
+# django-celery-beat>=2.5.0
+# python-dateutil>=2.8.0
