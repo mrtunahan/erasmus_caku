@@ -47,12 +47,19 @@ const KATEGORI_RENKLERI = {
   genel: { bg: "#f3f4f6", text: "#374151", label: "Genel" },
 };
 
-// ── CORS Proxy'ler (birden fazla fallback) ───────────────────────────────────
+// ── Cloudflare Worker Proxy URL ──────────────────────────────────────────────
+// Kendi Worker'ınızı deploy edin (cloudflare-worker-proxy.js dosyasına bakın)
+// Deploy ettikten sonra aşağıdaki URL'i kendi Worker URL'inizle değiştirin:
+const WORKER_URL = ""; // ör: "https://duyuru-proxy.kullaniciadi.workers.dev"
+
+// ── JSON Fallback (scraper çıktısı) ─────────────────────────────────────────
+const DUYURU_JSON_URL = "duyurular/duyurular.json";
+
+// ── CORS Proxy'ler (Worker yoksa fallback olarak denenir) ───────────────────
 const CORS_PROXIES = [
   { name: "allorigins", fn: function(url) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(url); }, isJson: false },
-  { name: "corsproxy", fn: function(url) { return "https://corsproxy.io/?" + encodeURIComponent(url); }, isJson: false },
-  { name: "corsanywhere", fn: function(url) { return "https://cors-anywhere.herokuapp.com/" + url; }, isJson: false },
   { name: "allorigins-json", fn: function(url) { return "https://api.allorigins.win/get?url=" + encodeURIComponent(url); }, isJson: true },
+  { name: "corsproxy", fn: function(url) { return "https://corsproxy.io/?" + encodeURIComponent(url); }, isJson: false },
 ];
 
 // ── Kategori tespiti: başlık metninden otomatik kategori çıkar ──────────────
@@ -230,6 +237,26 @@ function fetchWithTimeout(fetchUrl, timeoutMs) {
 
 // ── CORS proxy ile sayfa HTML'ini fetch et ──────────────────────────────────
 async function sayfayiFetchEt(url) {
+  // 1. Önce kendi Cloudflare Worker'ımızı dene (en güvenilir)
+  if (WORKER_URL) {
+    try {
+      var workerEndpoint = WORKER_URL + "/?url=" + encodeURIComponent(url);
+      console.log("Worker deneniyor: " + workerEndpoint.substring(0, 80) + "...");
+      var wResponse = await fetchWithTimeout(workerEndpoint, 15000);
+      if (wResponse.ok) {
+        var wText = await wResponse.text();
+        if (wText && wText.length > 200) {
+          console.log("Worker basarili! (" + wText.length + " karakter)");
+          return wText;
+        }
+      }
+      console.warn("Worker HTTP " + wResponse.status);
+    } catch (e) {
+      console.warn("Worker basarisiz: " + e.message);
+    }
+  }
+
+  // 2. Ücretsiz CORS proxy'leri dene
   for (var i = 0; i < CORS_PROXIES.length; i++) {
     var proxy = CORS_PROXIES[i];
     var proxyUrl = proxy.fn(url);
@@ -250,7 +277,6 @@ async function sayfayiFetchEt(url) {
         }
       } else {
         var text = await response.text();
-        // JSON olarak da gelebilir (bazı proxy'ler)
         if (text && text.startsWith("{")) {
           try {
             var parsed = JSON.parse(text);
@@ -268,6 +294,41 @@ async function sayfayiFetchEt(url) {
     }
   }
   return null;
+}
+
+// ── JSON fallback: scraper çıktısını yükle ──────────────────────────────────
+function scraperJsonFallback(jsonData) {
+  return jsonData.map(function(d) {
+    var kaynak = "bmu";
+    if (d.kaynak) {
+      var k = d.kaynak.toLowerCase();
+      if (k.includes("oidb") || k.includes("ogrenci")) kaynak = "oidb";
+      else if (k.includes("mf") || k.includes("muhendislik")) kaynak = "mf";
+      else if (k.includes("univ") || k.includes("genel")) kaynak = "univ";
+    } else if (d.url) {
+      if (d.url.includes("oidb.")) kaynak = "oidb";
+      else if (d.url.includes("mf.")) kaynak = "mf";
+      else if (d.url.includes("www.karatekin")) kaynak = "univ";
+    }
+
+    var tarih = d.tarih || d.cekilme_tarihi || new Date().toISOString().split("T")[0];
+    try {
+      var parsed = new Date(tarih);
+      if (!isNaN(parsed.getTime())) tarih = parsed.toISOString().split("T")[0];
+    } catch (_) {}
+
+    return {
+      id: d.id || d.scraper_id || Math.random().toString(36).substr(2, 12),
+      baslik: d.baslik || "Başlıksız Duyuru",
+      ozet: d.ozet || (d.icerik ? d.icerik.substring(0, 300) : ""),
+      tarih: tarih,
+      kaynak: kaynak,
+      kategori: kategoriBelirle(d.baslik || ""),
+      url: d.url || d.kaynak_url || "#",
+      okundu: false,
+      pinli: false,
+    };
+  });
 }
 
 // ── Tüm kaynaklardan duyuruları çek ─────────────────────────────────────────
@@ -1064,51 +1125,79 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
       return new Date(b.tarih) - new Date(a.tarih);
     });
 
-  // ── Duyuruları canlı olarak kaynak sitelerden çek ───────────────────────
+  // ── Sonuçları state'e uygula (ortak yardımcı) ──────────────────────────
+  const sonuclariUygula = useCallback((yeniDuyurular) => {
+    setDuyurular((prev) => {
+      const okunduMap = {};
+      prev.forEach((d) => { if (d.okundu) okunduMap[d.id] = true; });
+
+      const sonuc = yeniDuyurular.map((d) => ({
+        ...d,
+        okundu: okunduMap[d.id] || false,
+      }));
+
+      const mevcutIdler = new Set(prev.map((d) => d.id));
+      const yeniSayisi = sonuc.filter((d) => !mevcutIdler.has(d.id)).length;
+      if (yeniSayisi > 0 && prev.length > 0) {
+        setBildirimSayisi((s) => s + yeniSayisi);
+      }
+
+      return sonuc;
+    });
+
+    setSonGuncelleme(
+      new Date().toLocaleTimeString("tr-TR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    );
+  }, []);
+
+  // ── Duyuruları çek: Worker/Proxy → JSON fallback ─────────────────────
   const duyurulariGuncelle = useCallback(async () => {
     setYukleniyor(true);
     setHata(null);
     try {
+      // 1. Önce canlı kaynaktan çekmeyi dene (Worker veya CORS proxy)
       const yeniDuyurular = await tumKaynaklardanCek(ayarlar.aktifKaynaklar);
 
-      if (yeniDuyurular.length === 0) {
-        setHata("Kaynak sitelerden duyuru çekilemedi. Siteler geçici olarak erişilemez olabilir.");
+      if (yeniDuyurular.length > 0) {
+        console.log("Canli kaynaklardan " + yeniDuyurular.length + " duyuru cekildi");
+        sonuclariUygula(yeniDuyurular);
         setYukleniyor(false);
         return;
       }
 
-      setDuyurular((prev) => {
-        // Okundu durumlarını koru
-        const okunduMap = {};
-        prev.forEach((d) => { if (d.okundu) okunduMap[d.id] = true; });
-
-        const sonuc = yeniDuyurular.map((d) => ({
-          ...d,
-          okundu: okunduMap[d.id] || false,
-        }));
-
-        // Yeni duyuru sayısını hesapla
-        const mevcutIdler = new Set(prev.map((d) => d.id));
-        const yeniSayisi = sonuc.filter((d) => !mevcutIdler.has(d.id)).length;
-        if (yeniSayisi > 0 && prev.length > 0) {
-          setBildirimSayisi((s) => s + yeniSayisi);
+      // 2. Canlı kaynak başarısız → JSON fallback dene
+      console.warn("Canli kaynaklar basarisiz, JSON fallback deneniyor...");
+      try {
+        var jsonResponse = await fetchWithTimeout(DUYURU_JSON_URL + "?v=" + Date.now(), 10000);
+        if (jsonResponse.ok) {
+          var jsonData = await jsonResponse.json();
+          if (jsonData && jsonData.length > 0) {
+            var fallbackDuyurular = scraperJsonFallback(jsonData);
+            console.log("JSON fallback basarili: " + fallbackDuyurular.length + " duyuru");
+            sonuclariUygula(fallbackDuyurular);
+            setYukleniyor(false);
+            return;
+          }
         }
+      } catch (jsonErr) {
+        console.warn("JSON fallback da basarisiz:", jsonErr.message);
+      }
 
-        return sonuc;
-      });
-
-      setSonGuncelleme(
-        new Date().toLocaleTimeString("tr-TR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
+      // 3. Her ikisi de başarısız
+      setHata(
+        WORKER_URL
+          ? "Kaynak sitelere erişilemedi. Worker ve JSON fallback başarısız."
+          : "Duyuru çekmek için Cloudflare Worker gerekli. cloudflare-worker-proxy.js dosyasına bakın."
       );
     } catch (err) {
       console.error("Duyuru yukleme hatasi:", err);
       setHata("Duyuru verisi yüklenirken hata oluştu: " + err.message);
     }
     setYukleniyor(false);
-  }, [ayarlar.aktifKaynaklar]);
+  }, [ayarlar.aktifKaynaklar, sonuclariUygula]);
 
   // ── İlk yükleme ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -1510,11 +1599,14 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
             lineHeight: 1.6,
           }}
         >
-          <strong>Bağlantı hatası:</strong> {hata}
-          <div style={{ marginTop: "8px", fontSize: "12px", color: "#b91c1c" }}>
-            Kaynak sitelere erişim sağlanamıyor. Lütfen internet bağlantınızı kontrol edip
-            {" "}<strong>Şimdi Güncelle</strong> butonuna tekrar basın.
-          </div>
+          <strong>Bilgi:</strong> {hata}
+          {!WORKER_URL && (
+            <div style={{ marginTop: "8px", fontSize: "12px", color: "#b91c1c" }}>
+              <strong>Kurulum:</strong> <code style={{ backgroundColor: "#fee2e2", padding: "2px 6px", borderRadius: "4px", fontSize: "11px" }}>cloudflare-worker-proxy.js</code> dosyasını
+              Cloudflare Workers'a deploy edin (ücretsiz), ardından Worker URL'ini koda yapıştırın.
+              <br/>Alternatif: <code style={{ backgroundColor: "#fee2e2", padding: "2px 6px", borderRadius: "4px", fontSize: "11px" }}>python scraper.py --output json</code> ile JSON dosyasını oluşturun.
+            </div>
+          )}
         </div>
       )}
 
