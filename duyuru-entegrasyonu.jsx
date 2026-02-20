@@ -49,9 +49,10 @@ const KATEGORI_RENKLERI = {
 
 // ── CORS Proxy'ler (birden fazla fallback) ───────────────────────────────────
 const CORS_PROXIES = [
-  function(url) { return "https://api.allorigins.win/get?url=" + encodeURIComponent(url); },
-  function(url) { return "https://corsproxy.io/?" + encodeURIComponent(url); },
-  function(url) { return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url); },
+  { name: "allorigins", fn: function(url) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(url); }, isJson: false },
+  { name: "corsproxy", fn: function(url) { return "https://corsproxy.io/?" + encodeURIComponent(url); }, isJson: false },
+  { name: "corsanywhere", fn: function(url) { return "https://cors-anywhere.herokuapp.com/" + url; }, isJson: false },
+  { name: "allorigins-json", fn: function(url) { return "https://api.allorigins.win/get?url=" + encodeURIComponent(url); }, isJson: true },
 ];
 
 // ── Kategori tespiti: başlık metninden otomatik kategori çıkar ──────────────
@@ -203,27 +204,67 @@ function htmldenDuyurulariCikar(htmlString, kaynakId, kaynakBaseUrl) {
   return duyurular;
 }
 
+// ── Timeout ile fetch yardımcı fonksiyonu (AbortController ile uyumluluk) ────
+function fetchWithTimeout(fetchUrl, timeoutMs) {
+  return new Promise(function(resolve, reject) {
+    var controller = new AbortController();
+    var timer = setTimeout(function() {
+      controller.abort();
+      reject(new Error("Zaman asimi (" + timeoutMs + "ms)"));
+    }, timeoutMs);
+
+    fetch(fetchUrl, {
+      signal: controller.signal,
+      headers: { "Accept": "text/html,application/json,*/*" },
+    })
+      .then(function(res) {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch(function(err) {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 // ── CORS proxy ile sayfa HTML'ini fetch et ──────────────────────────────────
 async function sayfayiFetchEt(url) {
   for (var i = 0; i < CORS_PROXIES.length; i++) {
-    var proxyUrl = CORS_PROXIES[i](url);
+    var proxy = CORS_PROXIES[i];
+    var proxyUrl = proxy.fn(url);
     try {
-      var response = await fetch(proxyUrl, { signal: AbortSignal.timeout(12000) });
-      if (!response.ok) continue;
+      console.log("Deneniyor: " + proxy.name + " → " + proxyUrl.substring(0, 80) + "...");
+      var response = await fetchWithTimeout(proxyUrl, 15000);
+      if (!response.ok) {
+        console.warn(proxy.name + " HTTP " + response.status);
+        continue;
+      }
 
-      var contentType = response.headers.get("content-type") || "";
-
-      // allorigins.win JSON döndürür
-      if (contentType.includes("application/json") || proxyUrl.includes("allorigins")) {
+      if (proxy.isJson) {
         var json = await response.json();
         var html = json.contents || json.body || json.data || "";
-        if (html && html.length > 500) return html;
+        if (html && html.length > 200) {
+          console.log(proxy.name + " basarili! (" + html.length + " karakter)");
+          return html;
+        }
       } else {
         var text = await response.text();
-        if (text && text.length > 500) return text;
+        // JSON olarak da gelebilir (bazı proxy'ler)
+        if (text && text.startsWith("{")) {
+          try {
+            var parsed = JSON.parse(text);
+            text = parsed.contents || parsed.body || parsed.data || text;
+          } catch (_) {}
+        }
+        if (text && text.length > 200) {
+          console.log(proxy.name + " basarili! (" + text.length + " karakter)");
+          return text;
+        }
       }
+      console.warn(proxy.name + " bos veya cok kisa yanit");
     } catch (e) {
-      console.warn("Proxy " + i + " basarisiz:", e.message);
+      console.warn("Proxy " + proxy.name + " basarisiz: " + e.message);
     }
   }
   return null;
