@@ -47,76 +47,62 @@ const KATEGORI_RENKLERI = {
   genel: { bg: "#f3f4f6", text: "#374151", label: "Genel" },
 };
 
-// ── Örnek Veri (Backend bağlantısı kurulana kadar) ──────────────────────────
+// ── Scraper JSON Dosya Yolu ──────────────────────────────────────────────────
+// scraper.py çıktısı: python scraper.py --output json
+const DUYURU_JSON_URL = "duyurular/duyurular.json";
 
-const ORNEK_DUYURULAR = [
-  {
-    id: "d001",
-    baslik: "2025-2026 Bahar Dönemi Ders Kayıt Tarihleri",
-    ozet: "Bahar dönemi ders kayıtları 10-14 Şubat 2026 tarihleri arasında yapılacaktır. Danışman onayı 17 Şubat'a kadar tamamlanmalıdır.",
-    tarih: "2026-02-05",
-    kaynak: "oidb",
-    kategori: "akademik",
-    url: "https://oidb.karatekin.edu.tr/tr/duyuru-1",
-    okundu: false,
-    pinli: true,
-  },
-  {
-    id: "d002",
-    baslik: "Yapay Zeka ve Makine Öğrenmesi Semineri",
-    ozet: "Bilgisayar Mühendisliği Bölümü tarafından düzenlenecek seminer 25 Şubat 2026 tarihinde saat 14:00'te Konferans Salonu'nda gerçekleştirilecektir.",
-    tarih: "2026-02-18",
-    kaynak: "bmu",
-    kategori: "etkinlik",
-    url: "https://bmu.karatekin.edu.tr/tr/duyuru-2",
-    okundu: false,
-    pinli: false,
-  },
-  {
-    id: "d003",
-    baslik: "Vize Sınav Programı Açıklandı",
-    ozet: "2025-2026 Bahar Dönemi ara sınav programı açıklanmıştır. Programı indirmek için tıklayınız.",
-    tarih: "2026-02-15",
-    kaynak: "bmu",
-    kategori: "sinav",
-    url: "https://bmu.karatekin.edu.tr/tr/duyuru-3",
-    okundu: true,
-    pinli: false,
-  },
-  {
-    id: "d004",
-    baslik: "TÜBİTAK 2209-A Proje Başvuruları",
-    ozet: "TÜBİTAK 2209-A Üniversite Öğrencileri Araştırma Projeleri Destekleme Programı 2026/1. dönem başvuruları başlamıştır. Son başvuru tarihi: 15 Mart 2026.",
-    tarih: "2026-02-12",
-    kaynak: "univ",
-    kategori: "burs",
-    url: "https://www.karatekin.edu.tr/tr/duyuru-4",
-    okundu: false,
-    pinli: true,
-  },
-  {
-    id: "d005",
-    baslik: "Kütüphane Çalışma Saatleri Güncellendi",
-    ozet: "Sınav dönemi boyunca merkez kütüphane hafta içi 08:00-23:00, hafta sonu 09:00-21:00 saatleri arasında hizmet verecektir.",
-    tarih: "2026-02-10",
-    kaynak: "univ",
-    kategori: "idari",
-    url: "https://www.karatekin.edu.tr/tr/duyuru-5",
-    okundu: true,
-    pinli: false,
-  },
-  {
-    id: "d006",
-    baslik: "Erasmus+ 2026-2027 Başvuruları Başladı",
-    ozet: "Erasmus+ Öğrenim ve Staj Hareketliliği için başvurular açılmıştır. Bilgilendirme toplantısı 28 Şubat 2026 tarihinde yapılacaktır.",
-    tarih: "2026-02-19",
-    kaynak: "univ",
-    kategori: "akademik",
-    url: "https://www.karatekin.edu.tr/tr/duyuru-6",
-    okundu: false,
-    pinli: true,
-  },
-];
+// ── Scraper verisini React formatına dönüştür ───────────────────────────────
+function scraperVerisiniFarmatla(scraperData) {
+  return scraperData.map((d) => {
+    // Kaynak tespiti: URL'den hangi kaynak olduğunu çıkar
+    let kaynak = "bmu";
+    if (d.kaynak) {
+      const k = d.kaynak.toLowerCase();
+      if (k.includes("oidb") || k.includes("ogrenci")) kaynak = "oidb";
+      else if (k.includes("mf") || k.includes("muhendislik")) kaynak = "mf";
+      else if (k.includes("univ") || k.includes("genel")) kaynak = "univ";
+      else kaynak = "bmu";
+    } else if (d.url) {
+      if (d.url.includes("oidb.")) kaynak = "oidb";
+      else if (d.url.includes("mf.")) kaynak = "mf";
+      else if (d.url.includes("www.karatekin")) kaynak = "univ";
+    }
+
+    // Kategori tespiti: başlık/özetten çıkar
+    let kategori = d.kategori || "genel";
+    if (kategori === "Duyuru" || kategori === "duyuru") {
+      const metin = (d.baslik + " " + (d.ozet || "")).toLowerCase();
+      if (metin.includes("sinav") || metin.includes("vize") || metin.includes("final")) kategori = "sinav";
+      else if (metin.includes("burs") || metin.includes("staj") || metin.includes("tubitak")) kategori = "burs";
+      else if (metin.includes("seminer") || metin.includes("etkinlik") || metin.includes("toplanti") || metin.includes("konferans")) kategori = "etkinlik";
+      else if (metin.includes("kayit") || metin.includes("ders") || metin.includes("erasmus") || metin.includes("akademik")) kategori = "akademik";
+      else if (metin.includes("kutuphane") || metin.includes("idari") || metin.includes("personel")) kategori = "idari";
+      else kategori = "genel";
+    }
+
+    // Tarih normalizasyonu
+    let tarih = d.tarih || d.cekilme_tarihi || new Date().toISOString().split("T")[0];
+    // ISO formatına dönüştür (YYYY-MM-DD)
+    try {
+      const parsed = new Date(tarih);
+      if (!isNaN(parsed.getTime())) {
+        tarih = parsed.toISOString().split("T")[0];
+      }
+    } catch (_) {}
+
+    return {
+      id: d.id || d.scraper_id || Math.random().toString(36).substr(2, 12),
+      baslik: d.baslik || "Başlıksız Duyuru",
+      ozet: d.ozet || d.icerik?.substring(0, 300) || "",
+      tarih: tarih,
+      kaynak: kaynak,
+      kategori: kategori,
+      url: d.url || d.kaynak_url || "#",
+      okundu: false,
+      pinli: false,
+    };
+  });
+}
 
 // ── Yardımcı Fonksiyonlar ───────────────────────────────────────────────────
 
@@ -846,12 +832,13 @@ function DuyuruAyarlarPaneli({ ayarlar, onDegistir, gorunur, onKapat }) {
 
 function DuyuruEntegrasyonuApp({ currentUser }) {
   // ── State ─────────────────────────────────────────────────────────────
-  const [duyurular, setDuyurular] = useState(ORNEK_DUYURULAR);
+  const [duyurular, setDuyurular] = useState([]);
   const [aramaMetni, setAramaMetni] = useState("");
   const [seciliKaynak, setSeciliKaynak] = useState("tumu");
   const [seciliKategori, setSeciliKategori] = useState("tumu");
   const [siralama, setSiralama] = useState("tarih");
-  const [yukleniyor, setYukleniyor] = useState(false);
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [hata, setHata] = useState(null);
   const [sonGuncelleme, setSonGuncelleme] = useState(null);
   const [ayarlarGorunur, setAyarlarGorunur] = useState(false);
   const [bildirimSayisi, setBildirimSayisi] = useState(0);
@@ -887,41 +874,58 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
       return new Date(b.tarih) - new Date(a.tarih);
     });
 
-  // ── Duyuru Güncelleme (Simülasyon — Backend'e bağlanacak) ─────────────
+  // ── Duyuruları JSON dosyasından yükle ───────────────────────────────────
+  // scraper.py çalıştırıldığında duyurular/duyurular.json dosyasını günceller
   const duyurulariGuncelle = useCallback(async () => {
     setYukleniyor(true);
-    // ─────────────────────────────────────────────────────────────────
-    // TODO: Backend API'nize bağlayın
-    //
-    // try {
-    //   const response = await fetch('/api/duyurular/guncelle', {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //   });
-    //   const yeniDuyurular = await response.json();
-    //   setDuyurular(prev => {
-    //     const mevcutIdler = new Set(prev.map(d => d.id));
-    //     const gercektenYeni = yeniDuyurular.filter(d => !mevcutIdler.has(d.id));
-    //     if (gercektenYeni.length > 0) {
-    //       setBildirimSayisi(prev => prev + gercektenYeni.length);
-    //     }
-    //     return [...gercektenYeni, ...prev];
-    //   });
-    // } catch (err) {
-    //   console.error('Duyuru güncelleme hatası:', err);
-    // }
-    // ─────────────────────────────────────────────────────────────────
+    setHata(null);
+    try {
+      const response = await fetch(DUYURU_JSON_URL + "?v=" + Date.now());
+      if (!response.ok) {
+        throw new Error("HTTP " + response.status);
+      }
+      const scraperData = await response.json();
+      const formatlanmis = scraperVerisiniFarmatla(scraperData);
 
-    // Simülasyon: 1.5 sn bekle
-    await new Promise((r) => setTimeout(r, 1500));
-    setSonGuncelleme(
-      new Date().toLocaleTimeString("tr-TR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    );
+      setDuyurular((prev) => {
+        // Okundu durumlarını koru
+        const okunduMap = {};
+        prev.forEach((d) => { if (d.okundu) okunduMap[d.id] = true; });
+
+        const sonuc = formatlanmis.map((d) => ({
+          ...d,
+          okundu: okunduMap[d.id] || false,
+        }));
+
+        // Yeni duyuru sayısını hesapla
+        const mevcutIdler = new Set(prev.map((d) => d.id));
+        const yeniSayisi = sonuc.filter((d) => !mevcutIdler.has(d.id)).length;
+        if (yeniSayisi > 0 && prev.length > 0) {
+          setBildirimSayisi((s) => s + yeniSayisi);
+        }
+
+        return sonuc;
+      });
+
+      setSonGuncelleme(
+        new Date().toLocaleTimeString("tr-TR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      );
+    } catch (err) {
+      console.error("Duyuru yukleme hatasi:", err);
+      setHata(
+        "Duyuru verisi yüklenemedi. Scraper'i çalıştırın: python scraper.py --output json"
+      );
+    }
     setYukleniyor(false);
   }, []);
+
+  // ── İlk yükleme ───────────────────────────────────────────────────────
+  useEffect(() => {
+    duyurulariGuncelle();
+  }, [duyurulariGuncelle]);
 
   // ── Otomatik güncelleme timer ─────────────────────────────────────────
   useEffect(() => {
@@ -943,21 +947,6 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
   // ── Portala ekle ──────────────────────────────────────────────────────
   const portalaEkle = (duyuru) => {
     if (portalaEklenenler.includes(duyuru.id)) return;
-    // ─────────────────────────────────────────────────────────────────
-    // TODO: Backend API'nize bağlayın
-    //
-    // await fetch('/api/portal/gonderi', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({
-    //     title: duyuru.baslik,
-    //     content: duyuru.ozet,
-    //     category: 'Duyuru',
-    //     tags: ['otomatik', duyuru.kaynak],
-    //     source_url: duyuru.url,
-    //   }),
-    // });
-    // ─────────────────────────────────────────────────────────────────
     setPortalaEklenenler((prev) => [...prev, duyuru.id]);
     alert(`"${duyuru.baslik}" Öğrenci Portalı'na eklendi!`);
   };
@@ -1320,44 +1309,35 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
         </div>
       )}
 
-      {/* ── Backend Entegrasyon Bilgisi ─────────────────────────────── */}
-      <div
-        style={{
-          backgroundColor: "#fffbeb",
-          border: "1px solid #fde68a",
-          borderRadius: "10px",
-          padding: "14px 18px",
-          fontSize: "12px",
-          color: "#92400e",
-          lineHeight: 1.6,
-        }}
-      >
-        <strong>Geliştirici Notu:</strong> Bu modül şu an örnek verilerle
-        çalışmaktadır. Backend API'nizi bağlamak için{" "}
-        <code
+      {/* ── Hata / Bilgi Mesajı ─────────────────────────────────────── */}
+      {hata && (
+        <div
           style={{
-            backgroundColor: "#fef3c7",
-            padding: "1px 6px",
-            borderRadius: "4px",
-            fontSize: "11px",
+            backgroundColor: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "10px",
+            padding: "14px 18px",
+            fontSize: "13px",
+            color: "#991b1b",
+            lineHeight: 1.6,
           }}
         >
-          duyurulariGuncelle()
-        </code>{" "}
-        ve{" "}
-        <code
-          style={{
-            backgroundColor: "#fef3c7",
-            padding: "1px 6px",
-            borderRadius: "4px",
-            fontSize: "11px",
-          }}
-        >
-          portalaEkle()
-        </code>{" "}
-        fonksiyonlarındaki TODO yorumlarını takip edin. Python scraper ile
-        birlikte kullanılır.
-      </div>
+          <strong>Veri bulunamadı:</strong> {hata}
+          <div style={{ marginTop: "8px", fontSize: "12px", color: "#b91c1c" }}>
+            <code
+              style={{
+                backgroundColor: "#fee2e2",
+                padding: "2px 8px",
+                borderRadius: "4px",
+                fontSize: "11px",
+              }}
+            >
+              python scraper.py --output json
+            </code>
+            {" "}komutunu çalıştırarak duyuruları çekin.
+          </div>
+        </div>
+      )}
 
       {/* ── Ayarlar Modal ──────────────────────────────────────────── */}
       <DuyuruAyarlarPaneli
