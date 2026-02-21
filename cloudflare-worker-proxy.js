@@ -129,31 +129,9 @@ export default {
       }
     }
 
-    // Her iki URL de başarısız olduysa, üçüncü yöntem: Google Web Cache dene
-    try {
-      const cacheUrl = "https://webcache.googleusercontent.com/search?q=cache:" + encodeURIComponent(hedefUrl);
-      const cacheResponse = await fetch(cacheUrl, {
-        headers: browserHeaders,
-        redirect: "follow",
-      });
-      if (cacheResponse.status === 200) {
-        const html = await cacheResponse.text();
-        return new Response(html, {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "text/html; charset=utf-8",
-            "Cache-Control": "public, max-age=300",
-            "X-Fetched-From": "google-cache",
-            "X-Cache-Notice": "Orijinal sunucuya ulasilamadi, Google onbelleginden alindi",
-          },
-        });
-      }
-    } catch (e) { /* Google cache de başarısız, aşağıda hata dön */ }
-
     return new Response(
       JSON.stringify({
-        hata: "Sayfa alinamadi (HTTPS, HTTP ve Google Cache denendi): " + (lastError ? lastError.message : "bilinmeyen hata"),
+        hata: "Sayfa alinamadi (HTTPS ve HTTP denendi): " + (lastError ? lastError.message : "bilinmeyen hata"),
         denenen_urllar: urls,
         son_status: lastStatus,
       }),

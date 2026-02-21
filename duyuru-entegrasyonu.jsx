@@ -55,6 +55,120 @@ const WORKER_URL = "https://duyuru.tunahankorkmaz6.workers.dev";
 // ── JSON Fallback (scraper çıktısı) ─────────────────────────────────────────
 const DUYURU_JSON_URL = "duyurular/duyurular.json";
 
+// ── Yerleşik Örnek Duyurular (tüm kaynaklar başarısız olduğunda gösterilir) ──
+const YERLESIK_DUYURULAR = [
+  {
+    id: "bmu_demo_1",
+    baslik: "2024-2025 Bahar Dönemi Ders Kayıt İşlemleri Hakkında",
+    ozet: "Bahar dönemi ders kayıtları 10-14 Şubat tarihleri arasında yapılacaktır. Öğrencilerin danışman onayı alması gerekmektedir.",
+    tarih: "2025-02-05",
+    kaynak: "bmu",
+    kategori: "akademik",
+    url: "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+    okundu: false,
+    pinli: true,
+  },
+  {
+    id: "bmu_demo_2",
+    baslik: "Bilgisayar Mühendisliği Bölümü Vize Sınav Programı",
+    ozet: "2024-2025 Bahar dönemi ara sınav programı yayınlanmıştır. Detaylı program için tıklayınız.",
+    tarih: "2025-02-03",
+    kaynak: "bmu",
+    kategori: "sinav",
+    url: "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+    okundu: false,
+    pinli: false,
+  },
+  {
+    id: "bmu_demo_3",
+    baslik: "Yapay Zeka ve Makine Öğrenmesi Semineri",
+    ozet: "Prof. Dr. Ahmet Yılmaz tarafından verilecek seminer 20 Şubat 2025 tarihinde Mühendislik Fakültesi konferans salonunda gerçekleştirilecektir.",
+    tarih: "2025-02-01",
+    kaynak: "bmu",
+    kategori: "etkinlik",
+    url: "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+    okundu: false,
+    pinli: false,
+  },
+  {
+    id: "mf_demo_1",
+    baslik: "Mühendislik Fakültesi Akademik Kurul Toplantısı",
+    ozet: "Fakülte akademik kurul toplantısı 15 Şubat 2025 tarihinde saat 14:00'te yapılacaktır.",
+    tarih: "2025-02-04",
+    kaynak: "mf",
+    kategori: "idari",
+    url: "https://mf.karatekin.edu.tr/tr/tum-duyurular",
+    okundu: false,
+    pinli: false,
+  },
+  {
+    id: "mf_demo_2",
+    baslik: "Erasmus+ Öğrenci Değişim Programı Başvuruları",
+    ozet: "2025-2026 akademik yılı Erasmus+ öğrenci değişim programı başvuruları başlamıştır. Son başvuru tarihi: 15 Mart 2025.",
+    tarih: "2025-02-02",
+    kaynak: "mf",
+    kategori: "akademik",
+    url: "https://mf.karatekin.edu.tr/tr/tum-duyurular",
+    okundu: false,
+    pinli: true,
+  },
+  {
+    id: "univ_demo_1",
+    baslik: "Üniversitemiz Akreditasyon Sürecini Başarıyla Tamamladı",
+    ozet: "Çankırı Karatekin Üniversitesi kurumsal akreditasyon sürecini başarıyla tamamlamıştır.",
+    tarih: "2025-02-06",
+    kaynak: "univ",
+    kategori: "genel",
+    url: "https://www.karatekin.edu.tr/tr/tum-duyurular",
+    okundu: false,
+    pinli: false,
+  },
+  {
+    id: "univ_demo_2",
+    baslik: "Kütüphane Çalışma Saatleri Güncellendi",
+    ozet: "Sınav döneminde kütüphane 08:00-24:00 saatleri arasında hizmet verecektir.",
+    tarih: "2025-01-28",
+    kaynak: "univ",
+    kategori: "idari",
+    url: "https://www.karatekin.edu.tr/tr/tum-duyurular",
+    okundu: false,
+    pinli: false,
+  },
+  {
+    id: "oidb_demo_1",
+    baslik: "Öğrenci Belgesi ve Transkript Talepleri Hakkında",
+    ozet: "Öğrenci belgesi ve transkript talepleri e-Devlet üzerinden yapılabilmektedir. Detaylı bilgi için tıklayınız.",
+    tarih: "2025-02-05",
+    kaynak: "oidb",
+    kategori: "idari",
+    url: "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
+    okundu: false,
+    pinli: false,
+  },
+  {
+    id: "oidb_demo_2",
+    baslik: "TÜBİTAK 2209-A Üniversite Öğrencileri Araştırma Projeleri",
+    ozet: "TÜBİTAK 2209-A programı başvuruları açılmıştır. İlgilenen öğrencilerin bölüm başkanlıklarına başvurması gerekmektedir.",
+    tarih: "2025-01-30",
+    kaynak: "oidb",
+    kategori: "burs",
+    url: "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
+    okundu: false,
+    pinli: false,
+  },
+  {
+    id: "oidb_demo_3",
+    baslik: "Mezuniyet Töreni Tarihi Belirlendi",
+    ozet: "2024-2025 akademik yılı mezuniyet töreni 20 Haziran 2025 tarihinde kampüs alanında gerçekleştirilecektir.",
+    tarih: "2025-01-25",
+    kaynak: "oidb",
+    kategori: "etkinlik",
+    url: "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
+    okundu: false,
+    pinli: false,
+  },
+];
+
 // ── CORS Proxy'ler (Worker yoksa fallback olarak denenir) ───────────────────
 const CORS_PROXIES = [
   { name: "allorigins", fn: function(url) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(url); }, isJson: false },
@@ -245,7 +359,10 @@ async function sayfayiFetchEt(url) {
       var wResponse = await fetchWithTimeout(workerEndpoint, 15000);
       if (wResponse.ok) {
         var wText = await wResponse.text();
-        if (wText && wText.length > 200) {
+        // Google Cache veya arama sayfası döndüyse reddet
+        if (wText && wText.indexOf("google") !== -1 && wText.indexOf("gstatic") !== -1) {
+          console.warn("Worker Google Cache/arama sayfasi dondurdu, reddediliyor");
+        } else if (wText && wText.length > 200) {
           console.log("Worker basarili! (" + wText.length + " karakter)");
           return wText;
         }
@@ -1186,11 +1303,15 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
         console.warn("JSON fallback da basarisiz:", jsonErr.message);
       }
 
-      // 3. Her ikisi de başarısız
+      // 3. Yerleşik örnek duyuruları göster
+      console.warn("Tum kaynaklar basarisiz, yerlesik ornek duyurular gosteriliyor");
+      var filtrelenmisYerlesik = YERLESIK_DUYURULAR.filter(function(d) {
+        return ayarlar.aktifKaynaklar.includes(d.kaynak);
+      });
+      sonuclariUygula(filtrelenmisYerlesik);
       setHata(
-        WORKER_URL
-          ? "Kaynak sitelere erişilemedi. Worker ve JSON fallback başarısız."
-          : "Duyuru çekmek için Cloudflare Worker gerekli. cloudflare-worker-proxy.js dosyasına bakın."
+        "Kaynak sitelere erişilemedi. Şu an örnek duyurular gösterilmektedir. " +
+        "Canlı veriler için Cloudflare Worker'ın çalıştığından emin olun."
       );
     } catch (err) {
       console.error("Duyuru yukleme hatasi:", err);
