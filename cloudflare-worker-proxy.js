@@ -72,7 +72,7 @@ export default {
       );
     }
 
-    // Hedef sayfayı fetch et — önce HTTPS, başarısız olursa HTTP dene
+    // Hedef sayfayı fetch et
     const browserHeaders = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -82,7 +82,7 @@ export default {
       "Upgrade-Insecure-Requests": "1",
     };
 
-    // URL'leri dene: önce orijinal, sonra HTTP/HTTPS alternatifi
+    // URL'leri dene: orijinal + HTTP/HTTPS alternatifi
     const urls = [hedefUrl];
     try {
       const parsed = new URL(hedefUrl);
@@ -96,12 +96,21 @@ export default {
     } catch (e) { /* ignore */ }
 
     let lastError = null;
+    let lastStatus = null;
+
     for (const tryUrl of urls) {
       try {
         const response = await fetch(tryUrl, {
           headers: browserHeaders,
           redirect: "follow",
         });
+
+        // 5xx hata (522 Connection Timed Out gibi) ise sonraki URL'yi dene
+        if (response.status >= 500) {
+          lastError = new Error("HTTP " + response.status);
+          lastStatus = response.status;
+          continue;
+        }
 
         const html = await response.text();
 
@@ -116,15 +125,37 @@ export default {
         });
       } catch (e) {
         lastError = e;
-        // Sonraki URL'yi dene
         continue;
       }
     }
 
+    // Her iki URL de başarısız olduysa, üçüncü yöntem: Google Web Cache dene
+    try {
+      const cacheUrl = "https://webcache.googleusercontent.com/search?q=cache:" + encodeURIComponent(hedefUrl);
+      const cacheResponse = await fetch(cacheUrl, {
+        headers: browserHeaders,
+        redirect: "follow",
+      });
+      if (cacheResponse.status === 200) {
+        const html = await cacheResponse.text();
+        return new Response(html, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "public, max-age=300",
+            "X-Fetched-From": "google-cache",
+            "X-Cache-Notice": "Orijinal sunucuya ulasilamadi, Google onbelleginden alindi",
+          },
+        });
+      }
+    } catch (e) { /* Google cache de başarısız, aşağıda hata dön */ }
+
     return new Response(
       JSON.stringify({
-        hata: "Sayfa alinamadi (HTTPS ve HTTP denendi): " + (lastError ? lastError.message : "bilinmeyen hata"),
+        hata: "Sayfa alinamadi (HTTPS, HTTP ve Google Cache denendi): " + (lastError ? lastError.message : "bilinmeyen hata"),
         denenen_urllar: urls,
+        son_status: lastStatus,
       }),
       { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
