@@ -50,7 +50,7 @@ const KATEGORI_RENKLERI = {
 // ── Cloudflare Worker Proxy URL ──────────────────────────────────────────────
 // Kendi Worker'ınızı deploy edin (cloudflare-worker-proxy.js dosyasına bakın)
 // Deploy ettikten sonra aşağıdaki URL'i kendi Worker URL'inizle değiştirin:
-const WORKER_URL = ""; // ör: "https://duyuru-proxy.kullaniciadi.workers.dev"
+const WORKER_URL = "https://duyuru.tunahankorkmaz6.workers.dev";
 
 // ── JSON Fallback (scraper çıktısı) ─────────────────────────────────────────
 const DUYURU_JSON_URL = "duyurular/duyurular.json";
