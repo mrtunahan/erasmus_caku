@@ -72,32 +72,61 @@ export default {
       );
     }
 
-    // Hedef sayfayı fetch et
+    // Hedef sayfayı fetch et — önce HTTPS, başarısız olursa HTTP dene
+    const browserHeaders = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Upgrade-Insecure-Requests": "1",
+    };
+
+    // URL'leri dene: önce orijinal, sonra HTTP/HTTPS alternatifi
+    const urls = [hedefUrl];
     try {
-      const response = await fetch(hedefUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Accept": "text/html,application/xhtml+xml,*/*",
-          "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
-        },
-        cf: { cacheTtl: 300 }, // 5 dk Cloudflare cache
-      });
+      const parsed = new URL(hedefUrl);
+      if (parsed.protocol === "https:") {
+        parsed.protocol = "http:";
+        urls.push(parsed.toString());
+      } else if (parsed.protocol === "http:") {
+        parsed.protocol = "https:";
+        urls.push(parsed.toString());
+      }
+    } catch (e) { /* ignore */ }
 
-      const html = await response.text();
+    let lastError = null;
+    for (const tryUrl of urls) {
+      try {
+        const response = await fetch(tryUrl, {
+          headers: browserHeaders,
+          redirect: "follow",
+        });
 
-      return new Response(html, {
-        status: response.status,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "text/html; charset=utf-8",
-          "Cache-Control": "public, max-age=300", // 5 dk tarayıcı cache
-        },
-      });
-    } catch (e) {
-      return new Response(
-        JSON.stringify({ hata: "Sayfa alinamadi: " + e.message }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+        const html = await response.text();
+
+        return new Response(html, {
+          status: response.status,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "public, max-age=300",
+            "X-Fetched-From": tryUrl,
+          },
+        });
+      } catch (e) {
+        lastError = e;
+        // Sonraki URL'yi dene
+        continue;
+      }
     }
+
+    return new Response(
+      JSON.stringify({
+        hata: "Sayfa alinamadi (HTTPS ve HTTP denendi): " + (lastError ? lastError.message : "bilinmeyen hata"),
+        denenen_urllar: urls,
+      }),
+      { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   },
 };
