@@ -186,6 +186,22 @@ function kategoriBelirle(baslik) {
   return "genel";
 }
 
+// ── Yardımcı: relative href'i tam URL'e çevir ──────────────────────────────
+function hrefTamYol(href, kaynakBaseUrl) {
+  if (!href || href.startsWith("http")) return href;
+  // href "/tr/..." gibi mutlak path ise → sadece origin + href
+  if (href.startsWith("/")) {
+    try {
+      var origin = new URL(kaynakBaseUrl).origin;
+      return origin + href;
+    } catch (e) {
+      return kaynakBaseUrl + href;
+    }
+  }
+  // href "mth412-..." gibi relative path ise → baseUrl + "/" + href
+  return kaynakBaseUrl + "/" + href;
+}
+
 // ── HTML'den duyuruları parse et (DOMParser) ────────────────────────────────
 function htmldenDuyurulariCikar(htmlString, kaynakId, kaynakBaseUrl) {
   var parser = new DOMParser();
@@ -204,10 +220,7 @@ function htmldenDuyurulariCikar(htmlString, kaynakId, kaynakBaseUrl) {
       var baslik = link.textContent.trim();
       if (!baslik || baslik.length < 5) return;
 
-      var href = link.getAttribute("href") || "";
-      if (href && !href.startsWith("http")) {
-        href = kaynakBaseUrl + (href.startsWith("/") ? "" : "/") + href;
-      }
+      var href = hrefTamYol(link.getAttribute("href") || "", kaynakBaseUrl);
 
       // Son hücreden tarih çıkarmayı dene
       var tarih = "";
@@ -253,10 +266,7 @@ function htmldenDuyurulariCikar(htmlString, kaynakId, kaynakBaseUrl) {
         var baslik = link.textContent.trim();
         if (!baslik || baslik.length < 5) return;
 
-        var href = link.getAttribute("href") || "";
-        if (href && !href.startsWith("http")) {
-          href = kaynakBaseUrl + (href.startsWith("/") ? "" : "/") + href;
-        }
+        var href = hrefTamYol(link.getAttribute("href") || "", kaynakBaseUrl);
 
         var tarihEl = el.querySelector("time, span.tarih, small.tarih, span.date, small");
         var tarih = "";
@@ -301,9 +311,7 @@ function htmldenDuyurulariCikar(htmlString, kaynakId, kaynakBaseUrl) {
       var eslesti = anahtar.some(function(kw) { return href.toLowerCase().includes(kw); });
       if (!eslesti) return;
 
-      if (!href.startsWith("http")) {
-        href = kaynakBaseUrl + (href.startsWith("/") ? "" : "/") + href;
-      }
+      href = hrefTamYol(href, kaynakBaseUrl);
       if (gorulenUrl[href]) return;
       gorulenUrl[href] = true;
 
@@ -465,7 +473,7 @@ async function tumKaynaklardanCek(aktifKaynaklar) {
       continue;
     }
 
-    var baseUrl = kaynak.url.replace(/\/tr\/.*$/, "");
+    var baseUrl = kaynak.url.replace(/\/tum-duyurular$/, "").replace(/\/$/, "");
     var duyurular = htmldenDuyurulariCikar(html, kaynak.id, baseUrl);
     if (duyurular.length === 0) {
       console.warn(kaynak.label + " icin HTML alindi ama duyuru parse edilemedi — fallback kullanilacak");
