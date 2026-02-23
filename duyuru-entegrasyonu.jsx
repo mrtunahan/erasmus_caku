@@ -171,9 +171,8 @@ const YERLESIK_DUYURULAR = [
 
 // ── CORS Proxy'ler (Worker yoksa fallback olarak denenir) ───────────────────
 const CORS_PROXIES = [
-  { name: "allorigins", fn: function(url) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(url); }, isJson: false },
   { name: "allorigins-json", fn: function(url) { return "https://api.allorigins.win/get?url=" + encodeURIComponent(url); }, isJson: true },
-  { name: "corsproxy", fn: function(url) { return "https://corsproxy.io/?" + encodeURIComponent(url); }, isJson: false },
+  { name: "corsanywhere", fn: function(url) { return "https://cors-anywhere.herokuapp.com/" + url; }, isJson: false },
 ];
 
 // ── Kategori tespiti: başlık metninden otomatik kategori çıkar ──────────────
@@ -449,8 +448,10 @@ function scraperJsonFallback(jsonData) {
 }
 
 // ── Tüm kaynaklardan duyuruları çek ─────────────────────────────────────────
+// Başarısız kaynaklar için yerleşik fallback verisini kullanır
 async function tumKaynaklardanCek(aktifKaynaklar) {
   var tumDuyurular = [];
+  var basarisizKaynaklar = [];
 
   for (var k = 0; k < DUYURU_KAYNAKLARI.length; k++) {
     var kaynak = DUYURU_KAYNAKLARI[k];
@@ -459,17 +460,32 @@ async function tumKaynaklardanCek(aktifKaynaklar) {
     console.log("Duyurular cekiliyor: " + kaynak.label + " (" + kaynak.url + ")");
     var html = await sayfayiFetchEt(kaynak.url);
     if (!html) {
-      console.warn(kaynak.label + " icin HTML alinamadi");
+      console.warn(kaynak.label + " icin HTML alinamadi — fallback kullanilacak");
+      basarisizKaynaklar.push(kaynak.id);
       continue;
     }
 
     var baseUrl = kaynak.url.replace(/\/tr\/.*$/, "");
     var duyurular = htmldenDuyurulariCikar(html, kaynak.id, baseUrl);
-    console.log(kaynak.label + ": " + duyurular.length + " duyuru bulundu");
-    tumDuyurular = tumDuyurular.concat(duyurular);
+    if (duyurular.length === 0) {
+      console.warn(kaynak.label + " icin HTML alindi ama duyuru parse edilemedi — fallback kullanilacak");
+      basarisizKaynaklar.push(kaynak.id);
+    } else {
+      console.log(kaynak.label + ": " + duyurular.length + " duyuru bulundu");
+      tumDuyurular = tumDuyurular.concat(duyurular);
+    }
   }
 
-  return tumDuyurular;
+  // Başarısız kaynaklar için yerleşik verileri ekle
+  if (basarisizKaynaklar.length > 0) {
+    console.log("Fallback kullanilan kaynaklar: " + basarisizKaynaklar.join(", "));
+    var fallbackDuyurular = YERLESIK_DUYURULAR.filter(function(d) {
+      return basarisizKaynaklar.includes(d.kaynak);
+    });
+    tumDuyurular = tumDuyurular.concat(fallbackDuyurular);
+  }
+
+  return { duyurular: tumDuyurular, basarisizKaynaklar: basarisizKaynaklar };
 }
 
 // ── Yardımcı Fonksiyonlar ───────────────────────────────────────────────────
@@ -1275,18 +1291,31 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
     setYukleniyor(true);
     setHata(null);
     try {
-      // 1. Önce canlı kaynaktan çekmeyi dene (Worker veya CORS proxy)
-      const yeniDuyurular = await tumKaynaklardanCek(ayarlar.aktifKaynaklar);
+      // 1. Tüm kaynaklardan çek (başarısız olanlar için otomatik fallback kullanılır)
+      const sonuc = await tumKaynaklardanCek(ayarlar.aktifKaynaklar);
+      var yeniDuyurular = sonuc.duyurular;
+      var basarisizKaynaklar = sonuc.basarisizKaynaklar;
 
       if (yeniDuyurular.length > 0) {
-        console.log("Canli kaynaklardan " + yeniDuyurular.length + " duyuru cekildi");
+        console.log("Toplam " + yeniDuyurular.length + " duyuru (basarisiz kaynaklar: " + basarisizKaynaklar.length + ")");
         sonuclariUygula(yeniDuyurular);
+
+        // Bazı kaynaklar başarısız olduysa bilgi mesajı göster
+        if (basarisizKaynaklar.length > 0) {
+          var kaynakLabellari = basarisizKaynaklar.map(function(id) {
+            var k = DUYURU_KAYNAKLARI.find(function(kk) { return kk.id === id; });
+            return k ? k.label : id;
+          }).join(", ");
+          setHata(
+            kaynakLabellari + " kaynaklarına erişilemedi, bu kaynaklar için örnek veriler gösterilmektedir."
+          );
+        }
         setYukleniyor(false);
         return;
       }
 
-      // 2. Canlı kaynak başarısız → JSON fallback dene
-      console.warn("Canli kaynaklar basarisiz, JSON fallback deneniyor...");
+      // 2. Hiçbir kaynak çalışmadı → JSON fallback dene
+      console.warn("Tum kaynaklar basarisiz, JSON fallback deneniyor...");
       try {
         var jsonResponse = await fetchWithTimeout(DUYURU_JSON_URL + "?v=" + Date.now(), 10000);
         if (jsonResponse.ok) {
@@ -1295,6 +1324,7 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
             var fallbackDuyurular = scraperJsonFallback(jsonData);
             console.log("JSON fallback basarili: " + fallbackDuyurular.length + " duyuru");
             sonuclariUygula(fallbackDuyurular);
+            setHata("Kaynak sitelere erişilemedi. JSON verisi gösterilmektedir.");
             setYukleniyor(false);
             return;
           }
@@ -1310,12 +1340,16 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
       });
       sonuclariUygula(filtrelenmisYerlesik);
       setHata(
-        "Kaynak sitelere erişilemedi. Şu an örnek duyurular gösterilmektedir. " +
-        "Canlı veriler için Cloudflare Worker'ın çalıştığından emin olun."
+        "Kaynak sitelere erişilemedi. Şu an örnek duyurular gösterilmektedir."
       );
     } catch (err) {
       console.error("Duyuru yukleme hatasi:", err);
-      setHata("Duyuru verisi yüklenirken hata oluştu: " + err.message);
+      // Hata durumunda da yerleşik verileri göster
+      var acilDuyurular = YERLESIK_DUYURULAR.filter(function(d) {
+        return ayarlar.aktifKaynaklar.includes(d.kaynak);
+      });
+      sonuclariUygula(acilDuyurular);
+      setHata("Duyuru verisi yüklenirken hata oluştu. Örnek veriler gösterilmektedir.");
     }
     setYukleniyor(false);
   }, [ayarlar.aktifKaynaklar, sonuclariUygula]);
@@ -1711,23 +1745,16 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
       {hata && (
         <div
           style={{
-            backgroundColor: "#fef2f2",
-            border: "1px solid #fecaca",
+            backgroundColor: "#fffbeb",
+            border: "1px solid #fde68a",
             borderRadius: "10px",
             padding: "14px 18px",
             fontSize: "13px",
-            color: "#991b1b",
+            color: "#92400e",
             lineHeight: 1.6,
           }}
         >
           <strong>Bilgi:</strong> {hata}
-          {!WORKER_URL && (
-            <div style={{ marginTop: "8px", fontSize: "12px", color: "#b91c1c" }}>
-              <strong>Kurulum:</strong> <code style={{ backgroundColor: "#fee2e2", padding: "2px 6px", borderRadius: "4px", fontSize: "11px" }}>cloudflare-worker-proxy.js</code> dosyasını
-              Cloudflare Workers'a deploy edin (ücretsiz), ardından Worker URL'ini koda yapıştırın.
-              <br/>Alternatif: <code style={{ backgroundColor: "#fee2e2", padding: "2px 6px", borderRadius: "4px", fontSize: "11px" }}>python scraper.py --output json</code> ile JSON dosyasını oluşturun.
-            </div>
-          )}
         </div>
       )}
 

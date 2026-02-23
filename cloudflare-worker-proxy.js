@@ -16,7 +16,6 @@
 
 export default {
   async fetch(request) {
-    // Sadece karatekin.edu.tr domainlerinden izin ver
     const IZINLI_DOMAINLER = [
       "bmu.karatekin.edu.tr",
       "mf.karatekin.edu.tr",
@@ -50,13 +49,13 @@ export default {
       );
     }
 
-    // Domain kontrolü — sadece karatekin.edu.tr'ye izin ver
+    // Domain kontrolü
     let hedefDomain;
     try {
       hedefDomain = new URL(hedefUrl).hostname;
     } catch (e) {
       return new Response(
-        JSON.stringify({ hata: "Geçersiz URL" }),
+        JSON.stringify({ hata: "Gecersiz URL" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -67,12 +66,12 @@ export default {
 
     if (!izinli) {
       return new Response(
-        JSON.stringify({ hata: "Bu domain izinli değil: " + hedefDomain }),
+        JSON.stringify({ hata: "Bu domain izinli degil: " + hedefDomain }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Hedef sayfayı fetch et
+    // Tarayıcı benzeri header'lar
     const browserHeaders = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -82,7 +81,7 @@ export default {
       "Upgrade-Insecure-Requests": "1",
     };
 
-    // URL'leri dene: orijinal + HTTP/HTTPS alternatifi
+    // Deneme URL'leri: HTTPS + HTTP
     const urls = [hedefUrl];
     try {
       const parsed = new URL(hedefUrl);
@@ -98,40 +97,62 @@ export default {
     let lastError = null;
     let lastStatus = null;
 
+    // Her URL için 2 deneme (toplam: 2 URL x 2 deneme = 4 deneme)
     for (const tryUrl of urls) {
-      try {
-        const response = await fetch(tryUrl, {
-          headers: browserHeaders,
-          redirect: "follow",
-        });
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          // İkinci denemede kısa bekleme
+          if (attempt > 0) {
+            await new Promise(function(r) { setTimeout(r, 1000); });
+          }
 
-        // 5xx hata (522 Connection Timed Out gibi) ise sonraki URL'yi dene
-        if (response.status >= 500) {
-          lastError = new Error("HTTP " + response.status);
-          lastStatus = response.status;
+          const response = await fetch(tryUrl, {
+            headers: browserHeaders,
+            redirect: "follow",
+          });
+
+          // 5xx hata ise tekrar dene
+          if (response.status >= 500) {
+            lastError = new Error("HTTP " + response.status);
+            lastStatus = response.status;
+            continue;
+          }
+
+          // 4xx hatası ise (404 gibi) — hedef sayfa yok, sonraki URL'ye geç
+          if (response.status >= 400) {
+            lastError = new Error("HTTP " + response.status);
+            lastStatus = response.status;
+            break; // Bu URL için tekrar deneme, sonraki URL'ye geç
+          }
+
+          const html = await response.text();
+
+          // Çok kısa yanıt ise (boş sayfa) reddet
+          if (!html || html.length < 100) {
+            lastError = new Error("Bos veya cok kisa yanit (" + (html ? html.length : 0) + " karakter)");
+            continue;
+          }
+
+          return new Response(html, {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "text/html; charset=utf-8",
+              "Cache-Control": "public, max-age=300",
+              "X-Fetched-From": tryUrl,
+              "X-Attempt": String(attempt + 1),
+            },
+          });
+        } catch (e) {
+          lastError = e;
           continue;
         }
-
-        const html = await response.text();
-
-        return new Response(html, {
-          status: response.status,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "text/html; charset=utf-8",
-            "Cache-Control": "public, max-age=300",
-            "X-Fetched-From": tryUrl,
-          },
-        });
-      } catch (e) {
-        lastError = e;
-        continue;
       }
     }
 
     return new Response(
       JSON.stringify({
-        hata: "Sayfa alinamadi (HTTPS ve HTTP denendi): " + (lastError ? lastError.message : "bilinmeyen hata"),
+        hata: "Sayfa alinamadi: " + (lastError ? lastError.message : "bilinmeyen hata"),
         denenen_urllar: urls,
         son_status: lastStatus,
       }),
