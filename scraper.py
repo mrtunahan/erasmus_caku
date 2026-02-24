@@ -27,26 +27,61 @@ from typing import Optional
 # ─── Yapılandırma ────────────────────────────────────────────────────────────
 
 CONFIG = {
-    # Ana duyuru sayfası URL'i
-    "base_url": "https://bmu.karatekin.edu.tr",
-    "announcements_url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
-
-    # Alternatif URL kalıpları (Karatekin CMS farklı path kullanabilir)
-    "alt_urls": [
-        "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
-        "https://bmu.karatekin.edu.tr/tr/duyurular",
-        "https://bmu.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
-    ],
-
-    # RSS feed URL'leri (varsa)
-    "rss_urls": [
-        "https://bmu.karatekin.edu.tr/rss",
-        "https://bmu.karatekin.edu.tr/tr/rss",
-        "https://bmu.karatekin.edu.tr/feed",
+    # Tüm duyuru kaynakları
+    "kaynaklar": [
+        {
+            "id": "bmu",
+            "label": "Bilgisayar Müh.",
+            "base_url": "https://bmu.karatekin.edu.tr",
+            "urls": [
+                "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+                "https://bmu.karatekin.edu.tr/tr/duyurular",
+            ],
+            "rss_urls": [
+                "https://bmu.karatekin.edu.tr/rss",
+                "https://bmu.karatekin.edu.tr/tr/rss",
+            ],
+        },
+        {
+            "id": "mf",
+            "label": "Müh. Fakültesi",
+            "base_url": "https://mf.karatekin.edu.tr",
+            "urls": [
+                "https://mf.karatekin.edu.tr/tr/tum-duyurular",
+                "https://mf.karatekin.edu.tr/tr/duyurular",
+            ],
+            "rss_urls": [
+                "https://mf.karatekin.edu.tr/rss",
+            ],
+        },
+        {
+            "id": "univ",
+            "label": "Üniversite",
+            "base_url": "https://www.karatekin.edu.tr",
+            "urls": [
+                "https://www.karatekin.edu.tr/tr/tum-duyurular",
+                "https://www.karatekin.edu.tr/tr/duyurular",
+            ],
+            "rss_urls": [
+                "https://www.karatekin.edu.tr/rss",
+            ],
+        },
+        {
+            "id": "oidb",
+            "label": "Öğrenci İşleri",
+            "base_url": "https://oidb.karatekin.edu.tr",
+            "urls": [
+                "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
+                "https://oidb.karatekin.edu.tr/tr/duyurular",
+            ],
+            "rss_urls": [
+                "https://oidb.karatekin.edu.tr/rss",
+            ],
+        },
     ],
 
     # Request ayarları
-    "timeout": 15,
+    "timeout": 20,
     "headers": {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -159,12 +194,12 @@ class KaratekinScraper:
 
     # ── Strateji 1: RSS Feed ─────────────────────────────────────────────
 
-    def rss_ile_cek(self) -> list[Duyuru]:
+    def rss_ile_cek(self, kaynak: dict) -> list[Duyuru]:
         """RSS feed üzerinden duyuruları çek."""
-        logger.info("RSS feed deneniyor...")
+        logger.info(f"  [{kaynak['id']}] RSS feed deneniyor...")
         duyurular = []
 
-        for rss_url in CONFIG["rss_urls"]:
+        for rss_url in kaynak.get("rss_urls", []):
             html = self._fetch(rss_url)
             if not html:
                 continue
@@ -175,7 +210,7 @@ class KaratekinScraper:
                 if not items:
                     continue
 
-                logger.info(f"RSS feed bulundu: {rss_url} ({len(items)} oge)")
+                logger.info(f"  RSS feed bulundu: {rss_url} ({len(items)} oge)")
 
                 for item in items:
                     baslik = item.find("title")
@@ -199,6 +234,7 @@ class KaratekinScraper:
                         icerik=None,
                         tarih=tarih.get_text(strip=True) if tarih else "",
                         url=link_text,
+                        kaynak=kaynak["id"].upper(),
                     )
                     duyurular.append(duyuru)
 
@@ -206,31 +242,24 @@ class KaratekinScraper:
                     return duyurular
 
             except Exception as e:
-                logger.warning(f"RSS parse hatasi: {e}")
+                logger.warning(f"  RSS parse hatasi: {e}")
 
         return duyurular
 
     # ── Strateji 2: HTML Scraping ────────────────────────────────────────
 
-    def html_ile_cek(self) -> list[Duyuru]:
-        """
-        HTML sayfasından duyuruları parse et.
-
-        Karatekin CMS'inin tipik yapısı:
-        - Duyuru listesi genelde bir <div> veya <ul> içinde
-        - Her duyuru bir <a> ile başlık + link içerir
-        - Tarih genelde bir <span> veya <small> içinde
-        """
-        logger.info("HTML scraping deneniyor...")
+    def html_ile_cek(self, kaynak: dict) -> list[Duyuru]:
+        """HTML sayfasından duyuruları parse et."""
+        logger.info(f"  [{kaynak['id']}] HTML scraping deneniyor...")
         duyurular = []
 
-        for url in CONFIG["alt_urls"]:
+        for url in kaynak["urls"]:
             html = self._fetch(url)
             if not html:
                 continue
 
             soup = BeautifulSoup(html, "html.parser")
-            logger.info(f"Sayfa yuklendi: {url}")
+            logger.info(f"  Sayfa yuklendi: {url}")
 
             # ── Çeşitli CSS seçici kalıplarını dene ──
             selectors = [
@@ -280,7 +309,7 @@ class KaratekinScraper:
             for selector in selectors:
                 if selector.get("fallback"):
                     # Fallback: Sayfadaki tüm anlamlı linkleri çek
-                    duyurular.extend(self._fallback_parse(soup, url))
+                    duyurular.extend(self._fallback_parse(soup, url, kaynak))
                     break
 
                 container = None
@@ -312,7 +341,7 @@ class KaratekinScraper:
 
                     # Relative URL'yi absolute yap
                     if link and not link.startswith("http"):
-                        link = CONFIG["base_url"] + ("" if link.startswith("/") else "/") + link
+                        link = kaynak["base_url"] + ("" if link.startswith("/") else "/") + link
 
                     # Tarih
                     tarih = ""
@@ -338,6 +367,7 @@ class KaratekinScraper:
                         icerik=None,
                         tarih=tarih,
                         url=link,
+                        kaynak=kaynak["id"].upper(),
                     )
                     duyurular.append(duyuru)
 
@@ -349,7 +379,7 @@ class KaratekinScraper:
 
         return duyurular
 
-    def _fallback_parse(self, soup: BeautifulSoup, page_url: str) -> list[Duyuru]:
+    def _fallback_parse(self, soup: BeautifulSoup, page_url: str, kaynak: dict) -> list[Duyuru]:
         """
         Fallback: Sayfadaki duyuru olabilecek tüm linkleri topla.
         URL'de 'duyuru', 'haber', 'icerik' gibi anahtar kelimeler aranır.
@@ -370,7 +400,7 @@ class KaratekinScraper:
                 continue
 
             if not href.startswith("http"):
-                href = CONFIG["base_url"] + ("" if href.startswith("/") else "/") + href
+                href = kaynak["base_url"] + ("" if href.startswith("/") else "/") + href
 
             if self._zaten_var_mi(href, baslik):
                 continue
@@ -386,6 +416,7 @@ class KaratekinScraper:
                 icerik=None,
                 tarih="",
                 url=href,
+                kaynak=kaynak["id"].upper(),
             )
             duyurular.append(duyuru)
 
@@ -440,7 +471,7 @@ class KaratekinScraper:
 
     def calistir(self, detay_cek: bool = True) -> list[Duyuru]:
         """
-        Tüm stratejileri sırayla dener ve yeni duyuruları döndürür.
+        Tüm kaynaklar üzerinde tüm stratejileri dener ve yeni duyuruları döndürür.
 
         Args:
             detay_cek: True ise her duyurunun detay sayfası da çekilir
@@ -450,41 +481,52 @@ class KaratekinScraper:
         """
         logger.info("=" * 60)
         logger.info("Duyuru taramasi basliyor...")
+        logger.info(f"  {len(CONFIG['kaynaklar'])} kaynak taranacak")
         logger.info("=" * 60)
 
-        yeni_duyurular = []
+        tum_yeni = []
 
-        # Strateji 1: RSS
-        yeni_duyurular = self.rss_ile_cek()
-        if yeni_duyurular:
-            logger.info(f"RSS ile {len(yeni_duyurular)} yeni duyuru bulundu.")
-        else:
-            # Strateji 2: HTML Scraping
-            yeni_duyurular = self.html_ile_cek()
+        for kaynak in CONFIG["kaynaklar"]:
+            logger.info(f"\n--- {kaynak['label']} ({kaynak['id']}) ---")
+            yeni_duyurular = []
+
+            # Strateji 1: RSS
+            yeni_duyurular = self.rss_ile_cek(kaynak)
             if yeni_duyurular:
-                logger.info(f"HTML ile {len(yeni_duyurular)} yeni duyuru bulundu.")
+                logger.info(f"  RSS ile {len(yeni_duyurular)} yeni duyuru bulundu.")
             else:
-                logger.info("Yeni duyuru bulunamadi.")
-                return []
+                # Strateji 2: HTML Scraping
+                yeni_duyurular = self.html_ile_cek(kaynak)
+                if yeni_duyurular:
+                    logger.info(f"  HTML ile {len(yeni_duyurular)} yeni duyuru bulundu.")
+                else:
+                    logger.warning(f"  {kaynak['label']} icin duyuru bulunamadi.")
+
+            tum_yeni.extend(yeni_duyurular)
+            time.sleep(2)  # Kaynaklar arası bekleme
+
+        if not tum_yeni:
+            logger.info("Hicbir kaynaktan yeni duyuru bulunamadi.")
+            return []
 
         # Detay sayfalarını çek
         if detay_cek:
-            logger.info("Detay sayfalari cekiliyor...")
-            for i, duyuru in enumerate(yeni_duyurular):
-                logger.info(f"  [{i+1}/{len(yeni_duyurular)}] {duyuru.baslik[:50]}...")
+            logger.info("\nDetay sayfalari cekiliyor...")
+            for i, duyuru in enumerate(tum_yeni):
+                logger.info(f"  [{i+1}/{len(tum_yeni)}] {duyuru.baslik[:50]}...")
                 self.detay_cek(duyuru)
                 time.sleep(1)  # Rate limiting
 
         # Kaydet
-        self.mevcut_duyurular.extend(yeni_duyurular)
+        self.mevcut_duyurular.extend(tum_yeni)
         self._kaydet()
 
         logger.info("=" * 60)
-        logger.info(f"Tamamlandi! {len(yeni_duyurular)} yeni duyuru eklendi.")
+        logger.info(f"Tamamlandi! {len(tum_yeni)} yeni duyuru eklendi.")
         logger.info(f"Toplam: {len(self.mevcut_duyurular)} duyuru")
         logger.info("=" * 60)
 
-        return yeni_duyurular
+        return tum_yeni
 
 
 # ─── Portal Entegrasyon Yardımcıları ────────────────────────────────────────
