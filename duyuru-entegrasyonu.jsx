@@ -47,12 +47,9 @@ const KATEGORI_RENKLERI = {
   genel: { bg: "#f3f4f6", text: "#374151", label: "Genel" },
 };
 
-// ── Cloudflare Worker Proxy URL ──────────────────────────────────────────────
-// Kendi Worker'ınızı deploy edin (cloudflare-worker-proxy.js dosyasına bakın)
-// Deploy ettikten sonra aşağıdaki URL'i kendi Worker URL'inizle değiştirin:
-const WORKER_URL = "https://duyuru.tunahankorkmaz6.workers.dev";
-
-// ── JSON Fallback (scraper çıktısı) ─────────────────────────────────────────
+// ── Duyuru JSON Veri Kaynağı ─────────────────────────────────────────────────
+// GitHub Actions ile scraper.py periyodik çalışır ve bu dosyayı günceller.
+// Frontend sadece bu JSON dosyasını okur — CORS sorunu olmaz.
 const DUYURU_JSON_URL = "duyurular/duyurular.json";
 
 // ── Yerleşik Örnek Duyurular (tüm kaynaklar başarısız olduğunda gösterilir) ──
@@ -169,12 +166,6 @@ const YERLESIK_DUYURULAR = [
   },
 ];
 
-// ── CORS Proxy'ler (Worker yoksa fallback olarak denenir) ───────────────────
-const CORS_PROXIES = [
-  { name: "allorigins-json", fn: function(url) { return "https://api.allorigins.win/get?url=" + encodeURIComponent(url); }, isJson: true },
-  { name: "corsanywhere", fn: function(url) { return "https://cors-anywhere.herokuapp.com/" + url; }, isJson: false },
-];
-
 // ── Kategori tespiti: başlık metninden otomatik kategori çıkar ──────────────
 function kategoriBelirle(baslik) {
   var metin = baslik.toLowerCase();
@@ -186,242 +177,8 @@ function kategoriBelirle(baslik) {
   return "genel";
 }
 
-// ── Yardımcı: relative href'i tam URL'e çevir ──────────────────────────────
-function hrefTamYol(href, kaynakBaseUrl) {
-  if (!href || href.startsWith("http")) return href;
-  // href "/tr/..." gibi mutlak path ise → sadece origin + href
-  if (href.startsWith("/")) {
-    try {
-      var origin = new URL(kaynakBaseUrl).origin;
-      return origin + href;
-    } catch (e) {
-      return kaynakBaseUrl + href;
-    }
-  }
-  // href "mth412-..." gibi relative path ise → baseUrl + "/" + href
-  return kaynakBaseUrl + "/" + href;
-}
-
-// ── HTML'den duyuruları parse et (DOMParser) ────────────────────────────────
-function htmldenDuyurulariCikar(htmlString, kaynakId, kaynakBaseUrl) {
-  var parser = new DOMParser();
-  var doc = parser.parseFromString(htmlString, "text/html");
-  var duyurular = [];
-  var idSayac = 0;
-
-  // Strateji 1: Tablo yapısı (Karatekin CMS genelde tablo kullanır)
-  var satirlar = doc.querySelectorAll("table tr, table tbody tr");
-  if (satirlar.length > 1) {
-    satirlar.forEach(function(tr) {
-      var link = tr.querySelector("a[href]");
-      var hucreler = tr.querySelectorAll("td");
-      if (!link || hucreler.length < 1) return;
-
-      var baslik = link.textContent.trim();
-      if (!baslik || baslik.length < 5) return;
-
-      var href = hrefTamYol(link.getAttribute("href") || "", kaynakBaseUrl);
-
-      // Son hücreden tarih çıkarmayı dene
-      var tarih = "";
-      for (var i = hucreler.length - 1; i >= 0; i--) {
-        var hucreMetin = hucreler[i].textContent.trim();
-        var tarihMatch = hucreMetin.match(/(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
-        if (tarihMatch) {
-          var gun = tarihMatch[1].padStart(2, "0");
-          var ay = tarihMatch[2].padStart(2, "0");
-          var yil = tarihMatch[3].length === 2 ? "20" + tarihMatch[3] : tarihMatch[3];
-          tarih = yil + "-" + ay + "-" + gun;
-          break;
-        }
-      }
-
-      duyurular.push({
-        id: kaynakId + "_" + (++idSayac),
-        baslik: baslik,
-        ozet: "",
-        tarih: tarih || new Date().toISOString().split("T")[0],
-        kaynak: kaynakId,
-        kategori: kategoriBelirle(baslik),
-        url: href,
-        okundu: false,
-        pinli: false,
-      });
-    });
-  }
-
-  // Strateji 2: Kart/Liste yapısı
-  if (duyurular.length === 0) {
-    var kartSeciciler = [
-      "div.duyuru-item", "div.duyuru-listesi li", "div.content-list .item",
-      "div.news-list .item", "div.icerik-listesi li", "article",
-      "div.card", "li.list-group-item",
-    ];
-    kartSeciciler.forEach(function(sel) {
-      if (duyurular.length > 0) return;
-      var elemanlar = doc.querySelectorAll(sel);
-      elemanlar.forEach(function(el) {
-        var link = el.querySelector("a[href]");
-        if (!link) return;
-        var baslik = link.textContent.trim();
-        if (!baslik || baslik.length < 5) return;
-
-        var href = hrefTamYol(link.getAttribute("href") || "", kaynakBaseUrl);
-
-        var tarihEl = el.querySelector("time, span.tarih, small.tarih, span.date, small");
-        var tarih = "";
-        if (tarihEl) {
-          var tarihMatch = tarihEl.textContent.match(/(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
-          if (tarihMatch) {
-            var gun = tarihMatch[1].padStart(2, "0");
-            var ay = tarihMatch[2].padStart(2, "0");
-            var yil = tarihMatch[3].length === 2 ? "20" + tarihMatch[3] : tarihMatch[3];
-            tarih = yil + "-" + ay + "-" + gun;
-          }
-        }
-
-        var ozetEl = el.querySelector("p, div.ozet, span.aciklama, div.summary");
-        var ozet = (ozetEl && ozetEl !== link) ? ozetEl.textContent.trim().substring(0, 300) : "";
-
-        duyurular.push({
-          id: kaynakId + "_" + (++idSayac),
-          baslik: baslik,
-          ozet: ozet,
-          tarih: tarih || new Date().toISOString().split("T")[0],
-          kaynak: kaynakId,
-          kategori: kategoriBelirle(baslik),
-          url: href,
-          okundu: false,
-          pinli: false,
-        });
-      });
-    });
-  }
-
-  // Strateji 3: Fallback — sayfadaki duyuru/haber/icerik linklerini topla
-  if (duyurular.length === 0) {
-    var tumLinkler = doc.querySelectorAll("a[href]");
-    var gorulenUrl = {};
-    tumLinkler.forEach(function(a) {
-      var href = a.getAttribute("href") || "";
-      var baslik = a.textContent.trim();
-      if (!baslik || baslik.length < 10) return;
-
-      var anahtar = ["duyur", "haber", "icerik", "etkinlik", "announce"];
-      var eslesti = anahtar.some(function(kw) { return href.toLowerCase().includes(kw); });
-      if (!eslesti) return;
-
-      href = hrefTamYol(href, kaynakBaseUrl);
-      if (gorulenUrl[href]) return;
-      gorulenUrl[href] = true;
-
-      duyurular.push({
-        id: kaynakId + "_" + (++idSayac),
-        baslik: baslik,
-        ozet: "",
-        tarih: new Date().toISOString().split("T")[0],
-        kaynak: kaynakId,
-        kategori: kategoriBelirle(baslik),
-        url: href,
-        okundu: false,
-        pinli: false,
-      });
-    });
-  }
-
-  return duyurular;
-}
-
-// ── Timeout ile fetch yardımcı fonksiyonu (AbortController ile uyumluluk) ────
-function fetchWithTimeout(fetchUrl, timeoutMs) {
-  return new Promise(function(resolve, reject) {
-    var controller = new AbortController();
-    var timer = setTimeout(function() {
-      controller.abort();
-      reject(new Error("Zaman asimi (" + timeoutMs + "ms)"));
-    }, timeoutMs);
-
-    fetch(fetchUrl, {
-      signal: controller.signal,
-      headers: { "Accept": "text/html,application/json,*/*" },
-    })
-      .then(function(res) {
-        clearTimeout(timer);
-        resolve(res);
-      })
-      .catch(function(err) {
-        clearTimeout(timer);
-        reject(err);
-      });
-  });
-}
-
-// ── CORS proxy ile sayfa HTML'ini fetch et ──────────────────────────────────
-async function sayfayiFetchEt(url) {
-  // 1. Önce kendi Cloudflare Worker'ımızı dene (en güvenilir)
-  if (WORKER_URL) {
-    try {
-      var workerEndpoint = WORKER_URL + "/?url=" + encodeURIComponent(url);
-      console.log("Worker deneniyor: " + workerEndpoint.substring(0, 80) + "...");
-      var wResponse = await fetchWithTimeout(workerEndpoint, 15000);
-      if (wResponse.ok) {
-        var wText = await wResponse.text();
-        // Google Cache veya arama sayfası döndüyse reddet
-        if (wText && wText.indexOf("google") !== -1 && wText.indexOf("gstatic") !== -1) {
-          console.warn("Worker Google Cache/arama sayfasi dondurdu, reddediliyor");
-        } else if (wText && wText.length > 200) {
-          console.log("Worker basarili! (" + wText.length + " karakter)");
-          return wText;
-        }
-      }
-      console.warn("Worker HTTP " + wResponse.status);
-    } catch (e) {
-      console.warn("Worker basarisiz: " + e.message);
-    }
-  }
-
-  // 2. Ücretsiz CORS proxy'leri dene
-  for (var i = 0; i < CORS_PROXIES.length; i++) {
-    var proxy = CORS_PROXIES[i];
-    var proxyUrl = proxy.fn(url);
-    try {
-      console.log("Deneniyor: " + proxy.name + " → " + proxyUrl.substring(0, 80) + "...");
-      var response = await fetchWithTimeout(proxyUrl, 15000);
-      if (!response.ok) {
-        console.warn(proxy.name + " HTTP " + response.status);
-        continue;
-      }
-
-      if (proxy.isJson) {
-        var json = await response.json();
-        var html = json.contents || json.body || json.data || "";
-        if (html && html.length > 200) {
-          console.log(proxy.name + " basarili! (" + html.length + " karakter)");
-          return html;
-        }
-      } else {
-        var text = await response.text();
-        if (text && text.startsWith("{")) {
-          try {
-            var parsed = JSON.parse(text);
-            text = parsed.contents || parsed.body || parsed.data || text;
-          } catch (_) {}
-        }
-        if (text && text.length > 200) {
-          console.log(proxy.name + " basarili! (" + text.length + " karakter)");
-          return text;
-        }
-      }
-      console.warn(proxy.name + " bos veya cok kisa yanit");
-    } catch (e) {
-      console.warn("Proxy " + proxy.name + " basarisiz: " + e.message);
-    }
-  }
-  return null;
-}
-
-// ── JSON fallback: scraper çıktısını yükle ──────────────────────────────────
-function scraperJsonFallback(jsonData) {
+// ── JSON verisini duyuru formatına çevir ─────────────────────────────────────
+function jsonDenDuyuruCevir(jsonData) {
   return jsonData.map(function(d) {
     var kaynak = "bmu";
     if (d.kaynak) {
@@ -429,6 +186,7 @@ function scraperJsonFallback(jsonData) {
       if (k.includes("oidb") || k.includes("ogrenci")) kaynak = "oidb";
       else if (k.includes("mf") || k.includes("muhendislik")) kaynak = "mf";
       else if (k.includes("univ") || k.includes("genel")) kaynak = "univ";
+      else if (k.includes("bmu") || k.includes("bilgisayar")) kaynak = "bmu";
     } else if (d.url) {
       if (d.url.includes("oidb.")) kaynak = "oidb";
       else if (d.url.includes("mf.")) kaynak = "mf";
@@ -453,47 +211,6 @@ function scraperJsonFallback(jsonData) {
       pinli: false,
     };
   });
-}
-
-// ── Tüm kaynaklardan duyuruları çek ─────────────────────────────────────────
-// Başarısız kaynaklar için yerleşik fallback verisini kullanır
-async function tumKaynaklardanCek(aktifKaynaklar) {
-  var tumDuyurular = [];
-  var basarisizKaynaklar = [];
-
-  for (var k = 0; k < DUYURU_KAYNAKLARI.length; k++) {
-    var kaynak = DUYURU_KAYNAKLARI[k];
-    if (!aktifKaynaklar.includes(kaynak.id)) continue;
-
-    console.log("Duyurular cekiliyor: " + kaynak.label + " (" + kaynak.url + ")");
-    var html = await sayfayiFetchEt(kaynak.url);
-    if (!html) {
-      console.warn(kaynak.label + " icin HTML alinamadi — fallback kullanilacak");
-      basarisizKaynaklar.push(kaynak.id);
-      continue;
-    }
-
-    var baseUrl = kaynak.url.replace(/\/tum-duyurular$/, "").replace(/\/$/, "");
-    var duyurular = htmldenDuyurulariCikar(html, kaynak.id, baseUrl);
-    if (duyurular.length === 0) {
-      console.warn(kaynak.label + " icin HTML alindi ama duyuru parse edilemedi — fallback kullanilacak");
-      basarisizKaynaklar.push(kaynak.id);
-    } else {
-      console.log(kaynak.label + ": " + duyurular.length + " duyuru bulundu");
-      tumDuyurular = tumDuyurular.concat(duyurular);
-    }
-  }
-
-  // Başarısız kaynaklar için yerleşik verileri ekle
-  if (basarisizKaynaklar.length > 0) {
-    console.log("Fallback kullanilan kaynaklar: " + basarisizKaynaklar.join(", "));
-    var fallbackDuyurular = YERLESIK_DUYURULAR.filter(function(d) {
-      return basarisizKaynaklar.includes(d.kaynak);
-    });
-    tumDuyurular = tumDuyurular.concat(fallbackDuyurular);
-  }
-
-  return { duyurular: tumDuyurular, basarisizKaynaklar: basarisizKaynaklar };
 }
 
 // ── Yardımcı Fonksiyonlar ───────────────────────────────────────────────────
@@ -1294,71 +1011,41 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
     );
   }, []);
 
-  // ── Duyuruları çek: Worker/Proxy → JSON fallback ─────────────────────
+  // ── Duyuruları çek: JSON dosyasından oku → yerleşik fallback ────────
   const duyurulariGuncelle = useCallback(async () => {
     setYukleniyor(true);
     setHata(null);
     try {
-      // 1. Tüm kaynaklardan çek (başarısız olanlar için otomatik fallback kullanılır)
-      const sonuc = await tumKaynaklardanCek(ayarlar.aktifKaynaklar);
-      var yeniDuyurular = sonuc.duyurular;
-      var basarisizKaynaklar = sonuc.basarisizKaynaklar;
-
-      if (yeniDuyurular.length > 0) {
-        console.log("Toplam " + yeniDuyurular.length + " duyuru (basarisiz kaynaklar: " + basarisizKaynaklar.length + ")");
-        sonuclariUygula(yeniDuyurular);
-
-        // Bazı kaynaklar başarısız olduysa bilgi mesajı göster
-        if (basarisizKaynaklar.length > 0) {
-          var kaynakLabellari = basarisizKaynaklar.map(function(id) {
-            var k = DUYURU_KAYNAKLARI.find(function(kk) { return kk.id === id; });
-            return k ? k.label : id;
-          }).join(", ");
-          setHata(
-            kaynakLabellari + " kaynaklarına erişilemedi, bu kaynaklar için örnek veriler gösterilmektedir."
-          );
+      // 1. JSON dosyasından oku (scraper.py tarafından güncellenir)
+      console.log("JSON dosyasindan duyurular yukleniyor: " + DUYURU_JSON_URL);
+      var response = await fetch(DUYURU_JSON_URL + "?v=" + Date.now());
+      if (response.ok) {
+        var jsonData = await response.json();
+        if (jsonData && jsonData.length > 0) {
+          var duyuruListesi = jsonDenDuyuruCevir(jsonData);
+          // Aktif kaynaklara göre filtrele
+          duyuruListesi = duyuruListesi.filter(function(d) {
+            return ayarlar.aktifKaynaklar.includes(d.kaynak);
+          });
+          console.log("JSON basarili: " + duyuruListesi.length + " duyuru yuklendi");
+          sonuclariUygula(duyuruListesi);
+          setYukleniyor(false);
+          return;
         }
-        setYukleniyor(false);
-        return;
       }
-
-      // 2. Hiçbir kaynak çalışmadı → JSON fallback dene
-      console.warn("Tum kaynaklar basarisiz, JSON fallback deneniyor...");
-      try {
-        var jsonResponse = await fetchWithTimeout(DUYURU_JSON_URL + "?v=" + Date.now(), 10000);
-        if (jsonResponse.ok) {
-          var jsonData = await jsonResponse.json();
-          if (jsonData && jsonData.length > 0) {
-            var fallbackDuyurular = scraperJsonFallback(jsonData);
-            console.log("JSON fallback basarili: " + fallbackDuyurular.length + " duyuru");
-            sonuclariUygula(fallbackDuyurular);
-            setHata("Kaynak sitelere erişilemedi. JSON verisi gösterilmektedir.");
-            setYukleniyor(false);
-            return;
-          }
-        }
-      } catch (jsonErr) {
-        console.warn("JSON fallback da basarisiz:", jsonErr.message);
-      }
-
-      // 3. Yerleşik örnek duyuruları göster
-      console.warn("Tum kaynaklar basarisiz, yerlesik ornek duyurular gosteriliyor");
-      var filtrelenmisYerlesik = YERLESIK_DUYURULAR.filter(function(d) {
-        return ayarlar.aktifKaynaklar.includes(d.kaynak);
-      });
-      sonuclariUygula(filtrelenmisYerlesik);
-      setHata(
-        "Kaynak sitelere erişilemedi. Şu an örnek duyurular gösterilmektedir."
-      );
+      console.warn("JSON dosyasi bos veya yuklenemedi, yerlesik veriler kullaniliyor");
     } catch (err) {
-      console.error("Duyuru yukleme hatasi:", err);
-      // Hata durumunda da yerleşik verileri göster
-      var acilDuyurular = YERLESIK_DUYURULAR.filter(function(d) {
-        return ayarlar.aktifKaynaklar.includes(d.kaynak);
-      });
-      sonuclariUygula(acilDuyurular);
-      setHata("Duyuru verisi yüklenirken hata oluştu. Örnek veriler gösterilmektedir.");
+      console.warn("JSON yukleme hatasi: " + err.message);
     }
+
+    // 2. JSON başarısız → Yerleşik örnek duyuruları göster
+    var yerlesikDuyurular = YERLESIK_DUYURULAR.filter(function(d) {
+      return ayarlar.aktifKaynaklar.includes(d.kaynak);
+    });
+    sonuclariUygula(yerlesikDuyurular);
+    setHata(
+      "Duyuru verileri henüz güncellenmemiş. Örnek veriler gösterilmektedir."
+    );
     setYukleniyor(false);
   }, [ayarlar.aktifKaynaklar, sonuclariUygula]);
 
