@@ -26,19 +26,187 @@ const MUAFIYET_TABS = [
   { id: "gecmis", label: "Geçmiş Kayıtlar" },
 ];
 
-// Türkçe stopwords - benzerlik hesabında göz ardı edilecek
+// Türkçe stopwords - benzerlik hesabında göz ardı edilecek (genişletilmiş)
 const TR_STOPWORDS = new Set([
+  // Türkçe bağlaçlar ve edatlar
   "ve", "ile", "bir", "bu", "da", "de", "den", "dan", "için", "olan",
   "gibi", "kadar", "sonra", "önce", "üzere", "olarak", "veya", "ya",
   "hem", "ise", "nin", "nın", "nun", "nün", "dir", "dır", "dür", "dur",
-  "ler", "lar", "tir", "tır", "tur", "tür", "the", "and", "of", "in",
-  "to", "for", "on", "with", "at", "by", "an", "are", "is", "as",
-  "from", "that", "which", "or", "be", "it", "its", "has", "have",
+  "ler", "lar", "tir", "tır", "tur", "tür", "ki", "mi", "mu", "mü",
+  "ama", "fakat", "ancak", "yani", "çünkü", "zira", "dolayı", "daha",
+  "çok", "bazı", "her", "hiç", "şu", "ne", "neden", "nasıl",
+  "olan", "olma", "olur", "oldu", "olan", "oluş", "etmek", "etme",
+  "yapma", "yapmak", "yapıl", "edilir", "edilecek", "edilen",
+  "aynı", "diğer", "başka", "arası", "arasında", "üzerinde", "altında",
+  "yanı", "sıra", "hakkında", "ilgili", "göre", "karşı", "doğru",
+  // İngilizce stopwords
+  "the", "and", "of", "in", "to", "for", "on", "with", "at", "by",
+  "an", "are", "is", "as", "from", "that", "which", "or", "be",
+  "it", "its", "has", "have", "this", "these", "those", "such",
+  "will", "can", "may", "would", "should", "could", "been", "being",
+  "was", "were", "not", "but", "also", "more", "than", "each",
+  "about", "into", "through", "between", "their", "other",
+  // Akademik jargon (anlam taşımayan)
+  "ders", "konu", "hafta", "week", "topic", "lecture", "course",
+  "saat", "hour", "lab", "laboratuvar", "uygulama", "teori",
 ]);
 
-// Varsayılan benzerlik eşiği (%80 içerik uyumu gerekli)
-const SIMILARITY_THRESHOLD = 0.80;
+// ── Alan-Spesifik Eşanlamlılar Sözlüğü (CS/Mühendislik) ──
+const DOMAIN_SYNONYMS = {
+  // Programlama
+  "programlama": ["programming", "kodlama", "coding", "yazılım geliştirme"],
+  "programming": ["programlama", "kodlama", "coding"],
+  "kodlama": ["programlama", "programming", "coding"],
+  // Veri yapıları & Algoritmalar
+  "algoritma": ["algorithm", "algorithms"],
+  "algorithm": ["algoritma"],
+  "veri yapıları": ["data structures", "veri yapısı"],
+  "data structures": ["veri yapıları", "veri yapısı"],
+  "veri yapısı": ["data structure", "veri yapıları"],
+  // Veritabanı
+  "veritabanı": ["database", "veritaban", "veri tabanı", "db"],
+  "database": ["veritabanı", "veri tabanı"],
+  "veri tabanı": ["veritabanı", "database"],
+  // İşletim Sistemleri
+  "işletim sistemi": ["operating system", "os"],
+  "işletim sistemleri": ["operating systems"],
+  "operating system": ["işletim sistemi", "işletim sistemleri"],
+  "operating systems": ["işletim sistemleri"],
+  // Ağlar
+  "bilgisayar ağları": ["computer networks", "ağ", "network"],
+  "computer networks": ["bilgisayar ağları"],
+  "ağ": ["network", "bilgisayar ağları"],
+  "network": ["ağ", "bilgisayar ağları"],
+  // Yazılım Mühendisliği
+  "yazılım mühendisliği": ["software engineering"],
+  "software engineering": ["yazılım mühendisliği"],
+  "yazılım": ["software"],
+  "software": ["yazılım"],
+  // Yapay Zeka & ML
+  "yapay zeka": ["artificial intelligence", "ai"],
+  "artificial intelligence": ["yapay zeka"],
+  "makine öğrenmesi": ["machine learning", "ml"],
+  "machine learning": ["makine öğrenmesi", "makine öğrenme"],
+  "derin öğrenme": ["deep learning"],
+  "deep learning": ["derin öğrenme"],
+  "sinir ağı": ["neural network", "sinir ağları"],
+  "neural network": ["sinir ağı", "sinir ağları"],
+  // Matematik
+  "matematik": ["mathematics", "math", "calculus"],
+  "mathematics": ["matematik"],
+  "doğrusal cebir": ["linear algebra", "lineer cebir"],
+  "linear algebra": ["doğrusal cebir", "lineer cebir"],
+  "lineer cebir": ["doğrusal cebir", "linear algebra"],
+  "ayrık matematik": ["discrete mathematics", "discrete math"],
+  "discrete mathematics": ["ayrık matematik"],
+  "diferansiyel": ["differential", "differansiyel"],
+  "differential": ["diferansiyel", "differansiyel"],
+  "olasılık": ["probability"],
+  "probability": ["olasılık"],
+  "istatistik": ["statistics", "statistik"],
+  "statistics": ["istatistik"],
+  // Fizik & Elektronik
+  "fizik": ["physics"],
+  "physics": ["fizik"],
+  "elektronik": ["electronics", "electronic"],
+  "electronics": ["elektronik"],
+  "devre": ["circuit", "devreler"],
+  "circuit": ["devre", "devreler"],
+  // Web & Mobil
+  "web": ["internet", "web programlama", "web tasarım"],
+  "mobil": ["mobile"],
+  "mobile": ["mobil"],
+  // Güvenlik
+  "güvenlik": ["security", "siber güvenlik"],
+  "security": ["güvenlik", "siber güvenlik"],
+  "siber güvenlik": ["cybersecurity", "cyber security", "güvenlik"],
+  // Mimari
+  "bilgisayar mimarisi": ["computer architecture"],
+  "computer architecture": ["bilgisayar mimarisi"],
+  "mikroişlemci": ["microprocessor", "mikroişlemciler"],
+  "microprocessor": ["mikroişlemci", "mikroişlemciler"],
+  // Genel CS
+  "nesne yönelimli": ["object oriented", "oop", "nesnesel"],
+  "object oriented": ["nesne yönelimli", "nesnesel"],
+  "nesnesel": ["nesne yönelimli", "object oriented"],
+  "otomata": ["automata", "otomat"],
+  "automata": ["otomata"],
+  "formal diller": ["formal languages"],
+  "formal languages": ["formal diller"],
+  "görüntü işleme": ["image processing"],
+  "image processing": ["görüntü işleme"],
+  "doğal dil işleme": ["natural language processing", "nlp"],
+  "natural language processing": ["doğal dil işleme"],
+  "bulut bilişim": ["cloud computing"],
+  "cloud computing": ["bulut bilişim"],
+  "gömülü sistem": ["embedded system", "gömülü sistemler"],
+  "embedded system": ["gömülü sistem", "gömülü sistemler"],
+  "veri madenciliği": ["data mining"],
+  "data mining": ["veri madenciliği"],
+  "blokzincir": ["blockchain"],
+  "blockchain": ["blokzincir", "blok zincir"],
+};
+
+// ── Türkçe Kök Bulma (Suffix Stripping) ──
+const TR_SUFFIXES = [
+  // Uzun ekler (önce kontrol)
+  "leyebilir", "layabilir", "leştiril", "laştırıl",
+  "lıkları", "likleri", "lukları", "lükleri",
+  "lerden", "lardan", "lerini", "larını",
+  "leyerek", "layarak", "leştir", "laştır",
+  "lerin", "ların", "lerde", "larda",
+  "lığı", "liği", "luğu", "lüğü",
+  "lıkl", "likl", "lukl", "lükl",
+  "ında", "inde", "ünde", "unde",
+  "ıyla", "iyle", "arak", "erek",
+  "mesi", "ması", "mesi", "ması",
+  "ler", "lar", "lik", "lık", "luk", "lük",
+  "nin", "nın", "nün", "nun",
+  "den", "dan", "ten", "tan",
+  "ini", "ını", "ünü", "unu",
+  "ine", "ına", "üne", "una",
+  "ile", "yla", "yle",
+  "dır", "dir", "dur", "dür",
+  "tır", "tir", "tur", "tür",
+  "mak", "mek",
+  "yor", "miş", "mış", "muş", "müş",
+  "cak", "cek",
+  "ler", "lar",
+  "li", "lı", "lu", "lü",
+  "ci", "cı", "cu", "cü",
+  "si", "sı", "su", "sü",
+  "ca", "ce",
+  "da", "de", "ta", "te",
+  "ya", "ye",
+  "im", "ım", "um", "üm",
+  "ın", "in", "un", "ün",
+  "ek", "ak",
+  "ma", "me",
+  "an", "en",
+];
+
+function turkishStem(word) {
+  if (!word || word.length < 4) return word;
+  var stemmed = word;
+  // En uzun eşleşen eki bul ve kaldır (minimum 2 karakter kök kalmalı)
+  for (var i = 0; i < TR_SUFFIXES.length; i++) {
+    var suffix = TR_SUFFIXES[i];
+    if (stemmed.length > suffix.length + 2 && stemmed.endsWith(suffix)) {
+      stemmed = stemmed.slice(0, stemmed.length - suffix.length);
+      break; // Sadece bir ek kaldır (aggressive stemming'den kaçın)
+    }
+  }
+  return stemmed;
+}
+
+// Varsayılan benzerlik eşiği (%70 birleşik skor gerekli — daha hassas çoklu faktör)
+const SIMILARITY_THRESHOLD = 0.70;
 const AKTS_CHECK_ENABLED = true;
+
+// Ağırlık sabitleri
+const W_NAME = 0.35;       // Ders adı benzerliği ağırlığı
+const W_CONTENT = 0.55;    // İçerik benzerliği ağırlığı
+const W_CODE = 0.10;       // Ders kodu benzerliği ağırlığı
 
 // ══════════════════════════════════════════════════════════════
 // KÜTÜPHANELERİ YÜKLEME (pdf.js, mammoth.js, SheetJS)
@@ -279,17 +447,22 @@ function parseCoursesFromText(text) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// METİN BENZERLİĞİ MOTORU
+// GELİŞMİŞ NLP METİN BENZERLİĞİ MOTORU
+// Türkçe kök bulma, N-gram, TF-IDF, eşanlamlı genişletme,
+// Levenshtein mesafesi, çok faktörlü skor
 // ══════════════════════════════════════════════════════════════
 
 function normalizeText(text) {
   if (!text) return "";
   return text.toLowerCase()
     .replace(/İ/g, "i").replace(/I/g, "ı")
-    .replace(/[^a-zçğıöşüa-z0-9\s]/g, " ")
+    .replace(/Ğ/g, "ğ").replace(/Ü/g, "ü").replace(/Ş/g, "ş")
+    .replace(/Ö/g, "ö").replace(/Ç/g, "ç")
+    .replace(/[^a-zçğıöşü0-9\s]/g, " ")
     .replace(/\s+/g, " ").trim();
 }
 
+// Temel tokenize (stopword çıkarma + min uzunluk filtresi)
 function tokenize(text) {
   var normalized = normalizeText(text);
   return normalized.split(" ").filter(function (w) {
@@ -297,38 +470,158 @@ function tokenize(text) {
   });
 }
 
-// Jaccard benzerlik katsayısı
+// Stemmed tokenize (Türkçe kök bulma uygulanmış)
+function tokenizeStemmed(text) {
+  return tokenize(text).map(function (w) { return turkishStem(w); });
+}
+
+// ── Eşanlamlı Genişletme ──
+// Bir metni tokenize edip eşanlamlılarını da dahil eder
+function expandWithSynonyms(tokens) {
+  var expanded = new Set(tokens);
+  tokens.forEach(function (token) {
+    // Tek kelime eşanlamlıları
+    if (DOMAIN_SYNONYMS[token]) {
+      DOMAIN_SYNONYMS[token].forEach(function (syn) {
+        normalizeText(syn).split(" ").forEach(function (w) {
+          if (w.length > 1) expanded.add(w);
+        });
+      });
+    }
+  });
+  // İki kelimelik terimleri de kontrol et
+  var fullText = tokens.join(" ");
+  Object.keys(DOMAIN_SYNONYMS).forEach(function (key) {
+    if (key.includes(" ") && fullText.includes(key)) {
+      DOMAIN_SYNONYMS[key].forEach(function (syn) {
+        normalizeText(syn).split(" ").forEach(function (w) {
+          if (w.length > 1) expanded.add(w);
+        });
+      });
+    }
+  });
+  return Array.from(expanded);
+}
+
+// ── N-gram Üretici ──
+// Karakter seviyesinde n-gram üretir (fuzzy matching için)
+function charNgrams(text, n) {
+  if (!n) n = 2;
+  var normalized = normalizeText(text);
+  var grams = new Set();
+  for (var i = 0; i <= normalized.length - n; i++) {
+    grams.add(normalized.substring(i, i + n));
+  }
+  return grams;
+}
+
+// Kelime seviyesinde bigram üretir
+function wordBigrams(tokens) {
+  var bigrams = new Set();
+  for (var i = 0; i < tokens.length - 1; i++) {
+    bigrams.add(tokens[i] + " " + tokens[i + 1]);
+  }
+  return bigrams;
+}
+
+// ── Levenshtein Mesafesi ──
+function levenshteinDistance(a, b) {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  var matrix = [];
+  for (var i = 0; i <= b.length; i++) { matrix[i] = [i]; }
+  for (var j = 0; j <= a.length; j++) { matrix[0][j] = j; }
+  for (var i = 1; i <= b.length; i++) {
+    for (var j = 1; j <= a.length; j++) {
+      var cost = a[j - 1] === b[i - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+// Levenshtein tabanlı kelime benzerliği (0-1 arası)
+function wordSimilarity(word1, word2) {
+  if (!word1 || !word2) return 0;
+  var maxLen = Math.max(word1.length, word2.length);
+  if (maxLen === 0) return 1;
+  return 1 - levenshteinDistance(word1, word2) / maxLen;
+}
+
+// ── Jaccard Benzerlik Katsayısı (Stemmed + Synonym) ──
 function jaccardSimilarity(text1, text2) {
-  var tokens1 = tokenize(text1);
-  var tokens2 = tokenize(text2);
+  var tokens1 = tokenizeStemmed(text1);
+  var tokens2 = tokenizeStemmed(text2);
   if (tokens1.length === 0 || tokens2.length === 0) return 0;
 
-  var set1 = new Set(tokens1);
-  var set2 = new Set(tokens2);
+  // Eşanlamlı genişletme
+  var exp1 = expandWithSynonyms(tokens1);
+  var exp2 = expandWithSynonyms(tokens2);
+
+  var set1 = new Set(exp1);
+  var set2 = new Set(exp2);
   var intersection = 0;
   set1.forEach(function (t) { if (set2.has(t)) intersection++; });
-  var union = new Set([...tokens1, ...tokens2]).size;
+  var union = new Set([...exp1, ...exp2]).size;
   return union > 0 ? intersection / union : 0;
 }
 
-// Kosinüs benzerliği (TF vektörleri ile)
-function cosineSimilarity(text1, text2) {
-  var tokens1 = tokenize(text1);
-  var tokens2 = tokenize(text2);
+// ── N-gram Benzerliği ──
+// Karakter bigram Jaccard benzerliği (yazım hatalarına dayanıklı)
+function ngramSimilarity(text1, text2) {
+  var grams1 = charNgrams(text1, 2);
+  var grams2 = charNgrams(text2, 2);
+  if (grams1.size === 0 || grams2.size === 0) return 0;
+
+  var intersection = 0;
+  grams1.forEach(function (g) { if (grams2.has(g)) intersection++; });
+  var union = new Set([...grams1, ...grams2]).size;
+  return union > 0 ? intersection / union : 0;
+}
+
+// ── TF-IDF Kosinüs Benzerliği ──
+// Corpus olarak her iki metin kullanılır (IDF hesabı için)
+function tfidfCosineSimilarity(text1, text2) {
+  var tokens1 = tokenizeStemmed(text1);
+  var tokens2 = tokenizeStemmed(text2);
   if (tokens1.length === 0 || tokens2.length === 0) return 0;
 
+  // Eşanlamlı genişletme
+  tokens1 = expandWithSynonyms(tokens1);
+  tokens2 = expandWithSynonyms(tokens2);
+
   // TF hesapla
-  var tf1 = {};
-  var tf2 = {};
+  var tf1 = {}, tf2 = {};
   tokens1.forEach(function (t) { tf1[t] = (tf1[t] || 0) + 1; });
   tokens2.forEach(function (t) { tf2[t] = (tf2[t] || 0) + 1; });
 
-  // Tüm terimler
+  // Normalize TF (frekans / max frekans)
+  var max1 = Math.max.apply(null, Object.values(tf1));
+  var max2 = Math.max.apply(null, Object.values(tf2));
+  var ntf1 = {}, ntf2 = {};
+  Object.keys(tf1).forEach(function (t) { ntf1[t] = 0.5 + 0.5 * tf1[t] / max1; });
+  Object.keys(tf2).forEach(function (t) { ntf2[t] = 0.5 + 0.5 * tf2[t] / max2; });
+
+  // IDF hesapla (2 doküman: text1 ve text2)
   var allTerms = new Set([...Object.keys(tf1), ...Object.keys(tf2)]);
+  var idf = {};
+  var N = 2; // 2 doküman
+  allTerms.forEach(function (term) {
+    var df = 0;
+    if (tf1[term]) df++;
+    if (tf2[term]) df++;
+    idf[term] = Math.log(N / df) + 1; // Smoothed IDF
+  });
+
+  // TF-IDF vektörleri ile kosinüs
   var dotProduct = 0, mag1 = 0, mag2 = 0;
   allTerms.forEach(function (term) {
-    var v1 = tf1[term] || 0;
-    var v2 = tf2[term] || 0;
+    var v1 = (ntf1[term] || 0) * idf[term];
+    var v2 = (ntf2[term] || 0) * idf[term];
     dotProduct += v1 * v2;
     mag1 += v1 * v1;
     mag2 += v2 * v2;
@@ -338,15 +631,138 @@ function cosineSimilarity(text1, text2) {
   return mag1 > 0 && mag2 > 0 ? dotProduct / (mag1 * mag2) : 0;
 }
 
-// Birleşik benzerlik skoru
+// ── Soft Jaccard (Levenshtein tabanlı fuzzy eşleşme) ──
+// Tam eşleşme yerine %85+ benzer kelimeleri de sayar
+function softJaccardSimilarity(text1, text2) {
+  var tokens1 = tokenizeStemmed(text1);
+  var tokens2 = tokenizeStemmed(text2);
+  if (tokens1.length === 0 || tokens2.length === 0) return 0;
+
+  var matched = 0;
+  var used = new Set();
+  tokens1.forEach(function (t1) {
+    var bestScore = 0;
+    var bestIdx = -1;
+    tokens2.forEach(function (t2, idx) {
+      if (used.has(idx)) return;
+      var sim = wordSimilarity(t1, t2);
+      if (sim > bestScore) { bestScore = sim; bestIdx = idx; }
+    });
+    if (bestScore >= 0.85) {
+      matched += bestScore;
+      if (bestIdx >= 0) used.add(bestIdx);
+    }
+  });
+  var total = Math.max(tokens1.length, tokens2.length);
+  return total > 0 ? matched / total : 0;
+}
+
+// ── Ders Adı Benzerliği ──
+// Ders adları kısa olduğu için özel işlem: n-gram + soft Jaccard + eşanlamlı
+function courseNameSimilarity(name1, name2) {
+  if (!name1 || !name2) return 0;
+  var n1 = normalizeText(name1);
+  var n2 = normalizeText(name2);
+
+  // Tam eşleşme
+  if (n1 === n2) return 1.0;
+
+  // Birinin diğerini içermesi
+  if (n1.includes(n2) || n2.includes(n1)) return 0.90;
+
+  // N-gram benzerliği (karakter seviyesi — yazım farklarına dayanıklı)
+  var ngSim = ngramSimilarity(name1, name2);
+
+  // Soft Jaccard (kelime seviyesi — fuzzy)
+  var sjSim = softJaccardSimilarity(name1, name2);
+
+  // Stemmed Jaccard (eşanlamlı genişletme ile)
+  var jSim = jaccardSimilarity(name1, name2);
+
+  // Ağırlıklı birleşim
+  return ngSim * 0.25 + sjSim * 0.35 + jSim * 0.40;
+}
+
+// ── Ders Kodu Benzerliği ──
+// Ders kodlarını karşılaştır (BIL101 vs CS101, MTH vs MAT)
+function courseCodeSimilarity(code1, code2) {
+  if (!code1 || !code2) return 0;
+  var c1 = normalizeText(code1).replace(/\s/g, "");
+  var c2 = normalizeText(code2).replace(/\s/g, "");
+  if (c1 === c2) return 1.0;
+
+  // Sayısal kısmı ayır
+  var num1 = c1.replace(/[^0-9]/g, "");
+  var num2 = c2.replace(/[^0-9]/g, "");
+  var prefix1 = c1.replace(/[0-9]/g, "");
+  var prefix2 = c2.replace(/[0-9]/g, "");
+
+  var score = 0;
+  // Aynı numara ise bazı benzerlik
+  if (num1 && num2 && num1 === num2) score += 0.3;
+  // Aynı yüzler basamağı (ders seviyesi)
+  if (num1.length >= 1 && num2.length >= 1 && num1[0] === num2[0]) score += 0.2;
+  // Prefix benzerliği
+  score += wordSimilarity(prefix1, prefix2) * 0.5;
+
+  return Math.min(score, 1.0);
+}
+
+// ── Birleşik İçerik Benzerliği ──
+// TF-IDF Cosine + Jaccard + N-gram karması
+function contentSimilarity(text1, text2) {
+  if (!text1 || !text2) return 0;
+
+  var tfidf = tfidfCosineSimilarity(text1, text2);
+  var jaccard = jaccardSimilarity(text1, text2);
+  var ngram = ngramSimilarity(text1, text2);
+
+  // Ağırlıklı birleşim: TF-IDF en güvenilir, n-gram en kaba
+  return tfidf * 0.50 + jaccard * 0.35 + ngram * 0.15;
+}
+
+// ── Çok Faktörlü Birleşik Skor ──
+// Ders adı + İçerik + Kod birleşik skoru
 function combinedSimilarity(text1, text2) {
-  var j = jaccardSimilarity(text1, text2);
-  var c = cosineSimilarity(text1, text2);
-  return j * 0.4 + c * 0.6;
+  // Basit kullanım için geriye uyumlu (sadece içerik)
+  return contentSimilarity(text1, text2);
+}
+
+// Çok faktörlü tam karşılaştırma
+function multiFactorScore(srcCourse, tgtCourse) {
+  var nameScore = courseNameSimilarity(srcCourse.name, tgtCourse.name);
+  var codeScore = courseCodeSimilarity(srcCourse.code, tgtCourse.code);
+
+  var srcText = srcCourse.weeklyContent || srcCourse.content || "";
+  var tgtText = tgtCourse.weeklyContent || tgtCourse.content || "";
+  var contScore = 0;
+  if (srcText && tgtText) {
+    contScore = contentSimilarity(srcText, tgtText);
+  }
+
+  // Eğer içerik yoksa ağırlıkları yeniden dağıt
+  var wName = W_NAME;
+  var wContent = W_CONTENT;
+  var wCode = W_CODE;
+  if (!srcText || !tgtText) {
+    // İçerik yoksa: isim %75, kod %25
+    wName = 0.75;
+    wContent = 0;
+    wCode = 0.25;
+  }
+
+  var total = wName * nameScore + wContent * contScore + wCode * codeScore;
+
+  return {
+    total: total,
+    nameScore: nameScore,
+    contentScore: contScore,
+    codeScore: codeScore,
+  };
 }
 
 // ══════════════════════════════════════════════════════════════
-// OTOMATİK DERS EŞLEŞTİRME
+// OTOMATİK DERS EŞLEŞTİRME (Çok Faktörlü NLP)
 // ══════════════════════════════════════════════════════════════
 
 function autoMatchCourses(sourceCourses, targetCourses, threshold) {
@@ -355,12 +771,10 @@ function autoMatchCourses(sourceCourses, targetCourses, threshold) {
 
   sourceCourses.forEach(function (src) {
     var bestMatch = null;
-    var bestContentScore = 0;
+    var bestTotalScore = 0;
+    var bestScoreDetails = { total: 0, nameScore: 0, contentScore: 0, codeScore: 0 };
     var bestAktsPass = false;
     var bestRejectReason = "";
-
-    // Öğrenci ders içeriği metni
-    var srcText = src.weeklyContent || src.content || "";
 
     targetCourses.forEach(function (tgt) {
       // ═══ Adım 1: AKTS Kontrolü ═══
@@ -368,41 +782,41 @@ function autoMatchCourses(sourceCourses, targetCourses, threshold) {
       var tgtAkts = parseInt(tgt.akts) || 0;
       var aktsPass = !AKTS_CHECK_ENABLED || srcAkts >= tgtAkts;
 
-      // ═══ Adım 2: İçerik Benzerliği ═══
-      var tgtText = tgt.weeklyContent || tgt.content || "";
-      var contentScore = 0;
-      if (srcText && tgtText) {
-        contentScore = combinedSimilarity(srcText, tgtText);
-      }
+      // ═══ Adım 2: Çok Faktörlü NLP Skoru ═══
+      var scores = multiFactorScore(src, tgt);
 
-      // En iyi eşleşmeyi seç (önce AKTS geçen, sonra en yüksek içerik skoru)
+      // En iyi eşleşmeyi seç (önce AKTS geçen, sonra en yüksek toplam skor)
       var isBetter = false;
       if (aktsPass && !bestAktsPass) {
         isBetter = true;
-      } else if (aktsPass === bestAktsPass && contentScore > bestContentScore) {
+      } else if (aktsPass === bestAktsPass && scores.total > bestTotalScore) {
         isBetter = true;
       }
 
       if (isBetter) {
-        bestContentScore = contentScore;
+        bestTotalScore = scores.total;
+        bestScoreDetails = scores;
         bestAktsPass = aktsPass;
         bestMatch = tgt;
       }
     });
 
     // Sonuç değerlendirme
-    var isMatched = bestAktsPass && bestContentScore >= threshold;
+    var isMatched = bestAktsPass && bestTotalScore >= threshold;
     if (!bestAktsPass) {
       bestRejectReason = "AKTS yetersiz";
-    } else if (bestContentScore < threshold) {
-      bestRejectReason = "İçerik uyumsuz (" + Math.round(bestContentScore * 100) + "%)";
+    } else if (bestTotalScore < threshold) {
+      bestRejectReason = "Benzerlik düşük (" + Math.round(bestTotalScore * 100) + "%)";
     }
 
     matches.push({
       source: src,
       target: bestMatch,
       aktsPass: bestAktsPass,
-      contentScore: bestContentScore,
+      contentScore: bestTotalScore,        // Geriye uyumlu (toplam skor)
+      nameScore: bestScoreDetails.nameScore,
+      detailContentScore: bestScoreDetails.contentScore,
+      codeScore: bestScoreDetails.codeScore,
       matched: isMatched,
       rejectReason: bestRejectReason,
     });
@@ -958,9 +1372,11 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
 
     setMatches(enrichedMatches);
     setShowResults(true);
-    setMsg("Otomatik eşleştirme tamamlandı. " +
-      enrichedMatches.filter(function (m) { return m.matched; }).length + "/" +
-      enrichedMatches.length + " ders eşleştirildi.");
+    var matchedCount = enrichedMatches.filter(function (m) { return m.matched; }).length;
+    setMsg("NLP analizi tamamlandi. " + matchedCount + "/" +
+      enrichedMatches.length + " ders eslesti. " +
+      "(Esik: %" + Math.round(SIMILARITY_THRESHOLD * 100) + " | " +
+      "Ad:" + Math.round(W_NAME * 100) + "% + Icerik:" + Math.round(W_CONTENT * 100) + "% + Kod:" + Math.round(W_CODE * 100) + "%)");
   };
 
   // Eşleştirme düzenle
@@ -1105,7 +1521,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                   <th colSpan="4" style={{ padding: 8, textAlign: "center", borderBottom: "2px solid " + _C.border, color: _C.navy, fontWeight: 700 }}>Karşı Kurum</th>
                   <th style={{ borderBottom: "2px solid " + _C.border, width: 30 }}></th>
                   <th colSpan="4" style={{ padding: 8, textAlign: "center", borderBottom: "2px solid " + _C.border, color: _C.green, fontWeight: 700 }}>ÇAKÜ Eşleşme</th>
-                  <th colSpan="3" style={{ padding: 8, textAlign: "center", borderBottom: "2px solid " + _C.border }}>Analiz</th>
+                  <th colSpan="5" style={{ padding: 8, textAlign: "center", borderBottom: "2px solid " + _C.border, background: "#F0F9FF" }}>NLP Analiz</th>
                 </tr>
                 <tr style={{ background: _C.bg }}>
                   <th style={{ padding: 6, textAlign: "left", borderBottom: "1px solid " + _C.border }}>Kod</th>
@@ -1117,15 +1533,19 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                   <th style={{ padding: 6, textAlign: "left", borderBottom: "1px solid " + _C.border }}>Ders Adı</th>
                   <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border }}>AKTS</th>
                   <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border }}>Dönüşen</th>
-                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border }}>AKTS</th>
-                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border }}>İçerik</th>
+                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border, background: "#F0F9FF", fontSize: 10 }} title="AKTS Kontrolü">AKTS</th>
+                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border, background: "#F0F9FF", fontSize: 10 }} title="Ders Adı Benzerliği (NLP)">Ad</th>
+                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border, background: "#F0F9FF", fontSize: 10 }} title="İçerik Benzerliği (TF-IDF + Jaccard + N-gram)">İçerik</th>
+                  <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border, background: "#F0F9FF", fontSize: 10 }} title="Toplam Birleşik Skor">Toplam</th>
                   <th style={{ padding: 6, textAlign: "center", borderBottom: "1px solid " + _C.border }}>Sonuç</th>
                 </tr>
               </thead>
               <tbody>
                 {matches.map(function (m, idx) {
                   var aktsColor = m.aktsPass ? _C.green : "#DC2626";
-                  var contentColor = m.contentScore >= 0.80 ? _C.green : (m.contentScore >= 0.50 ? "#D97706" : "#DC2626");
+                  var totalColor = m.contentScore >= 0.70 ? _C.green : (m.contentScore >= 0.40 ? "#D97706" : "#DC2626");
+                  var nameColor = (m.nameScore || 0) >= 0.60 ? _C.green : (m.nameScore >= 0.30 ? "#D97706" : "#DC2626");
+                  var detailColor = (m.detailContentScore || 0) >= 0.60 ? _C.green : (m.detailContentScore >= 0.30 ? "#D97706" : "#DC2626");
                   var resultBg = m.matched ? _C.greenLight : "#FEE2E2";
                   var resultColor = m.matched ? "#166534" : "#991B1B";
 
@@ -1167,17 +1587,37 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                           }}
                         />
                       </td>
-                      {/* Analiz Sütunları */}
+                      {/* NLP Analiz Sütunları */}
                       <td style={{ padding: 6, textAlign: "center" }}>
-                        <span style={{ color: aktsColor, fontSize: 16, fontWeight: 700 }} title={m.aktsPass ? "AKTS Yeterli" : "AKTS Yetersiz"}>
-                          {m.aktsPass ? "✓" : "✗"}
+                        <span style={{ color: aktsColor, fontSize: 14, fontWeight: 700 }} title={m.aktsPass ? "AKTS Yeterli" : "AKTS Yetersiz"}>
+                          {m.aktsPass ? "\u2713" : "\u2717"}
                         </span>
                       </td>
-                      <td style={{ padding: 6, textAlign: "center" }}>
+                      <td style={{ padding: 4, textAlign: "center" }}>
                         <span style={{
-                          fontSize: 10, fontWeight: 700, color: contentColor,
-                          padding: "2px 4px", borderRadius: 4, border: "1px solid " + contentColor
-                        }}>
+                          fontSize: 9, fontWeight: 700, color: nameColor,
+                          padding: "1px 3px", borderRadius: 3, border: "1px solid " + nameColor,
+                          display: "inline-block"
+                        }} title={"Ders Adı: %" + Math.round((m.nameScore || 0) * 100)}>
+                          %{Math.round((m.nameScore || 0) * 100)}
+                        </span>
+                      </td>
+                      <td style={{ padding: 4, textAlign: "center" }}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, color: detailColor,
+                          padding: "1px 3px", borderRadius: 3, border: "1px solid " + detailColor,
+                          display: "inline-block"
+                        }} title={"İçerik (TF-IDF+Jaccard+N-gram): %" + Math.round((m.detailContentScore || 0) * 100)}>
+                          %{Math.round((m.detailContentScore || 0) * 100)}
+                        </span>
+                      </td>
+                      <td style={{ padding: 4, textAlign: "center" }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, color: totalColor,
+                          padding: "2px 4px", borderRadius: 4, border: "1px solid " + totalColor,
+                          background: m.contentScore >= 0.70 ? "#F0FDF4" : (m.contentScore >= 0.40 ? "#FFFBEB" : "#FEF2F2"),
+                          display: "inline-block"
+                        }} title={"Toplam: Ad×" + Math.round(W_NAME*100) + "% + İçerik×" + Math.round(W_CONTENT*100) + "% + Kod×" + Math.round(W_CODE*100) + "%"}>
                           %{Math.round(m.contentScore * 100)}
                         </span>
                       </td>
@@ -1325,7 +1765,7 @@ function DersMuafiyetApp({ currentUser }) {
             fontFamily: "'Playfair Display', serif", marginBottom: 4,
           }}>Ders Muafiyet Modülü</h1>
           <p style={{ color: _C.textMuted, fontSize: 14 }}>
-            Belge yükleyin, otomatik ders eşleştirme ve Word çıktısı alın.
+            NLP tabanli ders eslestirme: Turkce kok bulma, TF-IDF, N-gram, esanlamli sozluk ve cok faktorlu skor analizi.
           </p>
         </div>
 
@@ -1391,19 +1831,43 @@ function DersMuafiyetApp({ currentUser }) {
 // ── Window'a export ──
 window.DersMuafiyetApp = DersMuafiyetApp;
 
-// Benzerlik motoru ve yardımcı fonksiyonları diğer modüllere paylaş
+// NLP motoru ve yardımcı fonksiyonları diğer modüllere paylaş
 window.MuafiyetUtils = {
+  // Temel NLP
   normalizeText,
   tokenize,
+  tokenizeStemmed,
+  turkishStem,
+  expandWithSynonyms,
+  // Benzerlik fonksiyonları
   jaccardSimilarity,
-  cosineSimilarity,
+  softJaccardSimilarity,
+  ngramSimilarity,
+  tfidfCosineSimilarity,
+  contentSimilarity,
   combinedSimilarity,
+  courseNameSimilarity,
+  courseCodeSimilarity,
+  multiFactorScore,
+  levenshteinDistance,
+  wordSimilarity,
+  // N-gram
+  charNgrams,
+  wordBigrams,
+  // Eşleştirme
   autoMatchCourses,
+  // Dosya işleme
   extractFromFile,
   parseCoursesFromTable,
   parseCoursesFromText,
   ensureLibsLoaded,
+  // Bileşenler
   FileDropZone,
+  // Sabitler
   TR_STOPWORDS,
+  DOMAIN_SYNONYMS,
   SIMILARITY_THRESHOLD,
+  W_NAME,
+  W_CONTENT,
+  W_CODE,
 };
