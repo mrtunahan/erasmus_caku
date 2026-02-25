@@ -909,6 +909,11 @@ const LoginModal = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [professorList, setProfessorList] = useState([]);
+  // İlk giriş şifre belirleme state'leri
+  const [setupPasswordMode, setSetupPasswordMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pendingUser, setPendingUser] = useState(null); // Giriş onaylanmış ama şifre değişmesi gereken kullanıcı
 
   useEffect(() => {
     const loadProfessors = async () => {
@@ -917,12 +922,36 @@ const LoginModal = ({ onLogin }) => {
         setProfessorList(profs || []);
       } catch (e) {
         console.error("Error loading professors:", e);
-        // Fallback to seed if fetch fails, though ideally we want dynamic
         setProfessorList(window.SEED_PROFESSORS || []);
       }
     };
     loadProfessors();
   }, []);
+
+  const handleSetupPassword = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (!newPassword.trim()) { setError("Yeni şifre boş olamaz!"); return; }
+    if (newPassword.length < 4) { setError("Şifre en az 4 karakter olmalıdır!"); return; }
+    if (newPassword !== confirmPassword) { setError("Şifreler uyuşmuyor!"); return; }
+    if (newPassword === "1234") { setError("Lütfen varsayılan şifreden farklı bir şifre belirleyin!"); return; }
+    setLoading(true);
+    try {
+      if (pendingUser.role === "student") {
+        await FirebaseDB.updatePassword(pendingUser.studentNumber, newPassword);
+      } else if (pendingUser.role === "professor") {
+        const profPasswords = await FirebaseDB.fetchProfessorPasswords();
+        profPasswords[pendingUser.name] = newPassword;
+        await FirebaseDB.saveProfessorPasswords(profPasswords);
+      }
+      onLogin(pendingUser);
+    } catch (err) {
+      console.error("Password setup error:", err);
+      setError("Şifre kaydedilirken hata: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -943,7 +972,15 @@ const LoginModal = ({ onLogin }) => {
         const passwords = await FirebaseDB.fetchProfessorPasswords();
         const validPassword = passwords[identifier] || "1234"; // Default
         if (password === validPassword) {
-          onLogin({ role: "professor", name: identifier, studentNumber: null });
+          const user = { role: "professor", name: identifier, studentNumber: null };
+          // İlk giriş kontrolü: şifre hala varsayılan "1234" ise şifre belirleme ekranı göster
+          if (!passwords[identifier] || passwords[identifier] === "1234") {
+            setPendingUser(user);
+            setSetupPasswordMode(true);
+            setLoading(false);
+            return;
+          }
+          onLogin(user);
         } else {
           setError("Şifre yanlış!");
         }
@@ -955,7 +992,15 @@ const LoginModal = ({ onLogin }) => {
           const students = await FirebaseDB.fetchStudents();
           const student = students.find(s => s.studentNumber === identifier);
           if (student) {
-            onLogin({ role: "student", name: `${student.firstName} ${student.lastName}`, studentNumber: identifier });
+            const user = { role: "student", name: `${student.firstName} ${student.lastName}`, studentNumber: identifier };
+            // İlk giriş kontrolü: şifre hala varsayılan "1234" ise şifre belirleme ekranı göster
+            if (!passwords[identifier] || passwords[identifier] === "1234") {
+              setPendingUser(user);
+              setSetupPasswordMode(true);
+              setLoading(false);
+              return;
+            }
+            onLogin(user);
           } else {
             setError("Öğrenci bulunamadı!");
           }
@@ -1166,7 +1211,112 @@ const LoginModal = ({ onLogin }) => {
             })}
           </div>
 
-          {/* Form */}
+          {/* Şifre Belirleme Ekranı */}
+          {setupPasswordMode ? (
+            <form onSubmit={handleSetupPassword} style={{ padding: 28 }}>
+              <div style={{ textAlign: "center", marginBottom: 24 }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: "50%", margin: "0 auto 16px",
+                  background: "rgba(5,150,105,0.15)", display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+                  </svg>
+                </div>
+                <h3 style={{ color: "white", fontSize: 18, fontWeight: 600, margin: 0 }}>Yeni Şifre Belirleyin</h3>
+                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, margin: "8px 0 0" }}>
+                  Hoş geldiniz, <strong style={{ color: "#059669" }}>{pendingUser?.name}</strong>! Güvenliğiniz için lütfen yeni bir şifre belirleyin.
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                  Yeni Şifre
+                </label>
+                <div style={{ position: "relative" }}>
+                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(0,255,135,0.3)" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                  </div>
+                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Yeni şifrenizi girin (en az 4 karakter)" autoFocus
+                    style={{
+                      width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8,
+                      border: "1px solid #374151", background: "#1F2937",
+                      color: "white", fontSize: 14, outline: "none",
+                      fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s",
+                    }}
+                    onFocus={e => { e.target.style.borderColor = "#059669"; }}
+                    onBlur={e => { e.target.style.borderColor = "#374151"; }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 24 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                  Şifre Tekrar
+                </label>
+                <div style={{ position: "relative" }}>
+                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(0,255,135,0.3)" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                  </div>
+                  <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifrenizi tekrar girin"
+                    style={{
+                      width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8,
+                      border: "1px solid #374151", background: "#1F2937",
+                      color: "white", fontSize: 14, outline: "none",
+                      fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s",
+                    }}
+                    onFocus={e => { e.target.style.borderColor = "#059669"; }}
+                    onBlur={e => { e.target.style.borderColor = "#374151"; }}
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div style={{
+                  padding: "12px 16px", marginBottom: 20, borderRadius: 12,
+                  background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)",
+                  color: "#fca5a5", fontSize: 13, display: "flex", alignItems: "center", gap: 10,
+                  animation: "loginShake 0.4s ease",
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                  {error}
+                </div>
+              )}
+
+              <button type="submit" disabled={loading} style={{
+                width: "100%", padding: "12px 20px", borderRadius: 8,
+                border: "none",
+                background: loading ? "#374151" : "#059669",
+                color: loading ? "#9CA3AF" : "white",
+                fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
+                fontFamily: "'Inter', sans-serif",
+                transition: "background 0.2s ease",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+              }}>
+                {loading ? (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>
+                    Kaydediliyor...
+                  </>
+                ) : (
+                  <>
+                    Şifreyi Belirle ve Giriş Yap
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+                  </>
+                )}
+              </button>
+
+              <button type="button" onClick={() => { setSetupPasswordMode(false); setPendingUser(null); setNewPassword(""); setConfirmPassword(""); setError(""); }} style={{
+                width: "100%", padding: "10px", marginTop: 12, borderRadius: 8,
+                border: "1px solid #374151", background: "transparent",
+                color: "rgba(255,255,255,0.5)", fontSize: 13, cursor: "pointer",
+                fontFamily: "'Inter', sans-serif",
+              }}>
+                Geri Dön
+              </button>
+            </form>
+          ) : (
+          /* Form */
           <form onSubmit={handleSubmit} style={{ padding: 28 }}>
 
             {activeTab === "student" && (
@@ -1285,6 +1435,7 @@ const LoginModal = ({ onLogin }) => {
               )}
             </button>
           </form>
+          )}
         </div>
 
         {/* Alt bilgi */}

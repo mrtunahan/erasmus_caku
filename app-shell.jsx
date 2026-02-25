@@ -95,7 +95,8 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
             const isActive = currentRoute === item.id;
             // Professors can only access 'sinav'
             // Students cannot access 'adminOnly' items
-            const isDisabled = (isProfessor && item.id !== 'sinav') || (!isAdmin && !isProfessor && item.adminOnly);
+            const studentAllowed = ['erasmus', 'portal', 'gruplar', 'anketler', 'duyurular'];
+            const isDisabled = (isProfessor && item.id !== 'sinav') || (!isAdmin && !isProfessor && !studentAllowed.includes(item.id));
 
             return (
               <button
@@ -185,6 +186,12 @@ function AppShell() {
     }
   }, []);
 
+  const isAdmin = currentUser?.role === 'admin';
+  const isProfessor = currentUser?.role === 'professor';
+
+  // Öğrencilerin erişebileceği modüller
+  const STUDENT_ALLOWED_ROUTES = ['erasmus', 'portal', 'gruplar', 'anketler', 'duyurular'];
+
   const handleLogin = (user) => {
     setCurrentUser(user);
     localStorage.setItem("caku_current_user", JSON.stringify(user));
@@ -195,8 +202,8 @@ function AppShell() {
     } else if (user.role === 'admin') {
       // Admin stays on current or goes to default
     } else {
-      // Student defaults to erasmus if on restricting page
-      if (route === 'sinav' || route === 'muafiyet') {
+      // Student defaults to erasmus if on restricted page
+      if (!STUDENT_ALLOWED_ROUTES.includes(route)) {
         navigate('erasmus');
       }
     }
@@ -208,9 +215,6 @@ function AppShell() {
     navigate('erasmus'); // Reset route on logout
   };
 
-  const isAdmin = currentUser?.role === 'admin';
-  const isProfessor = currentUser?.role === 'professor';
-
   // Routing Protection
   useEffect(() => {
     if (!currentUser) return;
@@ -221,8 +225,8 @@ function AppShell() {
         navigate('sinav');
       }
     } else if (!isAdmin) {
-      // Students cannot access admin-only pages
-      if (route === 'sinav' || route === 'muafiyet') {
+      // Students can only access allowed routes
+      if (!STUDENT_ALLOWED_ROUTES.includes(route)) {
         navigate('erasmus');
       }
     }
@@ -253,7 +257,7 @@ function AppShell() {
 
     // Safety check for rendering availability
     if (isProfessor && route !== 'sinav') return null; // Wait for redirect
-    if (!isAdmin && !isProfessor && (route === 'sinav' || route === 'muafiyet')) return null; // Wait for redirect
+    if (!isAdmin && !isProfessor && !STUDENT_ALLOWED_ROUTES.includes(route)) return null; // Wait for redirect
 
     const Component = components[route] || components.erasmus;
     if (!Component) {
