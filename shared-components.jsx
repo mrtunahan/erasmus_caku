@@ -909,6 +909,38 @@ const LoginModal = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [professorList, setProfessorList] = useState([]);
+  // Brute force koruması
+  const loginAttemptsRef = useRef({});
+  const MAX_ATTEMPTS = 5;
+  const LOCKOUT_DURATION = 60000; // 1 dakika
+
+  const checkRateLimit = (key) => {
+    const now = Date.now();
+    const attempts = loginAttemptsRef.current[key];
+    if (attempts && attempts.count >= MAX_ATTEMPTS) {
+      const elapsed = now - attempts.lastAttempt;
+      if (elapsed < LOCKOUT_DURATION) {
+        const remaining = Math.ceil((LOCKOUT_DURATION - elapsed) / 1000);
+        return { blocked: true, remaining };
+      }
+      // Süre doldu, sıfırla
+      loginAttemptsRef.current[key] = { count: 0, lastAttempt: now };
+    }
+    return { blocked: false };
+  };
+
+  const recordFailedAttempt = (key) => {
+    const now = Date.now();
+    if (!loginAttemptsRef.current[key]) {
+      loginAttemptsRef.current[key] = { count: 0, lastAttempt: now };
+    }
+    loginAttemptsRef.current[key].count += 1;
+    loginAttemptsRef.current[key].lastAttempt = now;
+  };
+
+  const resetAttempts = (key) => {
+    delete loginAttemptsRef.current[key];
+  };
   // İlk giriş / kayıt state'leri
   const [setupPasswordMode, setSetupPasswordMode] = useState(false); // mevcut öğrenci şifre değiştirme
   const [registerMode, setRegisterMode] = useState(false); // yeni öğrenci kayıt
@@ -937,7 +969,8 @@ const LoginModal = ({ onLogin }) => {
     e.preventDefault();
     setError("");
     if (!newPassword.trim()) { setError("Yeni şifre boş olamaz!"); return; }
-    if (newPassword.length < 4) { setError("Şifre en az 4 karakter olmalıdır!"); return; }
+    if (newPassword.length < 6) { setError("Şifre en az 6 karakter olmalıdır!"); return; }
+    if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) { setError("Şifre en az bir harf ve bir rakam içermelidir!"); return; }
     if (newPassword !== confirmPassword) { setError("Şifreler uyuşmuyor!"); return; }
     if (newPassword === "1234") { setError("Lütfen varsayılan şifreden farklı bir şifre belirleyin!"); return; }
     setLoading(true);
@@ -952,10 +985,15 @@ const LoginModal = ({ onLogin }) => {
       onLogin(pendingUser);
     } catch (err) {
       console.error("Password setup error:", err);
-      setError("Şifre kaydedilirken hata: " + err.message);
+      setError("Şifre kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.");
     } finally {
       setLoading(false);
     }
+  };
+
+  // XSS koruması: HTML/script karakterlerini temizle
+  const sanitizeName = (name) => {
+    return name.trim().replace(/[<>"'&;]/g, "").replace(/\s+/g, " ");
   };
 
   // Yeni öğrenci: kayıt ol
@@ -964,26 +1002,33 @@ const LoginModal = ({ onLogin }) => {
     setError("");
     if (!firstName.trim()) { setError("Ad alanı zorunludur!"); return; }
     if (!lastName.trim()) { setError("Soyad alanı zorunludur!"); return; }
+    const cleanFirst = sanitizeName(firstName);
+    const cleanLast = sanitizeName(lastName);
+    if (cleanFirst.length < 2) { setError("Ad en az 2 karakter olmalıdır!"); return; }
+    if (cleanLast.length < 2) { setError("Soyad en az 2 karakter olmalıdır!"); return; }
+    if (!/^[a-zA-ZçÇğĞıİöÖşŞüÜ\s]+$/.test(cleanFirst)) { setError("Ad sadece harf içermelidir!"); return; }
+    if (!/^[a-zA-ZçÇğĞıİöÖşŞüÜ\s]+$/.test(cleanLast)) { setError("Soyad sadece harf içermelidir!"); return; }
     if (!newPassword.trim()) { setError("Şifre boş olamaz!"); return; }
-    if (newPassword.length < 4) { setError("Şifre en az 4 karakter olmalıdır!"); return; }
+    if (newPassword.length < 6) { setError("Şifre en az 6 karakter olmalıdır!"); return; }
+    if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) { setError("Şifre en az bir harf ve bir rakam içermelidir!"); return; }
     if (newPassword !== confirmPassword) { setError("Şifreler uyuşmuyor!"); return; }
     setLoading(true);
     try {
       // Öğrenciyi Firebase'e kaydet
       const studentData = {
         studentNumber: pendingStudentNumber,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        firstName: cleanFirst,
+        lastName: cleanLast,
       };
       await FirebaseDB.addStudent(studentData);
       // Şifreyi kaydet
       await FirebaseDB.updatePassword(pendingStudentNumber, newPassword);
       // Giriş yap
-      const user = { role: "student", name: `${firstName.trim()} ${lastName.trim()}`, studentNumber: pendingStudentNumber };
+      const user = { role: "student", name: `${cleanFirst} ${cleanLast}`, studentNumber: pendingStudentNumber };
       onLogin(user);
     } catch (err) {
       console.error("Register error:", err);
-      setError("Kayıt hatası: " + err.message);
+      setError("Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.");
     } finally {
       setLoading(false);
     }
@@ -1037,7 +1082,7 @@ const LoginModal = ({ onLogin }) => {
       }
     } catch (err) {
       console.error("Student check error:", err);
-      setError("Kontrol hatası: " + err.message);
+      setError("Bir hata oluştu. Lütfen tekrar deneyin.");
     } finally {
       setLoading(false);
     }
@@ -1047,20 +1092,24 @@ const LoginModal = ({ onLogin }) => {
     e.preventDefault();
     setError("");
     if (!password.trim()) { setError("Şifre gerekli!"); return; }
+    const trimmedId = identifier.trim();
+    const rateCheck = checkRateLimit("student_" + trimmedId);
+    if (rateCheck.blocked) { setError(`Çok fazla başarısız deneme. ${rateCheck.remaining} saniye sonra tekrar deneyin.`); return; }
     setLoading(true);
     try {
-      const trimmedId = identifier.trim();
       const passwords = await FirebaseDB.fetchPasswords();
       const validPassword = passwords[trimmedId];
       if (password === validPassword) {
+        resetAttempts("student_" + trimmedId);
         const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId };
         onLogin(user);
       } else {
+        recordFailedAttempt("student_" + trimmedId);
         setError("Şifre yanlış!");
       }
     } catch (err) {
       console.error("Login error:", err);
-      setError("Giriş hatası: " + err.message);
+      setError("Giriş sırasında bir hata oluştu. Lütfen tekrar deneyin.");
     } finally {
       setLoading(false);
     }
@@ -1069,6 +1118,11 @@ const LoginModal = ({ onLogin }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    const rateLimitKey = activeTab === "admin" ? "admin" : "prof_" + identifier;
+    const rateCheck = checkRateLimit(rateLimitKey);
+    if (rateCheck.blocked) { setError(`Çok fazla başarısız deneme. ${rateCheck.remaining} saniye sonra tekrar deneyin.`); return; }
+
     setLoading(true);
 
     try {
@@ -1076,8 +1130,10 @@ const LoginModal = ({ onLogin }) => {
         const storedAdminPassword = await FirebaseDB.fetchAdminPassword();
         const validPassword = storedAdminPassword || "1605";
         if (password === validPassword) {
+          resetAttempts(rateLimitKey);
           onLogin({ role: "admin", name: "Admin", studentNumber: null });
         } else {
+          recordFailedAttempt(rateLimitKey);
           setError("Admin şifresi yanlış!");
         }
       } else if (activeTab === "professor") {
@@ -1085,6 +1141,7 @@ const LoginModal = ({ onLogin }) => {
         const passwords = await FirebaseDB.fetchProfessorPasswords();
         const validPassword = passwords[identifier] || "1234";
         if (password === validPassword) {
+          resetAttempts(rateLimitKey);
           const user = { role: "professor", name: identifier, studentNumber: null };
           if (!passwords[identifier] || passwords[identifier] === "1234") {
             setPendingUser(user);
@@ -1094,12 +1151,13 @@ const LoginModal = ({ onLogin }) => {
           }
           onLogin(user);
         } else {
+          recordFailedAttempt(rateLimitKey);
           setError("Şifre yanlış!");
         }
       }
     } catch (err) {
       console.error("Login error:", err);
-      setError("Giriş hatası: " + err.message);
+      setError("Giriş sırasında bir hata oluştu. Lütfen tekrar deneyin.");
     } finally {
       setLoading(false);
     }
@@ -1339,7 +1397,7 @@ const LoginModal = ({ onLogin }) => {
                   <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(0,255,135,0.3)" }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                   </div>
-                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Şifrenizi belirleyin (en az 4 karakter)"
+                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Şifrenizi belirleyin (en az 6 karakter, harf + rakam)"
                     style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid #374151", background: "#1F2937", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s" }}
                     onFocus={e => { e.target.style.borderColor = "#059669"; }} onBlur={e => { e.target.style.borderColor = "#374151"; }} />
                 </div>
@@ -1409,7 +1467,7 @@ const LoginModal = ({ onLogin }) => {
                   <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(0,255,135,0.3)" }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                   </div>
-                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Yeni şifrenizi girin (en az 4 karakter)" autoFocus
+                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Yeni şifrenizi girin (en az 6 karakter, harf + rakam)" autoFocus
                     style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid #374151", background: "#1F2937", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s" }}
                     onFocus={e => { e.target.style.borderColor = "#059669"; }} onBlur={e => { e.target.style.borderColor = "#374151"; }} />
                 </div>
