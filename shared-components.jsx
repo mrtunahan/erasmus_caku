@@ -1040,12 +1040,13 @@ const LoginModal = ({ onLogin }) => {
         studentNumber: pendingStudentNumber,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        erasmusAccess: false,
       };
       await FirebaseDB.addStudent(studentData);
       // Şifreyi kaydet
       await FirebaseDB.updatePassword(pendingStudentNumber, newPassword);
       // Giriş yap
-      const user = { role: "student", name: `${firstName.trim()} ${lastName.trim()}`, studentNumber: pendingStudentNumber };
+      const user = { role: "student", name: `${firstName.trim()} ${lastName.trim()}`, studentNumber: pendingStudentNumber, erasmusAccess: false };
       onLogin(user);
     } catch (err) {
       console.error("Register error:", err);
@@ -1088,7 +1089,7 @@ const LoginModal = ({ onLogin }) => {
         const passwords = await FirebaseDB.fetchPasswords();
         if (!passwords[trimmedId] || passwords[trimmedId] === "1234") {
           // Varsayılan şifre: direkt şifre belirleme ekranına
-          const user = { role: "student", name: `${student.firstName} ${student.lastName}`, studentNumber: trimmedId };
+          const user = { role: "student", name: `${student.firstName} ${student.lastName}`, studentNumber: trimmedId, erasmusAccess: student.erasmusAccess === true };
           setPendingUser(user);
           setSetupPasswordMode(true);
         } else {
@@ -1119,7 +1120,7 @@ const LoginModal = ({ onLogin }) => {
       const passwords = await FirebaseDB.fetchPasswords();
       const validPassword = passwords[trimmedId];
       if (password === validPassword) {
-        const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId };
+        const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId, erasmusAccess: studentInfo.erasmusAccess === true };
         onLogin(user);
       } else {
         setError("Şifre yanlış!");
