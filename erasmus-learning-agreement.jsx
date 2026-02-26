@@ -686,7 +686,7 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect }) => {
 
 // ── Student Detail Modal ──
 const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStudents = [] }) => {
-  const [editedStudent, setEditedStudent] = useState(student);
+  const [editedStudent, setEditedStudent] = useState({ ...student, outgoingMatches: student.outgoingMatches || [], returnMatches: student.returnMatches || [] });
   const [activeTab, setActiveTab] = useState("outgoing");
   const [editingMatch, setEditingMatch] = useState(null);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
@@ -1133,7 +1133,7 @@ function ErasmusLearningAgreementApp({ currentUser }) {
   };
 
   const exportAllData = () => {
-    const data = students.map(s => ({ "Ogrenci Numarasi": s.studentNumber, "Ad": s.firstName, "Soyad": s.lastName, "Karsi Kurum": s.hostInstitution, "Ulke": s.hostCountry, "Gidis": s.outgoingMatches.length, "Donus": s.returnMatches.length }));
+    const data = students.map(s => ({ "Ogrenci Numarasi": s.studentNumber, "Ad": s.firstName, "Soyad": s.lastName, "Karsi Kurum": s.hostInstitution, "Ulke": s.hostCountry, "Gidis": (s.outgoingMatches || []).length, "Donus": (s.returnMatches || []).length }));
     if (data.length === 0) { alert('Disa aktarilacak ogrenci bulunamadi.'); return; }
     const csv = [Object.keys(data[0]).join(","), ...data.map(row => Object.values(row).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -1194,9 +1194,9 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 24 }}>
           {[
             { label: "Toplam Öğrenci", value: students.length, color: C.navy },
-            { label: "Gidiş Eşleştirmeleri", value: students.reduce((sum, s) => sum + s.outgoingMatches.length, 0), color: C.green },
-            { label: "Dönüş Eşleştirmeleri", value: students.reduce((sum, s) => sum + s.returnMatches.length, 0), color: C.gold },
-            { label: "Ortalama Eşleştirme", value: students.length > 0 ? ((students.reduce((sum, s) => sum + s.outgoingMatches.length + s.returnMatches.length, 0)) / students.length).toFixed(1) : 0, color: C.accent },
+            { label: "Gidiş Eşleştirmeleri", value: students.reduce((sum, s) => sum + (s.outgoingMatches || []).length, 0), color: C.green },
+            { label: "Dönüş Eşleştirmeleri", value: students.reduce((sum, s) => sum + (s.returnMatches || []).length, 0), color: C.gold },
+            { label: "Ortalama Eşleştirme", value: students.length > 0 ? ((students.reduce((sum, s) => sum + (s.outgoingMatches || []).length + (s.returnMatches || []).length, 0)) / students.length).toFixed(1) : 0, color: C.accent },
           ].map((stat, i) => (
             <Card key={i} noPadding>
               <div style={{ padding: 24, textAlign: "center" }}>
@@ -1234,13 +1234,13 @@ function ErasmusLearningAgreementApp({ currentUser }) {
                       <div style={{ fontSize: 14, fontWeight: 500 }}>{student.hostInstitution}</div>
                       <div style={{ fontSize: 12, color: C.textMuted }}>{student.hostCountry}</div>
                     </td>
-                    <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.green} bg={C.greenLight}>{student.outgoingMatches.length} eşleştirme</Badge></td>
-                    <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.gold} bg={C.goldPale}>{student.returnMatches.length} eşleştirme</Badge></td>
+                    <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.green} bg={C.greenLight}>{(student.outgoingMatches || []).length} eşleştirme</Badge></td>
+                    <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.gold} bg={C.goldPale}>{(student.returnMatches || []).length} eşleştirme</Badge></td>
                     <td style={{ padding: "16px 24px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
                         <Btn onClick={() => setSelectedStudent(student)} variant="secondary" small icon={<FileTextIcon />}>{canEdit(student) ? 'Detay & Düzenle' : 'Detay'}</Btn>
                         <button onClick={() => generateOutgoingWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#E6F4EA", color: "#1E7E34", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Gidiş</button>
-                        {student.returnMatches.length > 0 && (
+                        {(student.returnMatches || []).length > 0 && (
                           <button onClick={() => generateReturnWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FFF3E0", color: "#E65100", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Dönüş</button>
                         )}
                         {canEdit(student) && (
