@@ -53,8 +53,17 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
   const isAdmin = currentUser?.role === 'admin';
   const isProfessor = currentUser?.role === 'professor';
 
-  // Show all items to everyone, but disable if not allowed
-  const visibleItems = NAV_ITEMS;
+  // Sadece erişilebilir sekmeleri göster (kilitli olanları gizle)
+  const visibleItems = NAV_ITEMS.filter(item => {
+    if (isAdmin) return true;
+    if (isProfessor) return ['sinav', 'duyurular'].includes(item.id);
+    // Öğrenci
+    const hasErasmus = currentUser?.erasmusAccess === true;
+    const allowed = hasErasmus
+      ? ['erasmus', 'portal', 'gruplar', 'projeler', 'duyurular']
+      : ['portal', 'gruplar', 'projeler', 'duyurular'];
+    return allowed.includes(item.id);
+  });
 
   return (
     <nav style={{
@@ -93,27 +102,19 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
         <div style={{ display: "flex", gap: 2, height: "100%", flexWrap: "wrap", alignItems: "center" }}>
           {visibleItems.map(item => {
             const isActive = currentRoute === item.id;
-            // Professors can only access 'sinav'
-            // Students cannot access 'adminOnly' items
-            const hasErasmus = currentUser?.erasmusAccess === true;
-            const studentAllowed = hasErasmus
-              ? ['erasmus', 'portal', 'gruplar', 'projeler', 'duyurular']
-              : ['portal', 'gruplar', 'projeler', 'duyurular'];
-            const isDisabled = (isProfessor && item.id !== 'sinav') || (!isAdmin && !isProfessor && !studentAllowed.includes(item.id));
 
             return (
               <button
                 key={item.id}
-                onClick={() => !isDisabled && onNavigate(item.id)}
-                disabled={isDisabled}
+                onClick={() => onNavigate(item.id)}
                 style={{
                   padding: "0 10px",
                   border: "none",
                   background: isActive ? "rgba(255,255,255,0.15)" : "transparent",
-                  color: isActive ? "white" : isDisabled ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)",
+                  color: isActive ? "white" : "rgba(255,255,255,0.7)",
                   fontSize: 12,
                   fontWeight: isActive ? 600 : 400,
-                  cursor: isDisabled ? "not-allowed" : "pointer",
+                  cursor: "pointer",
                   fontFamily: "'Source Sans 3', sans-serif",
                   display: "flex",
                   alignItems: "center",
@@ -123,14 +124,13 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
                   height: "100%",
                   whiteSpace: "nowrap",
                 }}
-                onMouseEnter={e => { if (!isActive && !isDisabled) e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
-                onMouseLeave={e => { if (!isActive && !isDisabled) e.currentTarget.style.background = "transparent"; }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d={item.icon} />
                 </svg>
                 {item.label}
-                {isDisabled && <span style={{ fontSize: 9, background: "rgba(255,255,255,0.1)", padding: "2px 5px", borderRadius: 4, marginLeft: 2 }}>Kilitli</span>}
               </button>
             );
           })}
@@ -229,8 +229,9 @@ function AppShell() {
     if (!currentUser) return;
 
     if (isProfessor) {
-      // Professors can only be on 'sinav'
-      if (route !== 'sinav') {
+      // Professors can access 'sinav' and 'duyurular'
+      const professorRoutes = ['sinav', 'duyurular'];
+      if (!professorRoutes.includes(route)) {
         navigate('sinav');
       }
     } else if (!isAdmin) {
@@ -265,7 +266,7 @@ function AppShell() {
     };
 
     // Safety check for rendering availability
-    if (isProfessor && route !== 'sinav') return null; // Wait for redirect
+    if (isProfessor && !['sinav', 'duyurular'].includes(route)) return null; // Wait for redirect
     if (!isAdmin && !isProfessor && !STUDENT_ALLOWED_ROUTES.includes(route)) return null; // Wait for redirect
 
     const Component = components[route] || components.erasmus;
