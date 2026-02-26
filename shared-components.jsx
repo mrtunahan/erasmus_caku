@@ -368,6 +368,72 @@ const FirebaseDB = {
   // Resource Library collections
   resourcesRef: () => FirebaseDB.db()?.collection('resources'),
 
+  // Forms collections
+  formsRef: () => FirebaseDB.db()?.collection('forms'),
+
+  // Firebase Storage
+  storage: () => window.firebase?.storage(),
+
+  // ── Forms CRUD ──
+  async fetchForms() {
+    try {
+      const ref = FirebaseDB.formsRef();
+      if (!ref) return [];
+      const snapshot = await ref.orderBy('createdAt', 'desc').get();
+      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    } catch (error) {
+      console.error('Error fetching forms:', error);
+      return [];
+    }
+  },
+  async addForm(formData) {
+    try {
+      const ref = FirebaseDB.formsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      const docRef = await ref.add({
+        ...formData,
+        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      return { ...formData, id: docRef.id };
+    } catch (error) {
+      console.error('Error adding form:', error);
+      throw error;
+    }
+  },
+  async deleteForm(formId) {
+    try {
+      const ref = FirebaseDB.formsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      await ref.doc(formId).delete();
+    } catch (error) {
+      console.error('Error deleting form:', error);
+      throw error;
+    }
+  },
+  async uploadFormFile(file) {
+    try {
+      const storage = FirebaseDB.storage();
+      if (!storage) throw new Error('Firebase Storage baglantisi yok');
+      const fileName = `forms/${Date.now()}_${file.name}`;
+      const storageRef = storage.ref(fileName);
+      await storageRef.put(file);
+      const downloadURL = await storageRef.getDownloadURL();
+      return { downloadURL, fileName };
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      throw error;
+    }
+  },
+  async deleteFormFile(fileName) {
+    try {
+      const storage = FirebaseDB.storage();
+      if (!storage) return;
+      await storage.ref(fileName).delete();
+    } catch (error) {
+      console.error('Error deleting file:', error);
+    }
+  },
+
   // ── Erasmus Student CRUD ──
   async fetchStudents() {
     try {
