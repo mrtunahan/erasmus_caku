@@ -374,7 +374,7 @@ const FirebaseDB = {
       const ref = FirebaseDB.studentsRef();
       if (!ref) return [];
       const snapshot = await ref.get();
-      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      return snapshot.docs.map(doc => { const data = doc.data(); return { ...data, id: doc.id, outgoingMatches: data.outgoingMatches || [], returnMatches: data.returnMatches || [] }; });
     } catch (error) {
       console.error('Error fetching students:', error);
       return [];
