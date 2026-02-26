@@ -43,7 +43,7 @@ const NAV_ITEMS = [
   { id: "yazokulu", label: "Yaz Okulu", icon: "M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z", adminOnly: true },
   { id: "portal", label: "Öğrenci Portalı", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
   { id: "gruplar", label: "Ders Grupları", icon: "M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" },
-  { id: "anketler", label: "Anketler", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
+  { id: "projeler", label: "Proje", icon: "M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" },
   { id: "duyurular", label: "Duyuru Merkezi", icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" },
 ];
 
@@ -95,7 +95,7 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
             const isActive = currentRoute === item.id;
             // Professors can only access 'sinav'
             // Students cannot access 'adminOnly' items
-            const studentAllowed = ['erasmus', 'portal', 'gruplar', 'anketler', 'duyurular'];
+            const studentAllowed = ['erasmus', 'portal', 'gruplar', 'projeler', 'duyurular'];
             const isDisabled = (isProfessor && item.id !== 'sinav') || (!isAdmin && !isProfessor && !studentAllowed.includes(item.id));
 
             return (
@@ -190,7 +190,7 @@ function AppShell() {
   const isProfessor = currentUser?.role === 'professor';
 
   // Öğrencilerin erişebileceği modüller
-  const STUDENT_ALLOWED_ROUTES = ['erasmus', 'portal', 'gruplar', 'anketler', 'duyurular'];
+  const STUDENT_ALLOWED_ROUTES = ['erasmus', 'portal', 'gruplar', 'projeler', 'duyurular'];
 
   const handleLogin = (user) => {
     setCurrentUser(user);
@@ -251,7 +251,7 @@ function AppShell() {
       yazokulu: window.YazOkuluApp,
       portal: window.OgrenciPortaliApp,
       gruplar: window.DersGruplariApp,
-      anketler: window.AnketModuluApp,
+      projeler: window.ProjeModuluApp,
       duyurular: window.DuyuruEntegrasyonuApp,
     };
 
