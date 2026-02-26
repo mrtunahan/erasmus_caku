@@ -368,6 +368,72 @@ const FirebaseDB = {
   // Resource Library collections
   resourcesRef: () => FirebaseDB.db()?.collection('resources'),
 
+  // Forms collections
+  formsRef: () => FirebaseDB.db()?.collection('forms'),
+
+  // Firebase Storage
+  storage: () => window.firebase?.storage(),
+
+  // ── Forms CRUD ──
+  async fetchForms() {
+    try {
+      const ref = FirebaseDB.formsRef();
+      if (!ref) return [];
+      const snapshot = await ref.orderBy('createdAt', 'desc').get();
+      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    } catch (error) {
+      console.error('Error fetching forms:', error);
+      return [];
+    }
+  },
+  async addForm(formData) {
+    try {
+      const ref = FirebaseDB.formsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      const docRef = await ref.add({
+        ...formData,
+        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      return { ...formData, id: docRef.id };
+    } catch (error) {
+      console.error('Error adding form:', error);
+      throw error;
+    }
+  },
+  async deleteForm(formId) {
+    try {
+      const ref = FirebaseDB.formsRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      await ref.doc(formId).delete();
+    } catch (error) {
+      console.error('Error deleting form:', error);
+      throw error;
+    }
+  },
+  async uploadFormFile(file) {
+    try {
+      const storage = FirebaseDB.storage();
+      if (!storage) throw new Error('Firebase Storage baglantisi yok');
+      const fileName = `forms/${Date.now()}_${file.name}`;
+      const storageRef = storage.ref(fileName);
+      await storageRef.put(file);
+      const downloadURL = await storageRef.getDownloadURL();
+      return { downloadURL, fileName };
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      throw error;
+    }
+  },
+  async deleteFormFile(fileName) {
+    try {
+      const storage = FirebaseDB.storage();
+      if (!storage) return;
+      await storage.ref(fileName).delete();
+    } catch (error) {
+      console.error('Error deleting file:', error);
+    }
+  },
+
   // ── Erasmus Student CRUD ──
   async fetchStudents() {
     try {
@@ -1021,16 +1087,19 @@ const LoginModal = ({ onLogin }) => {
         // Mevcut öğrenci: şifre var mı kontrol et
         const passwords = await FirebaseDB.fetchPasswords();
         if (!passwords[trimmedId] || passwords[trimmedId] === "1234") {
-          // Şifre henüz admin tarafından belirlenmemiş
-          setError("Şifreniz henüz admin tarafından belirlenmemiştir. Lütfen yöneticinizle iletişime geçin.");
+          // Varsayılan şifre: direkt şifre belirleme ekranına
+          const user = { role: "student", name: `${student.firstName} ${student.lastName}`, studentNumber: trimmedId };
+          setPendingUser(user);
+          setSetupPasswordMode(true);
         } else {
           // Şifresi var: şifre giriş adımına geç
           setStudentInfo(student);
           setStudentStep("password");
         }
       } else {
-        // Öğrenci kayıtlı değil - sadece admin ekleyebilir
-        setError("Bu öğrenci numarası sistemde kayıtlı değildir. Yalnızca admin yeni öğrenci ekleyebilir.");
+        // Yeni öğrenci: kayıt ekranına yönlendir
+        setPendingStudentNumber(trimmedId);
+        setRegisterMode(true);
       }
     } catch (err) {
       console.error("Student check error:", err);
@@ -1080,15 +1149,15 @@ const LoginModal = ({ onLogin }) => {
       } else if (activeTab === "professor") {
         if (!identifier.trim()) { setError("Akademisyen seçimi gerekli!"); setLoading(false); return; }
         const passwords = await FirebaseDB.fetchProfessorPasswords();
-        if (!passwords[identifier] || passwords[identifier] === "1234") {
-          // Şifre henüz admin tarafından belirlenmemiş
-          setError("Şifreniz henüz admin tarafından belirlenmemiştir. Lütfen yöneticinizle iletişime geçin.");
-          setLoading(false);
-          return;
-        }
-        const validPassword = passwords[identifier];
+        const validPassword = passwords[identifier] || "1234";
         if (password === validPassword) {
           const user = { role: "professor", name: identifier, studentNumber: null };
+          if (!passwords[identifier] || passwords[identifier] === "1234") {
+            setPendingUser(user);
+            setSetupPasswordMode(true);
+            setLoading(false);
+            return;
+          }
           onLogin(user);
         } else {
           setError("Şifre yanlış!");
@@ -1297,7 +1366,161 @@ const LoginModal = ({ onLogin }) => {
             })}
           </div>
 
-          {activeTab === "student" && studentStep === "password" ? (
+          {/* Yeni Öğrenci Kayıt Ekranı */}
+          {registerMode ? (
+            <form onSubmit={handleRegister} style={{ padding: 28 }}>
+              <div style={{ textAlign: "center", marginBottom: 24 }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: "50%", margin: "0 auto 16px",
+                  background: "rgba(59,130,246,0.15)", display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" />
+                  </svg>
+                </div>
+                <h3 style={{ color: "white", fontSize: 18, fontWeight: 600, margin: 0 }}>Kayıt Ol</h3>
+                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, margin: "8px 0 0" }}>
+                  <strong style={{ color: "#3B82F6" }}>{pendingStudentNumber}</strong> numaralı öğrenci olarak kayıt olun.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Ad</label>
+                  <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Adınız" autoFocus
+                    style={{ width: "100%", padding: "12px 16px", borderRadius: 8, border: "1px solid #374151", background: "#1F2937", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s" }}
+                    onFocus={e => { e.target.style.borderColor = "#059669"; }} onBlur={e => { e.target.style.borderColor = "#374151"; }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Soyad</label>
+                  <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Soyadınız"
+                    style={{ width: "100%", padding: "12px 16px", borderRadius: 8, border: "1px solid #374151", background: "#1F2937", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s" }}
+                    onFocus={e => { e.target.style.borderColor = "#059669"; }} onBlur={e => { e.target.style.borderColor = "#374151"; }} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Şifre</label>
+                <div style={{ position: "relative" }}>
+                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(0,255,135,0.3)" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                  </div>
+                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Şifrenizi belirleyin (en az 4 karakter)"
+                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid #374151", background: "#1F2937", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s" }}
+                    onFocus={e => { e.target.style.borderColor = "#059669"; }} onBlur={e => { e.target.style.borderColor = "#374151"; }} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 24 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Şifre Tekrar</label>
+                <div style={{ position: "relative" }}>
+                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(0,255,135,0.3)" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                  </div>
+                  <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifrenizi tekrar girin"
+                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid #374151", background: "#1F2937", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s" }}
+                    onFocus={e => { e.target.style.borderColor = "#059669"; }} onBlur={e => { e.target.style.borderColor = "#374151"; }} />
+                </div>
+              </div>
+
+              {error && (
+                <div style={{ padding: "12px 16px", marginBottom: 20, borderRadius: 12, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#fca5a5", fontSize: 13, display: "flex", alignItems: "center", gap: 10, animation: "loginShake 0.4s ease" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                  {error}
+                </div>
+              )}
+
+              <button type="submit" disabled={loading} style={{
+                width: "100%", padding: "12px 20px", borderRadius: 8, border: "none",
+                background: loading ? "#374151" : "#3B82F6", color: loading ? "#9CA3AF" : "white",
+                fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
+                fontFamily: "'Inter', sans-serif", transition: "background 0.2s ease",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+              }}>
+                {loading ? (
+                  <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Kaydediliyor...</>
+                ) : (
+                  <>Kayıt Ol ve Giriş Yap<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg></>
+                )}
+              </button>
+
+              <button type="button" onClick={resetSetupState} style={{
+                width: "100%", padding: "10px", marginTop: 12, borderRadius: 8,
+                border: "1px solid #374151", background: "transparent",
+                color: "rgba(255,255,255,0.5)", fontSize: 13, cursor: "pointer", fontFamily: "'Inter', sans-serif",
+              }}>Geri Dön</button>
+            </form>
+
+          ) : setupPasswordMode ? (
+            /* Mevcut öğrenci: şifre değiştirme ekranı */
+            <form onSubmit={handleSetupPassword} style={{ padding: 28 }}>
+              <div style={{ textAlign: "center", marginBottom: 24 }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: "50%", margin: "0 auto 16px",
+                  background: "rgba(5,150,105,0.15)", display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+                  </svg>
+                </div>
+                <h3 style={{ color: "white", fontSize: 18, fontWeight: 600, margin: 0 }}>Yeni Şifre Belirleyin</h3>
+                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, margin: "8px 0 0" }}>
+                  Hoş geldiniz, <strong style={{ color: "#059669" }}>{pendingUser?.name}</strong>! Güvenliğiniz için lütfen yeni bir şifre belirleyin.
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Yeni Şifre</label>
+                <div style={{ position: "relative" }}>
+                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(0,255,135,0.3)" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                  </div>
+                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Yeni şifrenizi girin (en az 4 karakter)" autoFocus
+                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid #374151", background: "#1F2937", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s" }}
+                    onFocus={e => { e.target.style.borderColor = "#059669"; }} onBlur={e => { e.target.style.borderColor = "#374151"; }} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 24 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Şifre Tekrar</label>
+                <div style={{ position: "relative" }}>
+                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(0,255,135,0.3)" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                  </div>
+                  <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifrenizi tekrar girin"
+                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid #374151", background: "#1F2937", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s" }}
+                    onFocus={e => { e.target.style.borderColor = "#059669"; }} onBlur={e => { e.target.style.borderColor = "#374151"; }} />
+                </div>
+              </div>
+
+              {error && (
+                <div style={{ padding: "12px 16px", marginBottom: 20, borderRadius: 12, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#fca5a5", fontSize: 13, display: "flex", alignItems: "center", gap: 10, animation: "loginShake 0.4s ease" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                  {error}
+                </div>
+              )}
+
+              <button type="submit" disabled={loading} style={{
+                width: "100%", padding: "12px 20px", borderRadius: 8, border: "none",
+                background: loading ? "#374151" : "#059669", color: loading ? "#9CA3AF" : "white",
+                fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
+                fontFamily: "'Inter', sans-serif", transition: "background 0.2s ease",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+              }}>
+                {loading ? (
+                  <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Kaydediliyor...</>
+                ) : (
+                  <>Şifreyi Belirle ve Giriş Yap<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg></>
+                )}
+              </button>
+
+              <button type="button" onClick={resetSetupState} style={{
+                width: "100%", padding: "10px", marginTop: 12, borderRadius: 8,
+                border: "1px solid #374151", background: "transparent",
+                color: "rgba(255,255,255,0.5)", fontSize: 13, cursor: "pointer", fontFamily: "'Inter', sans-serif",
+              }}>Geri Dön</button>
+            </form>
+          ) : activeTab === "student" && studentStep === "password" ? (
           /* Öğrenci: Şifre Giriş Adımı */
           <form onSubmit={handleStudentLogin} style={{ padding: 28 }}>
             <div style={{ marginBottom: 20, padding: "12px 16px", borderRadius: 10, background: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.2)" }}>

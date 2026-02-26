@@ -1050,8 +1050,10 @@ const FORMLAR = [
 
 // ── Form Kartı Bileşeni ─────────────────────────────────────────────────────
 
-function FormKarti({ form }) {
+function FormKarti({ form, isAdmin, onDelete }) {
   const kategori = FORM_KATEGORILERI[form.kategori] || FORM_KATEGORILERI.ogrenci;
+  const isPDF = (form.format || "").toUpperCase() === "PDF";
+  const tarih = form.createdAt?.toDate ? form.createdAt.toDate().toLocaleDateString("tr-TR") : form.tarih || "";
 
   return (
     <div
@@ -1062,7 +1064,6 @@ function FormKarti({ form }) {
         padding: "18px 20px",
         marginBottom: "10px",
         transition: "all 0.2s ease",
-        cursor: "pointer",
         boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
       }}
       onMouseEnter={(e) => {
@@ -1075,96 +1076,49 @@ function FormKarti({ form }) {
       }}
     >
       {/* Üst bilgi satırı */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          marginBottom: "8px",
-          flexWrap: "wrap",
-        }}
-      >
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "4px",
-            padding: "2px 8px",
-            borderRadius: "6px",
-            fontSize: "11px",
-            fontWeight: 500,
-            backgroundColor: kategori.color + "15",
-            color: kategori.color,
-            border: `1px solid ${kategori.color}25`,
-          }}
-        >
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px",
+          fontSize: "11px", fontWeight: 500, backgroundColor: kategori.color + "15", color: kategori.color,
+          border: `1px solid ${kategori.color}25`,
+        }}>
           <span style={{ fontSize: "12px" }}>{kategori.icon}</span>
           {kategori.label}
         </span>
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            padding: "2px 8px",
-            borderRadius: "6px",
-            fontSize: "10px",
-            fontWeight: 700,
-            letterSpacing: "0.05em",
-            backgroundColor: form.format === "PDF" ? "#fef2f2" : "#eff6ff",
-            color: form.format === "PDF" ? "#dc2626" : "#2563eb",
-            border: form.format === "PDF" ? "1px solid #fecaca" : "1px solid #bfdbfe",
-          }}
-        >
-          {form.format}
+        <span style={{
+          display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: "6px",
+          fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em",
+          backgroundColor: isPDF ? "#fef2f2" : "#eff6ff", color: isPDF ? "#dc2626" : "#2563eb",
+          border: isPDF ? "1px solid #fecaca" : "1px solid #bfdbfe",
+        }}>
+          {(form.format || "DOSYA").toUpperCase()}
         </span>
+        {tarih && (
+          <span style={{ fontSize: "11px", color: "#9ca3af", marginLeft: "auto" }}>{tarih}</span>
+        )}
       </div>
 
       {/* Başlık */}
-      <h3
-        style={{
-          margin: "0 0 6px 0",
-          fontSize: "15px",
-          fontWeight: 600,
-          color: "#111827",
-          lineHeight: 1.4,
-        }}
-      >
+      <h3 style={{ margin: "0 0 6px 0", fontSize: "15px", fontWeight: 600, color: "#111827", lineHeight: 1.4 }}>
         {form.baslik}
       </h3>
 
-      {/* Açıklama */}
-      <p
-        style={{
-          margin: "0 0 14px 0",
-          fontSize: "13px",
-          color: "#6b7280",
-          lineHeight: 1.55,
-        }}
-      >
+      {/* Açıklama / İçerik */}
+      <p style={{ margin: "0 0 14px 0", fontSize: "13px", color: "#6b7280", lineHeight: 1.55 }}>
         {form.aciklama}
       </p>
 
       {/* Alt butonlar */}
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
         <a
-          href={form.url}
+          href={form.downloadURL || form.url}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
           style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "5px",
-            padding: "6px 14px",
-            borderRadius: "8px",
-            fontSize: "12px",
-            fontWeight: 600,
-            backgroundColor: "#1e40af",
-            color: "#fff",
-            textDecoration: "none",
-            border: "none",
-            cursor: "pointer",
-            transition: "background-color 0.15s",
+            display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 14px", borderRadius: "8px",
+            fontSize: "12px", fontWeight: 600, backgroundColor: "#1e40af", color: "#fff",
+            textDecoration: "none", border: "none", cursor: "pointer", transition: "background-color 0.15s",
           }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1172,31 +1126,23 @@ function FormKarti({ form }) {
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-          Formu İndir
+          Dosyayı İndir
         </a>
-        <a
-          href={form.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "5px",
-            padding: "6px 14px",
-            borderRadius: "8px",
-            fontSize: "12px",
-            fontWeight: 600,
-            backgroundColor: "#f0fdf4",
-            color: "#166534",
-            border: "1px solid #bbf7d0",
-            textDecoration: "none",
-            cursor: "pointer",
-            transition: "all 0.15s",
-          }}
-        >
-          <DuyuruExternalLinkIcon /> Kaynağa Git
-        </a>
+        {isAdmin && onDelete && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(form); }}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 14px", borderRadius: "8px",
+              fontSize: "12px", fontWeight: 600, backgroundColor: "#fef2f2", color: "#dc2626",
+              border: "1px solid #fecaca", cursor: "pointer", transition: "all 0.15s", marginLeft: "auto",
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            Sil
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1204,17 +1150,63 @@ function FormKarti({ form }) {
 
 // ── Formlar Bölümü ──────────────────────────────────────────────────────────
 
-function FormlarBolumu() {
+function FormlarBolumu({ currentUser, onFormSayisiDegisti }) {
   const [aramaMetni, setAramaMetni] = useState("");
   const [seciliKategori, setSeciliKategori] = useState("tumu");
+  const [formlar, setFormlar] = useState([]);
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [formEkleModalGorunur, setFormEkleModalGorunur] = useState(false);
 
-  const filtrelenmisFormlar = FORMLAR.filter((f) => {
+  const isAdmin = currentUser?.role === "admin";
+  const FirebaseDB = window.FirebaseDB;
+
+  // Form sayisini parent'a bildir
+  useEffect(() => {
+    if (onFormSayisiDegisti) onFormSayisiDegisti(formlar.length);
+  }, [formlar.length]);
+
+  // Firebase'den formlari yukle
+  useEffect(() => {
+    const yukle = async () => {
+      try {
+        const fbFormlar = await FirebaseDB.fetchForms();
+        setFormlar(fbFormlar);
+      } catch (e) {
+        console.error("Form yukleme hatasi:", e);
+      } finally {
+        setYukleniyor(false);
+      }
+    };
+    yukle();
+  }, []);
+
+  // Form silme
+  const handleFormSil = async (form) => {
+    if (!confirm(`"${form.baslik}" formunu silmek istediginize emin misiniz?`)) return;
+    try {
+      await FirebaseDB.deleteForm(form.id);
+      if (form.storagePath) {
+        await FirebaseDB.deleteFormFile(form.storagePath);
+      }
+      setFormlar((prev) => prev.filter((f) => f.id !== form.id));
+    } catch (e) {
+      alert("Silme hatasi: " + e.message);
+    }
+  };
+
+  // Yeni form eklendikten sonra
+  const handleFormEklendi = (yeniForm) => {
+    setFormlar((prev) => [yeniForm, ...prev]);
+    setFormEkleModalGorunur(false);
+  };
+
+  const filtrelenmisFormlar = formlar.filter((f) => {
     if (seciliKategori !== "tumu" && f.kategori !== seciliKategori) return false;
     if (aramaMetni) {
       const ara = aramaMetni.toLowerCase();
       return (
-        f.baslik.toLowerCase().includes(ara) ||
-        f.aciklama.toLowerCase().includes(ara)
+        (f.baslik || "").toLowerCase().includes(ara) ||
+        (f.aciklama || "").toLowerCase().includes(ara)
       );
     }
     return true;
@@ -1223,54 +1215,44 @@ function FormlarBolumu() {
   return (
     <div>
       {/* İstatistikler */}
-      <div
-        style={{
-          display: "flex",
-          gap: "12px",
-          marginBottom: "20px",
-          flexWrap: "wrap",
-        }}
-      >
-        <DuyuruStatKart
-          icon="📄"
-          deger={FORMLAR.length}
-          etiket="Toplam Form"
-          renk="#3b82f6"
-        />
-        <DuyuruStatKart
-          icon="🎓"
-          deger={FORMLAR.filter((f) => f.kategori === "ogrenci").length}
-          etiket="Öğrenci İşleri"
-          renk="#1e40af"
-        />
-        <DuyuruStatKart
-          icon="📚"
-          deger={FORMLAR.filter((f) => f.kategori === "akademik").length}
-          etiket="Akademik"
-          renk="#7c3aed"
-        />
-        <DuyuruStatKart
-          icon="💼"
-          deger={FORMLAR.filter((f) => f.kategori === "staj").length}
-          etiket="Staj/Kariyer"
-          renk="#047857"
-        />
+      <div style={{ display: "flex", gap: "12px", marginBottom: "20px", flexWrap: "wrap" }}>
+        <DuyuruStatKart icon="📄" deger={formlar.length} etiket="Toplam Form" renk="#3b82f6" />
+        <DuyuruStatKart icon="🎓" deger={formlar.filter((f) => f.kategori === "ogrenci").length} etiket="Öğrenci İşleri" renk="#1e40af" />
+        <DuyuruStatKart icon="📚" deger={formlar.filter((f) => f.kategori === "akademik").length} etiket="Akademik" renk="#7c3aed" />
+        <DuyuruStatKart icon="💼" deger={formlar.filter((f) => f.kategori === "staj").length} etiket="Staj/Kariyer" renk="#047857" />
       </div>
+
+      {/* Admin: Form Ekle Butonu */}
+      {isAdmin && (
+        <div style={{ marginBottom: "16px" }}>
+          <button
+            onClick={() => setFormEkleModalGorunur(true)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 20px",
+              borderRadius: "10px", fontSize: "13px", fontWeight: 600, backgroundColor: "#1e40af",
+              color: "#fff", border: "none", cursor: "pointer", transition: "all 0.2s",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Yeni Form / Dosya Ekle
+          </button>
+        </div>
+      )}
 
       {/* Kategori Filtreleri */}
       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
         <button
           onClick={() => setSeciliKategori("tumu")}
           style={{
-            padding: "6px 14px",
-            borderRadius: "8px",
-            fontSize: "12px",
+            padding: "6px 14px", borderRadius: "8px", fontSize: "12px",
             fontWeight: seciliKategori === "tumu" ? 700 : 500,
             backgroundColor: seciliKategori === "tumu" ? "#1f2937" : "#f9fafb",
             color: seciliKategori === "tumu" ? "#fff" : "#374151",
             border: seciliKategori === "tumu" ? "none" : "1px solid #e5e7eb",
-            cursor: "pointer",
-            transition: "all 0.15s",
+            cursor: "pointer", transition: "all 0.15s",
           }}
         >
           Tümü
@@ -1280,18 +1262,13 @@ function FormlarBolumu() {
             key={key}
             onClick={() => setSeciliKategori(key)}
             style={{
-              padding: "6px 14px",
-              borderRadius: "8px",
-              fontSize: "12px",
+              padding: "6px 14px", borderRadius: "8px", fontSize: "12px",
               fontWeight: seciliKategori === key ? 700 : 500,
               backgroundColor: seciliKategori === key ? val.color : "#f9fafb",
               color: seciliKategori === key ? "#fff" : "#374151",
               border: seciliKategori === key ? "none" : "1px solid #e5e7eb",
-              cursor: "pointer",
-              transition: "all 0.15s",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
+              cursor: "pointer", transition: "all 0.15s",
+              display: "flex", alignItems: "center", gap: "4px",
             }}
           >
             <span style={{ fontSize: "13px" }}>{val.icon}</span>
@@ -1301,21 +1278,8 @@ function FormlarBolumu() {
       </div>
 
       {/* Arama */}
-      <div
-        style={{
-          position: "relative",
-          marginBottom: "20px",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            left: "12px",
-            top: "50%",
-            transform: "translateY(-50%)",
-            color: "#9ca3af",
-          }}
-        >
+      <div style={{ position: "relative", marginBottom: "20px" }}>
+        <div style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }}>
           <DuyuruSearchIcon />
         </div>
         <input
@@ -1324,15 +1288,9 @@ function FormlarBolumu() {
           value={aramaMetni}
           onChange={(e) => setAramaMetni(e.target.value)}
           style={{
-            width: "100%",
-            padding: "10px 12px 10px 38px",
-            borderRadius: "10px",
-            border: "1px solid #e5e7eb",
-            fontSize: "13px",
-            backgroundColor: "#f9fafb",
-            outline: "none",
-            boxSizing: "border-box",
-            transition: "border-color 0.15s",
+            width: "100%", padding: "10px 12px 10px 38px", borderRadius: "10px",
+            border: "1px solid #e5e7eb", fontSize: "13px", backgroundColor: "#f9fafb",
+            outline: "none", boxSizing: "border-box", transition: "border-color 0.15s",
           }}
           onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
           onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
@@ -1341,38 +1299,309 @@ function FormlarBolumu() {
 
       {/* Form Listesi */}
       <div style={{ marginBottom: "24px" }}>
-        {filtrelenmisFormlar.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "60px 20px",
-              color: "#9ca3af",
-            }}
-          >
+        {yukleniyor ? (
+          <div style={{ textAlign: "center", padding: "60px 20px", color: "#9ca3af" }}>
+            <p style={{ fontSize: "15px", fontWeight: 500 }}>Formlar yükleniyor...</p>
+          </div>
+        ) : filtrelenmisFormlar.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "60px 20px", color: "#9ca3af" }}>
             <div style={{ fontSize: "48px", marginBottom: "12px" }}>
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto" }}>
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.3-4.3" />
+                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
               </svg>
             </div>
             <p style={{ fontSize: "15px", fontWeight: 500 }}>
               {aramaMetni
                 ? `"${aramaMetni}" ile eşleşen form bulunamadı`
+                : formlar.length === 0
+                ? (isAdmin ? "Henüz form eklenmemiş. Yukarıdaki butonu kullanarak form ekleyebilirsiniz." : "Henüz form eklenmemiş.")
                 : "Bu filtrelere uygun form bulunamadı"}
             </p>
           </div>
         ) : (
           filtrelenmisFormlar.map((f, i) => (
-            <div
-              key={f.id}
-              style={{
-                animation: `duyuruFadeIn 0.3s ease ${i * 0.05}s both`,
-              }}
-            >
-              <FormKarti form={f} />
+            <div key={f.id} style={{ animation: `duyuruFadeIn 0.3s ease ${i * 0.05}s both` }}>
+              <FormKarti form={f} isAdmin={isAdmin} onDelete={handleFormSil} />
             </div>
           ))
         )}
+      </div>
+
+      {/* Form Ekleme Modalı (Sadece Admin) */}
+      {formEkleModalGorunur && isAdmin && (
+        <FormEkleModal
+          onKapat={() => setFormEkleModalGorunur(false)}
+          onEklendi={handleFormEklendi}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Form Ekleme Modalı (Admin) ──────────────────────────────────────────────
+
+function FormEkleModal({ onKapat, onEklendi }) {
+  const [baslik, setBaslik] = useState("");
+  const [aciklama, setAciklama] = useState("");
+  const [kategori, setKategori] = useState("ogrenci");
+  const [dosya, setDosya] = useState(null);
+  const [yukleniyor, setYukleniyor] = useState(false);
+  const [hata, setHata] = useState("");
+  const dosyaInputRef = useRef(null);
+  const FirebaseDB = window.FirebaseDB;
+
+  const desteklenenTipler = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ];
+
+  const dosyaSecildi = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!desteklenenTipler.includes(file.type)) {
+      setHata("Yalnızca PDF ve Word (DOC/DOCX) dosyaları yüklenebilir.");
+      setDosya(null);
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setHata("Dosya boyutu 20MB'dan küçük olmalıdır.");
+      setDosya(null);
+      return;
+    }
+    setHata("");
+    setDosya(file);
+  };
+
+  const formatBelirle = (file) => {
+    if (!file) return "PDF";
+    if (file.type === "application/pdf") return "PDF";
+    return "DOCX";
+  };
+
+  const handleKaydet = async () => {
+    if (!baslik.trim()) { setHata("Başlık zorunludur."); return; }
+    if (!aciklama.trim()) { setHata("İçerik/açıklama zorunludur."); return; }
+    if (!dosya) { setHata("Lütfen bir dosya seçin (PDF veya Word)."); return; }
+
+    setYukleniyor(true);
+    setHata("");
+    try {
+      // 1. Dosyayı Firebase Storage'a yükle
+      const { downloadURL, fileName } = await FirebaseDB.uploadFormFile(dosya);
+
+      // 2. Form bilgilerini Firestore'a kaydet
+      const formData = {
+        baslik: baslik.trim(),
+        aciklama: aciklama.trim(),
+        kategori,
+        format: formatBelirle(dosya),
+        downloadURL,
+        storagePath: fileName,
+        dosyaAdi: dosya.name,
+      };
+      const kaydedilen = await FirebaseDB.addForm(formData);
+      onEklendi(kaydedilen);
+    } catch (err) {
+      console.error("Form ekleme hatasi:", err);
+      setHata("Yükleme hatası: " + err.message);
+    } finally {
+      setYukleniyor(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000,
+      backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "20px",
+    }}>
+      <div style={{
+        backgroundColor: "#fff", borderRadius: "16px", maxWidth: "540px", width: "100%",
+        boxShadow: "0 25px 50px rgba(0,0,0,0.25)", overflow: "hidden",
+        animation: "duyuruFadeIn 0.25s ease",
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: "20px 24px", borderBottom: "1px solid #e5e7eb",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#111827" }}>
+            Yeni Form / Dosya Ekle
+          </h2>
+          <button onClick={onKapat} style={{
+            background: "none", border: "none", cursor: "pointer", color: "#6b7280",
+            padding: "4px", display: "flex", borderRadius: "8px",
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: "24px" }}>
+          {/* Dosya Yükleme */}
+          <div style={{ marginBottom: "20px" }}>
+            <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "8px" }}>
+              Dosya (PDF veya Word) *
+            </label>
+            <input
+              ref={dosyaInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx"
+              onChange={dosyaSecildi}
+              style={{ display: "none" }}
+            />
+            <div
+              onClick={() => dosyaInputRef.current?.click()}
+              style={{
+                border: `2px dashed ${dosya ? "#059669" : "#d1d5db"}`,
+                borderRadius: "12px", padding: "24px", textAlign: "center", cursor: "pointer",
+                backgroundColor: dosya ? "#f0fdf4" : "#f9fafb", transition: "all 0.2s",
+              }}
+            >
+              {dosya ? (
+                <div>
+                  <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+                    {dosya.type === "application/pdf" ? "📕" : "📘"}
+                  </div>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "#059669" }}>{dosya.name}</div>
+                  <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
+                    {(dosya.size / 1024 / 1024).toFixed(2)} MB - Değiştirmek için tıklayın
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto" }}>
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                  </div>
+                  <div style={{ fontSize: "14px", fontWeight: 500, color: "#6b7280" }}>
+                    PDF veya Word dosyası seçin
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>
+                    Maksimum 20MB
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Başlık */}
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "6px" }}>
+              Başlık *
+            </label>
+            <input
+              type="text"
+              value={baslik}
+              onChange={(e) => setBaslik(e.target.value)}
+              placeholder="Formun başlığını girin"
+              style={{
+                width: "100%", padding: "10px 14px", borderRadius: "10px",
+                border: "1px solid #e5e7eb", fontSize: "14px", outline: "none",
+                boxSizing: "border-box", transition: "border-color 0.15s",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
+              onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+            />
+          </div>
+
+          {/* İçerik / Açıklama */}
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "6px" }}>
+              İçerik / Açıklama *
+            </label>
+            <textarea
+              value={aciklama}
+              onChange={(e) => setAciklama(e.target.value)}
+              placeholder="Form hakkında açıklama yazın"
+              rows={3}
+              style={{
+                width: "100%", padding: "10px 14px", borderRadius: "10px",
+                border: "1px solid #e5e7eb", fontSize: "14px", outline: "none",
+                boxSizing: "border-box", resize: "vertical", fontFamily: "inherit",
+                transition: "border-color 0.15s",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
+              onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+            />
+          </div>
+
+          {/* Kategori */}
+          <div style={{ marginBottom: "20px" }}>
+            <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "8px" }}>
+              Kategori *
+            </label>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {Object.entries(FORM_KATEGORILERI).map(([key, val]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setKategori(key)}
+                  style={{
+                    padding: "8px 16px", borderRadius: "10px", fontSize: "13px", fontWeight: 500,
+                    backgroundColor: kategori === key ? val.color : "#f9fafb",
+                    color: kategori === key ? "#fff" : "#374151",
+                    border: kategori === key ? "none" : "1px solid #e5e7eb",
+                    cursor: "pointer", transition: "all 0.15s",
+                    display: "flex", alignItems: "center", gap: "6px",
+                  }}
+                >
+                  <span>{val.icon}</span> {val.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Hata */}
+          {hata && (
+            <div style={{
+              padding: "10px 14px", marginBottom: "16px", borderRadius: "10px",
+              backgroundColor: "#fef2f2", color: "#dc2626", fontSize: "13px",
+              border: "1px solid #fecaca", display: "flex", alignItems: "center", gap: "8px",
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+              {hata}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: "16px 24px", borderTop: "1px solid #e5e7eb",
+          display: "flex", justifyContent: "flex-end", gap: "10px",
+        }}>
+          <button onClick={onKapat} disabled={yukleniyor} style={{
+            padding: "10px 20px", borderRadius: "10px", fontSize: "13px", fontWeight: 600,
+            backgroundColor: "#f9fafb", color: "#374151", border: "1px solid #e5e7eb",
+            cursor: "pointer", transition: "all 0.15s",
+          }}>
+            İptal
+          </button>
+          <button onClick={handleKaydet} disabled={yukleniyor} style={{
+            padding: "10px 24px", borderRadius: "10px", fontSize: "13px", fontWeight: 600,
+            backgroundColor: yukleniyor ? "#9ca3af" : "#1e40af", color: "#fff",
+            border: "none", cursor: yukleniyor ? "not-allowed" : "pointer",
+            transition: "all 0.15s", display: "flex", alignItems: "center", gap: "8px",
+          }}>
+            {yukleniyor ? (
+              <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "duyuruSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Yükleniyor...</>
+            ) : (
+              <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>Kaydet ve Yükle</>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1396,6 +1625,7 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
   const [ayarlarGorunur, setAyarlarGorunur] = useState(false);
   const [bildirimSayisi, setBildirimSayisi] = useState(0);
   const [portalaEklenenler, setPortalaEklenenler] = useState([]);
+  const [formSayisi, setFormSayisi] = useState(0);
   const [ayarlar, setAyarlar] = useState({
     guncellemeAraligi: 30,
     aktifKaynaklar: DUYURU_KAYNAKLARI.map((k) => k.id),
@@ -1496,6 +1726,11 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
   // ── İlk yükleme ───────────────────────────────────────────────────────
   useEffect(() => {
     duyurulariGuncelle();
+    // Form sayisini da yukle
+    const FirebaseDB = window.FirebaseDB;
+    if (FirebaseDB?.isReady()) {
+      FirebaseDB.fetchForms().then(forms => setFormSayisi(forms.length)).catch(() => {});
+    }
   }, [duyurulariGuncelle]);
 
   // ── Otomatik güncelleme timer ─────────────────────────────────────────
@@ -1752,7 +1987,7 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
               borderRadius: "9999px",
             }}
           >
-            {FORMLAR.length}
+            {formSayisi}
           </span>
         </button>
       </div>
@@ -1996,7 +2231,7 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
       )}
 
       {/* ── Formlar Sekmesi ──────────────────────────────────────────── */}
-      {aktifSekme === "formlar" && <FormlarBolumu />}
+      {aktifSekme === "formlar" && <FormlarBolumu currentUser={currentUser} onFormSayisiDegisti={setFormSayisi} />}
 
       {/* ── Ayarlar Modal ──────────────────────────────────────────── */}
       <DuyuruAyarlarPaneli
