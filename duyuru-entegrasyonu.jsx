@@ -924,12 +924,467 @@ function DuyuruAyarlarPaneli({ ayarlar, onDegistir, gorunur, onKapat }) {
   );
 }
 
+// ── Formlar Verileri ─────────────────────────────────────────────────────────
+
+const FORM_KATEGORILERI = {
+  ogrenci: { label: "Öğrenci İşleri", color: "#1e40af", icon: "🎓" },
+  akademik: { label: "Akademik", color: "#7c3aed", icon: "📚" },
+  staj: { label: "Staj/Kariyer", color: "#047857", icon: "💼" },
+  idari: { label: "İdari", color: "#b45309", icon: "🏛️" },
+};
+
+const FORMLAR = [
+  {
+    id: "dilekce",
+    baslik: "Genel Dilekçe Formu",
+    aciklama: "Üniversiteye genel amaçlı dilekçe başvurusu için kullanılır.",
+    kategori: "ogrenci",
+    url: "https://oidb.karatekin.edu.tr",
+    format: "PDF",
+  },
+  {
+    id: "ders_ekleme",
+    baslik: "Ders Ekleme / Bırakma Formu",
+    aciklama: "Dönem başında ders ekleme ve bırakma işlemleri için gerekli form.",
+    kategori: "akademik",
+    url: "https://oidb.karatekin.edu.tr",
+    format: "PDF",
+  },
+  {
+    id: "mazeret_sinav",
+    baslik: "Mazeret Sınavı Başvuru Formu",
+    aciklama: "Sınava giremeyen öğrencilerin mazeret sınavı başvurusu için doldurması gereken form.",
+    kategori: "akademik",
+    url: "https://oidb.karatekin.edu.tr",
+    format: "PDF",
+  },
+  {
+    id: "staj_basvuru",
+    baslik: "Staj Başvuru Formu",
+    aciklama: "Zorunlu ve isteğe bağlı staj başvuruları için kullanılan form.",
+    kategori: "staj",
+    url: "https://bmu.karatekin.edu.tr",
+    format: "PDF",
+  },
+  {
+    id: "staj_defteri",
+    baslik: "Staj Defteri Şablonu",
+    aciklama: "Staj süresince günlük olarak doldurulması gereken staj defteri şablonu.",
+    kategori: "staj",
+    url: "https://bmu.karatekin.edu.tr",
+    format: "DOCX",
+  },
+  {
+    id: "erasmus_basvuru",
+    baslik: "Erasmus+ Başvuru Formu",
+    aciklama: "Erasmus+ öğrenim ve staj hareketliliği başvurusu için gerekli form.",
+    kategori: "akademik",
+    url: "https://www.karatekin.edu.tr",
+    format: "PDF",
+  },
+  {
+    id: "ders_muafiyet",
+    baslik: "Ders Muafiyet / İntibak Formu",
+    aciklama: "Yatay geçiş veya daha önce alınan derslerden muafiyet başvurusu için kullanılır.",
+    kategori: "akademik",
+    url: "https://oidb.karatekin.edu.tr",
+    format: "PDF",
+  },
+  {
+    id: "yaz_okulu",
+    baslik: "Yaz Okulu Başvuru Formu",
+    aciklama: "Yaz okuluna kayıt yaptırmak isteyen öğrenciler için başvuru formu.",
+    kategori: "akademik",
+    url: "https://oidb.karatekin.edu.tr",
+    format: "PDF",
+  },
+  {
+    id: "tecil",
+    baslik: "Askerlik Tecil Belgesi Başvuru Formu",
+    aciklama: "Askerlik tecil işlemleri için öğrenci belgesi talep formu.",
+    kategori: "ogrenci",
+    url: "https://oidb.karatekin.edu.tr",
+    format: "PDF",
+  },
+  {
+    id: "ogrenci_belgesi",
+    baslik: "Öğrenci Belgesi Talep Formu",
+    aciklama: "Resmi kurumlara ibraz edilmek üzere öğrenci belgesi talep formu.",
+    kategori: "ogrenci",
+    url: "https://oidb.karatekin.edu.tr",
+    format: "PDF",
+  },
+  {
+    id: "transkript",
+    baslik: "Transkript Talep Formu",
+    aciklama: "Not döküm belgesi (transkript) talep etmek için kullanılan form.",
+    kategori: "ogrenci",
+    url: "https://oidb.karatekin.edu.tr",
+    format: "PDF",
+  },
+  {
+    id: "kayit_dondurma",
+    baslik: "Kayıt Dondurma / İzin Formu",
+    aciklama: "Dönem izni veya kayıt dondurma başvurusu için gerekli form.",
+    kategori: "idari",
+    url: "https://oidb.karatekin.edu.tr",
+    format: "PDF",
+  },
+  {
+    id: "burs_basvuru",
+    baslik: "Burs Başvuru Formu",
+    aciklama: "Üniversite burs programlarına başvuru için gerekli form ve beyan.",
+    kategori: "ogrenci",
+    url: "https://www.karatekin.edu.tr",
+    format: "PDF",
+  },
+  {
+    id: "laboratuvar",
+    baslik: "Laboratuvar Kullanım Talep Formu",
+    aciklama: "Ders dışı saatlerde laboratuvar kullanım talebi için doldurulması gereken form.",
+    kategori: "idari",
+    url: "https://bmu.karatekin.edu.tr",
+    format: "PDF",
+  },
+];
+
+// ── Form Kartı Bileşeni ─────────────────────────────────────────────────────
+
+function FormKarti({ form }) {
+  const kategori = FORM_KATEGORILERI[form.kategori] || FORM_KATEGORILERI.ogrenci;
+
+  return (
+    <div
+      style={{
+        backgroundColor: "#fff",
+        border: "1px solid #e5e7eb",
+        borderRadius: "12px",
+        padding: "18px 20px",
+        marginBottom: "10px",
+        transition: "all 0.2s ease",
+        cursor: "pointer",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+        e.currentTarget.style.transform = "translateY(-1px)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
+        e.currentTarget.style.transform = "translateY(0)";
+      }}
+    >
+      {/* Üst bilgi satırı */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          marginBottom: "8px",
+          flexWrap: "wrap",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+            padding: "2px 8px",
+            borderRadius: "6px",
+            fontSize: "11px",
+            fontWeight: 500,
+            backgroundColor: kategori.color + "15",
+            color: kategori.color,
+            border: `1px solid ${kategori.color}25`,
+          }}
+        >
+          <span style={{ fontSize: "12px" }}>{kategori.icon}</span>
+          {kategori.label}
+        </span>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "2px 8px",
+            borderRadius: "6px",
+            fontSize: "10px",
+            fontWeight: 700,
+            letterSpacing: "0.05em",
+            backgroundColor: form.format === "PDF" ? "#fef2f2" : "#eff6ff",
+            color: form.format === "PDF" ? "#dc2626" : "#2563eb",
+            border: form.format === "PDF" ? "1px solid #fecaca" : "1px solid #bfdbfe",
+          }}
+        >
+          {form.format}
+        </span>
+      </div>
+
+      {/* Başlık */}
+      <h3
+        style={{
+          margin: "0 0 6px 0",
+          fontSize: "15px",
+          fontWeight: 600,
+          color: "#111827",
+          lineHeight: 1.4,
+        }}
+      >
+        {form.baslik}
+      </h3>
+
+      {/* Açıklama */}
+      <p
+        style={{
+          margin: "0 0 14px 0",
+          fontSize: "13px",
+          color: "#6b7280",
+          lineHeight: 1.55,
+        }}
+      >
+        {form.aciklama}
+      </p>
+
+      {/* Alt butonlar */}
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <a
+          href={form.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px",
+            padding: "6px 14px",
+            borderRadius: "8px",
+            fontSize: "12px",
+            fontWeight: 600,
+            backgroundColor: "#1e40af",
+            color: "#fff",
+            textDecoration: "none",
+            border: "none",
+            cursor: "pointer",
+            transition: "background-color 0.15s",
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Formu İndir
+        </a>
+        <a
+          href={form.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px",
+            padding: "6px 14px",
+            borderRadius: "8px",
+            fontSize: "12px",
+            fontWeight: 600,
+            backgroundColor: "#f0fdf4",
+            color: "#166534",
+            border: "1px solid #bbf7d0",
+            textDecoration: "none",
+            cursor: "pointer",
+            transition: "all 0.15s",
+          }}
+        >
+          <DuyuruExternalLinkIcon /> Kaynağa Git
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ── Formlar Bölümü ──────────────────────────────────────────────────────────
+
+function FormlarBolumu() {
+  const [aramaMetni, setAramaMetni] = useState("");
+  const [seciliKategori, setSeciliKategori] = useState("tumu");
+
+  const filtrelenmisFormlar = FORMLAR.filter((f) => {
+    if (seciliKategori !== "tumu" && f.kategori !== seciliKategori) return false;
+    if (aramaMetni) {
+      const ara = aramaMetni.toLowerCase();
+      return (
+        f.baslik.toLowerCase().includes(ara) ||
+        f.aciklama.toLowerCase().includes(ara)
+      );
+    }
+    return true;
+  });
+
+  return (
+    <div>
+      {/* İstatistikler */}
+      <div
+        style={{
+          display: "flex",
+          gap: "12px",
+          marginBottom: "20px",
+          flexWrap: "wrap",
+        }}
+      >
+        <DuyuruStatKart
+          icon="📄"
+          deger={FORMLAR.length}
+          etiket="Toplam Form"
+          renk="#3b82f6"
+        />
+        <DuyuruStatKart
+          icon="🎓"
+          deger={FORMLAR.filter((f) => f.kategori === "ogrenci").length}
+          etiket="Öğrenci İşleri"
+          renk="#1e40af"
+        />
+        <DuyuruStatKart
+          icon="📚"
+          deger={FORMLAR.filter((f) => f.kategori === "akademik").length}
+          etiket="Akademik"
+          renk="#7c3aed"
+        />
+        <DuyuruStatKart
+          icon="💼"
+          deger={FORMLAR.filter((f) => f.kategori === "staj").length}
+          etiket="Staj/Kariyer"
+          renk="#047857"
+        />
+      </div>
+
+      {/* Kategori Filtreleri */}
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+        <button
+          onClick={() => setSeciliKategori("tumu")}
+          style={{
+            padding: "6px 14px",
+            borderRadius: "8px",
+            fontSize: "12px",
+            fontWeight: seciliKategori === "tumu" ? 700 : 500,
+            backgroundColor: seciliKategori === "tumu" ? "#1f2937" : "#f9fafb",
+            color: seciliKategori === "tumu" ? "#fff" : "#374151",
+            border: seciliKategori === "tumu" ? "none" : "1px solid #e5e7eb",
+            cursor: "pointer",
+            transition: "all 0.15s",
+          }}
+        >
+          Tümü
+        </button>
+        {Object.entries(FORM_KATEGORILERI).map(([key, val]) => (
+          <button
+            key={key}
+            onClick={() => setSeciliKategori(key)}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "8px",
+              fontSize: "12px",
+              fontWeight: seciliKategori === key ? 700 : 500,
+              backgroundColor: seciliKategori === key ? val.color : "#f9fafb",
+              color: seciliKategori === key ? "#fff" : "#374151",
+              border: seciliKategori === key ? "none" : "1px solid #e5e7eb",
+              cursor: "pointer",
+              transition: "all 0.15s",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+            }}
+          >
+            <span style={{ fontSize: "13px" }}>{val.icon}</span>
+            {val.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Arama */}
+      <div
+        style={{
+          position: "relative",
+          marginBottom: "20px",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            left: "12px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            color: "#9ca3af",
+          }}
+        >
+          <DuyuruSearchIcon />
+        </div>
+        <input
+          type="text"
+          placeholder="Formlarda ara..."
+          value={aramaMetni}
+          onChange={(e) => setAramaMetni(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "10px 12px 10px 38px",
+            borderRadius: "10px",
+            border: "1px solid #e5e7eb",
+            fontSize: "13px",
+            backgroundColor: "#f9fafb",
+            outline: "none",
+            boxSizing: "border-box",
+            transition: "border-color 0.15s",
+          }}
+          onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
+          onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+        />
+      </div>
+
+      {/* Form Listesi */}
+      <div style={{ marginBottom: "24px" }}>
+        {filtrelenmisFormlar.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "60px 20px",
+              color: "#9ca3af",
+            }}
+          >
+            <div style={{ fontSize: "48px", marginBottom: "12px" }}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto" }}>
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+            </div>
+            <p style={{ fontSize: "15px", fontWeight: 500 }}>
+              {aramaMetni
+                ? `"${aramaMetni}" ile eşleşen form bulunamadı`
+                : "Bu filtrelere uygun form bulunamadı"}
+            </p>
+          </div>
+        ) : (
+          filtrelenmisFormlar.map((f, i) => (
+            <div
+              key={f.id}
+              style={{
+                animation: `duyuruFadeIn 0.3s ease ${i * 0.05}s both`,
+              }}
+            >
+              <FormKarti form={f} />
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ANA BİLEŞEN — DuyuruEntegrasyonuApp
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function DuyuruEntegrasyonuApp({ currentUser }) {
   // ── State ─────────────────────────────────────────────────────────────
+  const [aktifSekme, setAktifSekme] = useState("duyurular");
   const [duyurular, setDuyurular] = useState([]);
   const [aramaMetni, setAramaMetni] = useState("");
   const [seciliKaynak, setSeciliKaynak] = useState("tumu");
@@ -1209,238 +1664,339 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
         </div>
       </div>
 
-      {/* ── Scraper Durumu ─────────────────────────────────────────── */}
-      <div style={{ marginBottom: "20px" }}>
-        <ScraperDurum
-          sonGuncelleme={sonGuncelleme}
-          yukleniyor={yukleniyor}
-          onYenile={duyurulariGuncelle}
-        />
-      </div>
-
-      {/* ── İstatistikler ──────────────────────────────────────────── */}
+      {/* ── Sekme Navigasyonu (Duyurular / Formlar) ──────────────── */}
       <div
         style={{
           display: "flex",
-          gap: "12px",
+          gap: "4px",
           marginBottom: "20px",
-          flexWrap: "wrap",
+          backgroundColor: "#f3f4f6",
+          borderRadius: "12px",
+          padding: "4px",
         }}
       >
-        <DuyuruStatKart
-          icon="📋"
-          deger={duyurular.length}
-          etiket="Toplam Duyuru"
-          renk="#3b82f6"
-        />
-        <DuyuruStatKart
-          icon="🔵"
-          deger={okunmamisSayisi}
-          etiket="Okunmamış"
-          renk="#ef4444"
-        />
-        <DuyuruStatKart
-          icon="📌"
-          deger={portalaEklenenler.length}
-          etiket="Portala Eklenen"
-          renk="#22c55e"
-        />
-        <DuyuruStatKart
-          icon="🏷️"
-          deger={DUYURU_KAYNAKLARI.length}
-          etiket="Aktif Kaynak"
-          renk="#8b5cf6"
-        />
-      </div>
-
-      {/* ── Kaynak Filtreleri ──────────────────────────────────────── */}
-      <div style={{ marginBottom: "16px" }}>
-        <KaynakFiltre secili={seciliKaynak} onDegistir={setSeciliKaynak} />
-      </div>
-
-      {/* ── Arama ve Sıralama ─────────────────────────────────────── */}
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          marginBottom: "20px",
-          flexWrap: "wrap",
-        }}
-      >
-        {/* Arama kutusu */}
-        <div
+        <button
+          onClick={() => setAktifSekme("duyurular")}
           style={{
-            flex: "1 1 300px",
-            position: "relative",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              left: "12px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "#9ca3af",
-            }}
-          >
-            <DuyuruSearchIcon />
-          </div>
-          <input
-            type="text"
-            placeholder="Duyurularda ara..."
-            value={aramaMetni}
-            onChange={(e) => setAramaMetni(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "10px 12px 10px 38px",
-              borderRadius: "10px",
-              border: "1px solid #e5e7eb",
-              fontSize: "13px",
-              backgroundColor: "#f9fafb",
-              outline: "none",
-              boxSizing: "border-box",
-              transition: "border-color 0.15s",
-            }}
-            onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
-            onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
-          />
-        </div>
-
-        {/* Kategori filtresi */}
-        <div style={{ position: "relative" }}>
-          <select
-            value={seciliKategori}
-            onChange={(e) => setSeciliKategori(e.target.value)}
-            style={{
-              padding: "10px 32px 10px 12px",
-              borderRadius: "10px",
-              border: "1px solid #e5e7eb",
-              fontSize: "13px",
-              backgroundColor: "#f9fafb",
-              cursor: "pointer",
-              appearance: "none",
-            }}
-          >
-            <option value="tumu">Tüm Kategoriler</option>
-            {Object.entries(KATEGORI_RENKLERI).map(([key, val]) => (
-              <option key={key} value={key}>
-                {val.label}
-              </option>
-            ))}
-          </select>
-          <div
-            style={{
-              position: "absolute",
-              right: "10px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              pointerEvents: "none",
-              color: "#9ca3af",
-            }}
-          >
-            <DuyuruFilterIcon />
-          </div>
-        </div>
-
-        {/* Sıralama */}
-        <select
-          value={siralama}
-          onChange={(e) => setSiralama(e.target.value)}
-          style={{
-            padding: "10px 12px",
+            flex: 1,
+            padding: "10px 20px",
             borderRadius: "10px",
-            border: "1px solid #e5e7eb",
-            fontSize: "13px",
-            backgroundColor: "#f9fafb",
+            fontSize: "14px",
+            fontWeight: aktifSekme === "duyurular" ? 700 : 500,
+            backgroundColor: aktifSekme === "duyurular" ? "#fff" : "transparent",
+            color: aktifSekme === "duyurular" ? "#111827" : "#6b7280",
+            border: "none",
             cursor: "pointer",
+            transition: "all 0.2s",
+            boxShadow: aktifSekme === "duyurular" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
           }}
         >
-          <option value="tarih">En Yeni</option>
-          <option value="okunmamis">Okunmamışlar Önce</option>
-        </select>
-      </div>
-
-      {/* ── Duyuru Listesi ─────────────────────────────────────────── */}
-      <div style={{ marginBottom: "24px" }}>
-        {filtrelenmis.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "60px 20px",
-              color: "#9ca3af",
-            }}
-          >
-            <div style={{ fontSize: "48px", marginBottom: "12px" }}>
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto" }}>
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
-            </div>
-            <p style={{ fontSize: "15px", fontWeight: 500 }}>
-              {aramaMetni
-                ? `"${aramaMetni}" ile eşleşen duyuru bulunamadı`
-                : "Bu filtrelere uygun duyuru bulunamadı"}
-            </p>
-          </div>
-        ) : (
-          filtrelenmis.map((d, i) => (
-            <div
-              key={d.id}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          Duyurular
+          {okunmamisSayisi > 0 && (
+            <span
               style={{
-                animation: `duyuruFadeIn 0.3s ease ${i * 0.05}s both`,
+                fontSize: "11px",
+                fontWeight: 700,
+                backgroundColor: "#ef4444",
+                color: "#fff",
+                padding: "1px 7px",
+                borderRadius: "9999px",
               }}
             >
-              <DuyuruKarti
-                duyuru={d}
-                onOku={okuIslaretle}
-                onPortalaEkle={portalaEkle}
-              />
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* ── Tümünü Okundu İşaretle ─────────────────────────────────── */}
-      {okunmamisSayisi > 0 && (
-        <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <button
-            onClick={() =>
-              setDuyurular((prev) =>
-                prev.map((d) => ({ ...d, okundu: true }))
-              )
-            }
-            style={{
-              padding: "8px 20px",
-              borderRadius: "10px",
-              fontSize: "13px",
-              fontWeight: 600,
-              backgroundColor: "#f9fafb",
-              color: "#6b7280",
-              border: "1px solid #e5e7eb",
-              cursor: "pointer",
-            }}
-          >
-            Tümünü Okundu İşaretle
-          </button>
-        </div>
-      )}
-
-      {/* ── Hata / Bilgi Mesajı ─────────────────────────────────────── */}
-      {hata && (
-        <div
+              {okunmamisSayisi}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setAktifSekme("formlar")}
           style={{
-            backgroundColor: "#fffbeb",
-            border: "1px solid #fde68a",
+            flex: 1,
+            padding: "10px 20px",
             borderRadius: "10px",
-            padding: "14px 18px",
-            fontSize: "13px",
-            color: "#92400e",
-            lineHeight: 1.6,
+            fontSize: "14px",
+            fontWeight: aktifSekme === "formlar" ? 700 : 500,
+            backgroundColor: aktifSekme === "formlar" ? "#fff" : "transparent",
+            color: aktifSekme === "formlar" ? "#111827" : "#6b7280",
+            border: "none",
+            cursor: "pointer",
+            transition: "all 0.2s",
+            boxShadow: aktifSekme === "formlar" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
           }}
         >
-          <strong>Bilgi:</strong> {hata}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
+          </svg>
+          Formlar
+          <span
+            style={{
+              fontSize: "11px",
+              fontWeight: 700,
+              backgroundColor: "#3b82f6",
+              color: "#fff",
+              padding: "1px 7px",
+              borderRadius: "9999px",
+            }}
+          >
+            {FORMLAR.length}
+          </span>
+        </button>
+      </div>
+
+      {/* ── Duyurular Sekmesi ────────────────────────────────────────── */}
+      {aktifSekme === "duyurular" && (
+        <div>
+          {/* ── Scraper Durumu ─────────────────────────────────────────── */}
+          <div style={{ marginBottom: "20px" }}>
+            <ScraperDurum
+              sonGuncelleme={sonGuncelleme}
+              yukleniyor={yukleniyor}
+              onYenile={duyurulariGuncelle}
+            />
+          </div>
+
+          {/* ── İstatistikler ──────────────────────────────────────────── */}
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              marginBottom: "20px",
+              flexWrap: "wrap",
+            }}
+          >
+            <DuyuruStatKart
+              icon="📋"
+              deger={duyurular.length}
+              etiket="Toplam Duyuru"
+              renk="#3b82f6"
+            />
+            <DuyuruStatKart
+              icon="🔵"
+              deger={okunmamisSayisi}
+              etiket="Okunmamış"
+              renk="#ef4444"
+            />
+            <DuyuruStatKart
+              icon="📌"
+              deger={portalaEklenenler.length}
+              etiket="Portala Eklenen"
+              renk="#22c55e"
+            />
+            <DuyuruStatKart
+              icon="🏷️"
+              deger={DUYURU_KAYNAKLARI.length}
+              etiket="Aktif Kaynak"
+              renk="#8b5cf6"
+            />
+          </div>
+
+          {/* ── Kaynak Filtreleri ──────────────────────────────────────── */}
+          <div style={{ marginBottom: "16px" }}>
+            <KaynakFiltre secili={seciliKaynak} onDegistir={setSeciliKaynak} />
+          </div>
+
+          {/* ── Arama ve Sıralama ─────────────────────────────────────── */}
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              marginBottom: "20px",
+              flexWrap: "wrap",
+            }}
+          >
+            {/* Arama kutusu */}
+            <div
+              style={{
+                flex: "1 1 300px",
+                position: "relative",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  left: "12px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "#9ca3af",
+                }}
+              >
+                <DuyuruSearchIcon />
+              </div>
+              <input
+                type="text"
+                placeholder="Duyurularda ara..."
+                value={aramaMetni}
+                onChange={(e) => setAramaMetni(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px 10px 38px",
+                  borderRadius: "10px",
+                  border: "1px solid #e5e7eb",
+                  fontSize: "13px",
+                  backgroundColor: "#f9fafb",
+                  outline: "none",
+                  boxSizing: "border-box",
+                  transition: "border-color 0.15s",
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
+                onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+              />
+            </div>
+
+            {/* Kategori filtresi */}
+            <div style={{ position: "relative" }}>
+              <select
+                value={seciliKategori}
+                onChange={(e) => setSeciliKategori(e.target.value)}
+                style={{
+                  padding: "10px 32px 10px 12px",
+                  borderRadius: "10px",
+                  border: "1px solid #e5e7eb",
+                  fontSize: "13px",
+                  backgroundColor: "#f9fafb",
+                  cursor: "pointer",
+                  appearance: "none",
+                }}
+              >
+                <option value="tumu">Tüm Kategoriler</option>
+                {Object.entries(KATEGORI_RENKLERI).map(([key, val]) => (
+                  <option key={key} value={key}>
+                    {val.label}
+                  </option>
+                ))}
+              </select>
+              <div
+                style={{
+                  position: "absolute",
+                  right: "10px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  pointerEvents: "none",
+                  color: "#9ca3af",
+                }}
+              >
+                <DuyuruFilterIcon />
+              </div>
+            </div>
+
+            {/* Sıralama */}
+            <select
+              value={siralama}
+              onChange={(e) => setSiralama(e.target.value)}
+              style={{
+                padding: "10px 12px",
+                borderRadius: "10px",
+                border: "1px solid #e5e7eb",
+                fontSize: "13px",
+                backgroundColor: "#f9fafb",
+                cursor: "pointer",
+              }}
+            >
+              <option value="tarih">En Yeni</option>
+              <option value="okunmamis">Okunmamışlar Önce</option>
+            </select>
+          </div>
+
+          {/* ── Duyuru Listesi ─────────────────────────────────────────── */}
+          <div style={{ marginBottom: "24px" }}>
+            {filtrelenmis.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "60px 20px",
+                  color: "#9ca3af",
+                }}
+              >
+                <div style={{ fontSize: "48px", marginBottom: "12px" }}>
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto" }}>
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.3-4.3" />
+                  </svg>
+                </div>
+                <p style={{ fontSize: "15px", fontWeight: 500 }}>
+                  {aramaMetni
+                    ? `"${aramaMetni}" ile eşleşen duyuru bulunamadı`
+                    : "Bu filtrelere uygun duyuru bulunamadı"}
+                </p>
+              </div>
+            ) : (
+              filtrelenmis.map((d, i) => (
+                <div
+                  key={d.id}
+                  style={{
+                    animation: `duyuruFadeIn 0.3s ease ${i * 0.05}s both`,
+                  }}
+                >
+                  <DuyuruKarti
+                    duyuru={d}
+                    onOku={okuIslaretle}
+                    onPortalaEkle={portalaEkle}
+                  />
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* ── Tümünü Okundu İşaretle ─────────────────────────────────── */}
+          {okunmamisSayisi > 0 && (
+            <div style={{ textAlign: "center", marginBottom: "20px" }}>
+              <button
+                onClick={() =>
+                  setDuyurular((prev) =>
+                    prev.map((d) => ({ ...d, okundu: true }))
+                  )
+                }
+                style={{
+                  padding: "8px 20px",
+                  borderRadius: "10px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  backgroundColor: "#f9fafb",
+                  color: "#6b7280",
+                  border: "1px solid #e5e7eb",
+                  cursor: "pointer",
+                }}
+              >
+                Tümünü Okundu İşaretle
+              </button>
+            </div>
+          )}
+
+          {/* ── Hata / Bilgi Mesajı ─────────────────────────────────────── */}
+          {hata && (
+            <div
+              style={{
+                backgroundColor: "#fffbeb",
+                border: "1px solid #fde68a",
+                borderRadius: "10px",
+                padding: "14px 18px",
+                fontSize: "13px",
+                color: "#92400e",
+                lineHeight: 1.6,
+              }}
+            >
+              <strong>Bilgi:</strong> {hata}
+            </div>
+          )}
         </div>
       )}
+
+      {/* ── Formlar Sekmesi ──────────────────────────────────────────── */}
+      {aktifSekme === "formlar" && <FormlarBolumu />}
 
       {/* ── Ayarlar Modal ──────────────────────────────────────────── */}
       <DuyuruAyarlarPaneli
