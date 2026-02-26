@@ -1060,7 +1060,7 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         if (!ref) { setLoading(false); return; }
         const snapshot = await ref.limit(1).get();
         if (snapshot.empty) {
-          for (const student of SAMPLE_STUDENTS) await FirebaseDB.addStudent(student);
+          for (const student of SAMPLE_STUDENTS) await FirebaseDB.addStudent({ ...student, erasmusAccess: true });
           const defaultPasswords = {};
           SAMPLE_STUDENTS.forEach(s => { defaultPasswords[s.studentNumber] = '1234'; });
           const pwRef = FirebaseDB.passwordsRef();
@@ -1116,9 +1116,20 @@ function ErasmusLearningAgreementApp({ currentUser }) {
   };
 
   const handleAddStudent = async () => {
-    const newStudent = { id: String(Date.now()), studentNumber: "", firstName: "", lastName: "", hostInstitution: "", hostCountry: "", semester: "Fall 2025", outgoingMatches: [], returnMatches: [] };
+    const newStudent = { id: String(Date.now()), studentNumber: "", firstName: "", lastName: "", hostInstitution: "", hostCountry: "", semester: "Fall 2025", outgoingMatches: [], returnMatches: [], erasmusAccess: true };
     setStudents(prev => [...prev, newStudent]);
     setSelectedStudent(newStudent);
+  };
+
+  const handleToggleErasmusAccess = async (student) => {
+    try {
+      const newAccess = !student.erasmusAccess;
+      await FirebaseDB.updateStudent(student.id, { ...student, erasmusAccess: newAccess });
+      setStudents(prev => prev.map(s => s.id === student.id ? { ...s, erasmusAccess: newAccess } : s));
+    } catch (error) {
+      console.error('Erasmus erişim güncelleme hatası:', error);
+      alert('Erişim güncellenirken hata oluştu.');
+    }
   };
 
   const handleDeleteStudent = async (id) => {
@@ -1227,7 +1238,10 @@ function ErasmusLearningAgreementApp({ currentUser }) {
                     onMouseEnter={e => { e.currentTarget.style.background = C.bg; }} onMouseLeave={e => { e.currentTarget.style.background = ""; }}>
                     <td style={{ padding: "16px 24px" }}><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: C.navy }}>{student.studentNumber}</span></td>
                     <td style={{ padding: "16px 24px", fontWeight: 500 }}>
-                      {student.firstName} {student.lastName}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {student.firstName} {student.lastName}
+                        {student.erasmusAccess && <span style={{ fontSize: 9, background: "#E6F4EA", color: "#1E7E34", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>Erasmus</span>}
+                      </div>
                       {student.semester && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{student.semester}</div>}
                     </td>
                     <td style={{ padding: "16px 24px" }}>
@@ -1242,6 +1256,9 @@ function ErasmusLearningAgreementApp({ currentUser }) {
                         <button onClick={() => generateOutgoingWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#E6F4EA", color: "#1E7E34", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Gidiş</button>
                         {(student.returnMatches || []).length > 0 && (
                           <button onClick={() => generateReturnWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FFF3E0", color: "#E65100", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Dönüş</button>
+                        )}
+                        {currentUser?.role === 'admin' && (
+                          <button onClick={() => handleToggleErasmusAccess(student)} title={student.erasmusAccess ? "Erasmus erişimini kaldır" : "Erasmus erişimi ver"} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: student.erasmusAccess ? "#E6F4EA" : "#FEE2E2", color: student.erasmusAccess ? "#1E7E34" : "#DC2626", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{student.erasmusAccess ? "Yetkili" : "Yetkisiz"}</button>
                         )}
                         {canEdit(student) && (
                           <button onClick={() => handleDeleteStudent(student.id)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FAEBED", color: C.accent, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}><TrashIcon /></button>
