@@ -99,7 +99,8 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
             const studentAllowed = hasErasmus
               ? ['erasmus', 'portal', 'gruplar', 'projeler', 'duyurular']
               : ['portal', 'gruplar', 'projeler', 'duyurular'];
-            const isDisabled = (isProfessor && item.id !== 'sinav') || (!isAdmin && !isProfessor && !studentAllowed.includes(item.id));
+            const professorAllowed = ['sinav', 'duyurular'];
+            const isDisabled = (isProfessor && !professorAllowed.includes(item.id)) || (!isAdmin && !isProfessor && !studentAllowed.includes(item.id));
 
             return (
               <button
@@ -229,8 +230,9 @@ function AppShell() {
     if (!currentUser) return;
 
     if (isProfessor) {
-      // Professors can only be on 'sinav'
-      if (route !== 'sinav') {
+      // Professors can access 'sinav' and 'duyurular'
+      const professorRoutes = ['sinav', 'duyurular'];
+      if (!professorRoutes.includes(route)) {
         navigate('sinav');
       }
     } else if (!isAdmin) {
@@ -265,7 +267,7 @@ function AppShell() {
     };
 
     // Safety check for rendering availability
-    if (isProfessor && route !== 'sinav') return null; // Wait for redirect
+    if (isProfessor && !['sinav', 'duyurular'].includes(route)) return null; // Wait for redirect
     if (!isAdmin && !isProfessor && !STUDENT_ALLOWED_ROUTES.includes(route)) return null; // Wait for redirect
 
     const Component = components[route] || components.erasmus;
