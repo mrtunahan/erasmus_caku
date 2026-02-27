@@ -1,657 +1,507 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Çankırı Karatekin Üniversitesi - Bilgisayar Mühendisliği Bölümü
-Duyuru Scraper (Web Scraping + RSS)
-
-Bu script, bmu.karatekin.edu.tr sitesindeki duyuruları otomatik olarak çeker
-ve Öğrenci Portalı'na aktarılabilir formatta döndürür.
+Çankırı Karatekin Üniversitesi — Duyuru Scraper
+================================================
+Üniversite web sitelerinden duyuruları çeker ve JSON dosyasına yazar.
+Cron job ile periyodik çalıştırılmak üzere tasarlanmıştır.
 
 Kullanım:
-    python scraper.py                  # Tek seferlik çalıştır
-    python scraper.py --schedule 30    # Her 30 dakikada bir çalıştır
-    python scraper.py --output json    # JSON formatında kaydet
+    python3 scraper.py
+    python3 scraper.py --output /var/www/html/duyurular/duyurular.json
+    python3 scraper.py --verbose
 """
+
+import argparse
+import hashlib
+import json
+import logging
+import os
+import re
+import sys
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime
-from dataclasses import dataclass, asdict
-import json
-import logging
-import time
-import hashlib
-import argparse
-import os
-from typing import Optional
 
+# ══════════════════════════════════════════════════════════════════════════════
+# YAPILANDIRMA
+# ══════════════════════════════════════════════════════════════════════════════
 
-# ─── Yapılandırma ────────────────────────────────────────────────────────────
-
-CONFIG = {
-    # Tüm duyuru kaynakları
-    "kaynaklar": [
-        {
-            "id": "bmu",
-            "label": "Bilgisayar Müh.",
-            "base_url": "https://bmu.karatekin.edu.tr",
-            "urls": [
-                "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
-                "https://bmu.karatekin.edu.tr/tr/duyurular",
-            ],
-            "rss_urls": [
-                "https://bmu.karatekin.edu.tr/rss",
-                "https://bmu.karatekin.edu.tr/tr/rss",
-            ],
-        },
-        {
-            "id": "mf",
-            "label": "Müh. Fakültesi",
-            "base_url": "https://mf.karatekin.edu.tr",
-            "urls": [
-                "https://mf.karatekin.edu.tr/tr/tum-duyurular",
-                "https://mf.karatekin.edu.tr/tr/duyurular",
-            ],
-            "rss_urls": [
-                "https://mf.karatekin.edu.tr/rss",
-            ],
-        },
-        {
-            "id": "univ",
-            "label": "Üniversite",
-            "base_url": "https://www.karatekin.edu.tr",
-            "urls": [
-                "https://www.karatekin.edu.tr/tr/tum-duyurular",
-                "https://www.karatekin.edu.tr/tr/duyurular",
-            ],
-            "rss_urls": [
-                "https://www.karatekin.edu.tr/rss",
-            ],
-        },
-        {
-            "id": "oidb",
-            "label": "Öğrenci İşleri",
-            "base_url": "https://oidb.karatekin.edu.tr",
-            "urls": [
-                "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
-                "https://oidb.karatekin.edu.tr/tr/duyurular",
-            ],
-            "rss_urls": [
-                "https://oidb.karatekin.edu.tr/rss",
-            ],
-        },
-    ],
-
-    # Request ayarları
-    "timeout": 20,
-    "headers": {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+KAYNAKLAR = [
+    {
+        "id": "bmu",
+        "label": "Bilgisayar Müh.",
+        "base_url": "https://bmu.karatekin.edu.tr",
+        "duyuru_url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
     },
+    {
+        "id": "mf",
+        "label": "Müh. Fakültesi",
+        "base_url": "https://mf.karatekin.edu.tr",
+        "duyuru_url": "https://mf.karatekin.edu.tr/tr/tum-duyurular",
+    },
+    {
+        "id": "univ",
+        "label": "Üniversite",
+        "base_url": "https://www.karatekin.edu.tr",
+        "duyuru_url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
+    },
+    {
+        "id": "oidb",
+        "label": "Öğrenci İşleri",
+        "base_url": "https://oidb.karatekin.edu.tr",
+        "duyuru_url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
+    },
+]
 
-    # Çıktı
-    "output_dir": "duyurular",
-    "db_file": "duyurular/duyurular.json",
+# HTTP istek ayarları
+REQUEST_TIMEOUT = 30  # saniye
+REQUEST_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+}
+
+# Kaynaklar arası bekleme süresi (saniye) — siteye nazik olalım
+CRAWL_DELAY = 2
+
+# ══════════════════════════════════════════════════════════════════════════════
+# KATEGORİ TESPİTİ
+# ══════════════════════════════════════════════════════════════════════════════
+
+KATEGORI_KURALLARI = [
+    ("sinav",    ["sınav", "sinav", "vize", "final", "mazeret", "bütünleme", "butunleme"]),
+    ("burs",     ["burs", "staj", "tübitak", "tubitak", "kariyer", "iş başvuru"]),
+    ("etkinlik", ["seminer", "etkinlik", "toplantı", "toplanti", "konferans", "workshop",
+                  "panel", "söyleşi", "soylesi", "sergi", "tören", "toren"]),
+    ("akademik", ["kayıt", "kayit", "ders", "erasmus", "akademik", "müfredat", "mufredat",
+                  "yarıyıl", "yariyil", "dönem", "donem", "mezuniyet", "transkript",
+                  "not sistemi", "kredi", "danışman", "danisman", "tez"]),
+    ("idari",    ["kütüphane", "kutuphane", "idari", "personel", "yemekhane",
+                  "taşınma", "tasinma", "bina", "tadilat", "ihale"]),
+]
+
+
+def kategori_belirle(baslik: str) -> str:
+    """Başlık metninden otomatik kategori çıkarır."""
+    metin = baslik.lower()
+    for kategori, anahtar_kelimeler in KATEGORI_KURALLARI:
+        for kelime in anahtar_kelimeler:
+            if kelime in metin:
+                return kategori
+    return "genel"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TARİH PARSE
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Türkçe ay adları
+AY_ISIMLERI = {
+    "ocak": 1, "şubat": 2, "subat": 2, "mart": 3, "nisan": 4,
+    "mayıs": 5, "mayis": 5, "haziran": 6, "temmuz": 7, "ağustos": 8,
+    "agustos": 8, "eylül": 9, "eylul": 9, "ekim": 10, "kasım": 11,
+    "kasim": 11, "aralık": 12, "aralik": 12,
+}
+
+# Kısa ay adları
+AY_KISA = {
+    "oca": 1, "şub": 2, "sub": 2, "mar": 3, "nis": 4,
+    "may": 5, "haz": 6, "tem": 7, "ağu": 8, "agu": 8,
+    "eyl": 9, "eki": 10, "kas": 11, "ara": 12,
 }
 
 
-# ─── Logging ─────────────────────────────────────────────────────────────────
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logger = logging.getLogger(__name__)
-
-
-# ─── Veri Modeli ─────────────────────────────────────────────────────────────
-
-@dataclass
-class Duyuru:
-    """Bir duyuruyu temsil eden veri modeli."""
-    id: str                       # Benzersiz hash ID
-    baslik: str                   # Duyuru başlığı
-    ozet: str                     # Kısa özet / ilk paragraf
-    icerik: Optional[str]         # Tam içerik (detay sayfasından)
-    tarih: str                    # Yayınlanma tarihi
-    url: str                      # Orijinal duyuru linki
-    kategori: str = "Duyuru"     # Kategori
-    kaynak: str = "BMU"          # Kaynak bölüm
-    cekilme_tarihi: str = ""     # Scrape edildiği tarih
-
-    def __post_init__(self):
-        if not self.id:
-            # URL + başlık'tan benzersiz ID üret
-            raw = f"{self.url}{self.baslik}"
-            self.id = hashlib.md5(raw.encode()).hexdigest()[:12]
-        if not self.cekilme_tarihi:
-            self.cekilme_tarihi = datetime.now().isoformat()
-
-
-# ─── Scraper Sınıfı ─────────────────────────────────────────────────────────
-
-class KaratekinScraper:
+def tarih_parse(tarih_str: str) -> str:
     """
-    Karatekin Üniversitesi web sitesinden duyuru çeken scraper.
-
-    Üç farklı strateji dener:
-    1. RSS Feed (en güvenilir, varsa)
-    2. HTML Scraping (ana yöntem)
-    3. API endpoint (bazı CMS'lerde mevcut)
+    Çeşitli Türkçe tarih formatlarını YYYY-MM-DD formatına çevirir.
+    Desteklenen formatlar:
+      - 24 Şubat 2025
+      - 24.02.2025
+      - 2025-02-24
+      - 24/02/2025
+      - Şub 24, 2025
     """
+    if not tarih_str:
+        return datetime.now().strftime("%Y-%m-%d")
 
-    def __init__(self):
-        self.session = requests.Session()
-        self.session.headers.update(CONFIG["headers"])
-        self.mevcut_duyurular: list[Duyuru] = []
-        os.makedirs(CONFIG["output_dir"], exist_ok=True)
-        self._yukle_mevcut()
+    tarih_str = tarih_str.strip()
 
-    # ── Mevcut verileri yükle ────────────────────────────────────────────
+    # ISO format: 2025-02-24
+    iso_match = re.match(r"(\d{4})-(\d{1,2})-(\d{1,2})", tarih_str)
+    if iso_match:
+        return f"{iso_match.group(1)}-{int(iso_match.group(2)):02d}-{int(iso_match.group(3)):02d}"
 
-    def _yukle_mevcut(self):
-        """Daha önce çekilmiş duyuruları dosyadan yükle."""
-        if os.path.exists(CONFIG["db_file"]):
-            try:
-                with open(CONFIG["db_file"], "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                self.mevcut_duyurular = [Duyuru(**d) for d in data]
-                logger.info(f"{len(self.mevcut_duyurular)} mevcut duyuru yuklendi.")
-            except Exception as e:
-                logger.warning(f"Mevcut veriler yuklenemedi: {e}")
+    # Noktalı: 24.02.2025
+    dot_match = re.match(r"(\d{1,2})\.(\d{1,2})\.(\d{4})", tarih_str)
+    if dot_match:
+        return f"{dot_match.group(3)}-{int(dot_match.group(2)):02d}-{int(dot_match.group(1)):02d}"
 
-    def _kaydet(self):
-        """Duyuruları JSON dosyasına kaydet."""
-        with open(CONFIG["db_file"], "w", encoding="utf-8") as f:
-            json.dump(
-                [asdict(d) for d in self.mevcut_duyurular],
-                f,
-                ensure_ascii=False,
-                indent=2,
-            )
-        logger.info(f"{len(self.mevcut_duyurular)} duyuru kaydedildi.")
+    # Slash: 24/02/2025
+    slash_match = re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", tarih_str)
+    if slash_match:
+        return f"{slash_match.group(3)}-{int(slash_match.group(2)):02d}-{int(slash_match.group(1)):02d}"
 
-    def _zaten_var_mi(self, url: str, baslik: str) -> bool:
-        """Duyurunun daha önce çekilip çekilmediğini kontrol et."""
-        for d in self.mevcut_duyurular:
-            if d.url == url or d.baslik == baslik:
-                return True
-        return False
+    # Türkçe: "24 Şubat 2025" veya "24 şubat 2025"
+    metin = tarih_str.lower()
+    turkce_match = re.match(r"(\d{1,2})\s+(\w+)\s+(\d{4})", metin)
+    if turkce_match:
+        gun, ay_adi, yil = turkce_match.groups()
+        ay = AY_ISIMLERI.get(ay_adi) or AY_KISA.get(ay_adi[:3])
+        if ay:
+            return f"{yil}-{ay:02d}-{int(gun):02d}"
 
-    # ── HTTP İstek ───────────────────────────────────────────────────────
+    # Bulunamazsa bugünün tarihini döndür
+    return datetime.now().strftime("%Y-%m-%d")
 
-    def _fetch(self, url: str) -> Optional[str]:
-        """URL'den içerik çek, hata durumunda None döndür."""
-        try:
-            response = self.session.get(url, timeout=CONFIG["timeout"])
-            response.raise_for_status()
-            response.encoding = response.apparent_encoding or "utf-8"
-            return response.text
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Istek basarisiz: {url} - {e}")
-            return None
 
-    # ── Strateji 1: RSS Feed ─────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# SCRAPER
+# ══════════════════════════════════════════════════════════════════════════════
 
-    def rss_ile_cek(self, kaynak: dict) -> list[Duyuru]:
-        """RSS feed üzerinden duyuruları çek."""
-        logger.info(f"  [{kaynak['id']}] RSS feed deneniyor...")
-        duyurular = []
+def benzersiz_id(kaynak_id: str, baslik: str, url: str) -> str:
+    """Duyuru için tekil ID üretir (aynı duyuru tekrar eklenmez)."""
+    ham = f"{kaynak_id}:{baslik}:{url}"
+    return hashlib.md5(ham.encode("utf-8")).hexdigest()[:12]
 
-        for rss_url in kaynak.get("rss_urls", []):
-            html = self._fetch(rss_url)
-            if not html:
+
+def sayfa_cek(url: str, logger: logging.Logger) -> BeautifulSoup | None:
+    """Bir URL'nin HTML içeriğini çeker ve BeautifulSoup nesnesi döner."""
+    try:
+        logger.info(f"  → GET {url}")
+        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT, verify=True)
+        resp.raise_for_status()
+        resp.encoding = resp.apparent_encoding or "utf-8"
+        return BeautifulSoup(resp.text, "html.parser")
+    except requests.exceptions.Timeout:
+        logger.error(f"  ✗ Zaman aşımı: {url}")
+    except requests.exceptions.ConnectionError:
+        logger.error(f"  ✗ Bağlantı hatası: {url}")
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"  ✗ HTTP hatası ({e.response.status_code}): {url}")
+    except Exception as e:
+        logger.error(f"  ✗ Beklenmeyen hata: {e}")
+    return None
+
+
+def duyurulari_parse_et(soup: BeautifulSoup, kaynak: dict, logger: logging.Logger) -> list:
+    """
+    Karatekin Üniversitesi sitelerindeki duyuru listesini parse eder.
+
+    Karatekin siteleri genelde şu yapıları kullanır:
+    - <div class="announcements-list"> veya <div class="duyuru-listesi">
+    - <table> içinde satırlar
+    - <ul>/<li> listeleri
+    - <div class="card"> yapıları
+
+    Bu fonksiyon birden fazla HTML yapısını destekler.
+    """
+    duyurular = []
+    kaynak_id = kaynak["id"]
+    base_url = kaynak["base_url"]
+
+    # ── Strateji 1: Karatekin CMS yapısı — link listesi ──
+    # Genellikle .announcements, .duyuru-list, .content-list gibi container'lar içinde
+    # <a> tagları ile duyuru linkleri listelenir
+    link_containers = soup.select(
+        ".announcements-list, .duyuru-listesi, .duyuru-list, "
+        ".content-list, .news-list, .haberler-listesi, "
+        "#content-area, .page-content, .entry-content, "
+        ".container .row .col"
+    )
+
+    # Container bulunamazsa tüm body'ye bak
+    if not link_containers:
+        link_containers = [soup.find("body") or soup]
+
+    for container in link_containers:
+        # Tüm anlamlı linkleri bul
+        links = container.find_all("a", href=True)
+        for link in links:
+            href = link.get("href", "").strip()
+            baslik = link.get_text(strip=True)
+
+            # Çok kısa veya navigasyon linkleri atla
+            if not baslik or len(baslik) < 10:
                 continue
 
-            try:
-                soup = BeautifulSoup(html, "xml")
-                items = soup.find_all("item")
-                if not items:
+            # Sadece duyuru linkleri (genelde '-duyurusu-' veya '-haber-' içerir)
+            # veya /tr/ altındaki detay sayfaları
+            if not any(x in href.lower() for x in [
+                "duyuru", "haber", "ilan", "etkinlik",
+                "-icerigi", "icerik", "detay", "detail"
+            ]):
+                # Eğer link ana sayfa, menü vb. ise atla
+                if href in ("#", "/", "/tr", "/tr/", "/en", "/en/"):
+                    continue
+                # Kısa path'ler navigasyon olabilir
+                if href.startswith("/") and href.count("/") <= 2 and len(href) < 20:
                     continue
 
-                logger.info(f"  RSS feed bulundu: {rss_url} ({len(items)} oge)")
+            # Tam URL oluştur
+            if href.startswith("/"):
+                full_url = base_url + href
+            elif href.startswith("http"):
+                full_url = href
+            else:
+                full_url = base_url + "/" + href
 
-                for item in items:
-                    baslik = item.find("title")
-                    link = item.find("link")
-                    desc = item.find("description")
-                    tarih = item.find("pubDate")
-
-                    if not baslik or not link:
-                        continue
-
-                    baslik_text = baslik.get_text(strip=True)
-                    link_text = link.get_text(strip=True)
-
-                    if self._zaten_var_mi(link_text, baslik_text):
-                        continue
-
-                    duyuru = Duyuru(
-                        id="",
-                        baslik=baslik_text,
-                        ozet=desc.get_text(strip=True)[:300] if desc else "",
-                        icerik=None,
-                        tarih=tarih.get_text(strip=True) if tarih else "",
-                        url=link_text,
-                        kaynak=kaynak["id"].upper(),
-                    )
-                    duyurular.append(duyuru)
-
-                if duyurular:
-                    return duyurular
-
-            except Exception as e:
-                logger.warning(f"  RSS parse hatasi: {e}")
-
-        return duyurular
-
-    # ── Strateji 2: HTML Scraping ────────────────────────────────────────
-
-    def html_ile_cek(self, kaynak: dict) -> list[Duyuru]:
-        """HTML sayfasından duyuruları parse et."""
-        logger.info(f"  [{kaynak['id']}] HTML scraping deneniyor...")
-        duyurular = []
-
-        for url in kaynak["urls"]:
-            html = self._fetch(url)
-            if not html:
+            # Aynı domain kontrolü
+            if base_url.replace("https://", "").replace("http://", "").split("/")[0] not in full_url:
                 continue
 
-            soup = BeautifulSoup(html, "html.parser")
-            logger.info(f"  Sayfa yuklendi: {url}")
+            duyuru_id = benzersiz_id(kaynak_id, baslik, full_url)
 
-            # ── Çeşitli CSS seçici kalıplarını dene ──
-            selectors = [
-                # Kalıp 1: Yaygın CMS yapısı
-                {
-                    "container": "div.duyuru-listesi",
-                    "items": "div.duyuru-item, li.duyuru-item",
-                    "title": "a, h3 a, h4 a",
-                    "date": "span.tarih, small.tarih, time",
-                    "summary": "p, div.ozet, span.aciklama",
-                },
-                # Kalıp 2: Tablo yapısı
-                {
-                    "container": "table",
-                    "items": "tr",
-                    "title": "td a",
-                    "date": "td:last-child, td span.tarih",
-                    "summary": "",
-                },
-                # Kalıp 3: Kart yapısı
-                {
-                    "container": "div.content-list, div.news-list, div.icerik-listesi",
-                    "items": "div.item, div.card, article",
-                    "title": "a, h2 a, h3 a, h4 a, div.baslik a",
-                    "date": "span.date, time, small, div.tarih",
-                    "summary": "p, div.summary, div.ozet",
-                },
-                # Kalıp 4: Genel link tabanlı
-                {
-                    "container": "div#content, div.page-content, main, div.icerik",
-                    "items": "li, div.row, div.col",
-                    "title": "a[href*='duyur'], a[href*='haber'], a[href*='icerik']",
-                    "date": "span, small, time",
-                    "summary": "p",
-                },
-                # Kalıp 5: En genel — sayfadaki tüm duyuru linklerini bul
-                {
-                    "container": None,
-                    "items": None,
-                    "title": None,
-                    "date": None,
-                    "summary": None,
-                    "fallback": True,
-                },
-            ]
+            duyurular.append({
+                "id": duyuru_id,
+                "baslik": baslik,
+                "ozet": "",  # Detay sayfasından çekilebilir
+                "url": full_url,
+            })
 
-            for selector in selectors:
-                if selector.get("fallback"):
-                    # Fallback: Sayfadaki tüm anlamlı linkleri çek
-                    duyurular.extend(self._fallback_parse(soup, url, kaynak))
-                    break
+    # ── Strateji 2: Tablo yapısı ──
+    if not duyurular:
+        tables = soup.find_all("table")
+        for table in tables:
+            rows = table.find_all("tr")
+            for row in rows:
+                cells = row.find_all(["td", "th"])
+                link = row.find("a", href=True)
+                if link and len(link.get_text(strip=True)) > 10:
+                    baslik = link.get_text(strip=True)
+                    href = link["href"]
+                    if href.startswith("/"):
+                        href = base_url + href
+                    duyuru_id = benzersiz_id(kaynak_id, baslik, href)
 
-                container = None
-                if selector["container"]:
-                    for sel in selector["container"].split(", "):
-                        container = soup.select_one(sel)
-                        if container:
+                    # Tarih hücresini bul
+                    tarih_str = ""
+                    for cell in cells:
+                        text = cell.get_text(strip=True)
+                        if re.search(r"\d{1,2}[./]\d{1,2}[./]\d{4}", text) or \
+                           re.search(r"\d{1,2}\s+\w+\s+\d{4}", text):
+                            tarih_str = text
                             break
 
-                if not container:
-                    continue
+                    duyurular.append({
+                        "id": duyuru_id,
+                        "baslik": baslik,
+                        "ozet": "",
+                        "url": href,
+                        "tarih_raw": tarih_str,
+                    })
 
-                items = container.select(selector["items"])
-                if not items:
-                    continue
+    # ── Strateji 3: Card/div yapısı ──
+    if not duyurular:
+        cards = soup.select(".card, .duyuru-item, .news-item, .list-group-item, article")
+        for card in cards:
+            link = card.find("a", href=True)
+            title_el = card.find(["h2", "h3", "h4", "h5", ".card-title", ".title"])
+            if not link and not title_el:
+                continue
 
-                logger.info(f"  Kalip eslesti: {selector['container']} ({len(items)} oge)")
+            baslik = ""
+            href = "#"
 
-                for item in items:
-                    title_el = item.select_one(selector["title"]) if selector["title"] else None
-                    if not title_el:
-                        continue
-
-                    baslik = title_el.get_text(strip=True)
-                    link = title_el.get("href", "")
-
-                    if not baslik or len(baslik) < 5:
-                        continue
-
-                    # Relative URL'yi absolute yap
-                    if link and not link.startswith("http"):
-                        link = kaynak["base_url"] + ("" if link.startswith("/") else "/") + link
-
-                    # Tarih
-                    tarih = ""
-                    if selector["date"]:
-                        date_el = item.select_one(selector["date"])
-                        if date_el:
-                            tarih = date_el.get_text(strip=True)
-
-                    # Özet
-                    ozet = ""
-                    if selector["summary"]:
-                        summary_el = item.select_one(selector["summary"])
-                        if summary_el and summary_el != title_el:
-                            ozet = summary_el.get_text(strip=True)[:300]
-
-                    if self._zaten_var_mi(link, baslik):
-                        continue
-
-                    duyuru = Duyuru(
-                        id="",
-                        baslik=baslik,
-                        ozet=ozet,
-                        icerik=None,
-                        tarih=tarih,
-                        url=link,
-                        kaynak=kaynak["id"].upper(),
-                    )
-                    duyurular.append(duyuru)
-
-                if duyurular:
-                    break  # İlk eşleşen kalıptan sonra dur
-
-            if duyurular:
-                break  # İlk çalışan URL'den sonra dur
-
-        return duyurular
-
-    def _fallback_parse(self, soup: BeautifulSoup, page_url: str, kaynak: dict) -> list[Duyuru]:
-        """
-        Fallback: Sayfadaki duyuru olabilecek tüm linkleri topla.
-        URL'de 'duyuru', 'haber', 'icerik' gibi anahtar kelimeler aranır.
-        """
-        logger.info("  Fallback parse kullaniliyor...")
-        duyurular = []
-        keywords = ["duyuru", "haber", "icerik", "etkinlik", "announce"]
-
-        links = soup.find_all("a", href=True)
-        for a in links:
-            href = a["href"]
-            baslik = a.get_text(strip=True)
+            if title_el:
+                baslik = title_el.get_text(strip=True)
+                inner_link = title_el.find("a", href=True)
+                if inner_link:
+                    href = inner_link["href"]
+            if not baslik and link:
+                baslik = link.get_text(strip=True)
+                href = link["href"]
 
             if not baslik or len(baslik) < 10:
                 continue
 
-            if not any(kw in href.lower() for kw in keywords):
-                continue
+            if href.startswith("/"):
+                href = base_url + href
 
-            if not href.startswith("http"):
-                href = kaynak["base_url"] + ("" if href.startswith("/") else "/") + href
+            # Özet
+            ozet = ""
+            desc_el = card.find(["p", ".card-text", ".description", ".ozet"])
+            if desc_el:
+                ozet = desc_el.get_text(strip=True)[:300]
 
-            if self._zaten_var_mi(href, baslik):
-                continue
+            duyuru_id = benzersiz_id(kaynak_id, baslik, href)
+            duyurular.append({
+                "id": duyuru_id,
+                "baslik": baslik,
+                "ozet": ozet,
+                "url": href,
+            })
 
-            # Aynı linkin tekrarını önle
-            if any(d.url == href for d in duyurular):
-                continue
-
-            duyuru = Duyuru(
-                id="",
-                baslik=baslik,
-                ozet="",
-                icerik=None,
-                tarih="",
-                url=href,
-                kaynak=kaynak["id"].upper(),
-            )
-            duyurular.append(duyuru)
-
-        logger.info(f"  Fallback: {len(duyurular)} duyuru bulundu")
-        return duyurular
-
-    # ── Detay Sayfası ────────────────────────────────────────────────────
-
-    def detay_cek(self, duyuru: Duyuru) -> Duyuru:
-        """Duyurunun detay sayfasından tam içeriği çek."""
-        if not duyuru.url or duyuru.icerik:
-            return duyuru
-
-        html = self._fetch(duyuru.url)
-        if not html:
-            return duyuru
-
-        soup = BeautifulSoup(html, "html.parser")
-
-        # İçerik alanını bul
-        content_selectors = [
-            "div.icerik-detay",
-            "div.content-detail",
-            "div.page-content",
-            "article",
-            "div.detail",
-            "div#content",
-            "main",
-        ]
-
-        for sel in content_selectors:
-            content_el = soup.select_one(sel)
-            if content_el:
-                # Script ve style etiketlerini temizle
-                for tag in content_el.find_all(["script", "style", "nav", "footer"]):
-                    tag.decompose()
-                duyuru.icerik = content_el.get_text(separator="\n", strip=True)
-                break
-
-        # Tarih yoksa detay sayfasından bulmaya çalış
-        if not duyuru.tarih:
-            date_selectors = ["time", "span.date", "span.tarih", "div.tarih", "small.date"]
-            for sel in date_selectors:
-                date_el = soup.select_one(sel)
-                if date_el:
-                    duyuru.tarih = date_el.get_text(strip=True)
-                    break
-
-        return duyuru
-
-    # ── Ana Çalıştırma Metodu ────────────────────────────────────────────
-
-    def calistir(self, detay_cek: bool = True) -> list[Duyuru]:
-        """
-        Tüm kaynaklar üzerinde tüm stratejileri dener ve yeni duyuruları döndürür.
-
-        Args:
-            detay_cek: True ise her duyurunun detay sayfası da çekilir
-
-        Returns:
-            Yeni bulunan duyuruların listesi
-        """
-        logger.info("=" * 60)
-        logger.info("Duyuru taramasi basliyor...")
-        logger.info(f"  {len(CONFIG['kaynaklar'])} kaynak taranacak")
-        logger.info("=" * 60)
-
-        tum_yeni = []
-
-        for kaynak in CONFIG["kaynaklar"]:
-            logger.info(f"\n--- {kaynak['label']} ({kaynak['id']}) ---")
-            yeni_duyurular = []
-
-            # Strateji 1: RSS
-            yeni_duyurular = self.rss_ile_cek(kaynak)
-            if yeni_duyurular:
-                logger.info(f"  RSS ile {len(yeni_duyurular)} yeni duyuru bulundu.")
-            else:
-                # Strateji 2: HTML Scraping
-                yeni_duyurular = self.html_ile_cek(kaynak)
-                if yeni_duyurular:
-                    logger.info(f"  HTML ile {len(yeni_duyurular)} yeni duyuru bulundu.")
-                else:
-                    logger.warning(f"  {kaynak['label']} icin duyuru bulunamadi.")
-
-            tum_yeni.extend(yeni_duyurular)
-            time.sleep(2)  # Kaynaklar arası bekleme
-
-        if not tum_yeni:
-            logger.info("Hicbir kaynaktan yeni duyuru bulunamadi.")
-            return []
-
-        # Detay sayfalarını çek
-        if detay_cek:
-            logger.info("\nDetay sayfalari cekiliyor...")
-            for i, duyuru in enumerate(tum_yeni):
-                logger.info(f"  [{i+1}/{len(tum_yeni)}] {duyuru.baslik[:50]}...")
-                self.detay_cek(duyuru)
-                time.sleep(1)  # Rate limiting
-
-        # Kaydet
-        self.mevcut_duyurular.extend(tum_yeni)
-        self._kaydet()
-
-        logger.info("=" * 60)
-        logger.info(f"Tamamlandi! {len(tum_yeni)} yeni duyuru eklendi.")
-        logger.info(f"Toplam: {len(self.mevcut_duyurular)} duyuru")
-        logger.info("=" * 60)
-
-        return tum_yeni
-
-
-# ─── Portal Entegrasyon Yardımcıları ────────────────────────────────────────
-
-def portal_formatina_cevir(duyurular: list[Duyuru]) -> list[dict]:
-    """
-    Duyuruları Öğrenci Portalı'nın gönderi formatına çevirir.
-    Bu fonksiyon, portalınızın API'sine göre özelleştirilmelidir.
-    """
-    gonderiler = []
+    # Tekrarları kaldır (ID bazlı)
+    gorulen = set()
+    benzersiz = []
     for d in duyurular:
-        gonderi = {
-            "title": d.baslik,
-            "content": d.icerik or d.ozet or d.baslik,
-            "category": "Duyuru",
-            "tags": ["otomatik", "bmu"],
-            "author": "Sistem",
-            "source_url": d.url,
-            "published_at": d.tarih,
-            "created_at": datetime.now().isoformat(),
-            "metadata": {
-                "scraper_id": d.id,
-                "kaynak": d.kaynak,
-            },
-        }
-        gonderiler.append(gonderi)
-    return gonderiler
+        if d["id"] not in gorulen:
+            gorulen.add(d["id"])
+            benzersiz.append(d)
+
+    logger.info(f"  ✓ {len(benzersiz)} duyuru bulundu ({kaynak['label']})")
+    return benzersiz
 
 
-def portala_gonder(gonderiler: list[dict], api_url: str, api_key: str = ""):
-    """
-    Duyuruları Öğrenci Portalı API'sine gönderir.
+def tarih_bul(soup: BeautifulSoup, duyuru: dict) -> str:
+    """Duyuru kartı veya sayfasındaki tarih bilgisini bulmaya çalışır."""
+    # Önce raw tarih varsa onu kullan
+    if duyuru.get("tarih_raw"):
+        return tarih_parse(duyuru["tarih_raw"])
 
-    Args:
-        gonderiler: Portal formatındaki gönderi listesi
-        api_url: Portal API endpoint (orn: http://localhost:3000/api/posts)
-        api_key: API anahtarı (opsiyonel)
-    """
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+    # Sayfada tarih patternleri ara
+    text = soup.get_text()
 
-    for gonderi in gonderiler:
-        try:
-            response = requests.post(api_url, json=gonderi, headers=headers, timeout=10)
-            if response.status_code in (200, 201):
-                logger.info(f"  Gonderildi: {gonderi['title'][:50]}")
-            else:
-                logger.warning(
-                    f"  Gonderilemedi: {gonderi['title'][:50]} "
-                    f"(HTTP {response.status_code})"
-                )
-        except Exception as e:
-            logger.error(f"  Hata: {gonderi['title'][:50]} - {e}")
+    # "24 Şubat 2025" formatı
+    turkce = re.search(
+        r"(\d{1,2})\s+(Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)\s+(\d{4})",
+        text, re.IGNORECASE
+    )
+    if turkce:
+        return tarih_parse(turkce.group(0))
+
+    # "24.02.2025" formatı
+    dot = re.search(r"\d{1,2}\.\d{1,2}\.\d{4}", text)
+    if dot:
+        return tarih_parse(dot.group(0))
+
+    return datetime.now().strftime("%Y-%m-%d")
 
 
-# ─── CLI ─────────────────────────────────────────────────────────────────────
+def kaynak_scrape(kaynak: dict, logger: logging.Logger) -> list:
+    """Tek bir kaynağı scrape eder."""
+    logger.info(f"📡 Kaynak: {kaynak['label']} ({kaynak['duyuru_url']})")
+
+    soup = sayfa_cek(kaynak["duyuru_url"], logger)
+    if not soup:
+        logger.warning(f"  ⚠ {kaynak['label']} sayfası çekilemedi, atlanıyor.")
+        return []
+
+    ham_duyurular = duyurulari_parse_et(soup, kaynak, logger)
+
+    # Sonuçları zenginleştir
+    sonuclar = []
+    for d in ham_duyurular[:30]:  # Her kaynaktan max 30 duyuru
+        tarih = tarih_bul(soup, d)
+        sonuclar.append({
+            "id": d["id"],
+            "baslik": d["baslik"],
+            "ozet": d.get("ozet", ""),
+            "tarih": tarih,
+            "kaynak": kaynak["id"],
+            "kategori": kategori_belirle(d["baslik"]),
+            "url": d["url"],
+        })
+
+    return sonuclar
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ANA FONKSİYON
+# ══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Karatekin Universitesi BMU Duyuru Scraper"
+    parser = argparse.ArgumentParser(description="Karatekin Üniversitesi Duyuru Scraper")
+    parser.add_argument(
+        "--output", "-o",
+        default=None,
+        help="JSON çıktı dosyası yolu (varsayılan: ./duyurular/duyurular.json)"
     )
     parser.add_argument(
-        "--schedule",
-        type=int,
-        default=0,
-        help="Otomatik calistirma araligi (dakika). 0 = tek sefer.",
-    )
-    parser.add_argument(
-        "--output",
-        choices=["json", "console", "portal"],
-        default="json",
-        help="Cikti formati",
-    )
-    parser.add_argument(
-        "--portal-url",
-        type=str,
-        default="http://localhost:3000/api/posts",
-        help="Portal API URL'i (--output portal icin)",
-    )
-    parser.add_argument(
-        "--portal-key",
-        type=str,
-        default="",
-        help="Portal API anahtari",
-    )
-    parser.add_argument(
-        "--no-detail",
+        "--verbose", "-v",
         action="store_true",
-        help="Detay sayfalarini cekme (daha hizli)",
+        help="Detaylı log çıktısı"
     )
-
+    parser.add_argument(
+        "--kaynaklar",
+        nargs="*",
+        choices=[k["id"] for k in KAYNAKLAR],
+        help="Sadece belirtilen kaynakları çek (örn: --kaynaklar bmu oidb)"
+    )
     args = parser.parse_args()
 
-    def calistir_bir_kez():
-        scraper = KaratekinScraper()
-        yeni = scraper.calistir(detay_cek=not args.no_detail)
+    # Logger
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    logger = logging.getLogger("scraper")
 
-        if not yeni:
-            return
-
-        if args.output == "console":
-            for d in yeni:
-                print(f"\n{'─' * 60}")
-                print(f"  {d.baslik}")
-                print(f"  {d.tarih}")
-                print(f"  {d.url}")
-                if d.ozet:
-                    print(f"  {d.ozet[:200]}")
-
-        elif args.output == "portal":
-            gonderiler = portal_formatina_cevir(yeni)
-            portala_gonder(gonderiler, args.portal_url, args.portal_key)
-
-        # JSON çıktı her durumda kaydedilir
-
-    if args.schedule > 0:
-        logger.info(f"Her {args.schedule} dakikada bir calisacak.")
-        while True:
-            calistir_bir_kez()
-            logger.info(f"{args.schedule} dakika bekleniyor...")
-            time.sleep(args.schedule * 60)
+    # Çıktı yolu
+    if args.output:
+        output_path = Path(args.output)
     else:
-        calistir_bir_kez()
+        # Varsayılan: script dizini altında duyurular/duyurular.json
+        output_path = Path(__file__).parent / "duyurular" / "duyurular.json"
+
+    # Çıktı dizinini oluştur
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    logger.info("=" * 60)
+    logger.info("🚀 Karatekin Duyuru Scraper başlatılıyor...")
+    logger.info(f"📂 Çıktı: {output_path}")
+    logger.info("=" * 60)
+
+    # Hangi kaynaklar?
+    aktif_kaynaklar = KAYNAKLAR
+    if args.kaynaklar:
+        aktif_kaynaklar = [k for k in KAYNAKLAR if k["id"] in args.kaynaklar]
+
+    # Tüm kaynakları scrape et
+    tum_duyurular = []
+    basarili = 0
+    basarisiz = 0
+
+    for kaynak in aktif_kaynaklar:
+        try:
+            duyurular = kaynak_scrape(kaynak, logger)
+            tum_duyurular.extend(duyurular)
+            basarili += 1
+        except Exception as e:
+            logger.error(f"  ✗ {kaynak['label']} scrape hatası: {e}")
+            basarisiz += 1
+
+        # Kaynaklar arası bekleme
+        if kaynak != aktif_kaynaklar[-1]:
+            logger.debug(f"  ⏳ {CRAWL_DELAY}s bekleniyor...")
+            time.sleep(CRAWL_DELAY)
+
+    # Tarihe göre sırala (en yeni önce)
+    tum_duyurular.sort(key=lambda d: d["tarih"], reverse=True)
+
+    # Metadata ekle
+    cikti = {
+        "meta": {
+            "son_guncelleme": datetime.now().isoformat(),
+            "toplam_duyuru": len(tum_duyurular),
+            "kaynaklar": {k["id"]: len([d for d in tum_duyurular if d["kaynak"] == k["id"]])
+                          for k in aktif_kaynaklar},
+            "scraper_surumu": "2.0.0",
+        },
+        "duyurular": tum_duyurular,
+    }
+
+    # JSON yaz
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(cikti, f, ensure_ascii=False, indent=2)
+
+    logger.info("=" * 60)
+    logger.info(f"✅ Tamamlandı! {len(tum_duyurular)} duyuru kaydedildi.")
+    logger.info(f"   Başarılı: {basarili}, Başarısız: {basarisiz}")
+    logger.info(f"   Dosya: {output_path} ({output_path.stat().st_size / 1024:.1f} KB)")
+    logger.info("=" * 60)
+
+    return 0 if basarisiz == 0 else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

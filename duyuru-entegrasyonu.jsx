@@ -1679,8 +1679,10 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
       var response = await fetch(DUYURU_JSON_URL + "?v=" + Date.now());
       if (response.ok) {
         var jsonData = await response.json();
-        if (jsonData && jsonData.length > 0) {
-          var duyuruListesi = jsonDenDuyuruCevir(jsonData).filter(function(d) {
+        // Desteklenen formatlar: düz dizi (v1) veya {meta, duyurular} sarmalı (v2)
+        var duyuruDizisi = Array.isArray(jsonData) ? jsonData : (jsonData && jsonData.duyurular);
+        if (duyuruDizisi && duyuruDizisi.length > 0) {
+          var duyuruListesi = jsonDenDuyuruCevir(duyuruDizisi).filter(function(d) {
             return ayarlar.aktifKaynaklar.includes(d.kaynak);
           });
           sonuclariUygula(duyuruListesi);

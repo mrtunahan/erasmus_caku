@@ -1,189 +1,159 @@
-[
-  {
-    "id": "bmu_r1",
-    "baslik": "MTH412 Doğal Dil İşleme ve Büyük Dil Modelleri Dersi Hk.",
-    "ozet": "MTH412 Doğal Dil İşleme ve Büyük Dil Modelleri dersi ile ilgili önemli duyuru yayınlanmıştır.",
-    "icerik": null,
-    "tarih": "2025-02-24",
-    "url": "https://bmu.karatekin.edu.tr/tr/mth412-dogal-dil-isleme-ve-buyuk-dil-modelleri-dersi-hk-64437-duyurusu-icerigi.karatekin",
-    "kategori": "Duyuru",
-    "kaynak": "BMU",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
+{
+  "meta": {
+    "son_guncelleme": "2025-02-24T12:00:00",
+    "toplam_duyuru": 16,
+    "kaynaklar": {
+      "bmu": 5,
+      "mf": 3,
+      "univ": 4,
+      "oidb": 4
+    },
+    "scraper_surumu": "2.0.0"
   },
-  {
-    "id": "bmu_r2",
-    "baslik": "2024-2025 Bahar Yarıyılı Ders Programları Yayınlandı",
-    "ozet": "Bilgisayar Mühendisliği bölümü 2024-2025 bahar yarıyılı ders programları yayınlanmıştır. Öğrencilerin ders programlarını kontrol etmeleri gerekmektedir.",
-    "icerik": null,
-    "tarih": "2025-02-20",
-    "url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "BMU",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "bmu_r3",
-    "baslik": "Bahar Dönemi Staj Başvuruları Başladı",
-    "ozet": "2024-2025 bahar dönemi zorunlu staj başvuruları başlamıştır. Son başvuru tarihi 14 Mart 2025'tir.",
-    "icerik": null,
-    "tarih": "2025-02-18",
-    "url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "BMU",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "bmu_r4",
-    "baslik": "Bilgisayar Mühendisliği Bölümü Akademik Kurul Kararları",
-    "ozet": "2024-2025 akademik yılı bahar dönemi akademik kurul toplantı kararları yayınlanmıştır.",
-    "icerik": null,
-    "tarih": "2025-02-15",
-    "url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "BMU",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "bmu_r5",
-    "baslik": "Bitirme Projesi Konu Belirleme ve Danışman Atama İşlemleri",
-    "ozet": "2024-2025 bahar dönemi bitirme projesi konu belirleme ve danışman atama işlemleri ile ilgili duyuru.",
-    "icerik": null,
-    "tarih": "2025-02-12",
-    "url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "BMU",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "mf_r1",
-    "baslik": "Mühendislik Fakültesi 2024-2025 Bahar Dönemi Ders Ekleme-Bırakma Tarihleri",
-    "ozet": "Bahar dönemi ders ekleme-bırakma işlemleri 24-28 Şubat 2025 tarihleri arasında yapılacaktır.",
-    "icerik": null,
-    "tarih": "2025-02-22",
-    "url": "https://mf.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "MF",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "mf_r2",
-    "baslik": "Erasmus+ 2025-2026 Öğrenim Hareketliliği Başvuruları",
-    "ozet": "2025-2026 akademik yılı Erasmus+ öğrenim hareketliliği başvuruları başlamıştır. Son başvuru: 21 Mart 2025.",
-    "icerik": null,
-    "tarih": "2025-02-19",
-    "url": "https://mf.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "MF",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "mf_r3",
-    "baslik": "Mühendislik Fakültesi Kariyer Günleri 2025",
-    "ozet": "Mühendislik Fakültesi Kariyer Günleri 10-11 Mart 2025 tarihlerinde gerçekleştirilecektir. Sektörden önemli firmalar katılacaktır.",
-    "icerik": null,
-    "tarih": "2025-02-17",
-    "url": "https://mf.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "MF",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "univ_r1",
-    "baslik": "Rektörlük - 2024-2025 Bahar Dönemi Akademik Takvim Güncellendi",
-    "ozet": "2024-2025 akademik yılı bahar dönemi akademik takviminde güncelleme yapılmıştır. Güncel takvim için tıklayınız.",
-    "icerik": null,
-    "tarih": "2025-02-23",
-    "url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "UNIV",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "univ_r2",
-    "baslik": "Üniversitemiz TÜBİTAK Proje Başarısı",
-    "ozet": "Üniversitemiz öğretim üyeleri TÜBİTAK 1001 programı kapsamında 3 yeni proje desteği almaya hak kazanmıştır.",
-    "icerik": null,
-    "tarih": "2025-02-21",
-    "url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "UNIV",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "univ_r3",
-    "baslik": "Merkez Kütüphane Sınav Dönemi Çalışma Saatleri",
-    "ozet": "Vize sınavları döneminde Merkez Kütüphane 08:00-23:00 saatleri arasında hizmet verecektir.",
-    "icerik": null,
-    "tarih": "2025-02-16",
-    "url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "UNIV",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "univ_r4",
-    "baslik": "Bahar Şenlikleri 2025 Tarih ve Program Duyurusu",
-    "ozet": "Çankırı Karatekin Üniversitesi Bahar Şenlikleri 14-16 Mayıs 2025 tarihlerinde gerçekleştirilecektir.",
-    "icerik": null,
-    "tarih": "2025-02-14",
-    "url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "UNIV",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "oidb_r1",
-    "baslik": "2024-2025 Bahar Dönemi Ders Kayıt Yenileme İşlemleri",
-    "ozet": "Bahar dönemi ders kayıt yenileme (ders ekleme-bırakma) işlemleri 24-28 Şubat 2025 tarihleri arasında OBS üzerinden yapılacaktır.",
-    "icerik": null,
-    "tarih": "2025-02-24",
-    "url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "OIDB",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "oidb_r2",
-    "baslik": "Öğrenci Katkı Payı / Öğrenim Ücreti Ödeme Duyurusu",
-    "ozet": "2024-2025 bahar dönemi katkı payı ve öğrenim ücreti ödemeleri hakkında bilgilendirme. Son ödeme tarihi: 7 Mart 2025.",
-    "icerik": null,
-    "tarih": "2025-02-21",
-    "url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "OIDB",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "oidb_r3",
-    "baslik": "Yatay Geçiş Başvuru Sonuçları Açıklandı",
-    "ozet": "2024-2025 bahar dönemi kurum içi ve kurumlar arası yatay geçiş başvuru sonuçları açıklanmıştır.",
-    "icerik": null,
-    "tarih": "2025-02-18",
-    "url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "OIDB",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "oidb_r4",
-    "baslik": "Mezuniyet Belgesi ve Diploma Teslim İşlemleri",
-    "ozet": "2024 güz dönemi mezunlarının diploma ve mezuniyet belgesi teslim işlemleri başlamıştır.",
-    "icerik": null,
-    "tarih": "2025-02-13",
-    "url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
-    "kategori": "Duyuru",
-    "kaynak": "OIDB",
-    "cekilme_tarihi": "2025-02-24T12:00:00"
-  },
-  {
-    "id": "5b300b049a85",
-    "baslik": "Etkinlikler",
-    "ozet": "",
-    "icerik": null,
-    "tarih": "",
-    "url": "https://www.karatekin.edu.tr/tr/tum-etkinlikler",
-    "kategori": "Duyuru",
-    "kaynak": "UNIV",
-    "cekilme_tarihi": "2026-02-25T02:35:04.509512"
-  }
-]
+  "duyurular": [
+    {
+      "id": "bmu_r1",
+      "baslik": "MTH412 Doğal Dil İşleme ve Büyük Dil Modelleri Dersi Hk.",
+      "ozet": "MTH412 Doğal Dil İşleme ve Büyük Dil Modelleri dersi ile ilgili önemli duyuru yayınlanmıştır.",
+      "tarih": "2025-02-24",
+      "url": "https://bmu.karatekin.edu.tr/tr/mth412-dogal-dil-isleme-ve-buyuk-dil-modelleri-dersi-hk-64437-duyurusu-icerigi.karatekin",
+      "kategori": "akademik",
+      "kaynak": "bmu"
+    },
+    {
+      "id": "oidb_r1",
+      "baslik": "2024-2025 Bahar Dönemi Ders Kayıt Yenileme İşlemleri",
+      "ozet": "Bahar dönemi ders kayıt yenileme (ders ekleme-bırakma) işlemleri 24-28 Şubat 2025 tarihleri arasında OBS üzerinden yapılacaktır.",
+      "tarih": "2025-02-24",
+      "url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "akademik",
+      "kaynak": "oidb"
+    },
+    {
+      "id": "univ_r1",
+      "baslik": "Rektörlük - 2024-2025 Bahar Dönemi Akademik Takvim Güncellendi",
+      "ozet": "2024-2025 akademik yılı bahar dönemi akademik takviminde güncelleme yapılmıştır. Güncel takvim için tıklayınız.",
+      "tarih": "2025-02-23",
+      "url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "akademik",
+      "kaynak": "univ"
+    },
+    {
+      "id": "mf_r1",
+      "baslik": "Mühendislik Fakültesi 2024-2025 Bahar Dönemi Ders Ekleme-Bırakma Tarihleri",
+      "ozet": "Bahar dönemi ders ekleme-bırakma işlemleri 24-28 Şubat 2025 tarihleri arasında yapılacaktır.",
+      "tarih": "2025-02-22",
+      "url": "https://mf.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "akademik",
+      "kaynak": "mf"
+    },
+    {
+      "id": "univ_r2",
+      "baslik": "Üniversitemiz TÜBİTAK Proje Başarısı",
+      "ozet": "Üniversitemiz öğretim üyeleri TÜBİTAK 1001 programı kapsamında 3 yeni proje desteği almaya hak kazanmıştır.",
+      "tarih": "2025-02-21",
+      "url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "burs",
+      "kaynak": "univ"
+    },
+    {
+      "id": "oidb_r2",
+      "baslik": "Öğrenci Katkı Payı / Öğrenim Ücreti Ödeme Duyurusu",
+      "ozet": "2024-2025 bahar dönemi katkı payı ve öğrenim ücreti ödemeleri hakkında bilgilendirme. Son ödeme tarihi: 7 Mart 2025.",
+      "tarih": "2025-02-21",
+      "url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "idari",
+      "kaynak": "oidb"
+    },
+    {
+      "id": "bmu_r2",
+      "baslik": "2024-2025 Bahar Yarıyılı Ders Programları Yayınlandı",
+      "ozet": "Bilgisayar Mühendisliği bölümü 2024-2025 bahar yarıyılı ders programları yayınlanmıştır. Öğrencilerin ders programlarını kontrol etmeleri gerekmektedir.",
+      "tarih": "2025-02-20",
+      "url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "akademik",
+      "kaynak": "bmu"
+    },
+    {
+      "id": "mf_r2",
+      "baslik": "Erasmus+ 2025-2026 Öğrenim Hareketliliği Başvuruları",
+      "ozet": "2025-2026 akademik yılı Erasmus+ öğrenim hareketliliği başvuruları başlamıştır. Son başvuru: 21 Mart 2025.",
+      "tarih": "2025-02-19",
+      "url": "https://mf.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "akademik",
+      "kaynak": "mf"
+    },
+    {
+      "id": "bmu_r3",
+      "baslik": "Bahar Dönemi Staj Başvuruları Başladı",
+      "ozet": "2024-2025 bahar dönemi zorunlu staj başvuruları başlamıştır. Son başvuru tarihi 14 Mart 2025'tir.",
+      "tarih": "2025-02-18",
+      "url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "burs",
+      "kaynak": "bmu"
+    },
+    {
+      "id": "oidb_r3",
+      "baslik": "Yatay Geçiş Başvuru Sonuçları Açıklandı",
+      "ozet": "2024-2025 bahar dönemi kurum içi ve kurumlar arası yatay geçiş başvuru sonuçları açıklanmıştır.",
+      "tarih": "2025-02-18",
+      "url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "akademik",
+      "kaynak": "oidb"
+    },
+    {
+      "id": "mf_r3",
+      "baslik": "Mühendislik Fakültesi Kariyer Günleri 2025",
+      "ozet": "Mühendislik Fakültesi Kariyer Günleri 10-11 Mart 2025 tarihlerinde gerçekleştirilecektir. Sektörden önemli firmalar katılacaktır.",
+      "tarih": "2025-02-17",
+      "url": "https://mf.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "burs",
+      "kaynak": "mf"
+    },
+    {
+      "id": "univ_r3",
+      "baslik": "Merkez Kütüphane Sınav Dönemi Çalışma Saatleri",
+      "ozet": "Vize sınavları döneminde Merkez Kütüphane 08:00-23:00 saatleri arasında hizmet verecektir.",
+      "tarih": "2025-02-16",
+      "url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "idari",
+      "kaynak": "univ"
+    },
+    {
+      "id": "bmu_r4",
+      "baslik": "Bilgisayar Mühendisliği Bölümü Akademik Kurul Kararları",
+      "ozet": "2024-2025 akademik yılı bahar dönemi akademik kurul toplantı kararları yayınlanmıştır.",
+      "tarih": "2025-02-15",
+      "url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "akademik",
+      "kaynak": "bmu"
+    },
+    {
+      "id": "univ_r4",
+      "baslik": "Bahar Şenlikleri 2025 Tarih ve Program Duyurusu",
+      "ozet": "Çankırı Karatekin Üniversitesi Bahar Şenlikleri 14-16 Mayıs 2025 tarihlerinde gerçekleştirilecektir.",
+      "tarih": "2025-02-14",
+      "url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "etkinlik",
+      "kaynak": "univ"
+    },
+    {
+      "id": "oidb_r4",
+      "baslik": "Mezuniyet Belgesi ve Diploma Teslim İşlemleri",
+      "ozet": "2024 güz dönemi mezunlarının diploma ve mezuniyet belgesi teslim işlemleri başlamıştır.",
+      "tarih": "2025-02-13",
+      "url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "akademik",
+      "kaynak": "oidb"
+    },
+    {
+      "id": "bmu_r5",
+      "baslik": "Bitirme Projesi Konu Belirleme ve Danışman Atama İşlemleri",
+      "ozet": "2024-2025 bahar dönemi bitirme projesi konu belirleme ve danışman atama işlemleri ile ilgili duyuru.",
+      "tarih": "2025-02-12",
+      "url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+      "kategori": "akademik",
+      "kaynak": "bmu"
+    }
+  ]
+}
