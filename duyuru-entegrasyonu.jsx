@@ -50,7 +50,7 @@ const KATEGORI_RENKLERI = {
 // ── Duyuru JSON Veri Kaynağı ─────────────────────────────────────────────────
 // GitHub Actions ile scraper.py periyodik çalışır ve bu dosyayı günceller.
 // Frontend sadece bu JSON dosyasını okur — CORS sorunu olmaz.
-const DUYURU_JSON_URL = "duyurular/duyurular.json";
+const DUYURU_JSON_URL = "/duyurular/duyurular.json";
 
 // ── Yerleşik Örnek Duyurular (JSON yüklenemezse gösterilir) ──────────────────
 const YERLESIK_DUYURULAR = [
@@ -1676,13 +1676,54 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
     setYukleniyor(true);
     setHata(null);
     try {
+      // Cache bypass için timestamp ekle
       var response = await fetch(DUYURU_JSON_URL + "?v=" + Date.now());
       if (response.ok) {
         var jsonData = await response.json();
-        if (jsonData && jsonData.length > 0) {
-          var duyuruListesi = jsonDenDuyuruCevir(jsonData).filter(function(d) {
+        var duyuruListesi = [];
+        // Yeni scraper formatı: { meta: {...}, duyurular: [...] }
+        if (jsonData.duyurular && Array.isArray(jsonData.duyurular)) {
+          duyuruListesi = jsonData.duyurular
+            .filter(function(d) {
+              return ayarlar.aktifKaynaklar.includes(d.kaynak);
+            })
+            .map(function(d) {
+              return {
+                id: d.id,
+                baslik: d.baslik,
+                ozet: d.ozet || "",
+                tarih: d.tarih,
+                kaynak: d.kaynak,
+                kategori: d.kategori || kategoriBelirle(d.baslik),
+                url: d.url,
+                okundu: false,
+                pinli: false,
+              };
+            });
+          // Meta bilgisini son güncelleme olarak göster
+          if (jsonData.meta && jsonData.meta.son_guncelleme) {
+            var guncTarih = new Date(jsonData.meta.son_guncelleme);
+            setSonGuncelleme(
+              guncTarih.toLocaleTimeString("tr-TR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }) +
+              " (" +
+              guncTarih.toLocaleDateString("tr-TR", {
+                day: "numeric",
+                month: "short",
+              }) +
+              ")"
+            );
+          }
+        }
+        // Eski format desteği (düz dizi)
+        else if (Array.isArray(jsonData)) {
+          duyuruListesi = jsonDenDuyuruCevir(jsonData).filter(function(d) {
             return ayarlar.aktifKaynaklar.includes(d.kaynak);
           });
+        }
+        if (duyuruListesi.length > 0) {
           sonuclariUygula(duyuruListesi);
           setYukleniyor(false);
           return;
@@ -1691,11 +1732,15 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
     } catch (err) {
       console.warn("JSON yukleme hatasi: " + err.message);
     }
+    // Fallback: yerleşik örnek veriler
     var yerlesikDuyurular = YERLESIK_DUYURULAR.filter(function(d) {
       return ayarlar.aktifKaynaklar.includes(d.kaynak);
     });
     sonuclariUygula(yerlesikDuyurular);
-    setHata("Duyuru verileri henuz guncellenmemis. Ornek veriler gosterilmektedir.");
+    setHata(
+      "Canlı duyuru verisi alınamadı. Örnek veriler gösterilmektedir. " +
+      "Scraper'ın çalıştığından ve JSON dosyasının erişilebilir olduğundan emin olun."
+    );
     setYukleniyor(false);
   }, [ayarlar.aktifKaynaklar, sonuclariUygula]);
 
