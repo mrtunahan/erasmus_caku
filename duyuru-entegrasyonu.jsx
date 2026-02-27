@@ -3,7 +3,7 @@
 // etkinlik-takvimi.jsx yerine geçer
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useCallback } = React;
+const { useState, useEffect, useCallback, useRef, useMemo } = React;
 
 // ── Sabitler & Yapılandırma ─────────────────────────────────────────────────
 
@@ -1612,6 +1612,8 @@ function FormEkleModal({ onKapat, onEklendi }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function DuyuruEntegrasyonuApp({ currentUser }) {
+  const isAdmin = currentUser?.role === "admin";
+
   // ── State ─────────────────────────────────────────────────────────────
   const [aktifSekme, setAktifSekme] = useState("duyurular");
   const [duyurular, setDuyurular] = useState([]);
@@ -1626,6 +1628,8 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
   const [bildirimSayisi, setBildirimSayisi] = useState(0);
   const [portalaEklenenler, setPortalaEklenenler] = useState([]);
   const [formSayisi, setFormSayisi] = useState(0);
+  const [seciliDuyuru, setSeciliDuyuru] = useState(null);
+  const [duyuruEkleModalGorunur, setDuyuruEkleModalGorunur] = useState(false);
   const [ayarlar, setAyarlar] = useState({
     guncellemeAraligi: 30,
     aktifKaynaklar: DUYURU_KAYNAKLARI.map((k) => k.id),
@@ -1633,17 +1637,13 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
   });
 
   // ── Filtreleme & Sıralama ─────────────────────────────────────────────
-  const filtrelenmis = duyurular
+  const filtrelenmis = useMemo(() => duyurular
     .filter((d) => {
       if (seciliKaynak !== "tumu" && d.kaynak !== seciliKaynak) return false;
-      if (seciliKategori !== "tumu" && d.kategori !== seciliKategori)
-        return false;
+      if (seciliKategori !== "tumu" && d.kategori !== seciliKategori) return false;
       if (aramaMetni) {
         const ara = aramaMetni.toLowerCase();
-        return (
-          d.baslik.toLowerCase().includes(ara) ||
-          d.ozet.toLowerCase().includes(ara)
-        );
+        return d.baslik.toLowerCase().includes(ara) || d.ozet.toLowerCase().includes(ara);
       }
       return true;
     })
@@ -1655,591 +1655,566 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
         if (a.okundu && !b.okundu) return 1;
       }
       return new Date(b.tarih) - new Date(a.tarih);
-    });
+    }), [duyurular, seciliKaynak, seciliKategori, aramaMetni, siralama]);
 
-  // ── Sonuçları state'e uygula (ortak yardımcı) ──────────────────────────
+  // ── Sonuçları state'e uygula ──────────────────────────────────────────
   const sonuclariUygula = useCallback((yeniDuyurular) => {
     setDuyurular((prev) => {
       const okunduMap = {};
       prev.forEach((d) => { if (d.okundu) okunduMap[d.id] = true; });
-
-      const sonuc = yeniDuyurular.map((d) => ({
-        ...d,
-        okundu: okunduMap[d.id] || false,
-      }));
-
+      const sonuc = yeniDuyurular.map((d) => ({ ...d, okundu: okunduMap[d.id] || false }));
       const mevcutIdler = new Set(prev.map((d) => d.id));
       const yeniSayisi = sonuc.filter((d) => !mevcutIdler.has(d.id)).length;
-      if (yeniSayisi > 0 && prev.length > 0) {
-        setBildirimSayisi((s) => s + yeniSayisi);
-      }
-
+      if (yeniSayisi > 0 && prev.length > 0) setBildirimSayisi((s) => s + yeniSayisi);
       return sonuc;
     });
-
-    setSonGuncelleme(
-      new Date().toLocaleTimeString("tr-TR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    );
+    setSonGuncelleme(new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }));
   }, []);
 
-  // ── Duyuruları çek: JSON dosyasından oku → yerleşik fallback ────────
+  // ── Duyuruları çek ────────────────────────────────────────────────────
   const duyurulariGuncelle = useCallback(async () => {
     setYukleniyor(true);
     setHata(null);
     try {
-      // 1. JSON dosyasından oku (scraper.py tarafından güncellenir)
-      console.log("JSON dosyasindan duyurular yukleniyor: " + DUYURU_JSON_URL);
       var response = await fetch(DUYURU_JSON_URL + "?v=" + Date.now());
       if (response.ok) {
         var jsonData = await response.json();
         if (jsonData && jsonData.length > 0) {
-          var duyuruListesi = jsonDenDuyuruCevir(jsonData);
-          // Aktif kaynaklara göre filtrele
-          duyuruListesi = duyuruListesi.filter(function(d) {
+          var duyuruListesi = jsonDenDuyuruCevir(jsonData).filter(function(d) {
             return ayarlar.aktifKaynaklar.includes(d.kaynak);
           });
-          console.log("JSON basarili: " + duyuruListesi.length + " duyuru yuklendi");
           sonuclariUygula(duyuruListesi);
           setYukleniyor(false);
           return;
         }
       }
-      console.warn("JSON dosyasi bos veya yuklenemedi, yerlesik veriler kullaniliyor");
     } catch (err) {
       console.warn("JSON yukleme hatasi: " + err.message);
     }
-
-    // 2. JSON başarısız → Yerleşik örnek duyuruları göster
     var yerlesikDuyurular = YERLESIK_DUYURULAR.filter(function(d) {
       return ayarlar.aktifKaynaklar.includes(d.kaynak);
     });
     sonuclariUygula(yerlesikDuyurular);
-    setHata(
-      "Duyuru verileri henüz güncellenmemiş. Örnek veriler gösterilmektedir."
-    );
+    setHata("Duyuru verileri henuz guncellenmemis. Ornek veriler gosterilmektedir.");
     setYukleniyor(false);
   }, [ayarlar.aktifKaynaklar, sonuclariUygula]);
 
-  // ── İlk yükleme ───────────────────────────────────────────────────────
+  // ── Ilk yukleme ───────────────────────────────────────────────────────
   useEffect(() => {
     duyurulariGuncelle();
-    // Form sayisini da yukle
     const FirebaseDB = window.FirebaseDB;
     if (FirebaseDB?.isReady()) {
       FirebaseDB.fetchForms().then(forms => setFormSayisi(forms.length)).catch(() => {});
     }
   }, [duyurulariGuncelle]);
 
-  // ── Otomatik güncelleme timer ─────────────────────────────────────────
+  // ── Otomatik guncelleme ───────────────────────────────────────────────
   useEffect(() => {
     if (ayarlar.guncellemeAraligi === 0) return;
-    const interval = setInterval(
-      duyurulariGuncelle,
-      ayarlar.guncellemeAraligi * 60 * 1000
-    );
+    const interval = setInterval(duyurulariGuncelle, ayarlar.guncellemeAraligi * 60 * 1000);
     return () => clearInterval(interval);
   }, [ayarlar.guncellemeAraligi, duyurulariGuncelle]);
 
-  // ── Okundu işaretle ───────────────────────────────────────────────────
   const okuIslaretle = (id) => {
-    setDuyurular((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, okundu: true } : d))
-    );
+    setDuyurular((prev) => prev.map((d) => (d.id === id ? { ...d, okundu: true } : d)));
   };
 
-  // ── Portala ekle ──────────────────────────────────────────────────────
   const portalaEkle = (duyuru) => {
     if (portalaEklenenler.includes(duyuru.id)) return;
     setPortalaEklenenler((prev) => [...prev, duyuru.id]);
-    alert(`"${duyuru.baslik}" Öğrenci Portalı'na eklendi!`);
+    alert(`"${duyuru.baslik}" Ogrenci Portali'na eklendi!`);
   };
 
-  // ── İstatistikler ─────────────────────────────────────────────────────
+  // Admin duyuru ekleme
+  const handleDuyuruEkle = (yeniDuyuru) => {
+    setDuyurular((prev) => [yeniDuyuru, ...prev]);
+    setDuyuruEkleModalGorunur(false);
+  };
+
+  // ── Istatistikler ─────────────────────────────────────────────────────
   const okunmamisSayisi = duyurular.filter((d) => !d.okundu).length;
   const bugunSayisi = duyurular.filter((d) => {
     const bugun = new Date().toISOString().split("T")[0];
     return d.tarih === bugun;
   }).length;
 
-  // ── Render ────────────────────────────────────────────────────────────
+  // Kaynak bazli sayilar
+  const kaynakSayilari = useMemo(() => {
+    const m = {};
+    DUYURU_KAYNAKLARI.forEach((k) => { m[k.id] = 0; });
+    duyurular.forEach((d) => { if (m[d.kaynak] !== undefined) m[d.kaynak]++; });
+    return m;
+  }, [duyurular]);
+
+  // ── SEKMELER ──────────────────────────────────────────────────────────
+  const SEKMELER = [
+    { id: "duyurular", label: "Duyurular", icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9", badge: okunmamisSayisi, badgeColor: "#ef4444" },
+    { id: "formlar", label: "Form & Belgeler", icon: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8", badge: formSayisi, badgeColor: "#3b82f6" },
+    { id: "kaynaklar", label: "Kaynaklar", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253", badge: 0, badgeColor: "#8b5cf6" },
+  ];
+
   return (
-    <div
-      style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "24px",
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      }}
-    >
+    <div style={{ maxWidth: 1300, margin: "0 auto", padding: "24px 16px", fontFamily: "'Source Sans 3', 'Inter', -apple-system, sans-serif" }}>
       {/* CSS Animasyonlar */}
       <style>{`
-        @keyframes duyuruPulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
-        @keyframes duyuruSpin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes duyuruFadeIn {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes duyuruPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes duyuruSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes duyuruFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes duyuruSlideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
       `}</style>
 
-      {/* ── Başlık ─────────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "24px",
-          flexWrap: "wrap",
-          gap: "16px",
-        }}
-      >
+      {/* ── Header ─────────────────────────────────────────────────── */}
+      <div style={{
+        background: "linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 60%, #1e40af 100%)",
+        borderRadius: 16, padding: "28px 32px", marginBottom: 24, color: "#fff",
+        display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16,
+        boxShadow: "0 4px 24px rgba(30,64,175,0.2)",
+      }}>
         <div>
-          <h1
-            style={{
-              margin: "0 0 4px 0",
-              fontSize: "24px",
-              fontWeight: 800,
-              color: "#111827",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-            }}
-          >
+          <h1 style={{ margin: "0 0 6px 0", fontSize: 26, fontWeight: 800, display: "flex", alignItems: "center", gap: 12 }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
             Duyuru Merkezi
             {okunmamisSayisi > 0 && (
-              <span
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 700,
-                  backgroundColor: "#ef4444",
-                  color: "#fff",
-                  padding: "2px 10px",
-                  borderRadius: "9999px",
-                }}
-              >
+              <span style={{ fontSize: 13, fontWeight: 700, backgroundColor: "#ef4444", padding: "3px 12px", borderRadius: 9999 }}>
                 {okunmamisSayisi} yeni
               </span>
             )}
           </h1>
-          <p style={{ margin: 0, fontSize: "14px", color: "#6b7280" }}>
-            Üniversite ve bölüm duyuruları otomatik olarak çekilir
+          <p style={{ margin: 0, fontSize: 14, opacity: 0.8 }}>
+            Universite ve bolum duyurulari, formlar ve belgeler
           </p>
         </div>
-
-        <div style={{ display: "flex", gap: "8px" }}>
-          {/* Bildirim butonu */}
-          <button
-            style={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "40px",
-              height: "40px",
-              borderRadius: "10px",
-              backgroundColor: "#f9fafb",
-              border: "1px solid #e5e7eb",
-              cursor: "pointer",
-              color: "#374151",
-            }}
-          >
+        <div style={{ display: "flex", gap: 8 }}>
+          {/* Bildirim */}
+          <button onClick={() => setBildirimSayisi(0)} style={{
+            position: "relative", display: "flex", alignItems: "center", justifyContent: "center",
+            width: 42, height: 42, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.15)",
+            border: "1px solid rgba(255,255,255,0.2)", cursor: "pointer", color: "#fff",
+          }}>
             <DuyuruBellIcon />
             {bildirimSayisi > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: "-4px",
-                  right: "-4px",
-                  width: "18px",
-                  height: "18px",
-                  borderRadius: "50%",
-                  backgroundColor: "#ef4444",
-                  color: "#fff",
-                  fontSize: "10px",
-                  fontWeight: 700,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {bildirimSayisi}
-              </span>
+              <span style={{
+                position: "absolute", top: -4, right: -4, width: 18, height: 18, borderRadius: "50%",
+                backgroundColor: "#ef4444", color: "#fff", fontSize: 10, fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>{bildirimSayisi}</span>
             )}
           </button>
-          {/* Ayarlar butonu */}
-          <button
-            onClick={() => setAyarlarGorunur(true)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "40px",
-              height: "40px",
-              borderRadius: "10px",
-              backgroundColor: "#f9fafb",
-              border: "1px solid #e5e7eb",
-              cursor: "pointer",
-              fontSize: "18px",
-            }}
-          >
+          {/* Ayarlar */}
+          <button onClick={() => setAyarlarGorunur(true)} style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 42, height: 42, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.15)",
+            border: "1px solid rgba(255,255,255,0.2)", cursor: "pointer", color: "#fff",
+          }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </button>
         </div>
       </div>
 
-      {/* ── Sekme Navigasyonu (Duyurular / Formlar) ──────────────── */}
-      <div
-        style={{
-          display: "flex",
-          gap: "4px",
-          marginBottom: "20px",
-          backgroundColor: "#f3f4f6",
-          borderRadius: "12px",
-          padding: "4px",
-        }}
-      >
-        <button
-          onClick={() => setAktifSekme("duyurular")}
-          style={{
-            flex: 1,
-            padding: "10px 20px",
-            borderRadius: "10px",
-            fontSize: "14px",
-            fontWeight: aktifSekme === "duyurular" ? 700 : 500,
-            backgroundColor: aktifSekme === "duyurular" ? "#fff" : "transparent",
-            color: aktifSekme === "duyurular" ? "#111827" : "#6b7280",
-            border: "none",
-            cursor: "pointer",
-            transition: "all 0.2s",
-            boxShadow: aktifSekme === "duyurular" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "8px",
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-          </svg>
-          Duyurular
-          {okunmamisSayisi > 0 && (
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                backgroundColor: "#ef4444",
-                color: "#fff",
-                padding: "1px 7px",
-                borderRadius: "9999px",
-              }}
-            >
-              {okunmamisSayisi}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setAktifSekme("formlar")}
-          style={{
-            flex: 1,
-            padding: "10px 20px",
-            borderRadius: "10px",
-            fontSize: "14px",
-            fontWeight: aktifSekme === "formlar" ? 700 : 500,
-            backgroundColor: aktifSekme === "formlar" ? "#fff" : "transparent",
-            color: aktifSekme === "formlar" ? "#111827" : "#6b7280",
-            border: "none",
-            cursor: "pointer",
-            transition: "all 0.2s",
-            boxShadow: aktifSekme === "formlar" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "8px",
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-            <polyline points="10 9 9 9 8 9" />
-          </svg>
-          Formlar
-          <span
-            style={{
-              fontSize: "11px",
-              fontWeight: 700,
-              backgroundColor: "#3b82f6",
-              color: "#fff",
-              padding: "1px 7px",
-              borderRadius: "9999px",
-            }}
-          >
-            {formSayisi}
-          </span>
-        </button>
+      {/* ── Istatistik Kartlari ─────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
+        <DuyuruStatKart icon="📋" deger={duyurular.length} etiket="Toplam Duyuru" renk="#3b82f6" />
+        <DuyuruStatKart icon="🔔" deger={okunmamisSayisi} etiket="Okunmamis" renk="#ef4444" />
+        <DuyuruStatKart icon="📅" deger={bugunSayisi} etiket="Bugunun Duyurusu" renk="#f59e0b" />
+        <DuyuruStatKart icon="📄" deger={formSayisi} etiket="Form & Belge" renk="#8b5cf6" />
       </div>
 
-      {/* ── Duyurular Sekmesi ────────────────────────────────────────── */}
+      {/* ── Sekme Navigasyonu ──────────────────────────────────────── */}
+      <div style={{
+        display: "flex", gap: 4, marginBottom: 24, backgroundColor: "#f3f4f6",
+        borderRadius: 14, padding: 4,
+      }}>
+        {SEKMELER.map((s) => (
+          <button key={s.id} onClick={() => setAktifSekme(s.id)} style={{
+            flex: 1, padding: "12px 16px", borderRadius: 10, fontSize: 14,
+            fontWeight: aktifSekme === s.id ? 700 : 500,
+            backgroundColor: aktifSekme === s.id ? "#fff" : "transparent",
+            color: aktifSekme === s.id ? "#111827" : "#6b7280",
+            border: "none", cursor: "pointer", transition: "all 0.2s",
+            boxShadow: aktifSekme === s.id ? "0 2px 8px rgba(0,0,0,0.08)" : "none",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d={s.icon} />
+            </svg>
+            {s.label}
+            {s.badge > 0 && (
+              <span style={{
+                fontSize: 11, fontWeight: 700, backgroundColor: s.badgeColor, color: "#fff",
+                padding: "2px 8px", borderRadius: 9999, minWidth: 20, textAlign: "center",
+              }}>{s.badge}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ══════════ DUYURULAR SEKMESI ══════════ */}
       {aktifSekme === "duyurular" && (
-        <div>
-          {/* ── Scraper Durumu ─────────────────────────────────────────── */}
-          <div style={{ marginBottom: "20px" }}>
-            <ScraperDurum
-              sonGuncelleme={sonGuncelleme}
-              yukleniyor={yukleniyor}
-              onYenile={duyurulariGuncelle}
-            />
-          </div>
+        <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+          {/* Sol Sidebar - Filtreler */}
+          <div style={{ flex: "0 0 260px", minWidth: 220 }}>
+            {/* Scraper Durum */}
+            <ScraperDurum sonGuncelleme={sonGuncelleme} yukleniyor={yukleniyor} onYenile={duyurulariGuncelle} />
 
-          {/* ── İstatistikler ──────────────────────────────────────────── */}
-          <div
-            style={{
-              display: "flex",
-              gap: "12px",
-              marginBottom: "20px",
-              flexWrap: "wrap",
-            }}
-          >
-            <DuyuruStatKart
-              icon="📋"
-              deger={duyurular.length}
-              etiket="Toplam Duyuru"
-              renk="#3b82f6"
-            />
-            <DuyuruStatKart
-              icon="🔵"
-              deger={okunmamisSayisi}
-              etiket="Okunmamış"
-              renk="#ef4444"
-            />
-            <DuyuruStatKart
-              icon="📌"
-              deger={portalaEklenenler.length}
-              etiket="Portala Eklenen"
-              renk="#22c55e"
-            />
-            <DuyuruStatKart
-              icon="🏷️"
-              deger={DUYURU_KAYNAKLARI.length}
-              etiket="Aktif Kaynak"
-              renk="#8b5cf6"
-            />
-          </div>
+            {/* Admin: Duyuru Ekle */}
+            {isAdmin && (
+              <button onClick={() => setDuyuruEkleModalGorunur(true)} style={{
+                width: "100%", marginTop: 12, padding: "10px 16px", borderRadius: 10,
+                fontSize: 13, fontWeight: 600, backgroundColor: "#1e40af", color: "#fff",
+                border: "none", cursor: "pointer", display: "flex", alignItems: "center",
+                justifyContent: "center", gap: 8, boxShadow: "0 2px 8px rgba(30,64,175,0.25)",
+              }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Yeni Duyuru Ekle
+              </button>
+            )}
 
-          {/* ── Kaynak Filtreleri ──────────────────────────────────────── */}
-          <div style={{ marginBottom: "16px" }}>
-            <KaynakFiltre secili={seciliKaynak} onDegistir={setSeciliKaynak} />
-          </div>
-
-          {/* ── Arama ve Sıralama ─────────────────────────────────────── */}
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              marginBottom: "20px",
-              flexWrap: "wrap",
-            }}
-          >
-            {/* Arama kutusu */}
-            <div
-              style={{
-                flex: "1 1 300px",
-                position: "relative",
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  left: "12px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "#9ca3af",
-                }}
-              >
-                <DuyuruSearchIcon />
-              </div>
-              <input
-                type="text"
-                placeholder="Duyurularda ara..."
-                value={aramaMetni}
-                onChange={(e) => setAramaMetni(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px 10px 38px",
-                  borderRadius: "10px",
-                  border: "1px solid #e5e7eb",
-                  fontSize: "13px",
-                  backgroundColor: "#f9fafb",
-                  outline: "none",
-                  boxSizing: "border-box",
-                  transition: "border-color 0.15s",
-                }}
-                onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
-                onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
-              />
+            {/* Kaynak Filtreleri */}
+            <div style={{
+              marginTop: 16, backgroundColor: "#fff", border: "1px solid #e5e7eb",
+              borderRadius: 12, padding: 16,
+            }}>
+              <h4 style={{ margin: "0 0 12px 0", fontSize: 13, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Kaynaklar
+              </h4>
+              <button onClick={() => setSeciliKaynak("tumu")} style={{
+                width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13,
+                fontWeight: seciliKaynak === "tumu" ? 700 : 500, textAlign: "left",
+                backgroundColor: seciliKaynak === "tumu" ? "#1f2937" : "transparent",
+                color: seciliKaynak === "tumu" ? "#fff" : "#374151",
+                border: "none", cursor: "pointer", marginBottom: 4, transition: "all 0.15s",
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+              }}>
+                <span>Tumu</span>
+                <span style={{ fontSize: 11, opacity: 0.7 }}>{duyurular.length}</span>
+              </button>
+              {DUYURU_KAYNAKLARI.map((k) => (
+                <button key={k.id} onClick={() => setSeciliKaynak(k.id)} style={{
+                  width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13,
+                  fontWeight: seciliKaynak === k.id ? 700 : 500, textAlign: "left",
+                  backgroundColor: seciliKaynak === k.id ? k.color : "transparent",
+                  color: seciliKaynak === k.id ? "#fff" : "#374151",
+                  border: "none", cursor: "pointer", marginBottom: 4, transition: "all 0.15s",
+                  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6,
+                }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 14 }}>{k.icon}</span> {k.label}
+                  </span>
+                  <span style={{ fontSize: 11, opacity: 0.7 }}>{kaynakSayilari[k.id] || 0}</span>
+                </button>
+              ))}
             </div>
 
-            {/* Kategori filtresi */}
-            <div style={{ position: "relative" }}>
-              <select
-                value={seciliKategori}
-                onChange={(e) => setSeciliKategori(e.target.value)}
-                style={{
-                  padding: "10px 32px 10px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid #e5e7eb",
-                  fontSize: "13px",
-                  backgroundColor: "#f9fafb",
-                  cursor: "pointer",
-                  appearance: "none",
-                }}
-              >
-                <option value="tumu">Tüm Kategoriler</option>
-                {Object.entries(KATEGORI_RENKLERI).map(([key, val]) => (
-                  <option key={key} value={key}>
-                    {val.label}
-                  </option>
-                ))}
-              </select>
-              <div
-                style={{
-                  position: "absolute",
-                  right: "10px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  pointerEvents: "none",
-                  color: "#9ca3af",
-                }}
-              >
-                <DuyuruFilterIcon />
-              </div>
+            {/* Kategori Filtreleri */}
+            <div style={{
+              marginTop: 12, backgroundColor: "#fff", border: "1px solid #e5e7eb",
+              borderRadius: 12, padding: 16,
+            }}>
+              <h4 style={{ margin: "0 0 12px 0", fontSize: 13, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Kategoriler
+              </h4>
+              <button onClick={() => setSeciliKategori("tumu")} style={{
+                width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13,
+                fontWeight: seciliKategori === "tumu" ? 700 : 500, textAlign: "left",
+                backgroundColor: seciliKategori === "tumu" ? "#1f2937" : "transparent",
+                color: seciliKategori === "tumu" ? "#fff" : "#374151",
+                border: "none", cursor: "pointer", marginBottom: 4, transition: "all 0.15s",
+              }}>
+                Tum Kategoriler
+              </button>
+              {Object.entries(KATEGORI_RENKLERI).map(([key, val]) => (
+                <button key={key} onClick={() => setSeciliKategori(key)} style={{
+                  width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13,
+                  fontWeight: seciliKategori === key ? 700 : 500, textAlign: "left",
+                  backgroundColor: seciliKategori === key ? val.text : "transparent",
+                  color: seciliKategori === key ? "#fff" : "#374151",
+                  border: "none", cursor: "pointer", marginBottom: 4, transition: "all 0.15s",
+                  display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  <span style={{
+                    width: 8, height: 8, borderRadius: "50%", backgroundColor: val.text,
+                    display: seciliKategori === key ? "none" : "block",
+                  }} />
+                  {val.label}
+                </button>
+              ))}
             </div>
 
-            {/* Sıralama */}
-            <select
-              value={siralama}
-              onChange={(e) => setSiralama(e.target.value)}
-              style={{
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid #e5e7eb",
-                fontSize: "13px",
-                backgroundColor: "#f9fafb",
-                cursor: "pointer",
-              }}
-            >
-              <option value="tarih">En Yeni</option>
-              <option value="okunmamis">Okunmamışlar Önce</option>
-            </select>
+            {/* Tumunu okundu */}
+            {okunmamisSayisi > 0 && (
+              <button onClick={() => setDuyurular((prev) => prev.map((d) => ({ ...d, okundu: true })))} style={{
+                width: "100%", marginTop: 12, padding: "10px 16px", borderRadius: 10,
+                fontSize: 12, fontWeight: 600, backgroundColor: "#f9fafb", color: "#6b7280",
+                border: "1px solid #e5e7eb", cursor: "pointer",
+              }}>
+                Tumunu Okundu Isaretle
+              </button>
+            )}
           </div>
 
-          {/* ── Duyuru Listesi ─────────────────────────────────────────── */}
-          <div style={{ marginBottom: "24px" }}>
-            {filtrelenmis.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "60px 20px",
-                  color: "#9ca3af",
-                }}
-              >
-                <div style={{ fontSize: "48px", marginBottom: "12px" }}>
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto" }}>
-                    <circle cx="11" cy="11" r="8" />
-                    <path d="m21 21-4.3-4.3" />
-                  </svg>
+          {/* Sag Taraf - Duyuru Listesi */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Arama ve Siralama */}
+            <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 280px", position: "relative" }}>
+                <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }}>
+                  <DuyuruSearchIcon />
                 </div>
-                <p style={{ fontSize: "15px", fontWeight: 500 }}>
-                  {aramaMetni
-                    ? `"${aramaMetni}" ile eşleşen duyuru bulunamadı`
-                    : "Bu filtrelere uygun duyuru bulunamadı"}
+                <input type="text" placeholder="Duyurularda ara..." value={aramaMetni}
+                  onChange={(e) => setAramaMetni(e.target.value)}
+                  style={{
+                    width: "100%", padding: "10px 12px 10px 38px", borderRadius: 10,
+                    border: "1px solid #e5e7eb", fontSize: 13, backgroundColor: "#fff",
+                    outline: "none", boxSizing: "border-box", transition: "border-color 0.15s",
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
+                  onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+                />
+              </div>
+              <select value={siralama} onChange={(e) => setSiralama(e.target.value)} style={{
+                padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e7eb",
+                fontSize: 13, backgroundColor: "#fff", cursor: "pointer",
+              }}>
+                <option value="tarih">En Yeni</option>
+                <option value="okunmamis">Okunmamislar Once</option>
+              </select>
+            </div>
+
+            {/* Sonuc bilgisi */}
+            <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>{filtrelenmis.length} duyuru gosteriliyor</span>
+              {(seciliKaynak !== "tumu" || seciliKategori !== "tumu" || aramaMetni) && (
+                <button onClick={() => { setSeciliKaynak("tumu"); setSeciliKategori("tumu"); setAramaMetni(""); }} style={{
+                  fontSize: 12, color: "#3b82f6", background: "none", border: "none", cursor: "pointer", fontWeight: 600,
+                }}>
+                  Filtreleri Temizle
+                </button>
+              )}
+            </div>
+
+            {/* Duyuru Listesi */}
+            {yukleniyor ? (
+              <div style={{ textAlign: "center", padding: "60px 20px", color: "#9ca3af" }}>
+                <div style={{ display: "inline-flex", animation: "duyuruSpin 1s linear infinite", marginBottom: 12 }}>
+                  <DuyuruRefreshIcon />
+                </div>
+                <p style={{ fontSize: 15, fontWeight: 500 }}>Duyurular yukleniyor...</p>
+              </div>
+            ) : filtrelenmis.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "60px 20px", color: "#9ca3af" }}>
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 12px" }}>
+                  <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+                </svg>
+                <p style={{ fontSize: 15, fontWeight: 500 }}>
+                  {aramaMetni ? `"${aramaMetni}" ile eslesen duyuru bulunamadi` : "Bu filtrelere uygun duyuru bulunamadi"}
                 </p>
               </div>
             ) : (
               filtrelenmis.map((d, i) => (
-                <div
-                  key={d.id}
-                  style={{
-                    animation: `duyuruFadeIn 0.3s ease ${i * 0.05}s both`,
-                  }}
-                >
-                  <DuyuruKarti
-                    duyuru={d}
-                    onOku={okuIslaretle}
-                    onPortalaEkle={portalaEkle}
-                  />
+                <div key={d.id} style={{ animation: `duyuruFadeIn 0.3s ease ${i * 0.04}s both` }}>
+                  <DuyuruKarti duyuru={d} onOku={okuIslaretle} onPortalaEkle={portalaEkle} />
                 </div>
               ))
             )}
+
+            {/* Hata */}
+            {hata && (
+              <div style={{
+                backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10,
+                padding: "14px 18px", fontSize: 13, color: "#92400e", lineHeight: 1.6, marginTop: 16,
+              }}>
+                <strong>Bilgi:</strong> {hata}
+              </div>
+            )}
           </div>
-
-          {/* ── Tümünü Okundu İşaretle ─────────────────────────────────── */}
-          {okunmamisSayisi > 0 && (
-            <div style={{ textAlign: "center", marginBottom: "20px" }}>
-              <button
-                onClick={() =>
-                  setDuyurular((prev) =>
-                    prev.map((d) => ({ ...d, okundu: true }))
-                  )
-                }
-                style={{
-                  padding: "8px 20px",
-                  borderRadius: "10px",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  backgroundColor: "#f9fafb",
-                  color: "#6b7280",
-                  border: "1px solid #e5e7eb",
-                  cursor: "pointer",
-                }}
-              >
-                Tümünü Okundu İşaretle
-              </button>
-            </div>
-          )}
-
-          {/* ── Hata / Bilgi Mesajı ─────────────────────────────────────── */}
-          {hata && (
-            <div
-              style={{
-                backgroundColor: "#fffbeb",
-                border: "1px solid #fde68a",
-                borderRadius: "10px",
-                padding: "14px 18px",
-                fontSize: "13px",
-                color: "#92400e",
-                lineHeight: 1.6,
-              }}
-            >
-              <strong>Bilgi:</strong> {hata}
-            </div>
-          )}
         </div>
       )}
 
-      {/* ── Formlar Sekmesi ──────────────────────────────────────────── */}
+      {/* ══════════ FORMLAR SEKMESI ══════════ */}
       {aktifSekme === "formlar" && <FormlarBolumu currentUser={currentUser} onFormSayisiDegisti={setFormSayisi} />}
 
+      {/* ══════════ KAYNAKLAR SEKMESI ══════════ */}
+      {aktifSekme === "kaynaklar" && (
+        <div>
+          <div style={{ marginBottom: 20 }}>
+            <h2 style={{ margin: "0 0 8px 0", fontSize: 20, fontWeight: 700, color: "#111827" }}>Duyuru Kaynaklari</h2>
+            <p style={{ margin: 0, fontSize: 14, color: "#6b7280" }}>
+              Duyurularin toplandigi universite web siteleri
+            </p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+            {DUYURU_KAYNAKLARI.map((k) => (
+              <div key={k.id} style={{
+                backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: 14,
+                padding: 24, transition: "all 0.2s",
+                borderLeft: `4px solid ${k.color}`,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "translateY(0)"; }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 12, backgroundColor: k.color + "15",
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24,
+                  }}>{k.icon}</div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#111827" }}>{k.label}</h3>
+                    <p style={{ margin: 0, fontSize: 12, color: "#6b7280" }}>{kaynakSayilari[k.id] || 0} duyuru</p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <a href={k.url} target="_blank" rel="noopener noreferrer" style={{
+                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    backgroundColor: k.color, color: "#fff", textDecoration: "none",
+                    border: "none", cursor: "pointer", transition: "opacity 0.15s",
+                  }}>
+                    <DuyuruExternalLinkIcon /> Siteye Git
+                  </a>
+                  <button onClick={() => { setSeciliKaynak(k.id); setAktifSekme("duyurular"); }} style={{
+                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    backgroundColor: "#f9fafb", color: "#374151", border: "1px solid #e5e7eb",
+                    cursor: "pointer", transition: "all 0.15s",
+                  }}>
+                    Duyurulari Gor
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Admin Duyuru Ekleme Modali ──────────────────────────────── */}
+      {duyuruEkleModalGorunur && isAdmin && (
+        <DuyuruEkleModal onKapat={() => setDuyuruEkleModalGorunur(false)} onEklendi={handleDuyuruEkle} />
+      )}
+
       {/* ── Ayarlar Modal ──────────────────────────────────────────── */}
-      <DuyuruAyarlarPaneli
-        ayarlar={ayarlar}
-        onDegistir={setAyarlar}
-        gorunur={ayarlarGorunur}
-        onKapat={() => setAyarlarGorunur(false)}
-      />
+      <DuyuruAyarlarPaneli ayarlar={ayarlar} onDegistir={setAyarlar} gorunur={ayarlarGorunur} onKapat={() => setAyarlarGorunur(false)} />
+    </div>
+  );
+}
+
+// ── Admin Duyuru Ekleme Modali ─────────────────────────────────────────────
+function DuyuruEkleModal({ onKapat, onEklendi }) {
+  const [baslik, setBaslik] = useState("");
+  const [ozet, setOzet] = useState("");
+  const [kategori, setKategori] = useState("genel");
+  const [kaynak, setKaynak] = useState("bmu");
+  const [url, setUrl] = useState("");
+  const [yukleniyor, setYukleniyor] = useState(false);
+  const [hata, setHata] = useState("");
+
+  const handleKaydet = () => {
+    if (!baslik.trim()) { setHata("Baslik zorunludur."); return; }
+    if (!ozet.trim()) { setHata("Ozet/aciklama zorunludur."); return; }
+    setYukleniyor(true);
+    const yeniDuyuru = {
+      id: "admin_" + Date.now() + "_" + Math.random().toString(36).substr(2, 6),
+      baslik: baslik.trim(),
+      ozet: ozet.trim(),
+      tarih: new Date().toISOString().split("T")[0],
+      kaynak: kaynak,
+      kategori: kategori,
+      url: url.trim() || "#",
+      okundu: false,
+      pinli: true,
+    };
+    setTimeout(() => {
+      onEklendi(yeniDuyuru);
+      setYukleniyor(false);
+    }, 300);
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 10000, backgroundColor: "rgba(0,0,0,0.5)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+    }} onClick={onKapat}>
+      <div style={{
+        backgroundColor: "#fff", borderRadius: 16, maxWidth: 540, width: "100%",
+        boxShadow: "0 25px 50px rgba(0,0,0,0.25)", overflow: "hidden",
+        animation: "duyuruFadeIn 0.25s ease",
+      }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#111827" }}>Yeni Duyuru Ekle</h2>
+          <button onClick={onKapat} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: 4, display: "flex", borderRadius: 8 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div style={{ padding: 24 }}>
+          {/* Baslik */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Baslik *</label>
+            <input type="text" value={baslik} onChange={(e) => setBaslik(e.target.value)} placeholder="Duyuru basligini girin"
+              style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+              onFocus={(e) => (e.target.style.borderColor = "#3b82f6")} onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+            />
+          </div>
+          {/* Ozet */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Ozet / Icerik *</label>
+            <textarea value={ozet} onChange={(e) => setOzet(e.target.value)} placeholder="Duyuru icerigini yazin" rows={4}
+              style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 14, outline: "none", boxSizing: "border-box", resize: "vertical", fontFamily: "inherit" }}
+              onFocus={(e) => (e.target.style.borderColor = "#3b82f6")} onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+            />
+          </div>
+          {/* Kaynak & Kategori */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Kaynak</label>
+              <select value={kaynak} onChange={(e) => setKaynak(e.target.value)} style={{
+                width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13, backgroundColor: "#f9fafb",
+              }}>
+                {DUYURU_KAYNAKLARI.map((k) => <option key={k.id} value={k.id}>{k.icon} {k.label}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Kategori</label>
+              <select value={kategori} onChange={(e) => setKategori(e.target.value)} style={{
+                width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13, backgroundColor: "#f9fafb",
+              }}>
+                {Object.entries(KATEGORI_RENKLERI).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}
+              </select>
+            </div>
+          </div>
+          {/* URL */}
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Kaynak URL (opsiyonel)</label>
+            <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..."
+              style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+              onFocus={(e) => (e.target.style.borderColor = "#3b82f6")} onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+            />
+          </div>
+          {hata && (
+            <div style={{ padding: "10px 14px", marginBottom: 16, borderRadius: 10, backgroundColor: "#fef2f2", color: "#dc2626", fontSize: 13, border: "1px solid #fecaca" }}>
+              {hata}
+            </div>
+          )}
+        </div>
+        <div style={{ padding: "16px 24px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button onClick={onKapat} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 600, backgroundColor: "#f9fafb", color: "#374151", border: "1px solid #e5e7eb", cursor: "pointer" }}>
+            Iptal
+          </button>
+          <button onClick={handleKaydet} disabled={yukleniyor} style={{
+            padding: "10px 24px", borderRadius: 10, fontSize: 13, fontWeight: 600,
+            backgroundColor: yukleniyor ? "#9ca3af" : "#1e40af", color: "#fff",
+            border: "none", cursor: yukleniyor ? "not-allowed" : "pointer",
+          }}>
+            {yukleniyor ? "Ekleniyor..." : "Duyuru Ekle"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
