@@ -1035,6 +1035,14 @@ const LoginModal = ({ onLogin }) => {
     if (newPassword !== confirmPassword) { setError("Şifreler uyuşmuyor!"); return; }
     setLoading(true);
     try {
+      // Mükerrer kayıt kontrolü
+      const existingStudents = await FirebaseDB.fetchStudents();
+      const alreadyExists = existingStudents.find(s => s.studentNumber === pendingStudentNumber);
+      if (alreadyExists) {
+        setError("Bu öğrenci numarası ile daha önce kayıt olunmuş!");
+        setLoading(false);
+        return;
+      }
       // Öğrenciyi Firebase'e kaydet
       const studentData = {
         studentNumber: pendingStudentNumber,
