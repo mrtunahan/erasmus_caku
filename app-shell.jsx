@@ -42,7 +42,6 @@ const NAV_ITEMS = [
   { id: "muafiyet", label: "Ders Muafiyet", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z", adminOnly: true },
   { id: "yazokulu", label: "Yaz Okulu", icon: "M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z", adminOnly: true },
   { id: "portal", label: "Öğrenci Portalı", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
-  { id: "gruplar", label: "Ders Grupları", icon: "M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" },
   { id: "projeler", label: "Proje", icon: "M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" },
   { id: "duyurular", label: "Duyuru Merkezi", icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" },
 ];
@@ -60,8 +59,8 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
     // Öğrenci
     const hasErasmus = currentUser?.erasmusAccess === true;
     const allowed = hasErasmus
-      ? ['erasmus', 'portal', 'gruplar', 'projeler', 'duyurular']
-      : ['portal', 'gruplar', 'projeler', 'duyurular'];
+      ? ['erasmus', 'portal', 'projeler', 'duyurular']
+      : ['portal', 'projeler', 'duyurular'];
     return allowed.includes(item.id);
   });
 
@@ -195,8 +194,8 @@ function AppShell() {
   // Öğrencilerin erişebileceği modüller (erasmus sadece yetkili öğrencilere)
   const hasErasmusAccess = currentUser?.erasmusAccess === true;
   const STUDENT_ALLOWED_ROUTES = hasErasmusAccess
-    ? ['erasmus', 'portal', 'gruplar', 'projeler', 'duyurular']
-    : ['portal', 'gruplar', 'projeler', 'duyurular'];
+    ? ['erasmus', 'portal', 'projeler', 'duyurular']
+    : ['portal', 'projeler', 'duyurular'];
 
   const handleLogin = (user) => {
     setCurrentUser(user);
@@ -210,8 +209,8 @@ function AppShell() {
     } else {
       // Student: erasmus yetkisi yoksa portal'a yönlendir
       const studentRoutes = user.erasmusAccess === true
-        ? ['erasmus', 'portal', 'gruplar', 'projeler', 'duyurular']
-        : ['portal', 'gruplar', 'projeler', 'duyurular'];
+        ? ['erasmus', 'portal', 'projeler', 'duyurular']
+        : ['portal', 'projeler', 'duyurular'];
       if (!studentRoutes.includes(route)) {
         navigate(user.erasmusAccess === true ? 'erasmus' : 'portal');
       }
@@ -260,7 +259,6 @@ function AppShell() {
       muafiyet: window.DersMuafiyetApp,
       yazokulu: window.YazOkuluApp,
       portal: window.OgrenciPortaliApp,
-      gruplar: window.DersGruplariApp,
       projeler: window.ProjeModuluApp,
       duyurular: window.DuyuruEntegrasyonuApp,
     };
