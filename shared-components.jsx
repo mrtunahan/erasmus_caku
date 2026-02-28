@@ -86,6 +86,11 @@ const ICONS = {
       margin: 0 auto;
       padding: 0 20px 40px;
     }
+    @media (max-width: 768px) {
+      .portal-wrap {
+        padding: 0 10px 32px;
+      }
+    }
     .daisy-card {
       background: ${DY.card};
       border: 1px solid ${DY.border};
@@ -132,6 +137,16 @@ const ICONS = {
       background: ${DY.hover};
       color: ${DY.navy};
       transform: none;
+    }
+    /* Quill editor responsive */
+    .ql-toolbar.ql-snow { flex-wrap: wrap; }
+    .ql-container.ql-snow { font-size: 14px; }
+    .portal-post-content img { max-width: 100%; height: auto; border-radius: 8px; }
+    @media (max-width: 768px) {
+      .ql-toolbar.ql-snow { padding: 4px !important; }
+      .ql-toolbar .ql-formats { margin-right: 6px !important; }
+      .daisy-card { margin-bottom: 14px; }
+      .daisy-btn { padding: 8px 14px; font-size: 13px; }
     }
   `;
   document.head.appendChild(style);
@@ -926,34 +941,48 @@ const FormField = ({ label, children }) => (
 
 const Modal = ({ open, onClose, title, children, width = 700 }) => {
   if (!open) return null;
+  const isMobileModal = typeof window !== "undefined" && window.innerWidth <= 768;
   return (
     <div
       style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 1000, padding: 20,
+        display: "flex", alignItems: isMobileModal ? "flex-end" : "center", justifyContent: "center",
+        zIndex: 1000, padding: isMobileModal ? 0 : 20,
       }}
       onClick={onClose}
     >
       <div
         style={{
-          background: C.card, borderRadius: 12, width: "100%", maxWidth: width,
-          maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+          background: C.card,
+          borderRadius: isMobileModal ? "16px 16px 0 0" : 12,
+          width: "100%",
+          maxWidth: isMobileModal ? "100%" : width,
+          maxHeight: isMobileModal ? "85vh" : "90vh",
+          overflow: "auto",
+          boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
         }}
         onClick={e => e.stopPropagation()}
       >
         {title && (
           <div style={{
-            padding: "20px 24px", borderBottom: `1px solid ${C.border}`,
+            padding: isMobileModal ? "16px 16px" : "20px 24px",
+            borderBottom: `1px solid ${C.border}`,
             position: "sticky", top: 0, background: C.card, zIndex: 1,
+            display: "flex", justifyContent: "space-between", alignItems: "center",
           }}>
             <h2 style={{
-              fontSize: 20, fontWeight: 600, color: C.navy,
+              fontSize: isMobileModal ? 17 : 20, fontWeight: 600, color: C.navy,
               fontFamily: "'Playfair Display', serif",
             }}>{title}</h2>
+            {isMobileModal && (
+              <button onClick={onClose} style={{
+                border: "none", background: "none", cursor: "pointer", padding: 4,
+                color: C.textMuted, fontSize: 20,
+              }}>✕</button>
+            )}
           </div>
         )}
-        <div style={{ padding: 24 }}>{children}</div>
+        <div style={{ padding: isMobileModal ? 16 : 24 }}>{children}</div>
       </div>
     </div>
   );
@@ -1325,6 +1354,7 @@ const LoginModal = ({ onLogin }) => {
       <div style={{
         maxWidth: 440, width: "100%", position: "relative", zIndex: 2,
         animation: "loginFadeIn 0.5s ease-out",
+        margin: "0 auto",
       }}>
         {/* Logo & Başlık */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>

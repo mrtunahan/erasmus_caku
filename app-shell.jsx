@@ -10,6 +10,17 @@ const C = window.C;
 const sharedStyles = window.sharedStyles;
 const LoginModal = window.LoginModal;
 
+// ── Responsive Hook ──
+function useWindowWidth() {
+  const [width, setWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return width;
+}
+
 // ── Hash Router Hook ──
 function useHashRoute(defaultRoute = "erasmus") {
   const getHash = () => {
@@ -49,6 +60,8 @@ const NAV_ITEMS = [
 // ── Navigation Bar ──
 const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const windowWidth = useWindowWidth();
+  const isMobile = windowWidth <= 1024;
   const isAdmin = currentUser?.role === 'admin';
   const isProfessor = currentUser?.role === 'professor';
 
@@ -64,6 +77,16 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
     return allowed.includes(item.id);
   });
 
+  // Mobil menü açıkken body scroll engelle
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileMenuOpen]);
+
   return (
     <nav style={{
       background: "linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)",
@@ -75,98 +98,180 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
       <div style={{
         maxWidth: 1400,
         margin: "0 auto",
-        padding: "0 24px",
+        padding: isMobile ? "0 16px" : "0 24px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        height: 96,
+        height: isMobile ? 64 : 96,
       }}>
         {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
           <img src="logo.png" alt="Logo" style={{
-            width: 56, height: 56, borderRadius: 10,
+            width: isMobile ? 40 : 56, height: isMobile ? 40 : 56, borderRadius: isMobile ? 8 : 10,
             objectFit: "cover"
           }} />
           <div>
-            <div style={{ color: "white", fontSize: 16, fontWeight: 700, fontFamily: "'Playfair Display', serif", letterSpacing: "0.02em" }}>
+            <div style={{ color: "white", fontSize: isMobile ? 14 : 16, fontWeight: 700, fontFamily: "'Playfair Display', serif", letterSpacing: "0.02em" }}>
               Online Assistant
             </div>
-            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>
+            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: isMobile ? 10 : 11 }}>
               Çankırı Karatekin Üniversitesi
             </div>
           </div>
         </div>
 
-        {/* Nav Tabs */}
-        <div style={{ display: "flex", gap: 2, height: "100%", flexWrap: "wrap", alignItems: "center" }}>
-          {visibleItems.map(item => {
-            const isActive = currentRoute === item.id;
+        {/* Desktop Nav Tabs */}
+        {!isMobile && (
+          <div className="nav-tabs-desktop" style={{ display: "flex", gap: 2, height: "100%", flexWrap: "wrap", alignItems: "center" }}>
+            {visibleItems.map(item => {
+              const isActive = currentRoute === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onNavigate(item.id)}
+                  style={{
+                    padding: "0 10px",
+                    border: "none",
+                    background: isActive ? "rgba(255,255,255,0.15)" : "transparent",
+                    color: isActive ? "white" : "rgba(255,255,255,0.7)",
+                    fontSize: 12,
+                    fontWeight: isActive ? 600 : 400,
+                    cursor: "pointer",
+                    fontFamily: "'Source Sans 3', sans-serif",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    borderBottom: isActive ? "3px solid #C4973B" : "3px solid transparent",
+                    transition: "all 0.2s",
+                    height: "100%",
+                    whiteSpace: "nowrap",
+                  }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={item.icon} />
+                  </svg>
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-            return (
-              <button
-                key={item.id}
-                onClick={() => onNavigate(item.id)}
-                style={{
-                  padding: "0 10px",
-                  border: "none",
-                  background: isActive ? "rgba(255,255,255,0.15)" : "transparent",
-                  color: isActive ? "white" : "rgba(255,255,255,0.7)",
-                  fontSize: 12,
-                  fontWeight: isActive ? 600 : 400,
-                  cursor: "pointer",
-                  fontFamily: "'Source Sans 3', sans-serif",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  borderBottom: isActive ? "3px solid #C4973B" : "3px solid transparent",
-                  transition: "all 0.2s",
-                  height: "100%",
-                  whiteSpace: "nowrap",
-                }}
-                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
-                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d={item.icon} />
-                </svg>
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* User Info */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ color: "white", fontSize: 14, fontWeight: 600 }}>
-              {currentUser?.name || "Kullanıcı"}
+        {/* Desktop User Info */}
+        {!isMobile && (
+          <div className="nav-user-desktop" style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ color: "white", fontSize: 14, fontWeight: 600 }}>
+                {currentUser?.name || "Kullanıcı"}
+              </div>
+              <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>
+                {currentUser?.role === "admin" ? "Admin"
+                  : currentUser?.role === "professor" ? "Akademisyen"
+                    : `Öğrenci (${currentUser?.studentNumber || ""})`}
+              </div>
             </div>
-            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>
-              {currentUser?.role === "admin" ? "Admin"
-                : currentUser?.role === "professor" ? "Akademisyen"
-                  : `Öğrenci (${currentUser?.studentNumber || ""})`}
+            <button
+              onClick={onLogout}
+              style={{
+                padding: "8px 16px",
+                border: "1px solid rgba(255,255,255,0.3)",
+                background: "transparent",
+                color: "rgba(255,255,255,0.8)",
+                borderRadius: 8,
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "white"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.8)"; }}
+            >
+              Çıkış Yap
+            </button>
+          </div>
+        )}
+
+        {/* Mobile Hamburger Button */}
+        {isMobile && (
+          <button
+            className="nav-mobile-toggle"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: 44, height: 44, border: "none", borderRadius: 10,
+              background: mobileMenuOpen ? "rgba(255,255,255,0.15)" : "transparent",
+              cursor: "pointer", transition: "all 0.2s",
+            }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {mobileMenuOpen
+                ? <path d="M18 6L6 18M6 6l12 12" />
+                : <><path d="M3 12h18" /><path d="M3 6h18" /><path d="M3 18h18" /></>
+              }
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Mobile Menu Panel */}
+      {isMobile && mobileMenuOpen && (
+        <>
+          <div className="mobile-menu-overlay" onClick={() => setMobileMenuOpen(false)} />
+          <div className="mobile-menu-panel">
+            {/* Kullanıcı bilgisi */}
+            <div style={{ padding: "24px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+              <div style={{ color: "white", fontSize: 16, fontWeight: 600 }}>
+                {currentUser?.name || "Kullanıcı"}
+              </div>
+              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 4 }}>
+                {currentUser?.role === "admin" ? "Admin"
+                  : currentUser?.role === "professor" ? "Akademisyen"
+                    : `Öğrenci (${currentUser?.studentNumber || ""})`}
+              </div>
+            </div>
+
+            {/* Menu items */}
+            <div style={{ padding: "8px 0" }}>
+              {visibleItems.map(item => {
+                const isActive = currentRoute === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    className={`mobile-menu-item ${isActive ? "mobile-menu-item-active" : ""}`}
+                    onClick={() => { onNavigate(item.id); setMobileMenuOpen(false); }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d={item.icon} />
+                    </svg>
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Çıkış Yap */}
+            <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.1)", marginTop: 8 }}>
+              <button
+                onClick={() => { onLogout(); setMobileMenuOpen(false); }}
+                style={{
+                  width: "100%", padding: "12px 16px", border: "1px solid rgba(255,255,255,0.2)",
+                  background: "rgba(139,38,53,0.3)", color: "rgba(255,255,255,0.9)",
+                  borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 500,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  fontFamily: "'Source Sans 3', sans-serif",
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Çıkış Yap
+              </button>
             </div>
           </div>
-          <button
-            onClick={onLogout}
-            style={{
-              padding: "8px 16px",
-              border: "1px solid rgba(255,255,255,0.3)",
-              background: "transparent",
-              color: "rgba(255,255,255,0.8)",
-              borderRadius: 8,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 500,
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "white"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.8)"; }}
-          >
-            Çıkış Yap
-          </button>
-        </div>
-      </div>
+        </>
+      )}
     </nav>
   );
 };
@@ -283,7 +388,7 @@ function AppShell() {
         currentUser={currentUser}
         onLogout={handleLogout}
       />
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: 24 }}>
+      <div className="app-content-wrap" style={{ maxWidth: 1400, margin: "0 auto", padding: 24 }}>
         {renderModule()}
       </div>
     </div>
