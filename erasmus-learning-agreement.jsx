@@ -339,7 +339,7 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
           <div style={{ fontSize: 13, color: "#424242" }}>Bu eslestirme gidis verileriyle dolduruldu. Ogrenci farkli bir ders aldiysa asagidaki alanlardan duzenleyebilirsiniz.</div>
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 24 }}>
+      <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 24 }}>
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12, background: "#EEF0F5", padding: "8px 12px", borderRadius: 8 }}>Kendi Kurumumuz</div>
           {editedMatch.homeCourses.map((course, i) => (
@@ -384,7 +384,7 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
                       <span>{course.name}</span>
                       <span style={{ color: C.textMuted, fontSize: 11 }}>({course.credits} AKTS)</span>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                       <FormField label={`Karşı Kurumdan Alinan Not`}>
                         <Input value={gradeVal} onChange={e => {
                           const newGrades = { ...(editedMatch.hostGrades || {}) };
@@ -410,7 +410,7 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
               })}
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <FormField label="Karşı Kurumdan Alinan Not">
                 <Input value={editedMatch.hostGrade || ""} onChange={e => setEditedMatch(prev => ({ ...prev, hostGrade: e.target.value }))} placeholder="A, B+, 85, vb." />
                 {editedMatch.hostGrade && (
@@ -748,7 +748,7 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStu
           </div>
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24, padding: 20, background: C.goldPale, borderRadius: 10, border: `1px solid ${C.goldLight}` }}>
+      <div className="responsive-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24, padding: 20, background: C.goldPale, borderRadius: 10, border: `1px solid ${C.goldLight}` }}>
         <FormField label="Öğrenci Numarası"><Input value={editedStudent.studentNumber} onChange={e => updateStudent("studentNumber", e.target.value)} disabled={readOnly} /></FormField>
         <FormField label="Ad"><Input value={editedStudent.firstName} onChange={e => updateStudent("firstName", e.target.value)} disabled={readOnly} /></FormField>
         <FormField label="Soyad"><Input value={editedStudent.lastName} onChange={e => updateStudent("lastName", e.target.value)} disabled={readOnly} /></FormField>
@@ -771,10 +771,10 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStu
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, borderBottom: `2px solid ${C.border}` }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, borderBottom: `2px solid ${C.border}`, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         {["outgoing", "return"].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding: "12px 24px", border: "none", background: "transparent",
+            padding: "12px 24px", border: "none", background: "transparent", whiteSpace: "nowrap",
             color: activeTab === tab ? C.navy : C.textMuted, fontWeight: 600, fontSize: 14,
             cursor: "pointer", borderBottom: activeTab === tab ? `3px solid ${C.navy}` : "3px solid transparent",
             fontFamily: "'Source Sans 3', sans-serif",

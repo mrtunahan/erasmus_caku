@@ -569,7 +569,7 @@ const CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose 
       {editingCourse && (
         <div style={{ marginTop: 16, padding: 16, background: C.bg, borderRadius: 8, display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ fontWeight: 600, fontSize: 14 }}>{editingCourse === "new" ? "Yeni Ders" : "Dersi Düzenle"}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
+          <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
             <FormField label="Ders Kodu">
               <Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
             </FormField>
@@ -577,7 +577,7 @@ const CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose 
               <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
             </FormField>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 2fr", gap: 12 }}>
+          <div className="responsive-grid-4" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 2fr", gap: 12 }}>
             <FormField label="Sınıf">
               <Select value={form.sinif} onChange={e => setForm({ ...form, sinif: parseInt(e.target.value) })}>
                 {[1, 2, 3, 4, 5].map(s => <option key={s} value={s}>{s === 5 ? "Seçmeli" : `${s}. Sınıf`}</option>)}
@@ -1711,7 +1711,7 @@ function SinavOtomasyonuApp({ currentUser }) {
         {activePeriod && (
           <>
             {/* Toolbar */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
               <div style={{ display: "flex", gap: 8 }}>
                 <button
                   onClick={() => setViewMode("calendar")}
@@ -1733,7 +1733,7 @@ function SinavOtomasyonuApp({ currentUser }) {
                 >Tablo</button>
               </div>
 
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <span style={{ fontSize: 12, color: "#666" }}>
                   {periodExams.length}/{courses.length} ders yerleştirildi
                 </span>
@@ -1769,10 +1769,12 @@ function SinavOtomasyonuApp({ currentUser }) {
             </div>
 
             {viewMode === "calendar" ? (
-              <div style={{ display: "flex", gap: 16 }}>
+              <div style={{ display: "flex", gap: 16, flexDirection: window.innerWidth <= 768 ? "column" : "row" }}>
                 {/* Course Pool Sidebar */}
                 <div style={{
-                  width: 220, minWidth: 220, maxHeight: "calc(100vh - 260px)",
+                  width: window.innerWidth <= 768 ? "100%" : 220,
+                  minWidth: window.innerWidth <= 768 ? "auto" : 220,
+                  maxHeight: window.innerWidth <= 768 ? 200 : "calc(100vh - 260px)",
                   overflowY: "auto", background: "white", borderRadius: 10,
                   border: `1px solid ${C.border}`, padding: 12,
                 }}>
@@ -1867,7 +1869,7 @@ function SinavOtomasyonuApp({ currentUser }) {
                       Takvim günleri bulunamadı. Dönem tarihlerini kontrol edin.
                     </div>
                   ) : (
-                    <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed" }}>
+                    <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed", minWidth: 600 }}>
                       <thead>
                         <tr>
                           <th style={{

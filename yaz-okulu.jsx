@@ -337,7 +337,7 @@ const AdminStudentPanel = ({ students, onSave, onDelete }) => {
                         <_FormField label="Öğrenci No">
                             <_Input value={form.studentNo} onChange={e => setForm({ ...form, studentNo: e.target.value })} required />
                         </_FormField>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                        <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                             <_FormField label="Ad">
                                 <_Input value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} required />
                             </_FormField>
@@ -520,7 +520,7 @@ const StudentApplicationPanel = ({ student, cakuCourses }) => {
         <div style={{ paddingBottom: 60 }}>
             {/* Üst Bilgi Formu */}
             <_Card title="Başvuru Bilgileri">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                     <_FormField label="Gidilen Üniversite">
                         <_Input value={info.targetUni} onChange={e => setInfo({ ...info, targetUni: e.target.value })} placeholder="Örn: ODTÜ" />
                     </_FormField>
@@ -572,7 +572,7 @@ const StudentApplicationPanel = ({ student, cakuCourses }) => {
             </div>
 
             {viewMode === "input" ? (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
+                <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
                     {/* Sol: Dosya Yükleme */}
                     <div>
                         <_Card title="Ders İçeriklerini Yükle">
@@ -601,7 +601,7 @@ const StudentApplicationPanel = ({ student, cakuCourses }) => {
                                 <div style={{ display: "grid", gap: 8 }}>
                                     <_Input name="code" placeholder="Ders Kodu (Örn: CS101)" required />
                                     <_Input name="name" placeholder="Ders Adı" required />
-                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                                    <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                                         <_Input name="akts" placeholder="AKTS" type="number" required />
                                         <_Input name="grade" placeholder="Not (Opsiyonel)" />
                                     </div>
@@ -653,7 +653,7 @@ const StudentApplicationPanel = ({ student, cakuCourses }) => {
                 <div>
                     <h3 style={{ marginBottom: 16, color: _C.navy, textAlign: "center" }}>Ders Eşleştirme ve Analiz</h3>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                    <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                         {/* Sol: Karşı Üniversite */}
                         <div>
                             <div style={{ background: _C.navy, color: "white", padding: 12, borderRadius: "8px 8px 0 0", textAlign: "center" }}>Gidilen Üniversite</div>

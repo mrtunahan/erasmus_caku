@@ -1075,7 +1075,7 @@ const SettingsPanel = ({ courseContents, setCourseContents, gradingSystem, setGr
     <div>
       {msg && <Toast message={msg.text} type={msg.type} onClose={function() { setMsg(null); }} />}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+      <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         {/* ÇAKÜ Ders İçerikleri */}
         <SectionCard title="ÇAKÜ Ders İçerikleri" subtitle="Ders bilgilerini yükleyin (kod, ad, AKTS, haftalık içerik)" icon={<Icons.file />}
           headerRight={courseContents.length > 0 && (
@@ -1289,7 +1289,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
       {/* ═══ ADIM 1: Öğrenci Bilgileri ═══ */}
       {step === 0 && (
         <SectionCard title="Öğrenci ve Kurum Bilgileri" subtitle="Muafiyet talebinde bulunan öğrencinin bilgilerini girin" icon={<Icons.user />}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DS.text, marginBottom: 6 }}>
                 Öğrenci Adı Soyadı <span style={{ color: DS.red }}>*</span>
@@ -1431,7 +1431,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
       {step === 2 && matches.length > 0 && (
         <div>
           {/* Özet Kartları */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
+          <div className="responsive-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
             {[
               { label: "Toplam Ders", value: matches.length, color: DS.navy, bg: DS.bg },
               { label: "Muaf", value: matchedCount, color: DS.green, bg: DS.greenBg },
@@ -1471,9 +1471,10 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                     border: "1px solid " + (m.matched ? DS.border : "#FED7AA"),
                     marginBottom: 10,
                     transition: "all 0.2s",
+                    flexWrap: "wrap",
                   }}>
                     {/* Kaynak Ders */}
-                    <div style={{ flex: "0 0 280px", minWidth: 0 }}>
+                    <div style={{ flex: "1 1 240px", minWidth: 0 }}>
                       <div style={{ fontSize: 10, fontWeight: 600, color: DS.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>Kaynak Ders</div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{
@@ -1495,7 +1496,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                     </div>
 
                     {/* Hedef Ders (Düzenlenebilir) */}
-                    <div style={{ flex: "0 0 280px", minWidth: 0 }}>
+                    <div style={{ flex: "1 1 240px", minWidth: 0 }}>
                       <div style={{ fontSize: 10, fontWeight: 600, color: DS.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>ÇAKÜ Eşleşme</div>
                       <select
                         value={m.target ? m.target.code : ""}

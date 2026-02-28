@@ -1799,7 +1799,7 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
   ];
 
   return (
-    <div style={{ maxWidth: 1300, margin: "0 auto", padding: "24px 16px", fontFamily: "'Source Sans 3', 'Inter', -apple-system, sans-serif" }}>
+    <div style={{ maxWidth: 1300, margin: "0 auto", padding: window.innerWidth <= 768 ? "16px 8px" : "24px 16px", fontFamily: "'Source Sans 3', 'Inter', -apple-system, sans-serif" }}>
       {/* CSS Animasyonlar */}
       <style>{`
         @keyframes duyuruPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
@@ -1811,7 +1811,7 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div style={{
         background: "linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 60%, #1e40af 100%)",
-        borderRadius: 16, padding: "28px 32px", marginBottom: 24, color: "#fff",
+        borderRadius: 16, padding: window.innerWidth <= 768 ? "20px 16px" : "28px 32px", marginBottom: 24, color: "#fff",
         display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16,
         boxShadow: "0 4px 24px rgba(30,64,175,0.2)",
       }}>
@@ -1871,11 +1871,11 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
       {/* ── Sekme Navigasyonu ──────────────────────────────────────── */}
       <div style={{
         display: "flex", gap: 4, marginBottom: 24, backgroundColor: "#f3f4f6",
-        borderRadius: 14, padding: 4,
+        borderRadius: 14, padding: 4, overflowX: "auto", WebkitOverflowScrolling: "touch",
       }}>
         {SEKMELER.map((s) => (
           <button key={s.id} onClick={() => setAktifSekme(s.id)} style={{
-            flex: 1, padding: "12px 16px", borderRadius: 10, fontSize: 14,
+            flex: 1, padding: "12px 16px", borderRadius: 10, fontSize: 14, whiteSpace: "nowrap", minWidth: 0,
             fontWeight: aktifSekme === s.id ? 700 : 500,
             backgroundColor: aktifSekme === s.id ? "#fff" : "transparent",
             color: aktifSekme === s.id ? "#111827" : "#6b7280",
@@ -1901,7 +1901,7 @@ function DuyuruEntegrasyonuApp({ currentUser }) {
       {aktifSekme === "duyurular" && (
         <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
           {/* Sol Sidebar - Filtreler */}
-          <div style={{ flex: "0 0 260px", minWidth: 220 }}>
+          <div style={{ flex: "0 0 260px", minWidth: 220, maxWidth: "100%" }}>
             {/* Scraper Durum */}
             <ScraperDurum sonGuncelleme={sonGuncelleme} yukleniyor={yukleniyor} onYenile={duyurulariGuncelle} />
 
