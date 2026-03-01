@@ -184,13 +184,19 @@ def is_duyuru_href(href: str) -> bool:
       tum.duyurular-1-icerikleri.karatekin
     """
     # Liste/kategori sayfalarını hariç tut
-    if re.search(r"tum[-.]duyurular|tum-haberler", href, re.IGNORECASE):
+    if re.search(r"tum[-.]duyurular|tum-haberler|tum[-.]etkinlikler", href, re.IGNORECASE):
+        return False
+
+    # Navigasyon/statik sayfaları hariç tut
+    if re.search(r"-sayfasi\.karatekin", href, re.IGNORECASE):
         return False
 
     # Pozitif: tüm Karatekin içerik URL varyantları
     return bool(re.search(
         r"icerigi\.karatekin|icerikleri\.karatekin"
-        r"|duyurusu-icerigi|haberi-icerigi|duyuru-icerigi",
+        r"|duyurusu-icerigi|haberi-icerigi|duyuru-icerigi"
+        r"|-duyurusu\.karatekin|-haberi\.karatekin"
+        r"|\d+-icerigi\b|\d+-duyuru\b",
         href,
         re.IGNORECASE
     ))
@@ -222,15 +228,198 @@ def tarih_yakinda_bul(element) -> str:
     return ""
 
 
+def _icerik_alani_bul(soup: BeautifulSoup):
+    """Sayfanın ana içerik alanını (main content) bulur."""
+    # Sırayla dene: yaygın Karatekin CMS class/id pattern'leri
+    selectors = [
+        ("div", {"class": re.compile(r"icerik|content-list|duyuru-list|page-content", re.I)}),
+        ("div", {"id": re.compile(r"content|icerik|main", re.I)}),
+        ("main", {}),
+        ("div", {"class": re.compile(r"main-content", re.I)}),
+    ]
+    for tag, attrs in selectors:
+        found = soup.find(tag, attrs)
+        if found:
+            return found
+
+    # Son çare: en çok metin içeren büyük div
+    return soup.body or soup
+
+
+def _navigasyon_linkleri(soup: BeautifulSoup) -> set:
+    """Nav, header, footer, sidebar gibi bölümlerdeki linkleri döndürür."""
+    nav_links = set()
+    for tag_name in ["nav", "header", "footer"]:
+        for tag in soup.find_all(tag_name):
+            for a in tag.find_all("a"):
+                nav_links.add(id(a))
+
+    for cls_pat in [r"sidebar", r"menu", r"navbar", r"nav-", r"footer", r"header"]:
+        for tag in soup.find_all(class_=re.compile(cls_pat, re.I)):
+            for a in tag.find_all("a"):
+                nav_links.add(id(a))
+
+    return nav_links
+
+
+TARIH_REGEX = re.compile(
+    r"\d{1,2}[./]\d{1,2}[./]\d{4}"
+    r"|\d{4}-\d{1,2}-\d{1,2}"
+    r"|\d{1,2}\s+(?:Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)\s+\d{4}",
+    re.IGNORECASE,
+)
+
+
+def _yapisal_duyuru_bul(
+    soup: BeautifulSoup, kaynak: dict, logger: logging.Logger, debug: bool = False
+) -> list:
+    """
+    Yapısal (structural) fallback parser.
+
+    Link tabanlı parse çalışmadığında sayfanın HTML yapısından
+    duyuru bloklarını tespit eder. Karatekin CMS'inde duyurular
+    bazen link yerine metin blokları (div/li/article) olarak listelenir.
+
+    Ayrıca navigasyon-dışı linkleri de kontrol eder.
+    """
+    kaynak_id = kaynak["id"]
+    base_url = kaynak["base_url"]
+    duyuru_url = kaynak["duyuru_url"]
+    duyurular = []
+    gorulmus = set()
+
+    nav_ids = _navigasyon_linkleri(soup)
+    content_area = _icerik_alani_bul(soup)
+
+    if debug:
+        logger.info(f"  [DEBUG-YAPISAL] İçerik alanı: <{content_area.name} class={content_area.get('class', '')}>")
+
+    # ── Strateji 1: İçerik alanındaki navigasyon-dışı linkler ────────────
+    content_links = []
+    for a in content_area.find_all("a", href=True):
+        if id(a) in nav_ids:
+            continue
+        href = a["href"].strip()
+        text = a.get_text(strip=True)
+        if not text or len(text) < 10:
+            continue
+        # Bilinen navigasyon pattern'lerini atla
+        if re.search(
+            r"-sayfasi\.karatekin|tum[-.]duyurular|tum[-.]etkinlikler"
+            r"|tum-haberler|anasayfa|mailto:|javascript:|\.pdf$"
+            r"|personel|iletisim|bologna|ubys|uzem|rehber|medya",
+            href, re.IGNORECASE
+        ):
+            continue
+        content_links.append((a, href, text))
+
+    if debug:
+        logger.info(f"  [DEBUG-YAPISAL] İçerik alanı navigasyon-dışı linkler ({len(content_links)} adet):")
+        for a, href, text in content_links[:20]:
+            logger.info(f"    href={href!r}  text={text[:80]!r}")
+
+    for a, href, text in content_links:
+        full_url = urljoin(base_url + "/", href.lstrip("/"))
+        parsed = urlparse(full_url)
+        # Farklı domain ise atla (ancak karatekin alt domainleri kabul et)
+        if "karatekin.edu.tr" not in parsed.netloc:
+            continue
+        if full_url in gorulmus:
+            continue
+        gorulmus.add(full_url)
+
+        tarih = tarih_yakinda_bul(a)
+        duyuru_id = benzersiz_id(kaynak_id, text, full_url)
+        duyurular.append({
+            "id": duyuru_id,
+            "baslik": text[:200],
+            "tarih": tarih or datetime.now().strftime("%Y-%m-%d"),
+            "url": full_url,
+        })
+
+    if duyurular:
+        logger.info(f"  ⚡ Yapısal parse (linkler): {len(duyurular)} duyuru bulundu")
+        return duyurular
+
+    # ── Strateji 2: Tarih içeren içerik blokları ─────────────────────────
+    # Duyuru öğeleri genellikle tarih + başlık içeren tekrarlayan yapılardır
+    for container_tag in ["div", "li", "article", "tr"]:
+        items = content_area.find_all(container_tag, recursive=True)
+        found = []
+
+        for item in items:
+            text = item.get_text(" ", strip=True)
+            if len(text) < 15 or len(text) > 1000:
+                continue
+
+            date_match = TARIH_REGEX.search(text)
+            if not date_match:
+                continue
+
+            # Alt elemanları çok olan yapılar atla (büyük container'lar)
+            if len(item.find_all(container_tag)) > 3:
+                continue
+
+            # Başlık çıkar
+            baslik = None
+            # Önce içindeki link metnini dene
+            inner_a = item.find("a", href=True)
+            if inner_a:
+                baslik = inner_a.get_text(strip=True)
+            # Link yoksa heading dene
+            if not baslik:
+                for h_tag in ["h2", "h3", "h4", "h5", "strong", "b"]:
+                    h = item.find(h_tag)
+                    if h:
+                        baslik = h.get_text(strip=True)
+                        break
+            # Heading de yoksa, tarih kısmını çıkar ve kalanı kullan
+            if not baslik:
+                baslik = text.replace(date_match.group(0), "").strip()
+                baslik = re.sub(r"\s+", " ", baslik)
+
+            if not baslik or len(baslik) < 10:
+                continue
+
+            if baslik in gorulmus:
+                continue
+            gorulmus.add(baslik)
+
+            # URL: varsa inner link, yoksa liste sayfası URL'si
+            url = duyuru_url
+            if inner_a:
+                url = urljoin(base_url + "/", inner_a["href"].strip().lstrip("/"))
+
+            tarih = tarih_parse(date_match.group(0))
+            duyuru_id = benzersiz_id(kaynak_id, baslik, url)
+            found.append({
+                "id": duyuru_id,
+                "baslik": baslik[:200],
+                "tarih": tarih,
+                "url": url,
+            })
+
+        if len(found) >= 2:
+            duyurular = found
+            if debug:
+                logger.info(f"  [DEBUG-YAPISAL] <{container_tag}> bloklarından {len(found)} duyuru çıkarıldı")
+            break
+
+    if duyurular:
+        logger.info(f"  ⚡ Yapısal parse (bloklar): {len(duyurular)} duyuru bulundu")
+
+    return duyurular
+
+
 def duyurulari_parse_et(
     soup: BeautifulSoup, kaynak: dict, logger: logging.Logger, debug: bool = False
 ) -> list:
     """
     Karatekin Üniversitesi duyuru liste sayfasını parse eder.
 
-    Positive filter: Sadece URL pattern'i gerçekten duyuru olan linkleri alır.
-    Karatekin CMS'inde duyuru linkleri 'icerigi.karatekin' veya
-    'icerikleri.karatekin' ile biter.
+    İki aşamalı strateji:
+      1) Link tabanlı: URL pattern'i duyuru olan linkleri alır
+      2) Yapısal fallback: link bulunamazsa HTML yapısından çıkarır
 
     debug=True ile sayfadaki tüm linkler loglanır (sorun tespiti için).
     """
@@ -243,23 +432,47 @@ def duyurulari_parse_et(
 
     if debug:
         logger.info(f"  [DEBUG] Sayfadaki toplam link sayısı: {len(all_links)}")
-        logger.info(f"  [DEBUG] '.karatekin' içeren linkler:")
+
+        # Tüm linkleri göster (sadece .karatekin değil)
+        karatekin_links = []
+        diger_links = []
         for a in all_links:
             href = a["href"].strip()
-            if "karatekin" in href.lower():
-                logger.info(f"    href={href!r}  text={a.get_text(strip=True)[:60]!r}")
+            text = a.get_text(strip=True)[:80]
+            if not href or href.startswith("#") or href.startswith("javascript:"):
+                continue
+            if ".karatekin" in href.lower() or "karatekin.edu.tr" in href.lower():
+                karatekin_links.append((href, text))
+            elif text and len(text) > 5:
+                diger_links.append((href, text))
 
+        logger.info(f"  [DEBUG] '.karatekin' içeren linkler ({len(karatekin_links)} adet):")
+        for href, text in karatekin_links:
+            marker = " ✔ DUYURU" if is_duyuru_href(href) else ""
+            logger.info(f"    href={href!r}  text={text!r}{marker}")
+
+        if diger_links:
+            logger.info(f"  [DEBUG] Diğer linkler ({len(diger_links)} adet):")
+            for href, text in diger_links[:30]:
+                logger.info(f"    href={href!r}  text={text!r}")
+
+        # Sayfa yapısı: ana div'ler ve class'lar
+        logger.info(f"  [DEBUG] Sayfa yapısı (link içeren büyük div'ler):")
+        for div in soup.find_all("div", class_=True):
+            link_count = len(div.find_all("a", href=True, recursive=False))
+            if link_count >= 3:
+                cls = " ".join(div.get("class", []))
+                logger.info(f"    <div class='{cls}'> → {link_count} doğrudan link")
+
+    # ── Aşama 1: Link tabanlı parse ─────────────────────────────────────
     for a in all_links:
         href = a["href"].strip()
 
-        # Sadece gerçek duyuru linkleri
         if not is_duyuru_href(href):
             continue
 
-        # Tam URL oluştur
         full_url = urljoin(base_url + "/", href.lstrip("/"))
 
-        # Aynı domain'de olmalı
         if urlparse(full_url).netloc != urlparse(base_url).netloc:
             continue
 
@@ -267,14 +480,12 @@ def duyurulari_parse_et(
             continue
         gorulmus_url.add(full_url)
 
-        # Başlık: link metni ya da title attribute
         baslik = a.get_text(strip=True)
         if not baslik:
             baslik = a.get("title", "").strip()
         if not baslik or len(baslik) < 5:
             continue
 
-        # Tarihi yakın elementten çıkar
         tarih = tarih_yakinda_bul(a)
 
         duyuru_id = benzersiz_id(kaynak_id, baslik, full_url)
@@ -285,7 +496,19 @@ def duyurulari_parse_et(
             "url": full_url,
         })
 
-    logger.info(f"  ✓ {len(duyurular)} duyuru bulundu ({kaynak['label']})")
+    if duyurular:
+        logger.info(f"  ✓ {len(duyurular)} duyuru bulundu — link tabanlı ({kaynak['label']})")
+        return duyurular
+
+    # ── Aşama 2: Yapısal fallback parse ──────────────────────────────────
+    logger.info(f"  ⚠ Link tabanlı parse 0 sonuç, yapısal parse deneniyor...")
+    duyurular = _yapisal_duyuru_bul(soup, kaynak, logger, debug=debug)
+
+    if duyurular:
+        logger.info(f"  ✓ {len(duyurular)} duyuru bulundu — yapısal ({kaynak['label']})")
+    else:
+        logger.warning(f"  ✗ Hiç duyuru bulunamadı ({kaynak['label']})")
+
     return duyurular
 
 
