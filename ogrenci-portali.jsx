@@ -823,6 +823,23 @@ var PortalDB = {
     });
   },
 
+  // ── Tüm Kayıtlı Öğrenciler (Moderatör atama için) ──
+  async fetchAllStudents() {
+    try {
+      var students = await window.FirebaseDB.fetchStudents();
+      return (students || []).map(function (s) {
+        return {
+          id: "student_" + s.studentNumber,
+          name: (s.firstName || "") + " " + (s.lastName || ""),
+          studentNumber: s.studentNumber,
+        };
+      }).filter(function (s) { return s.name.trim().length > 0; });
+    } catch (e) {
+      console.error("Öğrenci listesi alınamadı:", e);
+      return [];
+    }
+  },
+
   // ── Raporlama ──
   reportsRef: function () {
     return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_reports") : null;
@@ -4170,14 +4187,26 @@ const AdvancedSearchBar = ({ value, onChange, posts, onFilterTag, dateRange, onD
 };
 
 // ── Moderatör Yönetim Paneli ──
-const ModeratorPanel = ({ moderators, allUsers, onAdd, onRemove }) => {
+const ModeratorPanel = ({ moderators, onAdd, onRemove }) => {
   const [search, setSearch] = useState("");
+  const [studentList, setStudentList] = useState([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+
+  // Öğrenci listesini yükle (ilk renderda)
+  useEffect(function () {
+    setLoadingStudents(true);
+    PortalDB.fetchAllStudents().then(function (students) {
+      setStudentList(students);
+      setLoadingStudents(false);
+    }).catch(function () { setLoadingStudents(false); });
+  }, []);
 
   var modIds = moderators.map(function (m) { return m.userId; });
   var filtered = search.trim().length >= 2
-    ? allUsers.filter(function (u) {
-        return u.name.toLowerCase().indexOf(search.toLowerCase()) >= 0 && modIds.indexOf(u.id) < 0;
-      }).slice(0, 8)
+    ? studentList.filter(function (u) {
+        var q = search.toLowerCase();
+        return (u.name.toLowerCase().indexOf(q) >= 0 || (u.studentNumber && u.studentNumber.indexOf(q) >= 0)) && modIds.indexOf(u.id) < 0;
+      }).slice(0, 10)
     : [];
 
   return (
@@ -4261,7 +4290,7 @@ const ModeratorPanel = ({ moderators, allUsers, onAdd, onRemove }) => {
             type="text"
             value={search}
             onChange={function (e) { setSearch(e.target.value); }}
-            placeholder="Kullanıcı adı ile ara..."
+            placeholder="Öğrenci adı veya numarası ile ara..."
             style={{
               width: "100%", padding: "10px 14px", borderRadius: 10,
               border: "1px solid " + PC.border, fontSize: 14,
@@ -4271,10 +4300,15 @@ const ModeratorPanel = ({ moderators, allUsers, onAdd, onRemove }) => {
             onFocus={function (e) { e.target.style.borderColor = PC.navy; }}
             onBlur={function (e) { e.target.style.borderColor = PC.border; }}
           />
-          {filtered.length > 0 && (
+          {loadingStudents && search.trim().length >= 2 && (
+            <div style={{ marginTop: 8, fontSize: 13, color: PC.textMuted, textAlign: "center", padding: 8 }}>
+              Öğrenciler yükleniyor...
+            </div>
+          )}
+          {!loadingStudents && filtered.length > 0 && (
             <div style={{
               marginTop: 8, border: "1px solid " + PC.border, borderRadius: 10,
-              overflow: "hidden", background: "white",
+              overflow: "hidden", background: "white", maxHeight: 300, overflowY: "auto",
             }}>
               {filtered.map(function (user) {
                 return (
@@ -4284,6 +4318,7 @@ const ModeratorPanel = ({ moderators, allUsers, onAdd, onRemove }) => {
                     style={{
                       display: "flex", alignItems: "center", gap: 10,
                       width: "100%", padding: "10px 14px", border: "none",
+                      borderBottom: "1px solid " + PC.borderLight,
                       background: "transparent", cursor: "pointer",
                       textAlign: "left", transition: "background 0.15s",
                       fontSize: 14, fontFamily: "inherit",
@@ -4292,23 +4327,28 @@ const ModeratorPanel = ({ moderators, allUsers, onAdd, onRemove }) => {
                     onMouseLeave={function (e) { e.currentTarget.style.background = "transparent"; }}
                   >
                     <div style={{
-                      width: 28, height: 28, borderRadius: "50%",
+                      width: 32, height: 32, borderRadius: "50%",
                       background: "linear-gradient(135deg, " + DY.gold + ", " + DY.goldDark + ")",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      color: "white", fontSize: 12, fontWeight: 700,
+                      color: "white", fontSize: 13, fontWeight: 700,
                     }}>
                       {user.name.charAt(0).toUpperCase()}
                     </div>
-                    <span style={{ fontWeight: 500, color: PC.navy }}>{user.name}</span>
-                    <span style={{ marginLeft: "auto", fontSize: 12, color: "#059669", fontWeight: 600 }}>+ Ata</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, color: PC.navy }}>{user.name}</div>
+                      {user.studentNumber && (
+                        <div style={{ fontSize: 11, color: PC.textMuted }}>{user.studentNumber}</div>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 12, color: "#059669", fontWeight: 600, whiteSpace: "nowrap" }}>+ Ata</span>
                   </button>
                 );
               })}
             </div>
           )}
-          {search.trim().length >= 2 && filtered.length === 0 && (
+          {!loadingStudents && search.trim().length >= 2 && filtered.length === 0 && (
             <div style={{ marginTop: 8, fontSize: 13, color: PC.textMuted, textAlign: "center", padding: 8 }}>
-              Kullanıcı bulunamadı
+              "{search}" ile eşleşen öğrenci bulunamadı
             </div>
           )}
         </div>
@@ -4746,7 +4786,6 @@ function OgrenciPortaliApp({ currentUser }) {
         {isAdmin && showModPanel && (
           <ModeratorPanel
             moderators={moderators}
-            allUsers={allUsers}
             onAdd={function (user) {
               PortalDB.addModerator(user.id, user.name).then(function () {
                 setModerators(function (prev) { return prev.concat([{ id: user.id, userId: user.id, userName: user.name }]); });
