@@ -36,7 +36,10 @@ KAYNAKLAR = [
         "id": "bmu",
         "label": "Bilgisayar Müh.",
         "base_url": "https://bmu.karatekin.edu.tr",
-        "duyuru_url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+        "duyuru_url": "https://bmu.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
+        "alt_duyuru_urls": [
+            "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+        ],
         "json_api": True,
     },
     {
@@ -50,8 +53,11 @@ KAYNAKLAR = [
         "id": "univ",
         "label": "Üniversite",
         "base_url": "https://www.karatekin.edu.tr",
-        "duyuru_url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
-        "json_api": True,
+        "duyuru_url": "https://www.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
+        "alt_duyuru_urls": [
+            "https://www.karatekin.edu.tr/tr/tum-duyurular",
+        ],
+        "json_api": False,
     },
     {
         "id": "oidb",
@@ -619,21 +625,26 @@ def kaynak_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -> 
 
     # JSON API yoksa veya başarısız olduysa HTML parse'a düş
     if not ham_duyurular:
-        soup = sayfa_cek(kaynak["duyuru_url"], logger)
-        if not soup:
-            logger.warning(f"  ⚠ {kaynak['label']} sayfası çekilemedi.")
-            return []
+        urls_to_try = [kaynak["duyuru_url"]] + kaynak.get("alt_duyuru_urls", [])
 
-        # Debug modunda ham HTML'i dosyaya kaydet
-        if debug:
-            dump_dir = Path(__file__).parent / "debug_html"
-            dump_dir.mkdir(parents=True, exist_ok=True)
-            dump_path = dump_dir / f"{kaynak['id']}_raw.html"
-            with open(dump_path, "w", encoding="utf-8") as f:
-                f.write(str(soup))
-            logger.info(f"  [DEBUG] Ham HTML kaydedildi: {dump_path}")
+        for try_url in urls_to_try:
+            soup = sayfa_cek(try_url, logger)
+            if not soup:
+                continue
 
-        ham_duyurular = duyurulari_parse_et(soup, kaynak, logger, debug=debug)
+            # Debug modunda ham HTML'i dosyaya kaydet
+            if debug:
+                dump_dir = Path(__file__).parent / "debug_html"
+                dump_dir.mkdir(parents=True, exist_ok=True)
+                dump_path = dump_dir / f"{kaynak['id']}_raw.html"
+                with open(dump_path, "w", encoding="utf-8") as f:
+                    f.write(str(soup))
+                logger.info(f"  [DEBUG] Ham HTML kaydedildi: {dump_path}")
+
+            ham_duyurular = duyurulari_parse_et(soup, kaynak, logger, debug=debug)
+            if ham_duyurular:
+                break
+            logger.info(f"  ⚠ Alternatif URL deneniyor...")
 
     sonuclar = []
     for d in ham_duyurular[:50]:

@@ -16,7 +16,8 @@ HEADERS = {
 URLS = {
     "mf": "https://mf.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
     "oidb": "https://oidb.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
-    "bmu": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+    "bmu": "https://bmu.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
+    "univ": "https://www.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
 }
 
 def analyze(kaynak_id):
