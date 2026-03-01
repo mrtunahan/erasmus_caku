@@ -57,7 +57,7 @@ KAYNAKLAR = [
         "alt_duyuru_urls": [
             "https://www.karatekin.edu.tr/tr/tum-duyurular",
         ],
-        "json_api": False,
+        "json_api": True,
     },
     {
         "id": "oidb",
@@ -162,20 +162,32 @@ def benzersiz_id(kaynak_id: str, baslik: str, url: str) -> str:
 
 
 def sayfa_cek(url: str, logger: logging.Logger) -> BeautifulSoup | None:
-    try:
-        logger.info(f"  → GET {url}")
-        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT, verify=True)
-        resp.raise_for_status()
-        resp.encoding = resp.apparent_encoding or "utf-8"
-        return BeautifulSoup(resp.text, "html.parser")
-    except requests.exceptions.Timeout:
-        logger.error(f"  ✗ Zaman aşımı: {url}")
-    except requests.exceptions.ConnectionError:
-        logger.error(f"  ✗ Bağlantı hatası: {url}")
-    except requests.exceptions.HTTPError as e:
-        logger.error(f"  ✗ HTTP {e.response.status_code}: {url}")
-    except Exception as e:
-        logger.error(f"  ✗ Hata: {e}")
+    timeouts = [15, REQUEST_TIMEOUT]
+    for attempt, t in enumerate(timeouts, 1):
+        try:
+            logger.info(f"  → GET {url}")
+            resp = requests.get(url, headers=REQUEST_HEADERS, timeout=t, verify=True)
+            resp.raise_for_status()
+            resp.encoding = resp.apparent_encoding or "utf-8"
+            return BeautifulSoup(resp.text, "html.parser")
+        except requests.exceptions.Timeout:
+            if attempt < len(timeouts):
+                logger.warning(f"  ⚠ Zaman aşımı, tekrar deneniyor ({t}s → {timeouts[attempt]}s)...")
+                time.sleep(2)
+            else:
+                logger.error(f"  ✗ Zaman aşımı: {url}")
+        except requests.exceptions.ConnectionError:
+            if attempt < len(timeouts):
+                logger.warning(f"  ⚠ Bağlantı hatası, tekrar deneniyor...")
+                time.sleep(2)
+            else:
+                logger.error(f"  ✗ Bağlantı hatası: {url}")
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"  ✗ HTTP {e.response.status_code}: {url}")
+            return None
+        except Exception as e:
+            logger.error(f"  ✗ Hata: {e}")
+            return None
     return None
 
 
@@ -207,16 +219,24 @@ def _json_api_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) 
 
     logger.info(f"  → JSON API: {api_url}")
 
-    try:
-        resp = requests.get(api_url, headers=JSON_API_HEADERS, timeout=REQUEST_TIMEOUT, verify=True)
-        resp.raise_for_status()
-        data = resp.json()
-    except requests.exceptions.RequestException as e:
-        logger.warning(f"  ✗ JSON API hatası: {e}")
-        return []
-    except (ValueError, KeyError) as e:
-        logger.warning(f"  ✗ JSON parse hatası: {e}")
-        return []
+    data = None
+    timeouts = [15, REQUEST_TIMEOUT]
+    for attempt, t in enumerate(timeouts, 1):
+        try:
+            resp = requests.get(api_url, headers=JSON_API_HEADERS, timeout=t, verify=True)
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except requests.exceptions.RequestException as e:
+            if attempt < len(timeouts):
+                logger.warning(f"  ⚠ JSON API deneme {attempt} başarısız, tekrar deneniyor...")
+                time.sleep(2)
+            else:
+                logger.warning(f"  ✗ JSON API hatası: {e}")
+                return []
+        except (ValueError, KeyError) as e:
+            logger.warning(f"  ✗ JSON parse hatası: {e}")
+            return []
 
     if debug:
         logger.info(f"  [DEBUG] JSON API: {len(data)} öğe döndü")
