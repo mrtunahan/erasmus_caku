@@ -36,9 +36,9 @@ KAYNAKLAR = [
         "id": "bmu",
         "label": "Bilgisayar Müh.",
         "base_url": "https://bmu.karatekin.edu.tr",
-        "duyuru_url": "https://bmu.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
+        "duyuru_url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
         "alt_duyuru_urls": [
-            "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+            "https://bmu.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
         ],
         "json_api": True,
     },
@@ -53,9 +53,9 @@ KAYNAKLAR = [
         "id": "univ",
         "label": "Üniversite",
         "base_url": "https://www.karatekin.edu.tr",
-        "duyuru_url": "https://www.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
+        "duyuru_url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
         "alt_duyuru_urls": [
-            "https://www.karatekin.edu.tr/tr/tum-duyurular",
+            "https://www.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
         ],
         "json_api": True,
     },
