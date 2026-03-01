@@ -37,6 +37,7 @@ KAYNAKLAR = [
         "label": "Bilgisayar Müh.",
         "base_url": "https://bmu.karatekin.edu.tr",
         "duyuru_url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+        "json_api": True,
     },
     {
         "id": "mf",
@@ -50,6 +51,7 @@ KAYNAKLAR = [
         "label": "Üniversite",
         "base_url": "https://www.karatekin.edu.tr",
         "duyuru_url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
+        "json_api": True,
     },
     {
         "id": "oidb",
