@@ -53,33 +53,68 @@
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 50%, #1B2A4A 100%);
       color: white;
       flex-direction: column;
-      gap: 20px;
+      gap: 16px;
+      padding: 24px;
     }
 
-    .loading-spinner {
-      width: 50px;
-      height: 50px;
-      border: 4px solid rgba(255, 255, 255, 0.3);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
+    .loading-logo {
+      width: 72px;
+      height: 72px;
+      border-radius: 16px;
+      object-fit: cover;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      animation: loadingPulse 2s ease-in-out infinite;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    @keyframes loadingPulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.85; }
+    }
+
+    .loading-title {
+      font-size: 20px;
+      font-weight: 700;
+      font-family: 'Playfair Display', serif;
+      letter-spacing: 0.02em;
+      margin-top: 8px;
+    }
+
+    .loading-subtitle {
+      font-size: 13px;
+      opacity: 0.6;
+      margin-top: -8px;
+    }
+
+    .loading-bar-track {
+      width: 220px;
+      height: 4px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .loading-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #C4973B, #E8D5A8);
+      border-radius: 4px;
+      transition: width 0.3s ease;
     }
 
     .loading-text {
-      font-size: 18px;
-      font-weight: 500;
+      font-size: 13px;
+      font-weight: 400;
+      opacity: 0.5;
+      min-height: 20px;
     }
 
     .loading-progress {
-      font-size: 13px;
-      opacity: 0.7;
+      font-size: 12px;
+      opacity: 0.4;
     }
 
     .error-screen {
@@ -87,12 +122,16 @@
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      background: linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%);
       color: white;
       flex-direction: column;
       gap: 20px;
       padding: 40px;
       text-align: center;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
 
     /* ── Oylama Widget Stilleri ── */
@@ -402,9 +441,14 @@
 <body>
   <div id="root">
     <div class="loading-screen">
-      <div class="loading-spinner"></div>
-      <div class="loading-text">Firebase baslatiliyor...</div>
-      <div class="loading-progress"></div>
+      <img src="logo.png" alt="Logo" class="loading-logo" />
+      <div class="loading-title">Online Assistant</div>
+      <div class="loading-subtitle">Çankırı Karatekin Üniversitesi</div>
+      <div class="loading-bar-track">
+        <div class="loading-bar-fill" id="loading-bar"></div>
+      </div>
+      <div class="loading-text" id="loading-text"></div>
+      <div class="loading-progress" id="loading-progress"></div>
     </div>
   </div>
 
@@ -446,76 +490,91 @@
   </script>
 
   <script>
-    // Sequential JSX Module Loader
-    // Load order: shared-components -> erasmus-learning-agreement -> sinav-otomasyonu -> app-shell
+    // ══════════════════════════════════════════════════════════
+    // Optimized JSX Module Loader
+    // Strategy: Parallel fetch → Sequential compile (dependency order)
+    // shared-components MUST compile first, app-shell MUST compile last
+    // ══════════════════════════════════════════════════════════
+    const APP_VERSION = '1.0.0'; // cache bust only on deploy
     const JSX_MODULES = [
-      { file: 'shared-components.jsx', label: 'Ortak bilesenler' },
+      { file: 'shared-components.jsx',        label: 'Ortak bilesenler' },
       { file: 'erasmus-learning-agreement.jsx', label: 'Erasmus modulu' },
-      { file: 'sinav-otomasyonu.jsx', label: 'Sinav otomasyonu' },
-      { file: 'ders-muafiyet.jsx', label: 'Ders muafiyet' },
-      { file: 'yaz-okulu.jsx', label: 'Yaz Okulu' },
-      { file: 'ogrenci-portali.jsx', label: 'Ogrenci portali' },
-      { file: 'proje-modulu.jsx', label: 'Proje modulu' },
-      { file: 'duyuru-entegrasyonu.jsx', label: 'Duyuru entegrasyonu' },
-      { file: 'app-shell.jsx', label: 'Ana kabuk' },
+      { file: 'sinav-otomasyonu.jsx',         label: 'Sinav otomasyonu' },
+      { file: 'ders-muafiyet.jsx',            label: 'Ders muafiyet' },
+      { file: 'yaz-okulu.jsx',               label: 'Yaz Okulu' },
+      { file: 'ogrenci-portali.jsx',          label: 'Ogrenci portali' },
+      { file: 'proje-modulu.jsx',             label: 'Proje modulu' },
+      { file: 'duyuru-entegrasyonu.jsx',      label: 'Duyuru entegrasyonu' },
+      { file: 'app-shell.jsx',               label: 'Ana kabuk' },
     ];
 
-    async function loadJSXModule(file, label) {
-      const response = await fetch(file + '?v=' + Date.now());
-      if (!response.ok) throw new Error(`${file} yuklenemedi (HTTP ${response.status})`);
-      const jsxCode = await response.text();
-      try {
-        const transformedCode = Babel.transform(jsxCode, {
-          presets: ['react'],
-          filename: file,
-        }).code;
-        eval(transformedCode);
-        console.log(`Loaded: ${file}`);
-      } catch (e) {
-        console.error(`Babel/eval error in ${file}:`, e);
-        throw e;
-      }
+    function setProgress(pct, text) {
+      var bar = document.getElementById('loading-bar');
+      var txt = document.getElementById('loading-text');
+      if (bar) bar.style.width = pct + '%';
+      if (txt) txt.textContent = text || '';
+    }
+
+    function compileAndExec(jsxCode, file) {
+      var transformed = Babel.transform(jsxCode, {
+        presets: ['react'],
+        filename: file,
+      }).code;
+      eval(transformed);
     }
 
     async function loadApp() {
-      const loadingText = document.querySelector('.loading-text');
-      const loadingProgress = document.querySelector('.loading-progress');
+      var total = JSX_MODULES.length;
+      var t0 = performance.now();
 
       try {
-        for (let i = 0; i < JSX_MODULES.length; i++) {
-          const mod = JSX_MODULES[i];
-          loadingText.textContent = `${mod.label} yukleniyor...`;
-          loadingProgress.textContent = `(${i + 1}/${JSX_MODULES.length})`;
-          await loadJSXModule(mod.file, mod.label);
+        // ── Phase 1: Parallel fetch all files at once ──
+        setProgress(5, 'Dosyalar indiriliyor...');
+        var fetchPromises = JSX_MODULES.map(function(mod) {
+          return fetch(mod.file + '?v=' + APP_VERSION)
+            .then(function(res) {
+              if (!res.ok) throw new Error(mod.file + ' yuklenemedi (HTTP ' + res.status + ')');
+              return res.text();
+            });
+        });
+
+        var sources = await Promise.all(fetchPromises);
+        setProgress(40, 'Derleniyor...');
+
+        // ── Phase 2: Compile shared-components first (dependency) ──
+        compileAndExec(sources[0], JSX_MODULES[0].file);
+        setProgress(50, 'Moduller hazirlaniyor...');
+
+        // ── Phase 3: Compile middle modules (index 1..N-2) ──
+        for (var i = 1; i < total - 1; i++) {
+          compileAndExec(sources[i], JSX_MODULES[i].file);
+          var pct = 50 + Math.round(((i) / (total - 1)) * 40);
+          setProgress(pct);
         }
 
-        loadingText.textContent = 'Uygulama baslatiliyor...';
-        loadingProgress.textContent = '';
+        // ── Phase 4: Compile app-shell last (needs all modules) ──
+        compileAndExec(sources[total - 1], JSX_MODULES[total - 1].file);
+        setProgress(95, 'Baslatiliyor...');
 
-        // Render the app shell
-        setTimeout(() => {
-          const root = ReactDOM.createRoot(document.getElementById('root'));
-          root.render(React.createElement(window.AppShell));
-        }, 100);
+        // ── Phase 5: Render immediately ──
+        var root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(window.AppShell));
+
+        console.log('App loaded in ' + Math.round(performance.now() - t0) + 'ms');
 
       } catch (error) {
         console.error('Error loading app:', error);
-        document.getElementById('root').innerHTML = `
-          <div class="error-screen">
-            <div>
-              <h2 style="font-size: 32px; margin-bottom: 16px;">Yukleme Hatasi</h2>
-              <p style="font-size: 18px; margin-bottom: 12px;">Uygulama yuklenemedi</p>
-              <p style="font-size: 14px; opacity: 0.9; max-width: 500px;">${error.message}</p>
-              <button onclick="location.reload()" style="margin-top: 24px; padding: 12px 24px; font-size: 16px; border: 2px solid white; background: transparent; color: white; border-radius: 8px; cursor: pointer;">
-                Sayfayi Yenile
-              </button>
-            </div>
-          </div>
-        `;
+        document.getElementById('root').innerHTML =
+          '<div class="error-screen"><div>' +
+          '<h2 style="font-size:28px;margin-bottom:16px;font-family:Playfair Display,serif">Yukleme Hatasi</h2>' +
+          '<p style="font-size:16px;margin-bottom:12px;opacity:0.9">Uygulama yuklenemedi</p>' +
+          '<p style="font-size:13px;opacity:0.6;max-width:500px">' + error.message + '</p>' +
+          '<button onclick="location.reload()" style="margin-top:24px;padding:12px 24px;font-size:14px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:white;border-radius:8px;cursor:pointer;font-weight:600">' +
+          'Sayfayi Yenile</button></div></div>';
       }
     }
 
-    // Wait for all scripts to load (only if Firebase initialized successfully)
+    // Start immediately if ready, otherwise wait for load event
     if (firebaseReady) {
       if (window.Babel && window.firebase) {
         loadApp();
