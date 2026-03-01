@@ -520,6 +520,22 @@ def kaynak_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -> 
         logger.warning(f"  ⚠ {kaynak['label']} sayfası çekilemedi.")
         return []
 
+    # Debug modunda ham HTML'i dosyaya kaydet
+    if debug:
+        dump_dir = Path(__file__).parent / "debug_html"
+        dump_dir.mkdir(parents=True, exist_ok=True)
+        dump_path = dump_dir / f"{kaynak['id']}_raw.html"
+        with open(dump_path, "w", encoding="utf-8") as f:
+            f.write(str(soup))
+        logger.info(f"  [DEBUG] Ham HTML kaydedildi: {dump_path}")
+
+        # İçerik alanının HTML'ini de ayrı kaydet
+        content_area = _icerik_alani_bul(soup)
+        dump_content_path = dump_dir / f"{kaynak['id']}_content.html"
+        with open(dump_content_path, "w", encoding="utf-8") as f:
+            f.write(str(content_area))
+        logger.info(f"  [DEBUG] İçerik alanı HTML: {dump_content_path}")
+
     ham_duyurular = duyurulari_parse_et(soup, kaynak, logger, debug=debug)
 
     sonuclar = []
