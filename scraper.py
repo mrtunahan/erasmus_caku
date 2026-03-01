@@ -172,13 +172,25 @@ def sayfa_cek(url: str, logger: logging.Logger) -> BeautifulSoup | None:
 def is_duyuru_href(href: str) -> bool:
     """
     Karatekin CMS'indeki duyuru içerik linklerini tanır.
+
     Tipik pattern'ler:
-      /tr/baslik-XXXXX-duyurusu-icerigi.karatekin
+      /tr/baslik-XXXXX-duyurusu-icerigi.karatekin   ← bmu, www
       /tr/baslik-XXXXX-haberi-icerigi.karatekin
       /tr/baslik-XXXXX-icerigi.karatekin
+      /tr/baslik-XXXXX-icerikleri.karatekin          ← mf, oidb liste öğeleri
+
+    Hariç tutulanlar (liste/kategori sayfaları):
+      tum-duyurular
+      tum.duyurular-1-icerikleri.karatekin
     """
+    # Liste/kategori sayfalarını hariç tut
+    if re.search(r"tum[-.]duyurular|tum-haberler", href, re.IGNORECASE):
+        return False
+
+    # Pozitif: tüm Karatekin içerik URL varyantları
     return bool(re.search(
-        r"-icerigi\.karatekin$|duyurusu-icerigi|haberi-icerigi|duyuru-icerigi",
+        r"icerigi\.karatekin|icerikleri\.karatekin"
+        r"|duyurusu-icerigi|haberi-icerigi|duyuru-icerigi",
         href,
         re.IGNORECASE
     ))
@@ -210,19 +222,34 @@ def tarih_yakinda_bul(element) -> str:
     return ""
 
 
-def duyurulari_parse_et(soup: BeautifulSoup, kaynak: dict, logger: logging.Logger) -> list:
+def duyurulari_parse_et(
+    soup: BeautifulSoup, kaynak: dict, logger: logging.Logger, debug: bool = False
+) -> list:
     """
     Karatekin Üniversitesi duyuru liste sayfasını parse eder.
 
     Positive filter: Sadece URL pattern'i gerçekten duyuru olan linkleri alır.
-    Karatekin CMS'inde duyuru linkleri '-icerigi.karatekin' ile biter.
+    Karatekin CMS'inde duyuru linkleri 'icerigi.karatekin' veya
+    'icerikleri.karatekin' ile biter.
+
+    debug=True ile sayfadaki tüm linkler loglanır (sorun tespiti için).
     """
     duyurular = []
     kaynak_id = kaynak["id"]
     base_url = kaynak["base_url"]
     gorulmus_url = set()
 
-    for a in soup.find_all("a", href=True):
+    all_links = soup.find_all("a", href=True)
+
+    if debug:
+        logger.info(f"  [DEBUG] Sayfadaki toplam link sayısı: {len(all_links)}")
+        logger.info(f"  [DEBUG] '.karatekin' içeren linkler:")
+        for a in all_links:
+            href = a["href"].strip()
+            if "karatekin" in href.lower():
+                logger.info(f"    href={href!r}  text={a.get_text(strip=True)[:60]!r}")
+
+    for a in all_links:
         href = a["href"].strip()
 
         # Sadece gerçek duyuru linkleri
@@ -262,7 +289,7 @@ def duyurulari_parse_et(soup: BeautifulSoup, kaynak: dict, logger: logging.Logge
     return duyurular
 
 
-def kaynak_scrape(kaynak: dict, logger: logging.Logger) -> list:
+def kaynak_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -> list:
     logger.info(f"📡 Kaynak: {kaynak['label']} ({kaynak['duyuru_url']})")
 
     soup = sayfa_cek(kaynak["duyuru_url"], logger)
@@ -270,7 +297,7 @@ def kaynak_scrape(kaynak: dict, logger: logging.Logger) -> list:
         logger.warning(f"  ⚠ {kaynak['label']} sayfası çekilemedi.")
         return []
 
-    ham_duyurular = duyurulari_parse_et(soup, kaynak, logger)
+    ham_duyurular = duyurulari_parse_et(soup, kaynak, logger, debug=debug)
 
     sonuclar = []
     for d in ham_duyurular[:50]:
@@ -300,6 +327,8 @@ def main():
     parser.add_argument("--kaynaklar", nargs="*",
                         choices=[k["id"] for k in KAYNAKLAR],
                         help="Sadece belirtilen kaynakları çek")
+    parser.add_argument("--debug", action="store_true",
+                        help="Her sayfadaki tüm linkleri göster (sorun tespiti)")
     # Geriye dönük uyumluluk için (kullanılmaz)
     parser.add_argument("--no-detail", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -335,7 +364,7 @@ def main():
 
     for i, kaynak in enumerate(aktif_kaynaklar):
         try:
-            duyurular = kaynak_scrape(kaynak, logger)
+            duyurular = kaynak_scrape(kaynak, logger, debug=args.debug)
             tum_duyurular.extend(duyurular)
             basarili += 1
         except Exception as e:

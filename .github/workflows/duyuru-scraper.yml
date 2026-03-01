@@ -26,7 +26,7 @@ jobs:
         run: pip install requests beautifulsoup4 lxml
 
       - name: Run scraper
-        run: python scraper.py --output duyurular/duyurular.json
+        run: python3 scraper.py --output duyurular/duyurular.json
 
       - name: Check for changes
         id: check
