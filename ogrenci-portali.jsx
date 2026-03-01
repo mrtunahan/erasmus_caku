@@ -403,6 +403,27 @@ function highlightText(text, query) {
   });
 }
 
+// ── Görüntülenme Takibi (IntersectionObserver) ──
+var _viewedPosts = {};
+function useViewTracker(postId) {
+  var ref = useRef(null);
+  useEffect(function () {
+    if (!postId || _viewedPosts[postId]) return;
+    var el = ref.current;
+    if (!el) return;
+    var observer = new IntersectionObserver(function (entries) {
+      if (entries[0].isIntersecting && !_viewedPosts[postId]) {
+        _viewedPosts[postId] = true;
+        PortalDB.incrementViews(postId);
+        observer.disconnect();
+      }
+    }, { threshold: 0.5 });
+    observer.observe(el);
+    return function () { observer.disconnect(); };
+  }, [postId]);
+  return ref;
+}
+
 // ══════════════════════════════════════════════════════════════
 // FIREBASE CRUD
 // ══════════════════════════════════════════════════════════════
@@ -628,6 +649,43 @@ var PortalDB = {
     await ref.doc(String(postId)).update({
       views: window.firebase.firestore.FieldValue.increment(1),
     });
+  },
+
+  // ── Moderatör Yönetimi ──
+  moderatorsRef: function () {
+    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_moderators") : null;
+  },
+
+  async getModerators() {
+    var ref = this.moderatorsRef();
+    if (!ref) return [];
+    var snapshot = await ref.get();
+    return snapshot.docs.map(function (doc) {
+      return Object.assign({}, doc.data(), { id: doc.id });
+    });
+  },
+
+  async addModerator(userId, userName) {
+    var ref = this.moderatorsRef();
+    if (!ref) return;
+    await ref.doc(String(userId)).set({
+      userId: userId,
+      userName: userName,
+      assignedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  },
+
+  async removeModerator(userId) {
+    var ref = this.moderatorsRef();
+    if (!ref) return;
+    await ref.doc(String(userId)).delete();
+  },
+
+  async isModerator(userId) {
+    var ref = this.moderatorsRef();
+    if (!ref) return false;
+    var doc = await ref.doc(String(userId)).get();
+    return doc.exists;
   },
 
   // ── Dosya Yükleme (Firebase Storage) ──
@@ -1537,8 +1595,6 @@ const CommentSection = ({ postId, currentUser, post, allUsers }) => {
   const [newCommentResetKey, setNewCommentResetKey] = useState(0);
   const [sending, setSending] = useState(false);
   const [bestAnswerId, setBestAnswerId] = useState(post ? post.bestAnswerId || null : null);
-  var viewIncremented = useRef(false);
-
   var isQuestionPost = post && post.category === "soru";
   var isPostAuthor = post && post.authorId === getUserId(currentUser);
 
@@ -1557,10 +1613,6 @@ const CommentSection = ({ postId, currentUser, post, allUsers }) => {
     if (!open) {
       setOpen(true);
       loadComments();
-      if (!viewIncremented.current) {
-        viewIncremented.current = true;
-        PortalDB.incrementViews(postId);
-      }
     } else {
       setOpen(false);
     }
@@ -2034,12 +2086,15 @@ const RichTextEditor = ({ value, onChange, placeholder, onImageUpload, allUsers 
 };
 
 // ── Gönderi Kartı ──
-const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor, onFilterTag, allUsers, onFollowUser, followedUsers, onViewProfile }) => {
+const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor, onFilterTag, allUsers, onFollowUser, followedUsers, onViewProfile, isModOrAdmin, moderators }) => {
   var cat = getCategoryInfo(post.category);
   var userId = getUserId(currentUser);
-  var isAuthor = post.authorId === userId || currentUser.role === "admin";
-  var isAdmin = currentUser.role === "admin";
+  var isAdmin = currentUser.role === "admin" || currentUser.isAdmin;
+  var canModerate = isAdmin || isModOrAdmin;
+  var isAuthor = post.authorId === userId || canModerate;
   var isMobile = useIsMobile(768);
+
+  var viewRef = useViewTracker(post.id);
 
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(post.title || "");
@@ -2084,7 +2139,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
   };
 
   return (
-    <div className="daisy-card" style={{
+    <div ref={viewRef} className="daisy-card" style={{
       padding: 0, overflow: "hidden",
     }}>
       {/* Pinned banner */}
@@ -2116,6 +2171,19 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
                 onMouseLeave={function (e) { e.currentTarget.style.textDecoration = "none"; }}
                 title={"\"" + post.authorName + "\" profilini görüntüle"}
               >{post.authorName}</span>
+              {/* Moderatör rozeti */}
+              {moderators && moderators.some(function (m) { return m.userId === post.authorId; }) && (
+                <span title="Moderatör" style={{
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                  padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700,
+                  background: "#DBEAFE", color: "#1D4ED8",
+                }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                  MOD
+                </span>
+              )}
               {/* Takip butonu (kendi gönderisi değilse) */}
               {post.authorId !== userId && onFollowUser && (
                 <button
@@ -2180,7 +2248,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
             )}
             <div style={{ fontSize: 12, color: PC.textMuted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
               {timeAgo(post.createdAt)}
-              {post.views > 0 && <span> · {post.views} görüntülenme</span>}
+              {post.views > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}> · <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> {post.views}</span>}
               {getVoteScore(post) !== 0 && (
                 <span style={{ color: getVoteScore(post) > 0 ? "#16A34A" : "#DC2626", fontWeight: 600 }}>
                   {" · "}{getVoteScore(post) > 0 ? "+" : ""}{getVoteScore(post)} oy
@@ -2189,8 +2257,8 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            {/* Admin: Pin/Unpin */}
-            {isAdmin && (
+            {/* Admin/Moderatör: Pin/Unpin */}
+            {canModerate && (
               <button
                 onClick={function () { onTogglePin(post.id, !post.pinned); }}
                 title={post.pinned ? "Sabitlemeyi Kaldır" : "Sabitle"}
@@ -4101,6 +4169,154 @@ const AdvancedSearchBar = ({ value, onChange, posts, onFilterTag, dateRange, onD
   );
 };
 
+// ── Moderatör Yönetim Paneli ──
+const ModeratorPanel = ({ moderators, allUsers, onAdd, onRemove }) => {
+  const [search, setSearch] = useState("");
+
+  var modIds = moderators.map(function (m) { return m.userId; });
+  var filtered = search.trim().length >= 2
+    ? allUsers.filter(function (u) {
+        return u.name.toLowerCase().indexOf(search.toLowerCase()) >= 0 && modIds.indexOf(u.id) < 0;
+      }).slice(0, 8)
+    : [];
+
+  return (
+    <div style={{
+      marginBottom: 24, background: "white", borderRadius: 14,
+      border: "1px solid " + PC.border, overflow: "hidden",
+      boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+    }}>
+      <div style={{
+        padding: "16px 20px", background: "linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)",
+        color: "white", display: "flex", alignItems: "center", gap: 10,
+      }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>Moderatör Yönetimi</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>Moderatörler gönderileri sabitleyebilir, düzenleyebilir ve silebilir</div>
+        </div>
+      </div>
+
+      <div style={{ padding: 20 }}>
+        {/* Mevcut Moderatörler */}
+        {moderators.length > 0 ? (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: PC.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
+              Aktif Moderatörler ({moderators.length})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {moderators.map(function (mod) {
+                return (
+                  <div key={mod.userId} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "10px 14px", background: "#F0FDF4", borderRadius: 10,
+                    border: "1px solid #BBF7D0",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: "50%",
+                        background: "linear-gradient(135deg, #059669, #10B981)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        color: "white", fontSize: 13, fontWeight: 700,
+                      }}>
+                        {(mod.userName || "?").charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: PC.navy }}>{mod.userName}</div>
+                        <div style={{ fontSize: 11, color: PC.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                          Moderatör
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={function () { onRemove(mod.userId); }}
+                      style={{
+                        padding: "6px 12px", border: "1px solid #FECACA", borderRadius: 8,
+                        background: "#FEF2F2", color: "#DC2626", fontSize: 12,
+                        fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
+                      }}
+                      onMouseEnter={function (e) { e.currentTarget.style.background = "#FEE2E2"; }}
+                      onMouseLeave={function (e) { e.currentTarget.style.background = "#FEF2F2"; }}
+                    >Kaldır</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: "16px 0", textAlign: "center", color: PC.textMuted, fontSize: 13 }}>
+            Henüz moderatör atanmadı
+          </div>
+        )}
+
+        {/* Yeni Moderatör Ekle */}
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: PC.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
+            Moderatör Ekle
+          </div>
+          <input
+            type="text"
+            value={search}
+            onChange={function (e) { setSearch(e.target.value); }}
+            placeholder="Kullanıcı adı ile ara..."
+            style={{
+              width: "100%", padding: "10px 14px", borderRadius: 10,
+              border: "1px solid " + PC.border, fontSize: 14,
+              outline: "none", fontFamily: "inherit",
+              transition: "border-color 0.2s",
+            }}
+            onFocus={function (e) { e.target.style.borderColor = PC.navy; }}
+            onBlur={function (e) { e.target.style.borderColor = PC.border; }}
+          />
+          {filtered.length > 0 && (
+            <div style={{
+              marginTop: 8, border: "1px solid " + PC.border, borderRadius: 10,
+              overflow: "hidden", background: "white",
+            }}>
+              {filtered.map(function (user) {
+                return (
+                  <button
+                    key={user.id}
+                    onClick={function () { onAdd(user); setSearch(""); }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      width: "100%", padding: "10px 14px", border: "none",
+                      background: "transparent", cursor: "pointer",
+                      textAlign: "left", transition: "background 0.15s",
+                      fontSize: 14, fontFamily: "inherit",
+                    }}
+                    onMouseEnter={function (e) { e.currentTarget.style.background = "#F9FAFB"; }}
+                    onMouseLeave={function (e) { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <div style={{
+                      width: 28, height: 28, borderRadius: "50%",
+                      background: "linear-gradient(135deg, " + DY.gold + ", " + DY.goldDark + ")",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: "white", fontSize: 12, fontWeight: 700,
+                    }}>
+                      {user.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span style={{ fontWeight: 500, color: PC.navy }}>{user.name}</span>
+                    <span style={{ marginLeft: "auto", fontSize: 12, color: "#059669", fontWeight: 600 }}>+ Ata</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {search.trim().length >= 2 && filtered.length === 0 && (
+            <div style={{ marginTop: 8, fontSize: 13, color: PC.textMuted, textAlign: "center", padding: 8 }}>
+              Kullanıcı bulunamadı
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ══════════════════════════════════════════════════════════════
 // ANA MODÜL BİLEŞENİ
 // ══════════════════════════════════════════════════════════════
@@ -4124,9 +4340,12 @@ function OgrenciPortaliApp({ currentUser }) {
   const [levelUpInfo, setLevelUpInfo] = useState(null);
   const prevLevelRef = useRef(null);
   const loadMoreRef = useRef(null);
+  const [moderators, setModerators] = useState([]);
+  const [showModPanel, setShowModPanel] = useState(false);
   var isMobile = useIsMobile(768);
-  var isAdmin = currentUser && (currentUser.isAdmin || currentUser.email === "tunahan@example.com"); // Geçici admin kontrolü
+  var isAdmin = currentUser && (currentUser.role === "admin" || currentUser.isAdmin);
   var userId = getUserId(currentUser);
+  var isModOrAdmin = isAdmin || moderators.some(function (m) { return m.userId === userId; });
 
   useEffect(function () {
     var params = new URLSearchParams(window.location.search);
@@ -4138,6 +4357,11 @@ function OgrenciPortaliApp({ currentUser }) {
   useEffect(function () {
     PortalDB.fetchAllUsers().then(function (users) { setAllUsers(users); }).catch(function () { });
   }, [posts.length]);
+
+  // Moderatörleri yükle
+  useEffect(function () {
+    PortalDB.getModerators().then(function (mods) { setModerators(mods); }).catch(function () { });
+  }, []);
 
   // Takip verilerini yükle
   useEffect(function () {
@@ -4482,6 +4706,25 @@ function OgrenciPortaliApp({ currentUser }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <NotificationBell currentUser={currentUser} />
+            {isAdmin && (
+              <button
+                onClick={function () { setShowModPanel(!showModPanel); }}
+                title="Moderatör Yönetimi"
+                style={{
+                  padding: "10px 14px", border: "none", borderRadius: 10,
+                  background: showModPanel ? PC.navy : "rgba(27,42,74,0.08)",
+                  color: showModPanel ? "white" : PC.navy,
+                  cursor: "pointer", fontSize: 13, fontWeight: 600,
+                  display: "flex", alignItems: "center", gap: 6,
+                  transition: "all 0.2s",
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                Moderatörler
+              </button>
+            )}
             <button
               onClick={function () { setShowNewPost(!showNewPost); }}
               style={{
@@ -4498,6 +4741,26 @@ function OgrenciPortaliApp({ currentUser }) {
             </button>
           </div>
         </div>
+
+        {/* Moderatör Yönetim Paneli */}
+        {isAdmin && showModPanel && (
+          <ModeratorPanel
+            moderators={moderators}
+            allUsers={allUsers}
+            onAdd={function (user) {
+              PortalDB.addModerator(user.id, user.name).then(function () {
+                setModerators(function (prev) { return prev.concat([{ id: user.id, userId: user.id, userName: user.name }]); });
+                showToast(user.name + " moderatör olarak atandı");
+              });
+            }}
+            onRemove={function (userId) {
+              PortalDB.removeModerator(userId).then(function () {
+                setModerators(function (prev) { return prev.filter(function (m) { return m.userId !== userId; }); });
+                showToast("Moderatörlük kaldırıldı");
+              });
+            }}
+          />
+        )}
 
         {/* İstatistikler */}
 
@@ -4745,6 +5008,8 @@ function OgrenciPortaliApp({ currentUser }) {
                   onFollowUser={handleFollowUser}
                   followedUsers={followData.users}
                   onViewProfile={handleViewProfile}
+                  isModOrAdmin={isModOrAdmin}
+                  moderators={moderators}
                 />
               );
             })}
@@ -4772,6 +5037,8 @@ function OgrenciPortaliApp({ currentUser }) {
                   onFollowUser={handleFollowUser}
                   followedUsers={followData.users}
                   onViewProfile={handleViewProfile}
+                  isModOrAdmin={isModOrAdmin}
+                  moderators={moderators}
                 />
               );
             })}
