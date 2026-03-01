@@ -43,6 +43,7 @@ KAYNAKLAR = [
         "label": "Müh. Fakültesi",
         "base_url": "https://mf.karatekin.edu.tr",
         "duyuru_url": "https://mf.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
+        "json_api": True,
     },
     {
         "id": "univ",
@@ -55,6 +56,7 @@ KAYNAKLAR = [
         "label": "Öğrenci İşleri",
         "base_url": "https://oidb.karatekin.edu.tr",
         "duyuru_url": "https://oidb.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
+        "json_api": True,
     },
 ]
 
@@ -167,6 +169,98 @@ def sayfa_cek(url: str, logger: logging.Logger) -> BeautifulSoup | None:
     except Exception as e:
         logger.error(f"  ✗ Hata: {e}")
     return None
+
+
+JSON_API_HEADERS = {
+    **REQUEST_HEADERS,
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "X-Requested-With": "XMLHttpRequest",
+}
+
+JSON_API_LIMIT = 50
+
+
+def _json_api_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -> list:
+    """
+    Karatekin CMS JSON API üzerinden duyuruları çeker.
+
+    mf ve oidb gibi alt domainler duyuruları JavaScript ile dinamik olarak
+    /jsondata/tumIcerikler.aspx endpoint'inden yüklüyor. Bu fonksiyon o
+    API'yi doğrudan çağırarak duyuruları alır.
+
+    API yanıtı: [{paragraph: "<html>..."}, ...]
+    Her paragraph HTML'i Semantic UI "item" yapısında:
+      <a class="header" href="..." title="...">Başlık</a>
+      <div class="extra">Tarih</div>
+    """
+    base_url = kaynak["base_url"]
+    kaynak_id = kaynak["id"]
+    api_url = f"{base_url}/jsondata/tumIcerikler.aspx?limitone=0&limittwo={JSON_API_LIMIT}&tur=1"
+
+    logger.info(f"  → JSON API: {api_url}")
+
+    try:
+        resp = requests.get(api_url, headers=JSON_API_HEADERS, timeout=REQUEST_TIMEOUT, verify=True)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"  ✗ JSON API hatası: {e}")
+        return []
+    except (ValueError, KeyError) as e:
+        logger.warning(f"  ✗ JSON parse hatası: {e}")
+        return []
+
+    if debug:
+        logger.info(f"  [DEBUG] JSON API: {len(data)} öğe döndü")
+
+    duyurular = []
+    gorulmus = set()
+
+    for item in data:
+        html = item.get("paragraph", "")
+        if not html:
+            continue
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        # Başlık ve URL: <a class="header">
+        header_link = soup.find("a", class_="header")
+        if not header_link:
+            continue
+
+        baslik = header_link.get("title", "").strip() or header_link.get_text(strip=True)
+        if not baslik or len(baslik) < 5:
+            continue
+
+        href = header_link.get("href", "").strip()
+        if not href:
+            continue
+
+        full_url = urljoin(base_url + "/", href.lstrip("/"))
+        if full_url in gorulmus:
+            continue
+        gorulmus.add(full_url)
+
+        # Tarih: <div class="extra">
+        tarih = ""
+        extra_div = soup.find("div", class_="extra")
+        if extra_div:
+            tarih = tarih_parse(extra_div.get_text(strip=True))
+
+        duyuru_id = benzersiz_id(kaynak_id, baslik, full_url)
+        duyurular.append({
+            "id": duyuru_id,
+            "baslik": baslik[:200],
+            "tarih": tarih or datetime.now().strftime("%Y-%m-%d"),
+            "url": full_url,
+        })
+
+    if duyurular:
+        logger.info(f"  ✓ {len(duyurular)} duyuru bulundu — JSON API ({kaynak['label']})")
+    else:
+        logger.warning(f"  ✗ JSON API'den duyuru çıkarılamadı ({kaynak['label']})")
+
+    return duyurular
 
 
 def is_duyuru_href(href: str) -> bool:
@@ -515,28 +609,29 @@ def duyurulari_parse_et(
 def kaynak_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -> list:
     logger.info(f"📡 Kaynak: {kaynak['label']} ({kaynak['duyuru_url']})")
 
-    soup = sayfa_cek(kaynak["duyuru_url"], logger)
-    if not soup:
-        logger.warning(f"  ⚠ {kaynak['label']} sayfası çekilemedi.")
-        return []
+    ham_duyurular = []
 
-    # Debug modunda ham HTML'i dosyaya kaydet
-    if debug:
-        dump_dir = Path(__file__).parent / "debug_html"
-        dump_dir.mkdir(parents=True, exist_ok=True)
-        dump_path = dump_dir / f"{kaynak['id']}_raw.html"
-        with open(dump_path, "w", encoding="utf-8") as f:
-            f.write(str(soup))
-        logger.info(f"  [DEBUG] Ham HTML kaydedildi: {dump_path}")
+    # JSON API destekleyen kaynaklar için önce API'yi dene
+    if kaynak.get("json_api"):
+        ham_duyurular = _json_api_scrape(kaynak, logger, debug=debug)
 
-        # İçerik alanının HTML'ini de ayrı kaydet
-        content_area = _icerik_alani_bul(soup)
-        dump_content_path = dump_dir / f"{kaynak['id']}_content.html"
-        with open(dump_content_path, "w", encoding="utf-8") as f:
-            f.write(str(content_area))
-        logger.info(f"  [DEBUG] İçerik alanı HTML: {dump_content_path}")
+    # JSON API yoksa veya başarısız olduysa HTML parse'a düş
+    if not ham_duyurular:
+        soup = sayfa_cek(kaynak["duyuru_url"], logger)
+        if not soup:
+            logger.warning(f"  ⚠ {kaynak['label']} sayfası çekilemedi.")
+            return []
 
-    ham_duyurular = duyurulari_parse_et(soup, kaynak, logger, debug=debug)
+        # Debug modunda ham HTML'i dosyaya kaydet
+        if debug:
+            dump_dir = Path(__file__).parent / "debug_html"
+            dump_dir.mkdir(parents=True, exist_ok=True)
+            dump_path = dump_dir / f"{kaynak['id']}_raw.html"
+            with open(dump_path, "w", encoding="utf-8") as f:
+                f.write(str(soup))
+            logger.info(f"  [DEBUG] Ham HTML kaydedildi: {dump_path}")
+
+        ham_duyurular = duyurulari_parse_et(soup, kaynak, logger, debug=debug)
 
     sonuclar = []
     for d in ham_duyurular[:50]:
@@ -623,7 +718,7 @@ def main():
                 k["id"]: len([d for d in tum_duyurular if d["kaynak"] == k["id"]])
                 for k in aktif_kaynaklar
             },
-            "scraper_surumu": "3.0.0",
+            "scraper_surumu": "3.1.0",
         },
         "duyurular": tum_duyurular,
     }
