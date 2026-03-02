@@ -146,11 +146,12 @@ function KaynakKutuphanesiApp({ currentUser }) {
     }
   };
 
-  // ── İndirme Sayacı ──
+  // ── İndirme Sayacı (sadece giriş yapmış kullanıcılar için) ──
   const handleDownload = async (resource) => {
     try {
       const db = window.firebase?.firestore();
-      if (!db || resource.id.startsWith("sample_")) return;
+      const auth = window.firebase?.auth();
+      if (!db || !auth?.currentUser || resource.id.startsWith("sample_")) return;
 
       await db.collection("resources").doc(resource.id).update({
         downloadCount: window.firebase.firestore.FieldValue.increment(1),

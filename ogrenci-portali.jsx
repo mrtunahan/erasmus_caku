@@ -642,8 +642,10 @@ var PortalDB = {
     return pollVotes;
   },
 
-  // Görüntülenme artır
+  // Görüntülenme artır (sadece giriş yapmış kullanıcılar için)
   async incrementViews(postId) {
+    var auth = window.firebase.auth();
+    if (!auth.currentUser) return;
     var ref = this.postsRef();
     if (!ref) return;
     await ref.doc(String(postId)).update({
