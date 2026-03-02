@@ -1,159 +1,915 @@
 {
   "meta": {
-    "son_guncelleme": "2025-02-24T12:00:00",
-    "toplam_duyuru": 16,
+    "son_guncelleme": "2026-03-02T02:33:37.894133",
+    "toplam_duyuru": 100,
     "kaynaklar": {
-      "bmu": 5,
-      "mf": 3,
-      "univ": 4,
-      "oidb": 4
+      "bmu": 0,
+      "mf": 50,
+      "univ": 0,
+      "oidb": 50
     },
-    "scraper_surumu": "2.0.0"
+    "scraper_surumu": "3.1.0"
   },
   "duyurular": [
     {
-      "id": "bmu_r1",
-      "baslik": "MTH412 Doğal Dil İşleme ve Büyük Dil Modelleri Dersi Hk.",
-      "ozet": "MTH412 Doğal Dil İşleme ve Büyük Dil Modelleri dersi ile ilgili önemli duyuru yayınlanmıştır.",
-      "tarih": "2025-02-24",
-      "url": "https://bmu.karatekin.edu.tr/tr/mth412-dogal-dil-isleme-ve-buyuk-dil-modelleri-dersi-hk-64437-duyurusu-icerigi.karatekin",
+      "id": "48135f255bd8",
+      "baslik": "KAMU DENETÇİLİĞİ KURUMU EĞİTİM RAPORU (VELİ ANKETİ)",
+      "ozet": "",
+      "tarih": "2026-02-23",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/kamu-denetciligi-kurumu-egitim-raporu-veli-anketi-64574-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "37a11e5bc4f3",
+      "baslik": "TEKNOFEST 2026 ŞANLIURFA`DA! DÜNYANIN EN BÜYÜK  TEKNOLOJİ YARIŞMALARINA SEN DE KATIL!",
+      "ozet": "",
+      "tarih": "2026-02-12",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/teknofest-2026-sanliurfada-dunyanin-en-buyuk--teknoloji-yarismalarina-sen-de-katil-64352-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "583c95647d13",
+      "baslik": "2025-2026 Eğitim-Öğretim Yılı BAHAR Yarıyılı Kurumlararası (Yurtiçi/Yurtdışı) Yatay Geçiş YEDEK Sonuçları.",
+      "ozet": "",
+      "tarih": "2026-02-12",
+      "kaynak": "oidb",
       "kategori": "akademik",
-      "kaynak": "bmu"
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-egitimogretim-yili-bahar-yariyili-kurumlararasi-yurticiyurtdisi-yatay-gecis-yedek-sonuclari-64340-duyurusu-icerigi.karatekin"
     },
     {
-      "id": "oidb_r1",
-      "baslik": "2024-2025 Bahar Dönemi Ders Kayıt Yenileme İşlemleri",
-      "ozet": "Bahar dönemi ders kayıt yenileme (ders ekleme-bırakma) işlemleri 24-28 Şubat 2025 tarihleri arasında OBS üzerinden yapılacaktır.",
-      "tarih": "2025-02-24",
-      "url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
-      "kategori": "akademik",
-      "kaynak": "oidb"
-    },
-    {
-      "id": "univ_r1",
-      "baslik": "Rektörlük - 2024-2025 Bahar Dönemi Akademik Takvim Güncellendi",
-      "ozet": "2024-2025 akademik yılı bahar dönemi akademik takviminde güncelleme yapılmıştır. Güncel takvim için tıklayınız.",
-      "tarih": "2025-02-23",
-      "url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
-      "kategori": "akademik",
-      "kaynak": "univ"
-    },
-    {
-      "id": "mf_r1",
-      "baslik": "Mühendislik Fakültesi 2024-2025 Bahar Dönemi Ders Ekleme-Bırakma Tarihleri",
-      "ozet": "Bahar dönemi ders ekleme-bırakma işlemleri 24-28 Şubat 2025 tarihleri arasında yapılacaktır.",
-      "tarih": "2025-02-22",
-      "url": "https://mf.karatekin.edu.tr/tr/tum-duyurular",
-      "kategori": "akademik",
-      "kaynak": "mf"
-    },
-    {
-      "id": "univ_r2",
-      "baslik": "Üniversitemiz TÜBİTAK Proje Başarısı",
-      "ozet": "Üniversitemiz öğretim üyeleri TÜBİTAK 1001 programı kapsamında 3 yeni proje desteği almaya hak kazanmıştır.",
-      "tarih": "2025-02-21",
-      "url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
-      "kategori": "burs",
-      "kaynak": "univ"
-    },
-    {
-      "id": "oidb_r2",
-      "baslik": "Öğrenci Katkı Payı / Öğrenim Ücreti Ödeme Duyurusu",
-      "ozet": "2024-2025 bahar dönemi katkı payı ve öğrenim ücreti ödemeleri hakkında bilgilendirme. Son ödeme tarihi: 7 Mart 2025.",
-      "tarih": "2025-02-21",
-      "url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
-      "kategori": "idari",
-      "kaynak": "oidb"
-    },
-    {
-      "id": "bmu_r2",
-      "baslik": "2024-2025 Bahar Yarıyılı Ders Programları Yayınlandı",
-      "ozet": "Bilgisayar Mühendisliği bölümü 2024-2025 bahar yarıyılı ders programları yayınlanmıştır. Öğrencilerin ders programlarını kontrol etmeleri gerekmektedir.",
-      "tarih": "2025-02-20",
-      "url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
-      "kategori": "akademik",
-      "kaynak": "bmu"
-    },
-    {
-      "id": "mf_r2",
-      "baslik": "Erasmus+ 2025-2026 Öğrenim Hareketliliği Başvuruları",
-      "ozet": "2025-2026 akademik yılı Erasmus+ öğrenim hareketliliği başvuruları başlamıştır. Son başvuru: 21 Mart 2025.",
-      "tarih": "2025-02-19",
-      "url": "https://mf.karatekin.edu.tr/tr/tum-duyurular",
-      "kategori": "akademik",
-      "kaynak": "mf"
-    },
-    {
-      "id": "bmu_r3",
-      "baslik": "Bahar Dönemi Staj Başvuruları Başladı",
-      "ozet": "2024-2025 bahar dönemi zorunlu staj başvuruları başlamıştır. Son başvuru tarihi 14 Mart 2025'tir.",
-      "tarih": "2025-02-18",
-      "url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
-      "kategori": "burs",
-      "kaynak": "bmu"
-    },
-    {
-      "id": "oidb_r3",
-      "baslik": "Yatay Geçiş Başvuru Sonuçları Açıklandı",
-      "ozet": "2024-2025 bahar dönemi kurum içi ve kurumlar arası yatay geçiş başvuru sonuçları açıklanmıştır.",
-      "tarih": "2025-02-18",
-      "url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
-      "kategori": "akademik",
-      "kaynak": "oidb"
-    },
-    {
-      "id": "mf_r3",
-      "baslik": "Mühendislik Fakültesi Kariyer Günleri 2025",
-      "ozet": "Mühendislik Fakültesi Kariyer Günleri 10-11 Mart 2025 tarihlerinde gerçekleştirilecektir. Sektörden önemli firmalar katılacaktır.",
-      "tarih": "2025-02-17",
-      "url": "https://mf.karatekin.edu.tr/tr/tum-duyurular",
-      "kategori": "burs",
-      "kaynak": "mf"
-    },
-    {
-      "id": "univ_r3",
-      "baslik": "Merkez Kütüphane Sınav Dönemi Çalışma Saatleri",
-      "ozet": "Vize sınavları döneminde Merkez Kütüphane 08:00-23:00 saatleri arasında hizmet verecektir.",
-      "tarih": "2025-02-16",
-      "url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
-      "kategori": "idari",
-      "kaynak": "univ"
-    },
-    {
-      "id": "bmu_r4",
-      "baslik": "Bilgisayar Mühendisliği Bölümü Akademik Kurul Kararları",
-      "ozet": "2024-2025 akademik yılı bahar dönemi akademik kurul toplantı kararları yayınlanmıştır.",
-      "tarih": "2025-02-15",
-      "url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
-      "kategori": "akademik",
-      "kaynak": "bmu"
-    },
-    {
-      "id": "univ_r4",
-      "baslik": "Bahar Şenlikleri 2025 Tarih ve Program Duyurusu",
-      "ozet": "Çankırı Karatekin Üniversitesi Bahar Şenlikleri 14-16 Mayıs 2025 tarihlerinde gerçekleştirilecektir.",
-      "tarih": "2025-02-14",
-      "url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
+      "id": "2bff40513ff2",
+      "baslik": "TEKNOFEST 2026 ONLİNE BİLGİLENDİRME TOPLANTISI",
+      "ozet": "",
+      "tarih": "2026-02-10",
+      "kaynak": "mf",
       "kategori": "etkinlik",
-      "kaynak": "univ"
+      "url": "https://mf.karatekin.edu.tr/tr/teknofest-2026-online-bilgilendirme-toplantisi-64279-duyurusu-icerigi.karatekin"
     },
     {
-      "id": "oidb_r4",
-      "baslik": "Mezuniyet Belgesi ve Diploma Teslim İşlemleri",
-      "ozet": "2024 güz dönemi mezunlarının diploma ve mezuniyet belgesi teslim işlemleri başlamıştır.",
-      "tarih": "2025-02-13",
-      "url": "https://oidb.karatekin.edu.tr/tr/tum-duyurular",
+      "id": "ad5bc8d1f8b2",
+      "baslik": "2025-2026 Eğitim Öğretim Yılı GÜZ Yarıyılı İlk Yüzde On Başarı Değerlendirme.",
+      "ozet": "",
+      "tarih": "2026-02-10",
+      "kaynak": "oidb",
       "kategori": "akademik",
-      "kaynak": "oidb"
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-egitim-ogretim-yili-guz-yariyili-ilk-yuzde-on-basari-degerlendirme-64273-duyurusu-icerigi.karatekin"
     },
     {
-      "id": "bmu_r5",
-      "baslik": "Bitirme Projesi Konu Belirleme ve Danışman Atama İşlemleri",
-      "ozet": "2024-2025 bahar dönemi bitirme projesi konu belirleme ve danışman atama işlemleri ile ilgili duyuru.",
+      "id": "9900b687658e",
+      "baslik": "YARIŞMA ADAY BELİRLEME VE KOORDİNASYON BAŞVURU FORMU",
+      "ozet": "",
+      "tarih": "2026-02-09",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/yarisma-aday-belirleme-ve-koordinasyon-basvuru-formu--64225-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "3a40dca65100",
+      "baslik": "2025-2026 Eğitim Öğretim Yılı BAHAR Yarıyılı Kayıt Yenileme İşlemleri.",
+      "ozet": "",
+      "tarih": "2026-02-09",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-egitim-ogretim-yili-bahar-yariyili-kayit-yenileme-islemleri-64209-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "4d37a40c3a92",
+      "baslik": "2025-2026 EĞİTİM-ÖĞRETİM YILI BAHAR YARIYILI KURUMİÇİ YATAY GEÇİŞ BAŞVURU SONUÇLARI",
+      "ozet": "",
+      "tarih": "2026-02-06",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/20252026-egitimogretim-yili-bahar-yariyili-kurumici-yatay-gecis-basvuru-sonuclari-64135-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "54f805c07ae3",
+      "baslik": "2025-2026 EĞİTİM-ÖĞRETİM YILI MERKEZİ YERLEŞTİRME SONUÇLARI",
+      "ozet": "",
+      "tarih": "2026-02-06",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/20252026-egitimogretim-yili-merkezi-yerlestirme-sonuclari-64132-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "f5deba366b49",
+      "baslik": "2025-2026 Öğretim Yılı BAHAR Yarıyılı Kurumlararası (ÖNLİSANS) Yatay Geçiş Sonuçları.",
+      "ozet": "",
+      "tarih": "2026-02-06",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-bahar-yariyili-kurumlararasi-onlisans-yatay-gecis-sonuclari-64121-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "9b9936e12a80",
+      "baslik": "2025-2026 Öğretim Yılı BAHAR Yarıyılı MERKEZİ YERLEŞTİRME PUANI ile Yatay Geçiş Sonuçları.",
+      "ozet": "",
+      "tarih": "2026-02-06",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-bahar-yariyili-merkezi-yerlestirme-puani-ile-yatay-gecis-sonuclari-64116-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "68fce2bbd5f6",
+      "baslik": "2025-2026 Öğretim Yılı BAHAR Yarıyılı Kurumiçi Yatay Geçiş Sonuçları.",
+      "ozet": "",
+      "tarih": "2026-02-06",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-bahar-yariyili-kurumici-yatay-gecis-sonuclari-64114-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "c69f44bff521",
+      "baslik": "TEKNOFEST 2025 BİRİNCİSİ ÖĞRENCİMİZ ÖĞRENCİ VE AKADEMİSYENLERLE BULUŞUYOR!",
+      "ozet": "",
+      "tarih": "2026-02-03",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/teknofest-2025-birincisi-ogrencimiz-ogrenci-ve-akademisyenlerle-bulusuyor-64042-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "af63c8ad140c",
+      "baslik": "ÖĞRENCİLERİMİZİN DİKKATİNE",
+      "ozet": "",
+      "tarih": "2026-02-02",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/ogrencilerimizin-dikkatine-64012-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "f09f23f3099d",
+      "baslik": "2025-2026 ÖĞRETİM YILI BAHAR YARIYILI MERKEZİ YERLEŞTİRME PUANI İLE YATAY GEÇİŞ KONTENJANLARI, BAŞVURU VE DEĞERLENDİRME TAKVİMİ",
+      "ozet": "",
+      "tarih": "2026-02-02",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/20252026-ogretim-yili-bahar-yariyili-merkezi-yerlestirme-puani-ile-yatay-gecis-kontenjanlari-basvuru-ve-degerlendirme-takvimi-64011-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "ae023e36225b",
+      "baslik": "2025-2026 ÖĞRETİM YILI BAHAR YARIYILI KURUMİÇİ YATAY GEÇİŞ KONTENJANLARI, BAŞVURU VE DEĞERLENDİRME TAKVİMİ",
+      "ozet": "",
+      "tarih": "2026-02-02",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/20252026-ogretim-yili-bahar-yariyili-kurumici-yatay-gecis-kontenjanlari-basvuru-ve-degerlendirme-takvimi-64008-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "66108d55b852",
+      "baslik": "2026 TR-YÖS Sınavı",
+      "ozet": "",
+      "tarih": "2026-02-02",
+      "kaynak": "oidb",
+      "kategori": "sinav",
+      "url": "https://oidb.karatekin.edu.tr/tr/2026-tryos-sinavi-63999-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "13b6e77e3dff",
+      "baslik": "TEKNOFEST 2026: HAVACILIK, UZAY VE TEKNOLOJİ FESTİVALİ",
+      "ozet": "",
+      "tarih": "2026-01-23",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/teknofest-2026--havacilik-uzay-ve-teknoloji-festivali-62871-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "4763e929cb29",
+      "baslik": "ÖĞRENCİLERİMİZİN DİKKATİNE",
+      "ozet": "",
+      "tarih": "2026-01-14",
+      "kaynak": "oidb",
+      "kategori": "genel",
+      "url": "https://oidb.karatekin.edu.tr/tr/ogrencilerimizin-dikkatine-62566-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "910992938be2",
+      "baslik": "ULUSAL STAJ PROGRAMI 2026 YILI BAŞVURULARI",
+      "ozet": "",
+      "tarih": "2026-01-13",
+      "kaynak": "mf",
+      "kategori": "burs",
+      "url": "https://mf.karatekin.edu.tr/tr/ulusal-staj-programi-2026-yili-basvurulari-62594-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "c479d1a6af00",
+      "baslik": "2025-2026 Öğretim Yılı BAHAR Yarıyılı MERKEZİ YERLEŞTİRME PUANI ile Yatay Geçiş Kontenjanları, Başvuru ve Değerlendirme Takvimi.",
+      "ozet": "",
+      "tarih": "2026-01-12",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-bahar-yariyili-merkezi-yerlestirme-puani-ile-yatay-gecis-kontenjanlari-basvuru-ve-degerlendirme-takvimi-62578-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "b0aeb3c877e7",
+      "baslik": "2025-2026 Öğretim Yılı BAHAR Yarıyılı KURUMİÇİ Yatay Geçiş Kontenjanları, Başvuru ve Değerlendirme Takvimi.",
+      "ozet": "",
+      "tarih": "2026-01-12",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-bahar-yariyili-kurumici-yatay-gecis-kontenjanlari-basvuru-ve-degerlendirme-takvimi-62576-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "d67ec9dac366",
+      "baslik": "2025-2026 Öğretim Yılı BAHAR Yarıyılı Kurumlararası (ÖNLİSANS)Yatay Geçiş Kontenjanları, Başvuru ve Değerlendirme Takvimi.",
+      "ozet": "",
+      "tarih": "2026-01-12",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-bahar-yariyili-kurumlararasi-onlisansyatay-gecis-kontenjanlari-basvuru-ve-degerlendirme-takvimi-62572-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "213e8246aad8",
+      "baslik": "DENEME DERSİ SUNUMU",
+      "ozet": "",
+      "tarih": "2026-01-08",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/deneme-dersi-sunumu-62499-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "cc3cf4f9d201",
+      "baslik": "DENEME DERSİ SUNUMU",
+      "ozet": "",
+      "tarih": "2026-01-02",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/deneme-dersi-sunumu--62385-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "9f3bdf1acfa9",
+      "baslik": "MEKATRONİK TOPLULUĞU ÇİZGİ İZLEYEN ROBOT YARIŞMASI ETKİNLİĞİ",
+      "ozet": "",
+      "tarih": "2025-12-16",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/mekatronik-toplulugu-cizgi-izleyen-robot-yarismasi-etkinligi-61943-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "c8111c8a5faf",
+      "baslik": "AR-GE VE İNOVASYON ÇALIŞMALARI TOPLULUĞU SÖYLEŞİ ETKİNLİĞİ",
+      "ozet": "",
+      "tarih": "2025-12-16",
+      "kaynak": "mf",
+      "kategori": "etkinlik",
+      "url": "https://mf.karatekin.edu.tr/tr/arge-ve-inovasyon-calismalari-toplulugu-soylesi-etkinligi-61941-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "baa9e5d49c21",
+      "baslik": "2025 Zorunlu Yabancı Dil Hazırlık Sınıflarında Başarısız Olan Öğrencilerin Türkçe Öğretim Yapan Yükseköğretim Programlarında Üniversitemize Yerleşen Adayların Kayıt İşlemleri.",
+      "ozet": "",
+      "tarih": "2025-12-03",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-zorunlu-yabanci-dil-hazirlik-siniflarinda-basarisiz-olan-ogrencilerin-turkce-ogretim-yapan-yuksekogretim-programlarinda-universitemize-yerlesen-adaylarin-kayit-islemleri-61637-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "0fca1a4f0693",
+      "baslik": "\"ALPHA JOURNAL OF ENGINEERING AND APPLIED SCIENCES\" ARTIK DOAJ’DA!",
+      "ozet": "",
+      "tarih": "2025-11-21",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/alpha-journal-of-engineering-and-applied-sciences-artik-doaj’da-61270-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "bc8bd0282cc8",
+      "baslik": "24 KASIM ÖĞRETMENLER GÜNÜ PROGRAMI",
+      "ozet": "",
+      "tarih": "2025-11-21",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/24-kasim-ogretmenler-gunu-programi-61254-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "1c55c5e8e240",
+      "baslik": "SİBER VATAN PROGRAMI BAŞVURULARI",
+      "ozet": "",
+      "tarih": "2025-11-13",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/siber-vatan-programi-basvurulari-61074-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "f816afc20405",
+      "baslik": "ÇAKÜ MÜHENDİSLİK FAKÜLTESİ 2. MEZUNLAR BULUŞMASI",
+      "ozet": "",
+      "tarih": "2025-11-04",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/caku-muhendislik-fakultesi-2-mezunlar-bulusmasi-60710-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "1a6b8a6bb39a",
+      "baslik": "2025- DGS Ek Yerleştirme Mazeret Kayıt Hakkı",
+      "ozet": "",
+      "tarih": "2025-11-03",
+      "kaynak": "oidb",
+      "kategori": "sinav",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-dgs-ek-yerlestirme-mazeret-kayit-hakki-60625-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "73390a808e95",
+      "baslik": "TÜBİTAK 2209 PROJELERİNE NASIL BAŞVURU YAPILIR?",
+      "ozet": "",
+      "tarih": "2025-10-31",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/tubitak-2209-projelerine-nasil-basvuru-yapilir-60576-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "6550b53bc303",
+      "baslik": "NEDEN TÜBİTAK 2209 PROJESİ YAPMALIYIM?",
+      "ozet": "",
+      "tarih": "2025-10-31",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/neden-tubitak-2209-projesi-yapmaliyim-60574-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "e28b5c8edab1",
+      "baslik": "KISMİ ZAMANLI ÖĞRENCİ BAŞVURULARI",
+      "ozet": "",
+      "tarih": "2025-10-31",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/kismi-zamanli-ogrenci-basvurulari-60559-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "c6e219328fc7",
+      "baslik": "TÜRKİYE SİBER VATAN PROGRAMI",
+      "ozet": "",
+      "tarih": "2025-10-28",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/turkiye-siber-vatan-programi-60476-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "58d6045819d6",
+      "baslik": "SOSYAL TRANSKRİPT SİSTEMİ",
+      "ozet": "",
+      "tarih": "2025-10-28",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/sosyal-transkript-sistemi-60474-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "0ec52823d317",
+      "baslik": "ORTAK ZORUNLU VE SEÇMELİ DERSLERİN ARASINAVLARI",
+      "ozet": "",
+      "tarih": "2025-10-22",
+      "kaynak": "mf",
+      "kategori": "sinav",
+      "url": "https://mf.karatekin.edu.tr/tr/ortak-zorunlu-ve-secmeli-derslerin-arasinavlari-59409-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "33ddcb6667da",
+      "baslik": "TÜBİTAK 2209 - A/B ÜNİVERSİTE ÖĞRENCİLERİ ARAŞTIRMA PROJELERİ DESTEKLEME PROGRAMI MÜHENDİSLİK FAKÜLTESİ  TANITIM VE  DENEYİM PAYLAŞIM TOPLANTISI",
+      "ozet": "",
+      "tarih": "2025-10-21",
+      "kaynak": "mf",
+      "kategori": "etkinlik",
+      "url": "https://mf.karatekin.edu.tr/tr/tubitak-2209--ab-universite-ogrencileri-arastirma-projeleri-destekleme-programi-muhendislik-fakultesi--tanitim-ve--deneyim-paylasim-toplantisi-59342-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "c5dc8ff881a4",
+      "baslik": "2025- DGS Ek Yerleştirme ile Üniversitemize yerleşen adaylarının kayıt işlemleri.",
+      "ozet": "",
+      "tarih": "2025-10-20",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-dgs-ek-yerlestirme-ile-universitemize-yerlesen-adaylarinin-kayit-islemleri-59300-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "eb75918b49e6",
+      "baslik": "2025 YKS Ek Yerleştirme Mazeret Kayıt Hakkı",
+      "ozet": "",
+      "tarih": "2025-10-20",
+      "kaynak": "oidb",
+      "kategori": "sinav",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-yks-ek-yerlestirme-mazeret-kayit-hakki-59298-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "8846d00ebfd9",
+      "baslik": "İŞKUR GENÇLİK PROGRAMI BAŞVURULARI",
+      "ozet": "",
+      "tarih": "2025-10-13",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/iskur-genclik-programi-basvurulari--59078-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "cefaf0ef7654",
+      "baslik": "2025- YKS EK Yerleştirme ile Üniversitemize kayıt yaptıran öğrencilerin dikkatine",
+      "ozet": "",
+      "tarih": "2025-10-10",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-yks-ek-yerlestirme-ile-universitemize-kayit-yaptiran-ogrencilerin-dikkatine-58972-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "ef397a7aa188",
+      "baslik": "ÖĞRENCİ KİMLİK KARTLARI",
+      "ozet": "",
+      "tarih": "2025-10-07",
+      "kaynak": "oidb",
+      "kategori": "genel",
+      "url": "https://oidb.karatekin.edu.tr/tr/ogrenci-kimlik-kartlari-58896-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "ceeb1064957f",
+      "baslik": "2025- YKS EK Yerleştirme ile Üniversitemize yerleşen adaylarının kayıt işlemleri.",
+      "ozet": "",
+      "tarih": "2025-10-07",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-yks-ek-yerlestirme-ile-universitemize-yerlesen-adaylarinin-kayit-islemleri-58880-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "bd902b890c4e",
+      "baslik": "SUMITOMO RUBBER AKO UZUN DÖNEM STAJ DUYURUSU",
+      "ozet": "",
+      "tarih": "2025-10-03",
+      "kaynak": "mf",
+      "kategori": "burs",
+      "url": "https://mf.karatekin.edu.tr/tr/sumitomo-rubber-ako-uzun-donem-staj-duyurusu--58813-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "380f76636526",
+      "baslik": "2025 YKS İLE KAYIT YAPTIRAN ÖĞRENCİLERİMİZ İÇİN KAMPÜS KART DAĞITIMI",
+      "ozet": "",
+      "tarih": "2025-09-26",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/2025-yks-ile-kayit-yaptiran-ogrencilerimiz-icin-kampus-kart-dagitimi-58615-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "ac05d30c8d16",
+      "baslik": "2025 YKS ile Kayıt Yaptıran Öğrencilerimiz için Kampüs kart dağıtımı.",
+      "ozet": "",
+      "tarih": "2025-09-24",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-yks-ile-kayit-yaptiran-ogrencilerimiz-icin-kampus-kart-dagitimi-58479-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "8b1ba6e8a248",
+      "baslik": "2025 YKS ile Kayıt Yaptıran Meslek Yüksekokulu ve Eldivan Sağlık Hizmetleri Meslek Yüksekokulu Öğrencilerimiz için Kampüs kart dağıtımı.",
+      "ozet": "",
+      "tarih": "2025-09-24",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-yks-ile-kayit-yaptiran-meslek-yuksekokulu-ve-eldivan-saglik-hizmetleri-meslek-yuksekokulu-ogrencilerimiz-icin-kampus-kart-dagitimi-58469-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "b1e395ee82fe",
+      "baslik": "FAKÜLTEMİZ ELEKTRİK-ELEKTRONİK MÜHENDİSLİĞİ BÖLÜMÜ ÖĞRENCİSİNDEN TEKNOFEST BİRİNCİLİĞİ",
+      "ozet": "",
+      "tarih": "2025-09-23",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/fakultemiz-elektrikelektronik-muhendisligi-bolumu-ogrencisinden-teknofest-birinciligi-58463-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "faafacad6a02",
+      "baslik": "DOĞAYI ÖĞRENİYORUM PROJESİ AÇILIŞ PROGRAMI",
+      "ozet": "",
+      "tarih": "2025-09-18",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/dogayi-ogreniyorum-projesi-acilis-programi-58268-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "303c7c78d8f9",
+      "baslik": "2025 DGS Mazeret Kayıt Hakkı",
+      "ozet": "",
+      "tarih": "2025-09-18",
+      "kaynak": "oidb",
+      "kategori": "sinav",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-dgs-mazeret-kayit-hakki-58256-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "801f0fde23cd",
+      "baslik": "2025-2026 EĞİTİM ÖĞRETİM YILI GÜZ YARIYILI DERS MUAFİYET İŞLEMLERİ",
+      "ozet": "",
+      "tarih": "2025-09-12",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/20252026-egitim-ogretim-yili-guz-yariyili-ders-muafiyet-islemleri-58106-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "85320dccd049",
+      "baslik": "2025-2026 EĞİTİM ÖĞRETİM YILI GÜZ YARIYILI KAYIT YENİLEME İŞLEMLERİ",
+      "ozet": "",
+      "tarih": "2025-09-11",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/20252026-egitim-ogretim-yili-guz-yariyili-kayit-yenileme-islemleri-58074-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "204b6bfa1dce",
+      "baslik": "2025-2026 Eğitim Öğretim Yılı GÜZ Yarıyılı Kayıt Yenileme İşlemleri.",
+      "ozet": "",
+      "tarih": "2025-09-09",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-egitim-ogretim-yili-guz-yariyili-kayit-yenileme-islemleri-58025-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "57be68ff0557",
+      "baslik": "2025- DGS ile Üniversitemize yerleşen adaylarının kayıt işlemleri.",
+      "ozet": "",
+      "tarih": "2025-09-09",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-dgs-ile-universitemize-yerlesen-adaylarinin-kayit-islemleri-58023-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "cace8296a8e2",
+      "baslik": "ÜNİVERSİTE ÖĞRENCİLERİ İÇİN PSİKOSOSYAL DESTEK REHBERİ",
+      "ozet": "",
+      "tarih": "2025-09-05",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/universite-ogrencileri-icin-psikososyal-destek-rehberi-57947-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "d5ff0c9ccf3f",
+      "baslik": "2025-YKS MAZERET KAYIT HAKKI",
+      "ozet": "",
+      "tarih": "2025-09-04",
+      "kaynak": "mf",
+      "kategori": "sinav",
+      "url": "https://mf.karatekin.edu.tr/tr/2025yks-mazeret-kayit-hakki-57931-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "f3bbd381457e",
+      "baslik": "2025-YKS İLE ÜNİVERSİTEMİZE KAYIT YAPTIRAN ÖĞRENCİLERİN DİKKATİNE",
+      "ozet": "",
+      "tarih": "2025-09-04",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/2025yks-ile-universitemize-kayit-yaptiran-ogrencilerin-dikkatine-57929-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "245e23963a3d",
+      "baslik": "ORTAK ZORUNLU DERSLERİN MUAFİYET SINAVLARI",
+      "ozet": "",
+      "tarih": "2025-09-04",
+      "kaynak": "mf",
+      "kategori": "sinav",
+      "url": "https://mf.karatekin.edu.tr/tr/ortak-zorunlu-derslerin-muafiyet-sinavlari-57927-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "525d9350f9e1",
+      "baslik": "2025 YKS Mazeret Kayıt Hakkı",
+      "ozet": "",
+      "tarih": "2025-09-04",
+      "kaynak": "oidb",
+      "kategori": "sinav",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-yks-mazeret-kayit-hakki-57922-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "8d17311d62ee",
+      "baslik": "2025- YKS ile Üniversitemize kayıt yaptıran öğrencilerin dikkatine",
+      "ozet": "",
+      "tarih": "2025-09-02",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-yks-ile-universitemize-kayit-yaptiran-ogrencilerin-dikkatine-57891-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "d0403ed1dcc6",
+      "baslik": "Sanat Tasarım ve Mimarlık Fakültesi 2025-2026 Öğretim Yılı İçin Özel Yetenek Sınav Yedek Liste Kayıt.",
+      "ozet": "",
+      "tarih": "2025-08-29",
+      "kaynak": "oidb",
+      "kategori": "sinav",
+      "url": "https://oidb.karatekin.edu.tr/tr/sanat-tasarim-ve-mimarlik-fakultesi-20252026-ogretim-yili-icin-ozel-yetenek-sinav-yedek-liste-kayit-57827-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "c7627dbc5d84",
+      "baslik": "2025-2026 Yılı GÜZ Yarıyılı MERKEZİ YERLEŞTİRME PUANI ile Yatay Geçiş  kayıt tarihleri uzatılmıştır.",
+      "ozet": "",
+      "tarih": "2025-08-27",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-yili-guz-yariyili-merkezi-yerlestirme-puani-ile-yatay-gecis--kayit-tarihleri-uzatilmistir-57805-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "c8b9c76afcf2",
+      "baslik": "2025-2026 GÜZ Yarıyılı Kurumlararası (Yurtiçi/Yurtdışı) Yatay Geçiş YEDEK kayıt tarihleri uzatılmıştır.",
+      "ozet": "",
+      "tarih": "2025-08-27",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-guz-yariyili-kurumlararasi-yurticiyurtdisi-yatay-gecis-yedek-kayit-tarihleri-uzatilmistir-57787-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "d079b5b55b9e",
+      "baslik": "2025- YKS ile Üniversitemize yerleşen adaylarının kayıt işlemleri.",
+      "ozet": "",
+      "tarih": "2025-08-25",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/2025-yks-ile-universitemize-yerlesen-adaylarinin-kayit-islemleri-57743-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "628324c457f0",
+      "baslik": "Sanat Tasarım ve Mimarlık Fakültesi 2025-2026 Öğretim Yılı İçin Özel Yetenek Sınav Sonuçları.",
+      "ozet": "",
+      "tarih": "2025-08-25",
+      "kaynak": "oidb",
+      "kategori": "sinav",
+      "url": "https://oidb.karatekin.edu.tr/tr/sanat-tasarim-ve-mimarlik-fakultesi-20252026-ogretim-yili-icin-ozel-yetenek-sinav-sonuclari-57737-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "97dce9068314",
+      "baslik": "2025-2026 EĞİTİM-ÖĞRETİM YILI GÜZ DÖNEMİ MERKEZİ YERLEŞTİRME SONUÇLARI  (GÜNCELLENMİŞTİR)",
+      "ozet": "",
+      "tarih": "2025-08-22",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/20252026-egitimogretim-yili-guz-donemi-merkezi-yerlestirme-sonuclari--guncellenmistir-57705-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "449178d29000",
+      "baslik": "2025-2026 Öğretim Yılı GÜZ Yarıyılı MERKEZİ YERLEŞTİRME PUANI ile Yatay Geçiş Sonuçları.",
+      "ozet": "",
+      "tarih": "2025-08-22",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-guz-yariyili-merkezi-yerlestirme-puani-ile-yatay-gecis-sonuclari-57683-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "cff31bf4bd71",
+      "baslik": "2025-2026 Eğitim-Öğretim Yılı GÜZ Yarıyılı Kurumlararası (Yurtiçi/Yurtdışı) Yatay Geçiş YEDEK Sonuçları.",
+      "ozet": "",
+      "tarih": "2025-08-20",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-egitimogretim-yili-guz-yariyili-kurumlararasi-yurticiyurtdisi-yatay-gecis-yedek-sonuclari-57651-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "3721f0f9d23c",
+      "baslik": "FAKÜLTEMİZ 2025-2026 EĞİTİM-ÖĞRETİM YILI GÜZ YARIYILI KURUMLARARASI (YURTİÇİ) YATAY GEÇİŞ KONTENJANLARI DEĞERLENDİRME SONUÇLARI",
+      "ozet": "",
+      "tarih": "2025-08-15",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/fakultemiz-20252026-egitimogretim-yili-guz-yariyili-kurumlararasi-yurtici-yatay-gecis-kontenjanlari-degerlendirme-sonuclari-57613-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "ceffac391e99",
+      "baslik": "FAKÜLTEMİZ 2025-2026 EĞİTİM-ÖĞRETİM YILI GÜZ YARIYILI KURUMLARARASI (YURTDIŞI) YATAY GEÇİŞ KONTENJANLARI DEĞERLENDİRME SONUÇLARI",
+      "ozet": "",
+      "tarih": "2025-08-15",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/fakultemiz-20252026-egitimogretim-yili-guz-yariyili-kurumlararasi-yurtdisi-yatay-gecis-kontenjanlari-degerlendirme-sonuclari-57611-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "b1aa9d02ae77",
+      "baslik": "FAKÜLTEMİZ 2025-2026 EĞİTİM-ÖĞRETİM YILI GÜZ YARIYILI KURUMİÇİ YATAY GEÇİŞ KONTENJANLARI DEĞERLENDİRME SONUÇLARI",
+      "ozet": "",
+      "tarih": "2025-08-15",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/fakultemiz-20252026-egitimogretim-yili-guz-yariyili-kurumici-yatay-gecis-kontenjanlari-degerlendirme-sonuclari-57609-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "c3b2ef8f46f0",
+      "baslik": "FAKÜLTEMİZ 2025-2026 EĞİTİM-ÖĞRETİM YILI GÜZ YARIYILI ÇİFT ANADAL BAŞVURU DEĞERLENDİRME SONUÇLARI",
+      "ozet": "",
+      "tarih": "2025-08-15",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/fakultemiz-20252026-egitimogretim-yili-guz-yariyili-cift-anadal-basvuru-degerlendirme-sonuclari-57607-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "2ded4922ef32",
+      "baslik": "2025-2026 Öğretim Yılı GÜZ Yarıyılı Kurumlararası Yatay Geçiş Sonuçları.",
+      "ozet": "",
+      "tarih": "2025-08-15",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-guz-yariyili-kurumlararasi-yatay-gecis-sonuclari-57561-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "46c0640af30c",
+      "baslik": "2025-2026 Öğretim Yılı GÜZ Yarıyılı Çift Anadal Başvuru Sonuçları.",
+      "ozet": "",
+      "tarih": "2025-08-15",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-guz-yariyili-cift-anadal-basvuru-sonuclari-57557-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "abccc0e3cf1a",
+      "baslik": "2025-2026 Öğretim Yılı GÜZ Yarıyılı Kurumiçi Yatay Geçiş Sonuçları.",
+      "ozet": "",
+      "tarih": "2025-08-15",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-guz-yariyili-kurumici-yatay-gecis-sonuclari-57559-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "c71cca9e0759",
+      "baslik": "2024-2025 Eğitim Öğretim Yılı BAHAR Yarıyılı İlk Yüzde On Başarı Değerlendirme.",
+      "ozet": "",
+      "tarih": "2025-08-12",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20242025-egitim-ogretim-yili-bahar-yariyili-ilk-yuzde-on-basari-degerlendirme-57505-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "21f14e8a4b02",
+      "baslik": "Fakültemize Yatay Geçiş Başvuruları",
+      "ozet": "",
+      "tarih": "2025-07-29",
+      "kaynak": "mf",
+      "kategori": "burs",
+      "url": "https://mf.karatekin.edu.tr/tr/fakultemize-yatay-gecis-basvurulari-57388-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "855a933a186c",
+      "baslik": "ÇAKÜ Tanıtım Günleri",
+      "ozet": "",
+      "tarih": "2025-07-29",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/caku-tanitim-gunleri-57386-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "316e84b899cf",
+      "baslik": "Sanat Tasarım ve Mimarlık Fakültesi 2025-2026 Öğretim Yılı İçin Özel Yetenek Sınavı ile Öğrenci Alımı.",
+      "ozet": "",
+      "tarih": "2025-07-25",
+      "kaynak": "oidb",
+      "kategori": "sinav",
+      "url": "https://oidb.karatekin.edu.tr/tr/sanat-tasarim-ve-mimarlik-fakultesi-20252026-ogretim-yili-icin-ozel-yetenek-sinavi-ile-ogrenci-alimi-57279-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "06f11f2f5b4b",
+      "baslik": "2025-2026 Öğretim Yılı GÜZ Yarıyılı Çift Anadal Başvuru ve Değerlendirme Takvimi.",
+      "ozet": "",
+      "tarih": "2025-07-14",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-guz-yariyili-cift-anadal-basvuru-ve-degerlendirme-takvimi-57196-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "3e154cc3a57e",
+      "baslik": "2025-2026 Öğretim Yılı GÜZ Yarıyılı KURUMİÇİ Yatay Geçiş Kontenjanları, Başvuru ve Değerlendirme Takvimi.",
+      "ozet": "",
+      "tarih": "2025-07-14",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-guz-yariyili-kurumici-yatay-gecis-kontenjanlari-basvuru-ve-degerlendirme-takvimi-57194-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "6ef43699f029",
+      "baslik": "2025-2026 Öğretim Yılı GÜZ Yarıyılı MERKEZİ YERLEŞTİRME PUANI ile Yatay Geçiş Kontenjanları, Başvuru ve Değerlendirme Takvimi.",
+      "ozet": "",
+      "tarih": "2025-07-14",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-guz-yariyili-merkezi-yerlestirme-puani-ile-yatay-gecis-kontenjanlari-basvuru-ve-degerlendirme-takvimi-57192-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "4736bee5eda4",
+      "baslik": "2025-2026 Öğretim Yılı GÜZ Yarıyılı Kurumlararası (yurtdışı) Yatay Geçiş Kontenjanları, Başvuru ve Değerlendirme Takvimi.",
+      "ozet": "",
+      "tarih": "2025-07-14",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-guz-yariyili-kurumlararasi-yurtdisi-yatay-gecis-kontenjanlari-basvuru-ve-degerlendirme-takvimi-57190-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "de67d7071545",
+      "baslik": "2025-2026 Öğretim Yılı GÜZ Yarıyılı Kurumlararası (yurtiçi) Yatay Geçiş Kontenjanları, Başvuru ve Değerlendirme Takvimi.",
+      "ozet": "",
+      "tarih": "2025-07-14",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20252026-ogretim-yili-guz-yariyili-kurumlararasi-yurtici-yatay-gecis-kontenjanlari-basvuru-ve-degerlendirme-takvimi-57188-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "cb80d89adf90",
+      "baslik": "2024-2025 ÖĞRETİM YILI YAZ OKULU",
+      "ozet": "",
+      "tarih": "2025-07-07",
+      "kaynak": "oidb",
+      "kategori": "genel",
+      "url": "https://oidb.karatekin.edu.tr/tr/20242025-ogretim-yili-yaz-okulu-57126-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "42411dc4ea96",
+      "baslik": "ÖĞRENCİ KİMLİK KARTLARI",
+      "ozet": "",
+      "tarih": "2025-05-06",
+      "kaynak": "oidb",
+      "kategori": "genel",
+      "url": "https://oidb.karatekin.edu.tr/tr/ogrenci-kimlik-kartlari-55499-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "3c42d4cec965",
+      "baslik": "TÜBİTAK 2209-A VE TÜBİTAK 2209-B PROJE BAŞVURU SONUÇLARI",
+      "ozet": "",
+      "tarih": "2025-04-15",
+      "kaynak": "mf",
+      "kategori": "genel",
+      "url": "https://mf.karatekin.edu.tr/tr/tubitak-2209a-ve-tubitak-2209b-proje-basvuru-sonuclari--55073-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "ef24bc6db61e",
+      "baslik": "2024/2025 BAHAR YARIYILI ORTAK ZORUNLU VE SEÇMELİ DERSLER SINAV TAKVİMİ",
+      "ozet": "",
+      "tarih": "2025-03-10",
+      "kaynak": "mf",
+      "kategori": "sinav",
+      "url": "https://mf.karatekin.edu.tr/tr/20242025-bahar-yariyili-ortak-zorunlu-ve-secmeli-dersler-sinav-takvimi-54198-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "f12c6385d066",
+      "baslik": "İŞKUR Gençlik Programı Başvuruları Başladı",
+      "ozet": "",
+      "tarih": "2025-02-17",
+      "kaynak": "oidb",
+      "kategori": "genel",
+      "url": "https://oidb.karatekin.edu.tr/tr/iskur-genclik-programi-basvurulari-basladi-53786-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "dad19890cb27",
+      "baslik": "2024-2025 EĞİTİM-ÖĞRETİM YILI BAHAR YARIYILI KURUMİÇİ YATAY GEÇİŞ BAŞVURU SONUÇLARI",
+      "ozet": "",
+      "tarih": "2025-02-14",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/20242025-egitimogretim-yili-bahar-yariyili-kurumici-yatay-gecis-basvuru-sonuclari-53704-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "c430f0f5aeb6",
+      "baslik": "2024-2025 EĞİTİM-ÖĞRETİM YILI BAHAR YARIYILI MERKEZİ YERLEŞTİRME PUANI İLE YATAY GEÇİŞ BAŞVURU SONUÇLARI",
+      "ozet": "",
+      "tarih": "2025-02-14",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/20242025-egitimogretim-yili-bahar-yariyili-merkezi-yerlestirme-puani-ile-yatay-gecis-basvuru-sonuclari-53700-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "6017430448af",
+      "baslik": "2024-2025 Öğretim Yılı BAHAR Yarıyılı Kurumlararası (ÖNLİSANS)Yatay Geçiş Sonuçları.",
+      "ozet": "",
+      "tarih": "2025-02-14",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20242025-ogretim-yili-bahar-yariyili-kurumlararasi-onlisansyatay-gecis-sonuclari-53676-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "d2545c653865",
+      "baslik": "2024-2025 Öğretim Yılı BAHAR Yarıyılı MERKEZİ YERLEŞTİRME PUANI ile Yatay Geçiş Sonuçları.",
+      "ozet": "",
+      "tarih": "2025-02-14",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20242025-ogretim-yili-bahar-yariyili-merkezi-yerlestirme-puani-ile-yatay-gecis-sonuclari-53672-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "631d17e739b0",
+      "baslik": "2024-2025 Öğretim Yılı BAHAR Yarıyılı Kurumiçi Yatay Geçiş Sonuçları.",
+      "ozet": "",
+      "tarih": "2025-02-14",
+      "kaynak": "oidb",
+      "kategori": "akademik",
+      "url": "https://oidb.karatekin.edu.tr/tr/20242025-ogretim-yili-bahar-yariyili-kurumici-yatay-gecis-sonuclari-53674-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "0ecc0d0d4ed9",
+      "baslik": "2024-2025 Eğitim Öğretim Yılı BAHAR Yarıyılı Kayıt Yenileme İşlemleri.",
+      "ozet": "",
       "tarih": "2025-02-12",
-      "url": "https://bmu.karatekin.edu.tr/tr/tum-duyurular",
+      "kaynak": "oidb",
       "kategori": "akademik",
-      "kaynak": "bmu"
+      "url": "https://oidb.karatekin.edu.tr/tr/20242025-egitim-ogretim-yili-bahar-yariyili-kayit-yenileme-islemleri-53574-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "4dac4d7f8107",
+      "baslik": "DENEME DERSİ SUNUMU",
+      "ozet": "",
+      "tarih": "2025-02-11",
+      "kaynak": "mf",
+      "kategori": "akademik",
+      "url": "https://mf.karatekin.edu.tr/tr/deneme-dersi-sunumu--53554-duyurusu-icerigi.karatekin"
+    },
+    {
+      "id": "1b7e409a053e",
+      "baslik": "TR-YÖS Sınavı",
+      "ozet": "",
+      "tarih": "2025-02-04",
+      "kaynak": "oidb",
+      "kategori": "sinav",
+      "url": "https://oidb.karatekin.edu.tr/tr/tryos-sinavi-53365-duyurusu-icerigi.karatekin"
     }
   ]
 }
