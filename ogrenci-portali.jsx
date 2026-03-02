@@ -404,11 +404,12 @@ function highlightText(text, query) {
 }
 
 // ── Görüntülenme Takibi (IntersectionObserver) ──
+// Sadece giriş yapmış kullanıcılar için sayacı artırır
 var _viewedPosts = {};
-function useViewTracker(postId) {
+function useViewTracker(postId, currentUser) {
   var ref = useRef(null);
   useEffect(function () {
-    if (!postId || _viewedPosts[postId]) return;
+    if (!currentUser || !postId || _viewedPosts[postId]) return;
     var el = ref.current;
     if (!el) return;
     var observer = new IntersectionObserver(function (entries) {
@@ -420,7 +421,7 @@ function useViewTracker(postId) {
     }, { threshold: 0.5 });
     observer.observe(el);
     return function () { observer.disconnect(); };
-  }, [postId]);
+  }, [postId, currentUser]);
   return ref;
 }
 
@@ -642,10 +643,8 @@ var PortalDB = {
     return pollVotes;
   },
 
-  // Görüntülenme artır (sadece giriş yapmış kullanıcılar için)
+  // Görüntülenme artır
   async incrementViews(postId) {
-    var auth = window.firebase.auth();
-    if (!auth.currentUser) return;
     var ref = this.postsRef();
     if (!ref) return;
     await ref.doc(String(postId)).update({
@@ -2113,7 +2112,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
   var isAuthor = post.authorId === userId || canModerate;
   var isMobile = useIsMobile(768);
 
-  var viewRef = useViewTracker(post.id);
+  var viewRef = useViewTracker(post.id, currentUser);
 
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(post.title || "");
