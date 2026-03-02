@@ -386,6 +386,9 @@ const FirebaseDB = {
   // Forms collections
   formsRef: () => FirebaseDB.db()?.collection('forms'),
 
+  // Trip History collection (Erasmus eşleştirme geçmişi)
+  tripHistoryRef: () => FirebaseDB.db()?.collection('trip_history'),
+
   // Firebase Storage
   storage: () => window.firebase?.storage(),
 
@@ -503,6 +506,127 @@ const FirebaseDB = {
       throw error;
     }
   },
+
+  // ── Trip History CRUD (Eşleştirme Geçmişi) ──
+  async fetchTripHistory(hostInstitution) {
+    try {
+      const ref = FirebaseDB.tripHistoryRef();
+      if (!ref) return [];
+      let query = ref;
+      if (hostInstitution) {
+        query = ref.where('hostInstitution', '==', hostInstitution);
+      }
+      const snapshot = await query.get();
+      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    } catch (error) {
+      console.error('Error fetching trip history:', error);
+      return [];
+    }
+  },
+  async saveTripHistoryEntry(entry) {
+    try {
+      const ref = FirebaseDB.tripHistoryRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      const docRef = await ref.add({
+        ...entry,
+        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      return { ...entry, id: docRef.id };
+    } catch (error) {
+      console.error('Error saving trip history entry:', error);
+      throw error;
+    }
+  },
+  async deleteTripHistoryEntry(id) {
+    try {
+      const ref = FirebaseDB.tripHistoryRef();
+      if (!ref) throw new Error('Firebase baglantisi yok');
+      await ref.doc(String(id)).delete();
+      return true;
+    } catch (error) {
+      console.error('Error deleting trip history entry:', error);
+      throw error;
+    }
+  },
+  async syncStudentToTripHistory(student) {
+    try {
+      const ref = FirebaseDB.tripHistoryRef();
+      if (!ref) return;
+      if (!student.hostInstitution) return;
+
+      // Fetch existing entries for this student
+      const snapshot = await ref
+        .where('studentNumber', '==', student.studentNumber)
+        .where('hostInstitution', '==', student.hostInstitution)
+        .get();
+      const existingEntries = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+
+      // Build match signature for deduplication
+      const matchKey = (m) => JSON.stringify({
+        home: m.homeCourses.map(c => c.code).sort(),
+        host: m.hostCourses.map(c => c.code).sort(),
+      });
+
+      const existingKeys = new Set(existingEntries.map(e => matchKey(e)));
+      const batch = FirebaseDB.db().batch();
+      let hasChanges = false;
+
+      // Process outgoing matches
+      (student.outgoingMatches || []).forEach(m => {
+        if (m.homeCourses.length === 0 && m.hostCourses.length === 0) return;
+        const key = matchKey(m);
+        if (!existingKeys.has(key)) {
+          const docRef = ref.doc();
+          batch.set(docRef, {
+            hostInstitution: student.hostInstitution,
+            hostCountry: student.hostCountry || '',
+            type: 'outgoing',
+            homeCourses: m.homeCourses,
+            hostCourses: m.hostCourses,
+            studentName: `${student.firstName} ${student.lastName}`,
+            studentNumber: student.studentNumber,
+            semester: student.semester || '',
+            createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+          });
+          existingKeys.add(key);
+          hasChanges = true;
+        }
+      });
+
+      // Process return matches
+      (student.returnMatches || []).forEach(m => {
+        if (m.homeCourses.length === 0 && m.hostCourses.length === 0) return;
+        const key = matchKey(m);
+        if (!existingKeys.has(key)) {
+          const docRef = ref.doc();
+          batch.set(docRef, {
+            hostInstitution: student.hostInstitution,
+            hostCountry: student.hostCountry || '',
+            type: 'return',
+            homeCourses: m.homeCourses,
+            hostCourses: m.hostCourses,
+            hostGrade: m.hostGrade || '',
+            homeGrade: m.homeGrade || '',
+            hostGrades: m.hostGrades || {},
+            homeGrades: m.homeGrades || {},
+            studentName: `${student.firstName} ${student.lastName}`,
+            studentNumber: student.studentNumber,
+            semester: student.semester || '',
+            createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+          });
+          existingKeys.add(key);
+          hasChanges = true;
+        }
+      });
+
+      if (hasChanges) {
+        await batch.commit();
+      }
+    } catch (error) {
+      console.error('Error syncing to trip history:', error);
+    }
+  },
+
   async fetchPasswords() {
     try {
       const ref = FirebaseDB.passwordsRef();

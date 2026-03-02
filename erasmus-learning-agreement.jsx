@@ -496,10 +496,22 @@ const CourseCatalogModal = ({ university, onClose, onSelect }) => {
 // ── Institution Matches Modal (Önceki Eşleştirmelerden Seç) ──
 const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentId, onClose, onSelect, matchType = "outgoing" }) => {
   const [selectedMatches, setSelectedMatches] = useState([]);
+  const [tripHistory, setTripHistory] = useState([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
 
-  // Collect unique matches from all students at the same institution
+  // Load trip history from Firebase on mount
+  useEffect(() => {
+    FirebaseDB.fetchTripHistory(hostInstitution).then(entries => {
+      setTripHistory(entries);
+      setHistoryLoaded(true);
+    }).catch(() => setHistoryLoaded(true));
+  }, [hostInstitution]);
+
+  // Collect unique matches from all students at the same institution + trip history
   const institutionMatches = [];
   const seen = new Set();
+
+  // First from current students
   allStudents.forEach(s => {
     if (s.id === currentStudentId) return;
     if (s.hostInstitution !== hostInstitution) return;
@@ -508,9 +520,29 @@ const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentI
       const key = JSON.stringify({ home: m.homeCourses.map(c => c.code).sort(), host: m.hostCourses.map(c => c.code).sort() });
       if (!seen.has(key) && m.homeCourses.length > 0 && m.hostCourses.length > 0) {
         seen.add(key);
-        institutionMatches.push({ ...m, fromStudent: `${s.firstName} ${s.lastName}` });
+        institutionMatches.push({ ...m, fromStudent: `${s.firstName} ${s.lastName}`, fromSemester: s.semester });
       }
     });
+  });
+
+  // Then from trip history (adds entries not already present from current students)
+  tripHistory.filter(e => e.type === matchType).forEach(entry => {
+    const key = JSON.stringify({ home: (entry.homeCourses || []).map(c => c.code).sort(), host: (entry.hostCourses || []).map(c => c.code).sort() });
+    if (!seen.has(key) && (entry.homeCourses || []).length > 0 && (entry.hostCourses || []).length > 0) {
+      seen.add(key);
+      institutionMatches.push({
+        ...entry,
+        homeCourses: entry.homeCourses,
+        hostCourses: entry.hostCourses,
+        hostGrade: entry.hostGrade,
+        homeGrade: entry.homeGrade,
+        hostGrades: entry.hostGrades,
+        homeGrades: entry.homeGrades,
+        fromStudent: `${entry.studentName || 'Gecmis Kayit'}`,
+        fromSemester: entry.semester,
+        fromHistory: true,
+      });
+    }
   });
 
   const toggleMatch = (match) => {
@@ -577,7 +609,10 @@ const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentI
                             ))}
                           </div>
                         </div>
-                        <div style={{ fontSize: 11, color: C.textMuted, fontStyle: "italic" }}>Kaynak: {match.fromStudent}</div>
+                        <div style={{ fontSize: 11, color: C.textMuted, fontStyle: "italic", display: "flex", alignItems: "center", gap: 8 }}>
+                          Kaynak: {match.fromStudent}{match.fromSemester ? ` (${match.fromSemester})` : ''}
+                          {match.fromHistory && <span style={{ padding: "1px 6px", background: "#E3F2FD", color: "#1565C0", borderRadius: 4, fontSize: 10, fontWeight: 600, fontStyle: "normal" }}>Gecmis Kayit</span>}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -677,6 +712,178 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect }) => {
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Btn onClick={onClose} variant="secondary">Iptal</Btn>
             <Btn onClick={() => selectedCourses.length > 0 && onSelect(selectedCourses)} disabled={selectedCourses.length === 0}>{selectedCourses.length} Ders Ekle</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Trip History Modal (Eşleştirme Geçmişi) ──
+const TripHistoryModal = ({ onClose, universities }) => {
+  const [selectedUni, setSelectedUni] = useState("");
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [filterType, setFilterType] = useState("all");
+
+  const uniList = Object.keys(universities || UNIVERSITY_CATALOGS);
+
+  const loadHistory = async (uni) => {
+    setSelectedUni(uni);
+    if (!uni) { setHistory([]); return; }
+    setLoading(true);
+    try {
+      const entries = await FirebaseDB.fetchTripHistory(uni);
+      setHistory(entries);
+    } catch (e) {
+      console.error('Trip history load error:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredHistory = filterType === "all" ? history : history.filter(h => h.type === filterType);
+
+  // Group by unique matching (deduplicate across students)
+  const grouped = [];
+  const seen = new Set();
+  filteredHistory.forEach(entry => {
+    const key = JSON.stringify({
+      type: entry.type,
+      home: (entry.homeCourses || []).map(c => c.code).sort(),
+      host: (entry.hostCourses || []).map(c => c.code).sort(),
+    });
+    if (!seen.has(key)) {
+      seen.add(key);
+      // Collect all students who used this matching
+      const students = filteredHistory
+        .filter(e => JSON.stringify({ type: e.type, home: (e.homeCourses || []).map(c => c.code).sort(), host: (e.hostCourses || []).map(c => c.code).sort() }) === key)
+        .map(e => ({ name: e.studentName, semester: e.semester, number: e.studentNumber }));
+      // Deduplicate students
+      const uniqueStudents = [];
+      const seenStudents = new Set();
+      students.forEach(s => {
+        if (!seenStudents.has(s.number)) { seenStudents.add(s.number); uniqueStudents.push(s); }
+      });
+      grouped.push({ ...entry, usedBy: uniqueStudents });
+    }
+  });
+
+  const handleDelete = async (entryId) => {
+    if (!confirm("Bu gecmis kaydini silmek istediginizden emin misiniz?")) return;
+    try {
+      await FirebaseDB.deleteTripHistoryEntry(entryId);
+      setHistory(prev => prev.filter(h => h.id !== entryId));
+    } catch (e) {
+      alert("Silme sirasinda hata olustu.");
+    }
+  };
+
+  const filterStyle = { padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" };
+
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
+      <div style={{ background: C.card, borderRadius: 16, maxWidth: 1050, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+        <div style={{ padding: 24, borderBottom: `2px solid ${C.border}` }}>
+          <h3 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 8 }}>Eslestirme Gecmisi</h3>
+          <p style={{ margin: 0, color: C.textMuted, fontSize: 14, marginBottom: 16 }}>Onceki donemlerde yapilmis tum ders eslestirmelerini universite bazinda goruntuleyebilirsiniz. Yeni ogrenciler icin referans olarak kullanilabilir.</p>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <select value={selectedUni} onChange={e => loadHistory(e.target.value)} style={{ ...filterStyle, minWidth: 280 }}>
+              <option value="">Universite Secin...</option>
+              {uniList.map(uni => <option key={uni} value={uni}>{uni}</option>)}
+            </select>
+            {selectedUni && (
+              <select value={filterType} onChange={e => setFilterType(e.target.value)} style={filterStyle}>
+                <option value="all">Tum Turler</option>
+                <option value="outgoing">Gidis Eslestirmeleri</option>
+                <option value="return">Donus Eslestirmeleri</option>
+              </select>
+            )}
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
+          {!selectedUni && (
+            <div style={{ textAlign: "center", padding: 40, color: C.textMuted }}>
+              <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>&#128218;</div>
+              <div style={{ fontSize: 16, fontWeight: 500 }}>Gecmis kayitlarini goruntulemek icin bir universite secin</div>
+            </div>
+          )}
+          {selectedUni && loading && (
+            <div style={{ textAlign: "center", padding: 40, color: C.textMuted }}>Yukleniyor...</div>
+          )}
+          {selectedUni && !loading && grouped.length === 0 && (
+            <div style={{ textAlign: "center", padding: 40 }}>
+              <div style={{ padding: 20, background: "#FFF9E6", border: "2px dashed #FDB022", borderRadius: 12, color: C.navy, fontSize: 14 }}>
+                Bu universite icin henuz kayitli eslestirme gecmisi bulunmamaktadir.<br />
+                <span style={{ fontSize: 12, color: C.textMuted }}>Ogrenci eslestirmeleri kaydedildikce otomatik olarak buraya eklenecektir.</span>
+              </div>
+            </div>
+          )}
+          {selectedUni && !loading && grouped.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ padding: 12, background: C.bg, borderRadius: 8, fontSize: 13, color: C.textMuted }}>
+                Toplam <strong style={{ color: C.navy }}>{grouped.length}</strong> benzersiz eslestirme kaydi bulundu.
+              </div>
+              {grouped.map((entry, idx) => (
+                <div key={idx} style={{ padding: 20, border: `1px solid ${C.border}`, borderRadius: 12, background: "white" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 12 }}>
+                    <span style={{
+                      padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase",
+                      background: entry.type === "outgoing" ? C.greenLight : C.goldPale,
+                      color: entry.type === "outgoing" ? C.green : "#B8860B",
+                    }}>
+                      {entry.type === "outgoing" ? "Gidis" : "Donus"}
+                    </span>
+                    <button onClick={() => handleDelete(entry.id)} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${C.border}`, background: C.card, color: C.accent, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}><TrashIcon /></button>
+                  </div>
+                  <div style={{ display: "flex", gap: 20, alignItems: "start" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: C.navy, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>Kendi Kurumumuz</div>
+                      {(entry.homeCourses || []).map((c, ci) => (
+                        <div key={ci} style={{ fontSize: 13, marginBottom: 4, padding: "6px 10px", background: C.bg, borderRadius: 6 }}>
+                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{c.code}</span>
+                          {" "}<span style={{ fontWeight: 500 }}>{c.name}</span>
+                          <span style={{ color: C.textMuted, fontSize: 11 }}> ({c.credits} AKTS)</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ color: C.gold, flexShrink: 0, paddingTop: 24 }}><ArrowRightIcon /></div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>Karsi Kurum</div>
+                      {(entry.hostCourses || []).map((c, ci) => (
+                        <div key={ci} style={{ fontSize: 13, marginBottom: 4, padding: "6px 10px", background: C.greenLight, borderRadius: 6 }}>
+                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{c.code}</span>
+                          {" "}<span style={{ fontWeight: 500 }}>{c.name}</span>
+                          <span style={{ color: C.textMuted, fontSize: 11 }}> ({c.credits} AKTS)</span>
+                        </div>
+                      ))}
+                    </div>
+                    {entry.type === "return" && entry.hostGrades && Object.keys(entry.hostGrades).length > 0 && (
+                      <div style={{ minWidth: 100, textAlign: "center", padding: "8px 12px", background: C.goldPale, borderRadius: 8, border: `1px solid ${C.goldLight}` }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", marginBottom: 4 }}>Notlar</div>
+                        {(entry.hostCourses || []).map((hc, gi) => (
+                          <div key={gi} style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>
+                            {entry.hostGrades[gi] || entry.hostGrade || "-"} → {entry.homeGrades?.[gi] || entry.homeGrade || "Muaf"}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}`, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {(entry.usedBy || []).map((s, si) => (
+                      <span key={si} style={{ padding: "3px 10px", background: "#EEF0F5", borderRadius: 6, fontSize: 11, color: C.navy, fontWeight: 500 }}>
+                        {s.name} ({s.number}) - {s.semester}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ padding: 24, borderTop: `2px solid ${C.border}`, background: C.bg }}>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Btn onClick={onClose} variant="secondary">Kapat</Btn>
           </div>
         </div>
       </div>
@@ -1048,6 +1255,7 @@ function ErasmusLearningAgreementApp({ currentUser }) {
   const [selectedSemester, setSelectedSemester] = useState("all");
   const [loading, setLoading] = useState(true);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showTripHistory, setShowTripHistory] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -1068,6 +1276,12 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         }
         const fetchedStudents = await FirebaseDB.fetchStudents();
         setStudents(fetchedStudents);
+        // Mevcut ogrencilerin eslestirmelerini gecmise kaydet (ilk seferde)
+        fetchedStudents.forEach(s => {
+          if ((s.outgoingMatches?.length > 0 || s.returnMatches?.length > 0) && s.hostInstitution) {
+            FirebaseDB.syncStudentToTripHistory(s).catch(() => {});
+          }
+        });
       } catch (error) {
         console.error('Error loading students:', error);
       } finally {
@@ -1106,6 +1320,10 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         passwords[updatedStudent.studentNumber] = oldPassword;
         await FirebaseDB.passwordsRef().doc('student_passwords').set(passwords);
       }
+      // Otomatik olarak eslestirme gecmisine kaydet
+      FirebaseDB.syncStudentToTripHistory(updatedStudent).catch(err =>
+        console.error('Trip history sync error:', err)
+      );
       setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
       setSelectedStudent(null);
       alert('Degisiklikler kaydedildi!');
@@ -1194,6 +1412,7 @@ function ErasmusLearningAgreementApp({ currentUser }) {
                   <Btn onClick={() => fileInputRef.current?.click()} variant="secondary" icon={<UploadIcon />}>İçe Aktar</Btn>
                   <Btn onClick={exportAllData} variant="secondary" icon={<DownloadIcon />}>Tümünü Dışa Aktar</Btn>
                   <Btn onClick={handleAddStudent} icon={<PlusIcon />}>Yeni Öğrenci Ekle</Btn>
+                  <Btn onClick={() => setShowTripHistory(true)} variant="secondary" icon={<FileTextIcon />}>Eslestirme Gecmisi</Btn>
                   <Btn onClick={() => setShowPasswordModal(true)} variant="secondary">Şifre Yönetimi</Btn>
                 </>
               )}
@@ -1277,6 +1496,9 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         )}
         {showPasswordModal && currentUser?.role === 'admin' && (
           <PasswordManagementModal students={students} onClose={() => setShowPasswordModal(false)} />
+        )}
+        {showTripHistory && (
+          <TripHistoryModal onClose={() => setShowTripHistory(false)} universities={UNIVERSITY_CATALOGS} />
         )}
       </div>
     </div>
