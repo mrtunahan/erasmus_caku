@@ -150,8 +150,7 @@ function KaynakKutuphanesiApp({ currentUser }) {
   const handleDownload = async (resource) => {
     try {
       const db = window.firebase?.firestore();
-      const auth = window.firebase?.auth();
-      if (!db || !auth?.currentUser || resource.id.startsWith("sample_")) return;
+      if (!db || !currentUser || resource.id.startsWith("sample_")) return;
 
       await db.collection("resources").doc(resource.id).update({
         downloadCount: window.firebase.firestore.FieldValue.increment(1),
