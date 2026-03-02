@@ -18,6 +18,7 @@ import hashlib
 import json
 import logging
 import re
+import socket
 import sys
 import time
 from datetime import datetime
@@ -803,6 +804,137 @@ def kaynak_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -> 
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# BAĞLANTI KONTROLÜ
+# ══════════════════════════════════════════════════════════════════════════════
+
+def dns_cozumle(hostname: str) -> list:
+    """Hostname için IPv4 ve IPv6 adreslerini çözümler."""
+    sonuclar = []
+    for family, label in [(socket.AF_INET, "IPv4"), (socket.AF_INET6, "IPv6")]:
+        try:
+            infos = socket.getaddrinfo(hostname, 443, family, socket.SOCK_STREAM)
+            for info in infos:
+                ip = info[4][0]
+                if ip not in [s["ip"] for s in sonuclar]:
+                    sonuclar.append({"ip": ip, "aile": label})
+        except socket.gaierror:
+            pass
+    return sonuclar
+
+
+def port_kontrol(ip: str, port: int = 443, timeout: float = 5.0) -> dict:
+    """Belirtilen IP:port'a TCP bağlantısı test eder."""
+    family = socket.AF_INET6 if ":" in ip else socket.AF_INET
+    baslangic = time.time()
+    try:
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        sonuc = sock.connect_ex((ip, port))
+        sure = time.time() - baslangic
+        sock.close()
+        return {"acik": sonuc == 0, "sure": round(sure, 3), "hata": None}
+    except Exception as e:
+        sure = time.time() - baslangic
+        return {"acik": False, "sure": round(sure, 3), "hata": str(e)}
+
+
+def http_kontrol(url: str, timeout: float = 10.0) -> dict:
+    """URL'ye HTTP GET isteği gönderir ve durumu raporlar."""
+    baslangic = time.time()
+    try:
+        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=timeout, verify=True)
+        sure = time.time() - baslangic
+        return {"durum": resp.status_code, "sure": round(sure, 3), "hata": None}
+    except requests.exceptions.Timeout:
+        sure = time.time() - baslangic
+        return {"durum": 0, "sure": round(sure, 3), "hata": "Zaman aşımı"}
+    except requests.exceptions.ConnectionError as e:
+        sure = time.time() - baslangic
+        return {"durum": 0, "sure": round(sure, 3), "hata": f"Bağlantı hatası: {e}"}
+    except Exception as e:
+        sure = time.time() - baslangic
+        return {"durum": 0, "sure": round(sure, 3), "hata": str(e)}
+
+
+def baglanti_kontrol(logger: logging.Logger):
+    """Tüm kaynaklar için bağlantı durumunu kontrol eder ve raporlar."""
+    logger.info("=" * 60)
+    logger.info("🔍 Bağlantı Kontrol Raporu")
+    logger.info("=" * 60)
+
+    # Sunucu kendi IP'si
+    try:
+        resp = requests.get("https://ifconfig.me", timeout=5,
+                            headers={"User-Agent": "curl/7.88.1"})
+        logger.info(f"🖥  Sunucu IP: {resp.text.strip()}")
+    except Exception:
+        logger.info("🖥  Sunucu IP: tespit edilemedi")
+
+    logger.info("")
+
+    for kaynak in KAYNAKLAR:
+        parsed = urlparse(kaynak["base_url"])
+        hostname = parsed.netloc
+        logger.info(f"📡 {kaynak['label']} ({hostname})")
+
+        # DNS çözümleme
+        dns_sonuclari = dns_cozumle(hostname)
+        if not dns_sonuclari:
+            logger.error(f"   ✗ DNS çözümlenemedi!")
+            logger.info("")
+            continue
+
+        for dns in dns_sonuclari:
+            logger.info(f"   DNS: {dns['ip']} ({dns['aile']})")
+
+        # Port kontrolü
+        for dns in dns_sonuclari:
+            port = port_kontrol(dns["ip"])
+            durum = "AÇIK ✓" if port["acik"] else "KAPALI ✗"
+            logger.info(f"   Port 443 [{dns['ip']}]: {durum} ({port['sure']}s)")
+            if port["hata"]:
+                logger.info(f"   Hata: {port['hata']}")
+
+        # HTTP kontrolü
+        http = http_kontrol(kaynak["base_url"])
+        if http["durum"] > 0:
+            logger.info(f"   HTTP: {http['durum']} ({http['sure']}s) ✓")
+        else:
+            logger.error(f"   HTTP: {http['durum']} ({http['sure']}s) — {http['hata']} ✗")
+
+        # JSON API kontrolü
+        if kaynak.get("json_api"):
+            api_url = f"{kaynak['base_url']}/jsondata/tumIcerikler.aspx?limitone=0&limittwo=1&tur=1"
+            api = http_kontrol(api_url)
+            if api["durum"] > 0:
+                logger.info(f"   JSON API: {api['durum']} ({api['sure']}s) ✓")
+            else:
+                logger.error(f"   JSON API: {api['durum']} ({api['sure']}s) — {api['hata']} ✗")
+
+        logger.info("")
+
+    logger.info("=" * 60)
+
+
+def onbellek_yukle(output_path: Path, logger: logging.Logger) -> dict:
+    """Mevcut JSON dosyasından önbelleklenmiş duyuruları yükler."""
+    if not output_path.exists():
+        return {}
+    try:
+        with open(output_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        onbellek = {}
+        for d in data.get("duyurular", []):
+            kaynak_id = d.get("kaynak")
+            if kaynak_id:
+                onbellek.setdefault(kaynak_id, []).append(d)
+        return onbellek
+    except Exception as e:
+        logger.warning(f"⚠ Önbellek yüklenemedi: {e}")
+        return {}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # ANA FONKSİYON
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -817,6 +949,12 @@ def main():
                         help="Sadece belirtilen kaynakları çek")
     parser.add_argument("--debug", action="store_true",
                         help="Her sayfadaki tüm linkleri göster (sorun tespiti)")
+    parser.add_argument("--check", action="store_true",
+                        help="Sadece bağlantı kontrolü yap (scrape etme)")
+    parser.add_argument("--onbellek-koru", action="store_true", default=True,
+                        help="Erişilemeyen kaynak için önceki duyuruları koru (varsayılan: açık)")
+    parser.add_argument("--no-onbellek", action="store_true",
+                        help="Önbellek korumasını devre dışı bırak")
     # Geriye dönük uyumluluk için (kullanılmaz)
     parser.add_argument("--no-detail", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -829,6 +967,11 @@ def main():
     )
     logger = logging.getLogger("scraper")
 
+    # --check modu: sadece bağlantı durumunu kontrol et
+    if args.check:
+        baglanti_kontrol(logger)
+        return 0
+
     # Çıktı yolu — "json" keyword'ü veya None ise varsayılan kullan
     if args.output and args.output != "json":
         output_path = Path(args.output)
@@ -837,9 +980,15 @@ def main():
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Önbellek koruması aktif mi?
+    onbellek_aktif = args.onbellek_koru and not args.no_onbellek
+    onbellek = onbellek_yukle(output_path, logger) if onbellek_aktif else {}
+
     logger.info("=" * 60)
     logger.info("🚀 Karatekin Duyuru Scraper başlatılıyor...")
     logger.info(f"📂 Çıktı: {output_path}")
+    if onbellek:
+        logger.info(f"📦 Önbellek: {sum(len(v) for v in onbellek.values())} duyuru yüklendi")
     logger.info("=" * 60)
 
     aktif_kaynaklar = KAYNAKLAR
@@ -849,15 +998,45 @@ def main():
     tum_duyurular = []
     basarili = 0
     basarisiz = 0
+    kaynak_durumlari = {}
 
     for i, kaynak in enumerate(aktif_kaynaklar):
+        kaynak_id = kaynak["id"]
         try:
             duyurular = kaynak_scrape(kaynak, logger, debug=args.debug)
-            tum_duyurular.extend(duyurular)
-            basarili += 1
+            if duyurular:
+                tum_duyurular.extend(duyurular)
+                basarili += 1
+                kaynak_durumlari[kaynak_id] = "basarili"
+            else:
+                # Kaynak erişilebilir ama duyuru yok veya parse edilemedi
+                # Önbellekten koru
+                if onbellek_aktif and kaynak_id in onbellek and onbellek[kaynak_id]:
+                    onbellek_sayisi = len(onbellek[kaynak_id])
+                    tum_duyurular.extend(onbellek[kaynak_id])
+                    logger.warning(
+                        f"  📦 {kaynak['label']}: 0 yeni duyuru — "
+                        f"önbellekten {onbellek_sayisi} duyuru korundu"
+                    )
+                    kaynak_durumlari[kaynak_id] = f"onbellek ({onbellek_sayisi})"
+                    basarili += 1
+                else:
+                    basarisiz += 1
+                    kaynak_durumlari[kaynak_id] = "bos"
         except Exception as e:
             logger.error(f"  ✗ {kaynak['label']} scrape hatası: {e}")
-            basarisiz += 1
+            # Hata durumunda önbellekten koru
+            if onbellek_aktif and kaynak_id in onbellek and onbellek[kaynak_id]:
+                onbellek_sayisi = len(onbellek[kaynak_id])
+                tum_duyurular.extend(onbellek[kaynak_id])
+                logger.warning(
+                    f"  📦 {kaynak['label']}: hata sonrası önbellekten "
+                    f"{onbellek_sayisi} duyuru korundu"
+                )
+                kaynak_durumlari[kaynak_id] = f"hata+onbellek ({onbellek_sayisi})"
+            else:
+                kaynak_durumlari[kaynak_id] = "hata"
+                basarisiz += 1
 
         if i < len(aktif_kaynaklar) - 1:
             time.sleep(CRAWL_DELAY)
@@ -872,7 +1051,8 @@ def main():
                 k["id"]: len([d for d in tum_duyurular if d["kaynak"] == k["id"]])
                 for k in aktif_kaynaklar
             },
-            "scraper_surumu": "3.1.0",
+            "kaynak_durumlari": kaynak_durumlari,
+            "scraper_surumu": "3.2.0",
         },
         "duyurular": tum_duyurular,
     }
@@ -883,6 +1063,8 @@ def main():
     logger.info("=" * 60)
     logger.info(f"✅ Tamamlandı! {len(tum_duyurular)} duyuru kaydedildi.")
     logger.info(f"   Başarılı: {basarili}, Başarısız: {basarisiz}")
+    for kid, durum in kaynak_durumlari.items():
+        logger.info(f"   {kid}: {durum}")
     logger.info(f"   Dosya: {output_path} ({output_path.stat().st_size / 1024:.1f} KB)")
     logger.info("=" * 60)
 
