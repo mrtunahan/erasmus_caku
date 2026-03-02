@@ -54,10 +54,12 @@ KAYNAKLAR = [
         "label": "Üniversite",
         "base_url": "https://www.karatekin.edu.tr",
         "duyuru_url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
-        "alt_duyuru_urls": [
-            "https://www.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
-        ],
-        "json_api": True,
+        "json_api": False,
+        "www_api": {
+            "url": "https://www.karatekin.edu.tr/datas/Icerikler/IcerikController.aspx",
+            "siteid": 54,
+            "type": 1,
+        },
     },
     {
         "id": "oidb",
@@ -287,6 +289,121 @@ def _json_api_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) 
         logger.info(f"  ✓ {len(duyurular)} duyuru bulundu — JSON API ({kaynak['label']})")
     else:
         logger.warning(f"  ✗ JSON API'den duyuru çıkarılamadı ({kaynak['label']})")
+
+    return duyurular
+
+
+# Ay kısaltmaları (www API yanıtında Türkçe kısa ay isimleri döner)
+_WWW_AY_MAP = {
+    "oca": "01", "sub": "02", "şub": "02", "mar": "03", "nis": "04",
+    "may": "05", "haz": "06", "tem": "07", "ağu": "08", "agu": "08",
+    "eyl": "09", "eki": "10", "kas": "11", "ara": "12",
+    # Tam isimler de olabilir
+    "ocak": "01", "şubat": "02", "subat": "02", "mart": "03", "nisan": "04",
+    "mayıs": "05", "mayis": "05", "haziran": "06", "temmuz": "07",
+    "ağustos": "08", "agustos": "08", "eylül": "09", "eylul": "09",
+    "ekim": "10", "kasım": "11", "kasim": "11", "aralık": "12", "aralik": "12",
+}
+
+
+def _www_api_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -> list:
+    """
+    www.karatekin.edu.tr özel API'si (IcerikController) üzerinden duyuruları çeker.
+
+    Ana site subdomain'lerden farklı bir CMS kullanıyor:
+      POST /datas/Icerikler/IcerikController.aspx?siteid=54&language=T&limitOne=0&limitTwo=50&limit=1&type=1
+    Yanıt: [{data: [{title, link, day, month, year, image}, ...]}]
+    """
+    cfg = kaynak["www_api"]
+    kaynak_id = kaynak["id"]
+    base_url = kaynak["base_url"]
+    api_url = (
+        f"{cfg['url']}?siteid={cfg['siteid']}&language=T"
+        f"&limitOne=0&limitTwo={JSON_API_LIMIT}&limit=1&type={cfg['type']}"
+    )
+
+    logger.info(f"  → WWW API: {api_url}")
+
+    data = None
+    timeouts = [15, REQUEST_TIMEOUT]
+    for attempt, t in enumerate(timeouts, 1):
+        try:
+            resp = requests.post(
+                api_url, data="", headers=JSON_API_HEADERS,
+                timeout=t, verify=True,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except requests.exceptions.RequestException as e:
+            if attempt < len(timeouts):
+                logger.warning(f"  ⚠ WWW API deneme {attempt} başarısız, tekrar deneniyor...")
+                time.sleep(2)
+            else:
+                logger.warning(f"  ✗ WWW API hatası: {e}")
+                return []
+        except (ValueError, KeyError) as e:
+            logger.warning(f"  ✗ WWW API JSON parse hatası: {e}")
+            return []
+
+    # Yanıt yapısı: [{data: [...]}]
+    try:
+        items = data[0]["data"]
+    except (IndexError, KeyError, TypeError):
+        logger.warning(f"  ✗ WWW API beklenmeyen yanıt formatı")
+        if debug:
+            logger.info(f"  [DEBUG] WWW API yanıt: {str(data)[:500]}")
+        return []
+
+    if debug:
+        logger.info(f"  [DEBUG] WWW API: {len(items)} öğe döndü")
+
+    duyurular = []
+    gorulmus = set()
+
+    for item in items:
+        baslik = item.get("title", "").strip()
+        if not baslik or len(baslik) < 5:
+            continue
+
+        link = item.get("link", "").strip()
+        if not link:
+            continue
+
+        full_url = urljoin(base_url + "/", link.lstrip("/"))
+        if full_url in gorulmus:
+            continue
+        gorulmus.add(full_url)
+
+        # Tarih: day, month, year alanlarından
+        day = item.get("day", "").strip()
+        month_str = item.get("month", "").strip().lower()
+        year = item.get("year", "").strip()
+
+        tarih = ""
+        if day and year:
+            ay = _WWW_AY_MAP.get(month_str, "")
+            if ay:
+                tarih = f"{year}-{ay}-{int(day):02d}"
+            else:
+                # Sayısal ay olabilir
+                try:
+                    tarih = f"{year}-{int(month_str):02d}-{int(day):02d}"
+                except ValueError:
+                    pass
+
+        duyuru_id = benzersiz_id(kaynak_id, baslik, full_url)
+        duyurular.append({
+            "id": duyuru_id,
+            "baslik": baslik[:200],
+            "tarih": tarih or datetime.now().strftime("%Y-%m-%d"),
+            "url": full_url,
+        })
+
+    if duyurular:
+        logger.info(f"  ✓ {len(duyurular)} duyuru bulundu — WWW API ({kaynak['label']})")
+    else:
+        logger.warning(f"  ✗ WWW API'den duyuru çıkarılamadı ({kaynak['label']})")
 
     return duyurular
 
@@ -639,11 +756,15 @@ def kaynak_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -> 
 
     ham_duyurular = []
 
-    # JSON API destekleyen kaynaklar için önce API'yi dene
-    if kaynak.get("json_api"):
+    # www.karatekin.edu.tr özel API'si
+    if kaynak.get("www_api"):
+        ham_duyurular = _www_api_scrape(kaynak, logger, debug=debug)
+
+    # Subdomain JSON API
+    if not ham_duyurular and kaynak.get("json_api"):
         ham_duyurular = _json_api_scrape(kaynak, logger, debug=debug)
 
-    # JSON API yoksa veya başarısız olduysa HTML parse'a düş
+    # API'ler başarısız olduysa HTML parse'a düş
     if not ham_duyurular:
         urls_to_try = [kaynak["duyuru_url"]] + kaynak.get("alt_duyuru_urls", [])
 
