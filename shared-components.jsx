@@ -1394,21 +1394,24 @@ const LoginModal = ({ onLogin }) => {
         await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
         onLogin(user);
       } catch (authErr) {
-        if (authErr.code === 'auth/user-not-found') {
-          // Migration: eski Firestore şifresi ile doğrula, Firebase Auth hesabı oluştur
-          const passwords = await FirebaseDB.fetchPasswords();
-          const validPassword = passwords[trimmedId];
-          if (password === validPassword) {
+        // Firebase Auth v9+: tüm credential hataları tek kodda birleştirildi
+        // Migration: eski Firestore şifresi ile doğrula, eşleşirse Firebase Auth hesabı oluştur
+        const passwords = await FirebaseDB.fetchPasswords();
+        const validPassword = passwords[trimmedId];
+        if (password === validPassword) {
+          try {
             await FirebaseAuth.createAccount(email, password);
             await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
             onLogin(user);
-          } else {
-            setError("Şifre yanlış!");
+          } catch (createErr) {
+            if (createErr.code === 'auth/email-already-in-use') {
+              setError("Şifre yanlış! (Firebase Auth şifreniz farklı olabilir)");
+            } else {
+              throw createErr;
+            }
           }
-        } else if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
-          setError("Şifre yanlış!");
         } else {
-          throw authErr;
+          setError("Şifre yanlış!");
         }
       }
     } catch (err) {
@@ -1434,21 +1437,23 @@ const LoginModal = ({ onLogin }) => {
           await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, adminUser);
           onLogin(adminUser);
         } catch (authErr) {
-          if (authErr.code === 'auth/user-not-found') {
-            // Migration: eski Firestore şifresi ile doğrula
-            const storedAdminPassword = await FirebaseDB.fetchAdminPassword();
-            const validPassword = storedAdminPassword || "1605";
-            if (password === validPassword) {
+          // Migration: eski Firestore şifresi ile doğrula
+          const storedAdminPassword = await FirebaseDB.fetchAdminPassword();
+          const validPassword = storedAdminPassword || "1605";
+          if (password === validPassword) {
+            try {
               await FirebaseAuth.createAccount(email, password);
               await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, adminUser);
               onLogin(adminUser);
-            } else {
-              setError("Admin şifresi yanlış!");
+            } catch (createErr) {
+              if (createErr.code === 'auth/email-already-in-use') {
+                setError("Admin şifresi yanlış! (Firebase Auth şifreniz farklı olabilir)");
+              } else {
+                throw createErr;
+              }
             }
-          } else if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
-            setError("Admin şifresi yanlış!");
           } else {
-            throw authErr;
+            setError("Admin şifresi yanlış!");
           }
         }
       } else if (activeTab === "professor") {
@@ -1478,20 +1483,22 @@ const LoginModal = ({ onLogin }) => {
           await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
           onLogin(user);
         } catch (authErr) {
-          if (authErr.code === 'auth/user-not-found') {
-            // Migration: eski Firestore şifresi ile doğrula
-            const validPassword = passwords[identifier] || "1234";
-            if (password === validPassword) {
+          // Migration: eski Firestore şifresi ile doğrula
+          const validPassword = passwords[identifier] || "1234";
+          if (password === validPassword) {
+            try {
               await FirebaseAuth.createAccount(email, password);
               await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
               onLogin(user);
-            } else {
-              setError("Şifre yanlış!");
+            } catch (createErr) {
+              if (createErr.code === 'auth/email-already-in-use') {
+                setError("Şifre yanlış! (Firebase Auth şifreniz farklı olabilir)");
+              } else {
+                throw createErr;
+              }
             }
-          } else if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
-            setError("Şifre yanlış!");
           } else {
-            throw authErr;
+            setError("Şifre yanlış!");
           }
         }
       }
