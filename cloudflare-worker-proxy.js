@@ -28,6 +28,7 @@ export default {
     const IZINLI_ORIGINLER = [
       "https://caku-erasmus.web.app",
       "https://caku-erasmus.firebaseapp.com",
+      "https://offlineasistan.com.tr",
     ];
     const requestOrigin = request.headers.get("Origin") || "";
     const allowedOrigin = IZINLI_ORIGINLER.includes(requestOrigin) ? requestOrigin : IZINLI_ORIGINLER[0];
