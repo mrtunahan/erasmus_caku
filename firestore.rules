@@ -1,69 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Erasmus student records
-    match /students/{document=**} {
-      allow read, write: if true;
-    }
-
-    // User profiles
-    match /users/{document=**} {
-      allow read, write: if true;
-    }
-
-    // Password storage
-    match /passwords/{document=**} {
-      allow read, write: if true;
-    }
-
-    // Exam system
-    match /exams/{document=**} {
-      allow read, write: if true;
-    }
-    match /exam_results/{document=**} {
-      allow read, write: if true;
-    }
-    match /exam_periods/{document=**} {
-      allow read, write: if true;
-    }
-
-    // Professors
-    match /professors/{document=**} {
-      allow read, write: if true;
-    }
-
-    // Course groups
-    match /course_groups/{document=**} {
-      allow read, write: if true;
-    }
-    match /course_group_posts/{document=**} {
-      allow read, write: if true;
-    }
-
-    // Surveys
-    match /surveys/{document=**} {
-      allow read, write: if true;
-    }
-
-    // Events
-    match /events/{document=**} {
-      allow read, write: if true;
-    }
-
-    // Resources
-    match /resources/{document=**} {
-      allow read, write: if true;
-    }
-
-    // Forms
-    match /forms/{document=**} {
-      allow read, write: if true;
-    }
-
-    // Trip History (Erasmus course matching history)
-    match /trip_history/{document=**} {
-      allow read, write: if true;
+    match /{document=**} {
+      allow read: if true;
+      allow write: if true;
     }
   }
 }

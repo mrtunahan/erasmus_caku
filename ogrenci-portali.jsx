@@ -2462,6 +2462,23 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
             {post.attachment.type && post.attachment.type.startsWith("image/") ? (
               <img src={post.attachment.url} alt={post.attachment.name}
                 style={{ width: "100%", maxHeight: 400, objectFit: "cover", display: "block" }} />
+            ) : post.attachment.type === "application/pdf" || (post.attachment.name && post.attachment.name.toLowerCase().endsWith(".pdf")) ? (
+              <div>
+                <iframe
+                  src={post.attachment.url}
+                  style={{ width: "100%", height: 500, border: "none", display: "block" }}
+                  title={post.attachment.name}
+                />
+                <a href={post.attachment.url} target="_blank" rel="noopener noreferrer"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "10px 16px",
+                    background: DY.warmLight, textDecoration: "none", borderTop: "1px solid " + PC.borderLight,
+                  }}>
+                  <SvgIcon path={ICONS.file} size={20} color={DY.gold} />
+                  <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy }}>{post.attachment.name}</div>
+                  <div style={{ fontSize: 11, color: PC.textMuted, marginLeft: "auto" }}>Indir</div>
+                </a>
+              </div>
             ) : (
               <a href={post.attachment.url} target="_blank" rel="noopener noreferrer"
                 style={{
