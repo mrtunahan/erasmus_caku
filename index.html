@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://www.gstatic.com https://cdn.quilljs.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.firebasestorage.app https://*.googleapis.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebasestorage.app wss://*.firebaseio.com; frame-src 'none'; object-src 'none'; base-uri 'self';">
   <title>ÇAKÜ Yönetim Sistemi</title>
 
   <!-- React & ReactDOM from CDN -->
@@ -484,10 +485,12 @@
           <div>
             <h2 style="font-size: 32px; margin-bottom: 16px;">Firebase Hatasi</h2>
             <p style="font-size: 18px; margin-bottom: 12px;">Firebase baslatilamadi</p>
-            <p style="font-size: 14px; opacity: 0.9; max-width: 500px;">${error.message}</p>
+            <p style="font-size: 14px; opacity: 0.9; max-width: 500px;" id="firebase-error-msg"></p>
           </div>
         </div>
       `;
+      var errEl = document.getElementById('firebase-error-msg');
+      if (errEl) errEl.textContent = error.message;
     }
   </script>
 
@@ -570,9 +573,11 @@
           '<div class="error-screen"><div>' +
           '<h2 style="font-size:28px;margin-bottom:16px;font-family:Playfair Display,serif">Yukleme Hatasi</h2>' +
           '<p style="font-size:16px;margin-bottom:12px;opacity:0.9">Uygulama yuklenemedi</p>' +
-          '<p style="font-size:13px;opacity:0.6;max-width:500px">' + error.message + '</p>' +
+          '<p id="load-error-msg" style="font-size:13px;opacity:0.6;max-width:500px"></p>' +
           '<button onclick="location.reload()" style="margin-top:24px;padding:12px 24px;font-size:14px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:white;border-radius:8px;cursor:pointer;font-weight:600">' +
           'Sayfayi Yenile</button></div></div>';
+        var loadErrEl = document.getElementById('load-error-msg');
+        if (loadErrEl) loadErrEl.textContent = error.message;
       }
     }
 

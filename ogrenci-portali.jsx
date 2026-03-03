@@ -311,7 +311,7 @@ function validateFile(file, isInlineImage) {
 function isHtmlEmpty(html) {
   if (!html) return true;
   var tmp = document.createElement("div");
-  tmp.innerHTML = html;
+  tmp.innerHTML = sanitizeHtml(html);
   var text = tmp.textContent || tmp.innerText || "";
   return !text.trim();
 }
@@ -319,18 +319,31 @@ function isHtmlEmpty(html) {
 function sanitizeHtml(html) {
   if (!html) return "";
   if (typeof DOMPurify !== "undefined") {
-    return DOMPurify.sanitize(html, { ADD_TAGS: ["iframe"], ADD_ATTR: ["target"] });
+    return DOMPurify.sanitize(html, {
+      FORBID_TAGS: ["iframe", "object", "embed", "form", "input", "style"],
+      FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onfocus", "onblur"],
+      ADD_ATTR: ["target"],
+      ALLOW_DATA_ATTR: false,
+    });
   }
+  // Fallback: DOMPurify yoksa güvenli olmayan tüm içeriği kaldır
   return html
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
+    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "")
+    .replace(/<embed[^>]*>/gi, "")
+    .replace(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, "")
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
     .replace(/\s*on\w+\s*=\s*"[^"]*"/gi, "")
     .replace(/\s*on\w+\s*=\s*'[^']*'/gi, "")
-    .replace(/javascript\s*:/gi, "");
+    .replace(/\s*on\w+\s*=\s*[^\s>]*/gi, "")
+    .replace(/javascript\s*:/gi, "")
+    .replace(/data\s*:/gi, "");
 }
 
 function truncateHtml(html, maxTextLen) {
   var div = document.createElement("div");
-  div.innerHTML = html;
+  div.innerHTML = sanitizeHtml(html);
   var text = div.textContent || div.innerText || "";
   if (text.length <= maxTextLen) return html;
   var count = 0;
@@ -2067,7 +2080,7 @@ const RichTextEditor = ({ value, onChange, placeholder, onImageUpload, allUsers 
     });
 
     if (value) {
-      quill.root.innerHTML = value;
+      quill.root.innerHTML = sanitizeHtml(value);
     }
 
     quill.on("text-change", function () {

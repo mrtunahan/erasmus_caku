@@ -24,10 +24,19 @@ export default {
       "karatekin.edu.tr",
     ];
 
+    // CORS — sadece izinli origin'lere yanıt ver
+    const IZINLI_ORIGINLER = [
+      "https://caku-erasmus.web.app",
+      "https://caku-erasmus.firebaseapp.com",
+    ];
+    const requestOrigin = request.headers.get("Origin") || "";
+    const allowedOrigin = IZINLI_ORIGINLER.includes(requestOrigin) ? requestOrigin : IZINLI_ORIGINLER[0];
+
     const corsHeaders = {
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": allowedOrigin,
       "Access-Control-Allow-Methods": "GET, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
+      "Vary": "Origin",
     };
 
     // OPTIONS preflight
@@ -49,13 +58,23 @@ export default {
       );
     }
 
-    // Domain kontrolü
+    // Domain ve protokol kontrolü
     let hedefDomain;
+    let hedefParsed;
     try {
-      hedefDomain = new URL(hedefUrl).hostname;
+      hedefParsed = new URL(hedefUrl);
+      hedefDomain = hedefParsed.hostname;
     } catch (e) {
       return new Response(
         JSON.stringify({ hata: "Gecersiz URL" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Sadece HTTP/HTTPS protokollerine izin ver (SSRF koruması)
+    if (hedefParsed.protocol !== "https:" && hedefParsed.protocol !== "http:") {
+      return new Response(
+        JSON.stringify({ hata: "Sadece HTTP/HTTPS protokollerine izin verilir" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
