@@ -509,6 +509,7 @@ const FirebaseDB = {
 
   // ── Trip History CRUD (Eşleştirme Geçmişi) ──
   async fetchTripHistory(hostInstitution) {
+    if (FirebaseDB._tripHistoryDisabled) return [];
     try {
       const ref = FirebaseDB.tripHistoryRef();
       if (!ref) return [];
@@ -519,6 +520,11 @@ const FirebaseDB = {
       const snapshot = await query.get();
       return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
     } catch (error) {
+      if (error.code === 'permission-denied') {
+        console.warn('Trip history fetch disabled: Firestore rules need to be deployed. Run: firebase deploy --only firestore:rules');
+        FirebaseDB._tripHistoryDisabled = true;
+        return [];
+      }
       console.error('Error fetching trip history:', error);
       return [];
     }
@@ -548,7 +554,11 @@ const FirebaseDB = {
       throw error;
     }
   },
+  _tripHistoryDisabled: false,
+
   async syncStudentToTripHistory(student) {
+    // Skip if previously disabled due to permission errors
+    if (FirebaseDB._tripHistoryDisabled) return;
     try {
       const ref = FirebaseDB.tripHistoryRef();
       if (!ref) return;
@@ -623,7 +633,13 @@ const FirebaseDB = {
         await batch.commit();
       }
     } catch (error) {
-      console.error('Error syncing to trip history:', error);
+      // Disable trip history sync on permission errors to avoid flooding console
+      if (error.code === 'permission-denied') {
+        console.warn('Trip history sync disabled: Firestore rules need to be deployed. Run: firebase deploy --only firestore:rules');
+        FirebaseDB._tripHistoryDisabled = true;
+      } else {
+        console.error('Error syncing to trip history:', error);
+      }
     }
   },
 
