@@ -438,9 +438,10 @@ var PortalDB = {
   },
 
   // Gönderiler
-  async createPost(post) {
+  async createPost(post, isModOrAdmin) {
     var ref = this.postsRef();
     if (!ref) throw new Error("Firebase bağlantısı yok");
+    var status = isModOrAdmin ? "approved" : "pending";
     var docRef = await ref.add(Object.assign({}, post, {
       createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
       reactions: {},
@@ -450,8 +451,31 @@ var PortalDB = {
       commentCount: 0,
       views: 0,
       pinned: false,
+      status: status,
     }));
-    return Object.assign({}, post, { id: docRef.id });
+    return Object.assign({}, post, { id: docRef.id, status: status });
+  },
+
+  async approvePost(postId, reviewerName) {
+    var ref = this.postsRef();
+    if (!ref) throw new Error("Firebase bağlantısı yok");
+    await ref.doc(String(postId)).update({
+      status: "approved",
+      reviewedBy: reviewerName,
+      reviewedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      rejectionReason: window.firebase.firestore.FieldValue.delete(),
+    });
+  },
+
+  async rejectPost(postId, reviewerName, reason) {
+    var ref = this.postsRef();
+    if (!ref) throw new Error("Firebase bağlantısı yok");
+    await ref.doc(String(postId)).update({
+      status: "rejected",
+      reviewedBy: reviewerName,
+      reviewedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      rejectionReason: reason || "",
+    });
   },
 
   async fetchPosts(category, limit) {
@@ -2104,7 +2128,7 @@ const RichTextEditor = ({ value, onChange, placeholder, onImageUpload, allUsers 
 };
 
 // ── Gönderi Kartı ──
-const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor, onFilterTag, allUsers, onFollowUser, followedUsers, onViewProfile, isModOrAdmin, moderators }) => {
+const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, onEdit, onTogglePin, isBookmarked, onToggleBookmark, onFilterAuthor, onFilterTag, allUsers, onFollowUser, followedUsers, onViewProfile, isModOrAdmin, moderators, onApprove, onReject }) => {
   var cat = getCategoryInfo(post.category);
   var userId = getUserId(currentUser);
   var isAdmin = currentUser.role === "admin" || currentUser.isAdmin;
@@ -2119,6 +2143,8 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
   const [editContent, setEditContent] = useState(post.content || "");
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   var TRUNCATE_LEN = 300;
   var isLong, displayContent;
@@ -2168,6 +2194,119 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
           color: "white", display: "flex", alignItems: "center", gap: 6,
         }}>
           <SvgIcon path={ICONS.pin} size={12} color="white" fill="white" /> Sabitlenmiş Gönderi
+        </div>
+      )}
+
+      {/* Moderasyon durumu banner */}
+      {post.status === "pending" && (
+        <div style={{
+          background: "linear-gradient(90deg, #F59E0B, #D97706)",
+          padding: "8px 16px", fontSize: 12, fontWeight: 600,
+          color: "white", display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 8,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+            </svg>
+            Onay Bekliyor — Bu gönderi henüz moderatör tarafından incelenmedi
+          </div>
+          {canModerate && (
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                onClick={function () { if (onApprove) onApprove(post.id); }}
+                style={{
+                  padding: "4px 12px", border: "none", borderRadius: 6,
+                  background: "#16A34A", color: "white", fontSize: 11,
+                  fontWeight: 700, cursor: "pointer",
+                }}
+              >Onayla</button>
+              <button
+                onClick={function () { setShowRejectModal(true); }}
+                style={{
+                  padding: "4px 12px", border: "none", borderRadius: 6,
+                  background: "#DC2626", color: "white", fontSize: 11,
+                  fontWeight: 700, cursor: "pointer",
+                }}
+              >Reddet</button>
+            </div>
+          )}
+        </div>
+      )}
+      {post.status === "rejected" && (
+        <div style={{
+          background: "linear-gradient(90deg, #DC2626, #B91C1C)",
+          padding: "8px 16px", fontSize: 12, fontWeight: 600,
+          color: "white", display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>
+          </svg>
+          <span>Reddedildi{post.reviewedBy ? " — " + post.reviewedBy + " tarafından" : ""}{post.rejectionReason ? ": " + post.rejectionReason : ""}</span>
+          {canModerate && (
+            <button
+              onClick={function () { if (onApprove) onApprove(post.id); }}
+              style={{
+                marginLeft: "auto", padding: "4px 12px", border: "none", borderRadius: 6,
+                background: "rgba(255,255,255,0.2)", color: "white", fontSize: 11,
+                fontWeight: 700, cursor: "pointer",
+              }}
+            >Yeniden Onayla</button>
+          )}
+        </div>
+      )}
+
+      {/* Reddetme modal */}
+      {showRejectModal && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center",
+          justifyContent: "center", zIndex: 9999,
+        }} onClick={function () { setShowRejectModal(false); }}>
+          <div
+            onClick={function (e) { e.stopPropagation(); }}
+            style={{
+              background: "white", borderRadius: 16, padding: 24,
+              width: "90%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            }}
+          >
+            <div style={{ fontSize: 16, fontWeight: 700, color: PC.navy, marginBottom: 16 }}>
+              Gönderiyi Reddet
+            </div>
+            <textarea
+              value={rejectReason}
+              onChange={function (e) { setRejectReason(e.target.value); }}
+              placeholder="Reddetme sebebi (opsiyonel)..."
+              rows={3}
+              style={{
+                width: "100%", padding: "10px 14px", border: "1px solid " + PC.border,
+                borderRadius: 10, fontSize: 14, resize: "vertical",
+                outline: "none", fontFamily: "inherit",
+              }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+              <button
+                onClick={function () { setShowRejectModal(false); setRejectReason(""); }}
+                style={{
+                  padding: "8px 16px", border: "1px solid " + PC.border,
+                  borderRadius: 8, background: "white", color: PC.navy,
+                  fontSize: 13, fontWeight: 600, cursor: "pointer",
+                }}
+              >İptal</button>
+              <button
+                onClick={function () {
+                  if (onReject) onReject(post.id, rejectReason);
+                  setShowRejectModal(false);
+                  setRejectReason("");
+                }}
+                style={{
+                  padding: "8px 16px", border: "none", borderRadius: 8,
+                  background: "#DC2626", color: "white",
+                  fontSize: 13, fontWeight: 700, cursor: "pointer",
+                }}
+              >Reddet</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -4204,6 +4343,156 @@ const AdvancedSearchBar = ({ value, onChange, posts, onFilterTag, dateRange, onD
   );
 };
 
+// ── Moderasyon Kuyruğu Paneli ──
+const ModerationQueuePanel = ({ pendingPosts, onApprove, onReject, onEdit, currentUser, allUsers, moderators, isModOrAdmin }) => {
+  const [rejectingId, setRejectingId] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  if (pendingPosts.length === 0) {
+    return (
+      <div style={{
+        marginBottom: 24, background: "white", borderRadius: 14,
+        border: "1px solid " + PC.border, overflow: "hidden",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+      }}>
+        <div style={{
+          padding: "16px 20px", background: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)",
+          color: "white", display: "flex", alignItems: "center", gap: 10,
+        }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+          </svg>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>Moderasyon Kuyruğu</div>
+            <div style={{ fontSize: 12, opacity: 0.7 }}>Onay bekleyen gönderi yok</div>
+          </div>
+        </div>
+        <div style={{ padding: 24, textAlign: "center", color: PC.textMuted, fontSize: 13 }}>
+          Tüm gönderiler incelendi, bekleyen gönderi bulunmuyor.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      marginBottom: 24, background: "white", borderRadius: 14,
+      border: "1px solid " + PC.border, overflow: "hidden",
+      boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+    }}>
+      <div style={{
+        padding: "16px 20px", background: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)",
+        color: "white", display: "flex", alignItems: "center", gap: 10,
+      }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+        </svg>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>Moderasyon Kuyruğu</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>{pendingPosts.length} gönderi onay bekliyor</div>
+        </div>
+      </div>
+
+      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+        {pendingPosts.map(function (post) {
+          var cat = getCategoryInfo(post.category);
+          var textContent = post.contentFormat === "html" ? stripHtmlTags(post.content) : (post.content || "");
+          var preview = textContent.length > 150 ? textContent.substring(0, 150) + "..." : textContent;
+          var timeStr = post.createdAt ? (post.createdAt.toDate ? timeAgo(post.createdAt.toDate()) : timeAgo(new Date(post.createdAt))) : "";
+
+          return (
+            <div key={post.id} style={{
+              padding: 16, borderRadius: 12,
+              border: "1px solid " + PC.border,
+              background: "#FFFBEB",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <Avatar name={post.authorName} size={28} />
+                <span style={{ fontWeight: 600, fontSize: 14, color: PC.navy }}>{post.authorName}</span>
+                <span style={{
+                  padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700,
+                  background: cat.color + "20", color: cat.color,
+                }}>{cat.label}</span>
+                <span style={{ fontSize: 11, color: PC.textMuted, marginLeft: "auto" }}>{timeStr}</span>
+              </div>
+              {post.title && (
+                <div style={{ fontWeight: 700, fontSize: 14, color: PC.navy, marginBottom: 4 }}>{post.title}</div>
+              )}
+              <div style={{ fontSize: 13, color: PC.textSecondary, lineHeight: 1.5, marginBottom: 12 }}>{preview}</div>
+
+              {/* Reddetme sebebi input (sadece aktif ise) */}
+              {rejectingId === post.id && (
+                <div style={{ marginBottom: 12 }}>
+                  <textarea
+                    value={rejectReason}
+                    onChange={function (e) { setRejectReason(e.target.value); }}
+                    placeholder="Reddetme sebebi (opsiyonel)..."
+                    rows={2}
+                    style={{
+                      width: "100%", padding: "8px 12px", border: "1px solid " + PC.border,
+                      borderRadius: 8, fontSize: 13, resize: "none",
+                      outline: "none", fontFamily: "inherit", marginBottom: 8,
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                    <button
+                      onClick={function () { setRejectingId(null); setRejectReason(""); }}
+                      style={{
+                        padding: "6px 14px", border: "1px solid " + PC.border,
+                        borderRadius: 6, background: "white", color: PC.navy,
+                        fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      }}
+                    >İptal</button>
+                    <button
+                      onClick={function () {
+                        onReject(post.id, rejectReason);
+                        setRejectingId(null);
+                        setRejectReason("");
+                      }}
+                      style={{
+                        padding: "6px 14px", border: "none", borderRadius: 6,
+                        background: "#DC2626", color: "white",
+                        fontSize: 12, fontWeight: 700, cursor: "pointer",
+                      }}
+                    >Reddet</button>
+                  </div>
+                </div>
+              )}
+
+              {rejectingId !== post.id && (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={function () { onApprove(post.id); }}
+                    style={{
+                      padding: "6px 16px", border: "none", borderRadius: 8,
+                      background: "#16A34A", color: "white",
+                      fontSize: 12, fontWeight: 700, cursor: "pointer",
+                      transition: "all 0.15s",
+                    }}
+                    onMouseEnter={function (e) { e.currentTarget.style.background = "#15803D"; }}
+                    onMouseLeave={function (e) { e.currentTarget.style.background = "#16A34A"; }}
+                  >Onayla</button>
+                  <button
+                    onClick={function () { setRejectingId(post.id); setRejectReason(""); }}
+                    style={{
+                      padding: "6px 16px", border: "1px solid #FECACA", borderRadius: 8,
+                      background: "#FEF2F2", color: "#DC2626",
+                      fontSize: 12, fontWeight: 700, cursor: "pointer",
+                      transition: "all 0.15s",
+                    }}
+                    onMouseEnter={function (e) { e.currentTarget.style.background = "#FEE2E2"; }}
+                    onMouseLeave={function (e) { e.currentTarget.style.background = "#FEF2F2"; }}
+                  >Reddet</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ── Moderatör Yönetim Paneli ──
 const ModeratorPanel = ({ moderators, onAdd, onRemove }) => {
   const [search, setSearch] = useState("");
@@ -4529,10 +4818,14 @@ function OgrenciPortaliApp({ currentUser }) {
 
   // Yeni gönderi
   const handleNewPost = async function (postData) {
-    var saved = await PortalDB.createPost(postData);
+    var saved = await PortalDB.createPost(postData, isModOrAdmin);
     setPosts(function (prev) { return [saved, ...prev]; });
     setShowNewPost(false);
-    showToast("Gönderi başarıyla paylaşıldı!");
+    if (isModOrAdmin) {
+      showToast("Gönderi başarıyla paylaşıldı!");
+    } else {
+      showToast("Gönderi incelenmek üzere gönderildi. Onaylandıktan sonra yayınlanacaktır.", "info");
+    }
     // Mention bildirimleri gönder
     var mentions = extractMentions(postData.content);
     mentions.forEach(function (mentionedName) {
@@ -4639,10 +4932,58 @@ function OgrenciPortaliApp({ currentUser }) {
     }
   };
 
+  // Gönderi onayla (moderasyon)
+  const handleApprovePost = async function (postId) {
+    try {
+      await PortalDB.approvePost(postId, currentUser.name || "Admin");
+      setPosts(function (prev) {
+        return prev.map(function (p) {
+          return p.id === postId ? Object.assign({}, p, { status: "approved", reviewedBy: currentUser.name }) : p;
+        });
+      });
+      showToast("Gönderi onaylandı ve yayınlandı");
+    } catch (err) {
+      console.error("Onaylama hatası:", err);
+      showToast("Onaylama başarısız!", "error");
+    }
+  };
+
+  // Gönderi reddet (moderasyon)
+  const handleRejectPost = async function (postId, reason) {
+    try {
+      await PortalDB.rejectPost(postId, currentUser.name || "Admin", reason);
+      setPosts(function (prev) {
+        return prev.map(function (p) {
+          return p.id === postId ? Object.assign({}, p, { status: "rejected", reviewedBy: currentUser.name, rejectionReason: reason }) : p;
+        });
+      });
+      showToast("Gönderi reddedildi");
+    } catch (err) {
+      console.error("Reddetme hatası:", err);
+      showToast("Reddetme başarısız!", "error");
+    }
+  };
+
+  // Moderasyon kuyruğu: bekleyen gönderiler (admin/mod için)
+  var pendingPosts = useMemo(function () {
+    if (!isModOrAdmin) return [];
+    return posts.filter(function (p) { return p.status === "pending"; });
+  }, [posts, isModOrAdmin]);
+
   // Arama + sıralama filtresi
   var filteredPosts = useMemo(function () {
     if (highlightedPostId) return posts.filter(function (p) { return p.id === highlightedPostId; });
     var result = posts;
+    // Moderasyon filtresi: normal kullanıcılar sadece onaylı gönderileri veya kendi gönderilerini görür
+    if (!isModOrAdmin) {
+      result = result.filter(function (p) {
+        // Eski gönderiler (status alanı yok) onaylı sayılır
+        if (!p.status || p.status === "approved") return true;
+        // Kendi bekleyen gönderilerini görsün
+        if (p.authorId === userId && p.status === "pending") return true;
+        return false;
+      });
+    }
     // Tam metin arama
     if (searchQuery.trim()) {
       var q = searchQuery.toLowerCase();
@@ -4721,7 +5062,7 @@ function OgrenciPortaliApp({ currentUser }) {
       });
     }
     return result;
-  }, [posts, searchQuery, sortMode, bookmarks, authorFilter, tagFilter, dateRange, followData]);
+  }, [posts, searchQuery, sortMode, bookmarks, authorFilter, tagFilter, dateRange, followData, isModOrAdmin, userId]);
 
   // Sabitlenmiş gönderileri ayır
   var pinnedPosts = filteredPosts.filter(function (p) { return p.pinned; });
@@ -4764,23 +5105,33 @@ function OgrenciPortaliApp({ currentUser }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <NotificationBell currentUser={currentUser} />
-            {isAdmin && (
+            {isModOrAdmin && (
               <button
                 onClick={function () { setShowModPanel(!showModPanel); }}
-                title="Moderatör Yönetimi"
+                title="Moderasyon Paneli"
                 style={{
                   padding: "10px 14px", border: "none", borderRadius: 10,
                   background: showModPanel ? PC.navy : "rgba(27,42,74,0.08)",
                   color: showModPanel ? "white" : PC.navy,
                   cursor: "pointer", fontSize: 13, fontWeight: 600,
                   display: "flex", alignItems: "center", gap: 6,
-                  transition: "all 0.2s",
+                  transition: "all 0.2s", position: "relative",
                 }}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                 </svg>
-                Moderatörler
+                Moderasyon
+                {pendingPosts.length > 0 && (
+                  <span style={{
+                    position: "absolute", top: -4, right: -4,
+                    background: "#EF4444", color: "white",
+                    fontSize: 10, fontWeight: 700, borderRadius: "50%",
+                    width: 18, height: 18, display: "flex",
+                    alignItems: "center", justifyContent: "center",
+                    border: "2px solid white",
+                  }}>{pendingPosts.length}</span>
+                )}
               </button>
             )}
             <button
@@ -4816,6 +5167,20 @@ function OgrenciPortaliApp({ currentUser }) {
                 showToast("Moderatörlük kaldırıldı");
               });
             }}
+          />
+        )}
+
+        {/* Moderasyon Kuyruğu (admin/mod için) */}
+        {isModOrAdmin && showModPanel && (
+          <ModerationQueuePanel
+            pendingPosts={pendingPosts}
+            onApprove={handleApprovePost}
+            onReject={handleRejectPost}
+            onEdit={handleEdit}
+            currentUser={currentUser}
+            allUsers={allUsers}
+            moderators={moderators}
+            isModOrAdmin={isModOrAdmin}
           />
         )}
 
@@ -5067,6 +5432,8 @@ function OgrenciPortaliApp({ currentUser }) {
                   onViewProfile={handleViewProfile}
                   isModOrAdmin={isModOrAdmin}
                   moderators={moderators}
+                  onApprove={handleApprovePost}
+                  onReject={handleRejectPost}
                 />
               );
             })}
@@ -5096,6 +5463,8 @@ function OgrenciPortaliApp({ currentUser }) {
                   onViewProfile={handleViewProfile}
                   isModOrAdmin={isModOrAdmin}
                   moderators={moderators}
+                  onApprove={handleApprovePost}
+                  onReject={handleRejectPost}
                 />
               );
             })}
