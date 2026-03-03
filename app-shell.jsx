@@ -278,7 +278,7 @@ function AppShell() {
   const [route, navigate] = useHashRoute("erasmus");
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Restore session from localStorage
+  // Restore session from localStorage + Firebase Auth state
   useEffect(() => {
     try {
       const saved = localStorage.getItem("caku_current_user");
@@ -287,6 +287,22 @@ function AppShell() {
       }
     } catch (e) {
       console.error("Session restore error:", e);
+    }
+
+    // Firebase Auth oturum dinleyicisi
+    const auth = window.firebase?.auth();
+    if (auth) {
+      const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
+        if (!firebaseUser) {
+          // Firebase Auth oturumu kapandı, localStorage'ı da temizle
+          const current = localStorage.getItem("caku_current_user");
+          if (current) {
+            setCurrentUser(null);
+            localStorage.removeItem("caku_current_user");
+          }
+        }
+      });
+      return () => unsubscribe();
     }
   }, []);
 
@@ -315,7 +331,13 @@ function AppShell() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Firebase Auth oturumunu kapat
+    try {
+      await FirebaseAuth.signOut();
+    } catch (e) {
+      console.error("Firebase Auth signOut error:", e);
+    }
     setCurrentUser(null);
     localStorage.removeItem("caku_current_user");
     navigate('portal'); // Reset route on logout
