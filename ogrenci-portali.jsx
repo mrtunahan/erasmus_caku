@@ -4688,6 +4688,7 @@ function OgrenciPortaliApp({ currentUser }) {
   const prevLevelRef = useRef(null);
   const loadMoreRef = useRef(null);
   const [moderators, setModerators] = useState([]);
+  const [registeredStudentCount, setRegisteredStudentCount] = useState(0);
   const [showModPanel, setShowModPanel] = useState(false);
   var isMobile = useIsMobile(768);
   var isAdmin = currentUser && (currentUser.role === "admin" || currentUser.isAdmin);
@@ -4708,6 +4709,13 @@ function OgrenciPortaliApp({ currentUser }) {
   // Moderatörleri yükle
   useEffect(function () {
     PortalDB.getModerators().then(function (mods) { setModerators(mods); }).catch(function () { });
+  }, []);
+
+  // Kayıtlı öğrenci sayısını yükle
+  useEffect(function () {
+    PortalDB.fetchAllStudents().then(function (students) {
+      setRegisteredStudentCount(students.length);
+    }).catch(function () { });
   }, []);
 
   // Takip verilerini yükle
@@ -5195,7 +5203,7 @@ function OgrenciPortaliApp({ currentUser }) {
           <StatCard label="Toplam Gönderi" value={posts.length} color="#F59E0B" icon="file" />
           <StatCard label="Tepkiler" value={totalReactions} color="#EF4444" icon="heart" />
           <StatCard label="Yorumlar" value={totalComments} color="#10B981" icon="chat" />
-          <StatCard label="Üyeler" value={new Set(posts.map(function (p) { return p.authorId; })).size || 0} color="#8B5CF6" icon="users" />
+          <StatCard label="Kayıtlı Üyeler" value={registeredStudentCount} color="#8B5CF6" icon="users" />
         </div>
         {highlightedPostId && (
           <div style={{
