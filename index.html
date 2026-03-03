@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://www.gstatic.com https://cdn.quilljs.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.firebasestorage.app https://*.googleapis.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebasestorage.app https://firebasestorage.googleapis.com wss://*.firebaseio.com https://cdnjs.cloudflare.com; frame-src blob: https://*.firebasestorage.app https://firebasestorage.googleapis.com https://*.firebaseapp.com; object-src 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://www.gstatic.com https://cdn.quilljs.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.firebasestorage.app https://*.googleapis.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebasestorage.app https://firebasestorage.googleapis.com wss://*.firebaseio.com https://cdnjs.cloudflare.com https://apis.google.com; frame-src blob: https://*.firebasestorage.app https://firebasestorage.googleapis.com https://*.firebaseapp.com; object-src 'none'; base-uri 'self';">
   <title>ÇAKÜ Yönetim Sistemi</title>
 
   <!-- React & ReactDOM from CDN -->
@@ -561,9 +561,33 @@
         compileAndExec(sources[total - 1], JSX_MODULES[total - 1].file);
         setProgress(95, 'Baslatiliyor...');
 
-        // ── Phase 5: Render immediately ──
+        // ── Phase 5: Create Error Boundary & Render ──
+        if (!window.AppErrorBoundary) {
+          class AppErrorBoundary extends React.Component {
+            constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+            static getDerivedStateFromError(error) { return { hasError: true, error }; }
+            componentDidCatch(error, info) { console.error('React render error:', error, info); }
+            render() {
+              if (this.state.hasError) {
+                return React.createElement('div', {
+                  style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F7F5F0', fontFamily: 'Inter, sans-serif', padding: 20 }
+                }, React.createElement('div', { style: { textAlign: 'center', maxWidth: 500 } },
+                  React.createElement('h2', { style: { fontSize: 24, color: '#1B2A4A', marginBottom: 12 } }, 'Bir hata oluştu'),
+                  React.createElement('p', { style: { fontSize: 14, color: '#6B7280', marginBottom: 8 } }, this.state.error?.message || 'Beklenmeyen bir hata meydana geldi.'),
+                  React.createElement('button', {
+                    onClick: function() { location.reload(); },
+                    style: { marginTop: 16, padding: '10px 24px', fontSize: 14, border: '1px solid #E5E1D8', background: '#1B2A4A', color: 'white', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }
+                  }, 'Sayfayı Yenile')
+                ));
+              }
+              return this.props.children;
+            }
+          }
+          window.AppErrorBoundary = AppErrorBoundary;
+        }
+
         var root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(React.createElement(window.AppShell));
+        root.render(React.createElement(window.AppErrorBoundary, null, React.createElement(window.AppShell)));
 
         console.log('App loaded in ' + Math.round(performance.now() - t0) + 'ms');
 
