@@ -909,6 +909,70 @@ const FirebaseDB = {
   },
 };
 
+// ── Firebase Authentication Helper ──
+const FirebaseAuth = {
+  auth: () => window.firebase?.auth(),
+
+  // Email formatları (gerçek email değil, Firebase Auth identifier olarak kullanılıyor)
+  studentEmail: (studentNumber) => `${studentNumber}@student.caku.app`,
+  professorEmail: (name) => {
+    const slug = name.toLowerCase()
+      .replace(/ç/g,'c').replace(/ğ/g,'g').replace(/ı/g,'i')
+      .replace(/ö/g,'o').replace(/ş/g,'s').replace(/ü/g,'u')
+      .replace(/[^a-z0-9]/g,'.').replace(/\.{2,}/g,'.').replace(/^\.|\.$/, '');
+    return `${slug}@prof.caku.app`;
+  },
+  adminEmail: () => 'admin@caku.app',
+
+  // Giriş yap
+  async signIn(email, password) {
+    const auth = FirebaseAuth.auth();
+    if (!auth) throw new Error('Firebase Auth yuklenemedi');
+    return auth.signInWithEmailAndPassword(email, password);
+  },
+
+  // Hesap oluştur
+  async createAccount(email, password) {
+    const auth = FirebaseAuth.auth();
+    if (!auth) throw new Error('Firebase Auth yuklenemedi');
+    return auth.createUserWithEmailAndPassword(email, password);
+  },
+
+  // Çıkış yap
+  async signOut() {
+    const auth = FirebaseAuth.auth();
+    if (auth) await auth.signOut();
+  },
+
+  // Mevcut kullanıcı
+  currentUser: () => FirebaseAuth.auth()?.currentUser,
+
+  // Şifre güncelle (kullanıcı giriş yapmış olmalı)
+  async updatePassword(newPassword) {
+    const user = FirebaseAuth.currentUser();
+    if (!user) throw new Error('Giris yapilmamis');
+    return user.updatePassword(newPassword);
+  },
+
+  // Kullanıcı rolünü Firestore'a kaydet
+  async saveUserRole(uid, roleData) {
+    const db = FirebaseDB.db();
+    if (!db) throw new Error('Firestore baglantisi yok');
+    await db.collection('users').doc(uid).set({
+      ...roleData,
+      updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  },
+
+  // Kullanıcı rolünü Firestore'dan oku
+  async getUserRole(uid) {
+    const db = FirebaseDB.db();
+    if (!db) return null;
+    const doc = await db.collection('users').doc(uid).get();
+    return doc.exists ? doc.data() : null;
+  },
+};
+
 // ── Icons ──
 const UploadIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1167,23 +1231,40 @@ const LoginModal = ({ onLogin }) => {
     loadProfessors();
   }, []);
 
-  // Mevcut öğrenci: şifre değiştirme
+  // Mevcut öğrenci/profesör: şifre değiştirme + Firebase Auth hesabı oluşturma
   const handleSetupPassword = async (e) => {
     e.preventDefault();
     setError("");
     if (!newPassword.trim()) { setError("Yeni şifre boş olamaz!"); return; }
-    if (newPassword.length < 4) { setError("Şifre en az 4 karakter olmalıdır!"); return; }
+    if (newPassword.length < 6) { setError("Şifre en az 6 karakter olmalıdır!"); return; }
     if (newPassword !== confirmPassword) { setError("Şifreler uyuşmuyor!"); return; }
     if (newPassword === "1234") { setError("Lütfen varsayılan şifreden farklı bir şifre belirleyin!"); return; }
     setLoading(true);
     try {
+      let email;
       if (pendingUser.role === "student") {
+        email = FirebaseAuth.studentEmail(pendingUser.studentNumber);
         await FirebaseDB.updatePassword(pendingUser.studentNumber, newPassword);
       } else if (pendingUser.role === "professor") {
+        email = FirebaseAuth.professorEmail(pendingUser.name);
         const profPasswords = await FirebaseDB.fetchProfessorPasswords();
         profPasswords[pendingUser.name] = newPassword;
         await FirebaseDB.saveProfessorPasswords(profPasswords);
       }
+
+      // Firebase Auth hesabı oluştur
+      try {
+        await FirebaseAuth.createAccount(email, newPassword);
+      } catch (authErr) {
+        if (authErr.code === 'auth/email-already-in-use') {
+          // Hesap zaten var, giriş yapıp şifreyi güncelle
+          await FirebaseAuth.signIn(email, "1234");
+          await FirebaseAuth.updatePassword(newPassword);
+        } else {
+          throw authErr;
+        }
+      }
+      await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, pendingUser);
       onLogin(pendingUser);
     } catch (err) {
       console.error("Password setup error:", err);
@@ -1193,14 +1274,14 @@ const LoginModal = ({ onLogin }) => {
     }
   };
 
-  // Yeni öğrenci: kayıt ol
+  // Yeni öğrenci: kayıt ol + Firebase Auth hesabı oluştur
   const handleRegister = async (e) => {
     e.preventDefault();
     setError("");
     if (!firstName.trim()) { setError("Ad alanı zorunludur!"); return; }
     if (!lastName.trim()) { setError("Soyad alanı zorunludur!"); return; }
     if (!newPassword.trim()) { setError("Şifre boş olamaz!"); return; }
-    if (newPassword.length < 4) { setError("Şifre en az 4 karakter olmalıdır!"); return; }
+    if (newPassword.length < 6) { setError("Şifre en az 6 karakter olmalıdır!"); return; }
     if (newPassword !== confirmPassword) { setError("Şifreler uyuşmuyor!"); return; }
     setLoading(true);
     try {
@@ -1212,7 +1293,12 @@ const LoginModal = ({ onLogin }) => {
         setLoading(false);
         return;
       }
-      // Öğrenciyi Firebase'e kaydet
+
+      // Firebase Auth hesabı oluştur
+      const email = FirebaseAuth.studentEmail(pendingStudentNumber);
+      await FirebaseAuth.createAccount(email, newPassword);
+
+      // Öğrenciyi Firestore'a kaydet
       const studentData = {
         studentNumber: pendingStudentNumber,
         firstName: firstName.trim(),
@@ -1220,14 +1306,19 @@ const LoginModal = ({ onLogin }) => {
         erasmusAccess: false,
       };
       await FirebaseDB.addStudent(studentData);
-      // Şifreyi kaydet
+      // Şifreyi Firestore'a da kaydet (yedek)
       await FirebaseDB.updatePassword(pendingStudentNumber, newPassword);
-      // Giriş yap
+      // Kullanıcı rolünü kaydet
       const user = { role: "student", name: `${firstName.trim()} ${lastName.trim()}`, studentNumber: pendingStudentNumber, erasmusAccess: false };
+      await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
       onLogin(user);
     } catch (err) {
       console.error("Register error:", err);
-      setError("Kayıt hatası: " + err.message);
+      if (err.code === 'auth/email-already-in-use') {
+        setError("Bu öğrenci numarası ile daha önce hesap oluşturulmuş!");
+      } else {
+        setError("Kayıt hatası: " + err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -1294,13 +1385,31 @@ const LoginModal = ({ onLogin }) => {
     setLoading(true);
     try {
       const trimmedId = identifier.trim();
-      const passwords = await FirebaseDB.fetchPasswords();
-      const validPassword = passwords[trimmedId];
-      if (password === validPassword) {
-        const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId, erasmusAccess: studentInfo.erasmusAccess === true };
+      const email = FirebaseAuth.studentEmail(trimmedId);
+      const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId, erasmusAccess: studentInfo.erasmusAccess === true };
+
+      try {
+        // Firebase Auth ile giriş dene
+        await FirebaseAuth.signIn(email, password);
+        await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
         onLogin(user);
-      } else {
-        setError("Şifre yanlış!");
+      } catch (authErr) {
+        if (authErr.code === 'auth/user-not-found') {
+          // Migration: eski Firestore şifresi ile doğrula, Firebase Auth hesabı oluştur
+          const passwords = await FirebaseDB.fetchPasswords();
+          const validPassword = passwords[trimmedId];
+          if (password === validPassword) {
+            await FirebaseAuth.createAccount(email, password);
+            await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
+            onLogin(user);
+          } else {
+            setError("Şifre yanlış!");
+          }
+        } else if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
+          setError("Şifre yanlış!");
+        } else {
+          throw authErr;
+        }
       }
     } catch (err) {
       console.error("Login error:", err);
@@ -1317,28 +1426,73 @@ const LoginModal = ({ onLogin }) => {
 
     try {
       if (activeTab === "admin") {
-        const storedAdminPassword = await FirebaseDB.fetchAdminPassword();
-        const validPassword = storedAdminPassword || "1605";
-        if (password === validPassword) {
-          onLogin({ role: "admin", name: "Admin", studentNumber: null });
-        } else {
-          setError("Admin şifresi yanlış!");
+        const email = FirebaseAuth.adminEmail();
+        const adminUser = { role: "admin", name: "Admin", studentNumber: null };
+
+        try {
+          await FirebaseAuth.signIn(email, password);
+          await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, adminUser);
+          onLogin(adminUser);
+        } catch (authErr) {
+          if (authErr.code === 'auth/user-not-found') {
+            // Migration: eski Firestore şifresi ile doğrula
+            const storedAdminPassword = await FirebaseDB.fetchAdminPassword();
+            const validPassword = storedAdminPassword || "1605";
+            if (password === validPassword) {
+              await FirebaseAuth.createAccount(email, password);
+              await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, adminUser);
+              onLogin(adminUser);
+            } else {
+              setError("Admin şifresi yanlış!");
+            }
+          } else if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
+            setError("Admin şifresi yanlış!");
+          } else {
+            throw authErr;
+          }
         }
       } else if (activeTab === "professor") {
         if (!identifier.trim()) { setError("Akademisyen seçimi gerekli!"); setLoading(false); return; }
+        const email = FirebaseAuth.professorEmail(identifier);
+        const user = { role: "professor", name: identifier, studentNumber: null };
+
+        // Önce varsayılan şifre kontrolü (ilk giriş)
         const passwords = await FirebaseDB.fetchProfessorPasswords();
-        const validPassword = passwords[identifier] || "1234";
-        if (password === validPassword) {
-          const user = { role: "professor", name: identifier, studentNumber: null };
-          if (!passwords[identifier] || passwords[identifier] === "1234") {
+        if (!passwords[identifier] || passwords[identifier] === "1234") {
+          // Varsayılan şifre: şifre belirleme ekranına yönlendir
+          const validPassword = passwords[identifier] || "1234";
+          if (password === validPassword) {
             setPendingUser(user);
             setSetupPasswordMode(true);
             setLoading(false);
             return;
+          } else {
+            setError("Şifre yanlış!");
+            setLoading(false);
+            return;
           }
+        }
+
+        try {
+          await FirebaseAuth.signIn(email, password);
+          await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
           onLogin(user);
-        } else {
-          setError("Şifre yanlış!");
+        } catch (authErr) {
+          if (authErr.code === 'auth/user-not-found') {
+            // Migration: eski Firestore şifresi ile doğrula
+            const validPassword = passwords[identifier] || "1234";
+            if (password === validPassword) {
+              await FirebaseAuth.createAccount(email, password);
+              await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
+              onLogin(user);
+            } else {
+              setError("Şifre yanlış!");
+            }
+          } else if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
+            setError("Şifre yanlış!");
+          } else {
+            throw authErr;
+          }
         }
       }
     } catch (err) {
