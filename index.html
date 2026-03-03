@@ -469,9 +469,11 @@
     try {
       firebase.initializeApp(firebaseConfig);
       // Fix Safari/WebKit CORS issues with Firestore
+      // experimentalForceLongPolling bypasses Fetch API streaming which Safari blocks
+      // useFetchStreams: false prevents the Fetch ReadableStream usage that triggers CORS errors
       firebase.firestore().settings({
-        experimentalAutoDetectLongPolling: true,
-        merge: true
+        experimentalForceLongPolling: true,
+        useFetchStreams: false
       });
       firebaseReady = true;
       console.log('Firebase initialized successfully');
