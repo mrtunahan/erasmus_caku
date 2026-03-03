@@ -720,7 +720,7 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect }) => {
 };
 
 // ── Trip History Modal (Eşleştirme Geçmişi) ──
-const TripHistoryModal = ({ onClose, universities }) => {
+const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
   const [selectedUni, setSelectedUni] = useState("");
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -834,7 +834,7 @@ const TripHistoryModal = ({ onClose, universities }) => {
                     }}>
                       {entry.type === "outgoing" ? "Gidis" : "Donus"}
                     </span>
-                    <button onClick={() => handleDelete(entry.id)} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${C.border}`, background: C.card, color: C.accent, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}><TrashIcon /></button>
+                    {!isReadOnly && <button onClick={() => handleDelete(entry.id)} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${C.border}`, background: C.card, color: C.accent, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}><TrashIcon /></button>}
                   </div>
                   <div style={{ display: "flex", gap: 20, alignItems: "start" }}>
                     <div style={{ flex: 1 }}>
@@ -1294,8 +1294,12 @@ function ErasmusLearningAgreementApp({ currentUser }) {
   const canEdit = (student) => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
+    // Erasmus yetkisi olmayan öğrenciler hiçbir değişiklik yapamaz
+    if (currentUser.role === 'student' && currentUser.erasmusAccess !== true) return false;
     return currentUser.role === 'student' && student.studentNumber === currentUser.studentNumber;
   };
+
+  const isStudentWithoutErasmus = currentUser?.role === 'student' && currentUser?.erasmusAccess !== true;
 
   const generateSemesters = () => {
     const semesters = ["all"];
@@ -1390,6 +1394,19 @@ function ErasmusLearningAgreementApp({ currentUser }) {
   return (
     <div className="portal-bg">
       <div className="portal-wrap">
+        {/* Read-only banner for students without Erasmus access */}
+        {isStudentWithoutErasmus && (
+          <Card>
+            <div style={{ padding: 16, background: "#FFF3CD", border: "2px solid #FFC107", borderRadius: 12, display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ fontSize: 28 }}>&#128274;</div>
+              <div>
+                <div style={{ fontWeight: 700, color: "#856404", fontSize: 16, marginBottom: 4 }}>Salt Okunur Mod - Erasmus Yetkisi Gerekli</div>
+                <div style={{ fontSize: 13, color: "#856404" }}>Gecmis ders eslestirmelerini goruntuleyebilirsiniz ancak degisiklik yapmak icin Erasmus yetkisi verilmesi gerekmektedir. Yetki almak icin bolum koordinatorunuze basvurunuz.</div>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Actions Bar */}
         <Card>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
@@ -1406,13 +1423,14 @@ function ErasmusLearningAgreementApp({ currentUser }) {
               </select>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
+              {/* Trip History button visible to all users */}
+              <Btn onClick={() => setShowTripHistory(true)} variant="secondary" icon={<FileTextIcon />}>Eslestirme Gecmisi</Btn>
               {currentUser?.role === 'admin' && (
                 <>
                   <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
                   <Btn onClick={() => fileInputRef.current?.click()} variant="secondary" icon={<UploadIcon />}>İçe Aktar</Btn>
                   <Btn onClick={exportAllData} variant="secondary" icon={<DownloadIcon />}>Tümünü Dışa Aktar</Btn>
                   <Btn onClick={handleAddStudent} icon={<PlusIcon />}>Yeni Öğrenci Ekle</Btn>
-                  <Btn onClick={() => setShowTripHistory(true)} variant="secondary" icon={<FileTextIcon />}>Eslestirme Gecmisi</Btn>
                   <Btn onClick={() => setShowPasswordModal(true)} variant="secondary">Şifre Yönetimi</Btn>
                 </>
               )}
@@ -1498,7 +1516,7 @@ function ErasmusLearningAgreementApp({ currentUser }) {
           <PasswordManagementModal students={students} onClose={() => setShowPasswordModal(false)} />
         )}
         {showTripHistory && (
-          <TripHistoryModal onClose={() => setShowTripHistory(false)} universities={UNIVERSITY_CATALOGS} />
+          <TripHistoryModal onClose={() => setShowTripHistory(false)} universities={UNIVERSITY_CATALOGS} isReadOnly={currentUser?.role !== 'admin'} />
         )}
       </div>
     </div>

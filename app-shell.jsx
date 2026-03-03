@@ -69,11 +69,8 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
   const visibleItems = NAV_ITEMS.filter(item => {
     if (isAdmin) return true;
     if (isProfessor) return ['sinav', 'duyurular'].includes(item.id);
-    // Öğrenci
-    const hasErasmus = currentUser?.erasmusAccess === true;
-    const allowed = hasErasmus
-      ? ['erasmus', 'portal', 'projeler', 'duyurular']
-      : ['portal', 'projeler', 'duyurular'];
+    // Öğrenci - tüm öğrenciler erasmus modülünü görebilir (yetkisiz olanlar salt okunur)
+    const allowed = ['erasmus', 'portal', 'projeler', 'duyurular'];
     return allowed.includes(item.id);
   });
 
@@ -296,11 +293,9 @@ function AppShell() {
   const isAdmin = currentUser?.role === 'admin';
   const isProfessor = currentUser?.role === 'professor';
 
-  // Öğrencilerin erişebileceği modüller (erasmus sadece yetkili öğrencilere)
+  // Öğrencilerin erişebileceği modüller (tüm öğrenciler erasmus'u görebilir, yetkisiz olanlar salt okunur)
   const hasErasmusAccess = currentUser?.erasmusAccess === true;
-  const STUDENT_ALLOWED_ROUTES = hasErasmusAccess
-    ? ['erasmus', 'portal', 'projeler', 'duyurular']
-    : ['portal', 'projeler', 'duyurular'];
+  const STUDENT_ALLOWED_ROUTES = ['erasmus', 'portal', 'projeler', 'duyurular'];
 
   const handleLogin = (user) => {
     setCurrentUser(user);
@@ -312,12 +307,10 @@ function AppShell() {
     } else if (user.role === 'admin') {
       // Admin stays on current or goes to default
     } else {
-      // Student: erasmus yetkisi yoksa portal'a yönlendir
-      const studentRoutes = user.erasmusAccess === true
-        ? ['erasmus', 'portal', 'projeler', 'duyurular']
-        : ['portal', 'projeler', 'duyurular'];
+      // Student: tüm öğrenciler erasmus modülünü görüntüleyebilir
+      const studentRoutes = ['erasmus', 'portal', 'projeler', 'duyurular'];
       if (!studentRoutes.includes(route)) {
-        navigate(user.erasmusAccess === true ? 'erasmus' : 'portal');
+        navigate('erasmus');
       }
     }
   };
@@ -341,7 +334,7 @@ function AppShell() {
     } else if (!isAdmin) {
       // Students can only access allowed routes
       if (!STUDENT_ALLOWED_ROUTES.includes(route)) {
-        navigate(hasErasmusAccess ? 'erasmus' : 'portal');
+        navigate('erasmus');
       }
     }
   }, [route, isAdmin, isProfessor, currentUser, navigate]);
