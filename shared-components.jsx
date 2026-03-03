@@ -4,6 +4,50 @@
 
 const { useState, useEffect, useRef } = React;
 
+// ── Güvenli Şifre Hash Fonksiyonları (SHA-256 + Salt) ──
+const PasswordSecurity = {
+  // SHA-256 hash üret (Web Crypto API)
+  async sha256(message) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+
+  // Salt + password birleştirip hash'le
+  async hashPassword(password, salt) {
+    return await PasswordSecurity.sha256(salt + ':' + password);
+  },
+
+  // Hash'lenmiş mi kontrol et (64 karakter hex string)
+  isHashed(value) {
+    return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+  },
+
+  // Şifre doğrula (hash'li veya düz metin uyumlu - migration desteği)
+  async verifyPassword(inputPassword, storedPassword, salt) {
+    if (!storedPassword) return false;
+    // Zaten hash'lenmiş: hash ile karşılaştır
+    if (PasswordSecurity.isHashed(storedPassword)) {
+      const inputHash = await PasswordSecurity.hashPassword(inputPassword, salt);
+      return inputHash === storedPassword;
+    }
+    // Düz metin (eski veri): doğrula ve otomatik migrate et
+    return inputPassword === storedPassword;
+  },
+
+  // Düz metin şifreyi hash'e migrate et (tek seferlik)
+  async migrateIfNeeded(storedPassword, salt, updateFn) {
+    if (storedPassword && !PasswordSecurity.isHashed(storedPassword)) {
+      const hashed = await PasswordSecurity.hashPassword(storedPassword, salt);
+      if (updateFn) await updateFn(hashed);
+      return hashed;
+    }
+    return storedPassword;
+  }
+};
+
 // ── Color Palette ──
 const C = {
   bg: "#F7F5F0",
@@ -659,7 +703,9 @@ const FirebaseDB = {
       const ref = FirebaseDB.passwordsRef();
       if (!ref) throw new Error('Firebase baglantisi yok');
       const passwords = await FirebaseDB.fetchPasswords();
-      passwords[studentNumber] = newPassword;
+      // Şifreyi hash'leyerek kaydet
+      const hashed = await PasswordSecurity.hashPassword(newPassword, studentNumber);
+      passwords[studentNumber] = hashed;
       await ref.doc('student_passwords').set(passwords);
       return true;
     } catch (error) {
@@ -684,7 +730,9 @@ const FirebaseDB = {
     try {
       const ref = FirebaseDB.passwordsRef();
       if (!ref) throw new Error('Firebase baglantisi yok');
-      await ref.doc('admin').set({ password, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+      // Admin şifresini hash'leyerek kaydet
+      const hashed = await PasswordSecurity.hashPassword(password, 'admin');
+      await ref.doc('admin').set({ password: hashed, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
       return true;
     } catch (error) {
       console.error('Error saving admin password:', error);
@@ -708,7 +756,16 @@ const FirebaseDB = {
     try {
       const ref = FirebaseDB.passwordsRef();
       if (!ref) throw new Error('Firebase baglantisi yok');
-      await ref.doc('professor_passwords').set(passwords, { merge: true });
+      // Tüm profesör şifrelerini hash'leyerek kaydet
+      const hashedPasswords = {};
+      for (const [name, pass] of Object.entries(passwords)) {
+        if (pass && !PasswordSecurity.isHashed(pass)) {
+          hashedPasswords[name] = await PasswordSecurity.hashPassword(pass, name);
+        } else {
+          hashedPasswords[name] = pass;
+        }
+      }
+      await ref.doc('professor_passwords').set(hashedPasswords, { merge: true });
       return true;
     } catch (error) {
       console.error('Error saving professor passwords:', error);
@@ -1375,8 +1432,8 @@ const LoginModal = ({ onLogin }) => {
       if (student) {
         // Mevcut öğrenci: şifre var mı kontrol et
         const passwords = await FirebaseDB.fetchPasswords();
-        if (!passwords[trimmedId] || passwords[trimmedId] === "1234") {
-          // Varsayılan şifre: direkt şifre belirleme ekranına
+        if (!passwords[trimmedId]) {
+          // Şifre yok: şifre belirleme ekranına
           const user = { role: "student", name: `${student.firstName} ${student.lastName}`, studentNumber: trimmedId, erasmusAccess: student.erasmusAccess === true };
           setPendingUser(user);
           setSetupPasswordMode(true);
@@ -1392,7 +1449,7 @@ const LoginModal = ({ onLogin }) => {
       }
     } catch (err) {
       console.error("Student check error:", err);
-      setError("Kontrol hatası: " + err.message);
+      setError("Bir hata oluştu. Lütfen tekrar deneyin.");
     } finally {
       setLoading(false);
     }
@@ -1408,11 +1465,19 @@ const LoginModal = ({ onLogin }) => {
       const email = FirebaseAuth.studentEmail(trimmedId);
       const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId, erasmusAccess: studentInfo.erasmusAccess === true };
 
-      // 1. Firestore şifresini kontrol et (migration kaynağı)
+      // 1. Firestore şifresini kontrol et (hash destekli)
       const passwords = await FirebaseDB.fetchPasswords();
-      const validPassword = passwords[trimmedId];
+      const storedPassword = passwords[trimmedId];
 
-      if (password === validPassword) {
+      const isValid = await PasswordSecurity.verifyPassword(password, storedPassword, trimmedId);
+
+      if (isValid) {
+        // Düz metin ise otomatik hash'e migrate et
+        await PasswordSecurity.migrateIfNeeded(storedPassword, trimmedId, async (hashed) => {
+          passwords[trimmedId] = hashed;
+          await FirebaseDB.passwordsRef().doc('student_passwords').set(passwords);
+        });
+
         // Firestore doğruladı - Firebase Auth'a giriş/kayıt dene
         if (password.length < 6) {
           // Firebase Auth minimum 6 karakter istiyor - şifre değiştirme ekranına yönlendir
@@ -1452,7 +1517,7 @@ const LoginModal = ({ onLogin }) => {
           }
           onLogin(user);
         } catch (signInErr) {
-          setError("Şifre yanlış!");
+          setError("Giriş bilgileri hatalı!");
         }
       }
     } catch (err) {
@@ -1473,11 +1538,22 @@ const LoginModal = ({ onLogin }) => {
         const email = FirebaseAuth.adminEmail();
         const adminUser = { role: "admin", name: "Admin", studentNumber: null };
 
-        // 1. Firestore admin şifresini kontrol et
+        // 1. Firestore admin şifresini kontrol et (hash destekli)
         const storedAdminPassword = await FirebaseDB.fetchAdminPassword();
-        const validPassword = storedAdminPassword || "1605";
+        if (!storedAdminPassword) {
+          setError("Admin şifresi henüz belirlenmemiş. Firebase Console üzerinden ayarlayın.");
+          setLoading(false);
+          return;
+        }
 
-        if (password === validPassword) {
+        const isValid = await PasswordSecurity.verifyPassword(password, storedAdminPassword, 'admin');
+
+        if (isValid) {
+          // Düz metin ise otomatik hash'e migrate et
+          await PasswordSecurity.migrateIfNeeded(storedAdminPassword, 'admin', async (hashed) => {
+            await FirebaseDB.passwordsRef().doc('admin').set({ password: hashed, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+          });
+
           // Firestore doğruladı - Firebase Auth giriş/kayıt dene
           if (password.length < 6) {
             // Firebase Auth minimum 6 karakter istiyor - şifre değiştirme ekranına yönlendir
@@ -1517,7 +1593,7 @@ const LoginModal = ({ onLogin }) => {
             }
             onLogin(adminUser);
           } catch (signInErr) {
-            setError("Admin şifresi yanlış!");
+            setError("Giriş bilgileri hatalı!");
           }
         }
       } else if (activeTab === "professor") {
@@ -1525,27 +1601,26 @@ const LoginModal = ({ onLogin }) => {
         const email = FirebaseAuth.professorEmail(identifier);
         const user = { role: "professor", name: identifier, studentNumber: null };
 
-        // Firestore şifresini kontrol et
+        // Firestore şifresini kontrol et (hash destekli)
         const passwords = await FirebaseDB.fetchProfessorPasswords();
 
-        // Varsayılan şifre kontrolü (ilk giriş)
-        if (!passwords[identifier] || passwords[identifier] === "1234") {
-          const validPassword = passwords[identifier] || "1234";
-          if (password === validPassword) {
-            setPendingUser(user);
-            setSetupPasswordMode(true);
-            setLoading(false);
-            return;
-          } else {
-            setError("Şifre yanlış!");
-            setLoading(false);
-            return;
-          }
+        // Şifre belirlenmemişse: ilk giriş, şifre belirleme ekranına
+        if (!passwords[identifier]) {
+          setPendingUser(user);
+          setSetupPasswordMode(true);
+          setLoading(false);
+          return;
         }
 
-        // Özel şifre var - Firestore ile kontrol et
-        const validPassword = passwords[identifier];
-        if (password === validPassword) {
+        // Şifre var - hash destekli doğrulama
+        const storedPassword = passwords[identifier];
+        const isValid = await PasswordSecurity.verifyPassword(password, storedPassword, identifier);
+        if (isValid) {
+          // Düz metin ise otomatik hash'e migrate et
+          await PasswordSecurity.migrateIfNeeded(storedPassword, identifier, async (hashed) => {
+            passwords[identifier] = hashed;
+            await FirebaseDB.saveProfessorPasswords(passwords);
+          });
           // Firestore doğruladı - Firebase Auth giriş/kayıt dene
           if (password.length < 6) {
             setPendingUser(user);
@@ -1584,7 +1659,7 @@ const LoginModal = ({ onLogin }) => {
             }
             onLogin(user);
           } catch (signInErr) {
-            setError("Şifre yanlış!");
+            setError("Giriş bilgileri hatalı!");
           }
         }
       }
@@ -2139,7 +2214,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
       ]);
       setStudentPasses(sPass || {});
       setProfessorPasses(pPass || {});
-      setAdminPass(aPass || "1605");
+      setAdminPass(aPass || "");
       setProfessorList((profs || []).sort((a, b) => a.name.localeCompare(b.name)));
     } catch (error) {
       console.error('Error loading passwords:', error);
@@ -2231,13 +2306,14 @@ const PasswordManagementModal = ({ students, onClose }) => {
                       <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{student.studentNumber}</td>
                       <td style={{ padding: 12 }}>{student.firstName} {student.lastName}</td>
                       <td style={{ padding: 12 }}>
-                        <Input type="text" value={studentPasses[student.studentNumber] || '1234'}
+                        <Input type="password" value={studentPasses[student.studentNumber] ? '••••••' : ''}
+                          placeholder="Yeni şifre girin"
                           onChange={e => setStudentPasses(p => ({ ...p, [student.studentNumber]: e.target.value }))} />
                       </td>
                       <td style={{ padding: 12, textAlign: 'center' }}>
                         <button onClick={() => {
-                          if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz?')) {
-                            setStudentPasses(p => ({ ...p, [student.studentNumber]: '1234' }));
+                          if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz? Kullanıcı bir sonraki girişte yeni şifre belirleyecek.')) {
+                            setStudentPasses(p => ({ ...p, [student.studentNumber]: '' }));
                           }
                         }} style={{
                           padding: "6px 12px", fontSize: 12, border: `1px solid ${C.border}`,
@@ -2305,7 +2381,8 @@ const PasswordManagementModal = ({ students, onClose }) => {
                           <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{prof.name}</td>
                           <td style={{ padding: 12 }}>{prof.department}</td>
                           <td style={{ padding: 12 }}>
-                            <Input type="text" value={professorPasses[prof.name] || '1234'}
+                            <Input type="password" value={professorPasses[prof.name] ? '••••••' : ''}
+                              placeholder="Yeni şifre girin"
                               onChange={e => setProfessorPasses(p => ({ ...p, [prof.name]: e.target.value }))} />
                           </td>
                           <td style={{ padding: 12, display: "flex", gap: 6, justifyContent: "center" }}>
@@ -2318,8 +2395,8 @@ const PasswordManagementModal = ({ students, onClose }) => {
                               background: "white", cursor: "pointer", color: C.accent, display: "flex"
                             }} title="Sil"><TrashIcon /></button>
                             <button onClick={() => {
-                              if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz?')) {
-                                setProfessorPasses(p => ({ ...p, [prof.name]: '1234' }));
+                              if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz? Kullanıcı bir sonraki girişte yeni şifre belirleyecek.')) {
+                                setProfessorPasses(p => ({ ...p, [prof.name]: '' }));
                               }
                             }} style={{
                               padding: "6px 12px", fontSize: 12, border: `1px solid ${C.border}`,
@@ -2338,7 +2415,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
               <div style={{ padding: 20, textAlign: 'center' }}>
                 <div style={{ marginBottom: 16, fontWeight: 600, color: C.navy }}>Admin Giriş Şifresi</div>
                 <div style={{ maxWidth: 300, margin: '0 auto' }}>
-                  <Input type="text" value={adminPass} onChange={e => setAdminPass(e.target.value)} style={{ textAlign: 'center', fontSize: 18, letterSpacing: 2 }} />
+                  <Input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} placeholder="Yeni admin şifresi" style={{ textAlign: 'center', fontSize: 18, letterSpacing: 2 }} />
                 </div>
                 <div style={{ marginTop: 12, fontSize: 13, color: C.textMuted }}>
                   Bu şifre ile Admin paneline erişim sağlanır.

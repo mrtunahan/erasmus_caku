@@ -315,7 +315,9 @@ function AppShell() {
 
   const handleLogin = (user) => {
     setCurrentUser(user);
-    localStorage.setItem("caku_current_user", JSON.stringify(user));
+    // localStorage'a sadece minimum oturum bilgisi kaydet (hassas veri saklanmaz)
+    const safeUser = { role: user.role, name: user.name, studentNumber: user.studentNumber || null };
+    localStorage.setItem("caku_current_user", JSON.stringify(safeUser));
 
     // Redirect based on role immediately after login
     if (user.role === 'professor') {
