@@ -1231,14 +1231,14 @@ const LoginModal = ({ onLogin }) => {
     loadProfessors();
   }, []);
 
-  // Mevcut öğrenci/profesör: şifre değiştirme + Firebase Auth hesabı oluşturma
+  // Mevcut öğrenci/profesör/admin: şifre değiştirme + Firebase Auth hesabı oluşturma
   const handleSetupPassword = async (e) => {
     e.preventDefault();
     setError("");
     if (!newPassword.trim()) { setError("Yeni şifre boş olamaz!"); return; }
     if (newPassword.length < 6) { setError("Şifre en az 6 karakter olmalıdır!"); return; }
     if (newPassword !== confirmPassword) { setError("Şifreler uyuşmuyor!"); return; }
-    if (newPassword === "1234") { setError("Lütfen varsayılan şifreden farklı bir şifre belirleyin!"); return; }
+    if (newPassword === "1234" || newPassword === "1605") { setError("Lütfen varsayılan şifreden farklı bir şifre belirleyin!"); return; }
     setLoading(true);
     try {
       let email;
@@ -1250,6 +1250,9 @@ const LoginModal = ({ onLogin }) => {
         const profPasswords = await FirebaseDB.fetchProfessorPasswords();
         profPasswords[pendingUser.name] = newPassword;
         await FirebaseDB.saveProfessorPasswords(profPasswords);
+      } else if (pendingUser.role === "admin") {
+        email = FirebaseAuth.adminEmail();
+        await FirebaseDB.saveAdminPassword(newPassword);
       }
 
       // Firebase Auth hesabı oluştur
@@ -1257,14 +1260,31 @@ const LoginModal = ({ onLogin }) => {
         await FirebaseAuth.createAccount(email, newPassword);
       } catch (authErr) {
         if (authErr.code === 'auth/email-already-in-use') {
-          // Hesap zaten var, giriş yapıp şifreyi güncelle
-          await FirebaseAuth.signIn(email, "1234");
-          await FirebaseAuth.updatePassword(newPassword);
+          // Hesap zaten var - yeni şifreyle giriş dene (belki zaten bu şifreyle kayıtlı)
+          let signedIn = false;
+          try { await FirebaseAuth.signIn(email, newPassword); signedIn = true; } catch (e) { /* yeni şifreyle giriş yapılamadı */ }
+          if (!signedIn) {
+            // Eski/varsayılan şifrelerle giriş dene ve şifreyi güncelle
+            const oldPasswords = ["1234", "1605"];
+            for (const oldPass of oldPasswords) {
+              try {
+                await FirebaseAuth.signIn(email, oldPass);
+                await FirebaseAuth.updatePassword(newPassword);
+                signedIn = true;
+                break;
+              } catch (e) { /* bu şifreyle de giriş yapılamadı */ }
+            }
+          }
+          if (!signedIn) {
+            throw new Error("Firebase Auth hesabı mevcut ancak şifre güncellenemiyor. Lütfen yöneticinize başvurun.");
+          }
         } else {
           throw authErr;
         }
       }
-      await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, pendingUser);
+      if (FirebaseAuth.currentUser()) {
+        await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, pendingUser);
+      }
       onLogin(pendingUser);
     } catch (err) {
       console.error("Password setup error:", err);
@@ -1388,29 +1408,50 @@ const LoginModal = ({ onLogin }) => {
       const email = FirebaseAuth.studentEmail(trimmedId);
       const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId, erasmusAccess: studentInfo.erasmusAccess === true };
 
-      try {
-        // Firebase Auth ile giriş dene
-        await FirebaseAuth.signIn(email, password);
-        await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
-        onLogin(user);
-      } catch (authErr) {
-        // Firebase Auth v9+: tüm credential hataları tek kodda birleştirildi
-        // Migration: eski Firestore şifresi ile doğrula, eşleşirse Firebase Auth hesabı oluştur
-        const passwords = await FirebaseDB.fetchPasswords();
-        const validPassword = passwords[trimmedId];
-        if (password === validPassword) {
+      // 1. Firestore şifresini kontrol et (migration kaynağı)
+      const passwords = await FirebaseDB.fetchPasswords();
+      const validPassword = passwords[trimmedId];
+
+      if (password === validPassword) {
+        // Firestore doğruladı - Firebase Auth'a giriş/kayıt dene
+        if (password.length < 6) {
+          // Firebase Auth minimum 6 karakter istiyor - şifre değiştirme ekranına yönlendir
+          setPendingUser(user);
+          setSetupPasswordMode(true);
+          setLoading(false);
+          return;
+        }
+        let authed = false;
+        try { await FirebaseAuth.signIn(email, password); authed = true; } catch (e) { /* hesap yok, oluşturulacak */ }
+        if (!authed) {
           try {
             await FirebaseAuth.createAccount(email, password);
-            await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
-            onLogin(user);
+            authed = true;
           } catch (createErr) {
             if (createErr.code === 'auth/email-already-in-use') {
-              setError("Şifre yanlış! (Firebase Auth şifreniz farklı olabilir)");
-            } else {
-              throw createErr;
+              setError("Hesabınız farklı bir şifreyle kayıtlı. Şifrenizi sıfırlamak için yöneticinize başvurun.");
+              setLoading(false);
+              return;
             }
+            console.error("Firebase Auth hesap oluşturma hatası:", createErr);
+            setError("Hesap oluşturma hatası: " + createErr.message);
+            setLoading(false);
+            return;
           }
-        } else {
+        }
+        if (authed && FirebaseAuth.currentUser()) {
+          try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user); } catch (e) { console.error("Role save error:", e); }
+        }
+        onLogin(user);
+      } else {
+        // Firestore şifresi eşleşmiyor - Firebase Auth ile dene (kullanıcı şifre değiştirmiş olabilir)
+        try {
+          await FirebaseAuth.signIn(email, password);
+          if (FirebaseAuth.currentUser()) {
+            try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user); } catch (e) { console.error("Role save error:", e); }
+          }
+          onLogin(user);
+        } catch (signInErr) {
           setError("Şifre yanlış!");
         }
       }
@@ -1432,27 +1473,50 @@ const LoginModal = ({ onLogin }) => {
         const email = FirebaseAuth.adminEmail();
         const adminUser = { role: "admin", name: "Admin", studentNumber: null };
 
-        try {
-          await FirebaseAuth.signIn(email, password);
-          await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, adminUser);
-          onLogin(adminUser);
-        } catch (authErr) {
-          // Migration: eski Firestore şifresi ile doğrula
-          const storedAdminPassword = await FirebaseDB.fetchAdminPassword();
-          const validPassword = storedAdminPassword || "1605";
-          if (password === validPassword) {
+        // 1. Firestore admin şifresini kontrol et
+        const storedAdminPassword = await FirebaseDB.fetchAdminPassword();
+        const validPassword = storedAdminPassword || "1605";
+
+        if (password === validPassword) {
+          // Firestore doğruladı - Firebase Auth giriş/kayıt dene
+          if (password.length < 6) {
+            // Firebase Auth minimum 6 karakter istiyor - şifre değiştirme ekranına yönlendir
+            setPendingUser(adminUser);
+            setSetupPasswordMode(true);
+            setLoading(false);
+            return;
+          }
+          let authed = false;
+          try { await FirebaseAuth.signIn(email, password); authed = true; } catch (e) { /* hesap yok */ }
+          if (!authed) {
             try {
               await FirebaseAuth.createAccount(email, password);
-              await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, adminUser);
-              onLogin(adminUser);
+              authed = true;
             } catch (createErr) {
               if (createErr.code === 'auth/email-already-in-use') {
-                setError("Admin şifresi yanlış! (Firebase Auth şifreniz farklı olabilir)");
-              } else {
-                throw createErr;
+                setError("Admin hesabı farklı bir şifreyle kayıtlı. Şifrenizi sıfırlamak için Firebase Console kullanın.");
+                setLoading(false);
+                return;
               }
+              console.error("Firebase Auth hesap oluşturma hatası:", createErr);
+              setError("Hesap oluşturma hatası: " + createErr.message);
+              setLoading(false);
+              return;
             }
-          } else {
+          }
+          if (authed && FirebaseAuth.currentUser()) {
+            try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, adminUser); } catch (e) { console.error("Role save error:", e); }
+          }
+          onLogin(adminUser);
+        } else {
+          // Firestore şifresi eşleşmiyor - Firebase Auth ile dene
+          try {
+            await FirebaseAuth.signIn(email, password);
+            if (FirebaseAuth.currentUser()) {
+              try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, adminUser); } catch (e) { console.error("Role save error:", e); }
+            }
+            onLogin(adminUser);
+          } catch (signInErr) {
             setError("Admin şifresi yanlış!");
           }
         }
@@ -1461,10 +1525,11 @@ const LoginModal = ({ onLogin }) => {
         const email = FirebaseAuth.professorEmail(identifier);
         const user = { role: "professor", name: identifier, studentNumber: null };
 
-        // Önce varsayılan şifre kontrolü (ilk giriş)
+        // Firestore şifresini kontrol et
         const passwords = await FirebaseDB.fetchProfessorPasswords();
+
+        // Varsayılan şifre kontrolü (ilk giriş)
         if (!passwords[identifier] || passwords[identifier] === "1234") {
-          // Varsayılan şifre: şifre belirleme ekranına yönlendir
           const validPassword = passwords[identifier] || "1234";
           if (password === validPassword) {
             setPendingUser(user);
@@ -1478,26 +1543,47 @@ const LoginModal = ({ onLogin }) => {
           }
         }
 
-        try {
-          await FirebaseAuth.signIn(email, password);
-          await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
-          onLogin(user);
-        } catch (authErr) {
-          // Migration: eski Firestore şifresi ile doğrula
-          const validPassword = passwords[identifier] || "1234";
-          if (password === validPassword) {
+        // Özel şifre var - Firestore ile kontrol et
+        const validPassword = passwords[identifier];
+        if (password === validPassword) {
+          // Firestore doğruladı - Firebase Auth giriş/kayıt dene
+          if (password.length < 6) {
+            setPendingUser(user);
+            setSetupPasswordMode(true);
+            setLoading(false);
+            return;
+          }
+          let authed = false;
+          try { await FirebaseAuth.signIn(email, password); authed = true; } catch (e) { /* hesap yok */ }
+          if (!authed) {
             try {
               await FirebaseAuth.createAccount(email, password);
-              await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
-              onLogin(user);
+              authed = true;
             } catch (createErr) {
               if (createErr.code === 'auth/email-already-in-use') {
-                setError("Şifre yanlış! (Firebase Auth şifreniz farklı olabilir)");
-              } else {
-                throw createErr;
+                setError("Hesabınız farklı bir şifreyle kayıtlı. Şifrenizi sıfırlamak için yöneticinize başvurun.");
+                setLoading(false);
+                return;
               }
+              console.error("Firebase Auth hesap oluşturma hatası:", createErr);
+              setError("Hesap oluşturma hatası: " + createErr.message);
+              setLoading(false);
+              return;
             }
-          } else {
+          }
+          if (authed && FirebaseAuth.currentUser()) {
+            try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user); } catch (e) { console.error("Role save error:", e); }
+          }
+          onLogin(user);
+        } else {
+          // Firestore şifresi eşleşmiyor - Firebase Auth ile dene
+          try {
+            await FirebaseAuth.signIn(email, password);
+            if (FirebaseAuth.currentUser()) {
+              try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user); } catch (e) { console.error("Role save error:", e); }
+            }
+            onLogin(user);
+          } catch (signInErr) {
             setError("Şifre yanlış!");
           }
         }
