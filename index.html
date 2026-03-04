@@ -474,7 +474,7 @@
       // Only use long polling for Safari/WebKit to avoid CORS issues
       // Other browsers work fine with default gRPC-Web/Fetch streaming
       var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-      var firestoreSettings = {};
+      var firestoreSettings = { merge: true };
       if (isSafari) {
         firestoreSettings.experimentalForceLongPolling = true;
         firestoreSettings.useFetchStreams = false;
