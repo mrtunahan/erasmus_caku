@@ -42,6 +42,11 @@ KAYNAKLAR = [
             "https://bmu.karatekin.edu.tr/tr/tum.duyurular-1-icerikleri.karatekin",
         ],
         "json_api": True,
+        "www_api": {
+            "url": "https://bmu.karatekin.edu.tr/datas/Icerikler/IcerikController.aspx",
+            "type": 1,
+            "detect_siteid": True,
+        },
     },
     {
         "id": "mf",
@@ -55,11 +60,12 @@ KAYNAKLAR = [
         "label": "Üniversite",
         "base_url": "https://www.karatekin.edu.tr",
         "duyuru_url": "https://www.karatekin.edu.tr/tr/tum-duyurular",
-        "json_api": False,
+        "json_api": True,
         "www_api": {
             "url": "https://www.karatekin.edu.tr/datas/Icerikler/IcerikController.aspx",
             "siteid": 54,
             "type": 1,
+            "detect_siteid": True,
         },
     },
     {
@@ -218,44 +224,89 @@ def _json_api_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) 
     """
     base_url = kaynak["base_url"]
     kaynak_id = kaynak["id"]
-    api_url = f"{base_url}/jsondata/tumIcerikler.aspx?limitone=0&limittwo={JSON_API_LIMIT}&tur=1"
 
-    logger.info(f"  → JSON API: {api_url}")
+    # Birden fazla tur değeri ve endpoint dene
+    api_urls = [
+        f"{base_url}/jsondata/tumIcerikler.aspx?limitone=0&limittwo={JSON_API_LIMIT}&tur=1",
+        f"{base_url}/jsondata/tumIcerikler.aspx?limitone=0&limittwo={JSON_API_LIMIT}&tur=2",
+    ]
+
+    headers = {
+        **JSON_API_HEADERS,
+        "Referer": kaynak["duyuru_url"],
+    }
 
     data = None
-    timeouts = [15, REQUEST_TIMEOUT]
-    for attempt, t in enumerate(timeouts, 1):
-        try:
-            resp = requests.get(api_url, headers=JSON_API_HEADERS, timeout=t, verify=True)
-            resp.raise_for_status()
-            data = resp.json()
+    for api_url in api_urls:
+        logger.info(f"  → JSON API: {api_url}")
+
+        timeouts = [15, REQUEST_TIMEOUT]
+        for attempt, t in enumerate(timeouts, 1):
+            try:
+                resp = requests.get(api_url, headers=headers, timeout=t, verify=True)
+                resp.raise_for_status()
+                resp_data = resp.json()
+                if resp_data:
+                    data = resp_data
+                    break
+            except requests.exceptions.RequestException as e:
+                if attempt < len(timeouts):
+                    logger.warning(f"  ⚠ JSON API deneme {attempt} başarısız, tekrar deneniyor...")
+                    time.sleep(2)
+                else:
+                    logger.warning(f"  ✗ JSON API hatası: {e}")
+            except (ValueError, KeyError) as e:
+                logger.warning(f"  ✗ JSON parse hatası: {e}")
+                break
+
+        if data:
             break
-        except requests.exceptions.RequestException as e:
-            if attempt < len(timeouts):
-                logger.warning(f"  ⚠ JSON API deneme {attempt} başarısız, tekrar deneniyor...")
-                time.sleep(2)
-            else:
-                logger.warning(f"  ✗ JSON API hatası: {e}")
-                return []
-        except (ValueError, KeyError) as e:
-            logger.warning(f"  ✗ JSON parse hatası: {e}")
-            return []
+
+    if not data:
+        return []
 
     if debug:
         logger.info(f"  [DEBUG] JSON API: {len(data)} öğe döndü")
+        if data:
+            logger.info(f"  [DEBUG] İlk öğe anahtarları: {list(data[0].keys())}")
 
     duyurular = []
     gorulmus = set()
 
     for item in data:
-        html = item.get("paragraph", "")
+        # paragraph veya content alanını dene
+        html = item.get("paragraph", "") or item.get("content", "") or item.get("icerik", "")
         if not html:
+            # Eğer item doğrudan title/link içeriyorsa (farklı format)
+            if item.get("title") or item.get("baslik"):
+                baslik = (item.get("title") or item.get("baslik", "")).strip()
+                link = (item.get("link") or item.get("url") or item.get("href", "")).strip()
+                if baslik and len(baslik) >= 5 and link:
+                    full_url = urljoin(base_url + "/", link.lstrip("/"))
+                    if full_url not in gorulmus:
+                        gorulmus.add(full_url)
+                        tarih_str = item.get("date") or item.get("tarih") or ""
+                        if not tarih_str and item.get("day") and item.get("year"):
+                            month_str = (item.get("month") or "").strip().lower()
+                            ay = _WWW_AY_MAP.get(month_str, "")
+                            if ay:
+                                tarih_str = f"{item['year']}-{ay}-{int(item['day']):02d}"
+                        tarih = tarih_parse(tarih_str) if tarih_str else ""
+                        duyuru_id = benzersiz_id(kaynak_id, baslik, full_url)
+                        duyurular.append({
+                            "id": duyuru_id,
+                            "baslik": baslik[:200],
+                            "tarih": tarih or datetime.now().strftime("%Y-%m-%d"),
+                            "url": full_url,
+                        })
             continue
 
         soup = BeautifulSoup(html, "html.parser")
 
-        # Başlık ve URL: <a class="header">
+        # Başlık ve URL: <a class="header"> veya ilk anlamlı <a>
         header_link = soup.find("a", class_="header")
+        if not header_link:
+            header_link = soup.find("a", href=True)
         if not header_link:
             continue
 
@@ -272,9 +323,11 @@ def _json_api_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) 
             continue
         gorulmus.add(full_url)
 
-        # Tarih: <div class="extra">
+        # Tarih: <div class="extra"> veya <span class="date"> vb.
         tarih = ""
         extra_div = soup.find("div", class_="extra")
+        if not extra_div:
+            extra_div = soup.find(class_=re.compile(r"date|tarih|extra|meta", re.I))
         if extra_div:
             tarih = tarih_parse(extra_div.get_text(strip=True))
 
@@ -307,67 +360,101 @@ _WWW_AY_MAP = {
 }
 
 
-def _www_api_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -> list:
-    """
-    www.karatekin.edu.tr özel API'si (IcerikController) üzerinden duyuruları çeker.
+def _detect_siteid(soup: BeautifulSoup, logger: logging.Logger) -> int | None:
+    """HTML sayfasındaki JavaScript'ten siteid değerini otomatik tespit eder."""
+    for script in soup.find_all("script"):
+        text = script.get_text()
+        if not text:
+            continue
+        # siteid parametresini bul: siteid=54, siteid: 54, siteid="54" vb.
+        match = re.search(r'siteid["\s:=]+["\']?(\d+)', text, re.IGNORECASE)
+        if match:
+            siteid = int(match.group(1))
+            logger.info(f"  → Otomatik siteid tespit edildi: {siteid}")
+            return siteid
+    return None
 
-    Ana site subdomain'lerden farklı bir CMS kullanıyor:
-      POST /datas/Icerikler/IcerikController.aspx?siteid=54&language=T&limitOne=0&limitTwo=50&limit=1&type=1
-    Yanıt: [{data: [{title, link, day, month, year, image}, ...]}]
-    """
-    cfg = kaynak["www_api"]
+
+def _try_icerik_api(
+    api_base_url: str, siteid: int, type_val: int,
+    kaynak: dict, logger: logging.Logger, debug: bool = False,
+) -> list:
+    """Tek bir siteid ile IcerikController API'sini dener (POST ve GET)."""
     kaynak_id = kaynak["id"]
     base_url = kaynak["base_url"]
     api_url = (
-        f"{cfg['url']}?siteid={cfg['siteid']}&language=T"
-        f"&limitOne=0&limitTwo={JSON_API_LIMIT}&limit=1&type={cfg['type']}"
+        f"{api_base_url}?siteid={siteid}&language=T"
+        f"&limitOne=0&limitTwo={JSON_API_LIMIT}&limit=1&type={type_val}"
     )
 
-    logger.info(f"  → WWW API: {api_url}")
+    headers = {
+        **JSON_API_HEADERS,
+        "Referer": kaynak["duyuru_url"],
+    }
 
     data = None
-    timeouts = [15, REQUEST_TIMEOUT]
-    for attempt, t in enumerate(timeouts, 1):
-        try:
-            resp = requests.post(
-                api_url, data="", headers=JSON_API_HEADERS,
-                timeout=t, verify=True,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            break
-        except requests.exceptions.RequestException as e:
-            if attempt < len(timeouts):
-                logger.warning(f"  ⚠ WWW API deneme {attempt} başarısız, tekrar deneniyor...")
-                time.sleep(2)
-            else:
-                logger.warning(f"  ✗ WWW API hatası: {e}")
-                return []
-        except (ValueError, KeyError) as e:
-            logger.warning(f"  ✗ WWW API JSON parse hatası: {e}")
-            return []
 
-    # Yanıt yapısı: [{data: [...]}]
+    # Önce POST, sonra GET dene
+    for method_name, method_func in [("POST", requests.post), ("GET", requests.get)]:
+        logger.info(f"  → IcerikController ({method_name}, siteid={siteid}): {api_url}")
+
+        timeouts = [15, REQUEST_TIMEOUT]
+        for attempt, t in enumerate(timeouts, 1):
+            try:
+                kwargs = {"headers": headers, "timeout": t, "verify": True}
+                if method_name == "POST":
+                    kwargs["data"] = ""
+                resp = method_func(api_url, **kwargs)
+                resp.raise_for_status()
+                resp_data = resp.json()
+                if resp_data:
+                    data = resp_data
+                    break
+            except requests.exceptions.RequestException as e:
+                if attempt < len(timeouts):
+                    logger.warning(f"  ⚠ IcerikController {method_name} deneme {attempt} başarısız...")
+                    time.sleep(2)
+                else:
+                    logger.warning(f"  ✗ IcerikController {method_name} hatası: {e}")
+            except (ValueError, KeyError) as e:
+                logger.warning(f"  ✗ IcerikController JSON parse hatası: {e}")
+                break
+
+        if data:
+            break
+
+    if not data:
+        return []
+
+    # Yanıt yapısı: [{data: [...]}] veya [...]
+    items = None
     try:
-        items = data[0]["data"]
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            if "data" in data[0]:
+                items = data[0]["data"]
+            elif "title" in data[0] or "link" in data[0]:
+                items = data
     except (IndexError, KeyError, TypeError):
-        logger.warning(f"  ✗ WWW API beklenmeyen yanıt formatı")
+        pass
+
+    if not items:
+        logger.warning(f"  ✗ IcerikController beklenmeyen yanıt formatı (siteid={siteid})")
         if debug:
-            logger.info(f"  [DEBUG] WWW API yanıt: {str(data)[:500]}")
+            logger.info(f"  [DEBUG] IcerikController yanıt: {str(data)[:500]}")
         return []
 
     if debug:
-        logger.info(f"  [DEBUG] WWW API: {len(items)} öğe döndü")
+        logger.info(f"  [DEBUG] IcerikController: {len(items)} öğe döndü (siteid={siteid})")
 
     duyurular = []
     gorulmus = set()
 
     for item in items:
-        baslik = item.get("title", "").strip()
+        baslik = (item.get("title") or item.get("baslik", "")).strip()
         if not baslik or len(baslik) < 5:
             continue
 
-        link = item.get("link", "").strip()
+        link = (item.get("link") or item.get("url", "")).strip()
         if not link:
             continue
 
@@ -377,9 +464,9 @@ def _www_api_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -
         gorulmus.add(full_url)
 
         # Tarih: day, month, year alanlarından
-        day = item.get("day", "").strip()
-        month_str = item.get("month", "").strip().lower()
-        year = item.get("year", "").strip()
+        day = str(item.get("day", "")).strip()
+        month_str = str(item.get("month", "")).strip().lower()
+        year = str(item.get("year", "")).strip()
 
         tarih = ""
         if day and year:
@@ -387,11 +474,16 @@ def _www_api_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -
             if ay:
                 tarih = f"{year}-{ay}-{int(day):02d}"
             else:
-                # Sayısal ay olabilir
                 try:
                     tarih = f"{year}-{int(month_str):02d}-{int(day):02d}"
                 except ValueError:
                     pass
+
+        # date alanı da olabilir
+        if not tarih:
+            date_str = str(item.get("date") or item.get("tarih") or "").strip()
+            if date_str:
+                tarih = tarih_parse(date_str)
 
         duyuru_id = benzersiz_id(kaynak_id, baslik, full_url)
         duyurular.append({
@@ -402,11 +494,50 @@ def _www_api_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -
         })
 
     if duyurular:
-        logger.info(f"  ✓ {len(duyurular)} duyuru bulundu — WWW API ({kaynak['label']})")
-    else:
-        logger.warning(f"  ✗ WWW API'den duyuru çıkarılamadı ({kaynak['label']})")
+        logger.info(f"  ✓ {len(duyurular)} duyuru bulundu — IcerikController (siteid={siteid}, {kaynak['label']})")
 
     return duyurular
+
+
+def _www_api_scrape(kaynak: dict, logger: logging.Logger, debug: bool = False) -> list:
+    """
+    IcerikController API üzerinden duyuruları çeker.
+
+    Ana site ve bazı alt domainler bu API'yi kullanır:
+      POST/GET /datas/Icerikler/IcerikController.aspx?siteid=XX&language=T&limitOne=0&limitTwo=50&limit=1&type=1
+    Yanıt: [{data: [{title, link, day, month, year, image}, ...]}]
+
+    Otomatik siteid tespiti: HTML sayfasındaki JavaScript'ten siteid çıkarılır.
+    """
+    cfg = kaynak["www_api"]
+    api_base_url = cfg["url"]
+    type_val = cfg.get("type", 1)
+
+    # Denenecek siteid listesi oluştur
+    siteids = []
+    if "siteid" in cfg:
+        siteids.append(cfg["siteid"])
+
+    # Otomatik siteid tespiti
+    if cfg.get("detect_siteid"):
+        page_soup = sayfa_cek(kaynak["duyuru_url"], logger)
+        if page_soup:
+            detected = _detect_siteid(page_soup, logger)
+            if detected and detected not in siteids:
+                siteids.insert(0, detected)  # Tespit edileni önce dene
+
+    if not siteids:
+        logger.warning(f"  ✗ IcerikController: siteid bulunamadı ({kaynak['label']})")
+        return []
+
+    # Her siteid ile dene
+    for siteid in siteids:
+        duyurular = _try_icerik_api(api_base_url, siteid, type_val, kaynak, logger, debug)
+        if duyurular:
+            return duyurular
+
+    logger.warning(f"  ✗ IcerikController'dan duyuru çıkarılamadı ({kaynak['label']})")
+    return []
 
 
 def is_duyuru_href(href: str) -> bool:
@@ -1052,7 +1183,7 @@ def main():
                 for k in aktif_kaynaklar
             },
             "kaynak_durumlari": kaynak_durumlari,
-            "scraper_surumu": "3.2.0",
+            "scraper_surumu": "3.3.0",
         },
         "duyurular": tum_duyurular,
     }

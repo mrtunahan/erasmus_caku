@@ -26,7 +26,27 @@ jobs:
         run: pip install requests beautifulsoup4 lxml
 
       - name: Run scraper
-        run: python3 scraper.py --output duyurular/duyurular.json
+        run: python3 scraper.py --output duyurular/duyurular.json --verbose
+
+      - name: Show scraper results summary
+        if: always()
+        run: |
+          echo "=== Scraper Sonuç Özeti ==="
+          if [ -f duyurular/duyurular.json ]; then
+            python3 -c "
+import json
+with open('duyurular/duyurular.json') as f:
+    d = json.load(f)
+m = d.get('meta', {})
+print(f'Toplam: {m.get(\"toplam_duyuru\", 0)} duyuru')
+print(f'Sürüm: {m.get(\"scraper_surumu\", \"?\")}')
+for k, v in m.get('kaynaklar', {}).items():
+    durum = m.get('kaynak_durumlari', {}).get(k, '?')
+    print(f'  {k}: {v} duyuru ({durum})')
+"
+          else
+            echo "duyurular.json bulunamadı!"
+          fi
 
       - name: Check for changes
         id: check
