@@ -471,18 +471,15 @@
     try {
       firebase.initializeApp(firebaseConfig);
 
-      // Only use long polling for Safari/WebKit to avoid CORS issues
-      // Other browsers work fine with default gRPC-Web/Fetch streaming
-      var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-      if (isSafari) {
-        firebase.firestore().settings({
-          experimentalForceLongPolling: true,
-          experimentalAutoDetectLongPolling: false,
-          useFetchStreams: false,
-          merge: true
-        });
-        console.log('Safari detected: using long polling for Firestore');
-      }
+      // Force long polling for all browsers to prevent
+      // Write/channel and Listen/channel 400 errors during
+      // transport negotiation with Firestore streaming endpoints
+      firebase.firestore().settings({
+        experimentalForceLongPolling: true,
+        experimentalAutoDetectLongPolling: false,
+        useFetchStreams: false,
+        merge: true
+      });
 
       firebaseReady = true;
       console.log('Firebase initialized successfully');
