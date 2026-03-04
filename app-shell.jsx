@@ -54,7 +54,7 @@ const NAV_ITEMS = [
   { id: "yazokulu", label: "Yaz Okulu", icon: "M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z", adminOnly: true },
   { id: "portal", label: "Öğrenci Portalı", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
   { id: "projeler", label: "Proje", icon: "M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" },
-  { id: "duyurular", label: "Duyuru Merkezi", icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" },
+  { id: "formlar", label: "Formlar", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
 ];
 
 // ── Navigation Bar ──
@@ -68,9 +68,9 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
   // Sadece erişilebilir sekmeleri göster (kilitli olanları gizle)
   const visibleItems = NAV_ITEMS.filter(item => {
     if (isAdmin) return true;
-    if (isProfessor) return ['sinav', 'duyurular'].includes(item.id);
+    if (isProfessor) return ['sinav', 'formlar'].includes(item.id);
     // Öğrenci - tüm öğrenciler erasmus modülünü görebilir (yetkisiz olanlar salt okunur)
-    const allowed = ['erasmus', 'portal', 'projeler', 'duyurular'];
+    const allowed = ['erasmus', 'portal', 'projeler', 'formlar'];
     return allowed.includes(item.id);
   });
 
@@ -311,7 +311,7 @@ function AppShell() {
 
   // Öğrencilerin erişebileceği modüller (tüm öğrenciler erasmus'u görebilir, yetkisiz olanlar salt okunur)
   const hasErasmusAccess = currentUser?.erasmusAccess === true;
-  const STUDENT_ALLOWED_ROUTES = ['erasmus', 'portal', 'projeler', 'duyurular'];
+  const STUDENT_ALLOWED_ROUTES = ['erasmus', 'portal', 'projeler', 'formlar'];
 
   const handleLogin = (user) => {
     setCurrentUser(user);
@@ -326,7 +326,7 @@ function AppShell() {
       // Admin stays on current or goes to default
     } else {
       // Student: tüm öğrenciler erasmus modülünü görüntüleyebilir
-      const studentRoutes = ['erasmus', 'portal', 'projeler', 'duyurular'];
+      const studentRoutes = ['erasmus', 'portal', 'projeler', 'formlar'];
       if (!studentRoutes.includes(route)) {
         navigate('erasmus');
       }
@@ -350,8 +350,8 @@ function AppShell() {
     if (!currentUser) return;
 
     if (isProfessor) {
-      // Professors can access 'sinav' and 'duyurular'
-      const professorRoutes = ['sinav', 'duyurular'];
+      // Professors can access 'sinav' and 'formlar'
+      const professorRoutes = ['sinav', 'formlar'];
       if (!professorRoutes.includes(route)) {
         navigate('sinav');
       }
@@ -382,11 +382,11 @@ function AppShell() {
       yazokulu: window.YazOkuluApp,
       portal: window.OgrenciPortaliApp,
       projeler: window.ProjeModuluApp,
-      duyurular: window.DuyuruEntegrasyonuApp,
+      formlar: window.FormlarModuluApp,
     };
 
     // Safety check for rendering availability
-    if (isProfessor && !['sinav', 'duyurular'].includes(route)) return null; // Wait for redirect
+    if (isProfessor && !['sinav', 'formlar'].includes(route)) return null; // Wait for redirect
     if (!isAdmin && !isProfessor && !STUDENT_ALLOWED_ROUTES.includes(route)) return null; // Wait for redirect
 
     const Component = components[route] || components.erasmus;
