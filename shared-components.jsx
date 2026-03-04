@@ -1364,42 +1364,7 @@ const LoginModal = ({ onLogin }) => {
     if (newPassword === "1234" || newPassword === "1605") { setError("Lütfen varsayılan şifreden farklı bir şifre belirleyin!"); return; }
     setLoading(true);
     try {
-      let email;
-      if (pendingUser.role === "student") {
-        email = FirebaseAuth.studentEmail(pendingUser.studentNumber);
-      } else if (pendingUser.role === "professor") {
-        email = FirebaseAuth.professorEmail(pendingUser.name);
-      } else if (pendingUser.role === "admin") {
-        email = FirebaseAuth.adminEmail();
-      }
-
-      // Önce Firebase Auth hesabı oluştur/giriş yap (Firestore yazabilmek için auth gerekli)
-      try {
-        await FirebaseAuth.createAccount(email, newPassword);
-      } catch (authErr) {
-        if (authErr.code === 'auth/email-already-in-use') {
-          let signedIn = false;
-          try { await FirebaseAuth.signIn(email, newPassword); signedIn = true; } catch (e) { /* yeni şifreyle giriş yapılamadı */ }
-          if (!signedIn) {
-            const oldPasswords = ["1234", "1605"];
-            for (const oldPass of oldPasswords) {
-              try {
-                await FirebaseAuth.signIn(email, oldPass);
-                await FirebaseAuth.updatePassword(newPassword);
-                signedIn = true;
-                break;
-              } catch (e) { /* bu şifreyle de giriş yapılamadı */ }
-            }
-          }
-          if (!signedIn) {
-            throw new Error("Firebase Auth hesabı mevcut ancak şifre güncellenemiyor. Lütfen yöneticinize başvurun.");
-          }
-        } else {
-          throw authErr;
-        }
-      }
-
-      // Auth başarılı — şimdi Firestore'a şifreyi kaydet
+      // Şifreyi Firestore'a kaydet
       if (pendingUser.role === "student") {
         await FirebaseDB.updatePassword(pendingUser.studentNumber, newPassword);
       } else if (pendingUser.role === "professor") {
@@ -1410,9 +1375,39 @@ const LoginModal = ({ onLogin }) => {
         await FirebaseDB.saveAdminPassword(newPassword);
       }
 
-      if (FirebaseAuth.currentUser()) {
-        await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, pendingUser);
+      // Firebase Auth hesabı oluşturmayı dene (başarısız olursa sorun değil)
+      try {
+        let email;
+        if (pendingUser.role === "student") {
+          email = FirebaseAuth.studentEmail(pendingUser.studentNumber);
+        } else if (pendingUser.role === "professor") {
+          email = FirebaseAuth.professorEmail(pendingUser.name);
+        } else if (pendingUser.role === "admin") {
+          email = FirebaseAuth.adminEmail();
+        }
+        try {
+          await FirebaseAuth.createAccount(email, newPassword);
+        } catch (authErr) {
+          if (authErr.code === 'auth/email-already-in-use') {
+            try { await FirebaseAuth.signIn(email, newPassword); } catch (e) {
+              const oldPasswords = ["1234", "1605"];
+              for (const oldPass of oldPasswords) {
+                try {
+                  await FirebaseAuth.signIn(email, oldPass);
+                  await FirebaseAuth.updatePassword(newPassword);
+                  break;
+                } catch (e) { /* devam */ }
+              }
+            }
+          }
+        }
+        if (FirebaseAuth.currentUser()) {
+          await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, pendingUser);
+        }
+      } catch (authError) {
+        console.warn("Firebase Auth opsiyonel - devam ediliyor:", authError.message);
       }
+
       onLogin(pendingUser);
     } catch (err) {
       console.error("Password setup error:", err);

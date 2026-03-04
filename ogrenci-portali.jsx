@@ -495,14 +495,15 @@ var PortalDB = {
     var ref = this.postsRef();
     if (!ref) return [];
     var query = ref.orderBy("createdAt", "desc");
-    if (category && category !== "tumu") {
-      query = query.where("category", "==", category);
-    }
     if (limit) query = query.limit(limit);
     var snapshot = await query.get();
-    return snapshot.docs.map(function (doc) {
+    var results = snapshot.docs.map(function (doc) {
       return Object.assign({}, doc.data(), { id: doc.id });
     });
+    if (category && category !== "tumu") {
+      results = results.filter(function (p) { return p.category === category; });
+    }
+    return results;
   },
 
   async updatePost(id, data) {
@@ -4804,27 +4805,33 @@ function OgrenciPortaliApp({ currentUser }) {
     showToast(wasBookmarked ? "Yer iminden kaldırıldı" : "Yer imine eklendi");
   };
 
-  // Gerçek zamanlı dinleme (onSnapshot)
+  // Gerçek zamanlı dinleme (onSnapshot) - tüm postları çek, filtrelemeyi client-side yap
+  var [allPosts, setAllPosts] = useState([]);
   useEffect(function () {
     var ref = PortalDB.postsRef();
     if (!ref) { setLoading(false); return; }
-    var query = ref.orderBy("createdAt", "desc");
-    if (activeCategory && activeCategory !== "tumu") {
-      query = query.where("category", "==", activeCategory);
-    }
-    query = query.limit(50);
+    var query = ref.orderBy("createdAt", "desc").limit(200);
     var unsubscribe = query.onSnapshot(function (snapshot) {
       var fetched = snapshot.docs.map(function (doc) {
         return Object.assign({}, doc.data(), { id: doc.id });
       });
-      setPosts(fetched);
+      setAllPosts(fetched);
       setLoading(false);
     }, function (err) {
       console.error("Gönderiler yüklenemedi:", err);
       setLoading(false);
     });
     return function () { unsubscribe(); };
-  }, [activeCategory]);
+  }, []);
+
+  // Kategori filtreleme client-side
+  useEffect(function () {
+    if (activeCategory && activeCategory !== "tumu") {
+      setPosts(allPosts.filter(function (p) { return p.category === activeCategory; }));
+    } else {
+      setPosts(allPosts);
+    }
+  }, [activeCategory, allPosts]);
 
   // Sonsuz kaydırma
   useEffect(function () {
