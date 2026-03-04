@@ -447,6 +447,28 @@ const FirebaseDB = {
 
   isReady: () => !!window.firebase,
 
+  // Check Firestore connectivity - returns { ok, error }
+  async checkConnection() {
+    try {
+      const db = FirebaseDB.db();
+      if (!db) return { ok: false, error: 'Firebase SDK yüklenmemiş' };
+      await db.collection('students').limit(1).get();
+      return { ok: true, error: null };
+    } catch (err) {
+      const msg = err.message || '';
+      if (err.code === 'permission-denied') {
+        return { ok: false, error: 'Firestore erişim izni reddedildi. Güvenlik kurallarını kontrol edin.' };
+      }
+      if (msg.includes('400') || msg.includes('Bad Request')) {
+        return { ok: false, error: 'Firestore veritabanı yanıt vermiyor. Firebase Console\'da Firestore veritabanının oluşturulduğundan emin olun.' };
+      }
+      if (msg.includes('Failed to fetch') || msg.includes('network')) {
+        return { ok: false, error: 'Sunucuya bağlanılamıyor. İnternet bağlantınızı kontrol edin.' };
+      }
+      return { ok: false, error: 'Firestore bağlantı hatası: ' + msg };
+    }
+  },
+
   // Erasmus collections
   studentsRef: () => FirebaseDB.db()?.collection('students'),
   usersRef: () => FirebaseDB.db()?.collection('users'),
@@ -544,12 +566,12 @@ const FirebaseDB = {
   async fetchStudents() {
     try {
       const ref = FirebaseDB.studentsRef();
-      if (!ref) return [];
+      if (!ref) throw new Error('Firebase bağlantısı yok');
       const snapshot = await ref.get();
       return snapshot.docs.map(doc => { const data = doc.data(); return { ...data, id: doc.id, outgoingMatches: data.outgoingMatches || [], returnMatches: data.returnMatches || [] }; });
     } catch (error) {
       console.error('Error fetching students:', error);
-      return [];
+      throw error;
     }
   },
   async addStudent(student) {
@@ -734,12 +756,12 @@ const FirebaseDB = {
   async fetchPasswords() {
     try {
       const ref = FirebaseDB.passwordsRef();
-      if (!ref) return {};
+      if (!ref) throw new Error('Firebase bağlantısı yok');
       const doc = await ref.doc('student_passwords').get();
       return doc.exists ? doc.data() : {};
     } catch (error) {
       console.error('Error fetching passwords:', error);
-      return {};
+      throw error;
     }
   },
   async updatePassword(studentNumber, newPassword) {
@@ -762,12 +784,12 @@ const FirebaseDB = {
   async fetchAdminPassword() {
     try {
       const ref = FirebaseDB.passwordsRef();
-      if (!ref) return null;
+      if (!ref) throw new Error('Firebase bağlantısı yok');
       const doc = await ref.doc('admin').get();
       return doc.exists ? doc.data().password : null;
     } catch (error) {
       console.error('Error fetching admin password:', error);
-      return null;
+      throw error;
     }
   },
   async saveAdminPassword(password) {
@@ -788,12 +810,12 @@ const FirebaseDB = {
   async fetchProfessorPasswords() {
     try {
       const ref = FirebaseDB.passwordsRef();
-      if (!ref) return {};
+      if (!ref) throw new Error('Firebase bağlantısı yok');
       const doc = await ref.doc('professor_passwords').get();
       return doc.exists ? doc.data() : {};
     } catch (error) {
       console.error('Error fetching professor passwords:', error);
-      return {};
+      throw error;
     }
   },
   async saveProfessorPasswords(passwords) {
@@ -1493,7 +1515,14 @@ const LoginModal = ({ onLogin }) => {
       }
     } catch (err) {
       console.error("Student check error:", err);
-      setError("Bir hata oluştu. Lütfen tekrar deneyin.");
+      const msg = err.message || '';
+      if (msg.includes('400') || msg.includes('Bad Request') || msg.includes('bağlantısı yok')) {
+        setError("Veritabanına bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.");
+      } else if (err.code === 'permission-denied') {
+        setError("Veritabanı erişim izni reddedildi. Yöneticiyle iletişime geçin.");
+      } else {
+        setError("Bir hata oluştu: " + (msg || "Lütfen tekrar deneyin."));
+      }
     } finally {
       setLoading(false);
     }
@@ -1566,7 +1595,14 @@ const LoginModal = ({ onLogin }) => {
       }
     } catch (err) {
       console.error("Login error:", err);
-      setError("Giriş hatası: " + err.message);
+      const msg = err.message || '';
+      if (msg.includes('400') || msg.includes('Bad Request') || msg.includes('bağlantısı yok')) {
+        setError("Veritabanına bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.");
+      } else if (err.code === 'permission-denied') {
+        setError("Veritabanı erişim izni reddedildi. Yöneticiyle iletişime geçin.");
+      } else {
+        setError("Giriş hatası: " + (msg || "Bilinmeyen hata"));
+      }
     } finally {
       setLoading(false);
     }
@@ -1709,7 +1745,14 @@ const LoginModal = ({ onLogin }) => {
       }
     } catch (err) {
       console.error("Login error:", err);
-      setError("Giriş hatası: " + err.message);
+      const msg = err.message || '';
+      if (msg.includes('400') || msg.includes('Bad Request') || msg.includes('bağlantısı yok')) {
+        setError("Veritabanına bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.");
+      } else if (err.code === 'permission-denied') {
+        setError("Veritabanı erişim izni reddedildi. Yöneticiyle iletişime geçin.");
+      } else {
+        setError("Giriş hatası: " + (msg || "Bilinmeyen hata"));
+      }
     } finally {
       setLoading(false);
     }

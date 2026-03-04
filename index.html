@@ -467,17 +467,36 @@
 
     // Initialize Firebase
     var firebaseReady = false;
+    var firestoreReady = false;
     try {
       firebase.initializeApp(firebaseConfig);
-      // Fix Safari/WebKit CORS issues with Firestore
-      // experimentalForceLongPolling bypasses Fetch API streaming which Safari blocks
-      // useFetchStreams: false prevents the Fetch ReadableStream usage that triggers CORS errors
-      firebase.firestore().settings({
-        experimentalForceLongPolling: true,
-        useFetchStreams: false
-      });
+
+      // Only use long polling for Safari/WebKit to avoid CORS issues
+      // Other browsers work fine with default gRPC-Web/Fetch streaming
+      var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      var firestoreSettings = {};
+      if (isSafari) {
+        firestoreSettings.experimentalForceLongPolling = true;
+        firestoreSettings.useFetchStreams = false;
+        console.log('Safari detected: using long polling for Firestore');
+      }
+      firebase.firestore().settings(firestoreSettings);
+
       firebaseReady = true;
       console.log('Firebase initialized successfully');
+
+      // Verify Firestore connectivity with a lightweight read
+      firebase.firestore().collection('students').limit(1).get()
+        .then(function() {
+          firestoreReady = true;
+          window.firestoreReady = true;
+          console.log('Firestore connection verified');
+        })
+        .catch(function(err) {
+          console.warn('Firestore connectivity check failed:', err.message);
+          window.firestoreError = err.message;
+          // Still allow app to load - login will show appropriate errors
+        });
     } catch (error) {
       console.error('Firebase initialization error:', error);
       document.getElementById('root').innerHTML = `
