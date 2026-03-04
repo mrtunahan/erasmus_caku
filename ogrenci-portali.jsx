@@ -494,11 +494,15 @@ var PortalDB = {
   async fetchPosts(category, limit) {
     var ref = this.postsRef();
     if (!ref) return [];
-    var query = ref.orderBy("createdAt", "desc");
-    if (limit) query = query.limit(limit);
+    var query = limit ? ref.limit(limit) : ref;
     var snapshot = await query.get();
     var results = snapshot.docs.map(function (doc) {
       return Object.assign({}, doc.data(), { id: doc.id });
+    });
+    results.sort(function (a, b) {
+      var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : 0;
+      var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : 0;
+      return tb - ta;
     });
     if (category && category !== "tumu") {
       results = results.filter(function (p) { return p.category === category; });
@@ -595,10 +599,16 @@ var PortalDB = {
   async fetchComments(postId) {
     var ref = this.commentsRef(postId);
     if (!ref) return [];
-    var snapshot = await ref.orderBy("createdAt", "asc").get();
-    return snapshot.docs.map(function (doc) {
+    var snapshot = await ref.get();
+    var results = snapshot.docs.map(function (doc) {
       return Object.assign({}, doc.data(), { id: doc.id });
     });
+    results.sort(function (a, b) {
+      var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : 0;
+      var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : 0;
+      return ta - tb;
+    });
+    return results;
   },
 
   async updateComment(postId, commentId, data) {
@@ -755,11 +765,16 @@ var PortalDB = {
   async fetchNotifications(userId, limit) {
     var ref = this.notificationsRef(userId);
     if (!ref) return [];
-    var query = ref.orderBy("createdAt", "desc").limit(limit || 20);
-    var snapshot = await query.get();
-    return snapshot.docs.map(function (doc) {
+    var snapshot = await ref.limit(limit || 20).get();
+    var results = snapshot.docs.map(function (doc) {
       return Object.assign({}, doc.data(), { id: doc.id });
     });
+    results.sort(function (a, b) {
+      var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : 0;
+      var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : 0;
+      return tb - ta;
+    });
+    return results;
   },
 
   async markNotificationRead(userId, notifId) {
@@ -849,7 +864,7 @@ var PortalDB = {
   async fetchAllUsers() {
     var ref = this.postsRef();
     if (!ref) return [];
-    var snapshot = await ref.orderBy("createdAt", "desc").limit(200).get();
+    var snapshot = await ref.limit(200).get();
     var usersMap = {};
     snapshot.docs.forEach(function (doc) {
       var data = doc.data();
@@ -897,10 +912,16 @@ var PortalDB = {
   async fetchReports() {
     var ref = this.reportsRef();
     if (!ref) return [];
-    var snapshot = await ref.orderBy("createdAt", "desc").get();
-    return snapshot.docs.map(function (doc) {
+    var snapshot = await ref.get();
+    var results = snapshot.docs.map(function (doc) {
       return Object.assign({}, doc.data(), { id: doc.id });
     });
+    results.sort(function (a, b) {
+      var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : 0;
+      var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : 0;
+      return tb - ta;
+    });
+    return results;
   },
 
   async resolveReport(reportId) {
@@ -4810,10 +4831,14 @@ function OgrenciPortaliApp({ currentUser }) {
   useEffect(function () {
     var ref = PortalDB.postsRef();
     if (!ref) { setLoading(false); return; }
-    var query = ref.orderBy("createdAt", "desc").limit(200);
-    var unsubscribe = query.onSnapshot(function (snapshot) {
+    var unsubscribe = ref.limit(200).onSnapshot(function (snapshot) {
       var fetched = snapshot.docs.map(function (doc) {
         return Object.assign({}, doc.data(), { id: doc.id });
+      });
+      fetched.sort(function (a, b) {
+        var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : 0;
+        var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : 0;
+        return tb - ta;
       });
       setAllPosts(fetched);
       setLoading(false);
