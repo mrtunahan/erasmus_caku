@@ -1,6 +1,6 @@
 [
   {
-    "origin": ["https://caku-erasmus.web.app", "https://caku-erasmus.firebaseapp.com"],
+    "origin": ["https://caku-erasmus.web.app", "https://caku-erasmus.firebaseapp.com", "https://offlineasistan.com.tr"],
     "method": ["GET", "HEAD"],
     "maxAgeSeconds": 3600,
     "responseHeader": ["Content-Type", "Content-Disposition"]
