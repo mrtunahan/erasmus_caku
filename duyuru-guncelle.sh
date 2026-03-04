@@ -12,17 +12,33 @@
 #   ./duyuru-guncelle.sh --debug      # Debug modunda çalıştır
 #   ./duyuru-guncelle.sh --check      # Sadece bağlantı kontrolü
 #
+# Cron job kurulumu (her 6 saatte bir):
+#   crontab -e
+#   0 */6 * * * /var/www/erasmus_caku/duyuru-guncelle.sh >> /var/log/duyuru-scraper.log 2>&1
+#
 # ============================================================
 
 set -e
 
-# Renk kodları
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+# Terminal mi yoksa cron mu?
+if [ -t 1 ]; then
+    # Terminal — renkli çıktı
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    CYAN='\033[0;36m'
+    NC='\033[0m'
+else
+    # Cron/pipe — renksiz
+    RED=''
+    GREEN=''
+    YELLOW=''
+    BLUE=''
+    CYAN=''
+    NC=''
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Duyuru scraper başlatılıyor..."
+fi
 
 # Proje dizini (bu script'in bulunduğu yer)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
