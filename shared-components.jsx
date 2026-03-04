@@ -1367,27 +1367,20 @@ const LoginModal = ({ onLogin }) => {
       let email;
       if (pendingUser.role === "student") {
         email = FirebaseAuth.studentEmail(pendingUser.studentNumber);
-        await FirebaseDB.updatePassword(pendingUser.studentNumber, newPassword);
       } else if (pendingUser.role === "professor") {
         email = FirebaseAuth.professorEmail(pendingUser.name);
-        const profPasswords = await FirebaseDB.fetchProfessorPasswords();
-        profPasswords[pendingUser.name] = newPassword;
-        await FirebaseDB.saveProfessorPasswords(profPasswords);
       } else if (pendingUser.role === "admin") {
         email = FirebaseAuth.adminEmail();
-        await FirebaseDB.saveAdminPassword(newPassword);
       }
 
-      // Firebase Auth hesabı oluştur
+      // Önce Firebase Auth hesabı oluştur/giriş yap (Firestore yazabilmek için auth gerekli)
       try {
         await FirebaseAuth.createAccount(email, newPassword);
       } catch (authErr) {
         if (authErr.code === 'auth/email-already-in-use') {
-          // Hesap zaten var - yeni şifreyle giriş dene (belki zaten bu şifreyle kayıtlı)
           let signedIn = false;
           try { await FirebaseAuth.signIn(email, newPassword); signedIn = true; } catch (e) { /* yeni şifreyle giriş yapılamadı */ }
           if (!signedIn) {
-            // Eski/varsayılan şifrelerle giriş dene ve şifreyi güncelle
             const oldPasswords = ["1234", "1605"];
             for (const oldPass of oldPasswords) {
               try {
@@ -1405,6 +1398,18 @@ const LoginModal = ({ onLogin }) => {
           throw authErr;
         }
       }
+
+      // Auth başarılı — şimdi Firestore'a şifreyi kaydet
+      if (pendingUser.role === "student") {
+        await FirebaseDB.updatePassword(pendingUser.studentNumber, newPassword);
+      } else if (pendingUser.role === "professor") {
+        const profPasswords = await FirebaseDB.fetchProfessorPasswords();
+        profPasswords[pendingUser.name] = newPassword;
+        await FirebaseDB.saveProfessorPasswords(profPasswords);
+      } else if (pendingUser.role === "admin") {
+        await FirebaseDB.saveAdminPassword(newPassword);
+      }
+
       if (FirebaseAuth.currentUser()) {
         await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, pendingUser);
       }
