@@ -1159,7 +1159,7 @@ const ReactionBar = ({ reactions, postId, userId, onReact }) => {
           background: "white", borderRadius: 14, padding: "10px 8px",
           boxShadow: "0 8px 30px rgba(0,0,0,0.18)",
           display: "flex", flexWrap: "wrap", gap: 4, zIndex: 100,
-          border: "1px solid " + PC.border, maxWidth: 280,
+          border: "1px solid " + PC.border, maxWidth: "min(280px, 90vw)",
           animation: "fadeInUp 0.15s ease-out",
         }}>
           {REACTION_TYPES.map(function (r) {
@@ -1989,7 +1989,7 @@ const MentionAutocomplete = ({ quillRef, allUsers }) => {
       background: "white", borderRadius: 10, padding: 4,
       boxShadow: "0 8px 30px rgba(0,0,0,0.18)",
       border: "1px solid " + PC.border, zIndex: 200,
-      minWidth: 200, maxWidth: 280,
+      minWidth: "min(200px, 80vw)", maxWidth: "min(280px, 90vw)",
       animation: "fadeInUp 0.12s ease-out",
     }}>
       <div style={{ padding: "4px 10px 6px", fontSize: 10, fontWeight: 700, color: PC.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
@@ -4039,7 +4039,7 @@ const NotificationBell = ({ currentUser }) => {
       </button>
       {open && (
         <div style={{
-          position: "absolute", top: "100%", right: 0, width: 320, maxHeight: 400, overflow: "auto",
+          position: "absolute", top: "100%", right: 0, width: "min(320px, calc(100vw - 24px))", maxHeight: 400, overflow: "auto",
           background: "white", borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
           border: "1px solid " + PC.borderLight, zIndex: 100,
         }}>
@@ -5611,7 +5611,7 @@ function OgrenciPortaliApp({ currentUser }) {
           display: "flex", alignItems: "center", justifyContent: "center",
           padding: 20, overflowY: "auto",
         }} onClick={function (e) { if (e.target === e.currentTarget) setViewProfile(null); }}>
-          <div className="profile-card-enter" style={{ width: "100%", maxWidth: 700, maxHeight: "90vh", overflowY: "auto", borderRadius: 20 }}>
+          <div className="profile-card-enter" style={{ width: "100%", maxWidth: "min(700px, calc(100vw - 32px))", maxHeight: "90vh", overflowY: "auto", borderRadius: window.innerWidth <= 480 ? 12 : 20 }}>
             <UserProfilePage
               targetUserId={viewProfile.userId}
               targetUserName={viewProfile.userName}

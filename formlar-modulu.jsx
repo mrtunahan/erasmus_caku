@@ -286,7 +286,7 @@ const FormEkleModal = ({ onClose, onEkle }) => {
       padding: 16,
     }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{
-        background: FM_C.card, borderRadius: 16, width: "100%", maxWidth: 480,
+        background: FM_C.card, borderRadius: 16, width: "100%", maxWidth: "min(480px, calc(100vw - 24px))",
         boxShadow: "0 25px 50px rgba(0,0,0,0.15)",
         overflow: "hidden",
       }}>
