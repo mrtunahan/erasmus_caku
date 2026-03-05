@@ -22,6 +22,9 @@
 
 set -e
 
+# Interaktif paket sorularını engelle
+export DEBIAN_FRONTEND=noninteractive
+
 # Renk kodları
 RED='\033[0;31m'
 GREEN='\033[0;32m'
