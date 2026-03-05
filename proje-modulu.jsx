@@ -367,7 +367,7 @@ function CreateProjectModal({ onClose, onCreate, currentUserName }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-      <div style={{ background: "white", borderRadius: 16, padding: 32, width: 520, maxWidth: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }} onClick={function (e) { e.stopPropagation(); }}>
+      <div style={{ background: "white", borderRadius: 16, padding: window.innerWidth <= 480 ? 16 : 32, width: "min(520px, calc(100vw - 32px))", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }} onClick={function (e) { e.stopPropagation(); }}>
         <h3 style={{ fontSize: 20, fontWeight: 700, color: PRJ.text, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
           <PrjIcon path={PRJ_ICONS.userPlus} size={22} color={PRJ.primary} /> Yeni Proje Grubu
         </h3>
@@ -434,7 +434,7 @@ function AddCourseModal({ onClose, onAdd }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-      <div style={{ background: "white", borderRadius: 16, padding: 28, width: 440, maxWidth: "100%", boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }} onClick={function (e) { e.stopPropagation(); }}>
+      <div style={{ background: "white", borderRadius: 16, padding: window.innerWidth <= 480 ? 16 : 28, width: "min(440px, calc(100vw - 32px))", boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }} onClick={function (e) { e.stopPropagation(); }}>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: PRJ.text, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
           <PrjIcon path={PRJ_ICONS.book} size={20} color={PRJ.primary} /> Yeni Ders Ekle
         </h3>
@@ -586,7 +586,7 @@ function ProjeModuluApp({ currentUser }) {
           background: "linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #60a5fa 100%)",
           padding: "32px 0 24px", marginBottom: 24,
         }}>
-          <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 24px" }}>
+          <div style={{ maxWidth: 1000, margin: "0 auto", padding: window.innerWidth <= 480 ? "0 10px" : "0 24px", boxSizing: "border-box" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <div>
                 <h1 style={{ color: "white", fontSize: 28, fontWeight: 700, fontFamily: "'Playfair Display', serif", display: "flex", alignItems: "center", gap: 10 }}>
@@ -604,7 +604,7 @@ function ProjeModuluApp({ currentUser }) {
           </div>
         </div>
 
-        <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 24px" }}>
+        <div style={{ maxWidth: 1000, margin: "0 auto", padding: window.innerWidth <= 480 ? "0 10px" : "0 24px", boxSizing: "border-box" }}>
           {/* Arama */}
           <div style={{ display: "flex", gap: 12, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 280px", display: "flex", alignItems: "center", gap: 8, background: "white", borderRadius: 10, padding: "8px 14px", border: "1px solid " + PRJ.border }}>
@@ -687,7 +687,7 @@ function ProjeModuluApp({ currentUser }) {
         background: "linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #60a5fa 100%)",
         padding: "32px 0 24px", marginBottom: 24,
       }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 24px" }}>
+        <div style={{ maxWidth: 1000, margin: "0 auto", padding: window.innerWidth <= 480 ? "0 10px" : "0 24px", boxSizing: "border-box" }}>
           <button onClick={function () { setSelectedCourse(null); setSearchQuery(""); }}
             style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
             <PrjIcon path={PRJ_ICONS.back} size={16} color="white" /> Derslere Dön
@@ -724,7 +724,7 @@ function ProjeModuluApp({ currentUser }) {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 24px" }}>
+      <div style={{ maxWidth: 1000, margin: "0 auto", padding: window.innerWidth <= 480 ? "0 10px" : "0 24px", boxSizing: "border-box" }}>
         {/* Arama & İstatistik */}
         <div style={{ display: "flex", gap: 12, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 280px", display: "flex", alignItems: "center", gap: 8, background: "white", borderRadius: 10, padding: "8px 14px", border: "1px solid " + PRJ.border }}>

@@ -4,6 +4,7 @@
 // ══════════════════════════════════════════════════════════════
 
 const { useState, useEffect, useRef } = React;
+const useResponsive = window.useResponsive;
 
 // ── Shared bilesenlerden import (window uzerinden) ──
 const C = window.C;
@@ -244,11 +245,12 @@ const SAMPLE_STUDENTS = [
 
 // ── Course Matching Card ──
 const CourseMatchCard = ({ match, onDelete, onEdit, showGrade, type, readOnly = false }) => {
+  const r = useResponsive();
   const homeTotal = match.homeCourses.reduce((sum, c) => sum + c.credits, 0);
   const hostTotal = match.hostCourses.reduce((sum, c) => sum + c.credits, 0);
   return (
-    <div style={{ background: C.bg, borderRadius: 10, padding: 20, marginBottom: 16, border: `1px solid ${C.border}` }}>
-      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+    <div style={{ background: C.bg, borderRadius: 10, padding: r.val(12, 16, 20), marginBottom: 16, border: `1px solid ${C.border}` }}>
+      <div style={{ display: "flex", flexDirection: r.isMobile ? "column" : "row", gap: r.val(12, 16, 20), alignItems: r.isMobile ? "stretch" : "center" }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.navy, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10, background: "#EEF0F5", padding: "6px 10px", borderRadius: 6, display: "inline-block" }}>Kendi Kurumumuz</div>
           {match.homeCourses.map((course, i) => (
@@ -315,6 +317,7 @@ const CourseMatchCard = ({ match, onDelete, onEdit, showGrade, type, readOnly = 
 
 // ── Course Match Edit Modal ──
 const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
+  const r = useResponsive();
   const [editedMatch, setEditedMatch] = useState(JSON.parse(JSON.stringify(match)));
   const [showHomeCatalog, setShowHomeCatalog] = useState(false);
 
@@ -332,14 +335,14 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
   };
 
   return (
-    <Modal open={true} onClose={onClose} title="Ders Eşleştirmesini Düzenle" width={900}>
+    <Modal open={true} onClose={onClose} title="Ders Eşleştirmesini Düzenle" width="min(900px, 100vw - 32px)">
       {type === "return" && (
         <div style={{ padding: 16, background: "#E3F2FD", border: "2px solid #2196F3", borderRadius: 12, marginBottom: 20 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: "#1565C0", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>Duzenleme Ipucu</div>
           <div style={{ fontSize: 13, color: "#424242" }}>Bu eslestirme gidis verileriyle dolduruldu. Ogrenci farkli bir ders aldiysa asagidaki alanlardan duzenleyebilirsiniz.</div>
         </div>
       )}
-      <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 24 }}>
+      <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: r.isMobile ? "1fr" : "1fr auto 1fr", gap: r.val(16, 20, 24) }}>
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12, background: "#EEF0F5", padding: "8px 12px", borderRadius: 8 }}>Kendi Kurumumuz</div>
           {editedMatch.homeCourses.map((course, i) => (
@@ -439,6 +442,7 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
 
 // ── Course Catalog Modal ──
 const CourseCatalogModal = ({ university, onClose, onSelect }) => {
+  const r = useResponsive();
   const [selectedCourses, setSelectedCourses] = useState([]);
   const catalog = UNIVERSITY_CATALOGS[university];
   if (!catalog) return null;
@@ -449,10 +453,10 @@ const CourseCatalogModal = ({ university, onClose, onSelect }) => {
   const totalCredits = selectedCourses.reduce((sum, c) => sum + c.credits, 0);
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000, padding: 20 }}>
-      <div style={{ background: C.card, borderRadius: 16, maxWidth: 900, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-        <div style={{ padding: 24, borderBottom: `2px solid ${C.border}` }}>
-          <h3 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 8 }}>Ders Katalogu</h3>
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000, padding: r.val(8, 16, 20) }}>
+      <div style={{ background: C.card, borderRadius: 16, maxWidth: "min(900px, 100vw - 32px)", width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+        <div style={{ padding: r.val(16, 20, 24), borderBottom: `2px solid ${C.border}` }}>
+          <h3 style={{ margin: 0, fontSize: r.val(18, 21, 24), fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 8 }}>Ders Katalogu</h3>
           <p style={{ margin: 0, color: C.textMuted, fontSize: 14 }}>{university}</p>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
@@ -495,6 +499,7 @@ const CourseCatalogModal = ({ university, onClose, onSelect }) => {
 
 // ── Institution Matches Modal (Önceki Eşleştirmelerden Seç) ──
 const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentId, onClose, onSelect, matchType = "outgoing" }) => {
+  const r = useResponsive();
   const [selectedMatches, setSelectedMatches] = useState([]);
   const [tripHistory, setTripHistory] = useState([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -559,10 +564,10 @@ const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentI
   };
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10001, padding: 20 }}>
-      <div style={{ background: C.card, borderRadius: 16, maxWidth: 950, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-        <div style={{ padding: 24, borderBottom: `2px solid ${C.border}` }}>
-          <h3 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 6 }}>
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10001, padding: r.val(8, 16, 20) }}>
+      <div style={{ background: C.card, borderRadius: 16, maxWidth: "min(950px, 100vw - 32px)", width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+        <div style={{ padding: r.val(16, 20, 24), borderBottom: `2px solid ${C.border}` }}>
+          <h3 style={{ margin: 0, fontSize: r.val(18, 20, 22), fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 6 }}>
             Onceki Eslestirmelerden Sec
           </h3>
           <p style={{ margin: 0, color: C.textMuted, fontSize: 14 }}>
@@ -640,6 +645,7 @@ const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentI
 
 // ── Home Institution Catalog Modal ──
 const HomeInstitutionCatalogModal = ({ onClose, onSelect }) => {
+  const r = useResponsive();
   const [selectedCourses, setSelectedCourses] = useState([]);
   const [filterYear, setFilterYear] = useState("all");
   const [filterSemester, setFilterSemester] = useState("all");
@@ -659,12 +665,12 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect }) => {
   const filterStyle = { padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" };
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10001, padding: 20 }}>
-      <div style={{ background: C.card, borderRadius: 16, maxWidth: 900, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-        <div style={{ padding: 24, borderBottom: `2px solid ${C.border}` }}>
-          <h3 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 4 }}>{HOME_INSTITUTION_CATALOG.name}</h3>
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10001, padding: r.val(8, 16, 20) }}>
+      <div style={{ background: C.card, borderRadius: 16, maxWidth: "min(900px, 100vw - 32px)", width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+        <div style={{ padding: r.val(16, 20, 24), borderBottom: `2px solid ${C.border}` }}>
+          <h3 style={{ margin: 0, fontSize: r.val(18, 21, 24), fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 4 }}>{HOME_INSTITUTION_CATALOG.name}</h3>
           <p style={{ margin: 0, color: C.textMuted, fontSize: 14 }}>{HOME_INSTITUTION_CATALOG.department} - Ders Katalogu</p>
-          <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
+          <div style={{ display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
             <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={filterStyle}>
               <option value="all">Tum Siniflar</option><option value="1">1. Sinif</option><option value="2">2. Sinif</option><option value="3">3. Sinif</option><option value="4">4. Sinif</option><option value="0">Secmeli</option>
             </select>
@@ -721,6 +727,7 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect }) => {
 
 // ── Trip History Modal (Eşleştirme Geçmişi) ──
 const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
+  const r = useResponsive();
   const [selectedUni, setSelectedUni] = useState("");
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -782,10 +789,10 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
   const filterStyle = { padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" };
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
-      <div style={{ background: C.card, borderRadius: 16, maxWidth: 1050, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-        <div style={{ padding: 24, borderBottom: `2px solid ${C.border}` }}>
-          <h3 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 8 }}>Eslestirme Gecmisi</h3>
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: r.val(8, 16, 20) }}>
+      <div style={{ background: C.card, borderRadius: 16, maxWidth: "min(1050px, 100vw - 32px)", width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+        <div style={{ padding: r.val(16, 20, 24), borderBottom: `2px solid ${C.border}` }}>
+          <h3 style={{ margin: 0, fontSize: r.val(18, 21, 24), fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 8 }}>Eslestirme Gecmisi</h3>
           <p style={{ margin: 0, color: C.textMuted, fontSize: 14, marginBottom: 16 }}>Onceki donemlerde yapilmis tum ders eslestirmelerini universite bazinda goruntuleyebilirsiniz. Yeni ogrenciler icin referans olarak kullanilabilir.</p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <select value={selectedUni} onChange={e => loadHistory(e.target.value)} style={{ ...filterStyle, minWidth: 280 }}>
@@ -893,6 +900,7 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
 
 // ── Student Detail Modal ──
 const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStudents = [] }) => {
+  const r = useResponsive();
   const [editedStudent, setEditedStudent] = useState({ ...student, outgoingMatches: student.outgoingMatches || [], returnMatches: student.returnMatches || [] });
   const [activeTab, setActiveTab] = useState("outgoing");
   const [editingMatch, setEditingMatch] = useState(null);
@@ -945,7 +953,7 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStu
   };
 
   return (
-    <Modal open={true} onClose={onClose} title={`${student.firstName} ${student.lastName} - Öğrenim Anlaşması`} width={1000}>
+    <Modal open={true} onClose={onClose} title={`${student.firstName} ${student.lastName} - Öğrenim Anlaşması`} width="min(1000px, 100vw - 32px)">
       {readOnly && (
         <div style={{ padding: 16, background: "#FFF3CD", border: "2px solid #FFC107", borderRadius: 12, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ fontSize: 24 }}>🔒</div>
@@ -955,7 +963,7 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStu
           </div>
         </div>
       )}
-      <div className="responsive-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24, padding: 20, background: C.goldPale, borderRadius: 10, border: `1px solid ${C.goldLight}` }}>
+      <div className="responsive-grid-4" style={{ display: "grid", gridTemplateColumns: r.val("1fr", "repeat(2, 1fr)", "repeat(3, 1fr)"), gap: r.val(12, 14, 16), marginBottom: 24, padding: r.val(12, 16, 20), background: C.goldPale, borderRadius: 10, border: `1px solid ${C.goldLight}` }}>
         <FormField label="Öğrenci Numarası"><Input value={editedStudent.studentNumber} onChange={e => updateStudent("studentNumber", e.target.value)} disabled={readOnly} /></FormField>
         <FormField label="Ad"><Input value={editedStudent.firstName} onChange={e => updateStudent("firstName", e.target.value)} disabled={readOnly} /></FormField>
         <FormField label="Soyad"><Input value={editedStudent.lastName} onChange={e => updateStudent("lastName", e.target.value)} disabled={readOnly} /></FormField>
@@ -981,8 +989,8 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStu
       <div style={{ display: "flex", gap: 8, marginBottom: 20, borderBottom: `2px solid ${C.border}`, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         {["outgoing", "return"].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding: "12px 24px", border: "none", background: "transparent", whiteSpace: "nowrap",
-            color: activeTab === tab ? C.navy : C.textMuted, fontWeight: 600, fontSize: 14,
+            padding: r.val("10px 14px", "12px 20px", "12px 24px"), border: "none", background: "transparent", whiteSpace: "nowrap",
+            color: activeTab === tab ? C.navy : C.textMuted, fontWeight: 600, fontSize: r.val(13, 14, 14),
             cursor: "pointer", borderBottom: activeTab === tab ? `3px solid ${C.navy}` : "3px solid transparent",
             fontFamily: "'Source Sans 3', sans-serif",
           }}>
@@ -1045,7 +1053,7 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStu
       </div>
 
       {/* Actions */}
-      <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
+      <div style={{ display: "flex", flexDirection: r.isMobile ? "column" : "row", justifyContent: "space-between", gap: r.isMobile ? 10 : 0, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
         <Btn onClick={exportStudentData} variant="secondary" icon={<DownloadIcon />}>Dışa Aktar (JSON)</Btn>
         <div style={{ display: "flex", gap: 10 }}>
           <Btn onClick={onClose} variant="secondary">{readOnly ? 'Kapat' : 'İptal'}</Btn>
@@ -1249,6 +1257,7 @@ ${rows.join('')}
 
 // ── Main Erasmus Module (receives currentUser as prop) ──
 function ErasmusLearningAgreementApp({ currentUser }) {
+  const r = useResponsive();
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -1409,20 +1418,20 @@ function ErasmusLearningAgreementApp({ currentUser }) {
 
         {/* Actions Bar */}
         <Card>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", gap: 12, flex: 1, minWidth: 300 }}>
-              <div style={{ flex: 1, maxWidth: 350 }}>
+          <div style={{ display: "flex", flexDirection: r.isMobile ? "column" : "row", justifyContent: "space-between", alignItems: r.isMobile ? "stretch" : "center", gap: r.val(12, 14, 16), flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 12, flex: 1, minWidth: r.isMobile ? 0 : 300, flexDirection: r.isMobile ? "column" : "row" }}>
+              <div style={{ flex: 1, maxWidth: r.isMobile ? "100%" : 350 }}>
                 <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Öğrenci ara (ad, numara, kurum)..." />
               </div>
               <select value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}
-                style={{ padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer", minWidth: 150 }}>
+                style={{ padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer", minWidth: r.isMobile ? 0 : 150, width: r.isMobile ? "100%" : "auto" }}>
                 {semesters.map(sem => {
                   let displayText = sem === "all" ? "Tüm Dönemler" : sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Güz");
                   return <option key={sem} value={sem}>{displayText}</option>;
                 })}
               </select>
             </div>
-            <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {/* Trip History button visible to all users */}
               <Btn onClick={() => setShowTripHistory(true)} variant="secondary" icon={<FileTextIcon />}>Eslestirme Gecmisi</Btn>
               {currentUser?.role === 'admin' && (
@@ -1439,7 +1448,7 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         </Card>
 
         {/* Statistics */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: r.val("repeat(2, 1fr)", "repeat(2, 1fr)", "repeat(4, 1fr)"), gap: r.val(12, 16, 20), marginBottom: 24 }}>
           {[
             { label: "Toplam Öğrenci", value: students.length, color: C.navy },
             { label: "Gidiş Eşleştirmeleri", value: students.reduce((sum, s) => sum + (s.outgoingMatches || []).length, 0), color: C.green },
@@ -1447,9 +1456,9 @@ function ErasmusLearningAgreementApp({ currentUser }) {
             { label: "Ortalama Eşleştirme", value: students.length > 0 ? ((students.reduce((sum, s) => sum + (s.outgoingMatches || []).length + (s.returnMatches || []).length, 0)) / students.length).toFixed(1) : 0, color: C.accent },
           ].map((stat, i) => (
             <Card key={i} noPadding>
-              <div style={{ padding: 24, textAlign: "center" }}>
-                <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 8 }}>{stat.label}</div>
-                <div style={{ fontSize: 36, fontWeight: 700, color: stat.color, fontFamily: "'Playfair Display', serif" }}>{stat.value}</div>
+              <div style={{ padding: r.val(16, 20, 24), textAlign: "center" }}>
+                <div style={{ fontSize: r.val(12, 13, 14), color: C.textMuted, marginBottom: r.val(4, 6, 8) }}>{stat.label}</div>
+                <div style={{ fontSize: r.val(24, 30, 36), fontWeight: 700, color: stat.color, fontFamily: "'Playfair Display', serif" }}>{stat.value}</div>
               </div>
             </Card>
           ))}
@@ -1460,8 +1469,8 @@ function ErasmusLearningAgreementApp({ currentUser }) {
 
         {/* Students Table */}
         <Card title="Öğrenciler" noPadding>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div className="responsive-table-wrap" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: r.isMobile ? 700 : "auto" }}>
               <thead>
                 <tr style={{ background: C.bg, borderBottom: `2px solid ${C.border}` }}>
                   {["Öğrenci No", "Ad Soyad", "Karşı Kurum", "Gidiş", "Dönüş", "İşlemler"].map((h, i) => (

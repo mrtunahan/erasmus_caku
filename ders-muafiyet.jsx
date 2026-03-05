@@ -1086,8 +1086,8 @@ const SettingsPanel = ({ courseContents, setCourseContents, gradingSystem, setGr
           )}>
           <FileDropZone label="ÇAKÜ Ders İçerikleri" description="Excel veya PDF/Word formatı" onFile={handleCourseFile} fileName={courseFileName} loading={loadingCourse} />
           {courseContents.length > 0 && (
-            <div style={{ marginTop: 16, maxHeight: 280, overflowY: "auto", border: "1px solid " + DS.border, borderRadius: DS.radiusSm }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <div className="responsive-table-wrap" style={{ marginTop: 16, maxHeight: 280, overflowY: "auto", border: "1px solid " + DS.border, borderRadius: DS.radiusSm }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 500 }}>
                 <thead>
                   <tr style={{ background: DS.bg, position: "sticky", top: 0 }}>
                     <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>Kod</th>
@@ -1121,8 +1121,8 @@ const SettingsPanel = ({ courseContents, setCourseContents, gradingSystem, setGr
           )}>
           <FileDropZone label="Not Tablosu Yükle" description="Excel: Sütun 1 = giriş, Sütun 2 = ÇAKÜ notu" onFile={handleGradeFile} fileName={gradeFileName} loading={loadingGrade} />
           {gradingSystem && gradingSystem.length > 0 && (
-            <div style={{ marginTop: 16, maxHeight: 200, overflowY: "auto", border: "1px solid " + DS.border, borderRadius: DS.radiusSm }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <div className="responsive-table-wrap" style={{ marginTop: 16, maxHeight: 200, overflowY: "auto", border: "1px solid " + DS.border, borderRadius: DS.radiusSm }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 400 }}>
                 <thead>
                   <tr style={{ background: DS.bg, position: "sticky", top: 0 }}>
                     <th style={{ padding: "8px 10px", textAlign: "center", borderBottom: "2px solid " + DS.border, fontWeight: 700 }}>Giriş</th>
@@ -1370,8 +1370,8 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                 <Icons.check />
                 {studentCourses.length} ders okundu — Ön İzleme
               </div>
-              <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid " + DS.border, borderRadius: DS.radiusSm }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <div className="responsive-table-wrap" style={{ maxHeight: 220, overflowY: "auto", border: "1px solid " + DS.border, borderRadius: DS.radiusSm }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 500 }}>
                   <thead>
                     <tr style={{ background: DS.bg, position: "sticky", top: 0 }}>
                       <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>Kod</th>

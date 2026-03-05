@@ -2,7 +2,35 @@
 // ÇAKÜ Yönetim Sistemi - Ortak Bileşenler
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+// ══════════════════════════════════════════════════════════════
+// Global Responsive Hook — tüm modüller tarafından kullanılır
+// ══════════════════════════════════════════════════════════════
+function useResponsive() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    let raf;
+    const handler = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => setWidth(window.innerWidth));
+    };
+    window.addEventListener("resize", handler);
+    return () => { window.removeEventListener("resize", handler); cancelAnimationFrame(raf); };
+  }, []);
+  return {
+    width,
+    isMobile: width <= 480,
+    isTablet: width > 480 && width <= 768,
+    isSmallDesktop: width > 768 && width <= 1024,
+    isDesktop: width > 1024,
+    // Responsive değerler için yardımcı
+    val: (mobile, tablet, desktop) => width <= 480 ? mobile : width <= 768 ? (tablet ?? mobile) : (desktop ?? tablet ?? mobile),
+    // Modal genişlik hesapla
+    modalWidth: (maxW) => Math.min(maxW, width - (width <= 480 ? 16 : 32)),
+  };
+}
+window.useResponsive = useResponsive;
 
 // ── Güvenli Şifre Hash Fonksiyonları (SHA-256 + Salt) ──
 const PasswordSecurity = {
@@ -1267,8 +1295,9 @@ const FormField = ({ label, children }) => (
 );
 
 const Modal = ({ open, onClose, title, children, width = 700 }) => {
+  const r = useResponsive();
   if (!open) return null;
-  const isMobileModal = typeof window !== "undefined" && window.innerWidth <= 768;
+  const isMobileModal = r.width <= 768;
   return (
     <div
       style={{
@@ -1800,20 +1829,20 @@ const LoginModal = ({ onLogin }) => {
     }
   `;
 
-  const stars = Array.from({ length: 50 }, (_, i) => ({
+  const stars = useMemo(() => Array.from({ length: 50 }, (_, i) => ({
     left: `${(i * 19 + 5) % 100}%`,
     top: `${(i * 13 + 2) % 50}%`,
     size: 1 + (i % 3),
     delay: `${(i * 0.6) % 5}s`,
     duration: `${2 + (i % 4)}s`,
-  }));
+  })), []);
 
-  const snowflakes = Array.from({ length: 20 }, (_, i) => ({
+  const snowflakes = useMemo(() => Array.from({ length: 20 }, (_, i) => ({
     left: `${(i * 5 + 1) % 100}%`,
     size: 1.5 + (i % 3),
     delay: `${(i * 1.2) % 8}s`,
     duration: `${8 + (i % 6)}s`,
-  }));
+  })), []);
 
   return (
     <div style={{
@@ -1901,9 +1930,9 @@ const LoginModal = ({ onLogin }) => {
       ))}
 
       <div style={{
-        maxWidth: 440, width: "100%", position: "relative", zIndex: 2,
+        maxWidth: 440, width: "calc(100% - 24px)", position: "relative", zIndex: 2,
         animation: "loginFadeIn 0.5s ease-out",
-        margin: "0 auto",
+        margin: "0 auto", padding: "0 12px", boxSizing: "border-box",
       }}>
         {/* Logo & Başlık */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>

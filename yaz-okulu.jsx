@@ -296,7 +296,7 @@ const AdminStudentPanel = ({ students, onSave, onDelete }) => {
         <_Card title="Yaz Okulu Öğrenci Listesi" actions={
             <_Btn onClick={() => setIsModalOpen(true)} icon={<PlusIcon />}>Yeni Öğrenci Ekle</_Btn>
         }>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div className="responsive-table-wrap"><table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
                 <thead>
                     <tr style={{ borderBottom: `2px solid ${_C.border}`, textAlign: "left" }}>
                         <th style={{ padding: 12 }}>Öğrenci No</th>
@@ -329,7 +329,7 @@ const AdminStudentPanel = ({ students, onSave, onDelete }) => {
                         <tr><td colSpan="5" style={{ padding: 24, textAlign: "center", color: _C.textMuted }}>Kayıtlı öğrenci bulunamadı.</td></tr>
                     )}
                 </tbody>
-            </table>
+            </table></div>
 
             {isModalOpen && (
                 <_Modal title="Yeni Öğrenci Ekle" onClose={() => setIsModalOpen(false)}>
@@ -616,7 +616,7 @@ const StudentApplicationPanel = ({ student, cakuCourses }) => {
                         {externalCourses.length === 0 ? (
                             <div style={{ textAlign: "center", color: _C.textMuted, padding: 40 }}>Henüz ders eklenmedi.</div>
                         ) : (
-                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                            <div className="responsive-table-wrap"><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 500 }}>
                                 <thead style={{ background: _C.bg, color: _C.textMuted }}>
                                     <tr>
                                         <th style={{ padding: 8, textAlign: "left" }}>Kod</th>
@@ -639,7 +639,7 @@ const StudentApplicationPanel = ({ student, cakuCourses }) => {
                                         </tr>
                                     ))}
                                 </tbody>
-                            </table>
+                            </table></div>
                         )}
                         {externalCourses.length > 0 && (
                             <div style={{ marginTop: 20, textAlign: "right" }}>

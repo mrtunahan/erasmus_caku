@@ -90,7 +90,7 @@
     }
 
     .loading-bar-track {
-      width: 220px;
+      width: min(220px, 60vw);
       height: 4px;
       background: rgba(255,255,255,0.15);
       border-radius: 4px;
@@ -383,10 +383,56 @@
     /* ── Responsive Design - Small (max-width: 480px) ── */
     /* ══════════════════════════════════════════════════ */
     @media (max-width: 480px) {
-      .app-content-wrap { padding: 8px !important; }
+      .app-content-wrap { padding: 6px !important; }
       .responsive-grid-4 { grid-template-columns: 1fr !important; gap: 8px !important; }
 
       .daisy-btn { padding: 8px 14px; font-size: 13px; }
+
+      /* Modal responsive */
+      .responsive-modal { width: calc(100vw - 16px) !important; max-width: 100% !important; max-height: 90vh !important; margin: 8px !important; }
+      .responsive-modal-body { padding: 12px !important; }
+
+      /* Tablo scroll */
+      .responsive-table-wrap table { min-width: 500px; }
+
+      /* Genel font küçültme */
+      h1 { font-size: 20px !important; }
+      h2 { font-size: 17px !important; }
+    }
+
+    /* ══════════════════════════════════════════════════ */
+    /* ── Global Responsive Utilities ── */
+    /* ══════════════════════════════════════════════════ */
+    .responsive-modal {
+      width: min(95vw, 900px);
+      max-height: 85vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .responsive-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 16px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .responsive-flex-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .responsive-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      width: 100%;
+    }
+    @media (max-width: 768px) {
+      .responsive-modal { width: calc(100vw - 24px) !important; max-height: 88vh !important; }
+      .responsive-container { padding: 0 10px; }
+      .hide-mobile { display: none !important; }
+    }
+    @media (min-width: 769px) {
+      .hide-desktop { display: none !important; }
     }
 
     /* ── Mobile Menu Overlay ── */
@@ -527,7 +573,7 @@
       { file: 'yaz-okulu.jsx',               label: 'Yaz Okulu' },
       { file: 'ogrenci-portali.jsx',          label: 'Ogrenci portali' },
       { file: 'proje-modulu.jsx',             label: 'Proje modulu' },
-      { file: 'duyuru-entegrasyonu.jsx',      label: 'Duyuru entegrasyonu' },
+      { file: 'formlar-modulu.jsx',             label: 'Formlar modulu' },
       { file: 'app-shell.jsx',               label: 'Ana kabuk' },
     ];
 
@@ -568,11 +614,24 @@
         compileAndExec(sources[0], JSX_MODULES[0].file);
         setProgress(50, 'Moduller hazirlaniyor...');
 
-        // ── Phase 3: Compile middle modules (index 1..N-2) ──
+        // ── Phase 3: Compile middle modules in batches (index 1..N-2) ──
+        var middleModules = [];
         for (var i = 1; i < total - 1; i++) {
-          compileAndExec(sources[i], JSX_MODULES[i].file);
-          var pct = 50 + Math.round(((i) / (total - 1)) * 40);
+          middleModules.push({ src: sources[i], file: JSX_MODULES[i].file });
+        }
+        // Batch compile - yield to UI between batches for smoother loading
+        var batchSize = 3;
+        for (var b = 0; b < middleModules.length; b += batchSize) {
+          var batch = middleModules.slice(b, b + batchSize);
+          for (var j = 0; j < batch.length; j++) {
+            compileAndExec(batch[j].src, batch[j].file);
+          }
+          var pct = 50 + Math.round(((b + batch.length) / middleModules.length) * 40);
           setProgress(pct);
+          // Yield to UI thread between batches
+          if (b + batchSize < middleModules.length) {
+            await new Promise(function(r) { setTimeout(r, 0); });
+          }
         }
 
         // ── Phase 4: Compile app-shell last (needs all modules) ──
