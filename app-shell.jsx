@@ -10,13 +10,17 @@ const C = window.C;
 const sharedStyles = window.sharedStyles;
 const LoginModal = window.LoginModal;
 
-// ── Responsive Hook ──
+// ── Responsive Hook (throttled with rAF) ──
 function useWindowWidth() {
   const [width, setWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
   useEffect(() => {
-    const handler = () => setWidth(window.innerWidth);
+    let raf;
+    const handler = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => setWidth(window.innerWidth));
+    };
     window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
+    return () => { window.removeEventListener("resize", handler); cancelAnimationFrame(raf); };
   }, []);
   return width;
 }
@@ -391,7 +395,7 @@ function AppShell() {
 
     const Component = components[route] || components.erasmus;
     if (!Component) {
-      return <div style={{ padding: 60, textAlign: "center", color: "#c00" }}>Modül yüklenemedi. Lütfen sayfayı yenileyin (Ctrl+Shift+R).</div>;
+      return <div style={{ padding: "40px 16px", textAlign: "center", color: "#c00" }}>Modül yüklenemedi. Lütfen sayfayı yenileyin (Ctrl+Shift+R).</div>;
     }
     return React.createElement(Component, { currentUser });
   };

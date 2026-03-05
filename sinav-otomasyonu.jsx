@@ -723,8 +723,8 @@ const CalendarCell = ({ day, timeSlot, slotIndex, placedExams, onDrop, onExamCli
         border: "1px solid #E5E7EB",
         padding: 0,
         height: examHere ? cellHeight * examSpan : cellHeight,
-        minWidth: 140,
-        maxWidth: 180,
+        minWidth: 100,
+        maxWidth: "none",
         verticalAlign: "top",
         background: examHere
           ? color.bg
@@ -773,8 +773,8 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
   });
 
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+    <div className="responsive-table-wrap" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 700 }}>
         <thead>
           <tr style={{ background: "#1B2A4A", color: "white" }}>
             <th style={{ padding: "10px 12px", textAlign: "center", borderRight: "1px solid rgba(255,255,255,0.2)" }}>Sınıf</th>
@@ -1258,6 +1258,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 // MAIN: SinavOtomasyonuApp
 // ══════════════════════════════════════════════════════════════
 function SinavOtomasyonuApp({ currentUser }) {
+  const r = window.useResponsive ? window.useResponsive() : { isMobile: window.innerWidth <= 480, isTablet: window.innerWidth <= 768, width: window.innerWidth, val: (m,t,d) => window.innerWidth <= 480 ? m : window.innerWidth <= 768 ? (t||m) : (d||t||m), modalWidth: (w) => Math.min(w, window.innerWidth - 32) };
   const isAdmin = currentUser?.role === "admin";
 
   // State
@@ -1769,14 +1770,14 @@ function SinavOtomasyonuApp({ currentUser }) {
             </div>
 
             {viewMode === "calendar" ? (
-              <div style={{ display: "flex", gap: 16, flexDirection: window.innerWidth <= 768 ? "column" : "row" }}>
+              <div style={{ display: "flex", gap: r.val(8, 12, 16), flexDirection: r.isTablet ? "column" : "row" }}>
                 {/* Course Pool Sidebar */}
                 <div style={{
-                  width: window.innerWidth <= 768 ? "100%" : 220,
-                  minWidth: window.innerWidth <= 768 ? "auto" : 220,
-                  maxHeight: window.innerWidth <= 768 ? 200 : "calc(100vh - 260px)",
+                  width: r.isTablet ? "100%" : r.val(180, 200, 220),
+                  minWidth: r.isTablet ? "auto" : r.val(180, 200, 220),
+                  maxHeight: r.isMobile ? 180 : r.isTablet ? 220 : "calc(100vh - 260px)",
                   overflowY: "auto", background: "white", borderRadius: 10,
-                  border: `1px solid ${C.border}`, padding: 12,
+                  border: `1px solid ${C.border}`, padding: r.val(8, 10, 12),
                 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 8 }}>
                     Ders Havuzu
@@ -1861,15 +1862,15 @@ function SinavOtomasyonuApp({ currentUser }) {
 
                 {/* Calendar Grid */}
                 <div style={{
-                  flex: 1, overflowX: "auto", background: "white", borderRadius: 10,
-                  border: `1px solid ${C.border}`,
+                  flex: 1, overflowX: "auto", WebkitOverflowScrolling: "touch", background: "white", borderRadius: 10,
+                  border: `1px solid ${C.border}`, maxWidth: "100%",
                 }}>
                   {calendarDays.length === 0 ? (
                     <div style={{ padding: 40, textAlign: "center", color: "#999" }}>
                       Takvim günleri bulunamadı. Dönem tarihlerini kontrol edin.
                     </div>
                   ) : (
-                    <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed", minWidth: 600 }}>
+                    <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed", minWidth: Math.max(400, calendarDays.length * 100 + 52) }}>
                       <thead>
                         <tr>
                           <th style={{
