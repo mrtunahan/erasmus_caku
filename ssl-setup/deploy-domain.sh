@@ -76,8 +76,8 @@ fi
 # ── Adım 1: Sistem Güncelleme & Nginx Kurulumu ──
 echo -e "${BLUE}[1/7] Sistem güncelleniyor ve Nginx kuruluyor...${NC}"
 apt-get update -qq
-apt-get install -y -qq nginx ufw > /dev/null 2>&1
-echo -e "${GREEN}  ✓ Nginx kuruldu${NC}"
+apt-get install -y -qq nginx nginx-extras ufw fail2ban > /dev/null 2>&1
+echo -e "${GREEN}  ✓ Nginx + nginx-extras + fail2ban kuruldu${NC}"
 
 # ── Adım 2: Certbot (Let's Encrypt) Kurulumu ──
 echo -e "${BLUE}[2/7] Certbot kuruluyor...${NC}"
@@ -131,11 +131,35 @@ nginx -t
 systemctl restart nginx
 echo -e "${GREEN}  ✓ Geçici HTTP konfigürasyonu hazır${NC}"
 
-# ── Adım 5: Firewall Ayarları ──
-echo -e "${BLUE}[5/7] Firewall yapılandırılıyor...${NC}"
-ufw allow 'Nginx Full' > /dev/null 2>&1 || true
-ufw allow 22/tcp > /dev/null 2>&1 || true
-echo -e "${GREEN}  ✓ Firewall kuralları eklendi (80, 443, 22)${NC}"
+# ── Adım 5: Firewall Ayarları (Port Filtreleme) ──
+echo -e "${BLUE}[5/7] Firewall yapılandırılıyor (port filtreleme)...${NC}"
+
+# Önce tüm kuralları sıfırla
+ufw --force reset > /dev/null 2>&1 || true
+
+# Varsayılan politika: gelen trafiği engelle, gideni izin ver
+ufw default deny incoming > /dev/null 2>&1
+ufw default allow outgoing > /dev/null 2>&1
+
+# SSH (Port 22) - Sadece belirli IP'lerden izin ver (güvenlik için)
+# Kendi IP adresinizi ekleyin, yoksa genel erişim açılır
+ufw allow 22/tcp comment 'SSH erişimi' > /dev/null 2>&1 || true
+
+# HTTP ve HTTPS (Nginx için zorunlu)
+ufw allow 80/tcp comment 'HTTP - HTTPS yönlendirme' > /dev/null 2>&1 || true
+ufw allow 443/tcp comment 'HTTPS - Ana trafik' > /dev/null 2>&1 || true
+
+# SSH brute-force koruması (30 saniyede 6'dan fazla bağlantı engellenir)
+ufw limit 22/tcp comment 'SSH brute-force korumasi' > /dev/null 2>&1 || true
+
+# Firewall'u etkinleştir
+ufw --force enable > /dev/null 2>&1 || true
+
+echo -e "${GREEN}  ✓ Firewall kuralları eklendi:${NC}"
+echo -e "    - Port 22 (SSH): Açık + brute-force korumalı"
+echo -e "    - Port 80 (HTTP): Açık (HTTPS'e yönlendirir)"
+echo -e "    - Port 443 (HTTPS): Açık"
+echo -e "    - Diğer tüm portlar: ${RED}KAPALI${NC}"
 
 # ── Adım 6: Let's Encrypt SSL Sertifikası Al ──
 echo -e "${BLUE}[6/7] SSL sertifikası alınıyor (Let's Encrypt)...${NC}"
@@ -166,6 +190,52 @@ fi
 # ── Otomatik Yenileme Kontrolü ──
 echo -e "${BLUE}Certbot otomatik yenileme test ediliyor...${NC}"
 certbot renew --dry-run 2>/dev/null && echo -e "${GREEN}  ✓ Otomatik yenileme çalışıyor${NC}" || true
+
+# ── Fail2Ban Konfigürasyonu (WAF desteği) ──
+echo -e "${BLUE}Fail2Ban yapılandırılıyor...${NC}"
+cat > /etc/fail2ban/jail.local << 'FAIL2BAN'
+[DEFAULT]
+bantime = 3600
+findtime = 600
+maxretry = 5
+backend = systemd
+
+[sshd]
+enabled = true
+port = 22
+maxretry = 3
+bantime = 7200
+
+[nginx-http-auth]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/caku-erasmus-error.log
+
+[nginx-botsearch]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/caku-erasmus-access.log
+maxretry = 2
+
+[nginx-limit-req]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/caku-erasmus-error.log
+maxretry = 5
+findtime = 60
+bantime = 3600
+FAIL2BAN
+
+# Nginx rate limit filtresi (fail2ban için)
+cat > /etc/fail2ban/filter.d/nginx-limit-req.conf << 'FILTER'
+[Definition]
+failregex = limiting requests, excess:.* by zone.*client: <HOST>
+ignoreregex =
+FILTER
+
+systemctl enable fail2ban > /dev/null 2>&1
+systemctl restart fail2ban > /dev/null 2>&1
+echo -e "${GREEN}  ✓ Fail2Ban yapılandırıldı (SSH + Nginx koruması)${NC}"
 
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════════╗${NC}"
