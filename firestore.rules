@@ -1,9 +1,66 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Tüm koleksiyonlar açık - uygulama kendi şifre sistemiyle güvenliği sağlıyor
+
+    // ── Şifre koleksiyonları: sadece okuma (yazma admin SDK ile yapılmalı) ──
+    match /passwords/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /student_passwords/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /professor_passwords/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /admin/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ── Duyurular: herkes okuyabilir, yazma kapalı ──
+    match /duyurular/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ── Öğrenci verileri: okuma serbest, yazma izinli alanlardan ──
+    match /students/{docId} {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasOnly([
+        'name', 'surname', 'studentNo', 'department', 'email', 'phone',
+        'country', 'university', 'status', 'notes', 'updatedAt', 'createdAt',
+        'documents', 'applicationDate', 'period', 'erasmusType'
+      ]);
+    }
+
+    // ── Akademisyen verileri ──
+    match /professors/{docId} {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasOnly([
+        'name', 'surname', 'department', 'email', 'phone', 'title',
+        'country', 'university', 'status', 'notes', 'updatedAt', 'createdAt'
+      ]);
+    }
+
+    // ── Anlaşmalar ──
+    match /agreements/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Ayarlar: sadece okuma ──
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ── Diğer tüm koleksiyonlar: varsayılan olarak kapalı ──
     match /{document=**} {
-      allow read, write: if true;
+      allow read: if false;
+      allow write: if false;
     }
   }
 }
