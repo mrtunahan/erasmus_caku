@@ -99,10 +99,11 @@ cat > /etc/ssh/sshd_config.d/99-hardening.conf << 'SSHCONFIG'
 # SSH key ile giriş doğrulandıktan sonra "no" yapabilirsiniz
 PermitRootLogin prohibit-password
 
-# Sadece SSH key ile giriş (şifre ile giriş kapalı)
-PasswordAuthentication no
+# SSH key ve şifre ile giriş (her ikisi de açık)
+# NOT: SSH key kurulumu yapıldıktan sonra PasswordAuthentication no yapılabilir
+PasswordAuthentication yes
 PubkeyAuthentication yes
-AuthenticationMethods publickey
+AuthenticationMethods publickey,password publickey
 
 # Boş şifre engelle
 PermitEmptyPasswords no
@@ -167,7 +168,8 @@ sshd -t && echo -e "${GREEN}  ✓ SSH sertleştirildi${NC}" || {
 }
 
 echo -e "${YELLOW}  ! Root login: prohibit-password (sadece SSH key ile)${NC}"
-echo -e "${YELLOW}  ! Şifre ile giriş: KAPALI (SSH key zorunlu)${NC}"
+echo -e "${YELLOW}  ! Şifre ile giriş: AÇIK (SSH key kurulumundan sonra kapatılabilir)${NC}"
+echo -e "${YELLOW}  ! Whitelist IP: 213.136.95.18 (fail2ban tarafından banlanmaz)${NC}"
 
 # ══════════════════════════════════════════════
 # ADIM 4: Firewall (UFW) - Sadece gerekli portlar
@@ -215,6 +217,10 @@ echo -e "${BLUE}[5/9] Fail2Ban yapılandırılıyor...${NC}"
 
 cat > /etc/fail2ban/jail.local << 'FAIL2BAN'
 [DEFAULT]
+# Yönetici IP'leri - bu IP'ler asla banlanmaz
+# 213.136.95.18 = Admin Mac (Contabo üzerinden bağlantı)
+ignoreip = 127.0.0.1/8 ::1 213.136.95.18
+
 # Varsayılan ban süresi: 1 saat
 bantime = 3600
 # Tekrar eden saldırganlar için artan ban süresi
