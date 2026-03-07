@@ -195,6 +195,9 @@ certbot renew --dry-run 2>/dev/null && echo -e "${GREEN}  ✓ Otomatik yenileme 
 echo -e "${BLUE}Fail2Ban yapılandırılıyor...${NC}"
 cat > /etc/fail2ban/jail.local << 'FAIL2BAN'
 [DEFAULT]
+# Yönetici IP'leri - bu IP'ler asla banlanmaz
+ignoreip = 127.0.0.1/8 ::1 213.136.95.18
+
 bantime = 3600
 findtime = 600
 maxretry = 5
