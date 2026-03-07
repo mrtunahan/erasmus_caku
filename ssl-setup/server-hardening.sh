@@ -99,11 +99,10 @@ cat > /etc/ssh/sshd_config.d/99-hardening.conf << 'SSHCONFIG'
 # SSH key ile giriş doğrulandıktan sonra "no" yapabilirsiniz
 PermitRootLogin prohibit-password
 
-# SSH key ve şifre ile giriş (her ikisi de açık)
-# NOT: SSH key kurulumu yapıldıktan sonra PasswordAuthentication no yapılabilir
-PasswordAuthentication yes
+# Sadece SSH key ile giriş (şifre ile giriş kapalı)
+PasswordAuthentication no
 PubkeyAuthentication yes
-AuthenticationMethods publickey,password publickey
+AuthenticationMethods publickey
 
 # Boş şifre engelle
 PermitEmptyPasswords no
@@ -168,7 +167,7 @@ sshd -t && echo -e "${GREEN}  ✓ SSH sertleştirildi${NC}" || {
 }
 
 echo -e "${YELLOW}  ! Root login: prohibit-password (sadece SSH key ile)${NC}"
-echo -e "${YELLOW}  ! Şifre ile giriş: AÇIK (SSH key kurulumundan sonra kapatılabilir)${NC}"
+echo -e "${YELLOW}  ! Şifre ile giriş: KAPALI (SSH key zorunlu)${NC}"
 echo -e "${YELLOW}  ! Whitelist IP: 213.136.95.18 (fail2ban tarafından banlanmaz)${NC}"
 
 # ══════════════════════════════════════════════
