@@ -181,7 +181,9 @@ const YazOkuluApp = ({ currentUser }) => {
         await YazOkuluDB.saveStudent(student);
         // Şifre de oluşturulmalı
         if (window.FirebaseDB && window.FirebaseDB.updatePassword) {
-            await window.FirebaseDB.updatePassword(student.studentNo, student.password || "1234");
+            if (student.password && student.password.length >= 6) {
+                await window.FirebaseDB.updatePassword(student.studentNo, student.password);
+            }
         }
         loadInitialData(); // Refresh list
     };
@@ -283,13 +285,13 @@ const TabBtn = ({ id, active, onClick, children }) => {
 
 const AdminStudentPanel = ({ students, onSave, onDelete }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [form, setForm] = useState({ firstName: "", lastName: "", studentNo: "", password: "1234" });
+    const [form, setForm] = useState({ firstName: "", lastName: "", studentNo: "", password: "" });
 
     const handleSubmit = (e) => {
         e.preventDefault();
         onSave(form);
         setIsModalOpen(false);
-        setForm({ firstName: "", lastName: "", studentNo: "", password: "1234" });
+        setForm({ firstName: "", lastName: "", studentNo: "", password: "" });
     };
 
     return (

@@ -1278,10 +1278,8 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         const snapshot = await ref.limit(1).get();
         if (snapshot.empty) {
           for (const student of SAMPLE_STUDENTS) await FirebaseDB.addStudent({ ...student, erasmusAccess: true });
-          const defaultPasswords = {};
-          SAMPLE_STUDENTS.forEach(s => { defaultPasswords[s.studentNumber] = '1234'; });
-          const pwRef = FirebaseDB.passwordsRef();
-          if (pwRef) await pwRef.doc('student_passwords').set(defaultPasswords);
+          // Öğrenci şifreleri Cloud Functions üzerinden yönetilecek
+          // İlk girişte her öğrenci kendi şifresini belirleyecek
         }
         const fetchedStudents = await FirebaseDB.fetchStudents();
         setStudents(fetchedStudents);
@@ -1327,11 +1325,9 @@ function ErasmusLearningAgreementApp({ currentUser }) {
       const studentNumberChanged = originalStudent && originalStudent.studentNumber !== updatedStudent.studentNumber;
       await FirebaseDB.updateStudent(updatedStudent.id, updatedStudent);
       if (studentNumberChanged) {
-        const passwords = await FirebaseDB.fetchPasswords();
-        const oldPassword = passwords[originalStudent.studentNumber] || '1234';
-        delete passwords[originalStudent.studentNumber];
-        passwords[updatedStudent.studentNumber] = oldPassword;
-        await FirebaseDB.passwordsRef().doc('student_passwords').set(passwords);
+        // Öğrenci numarası değişti - yeni numara için şifre sıfırlanacak
+        // Öğrenci bir sonraki girişte yeni şifre belirleyecek
+        console.log('Öğrenci numarası değişti:', originalStudent.studentNumber, '->', updatedStudent.studentNumber);
       }
       // Otomatik olarak eslestirme gecmisine kaydet
       FirebaseDB.syncStudentToTripHistory(updatedStudent).catch(err =>
