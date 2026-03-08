@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://www.gstatic.com https://cdn.quilljs.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.firebasestorage.app https://*.googleapis.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebasestorage.app https://firebasestorage.googleapis.com wss://*.firebaseio.com https://cdnjs.cloudflare.com https://apis.google.com; frame-src blob: https://*.firebasestorage.app https://firebasestorage.googleapis.com https://*.firebaseapp.com; object-src 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://www.gstatic.com https://cdn.quilljs.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://apis.google.com https://www.google.com https://www.recaptcha.net; style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.firebasestorage.app https://*.googleapis.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebasestorage.app https://firebasestorage.googleapis.com wss://*.firebaseio.com https://cdnjs.cloudflare.com https://apis.google.com https://www.google.com https://www.recaptcha.net; frame-src blob: https://*.firebasestorage.app https://firebasestorage.googleapis.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net; object-src 'none'; base-uri 'self';">
   <title>ÇAKÜ Yönetim Sistemi</title>
 
   <!-- React & ReactDOM from CDN -->
@@ -15,7 +15,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-check-compat.js"></script>
 
   <!-- Babel Standalone for JSX transformation -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -518,18 +517,6 @@
     try {
       firebase.initializeApp(firebaseConfig);
 
-      // Firebase App Check - API key kötüye kullanım koruması
-      // reCAPTCHA Enterprise ile doğrulama (Firebase Console'da App Check etkinleştirilmeli)
-      try {
-        const appCheck = firebase.appCheck();
-        appCheck.activate(
-          new firebase.appCheck.ReCaptchaEnterpriseProvider('YOUR_RECAPTCHA_SITE_KEY'),
-          true // isTokenAutoRefreshEnabled
-        );
-        console.log('App Check activated');
-      } catch (acErr) {
-        console.warn('App Check not available:', acErr.message);
-      }
 
       // Force long polling for all browsers to prevent
       // Write/channel and Listen/channel 400 errors during
