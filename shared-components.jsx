@@ -517,7 +517,6 @@ const FirebaseDB = {
   // Erasmus collections
   studentsRef: () => FirebaseDB.db()?.collection('students'),
   usersRef: () => FirebaseDB.db()?.collection('users'),
-  passwordsRef: () => FirebaseDB.db()?.collection('passwords'),
 
   // Exam collections
   examsRef: () => FirebaseDB.db()?.collection('exams'),
@@ -1521,9 +1520,9 @@ const LoginModal = ({ onLogin }) => {
       const students = await FirebaseDB.fetchStudents();
       const student = students.find(s => s.studentNumber === trimmedId);
       if (student) {
-        // Mevcut öğrenci: şifre var mı kontrol et
-        const passwords = await FirebaseDB.fetchPasswords();
-        if (!passwords[trimmedId]) {
+        // Mevcut öğrenci: şifre var mı kontrol et (Cloud Functions üzerinden)
+        const hasPassword = await FirebaseDB.checkStudentHasPassword(trimmedId);
+        if (!hasPassword) {
           // Şifre yok: şifre belirleme ekranına
           const user = { role: "student", name: `${student.firstName} ${student.lastName}`, studentNumber: trimmedId, erasmusAccess: student.erasmusAccess === true };
           setPendingUser(user);
