@@ -464,6 +464,23 @@ const convertGrade = (inputGrade, system = "auto") => {
 };
 
 // ── Firebase Database Functions ──
+// ── Cloud Functions referansı ──
+const CloudFunctions = {
+  _functions: null,
+  get() {
+    if (!this._functions && window.firebase?.functions) {
+      this._functions = window.firebase.functions();
+    }
+    return this._functions;
+  },
+  call(name, data) {
+    const fn = this.get();
+    if (!fn) throw new Error('Firebase Functions SDK yüklenmemiş!');
+    return fn.httpsCallable(name)(data);
+  }
+};
+window.CloudFunctions = CloudFunctions;
+
 const FirebaseDB = {
   db: () => {
     if (!window.firebase) {
@@ -781,90 +798,83 @@ const FirebaseDB = {
     }
   },
 
-  async fetchPasswords() {
+  // ── Şifre İşlemleri (Cloud Functions üzerinden) ──
+  // NOT: Şifreler artık istemcide okunmuyor, tüm doğrulama sunucu tarafında yapılır
+
+  async verifyStudentLogin(studentNumber, password) {
     try {
-      const ref = FirebaseDB.passwordsRef();
-      if (!ref) throw new Error('Firebase bağlantısı yok');
-      const doc = await ref.doc('student_passwords').get();
-      return doc.exists ? doc.data() : {};
+      const result = await CloudFunctions.call('verifyStudentLogin', { studentNumber, password });
+      return result.data;
     } catch (error) {
-      console.error('Error fetching passwords:', error);
-      throw error;
-    }
-  },
-  async updatePassword(studentNumber, newPassword) {
-    try {
-      const ref = FirebaseDB.passwordsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
-      const passwords = await FirebaseDB.fetchPasswords();
-      // Şifreyi hash'leyerek kaydet
-      const hashed = await PasswordSecurity.hashPassword(newPassword, studentNumber);
-      passwords[studentNumber] = hashed;
-      await ref.doc('student_passwords').set(passwords);
-      return true;
-    } catch (error) {
-      console.error('Error updating password:', error);
+      console.error('verifyStudentLogin error:', error);
+      if (error.code === 'functions/resource-exhausted') {
+        return { success: false, error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' };
+      }
       throw error;
     }
   },
 
-  // ── Admin Password ──
-  async fetchAdminPassword() {
+  async verifyAdminLogin(password) {
     try {
-      const ref = FirebaseDB.passwordsRef();
-      if (!ref) throw new Error('Firebase bağlantısı yok');
-      const doc = await ref.doc('admin').get();
-      return doc.exists ? doc.data().password : null;
+      const result = await CloudFunctions.call('verifyAdminLogin', { password });
+      return result.data;
     } catch (error) {
-      console.error('Error fetching admin password:', error);
+      console.error('verifyAdminLogin error:', error);
+      if (error.code === 'functions/resource-exhausted') {
+        return { success: false, error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' };
+      }
       throw error;
     }
+  },
+
+  async verifyProfessorLogin(professorName, password) {
+    try {
+      const result = await CloudFunctions.call('verifyProfessorLogin', { professorName, password });
+      return result.data;
+    } catch (error) {
+      console.error('verifyProfessorLogin error:', error);
+      if (error.code === 'functions/resource-exhausted') {
+        return { success: false, error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' };
+      }
+      throw error;
+    }
+  },
+
+  async changePassword(role, identifier, newPassword, currentPassword) {
+    try {
+      const result = await CloudFunctions.call('changePassword', { role, identifier, newPassword, currentPassword });
+      return result.data;
+    } catch (error) {
+      console.error('changePassword error:', error);
+      throw error;
+    }
+  },
+
+  async checkStudentHasPassword(studentNumber) {
+    try {
+      const result = await CloudFunctions.call('checkStudentHasPassword', { studentNumber });
+      return result.data.hasPassword;
+    } catch (error) {
+      console.error('checkStudentHasPassword error:', error);
+      throw error;
+    }
+  },
+
+  // Geriye uyumluluk (eski fonksiyon isimleri)
+  async updatePassword(studentNumber, newPassword) {
+    return await FirebaseDB.changePassword('student', studentNumber, newPassword);
   },
   async saveAdminPassword(password) {
-    try {
-      const ref = FirebaseDB.passwordsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
-      // Admin şifresini hash'leyerek kaydet
-      const hashed = await PasswordSecurity.hashPassword(password, 'admin');
-      await ref.doc('admin').set({ password: hashed, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
-      return true;
-    } catch (error) {
-      console.error('Error saving admin password:', error);
-      throw error;
-    }
-  },
-
-  // ── Professor Passwords ──
-  async fetchProfessorPasswords() {
-    try {
-      const ref = FirebaseDB.passwordsRef();
-      if (!ref) throw new Error('Firebase bağlantısı yok');
-      const doc = await ref.doc('professor_passwords').get();
-      return doc.exists ? doc.data() : {};
-    } catch (error) {
-      console.error('Error fetching professor passwords:', error);
-      throw error;
-    }
+    return await FirebaseDB.changePassword('admin', null, password);
   },
   async saveProfessorPasswords(passwords) {
-    try {
-      const ref = FirebaseDB.passwordsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
-      // Tüm profesör şifrelerini hash'leyerek kaydet
-      const hashedPasswords = {};
-      for (const [name, pass] of Object.entries(passwords)) {
-        if (pass && !PasswordSecurity.isHashed(pass)) {
-          hashedPasswords[name] = await PasswordSecurity.hashPassword(pass, name);
-        } else {
-          hashedPasswords[name] = pass;
-        }
+    // Toplu profesör şifre güncelleme - her biri için Cloud Function çağır
+    for (const [name, pass] of Object.entries(passwords)) {
+      if (pass) {
+        await FirebaseDB.changePassword('professor', name, pass);
       }
-      await ref.doc('professor_passwords').set(hashedPasswords, { merge: true });
-      return true;
-    } catch (error) {
-      console.error('Error saving professor passwords:', error);
-      throw error;
     }
+    return true;
   },
 
   // ── Exam CRUD ──
@@ -1390,19 +1400,11 @@ const LoginModal = ({ onLogin }) => {
     if (!newPassword.trim()) { setError("Yeni şifre boş olamaz!"); return; }
     if (newPassword.length < 6) { setError("Şifre en az 6 karakter olmalıdır!"); return; }
     if (newPassword !== confirmPassword) { setError("Şifreler uyuşmuyor!"); return; }
-    if (newPassword === "1234" || newPassword === "1605") { setError("Lütfen varsayılan şifreden farklı bir şifre belirleyin!"); return; }
     setLoading(true);
     try {
-      // Şifreyi Firestore'a kaydet
-      if (pendingUser.role === "student") {
-        await FirebaseDB.updatePassword(pendingUser.studentNumber, newPassword);
-      } else if (pendingUser.role === "professor") {
-        const profPasswords = await FirebaseDB.fetchProfessorPasswords();
-        profPasswords[pendingUser.name] = newPassword;
-        await FirebaseDB.saveProfessorPasswords(profPasswords);
-      } else if (pendingUser.role === "admin") {
-        await FirebaseDB.saveAdminPassword(newPassword);
-      }
+      // Şifreyi Cloud Functions ile sunucu tarafında kaydet
+      const identifier = pendingUser.role === "student" ? pendingUser.studentNumber : pendingUser.name;
+      await FirebaseDB.changePassword(pendingUser.role, identifier, newPassword);
 
       // Firebase Auth hesabı oluşturmayı dene (başarısız olursa sorun değil)
       try {
@@ -1419,14 +1421,8 @@ const LoginModal = ({ onLogin }) => {
         } catch (authErr) {
           if (authErr.code === 'auth/email-already-in-use') {
             try { await FirebaseAuth.signIn(email, newPassword); } catch (e) {
-              const oldPasswords = ["1234", "1605"];
-              for (const oldPass of oldPasswords) {
-                try {
-                  await FirebaseAuth.signIn(email, oldPass);
-                  await FirebaseAuth.updatePassword(newPassword);
-                  break;
-                } catch (e) { /* devam */ }
-              }
+              // Eski şifrelerle giriş denemesi artık sunucu tarafında yapılıyor
+              console.warn("Firebase Auth şifre güncelleme başarısız - kullanıcı yöneticiye başvurmalı");
             }
           }
         }
@@ -1567,22 +1563,12 @@ const LoginModal = ({ onLogin }) => {
       const email = FirebaseAuth.studentEmail(trimmedId);
       const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId, erasmusAccess: studentInfo.erasmusAccess === true };
 
-      // 1. Firestore şifresini kontrol et (hash destekli)
-      const passwords = await FirebaseDB.fetchPasswords();
-      const storedPassword = passwords[trimmedId];
+      // 1. Cloud Functions ile sunucu tarafında şifre doğrulama
+      const loginResult = await FirebaseDB.verifyStudentLogin(trimmedId, password);
 
-      const isValid = await PasswordSecurity.verifyPassword(password, storedPassword, trimmedId);
-
-      if (isValid) {
-        // Düz metin ise otomatik hash'e migrate et
-        await PasswordSecurity.migrateIfNeeded(storedPassword, trimmedId, async (hashed) => {
-          passwords[trimmedId] = hashed;
-          await FirebaseDB.passwordsRef().doc('student_passwords').set(passwords);
-        });
-
-        // Firestore doğruladı - Firebase Auth'a giriş/kayıt dene
+      if (loginResult.success) {
+        // Sunucu doğruladı - Firebase Auth'a giriş/kayıt dene
         if (password.length < 6) {
-          // Firebase Auth minimum 6 karakter istiyor - şifre değiştirme ekranına yönlendir
           setPendingUser(user);
           setSetupPasswordMode(true);
           setLoading(false);
@@ -1611,7 +1597,7 @@ const LoginModal = ({ onLogin }) => {
         }
         onLogin(user);
       } else {
-        // Firestore şifresi eşleşmiyor - Firebase Auth ile dene (kullanıcı şifre değiştirmiş olabilir)
+        // Cloud Functions doğrulamadı - Firebase Auth ile dene (yedek)
         try {
           await FirebaseAuth.signIn(email, password);
           if (FirebaseAuth.currentUser()) {
@@ -1619,7 +1605,7 @@ const LoginModal = ({ onLogin }) => {
           }
           onLogin(user);
         } catch (signInErr) {
-          setError("Giriş bilgileri hatalı!");
+          setError(loginResult.error || "Giriş bilgileri hatalı!");
         }
       }
     } catch (err) {
@@ -1647,25 +1633,18 @@ const LoginModal = ({ onLogin }) => {
         const email = FirebaseAuth.adminEmail();
         const adminUser = { role: "admin", name: "Admin", studentNumber: null };
 
-        // 1. Firestore admin şifresini kontrol et (hash destekli)
-        const storedAdminPassword = await FirebaseDB.fetchAdminPassword();
-        if (!storedAdminPassword) {
+        // 1. Cloud Functions ile sunucu tarafında admin şifre doğrulama
+        const adminResult = await FirebaseDB.verifyAdminLogin(password);
+
+        if (!adminResult.success && adminResult.error?.includes('belirlenmemiş')) {
           setError("Admin şifresi henüz belirlenmemiş. Firebase Console üzerinden ayarlayın.");
           setLoading(false);
           return;
         }
 
-        const isValid = await PasswordSecurity.verifyPassword(password, storedAdminPassword, 'admin');
-
-        if (isValid) {
-          // Düz metin ise otomatik hash'e migrate et
-          await PasswordSecurity.migrateIfNeeded(storedAdminPassword, 'admin', async (hashed) => {
-            await FirebaseDB.passwordsRef().doc('admin').set({ password: hashed, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
-          });
-
-          // Firestore doğruladı - Firebase Auth giriş/kayıt dene
+        if (adminResult.success) {
+          // Sunucu doğruladı - Firebase Auth giriş/kayıt dene
           if (password.length < 6) {
-            // Firebase Auth minimum 6 karakter istiyor - şifre değiştirme ekranına yönlendir
             setPendingUser(adminUser);
             setSetupPasswordMode(true);
             setLoading(false);
@@ -1694,7 +1673,7 @@ const LoginModal = ({ onLogin }) => {
           }
           onLogin(adminUser);
         } else {
-          // Firestore şifresi eşleşmiyor - Firebase Auth ile dene
+          // Cloud Functions doğrulamadı - Firebase Auth ile dene
           try {
             await FirebaseAuth.signIn(email, password);
             if (FirebaseAuth.currentUser()) {
@@ -1702,7 +1681,7 @@ const LoginModal = ({ onLogin }) => {
             }
             onLogin(adminUser);
           } catch (signInErr) {
-            setError("Giriş bilgileri hatalı!");
+            setError(adminResult.error || "Giriş bilgileri hatalı!");
           }
         }
       } else if (activeTab === "professor") {
@@ -1710,27 +1689,19 @@ const LoginModal = ({ onLogin }) => {
         const email = FirebaseAuth.professorEmail(identifier);
         const user = { role: "professor", name: identifier, studentNumber: null };
 
-        // Firestore şifresini kontrol et (hash destekli)
-        const passwords = await FirebaseDB.fetchProfessorPasswords();
+        // Cloud Functions ile sunucu tarafında profesör şifre doğrulama
+        const profResult = await FirebaseDB.verifyProfessorLogin(identifier, password);
 
         // Şifre belirlenmemişse: ilk giriş, şifre belirleme ekranına
-        if (!passwords[identifier]) {
+        if (profResult.needsSetup) {
           setPendingUser(user);
           setSetupPasswordMode(true);
           setLoading(false);
           return;
         }
 
-        // Şifre var - hash destekli doğrulama
-        const storedPassword = passwords[identifier];
-        const isValid = await PasswordSecurity.verifyPassword(password, storedPassword, identifier);
-        if (isValid) {
-          // Düz metin ise otomatik hash'e migrate et
-          await PasswordSecurity.migrateIfNeeded(storedPassword, identifier, async (hashed) => {
-            passwords[identifier] = hashed;
-            await FirebaseDB.saveProfessorPasswords(passwords);
-          });
-          // Firestore doğruladı - Firebase Auth giriş/kayıt dene
+        if (profResult.success) {
+          // Sunucu doğruladı - Firebase Auth giriş/kayıt dene
           if (password.length < 6) {
             setPendingUser(user);
             setSetupPasswordMode(true);
@@ -1760,7 +1731,7 @@ const LoginModal = ({ onLogin }) => {
           }
           onLogin(user);
         } else {
-          // Firestore şifresi eşleşmiyor - Firebase Auth ile dene
+          // Cloud Functions doğrulamadı - Firebase Auth ile dene
           try {
             await FirebaseAuth.signIn(email, password);
             if (FirebaseAuth.currentUser()) {
@@ -1768,7 +1739,7 @@ const LoginModal = ({ onLogin }) => {
             }
             onLogin(user);
           } catch (signInErr) {
-            setError("Giriş bilgileri hatalı!");
+            setError(profResult.error || "Giriş bilgileri hatalı!");
           }
         }
       }
@@ -2318,22 +2289,14 @@ const PasswordManagementModal = ({ students, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { loadAllPasswords(); }, []);
+  useEffect(() => { loadData(); }, []);
 
-  const loadAllPasswords = async () => {
+  const loadData = async () => {
     try {
-      const [sPass, pPass, aPass, profs] = await Promise.all([
-        FirebaseDB.fetchPasswords(),
-        FirebaseDB.fetchProfessorPasswords(),
-        FirebaseDB.fetchAdminPassword(),
-        FirebaseDB.fetchProfessors(),
-      ]);
-      setStudentPasses(sPass || {});
-      setProfessorPasses(pPass || {});
-      setAdminPass(aPass || "");
+      const profs = await FirebaseDB.fetchProfessors();
       setProfessorList((profs || []).sort((a, b) => a.name.localeCompare(b.name)));
     } catch (error) {
-      console.error('Error loading passwords:', error);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
@@ -2343,13 +2306,27 @@ const PasswordManagementModal = ({ students, onClose }) => {
     setSaving(true);
     try {
       if (activeTab === "student") {
-        await FirebaseDB.passwordsRef().doc('student_passwords').set(studentPasses);
+        // Her değiştirilmiş öğrenci şifresini Cloud Functions ile kaydet
+        for (const [studentNo, pass] of Object.entries(studentPasses)) {
+          if (pass && pass !== '••••••') {
+            await FirebaseDB.changePassword('student', studentNo, pass);
+          }
+        }
       } else if (activeTab === "professor") {
-        await FirebaseDB.saveProfessorPasswords(professorPasses);
+        for (const [name, pass] of Object.entries(professorPasses)) {
+          if (pass && pass !== '••••••') {
+            await FirebaseDB.changePassword('professor', name, pass);
+          }
+        }
       } else if (activeTab === "admin") {
-        await FirebaseDB.saveAdminPassword(adminPass);
+        if (adminPass && adminPass.length >= 6) {
+          await FirebaseDB.changePassword('admin', null, adminPass);
+        }
       }
       alert('Şifreler kaydedildi!');
+      setStudentPasses({});
+      setProfessorPasses({});
+      setAdminPass("");
     } catch (error) {
       console.error('Error saving passwords:', error);
       alert('Hata: ' + error.message);
@@ -2422,7 +2399,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
                       <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{student.studentNumber}</td>
                       <td style={{ padding: 12 }}>{student.firstName} {student.lastName}</td>
                       <td style={{ padding: 12 }}>
-                        <Input type="password" value={studentPasses[student.studentNumber] ? '••••••' : ''}
+                        <Input type="password" value={studentPasses[student.studentNumber] || ''}
                           placeholder="Yeni şifre girin"
                           onChange={e => setStudentPasses(p => ({ ...p, [student.studentNumber]: e.target.value }))} />
                       </td>
@@ -2497,7 +2474,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
                           <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{prof.name}</td>
                           <td style={{ padding: 12 }}>{prof.department}</td>
                           <td style={{ padding: 12 }}>
-                            <Input type="password" value={professorPasses[prof.name] ? '••••••' : ''}
+                            <Input type="password" value={professorPasses[prof.name] || ''}
                               placeholder="Yeni şifre girin"
                               onChange={e => setProfessorPasses(p => ({ ...p, [prof.name]: e.target.value }))} />
                           </td>
