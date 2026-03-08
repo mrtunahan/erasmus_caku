@@ -15,7 +15,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-check-compat.js"></script>
 
   <!-- Babel Standalone for JSX transformation -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -518,18 +517,6 @@
     try {
       firebase.initializeApp(firebaseConfig);
 
-      // Firebase App Check - API key kötüye kullanım koruması
-      // reCAPTCHA Enterprise ile doğrulama (Firebase Console'da App Check etkinleştirilmeli)
-      try {
-        const appCheck = firebase.appCheck();
-        appCheck.activate(
-          new firebase.appCheck.ReCaptchaEnterpriseProvider('6LfiJIMsAAAABZ8AkekR25JMi0kixpHk6p8YYkv'),
-          true // isTokenAutoRefreshEnabled
-        );
-        console.log('App Check activated');
-      } catch (acErr) {
-        console.warn('App Check not available:', acErr.message);
-      }
 
       // Force long polling for all browsers to prevent
       // Write/channel and Listen/channel 400 errors during
