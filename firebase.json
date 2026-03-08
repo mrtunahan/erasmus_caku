@@ -4,5 +4,29 @@
   },
   "functions": {
     "source": "functions"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "firestore.rules",
+      "**/node_modules/**",
+      "functions/**",
+      ".git/**",
+      ".gitignore",
+      "README.md",
+      "CLAUDE.md"
+    ],
+    "headers": [
+      {
+        "source": "**/*.jsx",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "text/javascript"
+          }
+        ]
+      }
+    ]
   }
 }
