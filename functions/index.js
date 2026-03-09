@@ -195,9 +195,19 @@ exports.verifyProfessorLogin = functions.https.onCall(async (request) => {
     const passwords = doc.exists ? doc.data() : {};
     const storedPassword = passwords[professorName];
 
-    // Şifre belirlenmemişse: ilk giriş
+    // Şifre belirlenmemişse: ilk giriş, varsayılan şifre "1888"
     if (!storedPassword) {
-      return { success: false, needsSetup: true };
+      if (password === "1888") {
+        clearAttempts(rateLimitKey);
+        // Varsayılan şifreyi bcrypt ile hashle ve kaydet
+        const bcryptHash = await hashPassword("1888");
+        passwords[professorName] = bcryptHash;
+        await db.collection("passwords").doc("professor_passwords").set(passwords, { merge: true });
+        return { success: true };
+      } else {
+        recordAttempt(rateLimitKey);
+        return { success: false, error: "Giriş bilgileri hatalı!" };
+      }
     }
 
     const isValid = await verifyPassword(password, storedPassword, professorName);
