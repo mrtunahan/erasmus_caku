@@ -1,28 +1,56 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+const bcrypt = require("bcrypt");
 
 admin.initializeApp();
 const db = admin.firestore();
 
-// ── SHA-256 hash (client ile aynı algoritma) ──
+// ── Bcrypt ayarları ──
+const BCRYPT_ROUNDS = 12;
+
+// ── Eski SHA-256 hash (geriye dönük uyumluluk için) ──
 function sha256(message) {
   return crypto.createHash("sha256").update(message, "utf8").digest("hex");
 }
 
-function hashPassword(password, salt) {
+function legacySha256Hash(password, salt) {
   return sha256(salt + ":" + password);
 }
 
-function isHashed(password) {
+function isSha256Hash(password) {
   return typeof password === "string" && /^[a-f0-9]{64}$/.test(password);
 }
 
-// Sabit zamanlı karşılaştırma (timing attack önlemi)
+function isBcryptHash(password) {
+  return typeof password === "string" && password.startsWith("$2");
+}
+
+// Sabit zamanlı karşılaştırma (timing attack önlemi - eski SHA-256 için)
 function constantTimeCompare(a, b) {
   if (typeof a !== "string" || typeof b !== "string") return false;
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+// ── Şifre doğrulama (bcrypt + SHA-256 + düz metin desteği) ──
+async function verifyPassword(inputPassword, storedPassword, salt) {
+  if (isBcryptHash(storedPassword)) {
+    // Bcrypt hash - doğrudan karşılaştır
+    return bcrypt.compare(inputPassword, storedPassword);
+  } else if (isSha256Hash(storedPassword)) {
+    // Eski SHA-256 hash - geriye dönük uyumluluk
+    const inputHash = legacySha256Hash(inputPassword, salt);
+    return constantTimeCompare(inputHash, storedPassword);
+  } else {
+    // Düz metin (en eski veri)
+    return storedPassword === inputPassword;
+  }
+}
+
+// ── Bcrypt ile hashle ──
+async function hashPassword(password) {
+  return bcrypt.hash(password, BCRYPT_ROUNDS);
 }
 
 // ── Rate Limiting (bellek tabanlı - basit) ──
@@ -34,7 +62,6 @@ function checkRateLimit(key) {
   const now = Date.now();
   const record = loginAttempts.get(key);
   if (!record) return true;
-  // Pencere dışındaki girişimleri temizle
   if (now - record.firstAttempt > WINDOW_MS) {
     loginAttempts.delete(key);
     return true;
@@ -82,22 +109,16 @@ exports.verifyStudentLogin = functions.https.onCall(async (request) => {
       return { success: false, error: "Şifre bulunamadı." };
     }
 
-    let isValid = false;
-    if (isHashed(storedPassword)) {
-      const inputHash = hashPassword(password, trimmedId);
-      isValid = constantTimeCompare(inputHash, storedPassword);
-    } else {
-      // Düz metin (eski veri) - eşleşirse otomatik migrate et
-      isValid = storedPassword === password;
-      if (isValid) {
-        const hashed = hashPassword(password, trimmedId);
-        passwords[trimmedId] = hashed;
-        await db.collection("passwords").doc("student_passwords").set(passwords);
-      }
-    }
+    const isValid = await verifyPassword(password, storedPassword, trimmedId);
 
     if (isValid) {
       clearAttempts(rateLimitKey);
+      // Eski hash'i bcrypt'e migrate et
+      if (!isBcryptHash(storedPassword)) {
+        const bcryptHash = await hashPassword(password);
+        passwords[trimmedId] = bcryptHash;
+        await db.collection("passwords").doc("student_passwords").set(passwords);
+      }
       return { success: true };
     } else {
       recordAttempt(rateLimitKey);
@@ -131,24 +152,18 @@ exports.verifyAdminLogin = functions.https.onCall(async (request) => {
     }
 
     const storedPassword = doc.data().password;
-    let isValid = false;
-
-    if (isHashed(storedPassword)) {
-      const inputHash = hashPassword(password, "admin");
-      isValid = constantTimeCompare(inputHash, storedPassword);
-    } else {
-      isValid = storedPassword === password;
-      if (isValid) {
-        const hashed = hashPassword(password, "admin");
-        await db.collection("passwords").doc("admin").set({
-          password: hashed,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      }
-    }
+    const isValid = await verifyPassword(password, storedPassword, "admin");
 
     if (isValid) {
       clearAttempts(rateLimitKey);
+      // Eski hash'i bcrypt'e migrate et
+      if (!isBcryptHash(storedPassword)) {
+        const bcryptHash = await hashPassword(password);
+        await db.collection("passwords").doc("admin").set({
+          password: bcryptHash,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
       return { success: true };
     } else {
       recordAttempt(rateLimitKey);
@@ -185,21 +200,16 @@ exports.verifyProfessorLogin = functions.https.onCall(async (request) => {
       return { success: false, needsSetup: true };
     }
 
-    let isValid = false;
-    if (isHashed(storedPassword)) {
-      const inputHash = hashPassword(password, professorName);
-      isValid = constantTimeCompare(inputHash, storedPassword);
-    } else {
-      isValid = storedPassword === password;
-      if (isValid) {
-        const hashed = hashPassword(password, professorName);
-        passwords[professorName] = hashed;
-        await db.collection("passwords").doc("professor_passwords").set(passwords, { merge: true });
-      }
-    }
+    const isValid = await verifyPassword(password, storedPassword, professorName);
 
     if (isValid) {
       clearAttempts(rateLimitKey);
+      // Eski hash'i bcrypt'e migrate et
+      if (!isBcryptHash(storedPassword)) {
+        const bcryptHash = await hashPassword(password);
+        passwords[professorName] = bcryptHash;
+        await db.collection("passwords").doc("professor_passwords").set(passwords, { merge: true });
+      }
       return { success: true };
     } else {
       recordAttempt(rateLimitKey);
@@ -232,27 +242,21 @@ exports.changePassword = functions.https.onCall(async (request) => {
 
       // Mevcut şifre doğrulama (varsa)
       if (currentPassword && passwords[identifier]) {
-        const stored = passwords[identifier];
-        let valid = false;
-        if (isHashed(stored)) {
-          valid = constantTimeCompare(hashPassword(currentPassword, identifier), stored);
-        } else {
-          valid = stored === currentPassword;
-        }
+        const valid = await verifyPassword(currentPassword, passwords[identifier], identifier);
         if (!valid) {
           return { success: false, error: "Mevcut şifre hatalı." };
         }
       }
 
-      const hashed = hashPassword(newPassword, identifier);
-      passwords[identifier] = hashed;
+      const bcryptHash = await hashPassword(newPassword);
+      passwords[identifier] = bcryptHash;
       await db.collection("passwords").doc("student_passwords").set(passwords);
       return { success: true };
 
     } else if (role === "admin") {
-      const hashed = hashPassword(newPassword, "admin");
+      const bcryptHash = await hashPassword(newPassword);
       await db.collection("passwords").doc("admin").set({
-        password: hashed,
+        password: bcryptHash,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
       return { success: true };
@@ -261,8 +265,8 @@ exports.changePassword = functions.https.onCall(async (request) => {
       if (!identifier) throw new functions.https.HttpsError("invalid-argument", "Akademisyen adı gerekli.");
       const doc = await db.collection("passwords").doc("professor_passwords").get();
       const passwords = doc.exists ? doc.data() : {};
-      const hashed = hashPassword(newPassword, identifier);
-      passwords[identifier] = hashed;
+      const bcryptHash = await hashPassword(newPassword);
+      passwords[identifier] = bcryptHash;
       await db.collection("passwords").doc("professor_passwords").set(passwords, { merge: true });
       return { success: true };
 
@@ -312,12 +316,7 @@ exports.adminResetPassword = functions.https.onCall(async (request) => {
   }
 
   const storedAdmin = adminDoc.data().password;
-  let adminValid = false;
-  if (isHashed(storedAdmin)) {
-    adminValid = constantTimeCompare(hashPassword(adminPassword, "admin"), storedAdmin);
-  } else {
-    adminValid = storedAdmin === adminPassword;
-  }
+  const adminValid = await verifyPassword(adminPassword, storedAdmin, "admin");
 
   if (!adminValid) {
     throw new functions.https.HttpsError("permission-denied", "Admin şifresi hatalı.");
@@ -327,13 +326,13 @@ exports.adminResetPassword = functions.https.onCall(async (request) => {
   if (targetRole === "student" && targetIdentifier) {
     const doc = await db.collection("passwords").doc("student_passwords").get();
     const passwords = doc.exists ? doc.data() : {};
-    passwords[targetIdentifier] = hashPassword(newPassword, targetIdentifier);
+    passwords[targetIdentifier] = await hashPassword(newPassword);
     await db.collection("passwords").doc("student_passwords").set(passwords);
     return { success: true };
   } else if (targetRole === "professor" && targetIdentifier) {
     const doc = await db.collection("passwords").doc("professor_passwords").get();
     const passwords = doc.exists ? doc.data() : {};
-    passwords[targetIdentifier] = hashPassword(newPassword, targetIdentifier);
+    passwords[targetIdentifier] = await hashPassword(newPassword);
     await db.collection("passwords").doc("professor_passwords").set(passwords, { merge: true });
     return { success: true };
   }
