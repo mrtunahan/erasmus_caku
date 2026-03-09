@@ -485,7 +485,10 @@ function ProjeModuluApp({ currentUser }) {
     ProjDB.fetchCourses().then(function (data) {
       setCourses(data);
       setLoading(false);
-    }).catch(function () { setLoading(false); });
+    }).catch(function (err) {
+      console.warn("Ders listesi yüklenemedi:", err.message);
+      setLoading(false);
+    });
   }, []);
 
   // ── Seçili ders değiştiğinde projeleri yükle ──
@@ -495,7 +498,10 @@ function ProjeModuluApp({ currentUser }) {
     ProjDB.fetchProjects(selectedCourse.id).then(function (data) {
       setProjects(data);
       setLoading(false);
-    }).catch(function () { setLoading(false); });
+    }).catch(function (err) {
+      console.warn("Projeler yüklenemedi:", err.message);
+      setLoading(false);
+    });
   }, [selectedCourse]);
 
   // ── Ders Ekle ──
