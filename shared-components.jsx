@@ -1088,14 +1088,22 @@ const FirebaseAuth = {
   async signIn(email, password) {
     const auth = FirebaseAuth.auth();
     if (!auth) throw new Error('Firebase Auth yuklenemedi');
-    return auth.signInWithEmailAndPassword(email, password);
+    try {
+      return await auth.signInWithEmailAndPassword(email, password);
+    } catch (e) {
+      throw e;
+    }
   },
 
   // Hesap oluştur
   async createAccount(email, password) {
     const auth = FirebaseAuth.auth();
     if (!auth) throw new Error('Firebase Auth yuklenemedi');
-    return auth.createUserWithEmailAndPassword(email, password);
+    try {
+      return await auth.createUserWithEmailAndPassword(email, password);
+    } catch (e) {
+      throw e;
+    }
   },
 
   // Çıkış yap
@@ -1591,16 +1599,8 @@ const LoginModal = ({ onLogin }) => {
         }
         onLogin(user);
       } else {
-        // Cloud Functions doğrulamadı - Firebase Auth ile dene (yedek)
-        try {
-          await FirebaseAuth.signIn(email, password);
-          if (FirebaseAuth.currentUser()) {
-            try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user); } catch (e) { console.error("Role save error:", e); }
-          }
-          onLogin(user);
-        } catch (signInErr) {
-          setError(loginResult.error || "Giriş bilgileri hatalı!");
-        }
+        // Cloud Functions doğrulamadı - hata göster
+        setError(loginResult.error || "Giriş bilgileri hatalı!");
       }
     } catch (err) {
       console.error("Login error:", err);
@@ -1659,16 +1659,8 @@ const LoginModal = ({ onLogin }) => {
           }
           onLogin(adminUser);
         } else {
-          // Cloud Functions doğrulamadı - Firebase Auth ile dene
-          try {
-            await FirebaseAuth.signIn(email, password);
-            if (FirebaseAuth.currentUser()) {
-              try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, adminUser); } catch (e) { console.error("Role save error:", e); }
-            }
-            onLogin(adminUser);
-          } catch (signInErr) {
-            setError(adminResult.error || "Giriş bilgileri hatalı!");
-          }
+          // Cloud Functions doğrulamadı - hata göster
+          setError(adminResult.error || "Giriş bilgileri hatalı!");
         }
       } else if (activeTab === "professor") {
         if (!identifier.trim()) { setError("Akademisyen seçimi gerekli!"); setLoading(false); return; }
@@ -1709,16 +1701,8 @@ const LoginModal = ({ onLogin }) => {
           }
           onLogin(user);
         } else {
-          // Cloud Functions doğrulamadı - Firebase Auth ile dene
-          try {
-            await FirebaseAuth.signIn(email, password);
-            if (FirebaseAuth.currentUser()) {
-              try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user); } catch (e) { console.error("Role save error:", e); }
-            }
-            onLogin(user);
-          } catch (signInErr) {
-            setError(profResult.error || "Giriş bilgileri hatalı!");
-          }
+          // Cloud Functions doğrulamadı - hata göster
+          setError(profResult.error || "Giriş bilgileri hatalı!");
         }
       }
     } catch (err) {
