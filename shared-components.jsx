@@ -599,10 +599,11 @@ const FirebaseDB = {
   async deleteFormFile(fileName) {
     try {
       const storage = FirebaseDB.storage();
-      if (!storage) return;
+      if (!storage) throw new Error('Firebase Storage bağlantısı yok');
       await storage.ref(fileName).delete();
     } catch (error) {
       console.error('Error deleting file:', error);
+      throw error;
     }
   },
 
@@ -868,10 +869,18 @@ const FirebaseDB = {
   },
   async saveProfessorPasswords(passwords) {
     // Toplu profesör şifre güncelleme - her biri için Cloud Function çağır
+    var errors = [];
     for (const [name, pass] of Object.entries(passwords)) {
       if (pass) {
-        await FirebaseDB.changePassword('professor', name, pass);
+        try {
+          await FirebaseDB.changePassword('professor', name, pass);
+        } catch (e) {
+          errors.push(name + ': ' + e.message);
+        }
       }
+    }
+    if (errors.length > 0) {
+      throw new Error('Bazı şifreler kaydedilemedi: ' + errors.join(', '));
     }
     return true;
   },
