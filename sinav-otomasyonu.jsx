@@ -1282,7 +1282,7 @@ function SinavOtomasyonuApp({ currentUser }) {
     // ... existing seedData implementation ...
     const cRef = getCoursesRef();
     const pRef = getProfessorsRef();
-    if (!cRef || !pRef) return;
+    if (!cRef || !pRef) { alert("Firebase bağlantısı yok!"); return; }
     try {
       const existingCourses = await cRef.get();
       if (!existingCourses.empty) {
@@ -1316,6 +1316,7 @@ function SinavOtomasyonuApp({ currentUser }) {
     setLoading(true);
     try {
       const cRef = getCoursesRef();
+      if (!cRef) throw new Error("Firebase hazır değil");
       const snap = await cRef.get();
       const existing = snap.docs.map(d => ({ fireId: d.id, ...d.data() }));
 
@@ -1495,7 +1496,7 @@ function SinavOtomasyonuApp({ currentUser }) {
       setPlacedExams(prev => prev.map(e => e.id === id ? updatedExam : e));
     } catch (e) {
       console.error("Update error:", e);
-      throw e;
+      alert("Güncelleme hatası: " + e.message);
     }
   };
 
@@ -1587,7 +1588,7 @@ function SinavOtomasyonuApp({ currentUser }) {
     if (!confirm("Bu dönemdeki tüm sınav yerleşimlerini sıfırlamak istediğinize emin misiniz?")) return;
     try {
       const ref = getExamsRef();
-      if (!ref) return;
+      if (!ref) { alert("Firebase bağlantısı yok!"); return; }
       const snap = await ref.where("periodId", "==", activePeriodId).get();
       const batch = window.firebase.firestore().batch();
       snap.docs.forEach(doc => batch.delete(doc.ref));
