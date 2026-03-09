@@ -147,6 +147,76 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    // ── Yaz okulu: öğrenciler ──
+    match /yaz_okulu_students/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Yaz okulu: kayıtlar ──
+    match /yaz_okulu_records/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Yaz okulu: ayarlar ──
+    match /yaz_okulu_settings/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Ders muafiyet: ayarlar ──
+    match /muafiyet_settings/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Ders muafiyet: kayıtlar ──
+    match /muafiyet_records/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Portal: moderatörler ──
+    match /portal_moderators/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Portal: bildirimler ──
+    match /portal_notifications/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /portal_notifications/{docId}/items/{itemId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Portal: profiller ──
+    match /portal_profiles/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Portal: takip ──
+    match /portal_follows/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Portal: raporlar ──
+    match /portal_reports/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Portal: yorumlar (subcollection) ──
+    match /portal_posts/{postId}/comments/{commentId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // ── Diğer tüm koleksiyonlar: okuma açık, yazma kapalı ──
     match /{document=**} {
       allow read: if true;

@@ -88,7 +88,7 @@ function AnketModuluApp({ currentUser }) {
   const handleCreateSurvey = async (surveyData) => {
     try {
       const db = window.firebase?.firestore();
-      if (!db) return;
+      if (!db) throw new Error("Firebase bağlantısı yok!");
 
       const optionsMap = {};
       surveyData.options.forEach((opt, i) => {
@@ -122,7 +122,7 @@ function AnketModuluApp({ currentUser }) {
   const handleVote = async (surveyId, selectedOptions) => {
     try {
       const db = window.firebase?.firestore();
-      if (!db) return;
+      if (!db) throw new Error("Firebase bağlantısı yok!");
 
       const survey = surveys.find(s => s.id === surveyId);
       if (!survey) return;
@@ -170,6 +170,7 @@ function AnketModuluApp({ currentUser }) {
       }
     } catch (e) {
       console.error("Oy verilemedi:", e);
+      alert("Oy verilemedi: " + e.message);
     }
   };
 
@@ -178,12 +179,13 @@ function AnketModuluApp({ currentUser }) {
     if (!confirm("Bu anketi silmek istediğinize emin misiniz?")) return;
     try {
       const db = window.firebase?.firestore();
-      if (!db) return;
+      if (!db) throw new Error("Firebase bağlantısı yok!");
       await db.collection("surveys").doc(surveyId).delete();
       setSurveys(prev => prev.filter(s => s.id !== surveyId));
       if (selectedSurvey?.id === surveyId) setSelectedSurvey(null);
     } catch (e) {
       console.error("Anket silinemedi:", e);
+      alert("Anket silinemedi: " + e.message);
     }
   };
 

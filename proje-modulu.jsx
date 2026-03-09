@@ -74,41 +74,56 @@ function prjFormatDate(ts) {
 
 // ── DB Helpers ──
 var ProjDB = {
-  db: function () { return window.firebase && window.firebase.firestore(); },
+  db: function () {
+    if (!window.firebase || !window.firebase.firestore) {
+      throw new Error("Firebase bağlantısı yok! Sayfa yenilenmelidir.");
+    }
+    return window.firebase.firestore();
+  },
 
   // Ders listesi
   async fetchCourses() {
-    var db = this.db(); if (!db) return [];
-    var snap = await db.collection("project_courses").orderBy("name").get();
-    return snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+    try {
+      var db = this.db();
+      var snap = await db.collection("project_courses").orderBy("name").get();
+      return snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+    } catch (e) {
+      console.error("Ders listesi yüklenemedi:", e);
+      return [];
+    }
   },
   async addCourse(data) {
-    var db = this.db(); if (!db) return;
+    var db = this.db();
     return db.collection("project_courses").add(Object.assign({}, data, {
       createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
     }));
   },
   async deleteCourse(id) {
-    var db = this.db(); if (!db) return;
+    var db = this.db();
     await db.collection("project_courses").doc(id).delete();
   },
 
   // Projeler
   async fetchProjects(courseId) {
-    var db = this.db(); if (!db) return [];
-    var query = db.collection("projects").orderBy("createdAt", "desc");
-    if (courseId) query = query.where("courseId", "==", courseId);
-    var snap = await query.get();
-    return snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+    try {
+      var db = this.db();
+      var query = db.collection("projects").orderBy("createdAt", "desc");
+      if (courseId) query = query.where("courseId", "==", courseId);
+      var snap = await query.get();
+      return snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+    } catch (e) {
+      console.error("Projeler yüklenemedi:", e);
+      return [];
+    }
   },
   async createProject(data) {
-    var db = this.db(); if (!db) return;
+    var db = this.db();
     return db.collection("projects").add(Object.assign({}, data, {
       createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
     }));
   },
   async deleteProject(id) {
-    var db = this.db(); if (!db) return;
+    var db = this.db();
     await db.collection("projects").doc(id).delete();
   },
 };

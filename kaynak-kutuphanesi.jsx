@@ -113,7 +113,7 @@ function KaynakKutuphanesiApp({ currentUser }) {
   const handleUploadResource = async (resourceData) => {
     try {
       const db = window.firebase?.firestore();
-      if (!db) return;
+      if (!db) throw new Error("Firebase bağlantısı yok!");
 
       // Yinelenen dosya kontrolü
       const isDuplicate = resources.some(r =>
@@ -173,7 +173,7 @@ function KaynakKutuphanesiApp({ currentUser }) {
   const handleRate = async (resourceId, rating) => {
     try {
       const db = window.firebase?.firestore();
-      if (!db) return;
+      if (!db) throw new Error("Firebase bağlantısı yok!");
 
       const resource = resources.find(r => r.id === resourceId);
       if (!resource) return;
@@ -195,6 +195,7 @@ function KaynakKutuphanesiApp({ currentUser }) {
       ));
     } catch (e) {
       console.error("Degerlendirme hatasi:", e);
+      alert("Değerlendirme kaydedilemedi: " + e.message);
     }
   };
 
@@ -203,12 +204,13 @@ function KaynakKutuphanesiApp({ currentUser }) {
     if (!confirm("Bu kaynağı silmek istediğinize emin misiniz?")) return;
     try {
       const db = window.firebase?.firestore();
-      if (!db) return;
+      if (!db) throw new Error("Firebase bağlantısı yok!");
       await db.collection("resources").doc(resourceId).delete();
       setResources(prev => prev.filter(r => r.id !== resourceId));
       if (selectedResource?.id === resourceId) setSelectedResource(null);
     } catch (e) {
       console.error("Kaynak silinemedi:", e);
+      alert("Kaynak silinemedi: " + e.message);
     }
   };
 

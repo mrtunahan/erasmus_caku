@@ -48,11 +48,16 @@ const ACADEMIC_YEARS = [
 // ══════════════════════════════════════════════════════════════
 
 const YazOkuluDB = {
-    db: () => window.firebase && window.firebase.firestore(),
+    _checkDb() {
+        if (!window.firebase || !window.firebase.firestore) {
+            throw new Error("Firebase bağlantısı yok! Sayfa yenilenmelidir.");
+        }
+        return window.firebase.firestore();
+    },
 
-    studentsRef: () => window.firebase.firestore().collection("yaz_okulu_students"),
-    recordsRef: () => window.firebase.firestore().collection("yaz_okulu_records"),
-    settingsRef: () => window.firebase.firestore().collection("yaz_okulu_settings"),
+    studentsRef() { return this._checkDb().collection("yaz_okulu_students"); },
+    recordsRef() { return this._checkDb().collection("yaz_okulu_records"); },
+    settingsRef() { return this._checkDb().collection("yaz_okulu_settings"); },
 
     // Öğrenci İşlemleri
     async fetchStudents() {
@@ -109,7 +114,7 @@ const YazOkuluDB = {
         } else {
             const ref = await this.recordsRef().add({
                 ...data,
-                status: "pending", // pending, approved, rejected
+                status: "pending",
                 createdAt: window.firebase.firestore.FieldValue.serverTimestamp()
             });
             return { ...data, id: ref.id };
@@ -117,9 +122,14 @@ const YazOkuluDB = {
     },
 
     async fetchStudentApplication(studentId) {
-        const snap = await this.recordsRef().where("studentId", "==", studentId).limit(1).get();
-        if (snap.empty) return null;
-        return { ...snap.docs[0].data(), id: snap.docs[0].id };
+        try {
+            const snap = await this.recordsRef().where("studentId", "==", studentId).limit(1).get();
+            if (snap.empty) return null;
+            return { ...snap.docs[0].data(), id: snap.docs[0].id };
+        } catch (e) {
+            console.error("Başvuru yüklenemedi:", e);
+            return null;
+        }
     }
 };
 
@@ -178,14 +188,17 @@ const YazOkuluApp = ({ currentUser }) => {
     };
 
     const handleCreateStudent = async (student) => {
-        await YazOkuluDB.saveStudent(student);
-        // Şifre de oluşturulmalı
-        if (window.FirebaseDB && window.FirebaseDB.updatePassword) {
-            if (student.password && student.password.length >= 6) {
-                await window.FirebaseDB.updatePassword(student.studentNo, student.password);
+        try {
+            await YazOkuluDB.saveStudent(student);
+            if (window.FirebaseDB && window.FirebaseDB.updatePassword) {
+                if (student.password && student.password.length >= 6) {
+                    await window.FirebaseDB.updatePassword(student.studentNo, student.password);
+                }
             }
+            loadInitialData();
+        } catch (e) {
+            alert("Öğrenci kaydedilemedi: " + e.message);
         }
-        loadInitialData(); // Refresh list
     };
 
     return (
@@ -228,8 +241,12 @@ const YazOkuluApp = ({ currentUser }) => {
                             students={students}
                             onSave={handleCreateStudent}
                             onDelete={async (id) => {
-                                await YazOkuluDB.deleteStudent(id);
-                                loadInitialData();
+                                try {
+                                    await YazOkuluDB.deleteStudent(id);
+                                    loadInitialData();
+                                } catch (e) {
+                                    alert("Silme hatası: " + e.message);
+                                }
                             }}
                         />
                     )}
@@ -238,9 +255,13 @@ const YazOkuluApp = ({ currentUser }) => {
                         <SettingsPanel
                             cakuCourses={cakuCourses}
                             onSaveCatalog={async (courses) => {
-                                await YazOkuluDB.saveCourseCatalog(courses);
-                                setCakuCourses(courses);
-                                alert("Ders kataloğu güncellendi!");
+                                try {
+                                    await YazOkuluDB.saveCourseCatalog(courses);
+                                    setCakuCourses(courses);
+                                    alert("Ders kataloğu güncellendi!");
+                                } catch (e) {
+                                    alert("Katalog kaydedilemedi: " + e.message);
+                                }
                             }}
                         />
                     )}
@@ -479,19 +500,23 @@ const StudentApplicationPanel = ({ student, cakuCourses }) => {
     const handleSave = async () => {
         if (!student.id) return alert("Öğrenci kaydı bulunamadı! Lütfen önce giriş yapın.");
         setLoading(true);
-        await YazOkuluDB.saveApplication({
-            studentId: student.id,
-            studentName: `${student.firstName} ${student.lastName}`,
-            studentNo: student.studentNo,
-            targetUniversity: info.targetUni,
-            targetFaculty: info.targetFaculty,
-            targetDepartment: info.targetDept,
-            academicYear: info.academicYear,
-            externalCourses,
-            matches,
-            submittedAt: new Date().toISOString()
-        });
-        alert("Başvurunuz başarıyla kaydedildi!");
+        try {
+            await YazOkuluDB.saveApplication({
+                studentId: student.id,
+                studentName: `${student.firstName} ${student.lastName}`,
+                studentNo: student.studentNo,
+                targetUniversity: info.targetUni,
+                targetFaculty: info.targetFaculty,
+                targetDepartment: info.targetDept,
+                academicYear: info.academicYear,
+                externalCourses,
+                matches,
+                submittedAt: new Date().toISOString()
+            });
+            alert("Başvurunuz başarıyla kaydedildi!");
+        } catch (e) {
+            alert("Kayıt hatası: " + e.message);
+        }
         setLoading(false);
     };
 
