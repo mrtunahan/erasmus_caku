@@ -1461,10 +1461,6 @@ const LoginModal = ({ onLogin }) => {
         return;
       }
 
-      // Firebase Auth hesabı oluştur
-      const email = FirebaseAuth.studentEmail(pendingStudentNumber);
-      await FirebaseAuth.createAccount(email, newPassword);
-
       // Öğrenciyi Firestore'a kaydet
       const studentData = {
         studentNumber: pendingStudentNumber,
@@ -1473,19 +1469,26 @@ const LoginModal = ({ onLogin }) => {
         erasmusAccess: false,
       };
       await FirebaseDB.addStudent(studentData);
-      // Şifreyi Firestore'a da kaydet (yedek)
+      // Şifreyi Firestore'a kaydet
       await FirebaseDB.updatePassword(pendingStudentNumber, newPassword);
       // Kullanıcı rolünü kaydet
       const user = { role: "student", name: `${firstName.trim()} ${lastName.trim()}`, studentNumber: pendingStudentNumber, erasmusAccess: false };
-      await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
+
+      // Firebase Auth hesabı oluştur (opsiyonel - başarısız olsa bile kayıt engellenmez)
+      try {
+        const email = FirebaseAuth.studentEmail(pendingStudentNumber);
+        await FirebaseAuth.createAccount(email, newPassword);
+        if (FirebaseAuth.currentUser()) {
+          await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
+        }
+      } catch (authErr) {
+        console.warn("Firebase Auth opsiyonel - devam ediliyor:", authErr.message);
+      }
+
       onLogin(user);
     } catch (err) {
       console.error("Register error:", err);
-      if (err.code === 'auth/email-already-in-use') {
-        setError("Bu öğrenci numarası ile daha önce hesap oluşturulmuş!");
-      } else {
-        setError("Kayıt hatası: " + err.message);
-      }
+      setError("Kayıt hatası: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -1573,26 +1576,18 @@ const LoginModal = ({ onLogin }) => {
           setLoading(false);
           return;
         }
-        let authed = false;
-        try { await FirebaseAuth.signIn(email, password); authed = true; } catch (e) { /* hesap yok, oluşturulacak */ }
-        if (!authed) {
-          try {
-            await FirebaseAuth.createAccount(email, password);
-            authed = true;
-          } catch (createErr) {
-            if (createErr.code === 'auth/email-already-in-use') {
-              setError("Hesabınız farklı bir şifreyle kayıtlı. Şifrenizi sıfırlamak için yöneticinize başvurun.");
-              setLoading(false);
-              return;
-            }
-            console.error("Firebase Auth hesap oluşturma hatası:", createErr);
-            setError("Hesap oluşturma hatası: " + createErr.message);
-            setLoading(false);
-            return;
+        // Firebase Auth opsiyonel - başarısız olsa bile giriş engellenmez
+        try {
+          let authed = false;
+          try { await FirebaseAuth.signIn(email, password); authed = true; } catch (e) { /* hesap yok, oluşturulacak */ }
+          if (!authed) {
+            try { await FirebaseAuth.createAccount(email, password); authed = true; } catch (e) { /* Firebase Auth opsiyonel */ }
           }
-        }
-        if (authed && FirebaseAuth.currentUser()) {
-          try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user); } catch (e) { console.error("Role save error:", e); }
+          if (authed && FirebaseAuth.currentUser()) {
+            try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user); } catch (e) { console.error("Role save error:", e); }
+          }
+        } catch (authErr) {
+          console.warn("Firebase Auth opsiyonel - devam ediliyor:", authErr.message);
         }
         onLogin(user);
       } else {
@@ -1649,26 +1644,18 @@ const LoginModal = ({ onLogin }) => {
             setLoading(false);
             return;
           }
-          let authed = false;
-          try { await FirebaseAuth.signIn(email, password); authed = true; } catch (e) { /* hesap yok */ }
-          if (!authed) {
-            try {
-              await FirebaseAuth.createAccount(email, password);
-              authed = true;
-            } catch (createErr) {
-              if (createErr.code === 'auth/email-already-in-use') {
-                setError("Admin hesabı farklı bir şifreyle kayıtlı. Şifrenizi sıfırlamak için Firebase Console kullanın.");
-                setLoading(false);
-                return;
-              }
-              console.error("Firebase Auth hesap oluşturma hatası:", createErr);
-              setError("Hesap oluşturma hatası: " + createErr.message);
-              setLoading(false);
-              return;
+          // Firebase Auth opsiyonel - başarısız olsa bile giriş engellenmez
+          try {
+            let authed = false;
+            try { await FirebaseAuth.signIn(email, password); authed = true; } catch (e) { /* hesap yok */ }
+            if (!authed) {
+              try { await FirebaseAuth.createAccount(email, password); authed = true; } catch (e) { /* Firebase Auth opsiyonel */ }
             }
-          }
-          if (authed && FirebaseAuth.currentUser()) {
-            try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, adminUser); } catch (e) { console.error("Role save error:", e); }
+            if (authed && FirebaseAuth.currentUser()) {
+              try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, adminUser); } catch (e) { console.error("Role save error:", e); }
+            }
+          } catch (authErr) {
+            console.warn("Firebase Auth opsiyonel - devam ediliyor:", authErr.message);
           }
           onLogin(adminUser);
         } else {
@@ -1707,26 +1694,18 @@ const LoginModal = ({ onLogin }) => {
             setLoading(false);
             return;
           }
-          let authed = false;
-          try { await FirebaseAuth.signIn(email, password); authed = true; } catch (e) { /* hesap yok */ }
-          if (!authed) {
-            try {
-              await FirebaseAuth.createAccount(email, password);
-              authed = true;
-            } catch (createErr) {
-              if (createErr.code === 'auth/email-already-in-use') {
-                setError("Hesabınız farklı bir şifreyle kayıtlı. Şifrenizi sıfırlamak için yöneticinize başvurun.");
-                setLoading(false);
-                return;
-              }
-              console.error("Firebase Auth hesap oluşturma hatası:", createErr);
-              setError("Hesap oluşturma hatası: " + createErr.message);
-              setLoading(false);
-              return;
+          // Firebase Auth opsiyonel - başarısız olsa bile giriş engellenmez
+          try {
+            let authed = false;
+            try { await FirebaseAuth.signIn(email, password); authed = true; } catch (e) { /* hesap yok */ }
+            if (!authed) {
+              try { await FirebaseAuth.createAccount(email, password); authed = true; } catch (e) { /* Firebase Auth opsiyonel */ }
             }
-          }
-          if (authed && FirebaseAuth.currentUser()) {
-            try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user); } catch (e) { console.error("Role save error:", e); }
+            if (authed && FirebaseAuth.currentUser()) {
+              try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user); } catch (e) { console.error("Role save error:", e); }
+            }
+          } catch (authErr) {
+            console.warn("Firebase Auth opsiyonel - devam ediliyor:", authErr.message);
           }
           onLogin(user);
         } else {
