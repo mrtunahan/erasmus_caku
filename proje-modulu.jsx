@@ -85,46 +85,75 @@ var ProjDB = {
   async fetchCourses() {
     try {
       var db = this.db();
-      var snap = await db.collection("project_courses").orderBy("name").get();
-      return snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+      var snap = await db.collection("project_courses").get();
+      var docs = snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+      docs.sort(function (a, b) { return (a.name || "").localeCompare(b.name || ""); });
+      return docs;
     } catch (e) {
       console.error("Ders listesi yüklenemedi:", e);
-      return [];
+      throw e;
     }
   },
   async addCourse(data) {
-    var db = this.db();
-    return db.collection("project_courses").add(Object.assign({}, data, {
-      createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-    }));
+    try {
+      var db = this.db();
+      return await db.collection("project_courses").add(Object.assign({}, data, {
+        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      }));
+    } catch (e) {
+      console.error("Ders eklenemedi:", e);
+      throw e;
+    }
   },
   async deleteCourse(id) {
-    var db = this.db();
-    await db.collection("project_courses").doc(id).delete();
+    try {
+      var db = this.db();
+      await db.collection("project_courses").doc(id).delete();
+    } catch (e) {
+      console.error("Ders silinemedi:", e);
+      throw e;
+    }
   },
 
   // Projeler
   async fetchProjects(courseId) {
     try {
       var db = this.db();
-      var query = db.collection("projects").orderBy("createdAt", "desc");
+      var query = db.collection("projects");
       if (courseId) query = query.where("courseId", "==", courseId);
       var snap = await query.get();
-      return snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+      var docs = snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+      // Client-side sort to avoid composite index requirement
+      docs.sort(function (a, b) {
+        var ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+        var tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+        return tb - ta;
+      });
+      return docs;
     } catch (e) {
       console.error("Projeler yüklenemedi:", e);
-      return [];
+      throw e;
     }
   },
   async createProject(data) {
-    var db = this.db();
-    return db.collection("projects").add(Object.assign({}, data, {
-      createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-    }));
+    try {
+      var db = this.db();
+      return await db.collection("projects").add(Object.assign({}, data, {
+        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      }));
+    } catch (e) {
+      console.error("Proje oluşturulamadı:", e);
+      throw e;
+    }
   },
   async deleteProject(id) {
-    var db = this.db();
-    await db.collection("projects").doc(id).delete();
+    try {
+      var db = this.db();
+      await db.collection("projects").doc(id).delete();
+    } catch (e) {
+      console.error("Proje silinemedi:", e);
+      throw e;
+    }
   },
 };
 
@@ -501,7 +530,8 @@ function ProjeModuluApp({ currentUser }) {
       setCourses(data);
       setLoading(false);
     }).catch(function (err) {
-      console.warn("Ders listesi yüklenemedi:", err.message);
+      console.error("Ders listesi yüklenemedi:", err);
+      alert("Ders listesi yüklenemedi: " + err.message);
       setLoading(false);
     });
   }, []);
@@ -514,7 +544,8 @@ function ProjeModuluApp({ currentUser }) {
       setProjects(data);
       setLoading(false);
     }).catch(function (err) {
-      console.warn("Projeler yüklenemedi:", err.message);
+      console.error("Projeler yüklenemedi:", err);
+      alert("Projeler yüklenemedi: " + err.message);
       setLoading(false);
     });
   }, [selectedCourse]);
