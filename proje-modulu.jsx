@@ -303,35 +303,45 @@ function ProjectCard({ project, userId, userName, isAdmin, onDelete }) {
   var isOwner = project.createdBy === userId;
   var memberCount = project.members ? project.members.length : 0;
   var memberColors = ["#2563eb", "#059669", "#ea580c", "#7c3aed"];
+  var expandedState = useState(false);
+  var expanded = expandedState[0];
+  var setExpanded = expandedState[1];
+
+  var toggleExpand = function (e) {
+    e.stopPropagation();
+    setExpanded(function (prev) { return !prev; });
+  };
 
   return (
     <div style={{
       background: "white", borderRadius: 16, overflow: "hidden",
-      border: "1px solid " + PRJ.border,
-      boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+      border: "1px solid " + (expanded ? PRJ.primary + "40" : PRJ.border),
+      boxShadow: expanded ? "0 8px 24px rgba(37,99,235,0.12)" : "0 2px 12px rgba(0,0,0,0.04)",
       transition: "all 0.2s",
       display: "flex", flexDirection: "column",
     }}
       onMouseEnter={function (e) { e.currentTarget.style.boxShadow = "0 8px 24px rgba(37,99,235,0.12)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-      onMouseLeave={function (e) { e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "translateY(0)"; }}
+      onMouseLeave={function (e) { if (!expanded) e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "translateY(0)"; }}
     >
       <div style={{ height: 4, background: "linear-gradient(90deg, " + PRJ.primary + ", " + PRJ.primaryLight + ")" }} />
-      <div style={{ padding: "20px 24px", flex: 1, display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-          <div style={{ flex: 1 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: PRJ.text, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
-              <PrjIcon path={PRJ_ICONS.folder} size={18} color={PRJ.primary} />
-              {project.name}
-            </h3>
-            <div style={{ fontSize: 12, color: PRJ.textMuted, display: "flex", alignItems: "center", gap: 6 }}>
-              <PrjIcon path={PRJ_ICONS.clock} size={12} />
-              {prjFormatDate(project.createdAt)}
-              <span style={{ margin: "0 4px" }}>·</span>
-              Oluşturan: {project.createdByName}
-            </div>
+      {/* Baslik - her zaman gorunur, tiklanabilir */}
+      <div style={{ padding: "16px 24px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }} onClick={toggleExpand}>
+        <div style={{ flex: 1 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: PRJ.text, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+            <PrjIcon path={PRJ_ICONS.folder} size={18} color={PRJ.primary} />
+            {project.name}
+          </h3>
+          <div style={{ fontSize: 12, color: PRJ.textMuted, display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+            <PrjIcon path={PRJ_ICONS.clock} size={12} />
+            {prjFormatDate(project.createdAt)}
+            <span style={{ margin: "0 4px" }}>·</span>
+            <PrjIcon path={PRJ_ICONS.users} size={12} />
+            {memberCount} kisi
           </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {(isAdmin || isOwner) && (
-            <button onClick={function () { onDelete(project.id); }} title="Projeyi sil"
+            <button onClick={function (e) { e.stopPropagation(); onDelete(project.id); }} title="Projeyi sil"
               style={{ background: "transparent", border: "none", cursor: "pointer", color: PRJ.textMuted, padding: 4, borderRadius: 6, transition: "all 0.2s" }}
               onMouseEnter={function (e) { e.currentTarget.style.color = PRJ.red; e.currentTarget.style.background = PRJ.redLight; }}
               onMouseLeave={function (e) { e.currentTarget.style.color = PRJ.textMuted; e.currentTarget.style.background = "transparent"; }}
@@ -339,48 +349,61 @@ function ProjectCard({ project, userId, userName, isAdmin, onDelete }) {
               <PrjIcon path={PRJ_ICONS.trash} size={16} />
             </button>
           )}
-        </div>
-
-        {project.summary && (
-          <div style={{ background: "#f8fafc", borderRadius: 10, padding: "12px 16px", marginBottom: 16, border: "1px solid " + PRJ.border }}>
-            <p style={{ fontSize: 14, color: PRJ.text, lineHeight: 1.6, margin: 0 }}>{project.summary}</p>
-          </div>
-        )}
-
-        <div style={{ marginTop: "auto" }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: PRJ.textMuted, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-            <PrjIcon path={PRJ_ICONS.users} size={14} />
-            Grup Üyeleri ({memberCount} kişi)
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {(project.members || []).map(function (member, idx) {
-              return (
-                <div key={idx} style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "8px 12px", borderRadius: 8,
-                  background: memberColors[idx % memberColors.length] + "08",
-                  border: "1px solid " + memberColors[idx % memberColors.length] + "20",
-                }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: "50%",
-                    background: "linear-gradient(135deg, " + memberColors[idx % memberColors.length] + ", " + memberColors[idx % memberColors.length] + "cc)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "white", fontSize: 13, fontWeight: 700, flexShrink: 0,
-                  }}>
-                    {member.charAt(0).toUpperCase()}
-                  </div>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: PRJ.text }}>{member}</span>
-                  {idx === 0 && (
-                    <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, background: PRJ.primaryPale, color: PRJ.primary, padding: "2px 8px", borderRadius: 4 }}>
-                      Grup Lideri
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={PRJ.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            style={{ transition: "transform 0.2s", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+            <path d="M6 9l6 6 6-6" />
+          </svg>
         </div>
       </div>
+
+      {/* Icerik - sadece expanded ise gorunur */}
+      {expanded && (
+        <div style={{ padding: "0 24px 20px", borderTop: "1px solid " + PRJ.border }}>
+          <div style={{ fontSize: 12, color: PRJ.textMuted, marginTop: 12, marginBottom: 12 }}>
+            Olusturan: {project.createdByName}
+          </div>
+
+          {project.summary && (
+            <div style={{ background: "#f8fafc", borderRadius: 10, padding: "12px 16px", marginBottom: 16, border: "1px solid " + PRJ.border }}>
+              <p style={{ fontSize: 14, color: PRJ.text, lineHeight: 1.6, margin: 0 }}>{project.summary}</p>
+            </div>
+          )}
+
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: PRJ.textMuted, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <PrjIcon path={PRJ_ICONS.users} size={14} />
+              Grup Uyeleri ({memberCount} kisi)
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {(project.members || []).map(function (member, idx) {
+                return (
+                  <div key={idx} style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "8px 12px", borderRadius: 8,
+                    background: memberColors[idx % memberColors.length] + "08",
+                    border: "1px solid " + memberColors[idx % memberColors.length] + "20",
+                  }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: "50%",
+                      background: "linear-gradient(135deg, " + memberColors[idx % memberColors.length] + ", " + memberColors[idx % memberColors.length] + "cc)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: "white", fontSize: 13, fontWeight: 700, flexShrink: 0,
+                    }}>
+                      {member.charAt(0).toUpperCase()}
+                    </div>
+                    <span style={{ fontSize: 14, fontWeight: 500, color: PRJ.text }}>{member}</span>
+                    {idx === 0 && (
+                      <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, background: PRJ.primaryPale, color: PRJ.primary, padding: "2px 8px", borderRadius: 4 }}>
+                        Grup Lideri
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -581,6 +604,17 @@ function ProjeModuluApp({ currentUser }) {
   // ── Proje Oluştur ──
   var handleCreateProject = async function (data) {
     if (!selectedCourse) return;
+    // Her ogrenci yalniz 1 proje grubunda yer alabilir
+    var newMembers = (data.members || []).map(function (m) { return m.trim().toLowerCase(); });
+    for (var i = 0; i < projects.length; i++) {
+      var existingMembers = (projects[i].members || []).map(function (m) { return m.trim().toLowerCase(); });
+      for (var j = 0; j < newMembers.length; j++) {
+        if (newMembers[j] && existingMembers.indexOf(newMembers[j]) >= 0) {
+          alert('"' + data.members[j] + '" zaten "' + projects[i].name + '" projesinde yer aliyor. Her ogrenci yalniz 1 proje grubunda yer alabilir!');
+          return;
+        }
+      }
+    }
     try {
       var docData = Object.assign({}, data, {
         courseId: selectedCourse.id,
@@ -808,7 +842,7 @@ function ProjeModuluApp({ currentUser }) {
             )}
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: window.innerWidth <= 768 ? "1fr" : window.innerWidth <= 1024 ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: 20 }}>
             {filteredProjects.map(function (project) {
               return (
                 <ProjectCard
