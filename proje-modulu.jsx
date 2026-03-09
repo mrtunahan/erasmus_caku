@@ -319,6 +319,7 @@ function ProjectCard({ project, userId, userName, isAdmin, onDelete }) {
       boxShadow: expanded ? "0 8px 24px rgba(37,99,235,0.12)" : "0 2px 12px rgba(0,0,0,0.04)",
       transition: "all 0.2s",
       display: "flex", flexDirection: "column",
+      alignSelf: "start",
     }}
       onMouseEnter={function (e) { e.currentTarget.style.boxShadow = "0 8px 24px rgba(37,99,235,0.12)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
       onMouseLeave={function (e) { if (!expanded) e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "translateY(0)"; }}
@@ -842,7 +843,7 @@ function ProjeModuluApp({ currentUser }) {
             )}
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: window.innerWidth <= 768 ? "1fr" : window.innerWidth <= 1024 ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: window.innerWidth <= 768 ? "1fr" : "repeat(2, 1fr)", gap: 20, alignItems: "start" }}>
             {filteredProjects.map(function (project) {
               return (
                 <ProjectCard
