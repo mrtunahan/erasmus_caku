@@ -119,12 +119,10 @@ var ProjDB = {
   async fetchProjects(courseId) {
     try {
       var db = this.db();
-      console.log("[DEBUG] fetchProjects called with courseId:", courseId);
       var query = db.collection("projects");
       if (courseId) query = query.where("courseId", "==", courseId);
       var snap = await query.get();
-      console.log("[DEBUG] projects query returned", snap.size, "documents");
-      var docs = snap.docs.map(function (d) { console.log("[DEBUG] doc:", d.id, d.data()); return Object.assign({}, d.data(), { id: d.id }); });
+      var docs = snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
       // Client-side sort to avoid composite index requirement
       docs.sort(function (a, b) {
         var ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
