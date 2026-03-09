@@ -428,7 +428,7 @@ function useViewTracker(postId, currentUser) {
     var observer = new IntersectionObserver(function (entries) {
       if (entries[0].isIntersecting && !_viewedPosts[postId]) {
         _viewedPosts[postId] = true;
-        PortalDB.incrementViews(postId);
+        PortalDB.incrementViews(postId).catch(function(e) { console.warn("View increment failed:", e.message); });
         observer.disconnect();
       }
     }, { threshold: 0.5 });
