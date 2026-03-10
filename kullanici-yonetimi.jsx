@@ -3,6 +3,8 @@
 // Öğrenci, Akademisyen ve Şifre Yönetimi (Sadece Admin)
 // ══════════════════════════════════════════════════════════════
 
+const { useState, useEffect, useRef, useCallback } = React;
+
 const KullaniciYonetimiApp = ({ currentUser }) => {
   const r = useResponsive();
   const [activeSection, setActiveSection] = useState("students"); // students, professors, passwords
