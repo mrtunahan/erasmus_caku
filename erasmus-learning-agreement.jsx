@@ -1263,7 +1263,6 @@ function ErasmusLearningAgreementApp({ currentUser }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSemester, setSelectedSemester] = useState("all");
   const [loading, setLoading] = useState(true);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showTripHistory, setShowTripHistory] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -1436,7 +1435,6 @@ function ErasmusLearningAgreementApp({ currentUser }) {
                   <Btn onClick={() => fileInputRef.current?.click()} variant="secondary" icon={<UploadIcon />}>İçe Aktar</Btn>
                   <Btn onClick={exportAllData} variant="secondary" icon={<DownloadIcon />}>Tümünü Dışa Aktar</Btn>
                   <Btn onClick={handleAddStudent} icon={<PlusIcon />}>Yeni Öğrenci Ekle</Btn>
-                  <Btn onClick={() => setShowPasswordModal(true)} variant="secondary">Şifre Yönetimi</Btn>
                 </>
               )}
             </div>
@@ -1516,9 +1514,6 @@ function ErasmusLearningAgreementApp({ currentUser }) {
 
         {selectedStudent && (
           <StudentDetailModal student={selectedStudent} onClose={() => setSelectedStudent(null)} onSave={handleSaveStudent} readOnly={!canEdit(selectedStudent)} allStudents={students} />
-        )}
-        {showPasswordModal && currentUser?.role === 'admin' && (
-          <PasswordManagementModal students={students} onClose={() => setShowPasswordModal(false)} />
         )}
         {showTripHistory && (
           <TripHistoryModal onClose={() => setShowTripHistory(false)} universities={UNIVERSITY_CATALOGS} isReadOnly={currentUser?.role !== 'admin'} />
