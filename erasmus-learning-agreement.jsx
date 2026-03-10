@@ -732,11 +732,13 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterType, setFilterType] = useState("all");
+  const [expandedIdx, setExpandedIdx] = useState(null);
 
   const uniList = Object.keys(universities || UNIVERSITY_CATALOGS);
 
   const loadHistory = async (uni) => {
     setSelectedUni(uni);
+    setExpandedIdx(null);
     if (!uni) { setHistory([]); return; }
     setLoading(true);
     try {
@@ -751,7 +753,6 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
 
   const filteredHistory = filterType === "all" ? history : history.filter(h => h.type === filterType);
 
-  // Group by unique matching (deduplicate across students)
   const grouped = [];
   const seen = new Set();
   filteredHistory.forEach(entry => {
@@ -762,11 +763,9 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
     });
     if (!seen.has(key)) {
       seen.add(key);
-      // Collect all students who used this matching
       const students = filteredHistory
         .filter(e => JSON.stringify({ type: e.type, home: (e.homeCourses || []).map(c => c.code).sort(), host: (e.hostCourses || []).map(c => c.code).sort() }) === key)
         .map(e => ({ name: e.studentName, semester: e.semester, number: e.studentNumber }));
-      // Deduplicate students
       const uniqueStudents = [];
       const seenStudents = new Set();
       students.forEach(s => {
@@ -786,115 +785,218 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
     }
   };
 
-  const filterStyle = { padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" };
+  const outgoingCount = grouped.filter(e => e.type === "outgoing").length;
+  const returnCount = grouped.filter(e => e.type === "return").length;
+  const totalCourses = grouped.reduce((sum, e) => sum + (e.homeCourses || []).length + (e.hostCourses || []).length, 0);
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: r.val(8, 16, 20) }}>
-      <div style={{ background: C.card, borderRadius: 16, maxWidth: "min(1050px, 100vw - 32px)", width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-        <div style={{ padding: r.val(16, 20, 24), borderBottom: `2px solid ${C.border}` }}>
-          <h3 style={{ margin: 0, fontSize: r.val(18, 21, 24), fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 8 }}>Eslestirme Gecmisi</h3>
-          <p style={{ margin: 0, color: C.textMuted, fontSize: 14, marginBottom: 16 }}>Onceki donemlerde yapilmis tum ders eslestirmelerini universite bazinda goruntuleyebilirsiniz. Yeni ogrenciler icin referans olarak kullanilabilir.</p>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <select value={selectedUni} onChange={e => loadHistory(e.target.value)} style={{ ...filterStyle, minWidth: 280 }}>
-              <option value="">Universite Secin...</option>
-              {uniList.map(uni => <option key={uni} value={uni}>{uni}</option>)}
-            </select>
-            {selectedUni && (
-              <select value={filterType} onChange={e => setFilterType(e.target.value)} style={filterStyle}>
-                <option value="all">Tum Turler</option>
-                <option value="outgoing">Gidis Eslestirmeleri</option>
-                <option value="return">Donus Eslestirmeleri</option>
-              </select>
-            )}
+    <Modal open={true} onClose={onClose} title="Eslestirme Gecmisi" width={1100}>
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
+        <select value={selectedUni} onChange={e => loadHistory(e.target.value)}
+          style={{ padding: "10px 16px", border: `2px solid ${selectedUni ? C.navy : C.border}`, borderRadius: 10, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer", minWidth: 280, transition: "border-color 0.2s", outline: "none" }}>
+          <option value="">Universite Secin...</option>
+          {uniList.map(uni => <option key={uni} value={uni}>{uni}</option>)}
+        </select>
+        {selectedUni && (
+          <div style={{ display: "flex", gap: 4, background: C.bg, borderRadius: 10, padding: 4 }}>
+            {[
+              { id: "all", label: "Tumu" },
+              { id: "outgoing", label: "Gidis" },
+              { id: "return", label: "Donus" },
+            ].map(f => (
+              <button key={f.id} onClick={() => setFilterType(f.id)}
+                style={{
+                  padding: "8px 16px", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit",
+                  background: filterType === f.id ? C.navy : "transparent",
+                  color: filterType === f.id ? "white" : C.textMuted,
+                }}>
+                {f.label}
+              </button>
+            ))}
           </div>
+        )}
+      </div>
+
+      {/* Stats bar */}
+      {selectedUni && !loading && grouped.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+          {[
+            { label: "Toplam Eslestirme", value: grouped.length, color: C.navy, bg: "#EEF0F5" },
+            { label: "Gidis", value: outgoingCount, color: C.green, bg: C.greenLight },
+            { label: "Donus", value: returnCount, color: "#B8860B", bg: C.goldPale },
+          ].map((stat, i) => (
+            <div key={i} style={{ padding: "14px 16px", borderRadius: 12, background: stat.bg, textAlign: "center" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: stat.color, fontFamily: "'Playfair Display', serif" }}>{stat.value}</div>
+              <div style={{ fontSize: 11, color: stat.color, fontWeight: 600, opacity: 0.8, textTransform: "uppercase", letterSpacing: "0.05em" }}>{stat.label}</div>
+            </div>
+          ))}
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
-          {!selectedUni && (
-            <div style={{ textAlign: "center", padding: 40, color: C.textMuted }}>
-              <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>&#128218;</div>
-              <div style={{ fontSize: 16, fontWeight: 500 }}>Gecmis kayitlarini goruntulemek icin bir universite secin</div>
-            </div>
-          )}
-          {selectedUni && loading && (
-            <div style={{ textAlign: "center", padding: 40, color: C.textMuted }}>Yukleniyor...</div>
-          )}
-          {selectedUni && !loading && grouped.length === 0 && (
-            <div style={{ textAlign: "center", padding: 40 }}>
-              <div style={{ padding: 20, background: "#FFF9E6", border: "2px dashed #FDB022", borderRadius: 12, color: C.navy, fontSize: 14 }}>
-                Bu universite icin henuz kayitli eslestirme gecmisi bulunmamaktadir.<br />
-                <span style={{ fontSize: 12, color: C.textMuted }}>Ogrenci eslestirmeleri kaydedildikce otomatik olarak buraya eklenecektir.</span>
-              </div>
-            </div>
-          )}
-          {selectedUni && !loading && grouped.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ padding: 12, background: C.bg, borderRadius: 8, fontSize: 13, color: C.textMuted }}>
-                Toplam <strong style={{ color: C.navy }}>{grouped.length}</strong> benzersiz eslestirme kaydi bulundu.
-              </div>
-              {grouped.map((entry, idx) => (
-                <div key={idx} style={{ padding: 20, border: `1px solid ${C.border}`, borderRadius: 12, background: "white" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 12 }}>
+      )}
+
+      <div style={{ maxHeight: 500, overflowY: "auto", paddingRight: 4 }}>
+        {!selectedUni && (
+          <div style={{ textAlign: "center", padding: 60, color: C.textMuted }}>
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke={C.border} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16, opacity: 0.5 }}>
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            <div style={{ fontSize: 16, fontWeight: 600, color: C.navy, marginBottom: 6 }}>Universite Secin</div>
+            <div style={{ fontSize: 13 }}>Gecmis ders eslestirmelerini goruntulemek icin yukaridaki listeden bir universite secin.</div>
+          </div>
+        )}
+        {selectedUni && loading && (
+          <div style={{ textAlign: "center", padding: 60, color: C.textMuted }}>
+            <div style={{ width: 40, height: 40, border: `3px solid ${C.border}`, borderTopColor: C.navy, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+            Yukleniyor...
+          </div>
+        )}
+        {selectedUni && !loading && grouped.length === 0 && (
+          <div style={{ textAlign: "center", padding: 50 }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}>
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <div style={{ fontSize: 15, fontWeight: 600, color: C.navy, marginBottom: 6 }}>Henuz kayit bulunamadi</div>
+            <div style={{ fontSize: 13, color: C.textMuted }}>Ogrenci eslestirmeleri kaydedildikce otomatik olarak buraya eklenecektir.</div>
+          </div>
+        )}
+        {selectedUni && !loading && grouped.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {grouped.map((entry, idx) => {
+              const isExpanded = expandedIdx === idx;
+              return (
+                <div key={idx}
+                  style={{
+                    border: `1px solid ${isExpanded ? (entry.type === "outgoing" ? C.green : C.gold) : C.border}`,
+                    borderRadius: 14, background: "white", overflow: "hidden",
+                    transition: "all 0.2s", boxShadow: isExpanded ? "0 4px 16px rgba(0,0,0,0.08)" : "none",
+                  }}>
+                  {/* Header - clickable */}
+                  <div onClick={() => setExpandedIdx(isExpanded ? null : idx)}
+                    style={{
+                      padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14,
+                      background: isExpanded ? (entry.type === "outgoing" ? "rgba(0,180,80,0.03)" : "rgba(200,160,0,0.03)") : "white",
+                      transition: "background 0.2s",
+                    }}
+                    onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = C.bg; }}
+                    onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = "white"; }}>
+                    {/* Type badge */}
+                    <div style={{
+                      width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                      background: entry.type === "outgoing" ? C.green : C.gold,
+                    }} />
                     <span style={{
-                      padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase",
+                      padding: "3px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
                       background: entry.type === "outgoing" ? C.greenLight : C.goldPale,
                       color: entry.type === "outgoing" ? C.green : "#B8860B",
                     }}>
                       {entry.type === "outgoing" ? "Gidis" : "Donus"}
                     </span>
-                    {!isReadOnly && <button onClick={() => handleDelete(entry.id)} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${C.border}`, background: C.card, color: C.accent, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}><TrashIcon /></button>}
+                    {/* Summary */}
+                    <div style={{ flex: 1, fontSize: 13, color: C.navy, fontWeight: 500 }}>
+                      {(entry.homeCourses || []).length} ders eslestirmesi
+                    </div>
+                    {/* Student count */}
+                    <div style={{ fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" />
+                      </svg>
+                      {(entry.usedBy || []).length}
+                    </div>
+                    {/* Expand icon */}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ transition: "transform 0.2s", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
                   </div>
-                  <div style={{ display: "flex", gap: 20, alignItems: "start" }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: C.navy, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>Kendi Kurumumuz</div>
-                      {(entry.homeCourses || []).map((c, ci) => (
-                        <div key={ci} style={{ fontSize: 13, marginBottom: 4, padding: "6px 10px", background: C.bg, borderRadius: 6 }}>
-                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{c.code}</span>
-                          {" "}<span style={{ fontWeight: 500 }}>{c.name}</span>
-                          <span style={{ color: C.textMuted, fontSize: 11 }}> ({c.credits} AKTS)</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ color: C.gold, flexShrink: 0, paddingTop: 24 }}><ArrowRightIcon /></div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>Karsi Kurum</div>
-                      {(entry.hostCourses || []).map((c, ci) => (
-                        <div key={ci} style={{ fontSize: 13, marginBottom: 4, padding: "6px 10px", background: C.greenLight, borderRadius: 6 }}>
-                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{c.code}</span>
-                          {" "}<span style={{ fontWeight: 500 }}>{c.name}</span>
-                          <span style={{ color: C.textMuted, fontSize: 11 }}> ({c.credits} AKTS)</span>
-                        </div>
-                      ))}
-                    </div>
-                    {entry.type === "return" && entry.hostGrades && Object.keys(entry.hostGrades).length > 0 && (
-                      <div style={{ minWidth: 100, textAlign: "center", padding: "8px 12px", background: C.goldPale, borderRadius: 8, border: `1px solid ${C.goldLight}` }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", marginBottom: 4 }}>Notlar</div>
-                        {(entry.hostCourses || []).map((hc, gi) => (
-                          <div key={gi} style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>
-                            {entry.hostGrades[gi] || entry.hostGrade || "-"} → {entry.homeGrades?.[gi] || entry.homeGrade || "Muaf"}
+
+                  {/* Expanded content */}
+                  {isExpanded && (
+                    <div style={{ padding: "0 20px 20px", borderTop: `1px solid ${C.border}` }}>
+                      {/* Course mapping */}
+                      <div style={{ display: "grid", gridTemplateColumns: r.isMobile ? "1fr" : "1fr auto 1fr", gap: r.isMobile ? 12 : 20, padding: "20px 0", alignItems: "start" }}>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: C.navy, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ width: 3, height: 14, borderRadius: 2, background: C.navy }} />
+                            Kendi Kurumumuz
                           </div>
+                          {(entry.homeCourses || []).map((c, ci) => (
+                            <div key={ci} style={{ fontSize: 13, marginBottom: 6, padding: "10px 14px", background: C.bg, borderRadius: 10, borderLeft: `3px solid ${C.navy}` }}>
+                              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 2 }}>{c.code}</div>
+                              <div style={{ fontWeight: 500, color: C.navy }}>{c.name}</div>
+                              <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{c.credits} AKTS</div>
+                            </div>
+                          ))}
+                        </div>
+                        {!r.isMobile && (
+                          <div style={{ display: "flex", alignItems: "center", paddingTop: 30 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: "50%", background: `linear-gradient(135deg, ${C.greenLight}, ${C.goldPale})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <ArrowRightIcon />
+                            </div>
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: C.green, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ width: 3, height: 14, borderRadius: 2, background: C.green }} />
+                            Karsi Kurum
+                          </div>
+                          {(entry.hostCourses || []).map((c, ci) => (
+                            <div key={ci} style={{ fontSize: 13, marginBottom: 6, padding: "10px 14px", background: C.greenLight, borderRadius: 10, borderLeft: `3px solid ${C.green}` }}>
+                              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 2 }}>{c.code}</div>
+                              <div style={{ fontWeight: 500, color: C.green }}>{c.name}</div>
+                              <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{c.credits} AKTS</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Grades section for return type */}
+                      {entry.type === "return" && entry.hostGrades && Object.keys(entry.hostGrades).length > 0 && (
+                        <div style={{ marginBottom: 16, padding: "14px 16px", background: C.goldPale, borderRadius: 10, border: `1px solid ${C.goldLight}` }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "#B8860B", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Not Donusumleri</div>
+                          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                            {(entry.hostCourses || []).map((hc, gi) => (
+                              <div key={gi} style={{ padding: "6px 12px", background: "rgba(255,255,255,0.7)", borderRadius: 8, fontSize: 13, fontWeight: 600, color: C.navy }}>
+                                {hc.code}: <span style={{ color: C.green }}>{entry.hostGrades[gi] || "-"}</span> → <span style={{ color: C.navy }}>{entry.homeGrades?.[gi] || "Muaf"}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Students */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Kullanan ogrenciler:</span>
+                        {(entry.usedBy || []).map((s, si) => (
+                          <span key={si} style={{
+                            padding: "5px 12px", background: "linear-gradient(135deg, #EEF0F5, #F5F6FA)", borderRadius: 8,
+                            fontSize: 12, color: C.navy, fontWeight: 500, border: `1px solid ${C.border}`,
+                          }}>
+                            {s.name} <span style={{ color: C.textMuted, fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>({s.number})</span> <span style={{ color: C.textMuted }}>- {s.semester}</span>
+                          </span>
                         ))}
                       </div>
-                    )}
-                  </div>
-                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}`, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {(entry.usedBy || []).map((s, si) => (
-                      <span key={si} style={{ padding: "3px 10px", background: "#EEF0F5", borderRadius: 6, fontSize: 11, color: C.navy, fontWeight: 500 }}>
-                        {s.name} ({s.number}) - {s.semester}
-                      </span>
-                    ))}
-                  </div>
+
+                      {/* Delete button */}
+                      {!isReadOnly && (
+                        <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end" }}>
+                          <button onClick={() => handleDelete(entry.id)}
+                            style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "white", cursor: "pointer", color: C.accent, fontSize: 12, fontWeight: 500, display: "flex", alignItems: "center", gap: 6, transition: "all 0.2s" }}
+                            onMouseEnter={e => { e.currentTarget.style.background = "#FEE2E2"; e.currentTarget.style.borderColor = C.accent; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = "white"; e.currentTarget.style.borderColor = C.border; }}>
+                            <TrashIcon /> Kaydi Sil
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ padding: 24, borderTop: `2px solid ${C.border}`, background: C.bg }}>
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <Btn onClick={onClose} variant="secondary">Kapat</Btn>
+              );
+            })}
           </div>
-        </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -1314,7 +1416,10 @@ function ErasmusLearningAgreementApp({ currentUser }) {
   };
   const semesters = generateSemesters();
 
-  const filteredStudents = students
+  // Erasmus modülünde yalnızca erasmus yetkili öğrenciler gösterilir
+  const erasmusStudents = students.filter(s => s.erasmusAccess === true);
+
+  const filteredStudents = erasmusStudents
     .filter(s => selectedSemester === "all" || s.semester === selectedSemester)
     .filter(s => `${s.firstName} ${s.lastName} ${s.studentNumber} ${s.hostInstitution}`.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -1434,7 +1539,6 @@ function ErasmusLearningAgreementApp({ currentUser }) {
                   <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
                   <Btn onClick={() => fileInputRef.current?.click()} variant="secondary" icon={<UploadIcon />}>İçe Aktar</Btn>
                   <Btn onClick={exportAllData} variant="secondary" icon={<DownloadIcon />}>Tümünü Dışa Aktar</Btn>
-                  <Btn onClick={handleAddStudent} icon={<PlusIcon />}>Yeni Öğrenci Ekle</Btn>
                 </>
               )}
             </div>
@@ -1444,10 +1548,10 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         {/* Statistics */}
         <div style={{ display: "grid", gridTemplateColumns: r.val("repeat(2, 1fr)", "repeat(2, 1fr)", "repeat(4, 1fr)"), gap: r.val(12, 16, 20), marginBottom: 24 }}>
           {[
-            { label: "Toplam Öğrenci", value: students.length, color: C.navy },
-            { label: "Gidiş Eşleştirmeleri", value: students.reduce((sum, s) => sum + (s.outgoingMatches || []).length, 0), color: C.green },
-            { label: "Dönüş Eşleştirmeleri", value: students.reduce((sum, s) => sum + (s.returnMatches || []).length, 0), color: C.gold },
-            { label: "Ortalama Eşleştirme", value: students.length > 0 ? ((students.reduce((sum, s) => sum + (s.outgoingMatches || []).length + (s.returnMatches || []).length, 0)) / students.length).toFixed(1) : 0, color: C.accent },
+            { label: "Erasmus Öğrenci", value: erasmusStudents.length, color: C.navy },
+            { label: "Gidiş Eşleştirmeleri", value: erasmusStudents.reduce((sum, s) => sum + (s.outgoingMatches || []).length, 0), color: C.green },
+            { label: "Dönüş Eşleştirmeleri", value: erasmusStudents.reduce((sum, s) => sum + (s.returnMatches || []).length, 0), color: C.gold },
+            { label: "Ortalama Eşleştirme", value: erasmusStudents.length > 0 ? ((erasmusStudents.reduce((sum, s) => sum + (s.outgoingMatches || []).length + (s.returnMatches || []).length, 0)) / erasmusStudents.length).toFixed(1) : 0, color: C.accent },
           ].map((stat, i) => (
             <Card key={i} noPadding>
               <div style={{ padding: r.val(16, 20, 24), textAlign: "center" }}>
@@ -1496,9 +1600,6 @@ function ErasmusLearningAgreementApp({ currentUser }) {
                         <button onClick={() => generateOutgoingWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#E6F4EA", color: "#1E7E34", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Gidiş</button>
                         {(student.returnMatches || []).length > 0 && (
                           <button onClick={() => generateReturnWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FFF3E0", color: "#E65100", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Dönüş</button>
-                        )}
-                        {currentUser?.role === 'admin' && (
-                          <button onClick={() => handleToggleErasmusAccess(student)} title={student.erasmusAccess ? "Erasmus erişimini kaldır" : "Erasmus erişimi ver"} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: student.erasmusAccess ? "#E6F4EA" : "#FEE2E2", color: student.erasmusAccess ? "#1E7E34" : "#DC2626", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{student.erasmusAccess ? "Yetkili" : "Yetkisiz"}</button>
                         )}
                         {canEdit(student) && (
                           <button onClick={() => handleDeleteStudent(student.id)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FAEBED", color: C.accent, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}><TrashIcon /></button>
