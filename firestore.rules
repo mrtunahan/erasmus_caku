@@ -18,19 +18,19 @@ service cloud.firestore {
     // ── Öğrenci verileri ──
     match /students/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Akademisyen verileri ──
     match /professors/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Kullanıcı rolleri ──
     match /users/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Ayarlar: sadece okuma ──
@@ -42,179 +42,179 @@ service cloud.firestore {
     // ── Anlaşmalar ──
     match /agreements/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Sınavlar ──
     match /exams/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Sınav sonuçları ──
     match /exam_results/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Sınav dönemleri ──
     match /exam_periods/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Sınav otomasyonu: program ──
     match /sinav_programi/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Sınav otomasyonu: dersler ──
     match /sinav_dersler/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Sınav otomasyonu: dönemler ──
     match /sinav_donemler/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Öğrenci portalı: gönderiler ──
     match /portal_posts/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Öğrenci portalı: yorumlar ──
     match /portal_comments/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Proje dersleri ──
     match /project_courses/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Projeler ──
     match /projects/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Ders grupları ──
     match /course_groups/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Ders grubu paylaşımları ──
     match /course_group_posts/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Anketler ──
     match /surveys/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Etkinlikler ──
     match /events/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Kaynaklar ──
     match /resources/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Formlar ──
     match /forms/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Eşleştirme geçmişi ──
     match /trip_history/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Yaz okulu: öğrenciler ──
     match /yaz_okulu_students/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Yaz okulu: kayıtlar ──
     match /yaz_okulu_records/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Yaz okulu: ayarlar ──
     match /yaz_okulu_settings/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Ders muafiyet: ayarlar ──
     match /muafiyet_settings/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Ders muafiyet: kayıtlar ──
     match /muafiyet_records/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Portal: moderatörler ──
     match /portal_moderators/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Portal: bildirimler ──
     match /portal_notifications/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
     match /portal_notifications/{docId}/items/{itemId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Portal: profiller ──
     match /portal_profiles/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Portal: takip ──
     match /portal_follows/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Portal: raporlar ──
     match /portal_reports/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Portal: yorumlar (subcollection) ──
     match /portal_posts/{postId}/comments/{commentId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if false;
     }
 
     // ── Diğer tüm koleksiyonlar: okuma açık, yazma kapalı ──

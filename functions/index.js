@@ -195,12 +195,21 @@ exports.verifyProfessorLogin = functions.https.onCall(async (request) => {
     const passwords = doc.exists ? doc.data() : {};
     const storedPassword = passwords[professorName];
 
-    // Şifre belirlenmemişse: ilk giriş, varsayılan şifre "1888"
+    // Şifre belirlenmemişse: Firestore'daki varsayılan şifreyi kontrol et
     if (!storedPassword) {
-      if (password === "1888") {
+      const defaultDoc = await db.collection("passwords").doc("defaults").get();
+      const defaultPassword = defaultDoc.exists ? defaultDoc.data().professorDefault : null;
+
+      if (!defaultPassword) {
+        recordAttempt(rateLimitKey);
+        return { success: false, error: "Şifre henüz belirlenmemiş. Lütfen yönetici ile iletişime geçin." };
+      }
+
+      const defaultValid = await verifyPassword(password, defaultPassword, "professor_default");
+      if (defaultValid) {
         clearAttempts(rateLimitKey);
-        // Varsayılan şifreyi bcrypt ile hashle ve kaydet
-        const bcryptHash = await hashPassword("1888");
+        // Varsayılan şifreyi bcrypt ile hashle ve bu profesöre özel kaydet
+        const bcryptHash = await hashPassword(password);
         passwords[professorName] = bcryptHash;
         await db.collection("passwords").doc("professor_passwords").set(passwords, { merge: true });
         return { success: true };
@@ -348,4 +357,39 @@ exports.adminResetPassword = functions.https.onCall(async (request) => {
   }
 
   throw new functions.https.HttpsError("invalid-argument", "Geçersiz hedef.");
+});
+
+// ══════════════════════════════════════════════
+// 7. Varsayılan Profesör Şifresini Ayarla (Admin)
+// ══════════════════════════════════════════════
+exports.setDefaultProfessorPassword = functions.https.onCall(async (request) => {
+  const { adminPassword, defaultPassword } = request.data;
+
+  if (!adminPassword || !defaultPassword) {
+    throw new functions.https.HttpsError("invalid-argument", "Eksik parametreler.");
+  }
+  if (defaultPassword.length < 6) {
+    throw new functions.https.HttpsError("invalid-argument", "Şifre en az 6 karakter olmalıdır.");
+  }
+
+  // Admin şifresini doğrula
+  const adminDoc = await db.collection("passwords").doc("admin").get();
+  if (!adminDoc.exists || !adminDoc.data().password) {
+    throw new functions.https.HttpsError("permission-denied", "Admin şifresi belirlenmemiş.");
+  }
+
+  const storedAdmin = adminDoc.data().password;
+  const adminValid = await verifyPassword(adminPassword, storedAdmin, "admin");
+
+  if (!adminValid) {
+    throw new functions.https.HttpsError("permission-denied", "Admin şifresi hatalı.");
+  }
+
+  const bcryptHash = await hashPassword(defaultPassword);
+  await db.collection("passwords").doc("defaults").set({
+    professorDefault: bcryptHash,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  return { success: true };
 });
