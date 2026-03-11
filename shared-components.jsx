@@ -1064,14 +1064,10 @@ const FirebaseAuth = {
     return user.updatePassword(newPassword);
   },
 
-  // Kullanıcı rolünü Firestore'a kaydet
+  // Kullanıcı rolünü Firestore'a kaydet (Cloud Functions üzerinden)
   async saveUserRole(uid, roleData) {
-    const db = FirebaseDB.db();
-    if (!db) throw new Error('Firestore baglantisi yok');
-    await db.collection('users').doc(uid).set({
-      ...roleData,
-      updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    const result = await CloudFunctions.call('saveUserRole', { uid, roleData });
+    return result.data;
   },
 
   // Kullanıcı rolünü Firestore'dan oku
