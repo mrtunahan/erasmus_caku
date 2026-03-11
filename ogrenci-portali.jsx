@@ -2624,7 +2624,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
             ) : post.attachment.type === "application/pdf" || (post.attachment.name && post.attachment.name.toLowerCase().endsWith(".pdf")) ? (
               <div>
                 <iframe
-                  src={post.attachment.url}
+                  src={"https://docs.google.com/gview?embedded=true&url=" + encodeURIComponent(post.attachment.url)}
                   style={{ width: "100%", height: 500, border: "none", display: "block" }}
                   title={post.attachment.name}
                 />
@@ -2635,7 +2635,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
                   }}>
                   <SvgIcon path={ICONS.file} size={20} color={DY.gold} />
                   <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy }}>{post.attachment.name}</div>
-                  <div style={{ fontSize: 11, color: PC.textMuted, marginLeft: "auto" }}>Indir</div>
+                  <div style={{ fontSize: 11, color: PC.textMuted, marginLeft: "auto" }}>İndir</div>
                 </a>
               </div>
             ) : (
