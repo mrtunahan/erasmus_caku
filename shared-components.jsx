@@ -783,6 +783,16 @@ const FirebaseDB = {
     }
   },
 
+  async setDefaultProfessorPassword(adminPassword, defaultPassword) {
+    try {
+      const result = await CloudFunctions.call('setDefaultProfessorPassword', { adminPassword, defaultPassword });
+      return result.data;
+    } catch (error) {
+      console.error('setDefaultProfessorPassword error:', error);
+      throw error;
+    }
+  },
+
   // Geriye uyumluluk (eski fonksiyon isimleri)
   async updatePassword(studentNumber, newPassword) {
     return await FirebaseDB.changePassword('student', studentNumber, newPassword);
