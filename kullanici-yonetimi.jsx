@@ -21,6 +21,9 @@ const KullaniciYonetimiApp = ({ currentUser }) => {
   const [professorPasses, setProfessorPasses] = useState({});
   const [adminPass, setAdminPass] = useState("");
   const [passwordTab, setPasswordTab] = useState("student");
+  const [defaultProfPass, setDefaultProfPass] = useState("");
+  const [defaultProfAdminPass, setDefaultProfAdminPass] = useState("");
+  const [savingDefault, setSavingDefault] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -484,13 +487,43 @@ const KullaniciYonetimiApp = ({ currentUser }) => {
               )}
 
               {passwordTab === "admin" && (
-                <div style={{ padding: 20, textAlign: 'center' }}>
-                  <div style={{ marginBottom: 16, fontWeight: 600, color: C.navy }}>Admin Giriş Şifresi</div>
-                  <div style={{ maxWidth: 300, margin: '0 auto' }}>
-                    <Input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} placeholder="Yeni admin şifresi" style={{ textAlign: 'center', fontSize: 18, letterSpacing: 2 }} />
+                <div style={{ padding: 20 }}>
+                  <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                    <div style={{ marginBottom: 16, fontWeight: 600, color: C.navy }}>Admin Giriş Şifresi</div>
+                    <div style={{ maxWidth: 300, margin: '0 auto' }}>
+                      <Input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} placeholder="Yeni admin şifresi" style={{ textAlign: 'center', fontSize: 18, letterSpacing: 2 }} />
+                    </div>
+                    <div style={{ marginTop: 12, fontSize: 13, color: C.textMuted }}>
+                      Bu şifre ile Admin paneline erişim sağlanır.
+                    </div>
                   </div>
-                  <div style={{ marginTop: 12, fontSize: 13, color: C.textMuted }}>
-                    Bu şifre ile Admin paneline erişim sağlanır.
+
+                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 24, textAlign: 'center' }}>
+                    <div style={{ marginBottom: 16, fontWeight: 600, color: C.navy }}>Varsayılan Akademisyen Şifresi</div>
+                    <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 16 }}>
+                      Şifresi olmayan akademisyenler ilk girişte bu şifreyi kullanır.
+                    </div>
+                    <div style={{ maxWidth: 300, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <Input type="password" value={defaultProfAdminPass} onChange={e => setDefaultProfAdminPass(e.target.value)} placeholder="Admin şifreniz (doğrulama)" />
+                      <Input type="password" value={defaultProfPass} onChange={e => setDefaultProfPass(e.target.value)} placeholder="Yeni varsayılan akademisyen şifresi" />
+                      <Btn small onClick={async () => {
+                        if (!defaultProfAdminPass || !defaultProfPass) return alert('Lütfen tüm alanları doldurun.');
+                        if (defaultProfPass.length < 6) return alert('Şifre en az 6 karakter olmalıdır.');
+                        setSavingDefault(true);
+                        try {
+                          const result = await FirebaseDB.setDefaultProfessorPassword(defaultProfAdminPass, defaultProfPass);
+                          if (result.success) {
+                            alert('Varsayılan akademisyen şifresi güncellendi!');
+                            setDefaultProfPass('');
+                            setDefaultProfAdminPass('');
+                          }
+                        } catch (error) {
+                          alert('Hata: ' + (error.message || 'Bilinmeyen hata'));
+                        } finally {
+                          setSavingDefault(false);
+                        }
+                      }} disabled={savingDefault}>{savingDefault ? 'Kaydediliyor...' : 'Varsayılan Şifreyi Kaydet'}</Btn>
+                    </div>
                   </div>
                 </div>
               )}
