@@ -452,11 +452,9 @@ var PortalDB = {
 
   // Gönderiler
   async createPost(post, isModOrAdmin) {
-    var ref = this.postsRef();
-    if (!ref) throw new Error("Firebase bağlantısı yok");
     var status = isModOrAdmin ? "approved" : "pending";
-    var docRef = await ref.add(Object.assign({}, post, {
-      createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+    var data = Object.assign({}, post, {
+      createdAt: new Date().toISOString(),
       reactions: {},
       upvotes: [],
       downvotes: [],
@@ -465,28 +463,24 @@ var PortalDB = {
       views: 0,
       pinned: false,
       status: status,
-    }));
-    return Object.assign({}, post, { id: docRef.id, status: status });
+    });
+    var result = await window.FirestoreWrite.add("portal_posts", data);
+    return Object.assign({}, post, { id: result.id, status: status });
   },
 
   async approvePost(postId, reviewerName) {
-    var ref = this.postsRef();
-    if (!ref) throw new Error("Firebase bağlantısı yok");
-    await ref.doc(String(postId)).update({
+    await window.FirestoreWrite.update("portal_posts", String(postId), {
       status: "approved",
       reviewedBy: reviewerName,
-      reviewedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      rejectionReason: window.firebase.firestore.FieldValue.delete(),
+      reviewedAt: new Date().toISOString(),
     });
   },
 
   async rejectPost(postId, reviewerName, reason) {
-    var ref = this.postsRef();
-    if (!ref) throw new Error("Firebase bağlantısı yok");
-    await ref.doc(String(postId)).update({
+    await window.FirestoreWrite.update("portal_posts", String(postId), {
       status: "rejected",
       reviewedBy: reviewerName,
-      reviewedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      reviewedAt: new Date().toISOString(),
       rejectionReason: reason || "",
     });
   },
@@ -511,15 +505,11 @@ var PortalDB = {
   },
 
   async updatePost(id, data) {
-    var ref = this.postsRef();
-    if (!ref) throw new Error("Firebase bağlantısı yok");
-    await ref.doc(String(id)).update(data);
+    await window.FirestoreWrite.update("portal_posts", String(id), data);
   },
 
   async deletePost(id) {
-    var ref = this.postsRef();
-    if (!ref) throw new Error("Firebase bağlantısı yok");
-    await ref.doc(String(id)).delete();
+    await window.FirestoreWrite.remove("portal_posts", String(id));
   },
 
   async toggleReaction(postId, reactionType, userId) {
@@ -538,7 +528,7 @@ var PortalDB = {
       reactionList.push(userId);
     }
     reactions[reactionType] = reactionList;
-    await docRef.update({ reactions: reactions });
+    await window.FirestoreWrite.update("portal_posts", String(postId), { reactions: reactions });
     return reactions;
   },
 
@@ -576,24 +566,27 @@ var PortalDB = {
     }
 
     var voteScore = upvotes.length - downvotes.length;
-    await docRef.update({ upvotes: upvotes, downvotes: downvotes, voteScore: voteScore });
+    await window.FirestoreWrite.update("portal_posts", String(postId), { upvotes: upvotes, downvotes: downvotes, voteScore: voteScore });
     return { upvotes: upvotes, downvotes: downvotes, voteScore: voteScore };
   },
 
   // Yorumlar
   async addComment(postId, comment) {
-    var ref = this.commentsRef(postId);
-    if (!ref) throw new Error("Firebase bağlantısı yok");
-    var docRef = await ref.add(Object.assign({}, comment, {
-      createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+    var commentData = Object.assign({}, comment, {
+      createdAt: new Date().toISOString(),
       likes: [],
-    }));
-    // Yorum sayısını artır
-    var postRef = this.postsRef().doc(String(postId));
-    await postRef.update({
-      commentCount: window.firebase.firestore.FieldValue.increment(1),
     });
-    return Object.assign({}, comment, { id: docRef.id });
+    var result = await window.FirestoreWrite.add("portal_posts", commentData, String(postId), "comments");
+    // Yorum sayısını güncelle
+    var postRef = this.postsRef();
+    if (postRef) {
+      var postDoc = await postRef.doc(String(postId)).get();
+      if (postDoc.exists) {
+        var currentCount = (postDoc.data().commentCount || 0) + 1;
+        await window.FirestoreWrite.update("portal_posts", String(postId), { commentCount: currentCount });
+      }
+    }
+    return Object.assign({}, comment, { id: result.id });
   },
 
   async fetchComments(postId) {
@@ -612,9 +605,7 @@ var PortalDB = {
   },
 
   async updateComment(postId, commentId, data) {
-    var ref = this.commentsRef(postId);
-    if (!ref) throw new Error("Firebase bağlantısı yok");
-    await ref.doc(String(commentId)).update(data);
+    await window.FirestoreWrite.update("portal_posts", String(commentId), data, String(postId), "comments");
   },
 
   async deleteComment(postId, commentId) {
@@ -623,18 +614,22 @@ var PortalDB = {
     // Alt yorumları da sil
     var children = await ref.where("parentId", "==", commentId).get();
     var deleteCount = 1;
-    var batch = window.FirebaseDB.db().batch();
+    var ops = [];
     children.docs.forEach(function (doc) {
-      batch.delete(doc.ref);
+      ops.push({ collection: "portal_posts", type: "delete", docId: doc.id, parentDocId: String(postId), subCollection: "comments" });
       deleteCount++;
     });
-    batch.delete(ref.doc(String(commentId)));
-    await batch.commit();
+    ops.push({ collection: "portal_posts", type: "delete", docId: String(commentId), parentDocId: String(postId), subCollection: "comments" });
+    await window.FirestoreWrite.batch(ops);
     // Yorum sayısını azalt
-    var postRef = this.postsRef().doc(String(postId));
-    await postRef.update({
-      commentCount: window.firebase.firestore.FieldValue.increment(-deleteCount),
-    });
+    var postRef = this.postsRef();
+    if (postRef) {
+      var postDoc = await postRef.doc(String(postId)).get();
+      if (postDoc.exists) {
+        var currentCount = Math.max(0, (postDoc.data().commentCount || 0) - deleteCount);
+        await window.FirestoreWrite.update("portal_posts", String(postId), { commentCount: currentCount });
+      }
+    }
     return deleteCount;
   },
 
@@ -652,18 +647,19 @@ var PortalDB = {
     } else {
       likes.push(userId);
     }
-    await docRef.update({ likes: likes });
+    await window.FirestoreWrite.update("portal_posts", String(commentId), { likes: likes }, String(postId), "comments");
     return likes;
   },
 
   // En iyi cevap işaretleme
   async markBestAnswer(postId, commentId) {
-    var postRef = this.postsRef().doc(String(postId));
-    var doc = await postRef.get();
+    var ref = this.postsRef();
+    if (!ref) return null;
+    var doc = await ref.doc(String(postId)).get();
     if (!doc.exists) return null;
     var data = doc.data();
     var newBestAnswer = data.bestAnswerId === commentId ? null : commentId;
-    await postRef.update({ bestAnswerId: newBestAnswer });
+    await window.FirestoreWrite.update("portal_posts", String(postId), { bestAnswerId: newBestAnswer });
     return newBestAnswer;
   },
 
@@ -687,7 +683,7 @@ var PortalDB = {
     var key = String(optionIndex);
     if (!pollVotes[key]) pollVotes[key] = [];
     pollVotes[key].push(userId);
-    await docRef.update({ pollVotes: pollVotes });
+    await window.FirestoreWrite.update("portal_posts", String(postId), { pollVotes: pollVotes });
     return pollVotes;
   },
 
@@ -695,9 +691,10 @@ var PortalDB = {
   async incrementViews(postId) {
     var ref = this.postsRef();
     if (!ref) return;
-    await ref.doc(String(postId)).update({
-      views: window.firebase.firestore.FieldValue.increment(1),
-    });
+    var doc = await ref.doc(String(postId)).get();
+    if (!doc.exists) return;
+    var currentViews = (doc.data().views || 0) + 1;
+    await window.FirestoreWrite.update("portal_posts", String(postId), { views: currentViews });
   },
 
   // ── Moderatör Yönetimi ──
@@ -715,19 +712,15 @@ var PortalDB = {
   },
 
   async addModerator(userId, userName) {
-    var ref = this.moderatorsRef();
-    if (!ref) return;
-    await ref.doc(String(userId)).set({
+    await window.FirestoreWrite.set("portal_moderators", String(userId), {
       userId: userId,
       userName: userName,
-      assignedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      assignedAt: new Date().toISOString(),
     });
   },
 
   async removeModerator(userId) {
-    var ref = this.moderatorsRef();
-    if (!ref) return;
-    await ref.doc(String(userId)).delete();
+    await window.FirestoreWrite.remove("portal_moderators", String(userId));
   },
 
   async isModerator(userId) {
@@ -754,12 +747,10 @@ var PortalDB = {
   },
 
   async addNotification(targetUserId, notification) {
-    var ref = this.notificationsRef(targetUserId);
-    if (!ref) return;
-    await ref.add(Object.assign({}, notification, {
-      createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+    await window.FirestoreWrite.add("portal_notifications", Object.assign({}, notification, {
+      createdAt: new Date().toISOString(),
       read: false,
-    }));
+    }), String(targetUserId), "items");
   },
 
   async fetchNotifications(userId, limit) {
@@ -778,18 +769,18 @@ var PortalDB = {
   },
 
   async markNotificationRead(userId, notifId) {
-    var ref = this.notificationsRef(userId);
-    if (!ref) return;
-    await ref.doc(String(notifId)).update({ read: true });
+    await window.FirestoreWrite.update("portal_notifications", String(notifId), { read: true }, String(userId), "items");
   },
 
   async markAllNotificationsRead(userId) {
     var ref = this.notificationsRef(userId);
     if (!ref) return;
     var snapshot = await ref.where("read", "==", false).get();
-    var batch = window.FirebaseDB.db().batch();
-    snapshot.docs.forEach(function (doc) { batch.update(doc.ref, { read: true }); });
-    await batch.commit();
+    if (snapshot.empty) return;
+    var ops = snapshot.docs.map(function (doc) {
+      return { collection: "portal_notifications", type: "update", docId: doc.id, parentDocId: String(userId), subCollection: "items", data: { read: true } };
+    });
+    await window.FirestoreWrite.batch(ops);
   },
 
   // ── Kullanıcı Profilleri ──
@@ -805,11 +796,9 @@ var PortalDB = {
   },
 
   async updateProfile(userId, data) {
-    var ref = this.profilesRef();
-    if (!ref) return;
-    await ref.doc(String(userId)).set(Object.assign({}, data, {
-      updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-    }), { merge: true });
+    await window.FirestoreWrite.set("portal_profiles", String(userId), Object.assign({}, data, {
+      updatedAt: new Date().toISOString(),
+    }), true);
   },
 
   // ── Takip Sistemi ──
@@ -839,7 +828,7 @@ var PortalDB = {
     } else {
       users.push(targetUserId);
     }
-    await docRef.set(Object.assign({}, data, { users: users }), { merge: true });
+    await window.FirestoreWrite.set("portal_follows", String(currentUserId), Object.assign({}, data, { users: users }), true);
     return users;
   },
 
@@ -856,7 +845,7 @@ var PortalDB = {
     } else {
       tags.push(tag);
     }
-    await docRef.set(Object.assign({}, data, { tags: tags }), { merge: true });
+    await window.FirestoreWrite.set("portal_follows", String(currentUserId), Object.assign({}, data, { tags: tags }), true);
     return tags;
   },
 
@@ -900,11 +889,9 @@ var PortalDB = {
   },
 
   async reportPost(postId, reportData) {
-    var ref = this.reportsRef();
-    if (!ref) throw new Error("Firebase bağlantısı yok");
-    await ref.add(Object.assign({}, reportData, {
+    await window.FirestoreWrite.add("portal_reports", Object.assign({}, reportData, {
       postId: postId,
-      createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      createdAt: new Date().toISOString(),
       status: "pending",
     }));
   },
@@ -925,9 +912,7 @@ var PortalDB = {
   },
 
   async resolveReport(reportId) {
-    var ref = this.reportsRef();
-    if (!ref) return;
-    await ref.doc(String(reportId)).update({ status: "resolved" });
+    await window.FirestoreWrite.update("portal_reports", String(reportId), { status: "resolved" });
   },
 };
 

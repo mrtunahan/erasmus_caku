@@ -360,7 +360,7 @@ exports.adminResetPassword = functions.https.onCall(async (request) => {
 });
 
 // ══════════════════════════════════════════════
-// 7. Varsayılan Profesör Şifresini Ayarla (Admin)
+// 6b. Kullanıcı Rolü Kaydet
 // ══════════════════════════════════════════════
 exports.saveUserRole = functions.https.onCall(async (request) => {
   const { uid, roleData } = request.data;
@@ -414,4 +414,114 @@ exports.setDefaultProfessorPassword = functions.https.onCall(async (request) => 
   }, { merge: true });
 
   return { success: true };
+});
+
+// ══════════════════════════════════════════════
+// 8. Genel Firestore Yazma İşlemleri (CRUD)
+// ══════════════════════════════════════════════
+// İzin verilen koleksiyonlar (güvenlik sınırı)
+const ALLOWED_COLLECTIONS = [
+  "sinav_programi",
+  "sinav_dersler",
+  "sinav_donemler",
+  "professors",
+  "users",
+  "portal_posts",
+  "portal_moderators",
+  "portal_notifications",
+  "portal_profiles",
+  "portal_follows",
+  "portal_reports",
+  "muafiyet_settings",
+  "muafiyet_records",
+];
+
+exports.firestoreWrite = functions.https.onCall(async (request) => {
+  const { operations } = request.data;
+
+  if (!operations || !Array.isArray(operations) || operations.length === 0) {
+    throw new functions.https.HttpsError("invalid-argument", "operations dizisi gerekli.");
+  }
+
+  // Koleksiyon referansı oluştur (subcollection destekli)
+  function getRef(op) {
+    let ref = db.collection(op.collection);
+    if (op.parentDocId && op.subCollection) {
+      ref = ref.doc(op.parentDocId).collection(op.subCollection);
+    }
+    return ref;
+  }
+
+  // Tüm koleksiyonları doğrula
+  for (const op of operations) {
+    if (!ALLOWED_COLLECTIONS.includes(op.collection)) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        `Koleksiyon izni yok: ${op.collection}`
+      );
+    }
+  }
+
+  try {
+    // Tek işlem varsa batch kullanmadan yap
+    if (operations.length === 1) {
+      const op = operations[0];
+      const ref = getRef(op);
+
+      switch (op.type) {
+        case "add": {
+          const docRef = await ref.add(op.data);
+          return { success: true, id: docRef.id };
+        }
+        case "set": {
+          await ref.doc(op.docId).set(op.data, op.merge ? { merge: true } : undefined);
+          return { success: true };
+        }
+        case "update": {
+          await ref.doc(op.docId).update(op.data);
+          return { success: true };
+        }
+        case "delete": {
+          await ref.doc(op.docId).delete();
+          return { success: true };
+        }
+        default:
+          throw new functions.https.HttpsError("invalid-argument", `Geçersiz işlem tipi: ${op.type}`);
+      }
+    }
+
+    // Birden fazla işlem: batch kullan
+    const batch = db.batch();
+    const addedIds = [];
+
+    for (const op of operations) {
+      const ref = getRef(op);
+      switch (op.type) {
+        case "add": {
+          const newRef = ref.doc();
+          batch.set(newRef, op.data);
+          addedIds.push(newRef.id);
+          break;
+        }
+        case "set":
+          batch.set(ref.doc(op.docId), op.data, op.merge ? { merge: true } : undefined);
+          break;
+        case "update":
+          batch.update(ref.doc(op.docId), op.data);
+          break;
+        case "delete":
+          batch.delete(ref.doc(op.docId));
+          break;
+        default:
+          throw new functions.https.HttpsError("invalid-argument", `Geçersiz işlem tipi: ${op.type}`);
+      }
+    }
+
+    await batch.commit();
+    return { success: true, ids: addedIds };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error("firestoreWrite error:", error);
+    throw new functions.https.HttpsError("internal", "Yazma hatası: " + error.message);
+  }
 });
