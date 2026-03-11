@@ -362,6 +362,28 @@ exports.adminResetPassword = functions.https.onCall(async (request) => {
 // ══════════════════════════════════════════════
 // 7. Varsayılan Profesör Şifresini Ayarla (Admin)
 // ══════════════════════════════════════════════
+exports.saveUserRole = functions.https.onCall(async (request) => {
+  const { uid, roleData } = request.data;
+
+  if (!uid || !roleData) {
+    throw new functions.https.HttpsError("invalid-argument", "uid ve roleData gerekli.");
+  }
+
+  try {
+    await db.collection("users").doc(uid).set({
+      ...roleData,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { success: true };
+  } catch (error) {
+    console.error("saveUserRole error:", error);
+    throw new functions.https.HttpsError("internal", "Rol kaydedilemedi.");
+  }
+});
+
+// ══════════════════════════════════════════════
+// 7. Varsayılan Profesör Şifresini Ayarla (Admin)
+// ══════════════════════════════════════════════
 exports.setDefaultProfessorPassword = functions.https.onCall(async (request) => {
   const { adminPassword, defaultPassword } = request.data;
 
