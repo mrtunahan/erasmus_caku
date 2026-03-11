@@ -404,6 +404,36 @@ const CloudFunctions = {
 };
 window.CloudFunctions = CloudFunctions;
 
+// ── Firestore yazma yardımcısı (Cloud Functions üzerinden) ──
+const FirestoreWrite = {
+  async single(collection, type, data, docId, merge, parentDocId, subCollection) {
+    const op = { collection, type, data };
+    if (docId) op.docId = docId;
+    if (merge) op.merge = true;
+    if (parentDocId) op.parentDocId = parentDocId;
+    if (subCollection) op.subCollection = subCollection;
+    const result = await CloudFunctions.call('firestoreWrite', { operations: [op] });
+    return result.data;
+  },
+  async add(collection, data, parentDocId, subCollection) {
+    return this.single(collection, 'add', data, null, false, parentDocId, subCollection);
+  },
+  async set(collection, docId, data, merge = false) {
+    return this.single(collection, 'set', data, docId, merge);
+  },
+  async update(collection, docId, data, parentDocId, subCollection) {
+    return this.single(collection, 'update', data, docId, false, parentDocId, subCollection);
+  },
+  async remove(collection, docId, parentDocId, subCollection) {
+    return this.single(collection, 'delete', null, docId, false, parentDocId, subCollection);
+  },
+  async batch(operations) {
+    const result = await CloudFunctions.call('firestoreWrite', { operations });
+    return result.data;
+  }
+};
+window.FirestoreWrite = FirestoreWrite;
+
 const FirebaseDB = {
   db: () => {
     if (!window.firebase) {

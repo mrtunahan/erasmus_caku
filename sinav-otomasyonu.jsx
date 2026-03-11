@@ -362,12 +362,10 @@ const PeriodConfigModal = ({ period, onSave, onClose }) => {
         weeks: selectedType.weeks,
         label: `${selectedType.label} - ${semester}`,
       };
-      const ref = getPeriodsRef();
-      if (!ref) throw new Error("Firebase hazır değil");
       if (period?.id) {
-        await ref.doc(period.id).update(data);
+        await FirestoreWrite.update("sinav_donemler", period.id, data);
       } else {
-        await ref.add(data);
+        await FirestoreWrite.add("sinav_donemler", data);
       }
       onSave();
     } catch (e) {
@@ -1279,7 +1277,6 @@ function SinavOtomasyonuApp({ currentUser }) {
 
   // ── Seed data to Firebase ──
   const seedData = async () => {
-    // ... existing seedData implementation ...
     const cRef = getCoursesRef();
     const pRef = getProfessorsRef();
     if (!cRef || !pRef) { alert("Firebase bağlantısı yok!"); return; }
@@ -1287,21 +1284,19 @@ function SinavOtomasyonuApp({ currentUser }) {
       const existingCourses = await cRef.get();
       if (!existingCourses.empty) {
         if (!confirm("Veritabanında zaten dersler var. Üzerine yazılsın mı?")) return;
-        const batch1 = window.firebase.firestore().batch();
-        existingCourses.docs.forEach(doc => batch1.delete(doc.ref));
-        await batch1.commit();
+        const delOps1 = existingCourses.docs.map(doc => ({ collection: "sinav_dersler", type: "delete", docId: doc.id }));
+        if (delOps1.length > 0) await FirestoreWrite.batch(delOps1);
       }
       const existingProfs = await pRef.get();
       if (!existingProfs.empty) {
-        const batch2 = window.firebase.firestore().batch();
-        existingProfs.docs.forEach(doc => batch2.delete(doc.ref));
-        await batch2.commit();
+        const delOps2 = existingProfs.docs.map(doc => ({ collection: "professors", type: "delete", docId: doc.id }));
+        if (delOps2.length > 0) await FirestoreWrite.batch(delOps2);
       }
       for (const prof of SEED_PROFESSORS) {
-        await pRef.add({ ...prof, createdAt: new Date().toISOString() });
+        await FirestoreWrite.add("professors", { ...prof, createdAt: new Date().toISOString() });
       }
       for (const course of SEED_COURSES) {
-        await cRef.add({ ...course, studentCount: 0, createdAt: new Date().toISOString() });
+        await FirestoreWrite.add("sinav_dersler", { ...course, studentCount: 0, createdAt: new Date().toISOString() });
       }
       alert("Veriler başarıyla yüklendi!");
       loadData();
@@ -1320,7 +1315,7 @@ function SinavOtomasyonuApp({ currentUser }) {
       const snap = await cRef.get();
       const existing = snap.docs.map(d => ({ fireId: d.id, ...d.data() }));
 
-      const batch = window.firebase.firestore().batch();
+      const ops = [];
       let added = 0;
       let updated = 0;
 
@@ -1329,20 +1324,18 @@ function SinavOtomasyonuApp({ currentUser }) {
         if (found) {
           // Update if different
           if (found.name !== seedC.name || found.sinif !== seedC.sinif || found.donem !== seedC.donem) {
-            const docRef = cRef.doc(found.fireId);
-            batch.update(docRef, { name: seedC.name, sinif: seedC.sinif, duration: seedC.duration, donem: seedC.donem || "guz" });
+            ops.push({ collection: "sinav_dersler", type: "update", docId: found.fireId, data: { name: seedC.name, sinif: seedC.sinif, duration: seedC.duration, donem: seedC.donem || "guz" } });
             updated++;
           }
         } else {
           // Add new
-          const newRef = cRef.doc();
-          batch.set(newRef, { ...seedC, studentCount: 0, createdAt: new Date().toISOString() });
+          ops.push({ collection: "sinav_dersler", type: "add", data: { ...seedC, studentCount: 0, createdAt: new Date().toISOString() } });
           added++;
         }
       }
 
       if (added > 0 || updated > 0) {
-        await batch.commit();
+        await FirestoreWrite.batch(ops);
         alert(`İşlem tamamlandı: ${added} ders eklendi, ${updated} ders güncellendi.`);
         loadData();
       } else {
@@ -1477,10 +1470,8 @@ function SinavOtomasyonuApp({ currentUser }) {
     };
 
     try {
-      const ref = getExamsRef();
-      if (!ref) throw new Error("Firebase hazır değil");
-      const docRef = await ref.add(examData);
-      setPlacedExams(prev => [...prev, { id: docRef.id, ...examData }]);
+      const result = await FirestoreWrite.add("sinav_programi", examData);
+      setPlacedExams(prev => [...prev, { id: result.id, ...examData }]);
     } catch (e) {
       console.error("Drop save error:", e);
       alert("Kayıt hatası: " + e.message);
@@ -1489,10 +1480,8 @@ function SinavOtomasyonuApp({ currentUser }) {
 
   const handleUpdateExam = async (updatedExam) => {
     try {
-      const ref = getExamsRef();
-      if (!ref) throw new Error("Firebase hazır değil");
       const { id, ...data } = updatedExam;
-      await ref.doc(id).update(data);
+      await FirestoreWrite.update("sinav_programi", id, data);
       setPlacedExams(prev => prev.map(e => e.id === id ? updatedExam : e));
     } catch (e) {
       console.error("Update error:", e);
@@ -1502,9 +1491,7 @@ function SinavOtomasyonuApp({ currentUser }) {
 
   const handleRemoveExam = async (exam) => {
     try {
-      const ref = getExamsRef();
-      if (!ref) throw new Error("Firebase hazır değil");
-      await ref.doc(exam.id).delete();
+      await FirestoreWrite.remove("sinav_programi", exam.id);
       setPlacedExams(prev => prev.filter(e => e.id !== exam.id));
     } catch (e) {
       console.error("Remove error:", e);
@@ -1516,25 +1503,20 @@ function SinavOtomasyonuApp({ currentUser }) {
     if (!confirm(`${course.code} - ${course.name} dersini silmek istediğinize emin misiniz?`)) return;
 
     try {
-      const cRef = getCoursesRef();
-      const exRef = getExamsRef();
-      if (!cRef || !exRef) throw new Error("Firebase hazır değil");
-
       // Check for placed exams
       const linkedExams = placedExams.filter(e => e.courseId === course.id);
       if (linkedExams.length > 0) {
         if (!confirm(`Bu derse ait ${linkedExams.length} adet sınav planlanmış durumda. Dersi silerseniz bu sınavlar da takvimden silinecek. Devam etmek istiyor musunuz?`)) return;
 
-        // Cascade delete exams
-        const batch = window.firebase.firestore().batch();
-        linkedExams.forEach(e => {
-          batch.delete(exRef.doc(e.id));
-        });
-        await batch.commit();
+        // Cascade delete exams + course in one batch
+        const ops = linkedExams.map(e => ({ collection: "sinav_programi", type: "delete", docId: e.id }));
+        ops.push({ collection: "sinav_dersler", type: "delete", docId: course.id });
+        await FirestoreWrite.batch(ops);
         setPlacedExams(prev => prev.filter(e => e.courseId !== course.id));
+      } else {
+        await FirestoreWrite.remove("sinav_dersler", course.id);
       }
 
-      await cRef.doc(course.id).delete();
       alert("Ders silindi.");
       loadData();
     } catch (e) {
@@ -1545,12 +1527,10 @@ function SinavOtomasyonuApp({ currentUser }) {
 
   const handleCourseSave = async (existingCourse, formData) => {
     try {
-      const ref = getCoursesRef();
-      if (!ref) throw new Error("Firebase hazır değil");
       if (existingCourse) {
-        await ref.doc(existingCourse.id).update(formData);
+        await FirestoreWrite.update("sinav_dersler", existingCourse.id, formData);
       } else {
-        await ref.add({ ...formData, studentCount: 0, createdAt: new Date().toISOString() });
+        await FirestoreWrite.add("sinav_dersler", { ...formData, studentCount: 0, createdAt: new Date().toISOString() });
       }
       loadData();
     } catch (e) {
@@ -1567,15 +1547,14 @@ function SinavOtomasyonuApp({ currentUser }) {
   const handleDeletePeriod = async (periodId) => {
     if (!confirm("Bu dönemi silmek istediğinize emin misiniz? Bu döneme ait tüm sınav yerleştirmeleri de silinecek.")) return;
     try {
-      const perRef = getPeriodsRef();
+      const ops = [{ collection: "sinav_donemler", type: "delete", docId: periodId }];
+      // İlişkili sınavları da sil
       const exRef = getExamsRef();
-      if (perRef) await perRef.doc(periodId).delete();
       if (exRef) {
         const snap = await exRef.where("periodId", "==", periodId).get();
-        const batch = window.firebase.firestore().batch();
-        snap.docs.forEach(doc => batch.delete(doc.ref));
-        await batch.commit();
+        snap.docs.forEach(doc => ops.push({ collection: "sinav_programi", type: "delete", docId: doc.id }));
       }
+      await FirestoreWrite.batch(ops);
       if (activePeriodId === periodId) setActivePeriodId(null);
       loadData();
     } catch (e) {
@@ -1590,9 +1569,8 @@ function SinavOtomasyonuApp({ currentUser }) {
       const ref = getExamsRef();
       if (!ref) { alert("Firebase bağlantısı yok!"); return; }
       const snap = await ref.where("periodId", "==", activePeriodId).get();
-      const batch = window.firebase.firestore().batch();
-      snap.docs.forEach(doc => batch.delete(doc.ref));
-      await batch.commit();
+      const ops = snap.docs.map(doc => ({ collection: "sinav_programi", type: "delete", docId: doc.id }));
+      if (ops.length > 0) await FirestoreWrite.batch(ops);
       setPlacedExams(prev => prev.filter(e => e.periodId !== activePeriodId));
     } catch (e) {
       alert("Sıfırlama hatası: " + e.message);

@@ -582,8 +582,7 @@ var MuafiyetDB = {
     return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("muafiyet_records") : null;
   },
   async saveCourseContents(contents) {
-    var ref = this.settingsRef(); if (!ref) throw new Error("Firebase bağlantısı yok");
-    await ref.doc("course_contents").set({ courses: contents, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+    await window.FirestoreWrite.set("muafiyet_settings", "course_contents", { courses: contents, updatedAt: new Date().toISOString() });
   },
   async fetchCourseContents() {
     var ref = this.settingsRef(); if (!ref) return [];
@@ -591,8 +590,7 @@ var MuafiyetDB = {
     return doc.exists ? (doc.data().courses || []) : [];
   },
   async saveGradingSystem(system) {
-    var ref = this.settingsRef(); if (!ref) throw new Error("Firebase bağlantısı yok");
-    await ref.doc("grading_system").set({ grades: system, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+    await window.FirestoreWrite.set("muafiyet_settings", "grading_system", { grades: system, updatedAt: new Date().toISOString() });
   },
   async fetchGradingSystem() {
     var ref = this.settingsRef(); if (!ref) return null;
@@ -600,10 +598,9 @@ var MuafiyetDB = {
     return doc.exists ? (doc.data().grades || null) : null;
   },
   async saveRecord(record) {
-    var ref = this.recordsRef(); if (!ref) throw new Error("Firebase bağlantısı yok");
     var id = record.id; var data = Object.assign({}, record); delete data.id;
-    if (id) { await ref.doc(String(id)).update(Object.assign({}, data, { updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() })); return record; }
-    else { var docRef = await ref.add(Object.assign({}, data, { createdAt: window.firebase.firestore.FieldValue.serverTimestamp() })); return Object.assign({}, record, { id: docRef.id }); }
+    if (id) { await window.FirestoreWrite.update("muafiyet_records", String(id), Object.assign({}, data, { updatedAt: new Date().toISOString() })); return record; }
+    else { var result = await window.FirestoreWrite.add("muafiyet_records", Object.assign({}, data, { createdAt: new Date().toISOString() })); return Object.assign({}, record, { id: result.id }); }
   },
   async fetchRecords() {
     var ref = this.recordsRef(); if (!ref) return [];
@@ -611,8 +608,7 @@ var MuafiyetDB = {
     return snapshot.docs.map(function (doc) { return Object.assign({}, doc.data(), { id: doc.id }); });
   },
   async deleteRecord(id) {
-    var ref = this.recordsRef(); if (!ref) throw new Error("Firebase bağlantısı yok");
-    await ref.doc(String(id)).delete();
+    await window.FirestoreWrite.remove("muafiyet_records", String(id));
   },
 };
 
