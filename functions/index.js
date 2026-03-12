@@ -434,6 +434,8 @@ const ALLOWED_COLLECTIONS = [
   "portal_reports",
   "muafiyet_settings",
   "muafiyet_records",
+  "projects",
+  "project_courses",
 ];
 
 exports.firestoreWrite = functions.https.onCall(async (request) => {
