@@ -96,10 +96,10 @@ var ProjDB = {
   },
   async addCourse(data) {
     try {
-      var db = this.db();
-      return await db.collection("project_courses").add(Object.assign({}, data, {
-        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      var result = await window.FirestoreWrite.add("project_courses", Object.assign({}, data, {
+        createdAt: new Date().toISOString(),
       }));
+      return result;
     } catch (e) {
       console.error("Ders eklenemedi:", e);
       throw e;
@@ -107,8 +107,7 @@ var ProjDB = {
   },
   async deleteCourse(id) {
     try {
-      var db = this.db();
-      await db.collection("project_courses").doc(id).delete();
+      await window.FirestoreWrite.remove("project_courses", id);
     } catch (e) {
       console.error("Ders silinemedi:", e);
       throw e;
@@ -137,10 +136,10 @@ var ProjDB = {
   },
   async createProject(data) {
     try {
-      var db = this.db();
-      return await db.collection("projects").add(Object.assign({}, data, {
-        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      var result = await window.FirestoreWrite.add("projects", Object.assign({}, data, {
+        createdAt: new Date().toISOString(),
       }));
+      return result;
     } catch (e) {
       console.error("Proje oluşturulamadı:", e);
       throw e;
@@ -148,8 +147,7 @@ var ProjDB = {
   },
   async deleteProject(id) {
     try {
-      var db = this.db();
-      await db.collection("projects").doc(id).delete();
+      await window.FirestoreWrite.remove("projects", id);
     } catch (e) {
       console.error("Proje silinemedi:", e);
       throw e;
