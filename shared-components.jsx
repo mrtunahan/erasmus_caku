@@ -574,15 +574,9 @@ const FirebaseDB = {
   },
   async addStudent(student) {
     try {
-      const ref = FirebaseDB.studentsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
       const { id: _id, ...data } = student;
-      const docRef = await ref.add({
-        ...data,
-        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      });
-      return { ...student, id: docRef.id };
+      const result = await FirestoreWrite.add('students', data);
+      return { ...student, id: result.id };
     } catch (error) {
       console.error('Error adding student:', error);
       throw error;
@@ -590,13 +584,8 @@ const FirebaseDB = {
   },
   async updateStudent(id, student) {
     try {
-      const ref = FirebaseDB.studentsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
       const { id: _id, ...data } = student;
-      await ref.doc(String(id)).update({
-        ...data,
-        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      });
+      await FirestoreWrite.update('students', String(id), data);
       return student;
     } catch (error) {
       console.error('Error updating student:', error);
@@ -605,9 +594,7 @@ const FirebaseDB = {
   },
   async deleteStudent(id) {
     try {
-      const ref = FirebaseDB.studentsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
-      await ref.doc(String(id)).delete();
+      await FirestoreWrite.remove('students', String(id));
       return true;
     } catch (error) {
       console.error('Error deleting student:', error);

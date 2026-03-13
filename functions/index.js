@@ -421,6 +421,7 @@ exports.setDefaultProfessorPassword = functions.https.onCall(async (request) => 
 // ══════════════════════════════════════════════
 // İzin verilen koleksiyonlar (güvenlik sınırı)
 const ALLOWED_COLLECTIONS = [
+  "students",
   "sinav_programi",
   "sinav_dersler",
   "sinav_donemler",
@@ -464,6 +465,20 @@ exports.firestoreWrite = functions.https.onCall(async (request) => {
     }
   }
 
+  // Timestamp alanlarını temizle ve sunucu timestamp'i ekle
+  function addTimestamps(data, isNew) {
+    const cleaned = {};
+    for (const [key, value] of Object.entries(data || {})) {
+      // Client-side FieldValue.serverTimestamp() serialize edilemez, atla
+      if (value && typeof value === "object" && value._methodName) continue;
+      cleaned[key] = value;
+    }
+    const ts = admin.firestore.FieldValue.serverTimestamp();
+    cleaned.updatedAt = ts;
+    if (isNew) cleaned.createdAt = ts;
+    return cleaned;
+  }
+
   try {
     // Tek işlem varsa batch kullanmadan yap
     if (operations.length === 1) {
@@ -472,15 +487,15 @@ exports.firestoreWrite = functions.https.onCall(async (request) => {
 
       switch (op.type) {
         case "add": {
-          const docRef = await ref.add(op.data);
+          const docRef = await ref.add(addTimestamps(op.data, true));
           return { success: true, id: docRef.id };
         }
         case "set": {
-          await ref.doc(op.docId).set(op.data, op.merge ? { merge: true } : undefined);
+          await ref.doc(op.docId).set(addTimestamps(op.data, true), op.merge ? { merge: true } : undefined);
           return { success: true };
         }
         case "update": {
-          await ref.doc(op.docId).update(op.data);
+          await ref.doc(op.docId).update(addTimestamps(op.data, false));
           return { success: true };
         }
         case "delete": {
@@ -501,15 +516,15 @@ exports.firestoreWrite = functions.https.onCall(async (request) => {
       switch (op.type) {
         case "add": {
           const newRef = ref.doc();
-          batch.set(newRef, op.data);
+          batch.set(newRef, addTimestamps(op.data, true));
           addedIds.push(newRef.id);
           break;
         }
         case "set":
-          batch.set(ref.doc(op.docId), op.data, op.merge ? { merge: true } : undefined);
+          batch.set(ref.doc(op.docId), addTimestamps(op.data, true), op.merge ? { merge: true } : undefined);
           break;
         case "update":
-          batch.update(ref.doc(op.docId), op.data);
+          batch.update(ref.doc(op.docId), addTimestamps(op.data, false));
           break;
         case "delete":
           batch.delete(ref.doc(op.docId));
