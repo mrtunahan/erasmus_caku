@@ -114,7 +114,7 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
           }} />
           <div>
             <div style={{ color: "white", fontSize: isMobile ? 14 : 16, fontWeight: 700, fontFamily: "'Playfair Display', serif", letterSpacing: "0.02em" }}>
-              Online Assistant
+              Online Asistan
             </div>
             <div style={{ color: "rgba(255,255,255,0.6)", fontSize: isMobile ? 10 : 11 }}>
               Çankırı Karatekin Üniversitesi

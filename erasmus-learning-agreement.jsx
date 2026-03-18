@@ -339,7 +339,7 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
       {type === "return" && (
         <div style={{ padding: 16, background: "#E3F2FD", border: "2px solid #2196F3", borderRadius: 12, marginBottom: 20 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: "#1565C0", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>Duzenleme Ipucu</div>
-          <div style={{ fontSize: 13, color: "#424242" }}>Bu eslestirme gidis verileriyle dolduruldu. Ogrenci farkli bir ders aldiysa asagidaki alanlardan duzenleyebilirsiniz.</div>
+          <div style={{ fontSize: 13, color: "#424242" }}>Bu eşleştirme gidiş verileriyle dolduruldu. Öğrenci farklı bir ders aldıysa aşağıdaki alanlardan düzenleyebilirsiniz.</div>
         </div>
       )}
       <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: r.isMobile ? "1fr" : "1fr auto 1fr", gap: r.val(16, 20, 24) }}>
@@ -543,7 +543,7 @@ const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentI
         homeGrade: entry.homeGrade,
         hostGrades: entry.hostGrades,
         homeGrades: entry.homeGrades,
-        fromStudent: `${entry.studentName || 'Gecmis Kayit'}`,
+        fromStudent: `${entry.studentName || 'Geçmiş Kayıt'}`,
         fromSemester: entry.semester,
         fromHistory: true,
       });
@@ -568,14 +568,14 @@ const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentI
       <div style={{ background: C.card, borderRadius: 16, maxWidth: "min(950px, 100vw - 32px)", width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
         <div style={{ padding: r.val(16, 20, 24), borderBottom: `2px solid ${C.border}` }}>
           <h3 style={{ margin: 0, fontSize: r.val(18, 20, 22), fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 6 }}>
-            Onceki Eslestirmelerden Sec
+            Önceki Eşleştirmelerden Seç
           </h3>
           <p style={{ margin: 0, color: C.textMuted, fontSize: 14 }}>
-            {hostInstitution} icin daha once yapilmis {matchType === "outgoing" ? "gidis" : "donus"} eslestirmeleri
+            {hostInstitution} için daha önce yapılmış {matchType === "outgoing" ? "gidiş" : "dönüş"} eşleştirmeleri
           </p>
           {institutionMatches.length === 0 && (
             <div style={{ marginTop: 16, padding: 16, background: "#FFF9E6", border: "2px dashed #FDB022", borderRadius: 10, color: C.navy, fontSize: 14, textAlign: "center" }}>
-              Bu kurum icin daha once yapilmis eslestirme bulunamadi.
+              Bu kurum için daha önce yapılmış eşleştirme bulunamadı.
             </div>
           )}
         </div>
@@ -616,7 +616,7 @@ const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentI
                         </div>
                         <div style={{ fontSize: 11, color: C.textMuted, fontStyle: "italic", display: "flex", alignItems: "center", gap: 8 }}>
                           Kaynak: {match.fromStudent}{match.fromSemester ? ` (${match.fromSemester})` : ''}
-                          {match.fromHistory && <span style={{ padding: "1px 6px", background: "#E3F2FD", color: "#1565C0", borderRadius: 4, fontSize: 10, fontWeight: 600, fontStyle: "normal" }}>Gecmis Kayit</span>}
+                          {match.fromHistory && <span style={{ padding: "1px 6px", background: "#E3F2FD", color: "#1565C0", borderRadius: 4, fontSize: 10, fontWeight: 600, fontStyle: "normal" }}>Geçmiş Kayıt</span>}
                         </div>
                       </div>
                     </div>
@@ -628,8 +628,8 @@ const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentI
         )}
         <div style={{ padding: 24, borderTop: `2px solid ${C.border}`, background: C.bg }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 14, color: C.textMuted }}>Secili: <strong>{selectedMatches.length}</strong> eslestirme</div>
-            <div style={{ fontSize: 14, color: C.navy, fontWeight: 600 }}>Toplam: <strong>{institutionMatches.length}</strong> mevcut eslestirme</div>
+            <div style={{ fontSize: 14, color: C.textMuted }}>Seçili: <strong>{selectedMatches.length}</strong> eşleştirme</div>
+            <div style={{ fontSize: 14, color: C.navy, fontWeight: 600 }}>Toplam: <strong>{institutionMatches.length}</strong> mevcut eşleştirme</div>
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Btn onClick={onClose} variant="secondary">Iptal</Btn>
@@ -776,7 +776,7 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
   });
 
   const handleDelete = async (entryId) => {
-    if (!confirm("Bu gecmis kaydini silmek istediginizden emin misiniz?")) return;
+    if (!confirm("Bu geçmiş kaydını silmek istediğinizden emin misiniz?")) return;
     try {
       await FirebaseDB.deleteTripHistoryEntry(entryId);
       setHistory(prev => prev.filter(h => h.id !== entryId));
@@ -790,12 +790,12 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
   const totalCourses = grouped.reduce((sum, e) => sum + (e.homeCourses || []).length + (e.hostCourses || []).length, 0);
 
   return (
-    <Modal open={true} onClose={onClose} title="Eslestirme Gecmisi" width={1100}>
+    <Modal open={true} onClose={onClose} title="Eşleştirme Geçmişi" width={1100}>
       {/* Filters */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
         <select value={selectedUni} onChange={e => loadHistory(e.target.value)}
           style={{ padding: "10px 16px", border: `2px solid ${selectedUni ? C.navy : C.border}`, borderRadius: 10, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer", minWidth: 280, transition: "border-color 0.2s", outline: "none" }}>
-          <option value="">Universite Secin...</option>
+          <option value="">Üniversite Seçin...</option>
           {uniList.map(uni => <option key={uni} value={uni}>{uni}</option>)}
         </select>
         {selectedUni && (
@@ -823,7 +823,7 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
       {selectedUni && !loading && grouped.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
           {[
-            { label: "Toplam Eslestirme", value: grouped.length, color: C.navy, bg: "#EEF0F5" },
+            { label: "Toplam Eşleştirme", value: grouped.length, color: C.navy, bg: "#EEF0F5" },
             { label: "Gidis", value: outgoingCount, color: C.green, bg: C.greenLight },
             { label: "Donus", value: returnCount, color: "#B8860B", bg: C.goldPale },
           ].map((stat, i) => (
@@ -841,8 +841,8 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke={C.border} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16, opacity: 0.5 }}>
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
             </svg>
-            <div style={{ fontSize: 16, fontWeight: 600, color: C.navy, marginBottom: 6 }}>Universite Secin</div>
-            <div style={{ fontSize: 13 }}>Gecmis ders eslestirmelerini goruntulemek icin yukaridaki listeden bir universite secin.</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: C.navy, marginBottom: 6 }}>Üniversite Seçin</div>
+            <div style={{ fontSize: 13 }}>Geçmiş ders eşleştirmelerini görüntülemek için yukarıdaki listeden bir üniversite seçin.</div>
           </div>
         )}
         {selectedUni && loading && (
@@ -857,7 +857,7 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
               <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <div style={{ fontSize: 15, fontWeight: 600, color: C.navy, marginBottom: 6 }}>Henuz kayit bulunamadi</div>
-            <div style={{ fontSize: 13, color: C.textMuted }}>Ogrenci eslestirmeleri kaydedildikce otomatik olarak buraya eklenecektir.</div>
+            <div style={{ fontSize: 13, color: C.textMuted }}>Öğrenci eşleştirmeleri kaydedildikçe otomatik olarak buraya eklenecektir.</div>
           </div>
         )}
         {selectedUni && !loading && grouped.length > 0 && (
@@ -894,7 +894,7 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
                     </span>
                     {/* Summary */}
                     <div style={{ flex: 1, fontSize: 13, color: C.navy, fontWeight: 500 }}>
-                      {(entry.homeCourses || []).length} ders eslestirmesi
+                      {(entry.homeCourses || []).length} ders eşleştirmesi
                     </div>
                     {/* Student count */}
                     <div style={{ fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
@@ -1384,7 +1384,7 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         }
         const fetchedStudents = await FirebaseDB.fetchStudents();
         setStudents(fetchedStudents);
-        // Mevcut ogrencilerin eslestirmelerini gecmise kaydet (ilk seferde)
+        // Mevcut öğrencilerin eşleştirmelerini geçmişe kaydet (ilk seferde)
         fetchedStudents.forEach(s => {
           if ((s.outgoingMatches?.length > 0 || s.returnMatches?.length > 0) && s.hostInstitution) {
             FirebaseDB.syncStudentToTripHistory(s).catch(() => {});
@@ -1433,13 +1433,13 @@ function ErasmusLearningAgreementApp({ currentUser }) {
         // Öğrenci bir sonraki girişte yeni şifre belirleyecek
         console.log('Öğrenci numarası değişti:', originalStudent.studentNumber, '->', updatedStudent.studentNumber);
       }
-      // Otomatik olarak eslestirme gecmisine kaydet
+      // Otomatik olarak eşleştirme geçmişine kaydet
       FirebaseDB.syncStudentToTripHistory(updatedStudent).catch(err =>
         console.error('Trip history sync error:', err)
       );
       setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
       setSelectedStudent(null);
-      alert('Degisiklikler kaydedildi!');
+      alert('Değişiklikler kaydedildi!');
     } catch (error) {
       console.error('Save error:', error);
       alert('Kayit sirasinda hata olustu.');
@@ -1464,7 +1464,7 @@ function ErasmusLearningAgreementApp({ currentUser }) {
   };
 
   const handleDeleteStudent = async (id) => {
-    if (confirm("Bu ogrenciyi silmek istediginizden emin misiniz?")) {
+    if (confirm("Bu öğrenciyi silmek istediğinizden emin misiniz?")) {
       try {
         await FirebaseDB.deleteStudent(id);
         setStudents(prev => prev.filter(s => s.id !== id));
@@ -1475,8 +1475,8 @@ function ErasmusLearningAgreementApp({ currentUser }) {
   };
 
   const exportAllData = () => {
-    const data = students.map(s => ({ "Ogrenci Numarasi": s.studentNumber, "Ad": s.firstName, "Soyad": s.lastName, "Karsi Kurum": s.hostInstitution, "Ulke": s.hostCountry, "Gidis": (s.outgoingMatches || []).length, "Donus": (s.returnMatches || []).length }));
-    if (data.length === 0) { alert('Disa aktarilacak ogrenci bulunamadi.'); return; }
+    const data = students.map(s => ({ "Öğrenci Numarası": s.studentNumber, "Ad": s.firstName, "Soyad": s.lastName, "Karşı Kurum": s.hostInstitution, "Ülke": s.hostCountry, "Gidiş": (s.outgoingMatches || []).length, "Dönüş": (s.returnMatches || []).length }));
+    if (data.length === 0) { alert('Dışa aktarılacak öğrenci bulunamadı.'); return; }
     const csv = [Object.keys(data[0]).join(","), ...data.map(row => Object.values(row).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -1510,7 +1510,7 @@ function ErasmusLearningAgreementApp({ currentUser }) {
               <div style={{ fontSize: 28 }}>&#128274;</div>
               <div>
                 <div style={{ fontWeight: 700, color: "#856404", fontSize: 16, marginBottom: 4 }}>Salt Okunur Mod - Erasmus Yetkisi Gerekli</div>
-                <div style={{ fontSize: 13, color: "#856404" }}>Gecmis ders eslestirmelerini goruntuleyebilirsiniz ancak degisiklik yapmak icin Erasmus yetkisi verilmesi gerekmektedir. Yetki almak icin bolum koordinatorunuze basvurunuz.</div>
+                <div style={{ fontSize: 13, color: "#856404" }}>Geçmiş ders eşleştirmelerini görüntüleyebilirsiniz ancak değişiklik yapmak için Erasmus yetkisi verilmesi gerekmektedir. Yetki almak için bölüm koordinatörünüze başvurunuz.</div>
               </div>
             </div>
           </Card>
@@ -1533,7 +1533,7 @@ function ErasmusLearningAgreementApp({ currentUser }) {
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {/* Trip History button visible to all users */}
-              <Btn onClick={() => setShowTripHistory(true)} variant="secondary" icon={<FileTextIcon />}>Eslestirme Gecmisi</Btn>
+              <Btn onClick={() => setShowTripHistory(true)} variant="secondary" icon={<FileTextIcon />}>Eşleştirme Geçmişi</Btn>
               {currentUser?.role === 'admin' && (
                 <>
                   <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
@@ -1596,10 +1596,10 @@ function ErasmusLearningAgreementApp({ currentUser }) {
                     <td style={{ padding: "16px 24px", textAlign: "center" }}><Badge color={C.gold} bg={C.goldPale}>{(student.returnMatches || []).length} eşleştirme</Badge></td>
                     <td style={{ padding: "16px 24px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                        <Btn onClick={() => setSelectedStudent(student)} variant="secondary" small icon={<FileTextIcon />}>{canEdit(student) ? 'Detay & Düzenle' : 'Detay'}</Btn>
-                        <button onClick={() => generateOutgoingWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#E6F4EA", color: "#1E7E34", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Gidiş</button>
-                        {(student.returnMatches || []).length > 0 && (
-                          <button onClick={() => generateReturnWordDoc(student)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FFF3E0", color: "#E65100", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Dönüş</button>
+                        <Btn onClick={isStudentWithoutErasmus ? undefined : () => setSelectedStudent(student)} variant="secondary" small icon={<FileTextIcon />} style={isStudentWithoutErasmus ? { opacity: 0.45, cursor: "not-allowed", pointerEvents: "none" } : {}}>{canEdit(student) ? 'Detay & Düzenle' : 'Detay'}</Btn>
+                        <button onClick={isStudentWithoutErasmus ? undefined : () => generateOutgoingWordDoc(student)} disabled={isStudentWithoutErasmus} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#E6F4EA", color: "#1E7E34", cursor: isStudentWithoutErasmus ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 500, opacity: isStudentWithoutErasmus ? 0.45 : 1 }}>Gidiş</button>
+                        {((student.returnMatches || []).length > 0 || isStudentWithoutErasmus) && (
+                          <button onClick={isStudentWithoutErasmus ? undefined : () => generateReturnWordDoc(student)} disabled={isStudentWithoutErasmus} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FFF3E0", color: "#E65100", cursor: isStudentWithoutErasmus ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 500, opacity: isStudentWithoutErasmus ? 0.45 : 1 }}>Dönüş</button>
                         )}
                         {canEdit(student) && (
                           <button onClick={() => handleDeleteStudent(student.id)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#FAEBED", color: C.accent, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}><TrashIcon /></button>
