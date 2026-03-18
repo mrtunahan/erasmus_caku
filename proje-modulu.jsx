@@ -101,6 +101,12 @@ var ProjDB = {
     var snap = await query.get();
     return snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
   },
+  // Tüm projeleri getir (üyelik kontrolü için)
+  async fetchAllProjects() {
+    var db = this.db(); if (!db) return [];
+    var snap = await db.collection("projects").get();
+    return snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+  },
   async createProject(data) {
     var db = this.db(); if (!db) return;
     return db.collection("projects").add(Object.assign({}, data, {
@@ -475,13 +481,23 @@ function ProjeModuluApp({ currentUser }) {
   var scm = _s(false), showCourseModal = scm[0], setShowCourseModal = scm[1];
   var sq = _s(""), searchQuery = sq[0], setSearchQuery = sq[1];
 
+  var aps = _s([]), allProjects = aps[0], setAllProjects = aps[1];
+
   var userId = currentUser && (currentUser.studentNumber || currentUser.name) || "anonymous";
   var userName = currentUser && currentUser.name || "Anonim";
   var isAdmin = currentUser && currentUser.role === "admin";
 
+  // ── Tüm projeleri yükle (üyelik kontrolü için) ──
+  var loadAllProjects = useCallback(function () {
+    ProjDB.fetchAllProjects().then(function (data) {
+      setAllProjects(data);
+    }).catch(function () {});
+  }, []);
+
   // ── Dersleri Yükle ──
   useEffect(function () {
     setLoading(true);
+    loadAllProjects();
     ProjDB.fetchCourses().then(function (data) {
       setCourses(data);
       setLoading(false);
@@ -526,10 +542,65 @@ function ProjeModuluApp({ currentUser }) {
     }
   };
 
+  // ── Üyelik kontrolü: Bir kişi zaten bir projede mi? ──
+  var findMemberExistingProject = function (memberName) {
+    if (!memberName || !memberName.trim()) return null;
+    var nameLower = memberName.trim().toLowerCase();
+    for (var i = 0; i < allProjects.length; i++) {
+      var p = allProjects[i];
+      if (p.members && p.members.some(function (m) { return m.trim().toLowerCase() === nameLower; })) {
+        return p;
+      }
+    }
+    return null;
+  };
+
+  // ── Kullanıcı zaten bir proje grubunda mı? ──
+  var userExistingProject = useMemo(function () {
+    return findMemberExistingProject(userName);
+  }, [allProjects, userName]);
+
   // ── Proje Oluştur ──
   var handleCreateProject = async function (data) {
     if (!selectedCourse) return;
     try {
+      // Kontrol: Oluşturan kişi zaten bir projede mi?
+      var freshAll = await ProjDB.fetchAllProjects();
+      setAllProjects(freshAll);
+
+      var creatorExisting = null;
+      var creatorNameLower = userName.trim().toLowerCase();
+      for (var i = 0; i < freshAll.length; i++) {
+        var p = freshAll[i];
+        if (p.members && p.members.some(function (m) { return m.trim().toLowerCase() === creatorNameLower; })) {
+          creatorExisting = p;
+          break;
+        }
+      }
+      if (creatorExisting) {
+        alert("Zaten bir proje grubundasınız: \"" + creatorExisting.name + "\" (" + (creatorExisting.courseName || "") + "). Her öğrenci yalnızca bir proje grubunda yer alabilir.");
+        return;
+      }
+
+      // Kontrol: Eklenen diğer üyeler zaten bir projede mi?
+      for (var j = 0; j < data.members.length; j++) {
+        var mName = data.members[j];
+        if (mName.trim().toLowerCase() === creatorNameLower) continue;
+        var memberExisting = null;
+        var mNameLower = mName.trim().toLowerCase();
+        for (var k = 0; k < freshAll.length; k++) {
+          var pp = freshAll[k];
+          if (pp.members && pp.members.some(function (m) { return m.trim().toLowerCase() === mNameLower; })) {
+            memberExisting = pp;
+            break;
+          }
+        }
+        if (memberExisting) {
+          alert("\"" + mName + "\" adlı kişi zaten \"" + memberExisting.name + "\" (" + (memberExisting.courseName || "") + ") projesinde yer alıyor. Her öğrenci yalnızca bir proje grubunda yer alabilir.");
+          return;
+        }
+      }
+
       var docData = Object.assign({}, data, {
         courseId: selectedCourse.id,
         courseName: selectedCourse.code + " - " + selectedCourse.name,
@@ -537,7 +608,9 @@ function ProjeModuluApp({ currentUser }) {
         createdByName: userName,
       });
       var ref = await ProjDB.createProject(docData);
-      setProjects(function (prev) { return [Object.assign({}, docData, { id: ref.id })].concat(prev); });
+      var newProject = Object.assign({}, docData, { id: ref.id });
+      setProjects(function (prev) { return [newProject].concat(prev); });
+      setAllProjects(function (prev) { return [newProject].concat(prev); });
       setShowCreateModal(false);
     } catch (e) {
       alert("Proje oluşturulamadı: " + e.message);
@@ -550,6 +623,7 @@ function ProjeModuluApp({ currentUser }) {
     try {
       await ProjDB.deleteProject(projectId);
       setProjects(function (prev) { return prev.filter(function (p) { return p.id !== projectId; }); });
+      setAllProjects(function (prev) { return prev.filter(function (p) { return p.id !== projectId; }); });
     } catch (e) {
       alert("Proje silinemedi: " + e.message);
     }
@@ -715,10 +789,17 @@ function ProjeModuluApp({ currentUser }) {
                   </button>
                 </>
               )}
-              <button onClick={function () { setShowCreateModal(true); }}
-                style={{ background: "rgba(255,255,255,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 10, padding: "10px 20px", cursor: "pointer", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, backdropFilter: "blur(8px)" }}>
-                <PrjIcon path={PRJ_ICONS.plus} size={18} color="white" /> Yeni Proje Grubu
-              </button>
+              {!isAdmin && userExistingProject ? (
+                <div style={{ background: "rgba(234,88,12,0.2)", color: "white", border: "1px solid rgba(234,88,12,0.4)", borderRadius: 10, padding: "10px 20px", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
+                  <PrjIcon path={PRJ_ICONS.info} size={16} color="#fbbf24" />
+                  <span>Zaten bir proje grubundasınız: <strong>{userExistingProject.name}</strong></span>
+                </div>
+              ) : (
+                <button onClick={function () { setShowCreateModal(true); }}
+                  style={{ background: "rgba(255,255,255,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 10, padding: "10px 20px", cursor: "pointer", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, backdropFilter: "blur(8px)" }}>
+                  <PrjIcon path={PRJ_ICONS.plus} size={18} color="white" /> Yeni Proje Grubu
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -739,6 +820,38 @@ function ProjeModuluApp({ currentUser }) {
             <PrjIcon path={PRJ_ICONS.users} size={14} color={PRJ.green} /> {projects.reduce(function (s, p) { return s + (p.members ? p.members.length : 0); }, 0)} katılımcı
           </div>
         </div>
+
+        {/* Admin: Birden fazla projede yer alan üyeler uyarısı */}
+        {isAdmin && (function () {
+          var memberMap = {};
+          allProjects.forEach(function (p) {
+            (p.members || []).forEach(function (m) {
+              var key = m.trim().toLowerCase();
+              if (!memberMap[key]) memberMap[key] = [];
+              memberMap[key].push(p.name + " (" + (p.courseName || "—") + ")");
+            });
+          });
+          var duplicates = [];
+          Object.keys(memberMap).forEach(function (key) {
+            if (memberMap[key].length > 1) duplicates.push({ name: key, projects: memberMap[key] });
+          });
+          if (duplicates.length === 0) return null;
+          return (
+            <div style={{ background: PRJ.redLight, border: "1px solid " + PRJ.red + "30", borderRadius: 12, padding: "16px 20px", marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <PrjIcon path={PRJ_ICONS.info} size={18} color={PRJ.red} />
+                <strong style={{ fontSize: 14, color: PRJ.red }}>Birden fazla projede yer alan öğrenciler ({duplicates.length} kişi)</strong>
+              </div>
+              {duplicates.map(function (d, i) {
+                return (
+                  <div key={i} style={{ fontSize: 13, color: "#991b1b", marginBottom: 4, paddingLeft: 26 }}>
+                    <strong>{d.name}</strong>: {d.projects.join(" • ")}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Proje Listesi */}
         {loading ? (
