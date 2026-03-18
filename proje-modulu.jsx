@@ -49,6 +49,12 @@ const PRJ_ICONS = {
   book: "M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5A2.5 2.5 0 004 17V5a2 2 0 012-2h14v14H6.5a2.5 2.5 0 00-2.5 2.5z",
   back: "M19 12H5M12 19l-7-7 7-7",
   download: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3",
+  calendar: "M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zM16 2v4M8 2v4M3 10h18",
+  shield: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+  mail: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6",
+  checkCircle: "M22 11.08V12a10 10 0 11-5.93-9.14M22 4L12 14.01l-3-3",
+  xCircle: "M12 2a10 10 0 100 20 10 10 0 000-20zM15 9l-6 6M9 9l6 6",
+  alertTriangle: "M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01",
 };
 
 // ── Tarih Formatlama ──
@@ -105,6 +111,10 @@ var ProjDB = {
       throw e;
     }
   },
+  async updateCourse(id, data) {
+    var db = this.db(); if (!db) return;
+    await db.collection("project_courses").doc(id).update(data);
+  },
   async deleteCourse(id) {
     try {
       await window.FirestoreWrite.remove("project_courses", id);
@@ -151,6 +161,10 @@ var ProjDB = {
       throw e;
     }
   },
+  async updateProject(id, data) {
+    var db = this.db(); if (!db) return;
+    await db.collection("projects").doc(id).update(data);
+  },
   async deleteProject(id) {
     try {
       await window.FirestoreWrite.remove("projects", id);
@@ -166,12 +180,14 @@ var ProjDB = {
 // ══════════════════════════════════════════════════════════════
 function exportProjectsXLSX(projects, courseName) {
   // Basit XML-based XLSX (Office Open XML SpreadsheetML)
-  var rows = [["#", "Proje Adı", "Proje Özeti", "Üye 1", "Üye 2", "Üye 3", "Oluşturan", "Tarih"]];
+  var statusLabels = { pending: "Onay Bekliyor", approved: "Onaylandı", rejected: "Reddedildi" };
+  var rows = [["#", "Proje Adı", "Proje Özeti", "Üye 1", "Üye 2", "Üye 3", "Durum", "Oluşturan", "Tarih"]];
   projects.forEach(function (p, i) {
     var members = p.members || [];
     rows.push([
       i + 1, p.name || "", p.summary || "",
       members[0] || "", members[1] || "", members[2] || "",
+      statusLabels[p.status] || "Onaylandı",
       p.createdByName || "", prjFormatDate(p.createdAt),
     ]);
   });
@@ -268,11 +284,12 @@ function exportProjectsXLSX(projects, courseName) {
 // WORD EXPORT
 // ══════════════════════════════════════════════════════════════
 function exportProjectsWord(projects, courseName) {
+  var wordStatusLabels = { pending: "Onay Bekliyor", approved: "Onaylandı", rejected: "Reddedildi" };
   var tableRows = "";
   projects.forEach(function (p, i) {
     var members = (p.members || []).join(", ");
     tableRows += "<tr><td>" + (i + 1) + "</td><td>" + (p.name || "") + "</td><td>" + (p.summary || "") +
-      "</td><td>" + members + "</td><td>" + (p.createdByName || "") + "</td><td>" + prjFormatDate(p.createdAt) + "</td></tr>";
+      "</td><td>" + members + "</td><td>" + (wordStatusLabels[p.status] || "Onaylandı") + "</td><td>" + (p.createdByName || "") + "</td><td>" + prjFormatDate(p.createdAt) + "</td></tr>";
   });
 
   var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">' +
@@ -289,7 +306,7 @@ function exportProjectsWord(projects, courseName) {
     '<div class="info"><b>Ders:</b> ' + (courseName || "Tüm Dersler") + ' &nbsp;&nbsp;|&nbsp;&nbsp; <b>Toplam Grup:</b> ' + projects.length +
     ' &nbsp;&nbsp;|&nbsp;&nbsp; <b>Toplam Katılımcı:</b> ' + projects.reduce(function (s, p) { return s + (p.members ? p.members.length : 0); }, 0) +
     ' &nbsp;&nbsp;|&nbsp;&nbsp; <b>Tarih:</b> ' + new Date().toLocaleDateString("tr-TR") + '</div>' +
-    '<table><thead><tr><th>#</th><th>Proje Adı</th><th>Proje Özeti</th><th>Üyeler</th><th>Oluşturan</th><th>Tarih</th></tr></thead><tbody>' +
+    '<table><thead><tr><th>#</th><th>Proje Adı</th><th>Proje Özeti</th><th>Üyeler</th><th>Durum</th><th>Oluşturan</th><th>Tarih</th></tr></thead><tbody>' +
     tableRows + '</tbody></table></body></html>';
 
   var blob = new Blob([html], { type: "application/msword" });
@@ -303,13 +320,32 @@ function exportProjectsWord(projects, courseName) {
 // ══════════════════════════════════════════════════════════════
 // PROJE KARTI
 // ══════════════════════════════════════════════════════════════
-function ProjectCard({ project, userId, userName, isAdmin, onDelete }) {
+function ProjectCard({ project, userId, userName, isAdmin, onDelete, onApprove, onReject, onRespondInvite }) {
   var isOwner = project.createdBy === userId;
   var memberCount = project.members ? project.members.length : 0;
   var memberColors = ["#2563eb", "#059669", "#ea580c", "#7c3aed"];
   var expandedState = useState(false);
   var expanded = expandedState[0];
   var setExpanded = expandedState[1];
+  var status = project.status || "approved"; // eski projeler otomatik onaylı
+  var memberStatuses = project.memberStatus || [];
+
+  // Mevcut kullanıcı bu projenin üyesi mi ve davet durumu ne?
+  var myMemberIdx = -1;
+  (project.members || []).forEach(function (m, idx) {
+    if (m.trim().toLowerCase() === userName.trim().toLowerCase()) myMemberIdx = idx;
+  });
+  var myInviteStatus = myMemberIdx >= 0 && memberStatuses[myMemberIdx] ? memberStatuses[myMemberIdx] : null;
+
+  var statusColors = {
+    pending: { bg: "#fef3c7", border: "#f59e0b", text: "#92400e", label: "Onay Bekliyor" },
+    approved: { bg: PRJ.greenLight, border: PRJ.green, text: "#065f46", label: "Onaylandı" },
+    rejected: { bg: PRJ.redLight, border: PRJ.red, text: "#991b1b", label: "Reddedildi" },
+  };
+  var statusInfo = statusColors[status] || statusColors.pending;
+
+  var borderColor = status === "pending" ? "#f59e0b" : status === "rejected" ? PRJ.red : (expanded ? PRJ.primary + "40" : PRJ.border);
+  var topBarColor = status === "pending" ? "linear-gradient(90deg, #f59e0b, #fbbf24)" : status === "rejected" ? "linear-gradient(90deg, #dc2626, #ef4444)" : "linear-gradient(90deg, " + PRJ.primary + ", " + PRJ.primaryLight + ")";
 
   var toggleExpand = function (e) {
     e.stopPropagation();
@@ -319,23 +355,29 @@ function ProjectCard({ project, userId, userName, isAdmin, onDelete }) {
   return (
     <div style={{
       background: "white", borderRadius: 16, overflow: "hidden",
-      border: "1px solid " + (expanded ? PRJ.primary + "40" : PRJ.border),
+      border: "1px solid " + borderColor,
       boxShadow: expanded ? "0 8px 24px rgba(37,99,235,0.12)" : "0 2px 12px rgba(0,0,0,0.04)",
       transition: "all 0.2s",
       display: "flex", flexDirection: "column",
       alignSelf: "start",
+      opacity: status === "rejected" ? 0.7 : 1,
     }}
       onMouseEnter={function (e) { e.currentTarget.style.boxShadow = "0 8px 24px rgba(37,99,235,0.12)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
       onMouseLeave={function (e) { if (!expanded) e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "translateY(0)"; }}
     >
-      <div style={{ height: 4, background: "linear-gradient(90deg, " + PRJ.primary + ", " + PRJ.primaryLight + ")" }} />
+      <div style={{ height: 4, background: topBarColor }} />
       {/* Baslik - her zaman gorunur, tiklanabilir */}
       <div style={{ padding: "16px 24px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }} onClick={toggleExpand}>
         <div style={{ flex: 1 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: PRJ.text, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-            <PrjIcon path={PRJ_ICONS.folder} size={18} color={PRJ.primary} />
-            {project.name}
-          </h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: PRJ.text, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              <PrjIcon path={PRJ_ICONS.folder} size={18} color={PRJ.primary} />
+              {project.name}
+            </h3>
+            <span style={{ fontSize: 10, fontWeight: 700, background: statusInfo.bg, color: statusInfo.text, border: "1px solid " + statusInfo.border + "40", padding: "2px 8px", borderRadius: 10, whiteSpace: "nowrap" }}>
+              {statusInfo.label}
+            </span>
+          </div>
           <div style={{ fontSize: 12, color: PRJ.textMuted, display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
             <PrjIcon path={PRJ_ICONS.clock} size={12} />
             {prjFormatDate(project.createdAt)}
@@ -345,6 +387,18 @@ function ProjectCard({ project, userId, userName, isAdmin, onDelete }) {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {isAdmin && status === "pending" && (
+            <>
+              <button onClick={function (e) { e.stopPropagation(); onApprove(project.id); }} title="Onayla"
+                style={{ background: PRJ.greenLight, border: "none", cursor: "pointer", color: PRJ.green, padding: "4px 8px", borderRadius: 6, transition: "all 0.2s", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600 }}>
+                <PrjIcon path={PRJ_ICONS.check} size={14} color={PRJ.green} /> Onayla
+              </button>
+              <button onClick={function (e) { e.stopPropagation(); onReject(project.id); }} title="Reddet"
+                style={{ background: PRJ.redLight, border: "none", cursor: "pointer", color: PRJ.red, padding: "4px 8px", borderRadius: 6, transition: "all 0.2s", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600 }}>
+                <PrjIcon path={PRJ_ICONS.x} size={14} color={PRJ.red} /> Reddet
+              </button>
+            </>
+          )}
           {(isAdmin || isOwner) && (
             <button onClick={function (e) { e.stopPropagation(); onDelete(project.id); }} title="Projeyi sil"
               style={{ background: "transparent", border: "none", cursor: "pointer", color: PRJ.textMuted, padding: 4, borderRadius: 6, transition: "all 0.2s" }}
@@ -368,6 +422,26 @@ function ProjectCard({ project, userId, userName, isAdmin, onDelete }) {
             Olusturan: {project.createdByName}
           </div>
 
+          {/* Üye davet yanıtı */}
+          {myInviteStatus === "pending" && !isOwner && (
+            <div style={{ background: "#fef3c7", borderRadius: 10, padding: "12px 16px", marginBottom: 16, border: "1px solid #f59e0b40", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <PrjIcon path={PRJ_ICONS.mail} size={16} color="#92400e" />
+                <span style={{ fontSize: 13, color: "#92400e", fontWeight: 600 }}>Bu gruba davet edildiniz</span>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={function () { onRespondInvite(project.id, myMemberIdx, "accepted"); }}
+                  style={{ background: PRJ.green, color: "white", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                  <PrjIcon path={PRJ_ICONS.check} size={12} color="white" /> Kabul Et
+                </button>
+                <button onClick={function () { onRespondInvite(project.id, myMemberIdx, "rejected"); }}
+                  style={{ background: PRJ.red, color: "white", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                  <PrjIcon path={PRJ_ICONS.x} size={12} color="white" /> Reddet
+                </button>
+              </div>
+            </div>
+          )}
+
           {project.summary && (
             <div style={{ background: "#f8fafc", borderRadius: 10, padding: "12px 16px", marginBottom: 16, border: "1px solid " + PRJ.border }}>
               <p style={{ fontSize: 14, color: PRJ.text, lineHeight: 1.6, margin: 0 }}>{project.summary}</p>
@@ -381,6 +455,10 @@ function ProjectCard({ project, userId, userName, isAdmin, onDelete }) {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {(project.members || []).map(function (member, idx) {
+                var inviteStatus = memberStatuses[idx] || (idx === 0 ? "accepted" : "accepted");
+                var inviteLabel = inviteStatus === "pending" ? "Davet Bekliyor" : inviteStatus === "rejected" ? "Reddetti" : null;
+                var inviteBg = inviteStatus === "pending" ? "#fef3c7" : inviteStatus === "rejected" ? PRJ.redLight : null;
+                var inviteColor = inviteStatus === "pending" ? "#92400e" : inviteStatus === "rejected" ? "#991b1b" : null;
                 return (
                   <div key={idx} style={{
                     display: "flex", alignItems: "center", gap: 10,
@@ -400,6 +478,11 @@ function ProjectCard({ project, userId, userName, isAdmin, onDelete }) {
                     {idx === 0 && (
                       <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, background: PRJ.primaryPale, color: PRJ.primary, padding: "2px 8px", borderRadius: 4 }}>
                         Grup Lideri
+                      </span>
+                    )}
+                    {idx > 0 && inviteLabel && (
+                      <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, background: inviteBg, color: inviteColor, padding: "2px 8px", borderRadius: 4 }}>
+                        {inviteLabel}
                       </span>
                     )}
                   </div>
@@ -494,21 +577,22 @@ function CreateProjectModal({ onClose, onCreate, currentUserName }) {
 // ══════════════════════════════════════════════════════════════
 // DERS EKLEME MODALI (Admin)
 // ══════════════════════════════════════════════════════════════
-function AddCourseModal({ onClose, onAdd }) {
-  var cs = useState(""), code = cs[0], setCode = cs[1];
-  var ns = useState(""), name = ns[0], setName = ns[1];
-  var ps = useState(""), prof = ps[0], setProf = ps[1];
+function AddCourseModal({ onClose, onAdd, editCourse }) {
+  var cs = useState(editCourse ? editCourse.code : ""), code = cs[0], setCode = cs[1];
+  var ns = useState(editCourse ? editCourse.name : ""), name = ns[0], setName = ns[1];
+  var ps = useState(editCourse ? (editCourse.professor || "") : ""), prof = ps[0], setProf = ps[1];
+  var ds = useState(editCourse ? (editCourse.deadline || "") : ""), deadline = ds[0], setDeadline = ds[1];
 
   var handleSubmit = function () {
     if (!code.trim() || !name.trim()) { alert("Ders kodu ve adı zorunludur!"); return; }
-    onAdd({ code: code.trim(), name: name.trim(), professor: prof.trim() });
+    onAdd({ code: code.trim(), name: name.trim(), professor: prof.trim(), deadline: deadline || null });
   };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
       <div style={{ background: "white", borderRadius: 16, padding: window.innerWidth <= 480 ? 16 : 28, width: "min(440px, calc(100vw - 32px))", boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }} onClick={function (e) { e.stopPropagation(); }}>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: PRJ.text, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
-          <PrjIcon path={PRJ_ICONS.book} size={20} color={PRJ.primary} /> Yeni Ders Ekle
+          <PrjIcon path={PRJ_ICONS.book} size={20} color={PRJ.primary} /> {editCourse ? "Dersi Düzenle" : "Yeni Ders Ekle"}
         </h3>
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>Ders Kodu *</label>
@@ -520,14 +604,24 @@ function AddCourseModal({ onClose, onAdd }) {
           <input type="text" value={name} onChange={function (e) { setName(e.target.value); }} placeholder="Bilgisayar Projesi I"
             style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif" }} />
         </div>
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>Dersin Hocası</label>
           <input type="text" value={prof} onChange={function (e) { setProf(e.target.value); }} placeholder="Dr. Öğr. Üyesi ..."
             style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif" }} />
         </div>
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <PrjIcon path={PRJ_ICONS.calendar} size={14} color={PRJ.primary} /> Proje Son Tarihi (Deadline)
+            </span>
+          </label>
+          <input type="date" value={deadline} onChange={function (e) { setDeadline(e.target.value); }}
+            style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif" }} />
+          <p style={{ fontSize: 11, color: PRJ.textMuted, marginTop: 4, marginBottom: 0 }}>Bu tarihten sonra yeni proje grubu oluşturulamaz. Boş bırakılırsa sınır yoktur.</p>
+        </div>
         <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ padding: "10px 20px", border: "1px solid " + PRJ.border, background: "white", borderRadius: 8, cursor: "pointer", fontSize: 14, color: PRJ.textMuted }}>İptal</button>
-          <button onClick={handleSubmit} style={{ padding: "10px 24px", border: "none", background: "linear-gradient(135deg, #1e40af, #2563eb)", color: "white", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>Ders Ekle</button>
+          <button onClick={handleSubmit} style={{ padding: "10px 24px", border: "none", background: "linear-gradient(135deg, #1e40af, #2563eb)", color: "white", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>{editCourse ? "Kaydet" : "Ders Ekle"}</button>
         </div>
       </div>
     </div>
@@ -546,6 +640,7 @@ function ProjeModuluApp({ currentUser }) {
   var sms = _s(false), showCreateModal = sms[0], setShowCreateModal = sms[1];
   var scm = _s(false), showCourseModal = scm[0], setShowCourseModal = scm[1];
   var sq = _s(""), searchQuery = sq[0], setSearchQuery = sq[1];
+  var ecv = _s(null), editingCourse = ecv[0], setEditingCourse = ecv[1]; // ders düzenleme
 
   var aps = _s([]), allProjects = aps[0], setAllProjects = aps[1];
 
@@ -588,14 +683,25 @@ function ProjeModuluApp({ currentUser }) {
     });
   }, [selectedCourse]);
 
-  // ── Ders Ekle ──
+  // ── Ders Ekle / Düzenle ──
   var handleAddCourse = async function (data) {
     try {
-      var ref = await ProjDB.addCourse(data);
-      setCourses(function (prev) { return prev.concat([Object.assign({}, data, { id: ref.id })]); });
+      if (editingCourse) {
+        await ProjDB.updateCourse(editingCourse.id, data);
+        setCourses(function (prev) {
+          return prev.map(function (c) { return c.id === editingCourse.id ? Object.assign({}, c, data) : c; });
+        });
+        if (selectedCourse && selectedCourse.id === editingCourse.id) {
+          setSelectedCourse(function (prev) { return Object.assign({}, prev, data); });
+        }
+        setEditingCourse(null);
+      } else {
+        var ref = await ProjDB.addCourse(data);
+        setCourses(function (prev) { return prev.concat([Object.assign({}, data, { id: ref.id })]); });
+      }
       setShowCourseModal(false);
     } catch (e) {
-      alert("Ders eklenemedi: " + e.message);
+      alert("Ders " + (editingCourse ? "güncellenemedi" : "eklenemedi") + ": " + e.message);
     }
   };
 
@@ -634,6 +740,53 @@ function ProjeModuluApp({ currentUser }) {
     return findMemberExistingProject(userName);
   }, [allProjects, userName]);
 
+  // ── Proje Onayla / Reddet ──
+  var handleApproveProject = async function (projectId) {
+    try {
+      await ProjDB.updateProject(projectId, { status: "approved" });
+      setProjects(function (prev) { return prev.map(function (p) { return p.id === projectId ? Object.assign({}, p, { status: "approved" }) : p; }); });
+      setAllProjects(function (prev) { return prev.map(function (p) { return p.id === projectId ? Object.assign({}, p, { status: "approved" }) : p; }); });
+    } catch (e) {
+      alert("Proje onaylanamadı: " + e.message);
+    }
+  };
+
+  var handleRejectProject = async function (projectId) {
+    if (!confirm("Bu projeyi reddetmek istediğinize emin misiniz?")) return;
+    try {
+      await ProjDB.updateProject(projectId, { status: "rejected" });
+      setProjects(function (prev) { return prev.map(function (p) { return p.id === projectId ? Object.assign({}, p, { status: "rejected" }) : p; }); });
+      setAllProjects(function (prev) { return prev.map(function (p) { return p.id === projectId ? Object.assign({}, p, { status: "rejected" }) : p; }); });
+    } catch (e) {
+      alert("Proje reddedilemedi: " + e.message);
+    }
+  };
+
+  // ── Üye davet yanıtı ──
+  var handleRespondInvite = async function (projectId, memberIdx, response) {
+    try {
+      var project = projects.find(function (p) { return p.id === projectId; }) || allProjects.find(function (p) { return p.id === projectId; });
+      if (!project) return;
+      var newStatuses = (project.memberStatus || []).slice();
+      newStatuses[memberIdx] = response;
+      await ProjDB.updateProject(projectId, { memberStatus: newStatuses });
+      var updater = function (prev) { return prev.map(function (p) { return p.id === projectId ? Object.assign({}, p, { memberStatus: newStatuses }) : p; }); };
+      setProjects(updater);
+      setAllProjects(updater);
+    } catch (e) {
+      alert("Yanıt gönderilemedi: " + e.message);
+    }
+  };
+
+  // ── Deadline kontrolü ──
+  var isDeadlinePassed = useMemo(function () {
+    if (!selectedCourse || !selectedCourse.deadline) return false;
+    var now = new Date();
+    now.setHours(0, 0, 0, 0);
+    var dl = new Date(selectedCourse.deadline + "T23:59:59");
+    return now > dl;
+  }, [selectedCourse]);
+
   // ── Proje Oluştur ──
   var handleCreateProject = async function (data) {
     if (!selectedCourse) return;
@@ -649,6 +802,17 @@ function ProjeModuluApp({ currentUser }) {
       }
     }
     try {
+      // Kontrol: Deadline geçmiş mi?
+      if (selectedCourse.deadline) {
+        var now = new Date();
+        now.setHours(0, 0, 0, 0);
+        var dl = new Date(selectedCourse.deadline + "T23:59:59");
+        if (now > dl) {
+          alert("Bu ders için proje grubu oluşturma süresi dolmuştur! (Son tarih: " + selectedCourse.deadline + ")");
+          return;
+        }
+      }
+
       // Kontrol: Oluşturan kişi zaten bir projede mi?
       var freshAll = await ProjDB.fetchAllProjects();
       setAllProjects(freshAll);
@@ -686,11 +850,16 @@ function ProjeModuluApp({ currentUser }) {
         }
       }
 
+      // memberStatus: ilk üye (oluşturan) otomatik "accepted", diğerleri "pending"
+      var mStatuses = data.members.map(function (m, idx) { return idx === 0 ? "accepted" : "pending"; });
+
       var docData = Object.assign({}, data, {
         courseId: selectedCourse.id,
         courseName: selectedCourse.code + " - " + selectedCourse.name,
         createdBy: userId,
         createdByName: userName,
+        status: "pending",
+        memberStatus: mStatuses,
       });
       var ref = await ProjDB.createProject(docData);
       var newProject = Object.assign({}, docData, { id: ref.id });
@@ -826,13 +995,24 @@ function ProjeModuluApp({ currentUser }) {
                         <PrjIcon path={PRJ_ICONS.user} size={13} /> {course.professor}
                       </div>
                     )}
+                    {course.deadline && (function () {
+                      var now = new Date(); now.setHours(0,0,0,0);
+                      var dl = new Date(course.deadline + "T23:59:59");
+                      var passed = now > dl;
+                      return (
+                        <div style={{ fontSize: 12, color: passed ? PRJ.red : PRJ.orange, display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                          <PrjIcon path={PRJ_ICONS.calendar} size={12} color={passed ? PRJ.red : PRJ.orange} />
+                          {passed ? "Süre doldu" : "Son: " + course.deadline}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
             </div>
           )}
         </div>
-        {showCourseModal && <AddCourseModal onClose={function () { setShowCourseModal(false); }} onAdd={handleAddCourse} />}
+        {showCourseModal && <AddCourseModal onClose={function () { setShowCourseModal(false); setEditingCourse(null); }} onAdd={handleAddCourse} editCourse={editingCourse} />}
       </div>
     );
   }
@@ -860,6 +1040,24 @@ function ProjeModuluApp({ currentUser }) {
               {selectedCourse.professor && (
                 <p style={{ color: "rgba(255,255,255,0.7)", marginTop: 4, fontSize: 14 }}>{selectedCourse.professor}</p>
               )}
+              <div style={{ display: "flex", gap: 10, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>
+                {selectedCourse.deadline && (
+                  <span style={{
+                    background: isDeadlinePassed ? "rgba(220,38,38,0.3)" : "rgba(255,255,255,0.15)",
+                    color: "white", padding: "3px 10px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+                    display: "flex", alignItems: "center", gap: 4,
+                  }}>
+                    <PrjIcon path={PRJ_ICONS.calendar} size={12} color={isDeadlinePassed ? "#fca5a5" : "rgba(255,255,255,0.7)"} />
+                    Son tarih: {selectedCourse.deadline}{isDeadlinePassed ? " (Süre doldu)" : ""}
+                  </span>
+                )}
+                {isAdmin && (
+                  <button onClick={function () { setEditingCourse(selectedCourse); setShowCourseModal(true); }}
+                    style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "none", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 12, fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}>
+                    <PrjIcon path={PRJ_ICONS.edit} size={12} color="white" /> Düzenle
+                  </button>
+                )}
+              </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {isAdmin && projects.length > 0 && (
@@ -874,7 +1072,12 @@ function ProjeModuluApp({ currentUser }) {
                   </button>
                 </>
               )}
-              {!isAdmin && userExistingProject ? (
+              {isDeadlinePassed && !isAdmin ? (
+                <div style={{ background: "rgba(220,38,38,0.2)", color: "white", border: "1px solid rgba(220,38,38,0.4)", borderRadius: 10, padding: "10px 20px", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
+                  <PrjIcon path={PRJ_ICONS.calendar} size={16} color="#fca5a5" />
+                  <span>Proje grubu oluşturma süresi doldu ({selectedCourse.deadline})</span>
+                </div>
+              ) : !isAdmin && userExistingProject ? (
                 <div style={{ background: "rgba(234,88,12,0.2)", color: "white", border: "1px solid rgba(234,88,12,0.4)", borderRadius: 10, padding: "10px 20px", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
                   <PrjIcon path={PRJ_ICONS.info} size={16} color="#fbbf24" />
                   <span>Zaten bir proje grubundasınız: <strong>{userExistingProject.name}</strong></span>
@@ -904,6 +1107,15 @@ function ProjeModuluApp({ currentUser }) {
           <div style={{ background: "white", borderRadius: 10, padding: "10px 16px", border: "1px solid " + PRJ.border, fontSize: 13, color: PRJ.textMuted, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
             <PrjIcon path={PRJ_ICONS.users} size={14} color={PRJ.green} /> {projects.reduce(function (s, p) { return s + (p.members ? p.members.length : 0); }, 0)} katılımcı
           </div>
+          {isAdmin && (function () {
+            var pendingCount = projects.filter(function (p) { return p.status === "pending"; }).length;
+            if (pendingCount === 0) return null;
+            return (
+              <div style={{ background: "#fef3c7", borderRadius: 10, padding: "10px 16px", border: "1px solid #f59e0b40", fontSize: 13, color: "#92400e", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                <PrjIcon path={PRJ_ICONS.clock} size={14} color="#f59e0b" /> {pendingCount} onay bekliyor
+              </div>
+            );
+          })()}
         </div>
 
         {/* Admin: Birden fazla projede yer alan üyeler uyarısı */}
@@ -964,6 +1176,9 @@ function ProjeModuluApp({ currentUser }) {
                   userName={userName}
                   isAdmin={isAdmin}
                   onDelete={handleDeleteProject}
+                  onApprove={handleApproveProject}
+                  onReject={handleRejectProject}
+                  onRespondInvite={handleRespondInvite}
                 />
               );
             })}
