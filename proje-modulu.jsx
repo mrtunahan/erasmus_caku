@@ -7,9 +7,9 @@ const { useState, useEffect, useMemo, useCallback } = React;
 
 // ── Renkler ──
 const PRJ = {
-  primary: "#2563eb",
-  primaryLight: "#60a5fa",
-  primaryPale: "#dbeafe",
+  primary: "#6366f1",
+  primaryLight: "#818cf8",
+  primaryPale: "#eef2ff",
   gold: "#d4af37",
   green: "#059669",
   greenLight: "#d1fae5",
@@ -323,29 +323,34 @@ function exportProjectsWord(projects, courseName) {
 function ProjectCard({ project, userId, userName, isAdmin, onDelete, onApprove, onReject, onRespondInvite }) {
   var isOwner = project.createdBy === userId;
   var memberCount = project.members ? project.members.length : 0;
-  var memberColors = ["#2563eb", "#059669", "#ea580c", "#7c3aed"];
+  var memberColors = ["#6366f1", "#059669", "#ea580c", "#7c3aed"];
   var expandedState = useState(false);
   var expanded = expandedState[0];
   var setExpanded = expandedState[1];
-  var status = project.status || "approved"; // eski projeler otomatik onaylı
+  var hoverState = useState(false);
+  var hovered = hoverState[0];
+  var setHovered = hoverState[1];
+  var status = project.status || "approved";
   var memberStatuses = project.memberStatus || [];
 
-  // Mevcut kullanıcı bu projenin üyesi mi ve davet durumu ne?
   var myMemberIdx = -1;
   (project.members || []).forEach(function (m, idx) {
     if (m.trim().toLowerCase() === userName.trim().toLowerCase()) myMemberIdx = idx;
   });
   var myInviteStatus = myMemberIdx >= 0 && memberStatuses[myMemberIdx] ? memberStatuses[myMemberIdx] : null;
 
-  var statusColors = {
-    pending: { bg: "#fef3c7", border: "#f59e0b", text: "#92400e", label: "Onay Bekliyor" },
-    approved: { bg: PRJ.greenLight, border: PRJ.green, text: "#065f46", label: "Onaylandı" },
-    rejected: { bg: PRJ.redLight, border: PRJ.red, text: "#991b1b", label: "Reddedildi" },
+  var statusConfig = {
+    pending: { bg: "linear-gradient(135deg, #fef3c7, #fde68a)", text: "#92400e", label: "Onay Bekliyor", dot: "#f59e0b" },
+    approved: { bg: "linear-gradient(135deg, #d1fae5, #a7f3d0)", text: "#065f46", label: "Onaylandi", dot: "#059669" },
+    rejected: { bg: "linear-gradient(135deg, #fee2e2, #fecaca)", text: "#991b1b", label: "Reddedildi", dot: "#dc2626" },
   };
-  var statusInfo = statusColors[status] || statusColors.pending;
+  var statusInfo = statusConfig[status] || statusConfig.pending;
 
-  var borderColor = status === "pending" ? "#f59e0b" : status === "rejected" ? PRJ.red : (expanded ? PRJ.primary + "40" : PRJ.border);
-  var topBarColor = status === "pending" ? "linear-gradient(90deg, #f59e0b, #fbbf24)" : status === "rejected" ? "linear-gradient(90deg, #dc2626, #ef4444)" : "linear-gradient(90deg, " + PRJ.primary + ", " + PRJ.primaryLight + ")";
+  var accentGradient = status === "pending"
+    ? "linear-gradient(135deg, #f59e0b, #fbbf24)"
+    : status === "rejected"
+      ? "linear-gradient(135deg, #ef4444, #f87171)"
+      : "linear-gradient(135deg, #6366f1, #818cf8)";
 
   var toggleExpand = function (e) {
     e.stopPropagation();
@@ -354,134 +359,285 @@ function ProjectCard({ project, userId, userName, isAdmin, onDelete, onApprove, 
 
   return (
     <div style={{
-      background: "white", borderRadius: 16, overflow: "hidden",
-      border: "1px solid " + borderColor,
-      boxShadow: expanded ? "0 8px 24px rgba(37,99,235,0.12)" : "0 2px 12px rgba(0,0,0,0.04)",
-      transition: "all 0.2s",
+      background: "white",
+      borderRadius: 20,
+      overflow: "hidden",
+      border: "1px solid " + (expanded || hovered ? "rgba(99,102,241,0.25)" : "rgba(0,0,0,0.06)"),
+      boxShadow: expanded
+        ? "0 20px 40px rgba(99,102,241,0.15), 0 0 0 1px rgba(99,102,241,0.08)"
+        : hovered
+          ? "0 12px 28px rgba(99,102,241,0.1), 0 0 0 1px rgba(99,102,241,0.06)"
+          : "0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)",
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
       display: "flex", flexDirection: "column",
       alignSelf: "start",
-      opacity: status === "rejected" ? 0.7 : 1,
+      opacity: status === "rejected" ? 0.65 : 1,
+      transform: hovered && !expanded ? "translateY(-4px)" : "translateY(0)",
+      position: "relative",
     }}
-      onMouseEnter={function (e) { e.currentTarget.style.boxShadow = "0 8px 24px rgba(37,99,235,0.12)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-      onMouseLeave={function (e) { if (!expanded) e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "translateY(0)"; }}
+      onMouseEnter={function () { setHovered(true); }}
+      onMouseLeave={function () { setHovered(false); }}
     >
-      <div style={{ height: 4, background: topBarColor }} />
-      {/* Baslik - her zaman gorunur, tiklanabilir */}
-      <div style={{ padding: "16px 24px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }} onClick={toggleExpand}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: PRJ.text, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-              <PrjIcon path={PRJ_ICONS.folder} size={18} color={PRJ.primary} />
-              {project.name}
-            </h3>
-            <span style={{ fontSize: 10, fontWeight: 700, background: statusInfo.bg, color: statusInfo.text, border: "1px solid " + statusInfo.border + "40", padding: "2px 8px", borderRadius: 10, whiteSpace: "nowrap" }}>
+      {/* Accent gradient bar */}
+      <div style={{ height: 3, background: accentGradient }} />
+
+      {/* Header */}
+      <div style={{
+        padding: window.innerWidth <= 480 ? "14px 16px" : "18px 22px",
+        cursor: "pointer",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: 12,
+      }} onClick={toggleExpand}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Status badge */}
+          <div style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{
+              fontSize: 11, fontWeight: 600,
+              background: statusInfo.bg,
+              color: statusInfo.text,
+              padding: "3px 10px",
+              borderRadius: 20,
+              display: "inline-flex", alignItems: "center", gap: 5,
+              letterSpacing: "0.01em",
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: statusInfo.dot, display: "inline-block", flexShrink: 0 }} />
               {statusInfo.label}
             </span>
           </div>
-          <div style={{ fontSize: 12, color: PRJ.textMuted, display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-            <PrjIcon path={PRJ_ICONS.clock} size={12} />
-            {prjFormatDate(project.createdAt)}
-            <span style={{ margin: "0 4px" }}>·</span>
-            <PrjIcon path={PRJ_ICONS.users} size={12} />
-            {memberCount} kisi
+
+          {/* Project name */}
+          <h3 style={{
+            fontSize: window.innerWidth <= 480 ? 15 : 16,
+            fontWeight: 700,
+            color: PRJ.text,
+            margin: 0,
+            lineHeight: 1.4,
+            letterSpacing: "-0.01em",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+          }}>
+            {project.name}
+          </h3>
+
+          {/* Meta row: date + member avatars */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginTop: 12,
+            flexWrap: "wrap",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: PRJ.textMuted }}>
+              <PrjIcon path={PRJ_ICONS.clock} size={13} color="#9ca3af" />
+              {prjFormatDate(project.createdAt)}
+            </div>
+
+            {/* Member avatar stack */}
+            <div style={{ display: "flex", alignItems: "center" }}>
+              {(project.members || []).slice(0, 3).map(function (member, idx) {
+                return (
+                  <div key={idx} style={{
+                    width: 28, height: 28,
+                    borderRadius: "50%",
+                    background: "linear-gradient(135deg, " + memberColors[idx % memberColors.length] + ", " + memberColors[idx % memberColors.length] + "bb)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "white", fontSize: 11, fontWeight: 700,
+                    border: "2px solid white",
+                    marginLeft: idx > 0 ? -8 : 0,
+                    position: "relative",
+                    zIndex: 3 - idx,
+                    flexShrink: 0,
+                  }} title={member}>
+                    {member.charAt(0).toUpperCase()}
+                  </div>
+                );
+              })}
+              <span style={{ fontSize: 12, color: PRJ.textMuted, marginLeft: 8, fontWeight: 500 }}>
+                {memberCount} kisi
+              </span>
+            </div>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+
+        {/* Action buttons */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginTop: 2 }}>
           {isAdmin && status === "pending" && (
             <>
               <button onClick={function (e) { e.stopPropagation(); onApprove(project.id); }} title="Onayla"
-                style={{ background: PRJ.greenLight, border: "none", cursor: "pointer", color: PRJ.green, padding: "4px 8px", borderRadius: 6, transition: "all 0.2s", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600 }}>
-                <PrjIcon path={PRJ_ICONS.check} size={14} color={PRJ.green} /> Onayla
+                style={{
+                  background: "linear-gradient(135deg, #059669, #10b981)",
+                  border: "none", cursor: "pointer", color: "white",
+                  padding: "6px 12px", borderRadius: 8,
+                  transition: "all 0.2s",
+                  display: "flex", alignItems: "center", gap: 4,
+                  fontSize: 11, fontWeight: 600,
+                  boxShadow: "0 2px 6px rgba(5,150,105,0.3)",
+                }}>
+                <PrjIcon path={PRJ_ICONS.check} size={13} color="white" /> Onayla
               </button>
               <button onClick={function (e) { e.stopPropagation(); onReject(project.id); }} title="Reddet"
-                style={{ background: PRJ.redLight, border: "none", cursor: "pointer", color: PRJ.red, padding: "4px 8px", borderRadius: 6, transition: "all 0.2s", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600 }}>
-                <PrjIcon path={PRJ_ICONS.x} size={14} color={PRJ.red} /> Reddet
+                style={{
+                  background: "linear-gradient(135deg, #dc2626, #ef4444)",
+                  border: "none", cursor: "pointer", color: "white",
+                  padding: "6px 12px", borderRadius: 8,
+                  transition: "all 0.2s",
+                  display: "flex", alignItems: "center", gap: 4,
+                  fontSize: 11, fontWeight: 600,
+                  boxShadow: "0 2px 6px rgba(220,38,38,0.3)",
+                }}>
+                <PrjIcon path={PRJ_ICONS.x} size={13} color="white" /> Reddet
               </button>
             </>
           )}
           {(isAdmin || isOwner) && (
             <button onClick={function (e) { e.stopPropagation(); onDelete(project.id); }} title="Projeyi sil"
-              style={{ background: "transparent", border: "none", cursor: "pointer", color: PRJ.textMuted, padding: 4, borderRadius: 6, transition: "all 0.2s" }}
-              onMouseEnter={function (e) { e.currentTarget.style.color = PRJ.red; e.currentTarget.style.background = PRJ.redLight; }}
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: PRJ.textMuted, padding: 6, borderRadius: 8,
+                transition: "all 0.2s", display: "flex", alignItems: "center",
+              }}
+              onMouseEnter={function (e) { e.currentTarget.style.color = PRJ.red; e.currentTarget.style.background = "rgba(220,38,38,0.08)"; }}
               onMouseLeave={function (e) { e.currentTarget.style.color = PRJ.textMuted; e.currentTarget.style.background = "transparent"; }}
             >
-              <PrjIcon path={PRJ_ICONS.trash} size={16} />
+              <PrjIcon path={PRJ_ICONS.trash} size={15} />
             </button>
           )}
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={PRJ.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            style={{ transition: "transform 0.2s", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
-            <path d="M6 9l6 6 6-6" />
-          </svg>
+          <div style={{
+            width: 28, height: 28,
+            borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: expanded ? "rgba(99,102,241,0.08)" : "transparent",
+            transition: "all 0.2s",
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke={expanded ? "#6366f1" : PRJ.textMuted}
+              strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </div>
         </div>
       </div>
 
-      {/* Icerik - sadece expanded ise gorunur */}
+      {/* Expanded content */}
       {expanded && (
-        <div style={{ padding: "0 24px 20px", borderTop: "1px solid " + PRJ.border }}>
-          <div style={{ fontSize: 12, color: PRJ.textMuted, marginTop: 12, marginBottom: 12 }}>
-            Olusturan: {project.createdByName}
+        <div style={{
+          padding: window.innerWidth <= 480 ? "0 16px 16px" : "0 22px 20px",
+          borderTop: "1px solid rgba(0,0,0,0.05)",
+        }}>
+          <div style={{
+            fontSize: 12, color: PRJ.textMuted, marginTop: 14, marginBottom: 14,
+            display: "flex", alignItems: "center", gap: 6,
+          }}>
+            <PrjIcon path={PRJ_ICONS.user} size={13} color="#9ca3af" />
+            Olusturan: <span style={{ fontWeight: 600, color: PRJ.text }}>{project.createdByName}</span>
           </div>
 
-          {/* Üye davet yanıtı */}
+          {/* Invite response */}
           {myInviteStatus === "pending" && !isOwner && (
-            <div style={{ background: "#fef3c7", borderRadius: 10, padding: "12px 16px", marginBottom: 16, border: "1px solid #f59e0b40", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div style={{
+              background: "linear-gradient(135deg, #fffbeb, #fef3c7)",
+              borderRadius: 14, padding: "14px 18px", marginBottom: 16,
+              border: "1px solid rgba(245,158,11,0.2)",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 10, flexWrap: "wrap",
+            }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <PrjIcon path={PRJ_ICONS.mail} size={16} color="#92400e" />
                 <span style={{ fontSize: 13, color: "#92400e", fontWeight: 600 }}>Bu gruba davet edildiniz</span>
               </div>
               <div style={{ display: "flex", gap: 6 }}>
                 <button onClick={function () { onRespondInvite(project.id, myMemberIdx, "accepted"); }}
-                  style={{ background: PRJ.green, color: "white", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                  style={{
+                    background: "linear-gradient(135deg, #059669, #10b981)",
+                    color: "white", border: "none", borderRadius: 8,
+                    padding: "6px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                    display: "flex", alignItems: "center", gap: 4,
+                    boxShadow: "0 2px 6px rgba(5,150,105,0.3)",
+                  }}>
                   <PrjIcon path={PRJ_ICONS.check} size={12} color="white" /> Kabul Et
                 </button>
                 <button onClick={function () { onRespondInvite(project.id, myMemberIdx, "rejected"); }}
-                  style={{ background: PRJ.red, color: "white", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                  style={{
+                    background: "linear-gradient(135deg, #dc2626, #ef4444)",
+                    color: "white", border: "none", borderRadius: 8,
+                    padding: "6px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                    display: "flex", alignItems: "center", gap: 4,
+                    boxShadow: "0 2px 6px rgba(220,38,38,0.3)",
+                  }}>
                   <PrjIcon path={PRJ_ICONS.x} size={12} color="white" /> Reddet
                 </button>
               </div>
             </div>
           )}
 
+          {/* Summary */}
           {project.summary && (
-            <div style={{ background: "#f8fafc", borderRadius: 10, padding: "12px 16px", marginBottom: 16, border: "1px solid " + PRJ.border }}>
-              <p style={{ fontSize: 14, color: PRJ.text, lineHeight: 1.6, margin: 0 }}>{project.summary}</p>
+            <div style={{
+              background: "linear-gradient(135deg, #f8fafc, #f1f5f9)",
+              borderRadius: 14, padding: "14px 18px", marginBottom: 16,
+              border: "1px solid rgba(0,0,0,0.04)",
+            }}>
+              <p style={{ fontSize: 13.5, color: PRJ.text, lineHeight: 1.65, margin: 0 }}>{project.summary}</p>
             </div>
           )}
 
+          {/* Members */}
           <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: PRJ.textMuted, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-              <PrjIcon path={PRJ_ICONS.users} size={14} />
-              Grup Uyeleri ({memberCount} kisi)
+            <div style={{
+              fontSize: 11, fontWeight: 700, color: PRJ.textMuted, marginBottom: 10,
+              textTransform: "uppercase", letterSpacing: "0.05em",
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <PrjIcon path={PRJ_ICONS.users} size={13} />
+              Grup Uyeleri ({memberCount})
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {(project.members || []).map(function (member, idx) {
                 var inviteStatus = memberStatuses[idx] || (idx === 0 ? "accepted" : "accepted");
                 var inviteLabel = inviteStatus === "pending" ? "Davet Bekliyor" : inviteStatus === "rejected" ? "Reddetti" : null;
-                var inviteBg = inviteStatus === "pending" ? "#fef3c7" : inviteStatus === "rejected" ? PRJ.redLight : null;
+                var inviteBg = inviteStatus === "pending" ? "linear-gradient(135deg, #fef3c7, #fde68a)" : inviteStatus === "rejected" ? "linear-gradient(135deg, #fee2e2, #fecaca)" : null;
                 var inviteColor = inviteStatus === "pending" ? "#92400e" : inviteStatus === "rejected" ? "#991b1b" : null;
                 return (
                   <div key={idx} style={{
                     display: "flex", alignItems: "center", gap: 10,
-                    padding: "8px 12px", borderRadius: 8,
-                    background: memberColors[idx % memberColors.length] + "08",
-                    border: "1px solid " + memberColors[idx % memberColors.length] + "20",
+                    padding: "10px 14px", borderRadius: 12,
+                    background: "rgba(" + (idx === 0 ? "99,102,241" : idx === 1 ? "5,150,105" : "234,88,12") + ",0.04)",
+                    border: "1px solid rgba(" + (idx === 0 ? "99,102,241" : idx === 1 ? "5,150,105" : "234,88,12") + ",0.1)",
+                    transition: "all 0.2s",
                   }}>
                     <div style={{
-                      width: 32, height: 32, borderRadius: "50%",
-                      background: "linear-gradient(135deg, " + memberColors[idx % memberColors.length] + ", " + memberColors[idx % memberColors.length] + "cc)",
+                      width: 34, height: 34, borderRadius: 10,
+                      background: "linear-gradient(135deg, " + memberColors[idx % memberColors.length] + ", " + memberColors[idx % memberColors.length] + "bb)",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      color: "white", fontSize: 13, fontWeight: 700, flexShrink: 0,
+                      color: "white", fontSize: 14, fontWeight: 700, flexShrink: 0,
+                      boxShadow: "0 2px 8px " + memberColors[idx % memberColors.length] + "40",
                     }}>
                       {member.charAt(0).toUpperCase()}
                     </div>
-                    <span style={{ fontSize: 14, fontWeight: 500, color: PRJ.text }}>{member}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: PRJ.text }}>{member}</span>
                     {idx === 0 && (
-                      <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, background: PRJ.primaryPale, color: PRJ.primary, padding: "2px 8px", borderRadius: 4 }}>
-                        Grup Lideri
+                      <span style={{
+                        marginLeft: "auto", fontSize: 10, fontWeight: 700,
+                        background: "linear-gradient(135deg, #6366f1, #818cf8)",
+                        color: "white",
+                        padding: "3px 10px", borderRadius: 6,
+                        letterSpacing: "0.02em",
+                      }}>
+                        Lider
                       </span>
                     )}
                     {idx > 0 && inviteLabel && (
-                      <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, background: inviteBg, color: inviteColor, padding: "2px 8px", borderRadius: 4 }}>
+                      <span style={{
+                        marginLeft: "auto", fontSize: 10, fontWeight: 600,
+                        background: inviteBg, color: inviteColor,
+                        padding: "3px 10px", borderRadius: 6,
+                      }}>
                         {inviteLabel}
                       </span>
                     )}
@@ -1095,24 +1251,57 @@ function ProjeModuluApp({ currentUser }) {
 
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: window.innerWidth <= 480 ? "0 10px" : "0 24px", boxSizing: "border-box" }}>
         {/* Arama & İstatistik */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ flex: "1 1 280px", display: "flex", alignItems: "center", gap: 8, background: "white", borderRadius: 10, padding: "8px 14px", border: "1px solid " + PRJ.border }}>
-            <PrjIcon path={PRJ_ICONS.search} size={16} color={PRJ.textMuted} />
+        <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{
+            flex: "1 1 280px", display: "flex", alignItems: "center", gap: 10,
+            background: "white", borderRadius: 14, padding: "10px 16px",
+            border: "1px solid rgba(0,0,0,0.06)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+            transition: "all 0.2s",
+          }}>
+            <PrjIcon path={PRJ_ICONS.search} size={16} color="#9ca3af" />
             <input type="text" value={searchQuery} onChange={function (e) { setSearchQuery(e.target.value); }}
-              placeholder="Proje veya kişi ara..." style={{ flex: 1, border: "none", outline: "none", fontSize: 14, fontFamily: "'Source Sans 3', sans-serif", background: "transparent" }} />
+              placeholder="Proje veya kisi ara..." style={{ flex: 1, border: "none", outline: "none", fontSize: 14, fontFamily: "'Source Sans 3', sans-serif", background: "transparent", color: PRJ.text }} />
           </div>
-          <div style={{ background: "white", borderRadius: 10, padding: "10px 16px", border: "1px solid " + PRJ.border, fontSize: 13, color: PRJ.textMuted, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
-            <PrjIcon path={PRJ_ICONS.folder} size={14} color={PRJ.primary} /> {projects.length} proje
+          <div style={{
+            background: "white", borderRadius: 12, padding: "10px 16px",
+            border: "1px solid rgba(0,0,0,0.06)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+            fontSize: 13, color: PRJ.text, fontWeight: 600,
+            display: "flex", alignItems: "center", gap: 7,
+          }}>
+            <span style={{ width: 24, height: 24, borderRadius: 8, background: "rgba(99,102,241,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <PrjIcon path={PRJ_ICONS.folder} size={13} color="#6366f1" />
+            </span>
+            {projects.length} proje
           </div>
-          <div style={{ background: "white", borderRadius: 10, padding: "10px 16px", border: "1px solid " + PRJ.border, fontSize: 13, color: PRJ.textMuted, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
-            <PrjIcon path={PRJ_ICONS.users} size={14} color={PRJ.green} /> {projects.reduce(function (s, p) { return s + (p.members ? p.members.length : 0); }, 0)} katılımcı
+          <div style={{
+            background: "white", borderRadius: 12, padding: "10px 16px",
+            border: "1px solid rgba(0,0,0,0.06)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+            fontSize: 13, color: PRJ.text, fontWeight: 600,
+            display: "flex", alignItems: "center", gap: 7,
+          }}>
+            <span style={{ width: 24, height: 24, borderRadius: 8, background: "rgba(5,150,105,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <PrjIcon path={PRJ_ICONS.users} size={13} color="#059669" />
+            </span>
+            {projects.reduce(function (s, p) { return s + (p.members ? p.members.length : 0); }, 0)} katilimci
           </div>
           {isAdmin && (function () {
             var pendingCount = projects.filter(function (p) { return p.status === "pending"; }).length;
             if (pendingCount === 0) return null;
             return (
-              <div style={{ background: "#fef3c7", borderRadius: 10, padding: "10px 16px", border: "1px solid #f59e0b40", fontSize: 13, color: "#92400e", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                <PrjIcon path={PRJ_ICONS.clock} size={14} color="#f59e0b" /> {pendingCount} onay bekliyor
+              <div style={{
+                background: "linear-gradient(135deg, #fffbeb, #fef3c7)",
+                borderRadius: 12, padding: "10px 16px",
+                border: "1px solid rgba(245,158,11,0.2)",
+                fontSize: 13, color: "#92400e", fontWeight: 600,
+                display: "flex", alignItems: "center", gap: 7,
+              }}>
+                <span style={{ width: 24, height: 24, borderRadius: 8, background: "rgba(245,158,11,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <PrjIcon path={PRJ_ICONS.clock} size={13} color="#f59e0b" />
+                </span>
+                {pendingCount} onay bekliyor
               </div>
             );
           })()}
@@ -1154,19 +1343,21 @@ function ProjeModuluApp({ currentUser }) {
         {loading ? (
           <div style={{ textAlign: "center", padding: 60, color: PRJ.textMuted }}>Yükleniyor...</div>
         ) : filteredProjects.length === 0 ? (
-          <div style={{ background: "white", borderRadius: 16, padding: 60, textAlign: "center", border: "1px solid " + PRJ.border }}>
-            <PrjIcon path={PRJ_ICONS.folder} size={48} color="#d1d5db" />
-            <h3 style={{ color: PRJ.textMuted, marginTop: 16 }}>
-              {searchQuery ? "Arama sonucu bulunamadı" : "Bu ders için henüz proje grubu oluşturulmamış"}
+          <div style={{ background: "white", borderRadius: 20, padding: "60px 32px", textAlign: "center", border: "1px solid rgba(0,0,0,0.06)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div style={{ width: 64, height: 64, borderRadius: 16, background: "rgba(99,102,241,0.08)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+              <PrjIcon path={PRJ_ICONS.folder} size={32} color="#a5b4fc" />
+            </div>
+            <h3 style={{ color: PRJ.text, marginTop: 8, fontSize: 16, fontWeight: 600 }}>
+              {searchQuery ? "Arama sonucu bulunamadi" : "Henuz proje grubu olusturulmamis"}
             </h3>
             {!searchQuery && (
-              <p style={{ color: PRJ.textMuted, fontSize: 14, marginTop: 8 }}>
-                İlk proje grubunu oluşturmak için "Yeni Proje Grubu" butonuna tıklayın.
+              <p style={{ color: PRJ.textMuted, fontSize: 14, marginTop: 8, maxWidth: 320, marginLeft: "auto", marginRight: "auto" }}>
+                Ilk proje grubunu olusturmak icin "Yeni Proje Grubu" butonuna tiklayin.
               </p>
             )}
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: window.innerWidth <= 768 ? "1fr" : "repeat(2, 1fr)", gap: 20, alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: window.innerWidth <= 560 ? "1fr" : window.innerWidth <= 900 ? "repeat(2, 1fr)" : "repeat(2, 1fr)", gap: 16, alignItems: "start" }}>
             {filteredProjects.map(function (project) {
               return (
                 <ProjectCard
