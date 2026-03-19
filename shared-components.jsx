@@ -1359,13 +1359,39 @@ const LoginModal = ({ onLogin }) => {
     const loadProfessors = async () => {
       try {
         const profs = await FirebaseDB.fetchProfessors();
-        // İsme göre tekilleştir - aynı isimli birden fazla kayıt varsa sadece birini göster
-        const seen = new Set();
-        const unique = (profs || []).filter(p => {
-          if (seen.has(p.name)) return false;
-          seen.add(p.name);
-          return true;
+        // Unvanları soyarak soyadı + ilk ad bazında tekilleştir
+        const titles = ["Dr. Öğr. Üyesi", "Dr. Öğr. Gör.", "Öğr. Gör. Dr.", "Arş. Gör. Dr.", "Prof. Dr.", "Prof Dr.", "Doç. Dr.", "Öğr. Gör.", "Arş. Gör.", "Dr."];
+        const stripTitle = (name) => {
+          let n = (name || "").trim();
+          for (const t of titles) { if (n.startsWith(t)) { n = n.slice(t.length).trim(); break; } }
+          return n;
+        };
+        // Soyadını çıkar (sondaki tamamı büyük harf kelime(ler))
+        const getKey = (name) => {
+          const bare = stripTitle(name);
+          const parts = bare.split(/\s+/);
+          // Sondaki büyük harfli kelimeler = soyadı
+          const surnames = [];
+          for (let i = parts.length - 1; i >= 0; i--) {
+            if (parts[i] === parts[i].toUpperCase() && parts[i].length > 1) surnames.unshift(parts[i]);
+            else break;
+          }
+          const surname = surnames.join(" ");
+          // İlk ad = soyadı hariç ilk kelime
+          const firstName = parts.length > surnames.length ? parts[0].replace(/\./g, "").toUpperCase() : "";
+          return (firstName + " " + surname).trim().toUpperCase();
+        };
+        const seen = new Map();
+        (profs || []).forEach(p => {
+          const key = getKey(p.name);
+          if (!key) return;
+          // Daha uzun (daha detaylı) ismi tercih et
+          if (!seen.has(key) || (p.name || "").length > (seen.get(key).name || "").length) {
+            seen.set(key, p);
+          }
         });
+        const unique = Array.from(seen.values());
+        unique.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr"));
         setProfessorList(unique);
       } catch (e) {
         console.error("Error loading professors:", e);
