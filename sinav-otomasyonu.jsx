@@ -1656,23 +1656,27 @@ function SinavOtomasyonuApp({ currentUser }) {
     const cRef = getCoursesRef();
     const pRef = getProfessorsRef();
     if (!cRef || !pRef) { alert("Firebase bağlantısı yok!"); return; }
+    if (!selectedDeptId) { alert("Lütfen önce bir bölüm seçin!"); return; }
     try {
-      const existingCourses = await cRef.get();
+      // Sadece seçili bölümün derslerini kontrol et ve sil
+      const existingCourses = await cRef.where("departmentId", "==", selectedDeptId).get();
       if (!existingCourses.empty) {
-        if (!confirm("Veritabanında zaten dersler var. Üzerine yazılsın mı?")) return;
+        if (!confirm("Bu bölümde zaten dersler var. Üzerine yazılsın mı?")) return;
         const delOps1 = existingCourses.docs.map(doc => ({ collection: "sinav_dersler", type: "delete", docId: doc.id }));
         if (delOps1.length > 0) await FirestoreWrite.batch(delOps1);
       }
+      // Sadece seçili bölümün profesörlerini sil
       const existingProfs = await pRef.get();
-      if (!existingProfs.empty) {
-        const delOps2 = existingProfs.docs.map(doc => ({ collection: "professors", type: "delete", docId: doc.id }));
-        if (delOps2.length > 0) await FirestoreWrite.batch(delOps2);
+      const deptProfs = existingProfs.docs.filter(doc => doc.data().departmentId === selectedDeptId);
+      if (deptProfs.length > 0) {
+        const delOps2 = deptProfs.map(doc => ({ collection: "professors", type: "delete", docId: doc.id }));
+        await FirestoreWrite.batch(delOps2);
       }
       for (const prof of SEED_PROFESSORS) {
-        await FirestoreWrite.add("professors", { ...prof, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() });
+        await FirestoreWrite.add("professors", { ...prof, departmentId: selectedDeptId, createdAt: new Date().toISOString() });
       }
       for (const course of SEED_COURSES) {
-        await FirestoreWrite.add("sinav_dersler", { ...course, studentCount: 0, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() });
+        await FirestoreWrite.add("sinav_dersler", { ...course, studentCount: 0, departmentId: selectedDeptId, createdAt: new Date().toISOString() });
       }
       alert("Veriler başarıyla yüklendi!");
       loadData();
@@ -1683,12 +1687,14 @@ function SinavOtomasyonuApp({ currentUser }) {
   };
 
   const syncCourses = async () => {
+    if (!selectedDeptId) { alert("Lütfen önce bir bölüm seçin!"); return; }
     if (!confirm("Eksik dersler eklenecek ve mevcut derslerin bilgileri güncellenecek. Onaylıyor musunuz?")) return;
     setLoading(true);
     try {
       const cRef = getCoursesRef();
       if (!cRef) throw new Error("Firebase hazır değil");
-      const snap = await cRef.get();
+      // Sadece seçili bölümün derslerini al
+      const snap = await cRef.where("departmentId", "==", selectedDeptId).get();
       const existing = snap.docs.map(d => ({ fireId: d.id, ...d.data() }));
 
       const ops = [];
@@ -1705,7 +1711,7 @@ function SinavOtomasyonuApp({ currentUser }) {
           }
         } else {
           // Add new
-          ops.push({ collection: "sinav_dersler", type: "add", data: { ...seedC, studentCount: 0, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() } });
+          ops.push({ collection: "sinav_dersler", type: "add", data: { ...seedC, studentCount: 0, departmentId: selectedDeptId, createdAt: new Date().toISOString() } });
           added++;
         }
       }
@@ -1776,56 +1782,52 @@ function SinavOtomasyonuApp({ currentUser }) {
       const eRef = getExamsRef();
 
       if (cRef) {
-        let snap;
         if (selectedDeptId) {
-          snap = await cRef.where("departmentId", "==", selectedDeptId).get();
-          // Also load courses without departmentId if this is the legacy default department
-          const legacySnap = await cRef.get();
-          const allDocs = legacySnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          const deptDocs = allDocs.filter(d => d.departmentId === selectedDeptId || (!d.departmentId && departments.length <= 1));
-          setCourses(deptDocs);
-        } else {
-          snap = await cRef.get();
+          const snap = await cRef.where("departmentId", "==", selectedDeptId).get();
           setCourses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } else if (isAdmin) {
+          const snap = await cRef.get();
+          setCourses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } else {
+          setCourses([]);
         }
       }
       if (pRef) {
         const snap = await pRef.get();
         let profs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (selectedDeptId) {
-          // Filter professors by department if they have departmentId, or show all for legacy
-          profs = profs.filter(p => p.departmentId === selectedDeptId || !p.departmentId);
+          profs = profs.filter(p => p.departmentId === selectedDeptId);
         }
         setProfessors(profs.sort((a, b) => a.name.localeCompare(b.name)));
       }
       if (perRef) {
-        let snap;
         if (selectedDeptId) {
-          const allSnap = await perRef.get();
-          const allPeriods = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          const deptPeriods = allPeriods.filter(p => p.departmentId === selectedDeptId || (!p.departmentId && departments.length <= 1));
+          const snap = await perRef.where("departmentId", "==", selectedDeptId).get();
+          const deptPeriods = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           setPeriods(deptPeriods);
           if (deptPeriods.length > 0 && !activePeriodId) {
             setActivePeriodId(deptPeriods[0].id);
           }
-        } else {
-          snap = await perRef.get();
+        } else if (isAdmin) {
+          const snap = await perRef.get();
           const perList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           setPeriods(perList);
           if (perList.length > 0 && !activePeriodId) {
             setActivePeriodId(perList[0].id);
           }
+        } else {
+          setPeriods([]);
         }
       }
       if (eRef) {
-        let snap;
         if (selectedDeptId) {
-          const allSnap = await eRef.get();
-          const allExams = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          setPlacedExams(allExams.filter(e => e.departmentId === selectedDeptId || (!e.departmentId && departments.length <= 1)));
-        } else {
-          snap = await eRef.get();
+          const snap = await eRef.where("departmentId", "==", selectedDeptId).get();
           setPlacedExams(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } else if (isAdmin) {
+          const snap = await eRef.get();
+          setPlacedExams(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } else {
+          setPlacedExams([]);
         }
       }
 
@@ -2003,6 +2005,23 @@ function SinavOtomasyonuApp({ currentUser }) {
       } else {
         await FirestoreWrite.add("sinav_dersler", { ...formData, studentCount: 0, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() });
       }
+      // Akademisyen adı girilmişse ve professors koleksiyonunda yoksa otomatik ekle
+      if (formData.professor && formData.professor.trim()) {
+        const profName = formData.professor.trim();
+        const existingProf = professors.find(p => p.name === profName);
+        if (!existingProf) {
+          const pRef = getProfessorsRef();
+          if (pRef) {
+            await FirestoreWrite.add("professors", {
+              name: profName,
+              department: selectedDept?.name || "",
+              departmentId: selectedDeptId || null,
+              isExternal: false,
+              createdAt: new Date().toISOString()
+            });
+          }
+        }
+      }
       loadData();
     } catch (e) {
       alert("Hata: " + e.message);
@@ -2141,12 +2160,12 @@ function SinavOtomasyonuApp({ currentUser }) {
                 Gözetmenler
               </GhostBtn>
             )}
-            {canManage && courses.length === 0 && selectedDeptId && (
+            {isAdmin && courses.length === 0 && selectedDeptId && (
               <Btn onClick={seedData} style={{ background: "#059669" }}>
                 Örnek Verileri Yükle
               </Btn>
             )}
-            {canManage && courses.length > 0 && (
+            {isAdmin && courses.length > 0 && (
               <GhostBtn onClick={syncCourses} style={{ color: "#059669", borderColor: "#059669" }}>
                 Verileri Güncelle
               </GhostBtn>
