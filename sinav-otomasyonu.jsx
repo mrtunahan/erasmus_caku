@@ -1888,6 +1888,78 @@ function SinavOtomasyonuApp({ currentUser }) {
     }
   }, [selectedDeptId, departments.length]);
 
+  // ── Migration: Sahipsiz verileri belirli bölüme ata (Admin only) ──
+  const migrateOrphanData = async () => {
+    // Bilgisayar Mühendisliği bölümünü bul
+    const csDept = departments.find(d => d.name && d.name.toLowerCase().includes("bilgisayar"));
+    if (!csDept) {
+      alert("Bilgisayar Mühendisliği bölümü bulunamadı! Önce bölüm oluşturun.");
+      return;
+    }
+    if (!confirm(`departmentId'si olmayan tüm dersler, akademisyenler, dönemler ve sınavlar "${csDept.name}" bölümüne atanacak. Devam etmek istiyor musunuz?`)) return;
+
+    setLoading(true);
+    try {
+      const ops = [];
+
+      // Sahipsiz dersleri bul
+      const cRef = getCoursesRef();
+      if (cRef) {
+        const snap = await cRef.get();
+        snap.docs.forEach(d => {
+          if (!d.data().departmentId) {
+            ops.push({ collection: "sinav_dersler", type: "update", docId: d.id, data: { departmentId: csDept.id } });
+          }
+        });
+      }
+
+      // Sahipsiz profesörleri bul
+      const pRef = getProfessorsRef();
+      if (pRef) {
+        const snap = await pRef.get();
+        snap.docs.forEach(d => {
+          if (!d.data().departmentId) {
+            ops.push({ collection: "professors", type: "update", docId: d.id, data: { departmentId: csDept.id } });
+          }
+        });
+      }
+
+      // Sahipsiz dönemleri bul
+      const perRef = getPeriodsRef();
+      if (perRef) {
+        const snap = await perRef.get();
+        snap.docs.forEach(d => {
+          if (!d.data().departmentId) {
+            ops.push({ collection: "sinav_donemler", type: "update", docId: d.id, data: { departmentId: csDept.id } });
+          }
+        });
+      }
+
+      // Sahipsiz sınavları bul
+      const eRef = getExamsRef();
+      if (eRef) {
+        const snap = await eRef.get();
+        snap.docs.forEach(d => {
+          if (!d.data().departmentId) {
+            ops.push({ collection: "sinav_programi", type: "update", docId: d.id, data: { departmentId: csDept.id } });
+          }
+        });
+      }
+
+      if (ops.length === 0) {
+        alert("Sahipsiz veri bulunamadı. Tüm veriler zaten bir bölüme atanmış.");
+      } else {
+        await FirestoreWrite.batch(ops);
+        alert(`${ops.length} kayıt "${csDept.name}" bölümüne atandı.`);
+        loadData();
+      }
+    } catch (e) {
+      console.error("Migration error:", e);
+      alert("Hata: " + e.message);
+    }
+    setLoading(false);
+  };
+
   const activePeriod = periods.find(p => p.id === activePeriodId);
   const periodExams = placedExams.filter(e => e.periodId === activePeriodId);
 
@@ -2206,6 +2278,11 @@ function SinavOtomasyonuApp({ currentUser }) {
             {canManage && selectedDeptId && (
               <GhostBtn onClick={() => setShowSupervisorModal(true)} style={{ color: "#D97706", borderColor: "#D97706" }}>
                 Gözetmenler
+              </GhostBtn>
+            )}
+            {isAdmin && (
+              <GhostBtn onClick={migrateOrphanData} style={{ color: "#DC2626", borderColor: "#DC2626" }}>
+                Sahipsiz Verileri Düzelt
               </GhostBtn>
             )}
             {isAdmin && courses.length === 0 && selectedDeptId && (
