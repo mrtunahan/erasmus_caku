@@ -69,6 +69,7 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
   const isMobile = windowWidth <= 1024;
   const isAdmin = currentUser?.role === 'admin';
   const isProfessor = currentUser?.role === 'professor';
+  const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
 
   // Sadece erişilebilir sekmeleri göster (kilitli olanları gizle)
   const visibleItems = NAV_ITEMS.filter(item => {
