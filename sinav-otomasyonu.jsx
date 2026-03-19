@@ -433,7 +433,7 @@ const PeriodConfigModal = ({ period, onSave, onClose, departmentId }) => {
 // ══════════════════════════════════════════════════════════════
 // Edit Exam Modal
 // ══════════════════════════════════════════════════════════════
-const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
+const EditExamModal = ({ exam, professors, onSave, onRemove, onClose, readOnly = false }) => {
   const [studentCount, setStudentCount] = useState(exam?.studentCount || "");
   const [supervisor, setSupervisor] = useState(exam?.supervisor || "");
   const [room, setRoom] = useState(exam?.room || "");
@@ -442,6 +442,7 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
+    if (readOnly) return;
     if (!studentCount || parseInt(studentCount) <= 0) {
       alert("Öğrenci sayısı girilmesi zorunludur.");
       return;
@@ -464,47 +465,54 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose }) => {
   };
 
   return (
-    <Modal open={true} title="Sınav Detaylarını Düzenle" onClose={onClose} width={500}>
+    <Modal open={true} title={readOnly ? "Sınav Detayları (Salt Okunur)" : "Sınav Detaylarını Düzenle"} onClose={onClose} width={500}>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ padding: 12, background: SINIF_COLORS[exam.sinif]?.bg || "#f0f0f0", borderRadius: 8, fontSize: 14 }}>
           <strong>{exam.code}</strong> - {exam.name}
         </div>
+        {readOnly && (
+          <div style={{ padding: 8, background: "#FEF3C7", borderRadius: 6, fontSize: 12, color: "#92400E", textAlign: "center" }}>
+            Bu ders size ait değil. Sadece görüntüleyebilirsiniz.
+          </div>
+        )}
         <FormField label="Akademisyen">
-          <Input value={professor} onChange={e => setProfessor(e.target.value)} placeholder="Akademisyen ismi" list="prof-list" />
-          <datalist id="prof-list">
+          <Input value={professor} onChange={e => !readOnly && setProfessor(e.target.value)} placeholder="Akademisyen ismi" list="prof-list" readOnly={readOnly} style={readOnly ? { background: "#F3F4F6" } : {}} />
+          {!readOnly && <datalist id="prof-list">
             {(professors || []).map((p, i) => <option key={i} value={p.name} />)}
-          </datalist>
+          </datalist>}
         </FormField>
 
-        <FormField label="Sınıf (Dersin ait olduğu sınıfı değiştirebilirsiniz)">
+        {!readOnly && <FormField label="Sınıf (Dersin ait olduğu sınıfı değiştirebilirsiniz)">
           <Select value={exam.sinif} onChange={e => onSave({ ...exam, sinif: parseInt(e.target.value) })}>
             {[1, 2, 3, 4].map(s => <option key={s} value={s}>{s}. Sınıf</option>)}
           </Select>
-        </FormField>
+        </FormField>}
         <FormField label="Sınav Süresi (dk)">
-          <Select value={duration} onChange={e => setDuration(e.target.value)}>
+          <Select value={duration} onChange={e => !readOnly && setDuration(e.target.value)} disabled={readOnly} style={readOnly ? { background: "#F3F4F6" } : {}}>
             {[30, 45, 60, 75, 90, 105, 120].map(d => <option key={d} value={d}>{d} dakika</option>)}
           </Select>
         </FormField>
-        <FormField label="Öğrenci Sayısı *">
-          <Input type="number" value={studentCount} onChange={e => setStudentCount(e.target.value)} placeholder="Örn: 45" style={(!studentCount || parseInt(studentCount) <= 0) ? { borderColor: "#DC2626" } : {}} />
-          {(!studentCount || parseInt(studentCount) <= 0) && (
+        <FormField label={readOnly ? "Öğrenci Sayısı" : "Öğrenci Sayısı *"}>
+          <Input type="number" value={studentCount} onChange={e => !readOnly && setStudentCount(e.target.value)} placeholder="Örn: 45" readOnly={readOnly} style={readOnly ? { background: "#F3F4F6" } : (!studentCount || parseInt(studentCount) <= 0) ? { borderColor: "#DC2626" } : {}} />
+          {!readOnly && (!studentCount || parseInt(studentCount) <= 0) && (
             <div style={{ color: "#DC2626", fontSize: 11, marginTop: 4 }}>Öğrenci sayısı zorunludur</div>
           )}
         </FormField>
         <FormField label="Gözetmen">
-          <Input value={supervisor} onChange={e => setSupervisor(e.target.value)} placeholder="Gözetmen adı" />
+          <Input value={supervisor} onChange={e => !readOnly && setSupervisor(e.target.value)} placeholder="Gözetmen adı" readOnly={readOnly} style={readOnly ? { background: "#F3F4F6" } : {}} />
         </FormField>
         <FormField label="Sınıf / Salon">
-          <Input value={room} onChange={e => setRoom(e.target.value)} placeholder="Örn: D-201" />
+          <Input value={room} onChange={e => !readOnly && setRoom(e.target.value)} placeholder="Örn: D-201" readOnly={readOnly} style={readOnly ? { background: "#F3F4F6" } : {}} />
         </FormField>
-        <div style={{ display: "flex", gap: 12, justifyContent: "space-between", marginTop: 8 }}>
-          <GhostBtn onClick={() => { onRemove(exam); onClose(); }} style={{ color: "#DC2626" }}>
-            Takvimden Kaldır
-          </GhostBtn>
+        <div style={{ display: "flex", gap: 12, justifyContent: readOnly ? "flex-end" : "space-between", marginTop: 8 }}>
+          {!readOnly && (
+            <GhostBtn onClick={() => { onRemove(exam); onClose(); }} style={{ color: "#DC2626" }}>
+              Takvimden Kaldır
+            </GhostBtn>
+          )}
           <div style={{ display: "flex", gap: 12 }}>
-            <GhostBtn onClick={onClose}>İptal</GhostBtn>
-            <Btn onClick={handleSave} disabled={saving || !studentCount || parseInt(studentCount) <= 0}>{saving ? "..." : "Kaydet"}</Btn>
+            <GhostBtn onClick={onClose}>{readOnly ? "Kapat" : "İptal"}</GhostBtn>
+            {!readOnly && <Btn onClick={handleSave} disabled={saving || !studentCount || parseInt(studentCount) <= 0}>{saving ? "..." : "Kaydet"}</Btn>}
           </div>
         </div>
       </div>
@@ -638,10 +646,11 @@ const CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose 
 // ══════════════════════════════════════════════════════════════
 // Draggable Course Card (in pool)
 // ══════════════════════════════════════════════════════════════
-const DraggableCourseCard = ({ course, isPlaced, placedCount = 0 }) => {
+const DraggableCourseCard = ({ course, isPlaced, placedCount = 0, canDrag = true }) => {
   const color = SINIF_COLORS[course.sinif] || SINIF_COLORS[1];
 
   const handleDragStart = (e) => {
+    if (!canDrag) { e.preventDefault(); return; }
     e.dataTransfer.setData("application/json", JSON.stringify(course));
     e.dataTransfer.effectAllowed = "move";
     e.currentTarget.style.opacity = "0.5";
@@ -653,33 +662,34 @@ const DraggableCourseCard = ({ course, isPlaced, placedCount = 0 }) => {
 
   return (
     <div
-      draggable={true}
+      draggable={canDrag}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       style={{
         padding: "8px 10px",
-        background: color.bg,
-        color: color.text,
+        background: canDrag ? color.bg : "#F3F4F6",
+        color: canDrag ? color.text : "#9CA3AF",
         borderRadius: 6,
         fontSize: 12,
-        cursor: "grab",
-        border: `1px solid ${color.text}30`,
+        cursor: canDrag ? "grab" : "default",
+        border: `1px solid ${canDrag ? color.text + "30" : "#E5E7EB"}`,
         transition: "all 0.2s",
         userSelect: "none",
         position: "relative",
+        opacity: canDrag ? 1 : 0.6,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontWeight: 600, fontSize: 12 }}>{course.code}</div>
         {placedCount > 0 && (
           <span style={{
-            background: color.text, color: "white", borderRadius: 10,
+            background: canDrag ? color.text : "#9CA3AF", color: "white", borderRadius: 10,
             padding: "1px 6px", fontSize: 9, fontWeight: 700, minWidth: 16, textAlign: "center",
           }}>{placedCount}</span>
         )}
       </div>
       <div style={{ fontSize: 11, marginTop: 2, lineHeight: 1.3 }}>{course.name}</div>
-      <div style={{ fontSize: 10, marginTop: 3, opacity: 0.7 }}>{course.duration} dk</div>
+      <div style={{ fontSize: 10, marginTop: 3, opacity: 0.7 }}>{course.duration} dk{course.professor && !canDrag ? ` - ${course.professor}` : ""}</div>
     </div>
   );
 };
@@ -1568,6 +1578,7 @@ function SinavOtomasyonuApp({ currentUser }) {
   const r = window.useResponsive ? window.useResponsive() : { isMobile: window.innerWidth <= 480, isTablet: window.innerWidth <= 768, width: window.innerWidth, val: (m,t,d) => window.innerWidth <= 480 ? m : window.innerWidth <= 768 ? (t||m) : (d||t||m), modalWidth: (w) => Math.min(w, window.innerWidth - 32) };
   const isAdmin = currentUser?.role === "admin";
   const isDeptManager = currentUser?.role === "bolum_yetkilisi";
+  const isProfessor = currentUser?.role === "professor";
   const canManage = isAdmin || isDeptManager;
 
   // Department State
@@ -1737,11 +1748,30 @@ function SinavOtomasyonuApp({ currentUser }) {
       const dRef = getDepartmentsRef();
       if (dRef) {
         const snap = await dRef.get();
-        const depts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        let depts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Akademisyen için: derslerinin olduğu bölümleri bul
+        if (isProfessor && currentUser?.name) {
+          const cRef = getCoursesRef();
+          if (cRef) {
+            const coursesSnap = await cRef.get();
+            const profDeptIds = new Set();
+            coursesSnap.docs.forEach(d => {
+              const data = d.data();
+              if (data.professor === currentUser.name && data.departmentId) {
+                profDeptIds.add(data.departmentId);
+              }
+            });
+            depts = depts.filter(d => profDeptIds.has(d.id));
+          }
+        }
+
         setDepartments(depts);
         // Auto-select for department manager
         if (isDeptManager && currentUser?.departmentId) {
           setSelectedDeptId(currentUser.departmentId);
+        } else if (isProfessor && depts.length > 0 && !selectedDeptId) {
+          setSelectedDeptId(depts[0].id);
         } else if (isAdmin && !selectedDeptId && depts.length > 0) {
           setSelectedDeptId(depts[0].id);
         }
@@ -1909,6 +1939,11 @@ function SinavOtomasyonuApp({ currentUser }) {
 
   // ── Drop handler ──
   const handleDrop = async (courseData, dateStr, timeSlot) => {
+    // Akademisyen sadece kendi derslerini yerleştirebilir
+    if (isProfessor && courseData.professor !== currentUser?.name) {
+      alert("Sadece kendi derslerinizi programa ekleyebilirsiniz.");
+      return;
+    }
     const span = slotSpan(courseData.duration);
     const dropSlotIdx = timeToSlotIndex(timeSlot);
 
@@ -1952,6 +1987,11 @@ function SinavOtomasyonuApp({ currentUser }) {
   };
 
   const handleUpdateExam = async (updatedExam) => {
+    // Akademisyen sadece kendi derslerini düzenleyebilir
+    if (isProfessor && updatedExam.professor !== currentUser?.name) {
+      alert("Sadece kendi derslerinizi düzenleyebilirsiniz.");
+      return;
+    }
     try {
       const { id, ...data } = updatedExam;
       await FirestoreWrite.update("sinav_programi", id, data);
@@ -1963,6 +2003,11 @@ function SinavOtomasyonuApp({ currentUser }) {
   };
 
   const handleRemoveExam = async (exam) => {
+    // Akademisyen sadece kendi derslerini kaldırabilir
+    if (isProfessor && exam.professor !== currentUser?.name) {
+      alert("Sadece kendi derslerinizi takvimden kaldırabilirsiniz.");
+      return;
+    }
     try {
       await FirestoreWrite.remove("sinav_programi", exam.id);
       setPlacedExams(prev => prev.filter(e => e.id !== exam.id));
@@ -2008,10 +2053,13 @@ function SinavOtomasyonuApp({ currentUser }) {
       // Akademisyen adı girilmişse ve professors koleksiyonunda yoksa otomatik ekle
       if (formData.professor && formData.professor.trim()) {
         const profName = formData.professor.trim();
-        const existingProf = professors.find(p => p.name === profName);
-        if (!existingProf) {
-          const pRef = getProfessorsRef();
-          if (pRef) {
+        const pRef = getProfessorsRef();
+        if (pRef) {
+          // Tüm profesörler arasında isme göre kontrol et (duplicate önleme)
+          const allProfsSnap = await pRef.get();
+          const allProfs = allProfsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const existingProf = allProfs.find(p => p.name === profName);
+          if (!existingProf) {
             await FirestoreWrite.add("professors", {
               name: profName,
               department: selectedDept?.name || "",
@@ -2181,8 +2229,8 @@ function SinavOtomasyonuApp({ currentUser }) {
           </div>
         </div>
 
-        {/* Department Selector (Admin only) */}
-        {isAdmin && departments.length > 0 && (
+        {/* Department Selector (Admin and Professor) */}
+        {(isAdmin || isProfessor) && departments.length > 0 && (
           <Card style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: "#7C3AED" }}>
@@ -2225,6 +2273,31 @@ function SinavOtomasyonuApp({ currentUser }) {
                 <span style={{ fontWeight: 600, color: "#7C3AED" }}>{currentUser?.departmentName || "Bölüm"}</span>
                 <span style={{ color: "#6B7280", fontSize: 13, marginLeft: 8 }}>Bölüm Yetkilisi: {currentUser?.name}</span>
               </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Professor Info */}
+        {isProfessor && departments.length > 0 && selectedDeptId && (
+          <Card style={{ marginBottom: 16, background: "#DBEAFE", border: "1px solid #93C5FD" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" />
+              </svg>
+              <div>
+                <span style={{ fontWeight: 600, color: "#2563EB" }}>{currentUser?.name}</span>
+                <span style={{ color: "#6B7280", fontSize: 13, marginLeft: 8 }}>Akademisyen - Sadece kendi derslerinizi programa ekleyebilirsiniz</span>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Professor no department warning */}
+        {isProfessor && departments.length === 0 && (
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ padding: 40, textAlign: "center", color: "#999" }}>
+              <div style={{ fontSize: 16, marginBottom: 8 }}>Henüz hiçbir bölümde dersiniz bulunmuyor</div>
+              <div style={{ fontSize: 13 }}>Bölüm yetkilisi sizi bir derse atadığında burada görebilirsiniz.</div>
             </div>
           </Card>
         )}
@@ -2439,7 +2512,7 @@ function SinavOtomasyonuApp({ currentUser }) {
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                           {group.map((c, i) => (
-                            <DraggableCourseCard key={c.id || i} course={c} isPlaced={false} placedCount={c.placedCount} />
+                            <DraggableCourseCard key={c.id || i} course={c} isPlaced={false} placedCount={c.placedCount} canDrag={canManage || (isProfessor && c.professor === currentUser?.name)} />
                           ))}
                         </div>
                       </div>
@@ -2531,6 +2604,7 @@ function SinavOtomasyonuApp({ currentUser }) {
             onSave={handleUpdateExam}
             onRemove={handleRemoveExam}
             onClose={() => setEditingExam(null)}
+            readOnly={isProfessor && editingExam?.professor !== currentUser?.name}
           />
         )}
 

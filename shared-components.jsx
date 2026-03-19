@@ -1359,7 +1359,14 @@ const LoginModal = ({ onLogin }) => {
     const loadProfessors = async () => {
       try {
         const profs = await FirebaseDB.fetchProfessors();
-        setProfessorList(profs || []);
+        // İsme göre tekilleştir - aynı isimli birden fazla kayıt varsa sadece birini göster
+        const seen = new Set();
+        const unique = (profs || []).filter(p => {
+          if (seen.has(p.name)) return false;
+          seen.add(p.name);
+          return true;
+        });
+        setProfessorList(unique);
       } catch (e) {
         console.error("Error loading professors:", e);
         setProfessorList(window.SEED_PROFESSORS || []);
