@@ -112,8 +112,7 @@ var ProjDB = {
     }
   },
   async updateCourse(id, data) {
-    var db = this.db(); if (!db) return;
-    await db.collection("project_courses").doc(id).update(data);
+    await window.FirestoreWrite.update("project_courses", String(id), data);
   },
   async deleteCourse(id) {
     try {
@@ -162,8 +161,7 @@ var ProjDB = {
     }
   },
   async updateProject(id, data) {
-    var db = this.db(); if (!db) return;
-    await db.collection("projects").doc(id).update(data);
+    await window.FirestoreWrite.update("projects", String(id), data);
   },
   async deleteProject(id) {
     try {
