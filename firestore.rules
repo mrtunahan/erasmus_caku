@@ -81,6 +81,24 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Bölümler ──
+    match /departments/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ── Bölüm sınıfları ──
+    match /department_classrooms/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ── Bölüm gözetmenleri ──
+    match /department_supervisors/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // ── Öğrenci portalı: gönderiler ──
     match /portal_posts/{docId} {
       allow read: if true;

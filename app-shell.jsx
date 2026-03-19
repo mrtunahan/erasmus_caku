@@ -74,6 +74,7 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
   const visibleItems = NAV_ITEMS.filter(item => {
     if (isAdmin) return true;
     if (isProfessor) return ['sinav', 'formlar'].includes(item.id);
+    if (isDeptManager) return ['sinav'].includes(item.id);
     // Öğrenci - tüm öğrenciler erasmus modülünü görebilir (yetkisiz olanlar salt okunur)
     const allowed = ['erasmus', 'portal', 'projeler', 'formlar'];
     return allowed.includes(item.id);
@@ -171,6 +172,7 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
               <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>
                 {currentUser?.role === "admin" ? "Admin"
                   : currentUser?.role === "professor" ? "Akademisyen"
+                    : currentUser?.role === "bolum_yetkilisi" ? `Bölüm Yetkilisi`
                     : `Öğrenci (${currentUser?.studentNumber || ""})`}
               </div>
             </div>
@@ -230,6 +232,7 @@ const NavigationBar = ({ currentRoute, onNavigate, currentUser, onLogout }) => {
               <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 4 }}>
                 {currentUser?.role === "admin" ? "Admin"
                   : currentUser?.role === "professor" ? "Akademisyen"
+                    : currentUser?.role === "bolum_yetkilisi" ? `Bölüm Yetkilisi`
                     : `Öğrenci (${currentUser?.studentNumber || ""})`}
               </div>
             </div>
@@ -313,6 +316,7 @@ function AppShell() {
 
   const isAdmin = currentUser?.role === 'admin';
   const isProfessor = currentUser?.role === 'professor';
+  const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
 
   // Öğrencilerin erişebileceği modüller (tüm öğrenciler erasmus'u görebilir, yetkisiz olanlar salt okunur)
   const hasErasmusAccess = currentUser?.erasmusAccess === true;
@@ -321,11 +325,13 @@ function AppShell() {
   const handleLogin = (user) => {
     setCurrentUser(user);
     // localStorage'a sadece minimum oturum bilgisi kaydet (hassas veri saklanmaz)
-    const safeUser = { role: user.role, name: user.name, studentNumber: user.studentNumber || null };
+    const safeUser = { role: user.role, name: user.name, studentNumber: user.studentNumber || null, departmentId: user.departmentId || null, departmentName: user.departmentName || null };
     localStorage.setItem("caku_current_user", JSON.stringify(safeUser));
 
     // Redirect based on role immediately after login
     if (user.role === 'professor') {
+      navigate('sinav');
+    } else if (user.role === 'bolum_yetkilisi') {
       navigate('sinav');
     } else if (user.role === 'admin') {
       // Admin stays on current or goes to default
@@ -354,7 +360,11 @@ function AppShell() {
   useEffect(() => {
     if (!currentUser) return;
 
-    if (isProfessor) {
+    if (isDeptManager) {
+      if (route !== 'sinav') {
+        navigate('sinav');
+      }
+    } else if (isProfessor) {
       // Professors can access 'sinav' and 'formlar'
       const professorRoutes = ['sinav', 'formlar'];
       if (!professorRoutes.includes(route)) {
@@ -392,8 +402,9 @@ function AppShell() {
     };
 
     // Safety check for rendering availability
+    if (isDeptManager && route !== 'sinav') return null; // Wait for redirect
     if (isProfessor && !['sinav', 'formlar'].includes(route)) return null; // Wait for redirect
-    if (!isAdmin && !isProfessor && !STUDENT_ALLOWED_ROUTES.includes(route)) return null; // Wait for redirect
+    if (!isAdmin && !isProfessor && !isDeptManager && !STUDENT_ALLOWED_ROUTES.includes(route)) return null; // Wait for redirect
 
     const Component = components[route] || components.erasmus;
     if (!Component) {

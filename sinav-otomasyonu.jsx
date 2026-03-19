@@ -333,10 +333,25 @@ function getPeriodsRef() {
   return window.firebase.firestore().collection("sinav_donemler");
 }
 
+function getDepartmentsRef() {
+  if (!window.firebase || !window.firebase.firestore) return null;
+  return window.firebase.firestore().collection("departments");
+}
+
+function getDeptClassroomsRef() {
+  if (!window.firebase || !window.firebase.firestore) return null;
+  return window.firebase.firestore().collection("department_classrooms");
+}
+
+function getDeptSupervisorsRef() {
+  if (!window.firebase || !window.firebase.firestore) return null;
+  return window.firebase.firestore().collection("department_supervisors");
+}
+
 // ══════════════════════════════════════════════════════════════
 // Period Config Modal
 // ══════════════════════════════════════════════════════════════
-const PeriodConfigModal = ({ period, onSave, onClose }) => {
+const PeriodConfigModal = ({ period, onSave, onClose, departmentId }) => {
   const [examType, setExamType] = useState(period?.examType || "final");
   const [startDate, setStartDate] = useState(period?.startDate || "");
   const [semester, setSemester] = useState(period?.semester || "Güz 2024-2025");
@@ -361,6 +376,7 @@ const PeriodConfigModal = ({ period, onSave, onClose }) => {
         endDate,
         weeks: selectedType.weeks,
         label: `${selectedType.label} - ${semester}`,
+        departmentId: departmentId || null,
       };
       if (period?.id) {
         await FirestoreWrite.update("sinav_donemler", period.id, data);
@@ -831,6 +847,251 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
 };
 
 // ══════════════════════════════════════════════════════════════
+// Department Management Modal (Admin Only)
+// ══════════════════════════════════════════════════════════════
+const DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) => {
+  const [editingDept, setEditingDept] = useState(null);
+  const [form, setForm] = useState({ name: "", managerName: "" });
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = (d) => {
+    setEditingDept(d);
+    setForm({ name: d.name, managerName: d.managerName || "" });
+  };
+
+  const startNew = () => {
+    setEditingDept("new");
+    setForm({ name: "", managerName: "" });
+  };
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return alert("Bölüm adı gerekli");
+    setSaving(true);
+    try {
+      await onSave(editingDept === "new" ? null : editingDept, form);
+      setEditingDept(null);
+    } catch (e) {
+      alert("Hata: " + e.message);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Modal open={true} title="Bölüm Yönetimi" onClose={onClose} width={700}>
+      <div style={{ maxHeight: 400, overflowY: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: C.bg }}>
+              <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: `2px solid ${C.border}` }}>Bölüm Adı</th>
+              <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: `2px solid ${C.border}` }}>Yetkili Kişi</th>
+              <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>İşlem</th>
+            </tr>
+          </thead>
+          <tbody>
+            {departments.map((d, i) => (
+              <tr key={d.id || i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                <td style={{ padding: "8px 12px", fontWeight: 600 }}>{d.name}</td>
+                <td style={{ padding: "8px 12px" }}>{d.managerName || <span style={{ color: "#999" }}>Atanmadı</span>}</td>
+                <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                    <button onClick={() => startEdit(d)} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13 }}>Düzenle</button>
+                    <button onClick={() => onDelete(d)} style={{ background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 13 }}>Sil</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {departments.length === 0 && (
+              <tr><td colSpan={3} style={{ padding: 30, textAlign: "center", color: "#999" }}>Henüz bölüm eklenmedi</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {editingDept && (
+        <div style={{ marginTop: 16, padding: 16, background: C.bg, borderRadius: 8, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>{editingDept === "new" ? "Yeni Bölüm" : "Bölümü Düzenle"}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="Bölüm Adı">
+              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Örn: Kimya Mühendisliği" />
+            </FormField>
+            <FormField label="Yetkili Kişi (Ad Soyad)">
+              <Input value={form.managerName} onChange={e => setForm({ ...form, managerName: e.target.value })} placeholder="Örn: Dr. Ahmet YILMAZ" />
+            </FormField>
+          </div>
+          <div style={{ fontSize: 12, color: "#666", fontStyle: "italic" }}>
+            Yetkili kişi, "Bölüm Yetkilisi" olarak giriş yaparak bu bölümü yönetebilir. Varsayılan şifre akademisyen şifresiyle aynıdır.
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <GhostBtn onClick={() => setEditingDept(null)}>İptal</GhostBtn>
+            <Btn onClick={handleSave} disabled={saving}>{saving ? "..." : "Kaydet"}</Btn>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between" }}>
+        <GhostBtn onClick={startNew}>+ Yeni Bölüm Ekle</GhostBtn>
+        <GhostBtn onClick={onClose}>Kapat</GhostBtn>
+      </div>
+    </Modal>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════
+// Department Classroom Management Modal
+// ══════════════════════════════════════════════════════════════
+const ClassroomManagementModal = ({ classrooms, onSave, onDelete, onClose }) => {
+  const [editingRoom, setEditingRoom] = useState(null);
+  const [form, setForm] = useState({ name: "", capacity: "" });
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = (r) => {
+    setEditingRoom(r);
+    setForm({ name: r.name, capacity: r.capacity || "" });
+  };
+
+  const startNew = () => {
+    setEditingRoom("new");
+    setForm({ name: "", capacity: "" });
+  };
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return alert("Sınıf adı gerekli");
+    setSaving(true);
+    try {
+      await onSave(editingRoom === "new" ? null : editingRoom, { name: form.name.trim(), capacity: parseInt(form.capacity) || 0 });
+      setEditingRoom(null);
+    } catch (e) {
+      alert("Hata: " + e.message);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Modal open={true} title="Sınıf / Salon Yönetimi" onClose={onClose} width={600}>
+      <div style={{ maxHeight: 400, overflowY: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: C.bg }}>
+              <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: `2px solid ${C.border}` }}>Sınıf/Salon Adı</th>
+              <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>Kapasite</th>
+              <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: `2px solid ${C.border}` }}>İşlem</th>
+            </tr>
+          </thead>
+          <tbody>
+            {classrooms.map((r, i) => (
+              <tr key={r.id || i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                <td style={{ padding: "8px 12px", fontWeight: 600 }}>{r.name}</td>
+                <td style={{ padding: "8px 12px", textAlign: "center" }}>{r.capacity || "-"}</td>
+                <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                    <button onClick={() => startEdit(r)} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13 }}>Düzenle</button>
+                    <button onClick={() => onDelete(r)} style={{ background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 13 }}>Sil</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {classrooms.length === 0 && (
+              <tr><td colSpan={3} style={{ padding: 30, textAlign: "center", color: "#999" }}>Henüz sınıf eklenmedi</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {editingRoom && (
+        <div style={{ marginTop: 16, padding: 16, background: C.bg, borderRadius: 8, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>{editingRoom === "new" ? "Yeni Sınıf" : "Sınıfı Düzenle"}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+            <FormField label="Sınıf/Salon Adı">
+              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Örn: M11101" />
+            </FormField>
+            <FormField label="Kapasite (kişi)">
+              <Input type="number" value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} placeholder="Örn: 42" />
+            </FormField>
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <GhostBtn onClick={() => setEditingRoom(null)}>İptal</GhostBtn>
+            <Btn onClick={handleSave} disabled={saving}>{saving ? "..." : "Kaydet"}</Btn>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between" }}>
+        <GhostBtn onClick={startNew}>+ Yeni Sınıf Ekle</GhostBtn>
+        <GhostBtn onClick={onClose}>Kapat</GhostBtn>
+      </div>
+    </Modal>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════
+// Department Supervisor Management Modal
+// ══════════════════════════════════════════════════════════════
+const SupervisorManagementModal = ({ supervisors, onSave, onDelete, onClose }) => {
+  const [editingSup, setEditingSup] = useState(null);
+  const [form, setForm] = useState({ name: "" });
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = (s) => {
+    setEditingSup(s);
+    setForm({ name: s.name });
+  };
+
+  const startNew = () => {
+    setEditingSup("new");
+    setForm({ name: "" });
+  };
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return alert("Gözetmen adı gerekli");
+    setSaving(true);
+    try {
+      await onSave(editingSup === "new" ? null : editingSup, { name: form.name.trim() });
+      setEditingSup(null);
+    } catch (e) {
+      alert("Hata: " + e.message);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Modal open={true} title="Gözetmen Yönetimi" onClose={onClose} width={500}>
+      <div style={{ maxHeight: 400, overflowY: "auto" }}>
+        {supervisors.map((s, i) => (
+          <div key={s.id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
+            <span style={{ fontWeight: 500 }}>{s.name}</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => startEdit(s)} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13 }}>Düzenle</button>
+              <button onClick={() => onDelete(s)} style={{ background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 13 }}>Sil</button>
+            </div>
+          </div>
+        ))}
+        {supervisors.length === 0 && (
+          <div style={{ padding: 30, textAlign: "center", color: "#999" }}>Henüz gözetmen eklenmedi</div>
+        )}
+      </div>
+
+      {editingSup && (
+        <div style={{ marginTop: 16, padding: 16, background: C.bg, borderRadius: 8, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>{editingSup === "new" ? "Yeni Gözetmen" : "Gözetmeni Düzenle"}</div>
+          <FormField label="Ad Soyad">
+            <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Örn: Arş. Gör. Ahmet YILMAZ" />
+          </FormField>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <GhostBtn onClick={() => setEditingSup(null)}>İptal</GhostBtn>
+            <Btn onClick={handleSave} disabled={saving}>{saving ? "..." : "Kaydet"}</Btn>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between" }}>
+        <GhostBtn onClick={startNew}>+ Yeni Gözetmen Ekle</GhostBtn>
+        <GhostBtn onClick={onClose}>Kapat</GhostBtn>
+      </div>
+    </Modal>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════
 // Turkish Character Normalization for Export
 // ══════════════════════════════════════════════════════════════
 function normalizeToASCII(str) {
@@ -923,7 +1184,7 @@ function exportToCSV(placedExams, periodLabel) {
   URL.revokeObjectURL(url);
 }
 
-function exportToWord(placedExams, periodLabel) {
+function exportToWord(placedExams, periodLabel, deptName) {
   const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
     if (a.sinif !== b.sinif) return a.sinif - b.sinif;
     return a.date.localeCompare(b.date) || a.timeSlot.localeCompare(b.timeSlot);
@@ -946,7 +1207,7 @@ function exportToWord(placedExams, periodLabel) {
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
     <head><meta charset="utf-8"><title>Sınav Programı</title></head>
     <body style="font-family:Calibri,sans-serif;font-size:11pt;background:white">
-      <h2 style="text-align:center;color:#000">ÇAKÜ Bilgisayar Mühendisliği - Sınav Programı</h2>
+      <h2 style="text-align:center;color:#000">ÇAKÜ ${deptName || "Bilgisayar Mühendisliği"} - Sınav Programı</h2>
       <p style="text-align:center;color:#333">${periodLabel || ""}</p>
       <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:10pt;background:white">
         <tr style="background:white;font-weight:bold">
@@ -971,7 +1232,7 @@ function exportToWord(placedExams, periodLabel) {
   URL.revokeObjectURL(url);
 }
 
-async function exportToXLSX(placedExams, periodLabel, period) {
+async function exportToXLSX(placedExams, periodLabel, period, customClassrooms, customSupervisors, deptName) {
   // Load xlsx-js-style for cell styling support (colors, bold, borders)
   if (!window._XLSX_STYLE_LOADED) {
     try {
@@ -1009,12 +1270,59 @@ async function exportToXLSX(placedExams, periodLabel, period) {
     return a.timeSlot.localeCompare(b.timeSlot);
   });
 
-  const supervisorMap = assignSupervisorsToExams(sorted);
+  // Use custom supervisors/classrooms if provided, otherwise use defaults
+  const exportClassrooms = customClassrooms || DEPT_CLASSROOMS;
+  const exportSupervisorNames = customSupervisors || DEPT_SUPERVISORS;
+
+  // Supervisor assignment for export
+  const exportSupervisorMap = (() => {
+    const counts = {};
+    exportSupervisorNames.forEach(s => counts[s] = 0);
+    const assignments = {};
+    const shuffled = [...sorted];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    shuffled.forEach(exam => {
+      const room = exportAssignClassroom(exam.studentCount);
+      const isMultiRoom = room.includes(" - ");
+      const numSups = isMultiRoom ? 3 : (exam.studentCount < 30 ? 1 : 2);
+      const sortedSups = [...exportSupervisorNames].sort((a, b) => counts[a] - counts[b]);
+      const assigned = sortedSups.slice(0, Math.min(numSups, sortedSups.length));
+      assigned.forEach(s => counts[s]++);
+      assignments[exam.id || (exam.code + exam.date + exam.timeSlot)] = assigned;
+    });
+    return assignments;
+  })();
+
+  function exportAssignClassroom(studentCount) {
+    const rooms = exportClassrooms;
+    if (!studentCount || studentCount <= 0) return rooms[0]?.name || "TBD";
+    const singleRoom = rooms.find(r => (r.capacity || 0) >= studentCount);
+    if (singleRoom) return singleRoom.name;
+    let bestPair = null;
+    let bestDiff = Infinity;
+    for (let i = 0; i < rooms.length; i++) {
+      for (let j = i + 1; j < rooms.length; j++) {
+        const cap = (rooms[i].capacity || 0) + (rooms[j].capacity || 0);
+        if (cap >= studentCount) {
+          const diff = cap - studentCount;
+          if (diff < bestDiff) { bestDiff = diff; bestPair = rooms[i].name + " - " + rooms[j].name; }
+        }
+      }
+    }
+    if (!bestPair) {
+      const s = [...rooms].sort((a, b) => (b.capacity || 0) - (a.capacity || 0));
+      bestPair = (s[0]?.name || "TBD") + (s[1] ? " - " + s[1].name : "");
+    }
+    return bestPair;
+  }
 
   const enriched = sorted.map(exam => {
     const key = exam.id || (exam.code + exam.date + exam.timeSlot);
-    const room = assignClassroom(exam.studentCount);
-    const supervisors = (supervisorMap[key] || []).join(", ");
+    const room = exportAssignClassroom(exam.studentCount);
+    const supervisors = (exportSupervisorMap[key] || []).join(", ");
     const [sh, sm] = exam.timeSlot.split(":").map(Number);
     const totalMin = sh * 60 + sm + (exam.duration || 60);
     const eh = String(Math.floor(totalMin / 60)).padStart(2, "0");
@@ -1134,7 +1442,8 @@ async function exportToXLSX(placedExams, periodLabel, period) {
     }
   }
 
-  var numCols = ALL_FACULTY_CLASSROOMS.length + 1; // +1 for column A (time)
+  var exportAllClassrooms = (customClassrooms && customClassrooms.length > 0) ? customClassrooms : ALL_FACULTY_CLASSROOMS;
+  var numCols = exportAllClassrooms.length + 1; // +1 for column A (time)
 
   // ══════ Create day sheet for EACH weekday ══════
   allWeekdays.forEach(function (dateObj) {
@@ -1154,12 +1463,12 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
     // Row 1: Kapasite
     var row1 = ["Kapasite"];
-    ALL_FACULTY_CLASSROOMS.forEach(function (c) { row1.push(c.capacity === "" ? "" : c.capacity); });
+    exportAllClassrooms.forEach(function (c) { row1.push(c.capacity === "" ? "" : c.capacity); });
     data.push(row1);
 
     // Row 2: Saatler / Room names
     var row2 = ["Saatler"];
-    ALL_FACULTY_CLASSROOMS.forEach(function (c) { row2.push(c.name); });
+    exportAllClassrooms.forEach(function (c) { row2.push(c.name); });
     data.push(row2);
 
     // Time slot rows
@@ -1169,7 +1478,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
       var parts = slotStart.split(":");
       var slotMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
 
-      ALL_FACULTY_CLASSROOMS.forEach(function (classroom) {
+      exportAllClassrooms.forEach(function (classroom) {
         var exam = dayExams.find(function (e) {
           var rooms = e.assignedRoom.split(" - ").map(function (r) { return r.trim(); });
           if (rooms.indexOf(classroom.name) === -1) return false;
@@ -1201,7 +1510,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
     }
     // Merge DERSLİKLER across classroom columns
     ws["!merges"] = [
-      { s: { r: 0, c: 1 }, e: { r: 0, c: ALL_FACULTY_CLASSROOMS.length } },
+      { s: { r: 0, c: 1 }, e: { r: 0, c: exportAllClassrooms.length } },
     ];
 
     // Row 1: Kapasite - bold, centered, borders
@@ -1241,7 +1550,7 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 
     // Column widths
     var cols = [{ wch: 14 }];
-    ALL_FACULTY_CLASSROOMS.forEach(function () { cols.push({ wch: 12 }); });
+    exportAllClassrooms.forEach(function () { cols.push({ wch: 12 }); });
     ws["!cols"] = cols;
 
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
@@ -1258,6 +1567,17 @@ async function exportToXLSX(placedExams, periodLabel, period) {
 function SinavOtomasyonuApp({ currentUser }) {
   const r = window.useResponsive ? window.useResponsive() : { isMobile: window.innerWidth <= 480, isTablet: window.innerWidth <= 768, width: window.innerWidth, val: (m,t,d) => window.innerWidth <= 480 ? m : window.innerWidth <= 768 ? (t||m) : (d||t||m), modalWidth: (w) => Math.min(w, window.innerWidth - 32) };
   const isAdmin = currentUser?.role === "admin";
+  const isDeptManager = currentUser?.role === "bolum_yetkilisi";
+  const canManage = isAdmin || isDeptManager;
+
+  // Department State
+  const [departments, setDepartments] = useState([]);
+  const [selectedDeptId, setSelectedDeptId] = useState(currentUser?.departmentId || null);
+  const [showDeptModal, setShowDeptModal] = useState(false);
+  const [showClassroomModal, setShowClassroomModal] = useState(false);
+  const [showSupervisorModal, setShowSupervisorModal] = useState(false);
+  const [deptClassrooms, setDeptClassrooms] = useState([]);
+  const [deptSupervisors, setDeptSupervisors] = useState([]);
 
   // State
   const [courses, setCourses] = useState([]);
@@ -1274,6 +1594,62 @@ function SinavOtomasyonuApp({ currentUser }) {
   const [filterSinif, setFilterSinif] = useState(0);
   const [filterDonem, setFilterDonem] = useState("all");
   const [courseSearch, setCourseSearch] = useState("");
+
+  const selectedDept = departments.find(d => d.id === selectedDeptId);
+
+  // Dynamic classroom assignment using department-specific classrooms
+  const assignClassroomDynamic = useCallback((studentCount) => {
+    const rooms = deptClassrooms.length > 0 ? deptClassrooms : DEPT_CLASSROOMS;
+    if (!studentCount || studentCount <= 0) return rooms[0]?.name || "TBD";
+    // Find single room
+    const singleRoom = rooms.find(r => r.capacity >= studentCount);
+    if (singleRoom) return singleRoom.name;
+    // Try pairs
+    let bestPair = null;
+    let bestDiff = Infinity;
+    for (let i = 0; i < rooms.length; i++) {
+      for (let j = i + 1; j < rooms.length; j++) {
+        const cap = (rooms[i].capacity || 0) + (rooms[j].capacity || 0);
+        if (cap >= studentCount) {
+          const diff = cap - studentCount;
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            bestPair = rooms[i].name + " - " + rooms[j].name;
+          }
+        }
+      }
+    }
+    if (!bestPair) {
+      const sorted = [...rooms].sort((a, b) => (b.capacity || 0) - (a.capacity || 0));
+      bestPair = (sorted[0]?.name || "TBD") + (sorted[1] ? " - " + sorted[1].name : "");
+    }
+    return bestPair;
+  }, [deptClassrooms]);
+
+  // Dynamic supervisor assignment using department-specific supervisors
+  const assignSupervisorsDynamic = useCallback((exams) => {
+    const supervisorNames = deptSupervisors.length > 0
+      ? deptSupervisors.map(s => s.name)
+      : DEPT_SUPERVISORS;
+    const counts = {};
+    supervisorNames.forEach(s => counts[s] = 0);
+    const assignments = {};
+    const shuffled = [...exams];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    shuffled.forEach(exam => {
+      const room = assignClassroomDynamic(exam.studentCount);
+      const isMultiRoom = room.includes(" - ");
+      const numSupervisors = isMultiRoom ? 3 : (exam.studentCount < 30 ? 1 : 2);
+      const sortedSups = [...supervisorNames].sort((a, b) => counts[a] - counts[b]);
+      const assigned = sortedSups.slice(0, Math.min(numSupervisors, sortedSups.length));
+      assigned.forEach(s => counts[s]++);
+      assignments[exam.id || (exam.code + exam.date + exam.timeSlot)] = assigned;
+    });
+    return assignments;
+  }, [deptSupervisors, assignClassroomDynamic]);
 
   // ── Seed data to Firebase ──
   const seedData = async () => {
@@ -1293,10 +1669,10 @@ function SinavOtomasyonuApp({ currentUser }) {
         if (delOps2.length > 0) await FirestoreWrite.batch(delOps2);
       }
       for (const prof of SEED_PROFESSORS) {
-        await FirestoreWrite.add("professors", { ...prof, createdAt: new Date().toISOString() });
+        await FirestoreWrite.add("professors", { ...prof, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() });
       }
       for (const course of SEED_COURSES) {
-        await FirestoreWrite.add("sinav_dersler", { ...course, studentCount: 0, createdAt: new Date().toISOString() });
+        await FirestoreWrite.add("sinav_dersler", { ...course, studentCount: 0, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() });
       }
       alert("Veriler başarıyla yüklendi!");
       loadData();
@@ -1329,7 +1705,7 @@ function SinavOtomasyonuApp({ currentUser }) {
           }
         } else {
           // Add new
-          ops.push({ collection: "sinav_dersler", type: "add", data: { ...seedC, studentCount: 0, createdAt: new Date().toISOString() } });
+          ops.push({ collection: "sinav_dersler", type: "add", data: { ...seedC, studentCount: 0, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() } });
           added++;
         }
       }
@@ -1349,7 +1725,48 @@ function SinavOtomasyonuApp({ currentUser }) {
     }
   };
 
-  // ── Load data from Firebase ──
+  // ── Load departments ──
+  const loadDepartments = async () => {
+    try {
+      const dRef = getDepartmentsRef();
+      if (dRef) {
+        const snap = await dRef.get();
+        const depts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setDepartments(depts);
+        // Auto-select for department manager
+        if (isDeptManager && currentUser?.departmentId) {
+          setSelectedDeptId(currentUser.departmentId);
+        } else if (isAdmin && !selectedDeptId && depts.length > 0) {
+          setSelectedDeptId(depts[0].id);
+        }
+        return depts;
+      }
+    } catch (e) {
+      console.error("Load departments error:", e);
+    }
+    return [];
+  };
+
+  // ── Load department-specific classrooms and supervisors ──
+  const loadDeptResources = async (deptId) => {
+    if (!deptId) return;
+    try {
+      const crRef = getDeptClassroomsRef();
+      const srRef = getDeptSupervisorsRef();
+      if (crRef) {
+        const snap = await crRef.where("departmentId", "==", deptId).get();
+        setDeptClassrooms(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.capacity || 0) - (b.capacity || 0)));
+      }
+      if (srRef) {
+        const snap = await srRef.where("departmentId", "==", deptId).get();
+        setDeptSupervisors(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name)));
+      }
+    } catch (e) {
+      console.error("Load dept resources error:", e);
+    }
+  };
+
+  // ── Load data from Firebase (department-scoped) ──
   const loadData = async () => {
     setLoading(true);
     try {
@@ -1359,24 +1776,62 @@ function SinavOtomasyonuApp({ currentUser }) {
       const eRef = getExamsRef();
 
       if (cRef) {
-        const snap = await cRef.get();
-        setCourses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        let snap;
+        if (selectedDeptId) {
+          snap = await cRef.where("departmentId", "==", selectedDeptId).get();
+          // Also load courses without departmentId if this is the legacy default department
+          const legacySnap = await cRef.get();
+          const allDocs = legacySnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const deptDocs = allDocs.filter(d => d.departmentId === selectedDeptId || (!d.departmentId && departments.length <= 1));
+          setCourses(deptDocs);
+        } else {
+          snap = await cRef.get();
+          setCourses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
       }
       if (pRef) {
         const snap = await pRef.get();
-        setProfessors(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name)));
+        let profs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (selectedDeptId) {
+          // Filter professors by department if they have departmentId, or show all for legacy
+          profs = profs.filter(p => p.departmentId === selectedDeptId || !p.departmentId);
+        }
+        setProfessors(profs.sort((a, b) => a.name.localeCompare(b.name)));
       }
       if (perRef) {
-        const snap = await perRef.get();
-        const perList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setPeriods(perList);
-        if (perList.length > 0 && !activePeriodId) {
-          setActivePeriodId(perList[0].id);
+        let snap;
+        if (selectedDeptId) {
+          const allSnap = await perRef.get();
+          const allPeriods = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const deptPeriods = allPeriods.filter(p => p.departmentId === selectedDeptId || (!p.departmentId && departments.length <= 1));
+          setPeriods(deptPeriods);
+          if (deptPeriods.length > 0 && !activePeriodId) {
+            setActivePeriodId(deptPeriods[0].id);
+          }
+        } else {
+          snap = await perRef.get();
+          const perList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setPeriods(perList);
+          if (perList.length > 0 && !activePeriodId) {
+            setActivePeriodId(perList[0].id);
+          }
         }
       }
       if (eRef) {
-        const snap = await eRef.get();
-        setPlacedExams(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        let snap;
+        if (selectedDeptId) {
+          const allSnap = await eRef.get();
+          const allExams = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setPlacedExams(allExams.filter(e => e.departmentId === selectedDeptId || (!e.departmentId && departments.length <= 1)));
+        } else {
+          snap = await eRef.get();
+          setPlacedExams(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
+      }
+
+      // Load department classrooms and supervisors
+      if (selectedDeptId) {
+        await loadDeptResources(selectedDeptId);
       }
     } catch (e) {
       console.error("Load error:", e);
@@ -1384,7 +1839,22 @@ function SinavOtomasyonuApp({ currentUser }) {
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, []);
+  // Initial load: departments first, then data
+  useEffect(() => {
+    const init = async () => {
+      const depts = await loadDepartments();
+      // If dept manager, selectedDeptId is already set from currentUser
+      // If admin and no depts, that's fine - they can create them
+    };
+    init();
+  }, []);
+
+  // Reload data when selected department changes
+  useEffect(() => {
+    if (departments.length > 0 || !selectedDeptId) {
+      loadData();
+    }
+  }, [selectedDeptId, departments.length]);
 
   const activePeriod = periods.find(p => p.id === activePeriodId);
   const periodExams = placedExams.filter(e => e.periodId === activePeriodId);
@@ -1463,6 +1933,7 @@ function SinavOtomasyonuApp({ currentUser }) {
       date: dateStr,
       timeSlot: timeSlot,
       periodId: activePeriodId,
+      departmentId: selectedDeptId || null,
       studentCount: courseData.studentCount || 0,
       supervisor: "",
       room: "",
@@ -1530,7 +2001,7 @@ function SinavOtomasyonuApp({ currentUser }) {
       if (existingCourse) {
         await FirestoreWrite.update("sinav_dersler", existingCourse.id, formData);
       } else {
-        await FirestoreWrite.add("sinav_dersler", { ...formData, studentCount: 0, createdAt: new Date().toISOString() });
+        await FirestoreWrite.add("sinav_dersler", { ...formData, studentCount: 0, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() });
       }
       loadData();
     } catch (e) {
@@ -1577,6 +2048,56 @@ function SinavOtomasyonuApp({ currentUser }) {
     }
   };
 
+  // ── Department CRUD handlers ──
+  const handleDeptSave = async (existingDept, formData) => {
+    if (existingDept) {
+      await FirestoreWrite.update("departments", existingDept.id, formData);
+    } else {
+      await FirestoreWrite.add("departments", { ...formData, createdAt: new Date().toISOString() });
+    }
+    await loadDepartments();
+    loadData();
+  };
+
+  const handleDeptDelete = async (dept) => {
+    if (!confirm(`"${dept.name}" bölümünü silmek istediğinize emin misiniz? Bu bölüme ait tüm veriler silinmez ama bölüm bağlantısı kaldırılır.`)) return;
+    await FirestoreWrite.remove("departments", dept.id);
+    if (selectedDeptId === dept.id) setSelectedDeptId(null);
+    await loadDepartments();
+  };
+
+  // ── Department Classroom CRUD handlers ──
+  const handleClassroomSave = async (existingRoom, formData) => {
+    if (existingRoom) {
+      await FirestoreWrite.update("department_classrooms", existingRoom.id, formData);
+    } else {
+      await FirestoreWrite.add("department_classrooms", { ...formData, departmentId: selectedDeptId, createdAt: new Date().toISOString() });
+    }
+    await loadDeptResources(selectedDeptId);
+  };
+
+  const handleClassroomDelete = async (room) => {
+    if (!confirm(`"${room.name}" sınıfını silmek istiyor musunuz?`)) return;
+    await FirestoreWrite.remove("department_classrooms", room.id);
+    await loadDeptResources(selectedDeptId);
+  };
+
+  // ── Department Supervisor CRUD handlers ──
+  const handleSupervisorSave = async (existingSup, formData) => {
+    if (existingSup) {
+      await FirestoreWrite.update("department_supervisors", existingSup.id, formData);
+    } else {
+      await FirestoreWrite.add("department_supervisors", { ...formData, departmentId: selectedDeptId, createdAt: new Date().toISOString() });
+    }
+    await loadDeptResources(selectedDeptId);
+  };
+
+  const handleSupervisorDelete = async (sup) => {
+    if (!confirm(`"${sup.name}" gözetmenini silmek istiyor musunuz?`)) return;
+    await FirestoreWrite.remove("department_supervisors", sup.id);
+    await loadDeptResources(selectedDeptId);
+  };
+
   // ══════════════════════════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════════════════════════
@@ -1600,30 +2121,104 @@ function SinavOtomasyonuApp({ currentUser }) {
               Sınav Programı Otomasyonu
             </h2>
             <p style={{ fontSize: 13, color: "#666", marginTop: 4 }}>
-              Dersleri sürükleyerek takvime yerleştirin
+              {selectedDept ? selectedDept.name : "Dersleri sürükleyerek takvime yerleştirin"}
+              {isDeptManager && currentUser?.departmentName && ` - ${currentUser.departmentName}`}
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {isAdmin && courses.length === 0 && (
+            {isAdmin && (
+              <GhostBtn onClick={() => setShowDeptModal(true)} style={{ color: "#7C3AED", borderColor: "#7C3AED" }}>
+                Bölüm Yönetimi
+              </GhostBtn>
+            )}
+            {canManage && selectedDeptId && (
+              <GhostBtn onClick={() => setShowClassroomModal(true)} style={{ color: "#0891B2", borderColor: "#0891B2" }}>
+                Sınıflar
+              </GhostBtn>
+            )}
+            {canManage && selectedDeptId && (
+              <GhostBtn onClick={() => setShowSupervisorModal(true)} style={{ color: "#D97706", borderColor: "#D97706" }}>
+                Gözetmenler
+              </GhostBtn>
+            )}
+            {canManage && courses.length === 0 && selectedDeptId && (
               <Btn onClick={seedData} style={{ background: "#059669" }}>
                 Örnek Verileri Yükle
               </Btn>
             )}
-            {isAdmin && courses.length > 0 && (
+            {canManage && courses.length > 0 && (
               <GhostBtn onClick={syncCourses} style={{ color: "#059669", borderColor: "#059669" }}>
                 Verileri Güncelle
               </GhostBtn>
             )}
-            {isAdmin && (
+            {canManage && (
               <GhostBtn onClick={() => setShowCourseModal(true)}>Ders Yönetimi</GhostBtn>
             )}
-            {isAdmin && (
+            {canManage && (
               <GhostBtn onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }}>
                 + Yeni Dönem
               </GhostBtn>
             )}
           </div>
         </div>
+
+        {/* Department Selector (Admin only) */}
+        {isAdmin && departments.length > 0 && (
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#7C3AED" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: "middle", marginRight: 6 }}>
+                  <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                Bölüm:
+              </span>
+              {departments.map(d => (
+                <button
+                  key={d.id}
+                  onClick={() => { setSelectedDeptId(d.id); setActivePeriodId(null); }}
+                  style={{
+                    padding: "6px 16px",
+                    border: `2px solid ${d.id === selectedDeptId ? "#7C3AED" : C.border}`,
+                    background: d.id === selectedDeptId ? "#EDE9FE" : "white",
+                    color: d.id === selectedDeptId ? "#7C3AED" : "#666",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: d.id === selectedDeptId ? 600 : 400,
+                  }}
+                >
+                  {d.name}
+                  {d.managerName && <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 6 }}>({d.managerName})</span>}
+                </button>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {/* Department Manager Info */}
+        {isDeptManager && (
+          <Card style={{ marginBottom: 16, background: "#EDE9FE", border: "1px solid #C4B5FD" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <div>
+                <span style={{ fontWeight: 600, color: "#7C3AED" }}>{currentUser?.departmentName || "Bölüm"}</span>
+                <span style={{ color: "#6B7280", fontSize: 13, marginLeft: 8 }}>Bölüm Yetkilisi: {currentUser?.name}</span>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* No department selected warning for admin */}
+        {isAdmin && departments.length > 0 && !selectedDeptId && (
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ padding: 40, textAlign: "center", color: "#999" }}>
+              <div style={{ fontSize: 16, marginBottom: 8 }}>Lütfen bir bölüm seçin</div>
+              <div style={{ fontSize: 13 }}>Sınav programını yönetmek için yukarıdan bir bölüm seçin.</div>
+            </div>
+          </Card>
+        )}
 
         {/* Period Selector */}
         {periods.length > 0 && (
@@ -1647,14 +2242,14 @@ function SinavOtomasyonuApp({ currentUser }) {
                   >
                     {p.label || `${p.examType} - ${p.semester}`}
                   </button>
-                  {isAdmin && (
+                  {canManage && (
                     <button
                       onClick={() => { setEditingPeriod(p); setShowPeriodModal(true); }}
                       style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 14, padding: "4px" }}
                       title="Düzenle"
                     >&#9998;</button>
                   )}
-                  {isAdmin && (
+                  {canManage && (
                     <button
                       onClick={() => handleDeletePeriod(p.id)}
                       style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", fontSize: 14, padding: "4px" }}
@@ -1674,11 +2269,11 @@ function SinavOtomasyonuApp({ currentUser }) {
               <div style={{ fontSize: 40, marginBottom: 12 }}>&#128197;</div>
               <div style={{ fontSize: 16, marginBottom: 8 }}>Sınav dönemi bulunamadı</div>
               <div style={{ fontSize: 13 }}>
-                {isAdmin
+                {canManage
                   ? "Yeni bir sınav dönemi oluşturun (Final, Vize veya Bütünleme)"
                   : "Yönetici henüz bir sınav dönemi oluşturmadı"}
               </div>
-              {isAdmin && (
+              {canManage && (
                 <Btn onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }} style={{ marginTop: 16 }}>
                   + Yeni Dönem Oluştur
                 </Btn>
@@ -1722,13 +2317,13 @@ function SinavOtomasyonuApp({ currentUser }) {
                     <GhostBtn onClick={() => exportToCSV(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
                       CSV
                     </GhostBtn>
-                    <GhostBtn onClick={() => exportToWord(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
+                    <GhostBtn onClick={() => exportToWord(periodExams, activePeriod.label, selectedDept?.name)} style={{ fontSize: 12, padding: "4px 10px" }}>
                       Word
                     </GhostBtn>
-                    <GhostBtn onClick={() => exportToXLSX(periodExams, activePeriod.label, activePeriod)} style={{ fontSize: 12, padding: "4px 10px", background: "#059669", color: "white", border: "none" }}>
+                    <GhostBtn onClick={() => exportToXLSX(periodExams, activePeriod.label, activePeriod, deptClassrooms.length > 0 ? deptClassrooms : null, deptSupervisors.length > 0 ? deptSupervisors.map(s => s.name) : null, selectedDept?.name || null)} style={{ fontSize: 12, padding: "4px 10px", background: "#059669", color: "white", border: "none" }}>
                       XLSX
                     </GhostBtn>
-                    {isAdmin && (
+                    {canManage && (
                       <GhostBtn onClick={handleResetPlacements} style={{ fontSize: 12, padding: "4px 10px", color: "#DC2626" }}>
                         Sıfırla
                       </GhostBtn>
@@ -1923,6 +2518,7 @@ function SinavOtomasyonuApp({ currentUser }) {
         {showPeriodModal && (
           <PeriodConfigModal
             period={editingPeriod}
+            departmentId={selectedDeptId}
             onSave={handlePeriodSave}
             onClose={() => { setShowPeriodModal(false); setEditingPeriod(null); }}
           />
@@ -1935,6 +2531,33 @@ function SinavOtomasyonuApp({ currentUser }) {
             onSave={handleCourseSave}
             onDelete={handleDeleteCourse}
             onClose={() => setShowCourseModal(false)}
+          />
+        )}
+
+        {showDeptModal && (
+          <DepartmentManagementModal
+            departments={departments}
+            onSave={handleDeptSave}
+            onDelete={handleDeptDelete}
+            onClose={() => setShowDeptModal(false)}
+          />
+        )}
+
+        {showClassroomModal && (
+          <ClassroomManagementModal
+            classrooms={deptClassrooms}
+            onSave={handleClassroomSave}
+            onDelete={handleClassroomDelete}
+            onClose={() => setShowClassroomModal(false)}
+          />
+        )}
+
+        {showSupervisorModal && (
+          <SupervisorManagementModal
+            supervisors={deptSupervisors}
+            onSave={handleSupervisorSave}
+            onDelete={handleSupervisorDelete}
+            onClose={() => setShowSupervisorModal(false)}
           />
         )}
       </div>
