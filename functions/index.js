@@ -241,6 +241,88 @@ exports.verifyProfessorLogin = functions.https.onCall(async (request) => {
 });
 
 // ══════════════════════════════════════════════
+// 3b. Bölüm Yetkilisi Giriş Doğrulama
+// ══════════════════════════════════════════════
+exports.verifyDepartmentManagerLogin = functions.https.onCall(async (request) => {
+  const { managerName, password } = request.data;
+  if (!managerName || !password) {
+    throw new functions.https.HttpsError("invalid-argument", "Yetkili adı ve şifre gerekli.");
+  }
+
+  const rateLimitKey = `dept_manager:${managerName}`;
+
+  if (!checkRateLimit(rateLimitKey)) {
+    throw new functions.https.HttpsError("resource-exhausted", "Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.");
+  }
+
+  try {
+    // Yetkili bölümünü bul
+    const deptSnap = await db.collection("departments").where("managerName", "==", managerName).get();
+    if (deptSnap.empty) {
+      recordAttempt(rateLimitKey);
+      return { success: false, error: "Bu isimle kayıtlı bir bölüm yetkilisi bulunamadı." };
+    }
+
+    const deptDoc = deptSnap.docs[0];
+    const deptData = deptDoc.data();
+
+    // Şifre kontrolü - department_manager_passwords dökümanından
+    const doc = await db.collection("passwords").doc("department_manager_passwords").get();
+    const passwords = doc.exists ? doc.data() : {};
+    const storedPassword = passwords[managerName];
+
+    if (!storedPassword) {
+      // Varsayılan profesör şifresini dene
+      const defaultDoc = await db.collection("passwords").doc("defaults").get();
+      const defaultPassword = defaultDoc.exists ? defaultDoc.data().professorDefault : null;
+
+      if (!defaultPassword) {
+        recordAttempt(rateLimitKey);
+        return { success: false, error: "Şifre henüz belirlenmemiş. Lütfen yönetici ile iletişime geçin." };
+      }
+
+      const defaultValid = await verifyPassword(password, defaultPassword, "dept_manager_default");
+      if (defaultValid) {
+        clearAttempts(rateLimitKey);
+        const bcryptHash = await hashPassword(password);
+        passwords[managerName] = bcryptHash;
+        await db.collection("passwords").doc("department_manager_passwords").set(passwords, { merge: true });
+        return {
+          success: true,
+          departmentId: deptDoc.id,
+          departmentName: deptData.name,
+        };
+      } else {
+        recordAttempt(rateLimitKey);
+        return { success: false, error: "Giriş bilgileri hatalı!" };
+      }
+    }
+
+    const isValid = await verifyPassword(password, storedPassword, managerName);
+
+    if (isValid) {
+      clearAttempts(rateLimitKey);
+      if (!isBcryptHash(storedPassword)) {
+        const bcryptHash = await hashPassword(password);
+        passwords[managerName] = bcryptHash;
+        await db.collection("passwords").doc("department_manager_passwords").set(passwords, { merge: true });
+      }
+      return {
+        success: true,
+        departmentId: deptDoc.id,
+        departmentName: deptData.name,
+      };
+    } else {
+      recordAttempt(rateLimitKey);
+      return { success: false, error: "Giriş bilgileri hatalı!" };
+    }
+  } catch (error) {
+    console.error("verifyDepartmentManagerLogin error:", error);
+    throw new functions.https.HttpsError("internal", "Sunucu hatası.");
+  }
+});
+
+// ══════════════════════════════════════════════
 // 4. Şifre Değiştirme (tüm roller)
 // ══════════════════════════════════════════════
 exports.changePassword = functions.https.onCall(async (request) => {
@@ -287,6 +369,15 @@ exports.changePassword = functions.https.onCall(async (request) => {
       const bcryptHash = await hashPassword(newPassword);
       passwords[identifier] = bcryptHash;
       await db.collection("passwords").doc("professor_passwords").set(passwords, { merge: true });
+      return { success: true };
+
+    } else if (role === "bolum_yetkilisi") {
+      if (!identifier) throw new functions.https.HttpsError("invalid-argument", "Yetkili adı gerekli.");
+      const doc = await db.collection("passwords").doc("department_manager_passwords").get();
+      const passwords = doc.exists ? doc.data() : {};
+      const bcryptHash = await hashPassword(newPassword);
+      passwords[identifier] = bcryptHash;
+      await db.collection("passwords").doc("department_manager_passwords").set(passwords, { merge: true });
       return { success: true };
 
     } else {
@@ -437,6 +528,9 @@ const ALLOWED_COLLECTIONS = [
   "muafiyet_records",
   "projects",
   "project_courses",
+  "departments",
+  "department_classrooms",
+  "department_supervisors",
 ];
 
 exports.firestoreWrite = functions.https.onCall(async (request) => {

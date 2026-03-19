@@ -780,6 +780,19 @@ const FirebaseDB = {
     }
   },
 
+  async verifyDepartmentManagerLogin(managerName, password) {
+    try {
+      const result = await CloudFunctions.call('verifyDepartmentManagerLogin', { managerName, password });
+      return result.data;
+    } catch (error) {
+      console.error('verifyDepartmentManagerLogin error:', error);
+      if (error.code === 'functions/resource-exhausted') {
+        return { success: false, error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' };
+      }
+      throw error;
+    }
+  },
+
   async changePassword(role, identifier, newPassword, currentPassword) {
     try {
       const result = await CloudFunctions.call('changePassword', { role, identifier, newPassword, currentPassword });
@@ -1617,6 +1630,19 @@ const LoginModal = ({ onLogin }) => {
           // Cloud Functions doğrulamadı - hata göster
           setError(adminResult.error || "Giriş bilgileri hatalı!");
         }
+      } else if (activeTab === "bolum_yetkilisi") {
+        if (!identifier.trim()) { setError("Yetkili adı gerekli!"); setLoading(false); return; }
+        const user = { role: "bolum_yetkilisi", name: identifier, studentNumber: null };
+
+        const deptResult = await FirebaseDB.verifyDepartmentManagerLogin(identifier, password);
+
+        if (deptResult.success) {
+          user.departmentId = deptResult.departmentId;
+          user.departmentName = deptResult.departmentName;
+          onLogin(user);
+        } else {
+          setError(deptResult.error || "Giriş bilgileri hatalı!");
+        }
       } else if (activeTab === "professor") {
         if (!identifier.trim()) { setError("Akademisyen seçimi gerekli!"); setLoading(false); return; }
         const email = FirebaseAuth.professorEmail(identifier);
@@ -1851,6 +1877,7 @@ const LoginModal = ({ onLogin }) => {
             {[
               { key: "student", label: "Öğrenci", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
               { key: "professor", label: "Akademisyen", icon: "M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" },
+              { key: "bolum_yetkilisi", label: "Bölüm Yetkilisi", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
               { key: "admin", label: "Admin", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
             ].map(tab => {
               const active = activeTab === tab.key;
@@ -2124,8 +2151,24 @@ const LoginModal = ({ onLogin }) => {
           </form>
 
           ) : (
-          /* Akademisyen / Admin Form */
+          /* Bölüm Yetkilisi / Akademisyen / Admin Form */
           <form onSubmit={handleSubmit} style={{ padding: 28 }}>
+
+            {activeTab === "bolum_yetkilisi" && (
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(96,239,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                  Yetkili Adı Soyadı
+                </label>
+                <div style={{ position: "relative" }}>
+                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                  </div>
+                  <input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Adınızı ve soyadınızı girin" autoFocus
+                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid #374151", background: "#1F2937", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s" }}
+                    onFocus={e => { e.target.style.borderColor = "#059669"; }} onBlur={e => { e.target.style.borderColor = "#374151"; }} />
+                </div>
+              </div>
+            )}
 
             {activeTab === "professor" && (
               <div style={{ marginBottom: 20 }}>
