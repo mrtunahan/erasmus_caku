@@ -1875,8 +1875,37 @@ function SinavOtomasyonuApp({ currentUser }) {
   useEffect(() => {
     const init = async () => {
       const depts = await loadDepartments();
-      // If dept manager, selectedDeptId is already set from currentUser
-      // If admin and no depts, that's fine - they can create them
+      // Sahipsiz verileri otomatik olarak Bilgisayar Mühendisliği'ne ata (tek seferlik)
+      if (depts.length > 0) {
+        const csDept = depts.find(d => d.name && d.name.toLowerCase().includes("bilgisayar"));
+        if (csDept) {
+          try {
+            const ops = [];
+            const collections = [
+              { ref: getCoursesRef(), col: "sinav_dersler" },
+              { ref: getProfessorsRef(), col: "professors" },
+              { ref: getPeriodsRef(), col: "sinav_donemler" },
+              { ref: getExamsRef(), col: "sinav_programi" },
+            ];
+            for (const { ref, col } of collections) {
+              if (ref) {
+                const snap = await ref.get();
+                snap.docs.forEach(d => {
+                  if (!d.data().departmentId) {
+                    ops.push({ collection: col, type: "update", docId: d.id, data: { departmentId: csDept.id } });
+                  }
+                });
+              }
+            }
+            if (ops.length > 0) {
+              await FirestoreWrite.batch(ops);
+              console.log(`Migration: ${ops.length} sahipsiz kayıt Bilgisayar Mühendisliği'ne atandı.`);
+            }
+          } catch (e) {
+            console.error("Auto-migration error:", e);
+          }
+        }
+      }
     };
     init();
   }, []);
