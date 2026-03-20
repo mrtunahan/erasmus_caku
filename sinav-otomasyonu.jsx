@@ -1750,6 +1750,19 @@ function SinavOtomasyonuApp({ currentUser }) {
         const snap = await dRef.get();
         let depts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+        // Bölüm adlarında tekrarlanan kelime varsa düzelt (ör: "Mühendisliği Mühendisliği")
+        for (const dept of depts) {
+          if (dept.name) {
+            const words = dept.name.split(/\s+/);
+            const cleaned = words.filter((w, i) => i === 0 || w !== words[i - 1]);
+            const fixedName = cleaned.join(" ");
+            if (fixedName !== dept.name) {
+              dept.name = fixedName;
+              try { await FirestoreWrite.update("departments", dept.id, { name: fixedName }); } catch (e) { /* ignore */ }
+            }
+          }
+        }
+
         // Akademisyen için: derslerinin olduğu bölümleri bul
         if (isProfessor && currentUser?.name) {
           const cRef = getCoursesRef();
@@ -1823,12 +1836,14 @@ function SinavOtomasyonuApp({ currentUser }) {
         }
       }
       if (pRef) {
-        const snap = await pRef.get();
-        let profs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        let snap;
         if (selectedDeptId) {
-          profs = profs.filter(p => p.departmentId === selectedDeptId);
+          snap = await pRef.where("departmentId", "==", selectedDeptId).get();
+        } else if (isAdmin) {
+          snap = await pRef.get();
         }
-        setProfessors(profs.sort((a, b) => a.name.localeCompare(b.name)));
+        const profs = snap ? snap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+        setProfessors(profs.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr")));
       }
       if (perRef) {
         if (selectedDeptId) {
@@ -1875,8 +1890,9 @@ function SinavOtomasyonuApp({ currentUser }) {
   useEffect(() => {
     const init = async () => {
       const depts = await loadDepartments();
-      // Sahipsiz verileri otomatik olarak Bilgisayar Mühendisliği'ne ata (tek seferlik)
-      if (depts.length > 0) {
+      // Sahipsiz verileri otomatik olarak Bilgisayar Mühendisliği'ne ata (tek seferlik, localStorage ile kontrol)
+      const migrationKey = "orphan_migration_done_v1";
+      if (depts.length > 0 && !localStorage.getItem(migrationKey)) {
         const csDept = depts.find(d => d.name && d.name.toLowerCase().includes("bilgisayar"));
         if (csDept) {
           try {
@@ -1889,21 +1905,29 @@ function SinavOtomasyonuApp({ currentUser }) {
             ];
             for (const { ref, col } of collections) {
               if (ref) {
-                const snap = await ref.get();
-                snap.docs.forEach(d => {
-                  if (!d.data().departmentId) {
-                    ops.push({ collection: col, type: "update", docId: d.id, data: { departmentId: csDept.id } });
-                  }
+                const snap = await ref.where("departmentId", "==", "").get().catch(() => null);
+                const snap2 = await ref.where("departmentId", "==", null).get().catch(() => null);
+                [snap, snap2].forEach(s => {
+                  if (s) s.docs.forEach(d => {
+                    if (!d.data().departmentId) {
+                      ops.push({ collection: col, type: "update", docId: d.id, data: { departmentId: csDept.id } });
+                    }
+                  });
                 });
               }
             }
             if (ops.length > 0) {
               await FirestoreWrite.batch(ops);
-              console.log(`Migration: ${ops.length} sahipsiz kayıt Bilgisayar Mühendisliği'ne atandı.`);
+              console.log(`Migration: ${ops.length} sahipsiz kayıt atandı.`);
             }
+            localStorage.setItem(migrationKey, "true");
           } catch (e) {
             console.error("Auto-migration error:", e);
+            // Hata olsa bile bir daha denemesin
+            localStorage.setItem(migrationKey, "true");
           }
+        } else {
+          localStorage.setItem(migrationKey, "true");
         }
       }
     };
