@@ -1839,7 +1839,7 @@ const LoginModal = ({ onLogin }) => {
           <h1 style={{
             margin: 0, fontSize: 24, fontWeight: 600, color: "white",
             fontFamily: "'Inter', sans-serif", letterSpacing: "0.5px",
-          }}>Online Assistant</h1>
+          }}>Offline Asistan</h1>
           <p style={{ margin: "8px 0 0", fontSize: 13, color: "rgba(255,255,255,0.6)", fontWeight: 400 }}>
             Çankırı Karatekin Üniversitesi
           </p>
