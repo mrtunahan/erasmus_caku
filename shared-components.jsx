@@ -513,13 +513,8 @@ const FirebaseDB = {
   },
   async addForm(formData) {
     try {
-      const ref = FirebaseDB.formsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
-      const docRef = await ref.add({
-        ...formData,
-        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      });
-      return { ...formData, id: docRef.id };
+      const result = await FirestoreWrite.add('forms', formData);
+      return { ...formData, id: result?.id || String(Date.now()) };
     } catch (error) {
       console.error('Error adding form:', error);
       throw error;
@@ -527,9 +522,7 @@ const FirebaseDB = {
   },
   async deleteForm(formId) {
     try {
-      const ref = FirebaseDB.formsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
-      await ref.doc(formId).delete();
+      await FirestoreWrite.remove('forms', String(formId));
     } catch (error) {
       console.error('Error deleting form:', error);
       throw error;
@@ -626,13 +619,8 @@ const FirebaseDB = {
   },
   async saveTripHistoryEntry(entry) {
     try {
-      const ref = FirebaseDB.tripHistoryRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
-      const docRef = await ref.add({
-        ...entry,
-        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      });
-      return { ...entry, id: docRef.id };
+      const result = await FirestoreWrite.add('trip_history', entry);
+      return { ...entry, id: result?.id || String(Date.now()) };
     } catch (error) {
       console.error('Error saving trip history entry:', error);
       throw error;
@@ -640,9 +628,7 @@ const FirebaseDB = {
   },
   async deleteTripHistoryEntry(id) {
     try {
-      const ref = FirebaseDB.tripHistoryRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
-      await ref.doc(String(id)).delete();
+      await FirestoreWrite.remove('trip_history', String(id));
       return true;
     } catch (error) {
       console.error('Error deleting trip history entry:', error);
@@ -673,16 +659,14 @@ const FirebaseDB = {
       });
 
       const existingKeys = new Set(existingEntries.map(e => matchKey(e)));
-      const batch = FirebaseDB.db().batch();
-      let hasChanges = false;
+      const ops = [];
 
       // Process outgoing matches
       (student.outgoingMatches || []).forEach(m => {
         if (m.homeCourses.length === 0 && m.hostCourses.length === 0) return;
         const key = matchKey(m);
         if (!existingKeys.has(key)) {
-          const docRef = ref.doc();
-          batch.set(docRef, {
+          ops.push({ collection: 'trip_history', type: 'add', data: {
             hostInstitution: student.hostInstitution,
             hostCountry: student.hostCountry || '',
             type: 'outgoing',
@@ -691,10 +675,9 @@ const FirebaseDB = {
             studentName: `${student.firstName} ${student.lastName}`,
             studentNumber: student.studentNumber,
             semester: student.semester || '',
-            createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-          });
+            createdAt: new Date().toISOString(),
+          }});
           existingKeys.add(key);
-          hasChanges = true;
         }
       });
 
@@ -703,8 +686,7 @@ const FirebaseDB = {
         if (m.homeCourses.length === 0 && m.hostCourses.length === 0) return;
         const key = matchKey(m);
         if (!existingKeys.has(key)) {
-          const docRef = ref.doc();
-          batch.set(docRef, {
+          ops.push({ collection: 'trip_history', type: 'add', data: {
             hostInstitution: student.hostInstitution,
             hostCountry: student.hostCountry || '',
             type: 'return',
@@ -717,15 +699,14 @@ const FirebaseDB = {
             studentName: `${student.firstName} ${student.lastName}`,
             studentNumber: student.studentNumber,
             semester: student.semester || '',
-            createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-          });
+            createdAt: new Date().toISOString(),
+          }});
           existingKeys.add(key);
-          hasChanges = true;
         }
       });
 
-      if (hasChanges) {
-        await batch.commit();
+      if (ops.length > 0) {
+        await FirestoreWrite.batch(ops);
       }
     } catch (error) {
       // Disable trip history sync on permission errors to avoid flooding console
@@ -865,15 +846,9 @@ const FirebaseDB = {
   },
   async addExam(exam) {
     try {
-      const ref = FirebaseDB.examsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
       const { id: _id, ...data } = exam;
-      const docRef = await ref.add({
-        ...data,
-        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      });
-      return { ...exam, id: docRef.id };
+      const result = await FirestoreWrite.add('exams', data);
+      return { ...exam, id: result?.id || String(Date.now()) };
     } catch (error) {
       console.error('Error adding exam:', error);
       throw error;
@@ -881,13 +856,8 @@ const FirebaseDB = {
   },
   async updateExam(id, exam) {
     try {
-      const ref = FirebaseDB.examsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
       const { id: _id, ...data } = exam;
-      await ref.doc(String(id)).update({
-        ...data,
-        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      });
+      await FirestoreWrite.update('exams', String(id), data);
       return exam;
     } catch (error) {
       console.error('Error updating exam:', error);
@@ -896,9 +866,7 @@ const FirebaseDB = {
   },
   async deleteExam(id) {
     try {
-      const ref = FirebaseDB.examsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
-      await ref.doc(String(id)).delete();
+      await FirestoreWrite.remove('exams', String(id));
       return true;
     } catch (error) {
       console.error('Error deleting exam:', error);
@@ -918,14 +886,9 @@ const FirebaseDB = {
   },
   async addExamResult(result) {
     try {
-      const ref = FirebaseDB.examResultsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
       const { id: _id, ...data } = result;
-      const docRef = await ref.add({
-        ...data,
-        enteredAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      });
-      return { ...result, id: docRef.id };
+      const res = await FirestoreWrite.add('exam_results', data);
+      return { ...result, id: res?.id || String(Date.now()) };
     } catch (error) {
       console.error('Error adding exam result:', error);
       throw error;
@@ -933,13 +896,8 @@ const FirebaseDB = {
   },
   async updateExamResult(id, result) {
     try {
-      const ref = FirebaseDB.examResultsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
       const { id: _id, ...data } = result;
-      await ref.doc(String(id)).update({
-        ...data,
-        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      });
+      await FirestoreWrite.update('exam_results', String(id), data);
       return result;
     } catch (error) {
       console.error('Error updating exam result:', error);
@@ -948,9 +906,7 @@ const FirebaseDB = {
   },
   async deleteExamResult(id) {
     try {
-      const ref = FirebaseDB.examResultsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
-      await ref.doc(String(id)).delete();
+      await FirestoreWrite.remove('exam_results', String(id));
       return true;
     } catch (error) {
       console.error('Error deleting exam result:', error);
@@ -972,15 +928,13 @@ const FirebaseDB = {
   },
   async saveExamPeriod(period) {
     try {
-      const ref = FirebaseDB.examPeriodsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
       const { id: _id, ...data } = period;
       if (_id) {
-        await ref.doc(String(_id)).update({ ...data, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+        await FirestoreWrite.update('exam_periods', String(_id), data);
         return period;
       } else {
-        const docRef = await ref.add({ ...data, createdAt: window.firebase.firestore.FieldValue.serverTimestamp() });
-        return { ...period, id: docRef.id };
+        const result = await FirestoreWrite.add('exam_periods', data);
+        return { ...period, id: result?.id || String(Date.now()) };
       }
     } catch (error) {
       console.error('Error saving exam period:', error);
@@ -989,9 +943,7 @@ const FirebaseDB = {
   },
   async deleteExamPeriod(id) {
     try {
-      const ref = FirebaseDB.examPeriodsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
-      await ref.doc(String(id)).delete();
+      await FirestoreWrite.remove('exam_periods', String(id));
       return true;
     } catch (error) {
       console.error('Error deleting exam period:', error);
@@ -1013,15 +965,13 @@ const FirebaseDB = {
   },
   async saveProfessor(prof) {
     try {
-      const ref = FirebaseDB.professorsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
       const { id: _id, ...data } = prof;
       if (_id) {
-        await ref.doc(String(_id)).update({ ...data, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+        await FirestoreWrite.update("professors", String(_id), data);
         return prof;
       } else {
-        const docRef = await ref.add({ ...data, createdAt: window.firebase.firestore.FieldValue.serverTimestamp() });
-        return { ...prof, id: docRef.id };
+        const result = await FirestoreWrite.add("professors", data);
+        return { ...prof, id: result?.id || String(Date.now()) };
       }
     } catch (error) {
       console.error('Error saving professor:', error);
@@ -1030,9 +980,7 @@ const FirebaseDB = {
   },
   async deleteProfessor(id) {
     try {
-      const ref = FirebaseDB.professorsRef();
-      if (!ref) throw new Error('Firebase baglantisi yok');
-      await ref.doc(String(id)).delete();
+      await FirestoreWrite.remove("professors", String(id));
       return true;
     } catch (error) {
       console.error('Error deleting professor:', error);
