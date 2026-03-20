@@ -1,5 +1,5 @@
-# Erasmus Öğrenim Anlaşması Yönetim Sistemi
+# Yönetim Sistemi
 
-Çankırı Karatekin Üniversitesi için geliştirilmiş Erasmus öğrenci ders eşleştirme ve yönetim sistemi.
+Çankırı Karatekin Üniversitesi için geliştirilmiş yönetim sistemi.
 
 
