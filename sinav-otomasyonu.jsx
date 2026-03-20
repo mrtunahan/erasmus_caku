@@ -1677,8 +1677,8 @@ function SinavOtomasyonuApp({ currentUser }) {
         if (delOps1.length > 0) await FirestoreWrite.batch(delOps1);
       }
       // Sadece seçili bölümün profesörlerini sil
-      const existingProfs = await pRef.get();
-      const deptProfs = existingProfs.docs.filter(doc => doc.data().departmentId === selectedDeptId);
+      const existingProfs = await pRef.where("departmentId", "==", selectedDeptId).get();
+      const deptProfs = existingProfs.docs;
       if (deptProfs.length > 0) {
         const delOps2 = deptProfs.map(doc => ({ collection: "professors", type: "delete", docId: doc.id }));
         await FirestoreWrite.batch(delOps2);
@@ -1751,29 +1751,27 @@ function SinavOtomasyonuApp({ currentUser }) {
         let depts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         // Bölüm adlarında tekrarlanan kelime varsa düzelt (ör: "Mühendisliği Mühendisliği")
-        for (const dept of depts) {
+        depts.forEach(dept => {
           if (dept.name) {
             const words = dept.name.split(/\s+/);
             const cleaned = words.filter((w, i) => i === 0 || w !== words[i - 1]);
             const fixedName = cleaned.join(" ");
             if (fixedName !== dept.name) {
               dept.name = fixedName;
-              try { await FirestoreWrite.update("departments", dept.id, { name: fixedName }); } catch (e) { /* ignore */ }
+              FirestoreWrite.update("departments", dept.id, { name: fixedName }).catch(() => {});
             }
           }
-        }
+        });
 
         // Akademisyen için: derslerinin olduğu bölümleri bul
         if (isProfessor && currentUser?.name) {
           const cRef = getCoursesRef();
           if (cRef) {
-            const coursesSnap = await cRef.get();
+            const coursesSnap = await cRef.where("professor", "==", currentUser.name).get();
             const profDeptIds = new Set();
             coursesSnap.docs.forEach(d => {
-              const data = d.data();
-              if (data.professor === currentUser.name && data.departmentId) {
-                profDeptIds.add(data.departmentId);
-              }
+              const deptId = d.data().departmentId;
+              if (deptId) profDeptIds.add(deptId);
             });
             depts = depts.filter(d => profDeptIds.has(d.id));
           }
@@ -1824,62 +1822,86 @@ function SinavOtomasyonuApp({ currentUser }) {
       const perRef = getPeriodsRef();
       const eRef = getExamsRef();
 
+      // Tüm sorguları paralel olarak çalıştır
+      const queries = [];
+
+      // Courses query
       if (cRef) {
         if (selectedDeptId) {
-          const snap = await cRef.where("departmentId", "==", selectedDeptId).get();
-          setCourses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          queries.push(cRef.where("departmentId", "==", selectedDeptId).get());
         } else if (isAdmin) {
-          const snap = await cRef.get();
-          setCourses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          queries.push(cRef.get());
         } else {
-          setCourses([]);
+          queries.push(Promise.resolve(null));
         }
-      }
+      } else queries.push(Promise.resolve(null));
+
+      // Professors query
       if (pRef) {
-        let snap;
         if (selectedDeptId) {
-          snap = await pRef.where("departmentId", "==", selectedDeptId).get();
+          queries.push(pRef.where("departmentId", "==", selectedDeptId).get());
         } else if (isAdmin) {
-          snap = await pRef.get();
+          queries.push(pRef.get());
+        } else {
+          queries.push(Promise.resolve(null));
         }
-        const profs = snap ? snap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
-        setProfessors(profs.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr")));
-      }
+      } else queries.push(Promise.resolve(null));
+
+      // Periods query
       if (perRef) {
         if (selectedDeptId) {
-          const snap = await perRef.where("departmentId", "==", selectedDeptId).get();
-          const deptPeriods = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          setPeriods(deptPeriods);
-          if (deptPeriods.length > 0 && !activePeriodId) {
-            setActivePeriodId(deptPeriods[0].id);
-          }
+          queries.push(perRef.where("departmentId", "==", selectedDeptId).get());
         } else if (isAdmin) {
-          const snap = await perRef.get();
-          const perList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          setPeriods(perList);
-          if (perList.length > 0 && !activePeriodId) {
-            setActivePeriodId(perList[0].id);
-          }
+          queries.push(perRef.get());
         } else {
-          setPeriods([]);
+          queries.push(Promise.resolve(null));
         }
-      }
+      } else queries.push(Promise.resolve(null));
+
+      // Exams query
       if (eRef) {
         if (selectedDeptId) {
-          const snap = await eRef.where("departmentId", "==", selectedDeptId).get();
-          setPlacedExams(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          queries.push(eRef.where("departmentId", "==", selectedDeptId).get());
         } else if (isAdmin) {
-          const snap = await eRef.get();
-          setPlacedExams(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          queries.push(eRef.get());
         } else {
-          setPlacedExams([]);
+          queries.push(Promise.resolve(null));
         }
+      } else queries.push(Promise.resolve(null));
+
+      // Dept resources queries (classrooms + supervisors)
+      if (selectedDeptId) {
+        const crRef = getDeptClassroomsRef();
+        const srRef = getDeptSupervisorsRef();
+        queries.push(crRef ? crRef.where("departmentId", "==", selectedDeptId).get() : Promise.resolve(null));
+        queries.push(srRef ? srRef.where("departmentId", "==", selectedDeptId).get() : Promise.resolve(null));
+      } else {
+        queries.push(Promise.resolve(null));
+        queries.push(Promise.resolve(null));
       }
 
-      // Load department classrooms and supervisors
-      if (selectedDeptId) {
-        await loadDeptResources(selectedDeptId);
+      const [coursesSnap, profsSnap, periodsSnap, examsSnap, classroomsSnap, supervisorsSnap] = await Promise.all(queries);
+
+      // Set courses
+      setCourses(coursesSnap ? coursesSnap.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+
+      // Set professors
+      const profs = profsSnap ? profsSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+      setProfessors(profs.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr")));
+
+      // Set periods
+      const perList = periodsSnap ? periodsSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+      setPeriods(perList);
+      if (perList.length > 0 && !activePeriodId) {
+        setActivePeriodId(perList[0].id);
       }
+
+      // Set exams
+      setPlacedExams(examsSnap ? examsSnap.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+
+      // Set dept resources
+      setDeptClassrooms(classroomsSnap ? classroomsSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.capacity || 0) - (b.capacity || 0)) : []);
+      setDeptSupervisors(supervisorsSnap ? supervisorsSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr")) : []);
     } catch (e) {
       console.error("Load error:", e);
     }
@@ -1936,10 +1958,10 @@ function SinavOtomasyonuApp({ currentUser }) {
 
   // Reload data when selected department changes
   useEffect(() => {
-    if (departments.length > 0 || !selectedDeptId) {
+    if (selectedDeptId) {
       loadData();
     }
-  }, [selectedDeptId, departments.length]);
+  }, [selectedDeptId]);
 
   const activePeriod = periods.find(p => p.id === activePeriodId);
   const periodExams = placedExams.filter(e => e.periodId === activePeriodId);
@@ -2108,11 +2130,8 @@ function SinavOtomasyonuApp({ currentUser }) {
         const profName = formData.professor.trim();
         const pRef = getProfessorsRef();
         if (pRef) {
-          // Tüm profesörler arasında isme göre kontrol et (duplicate önleme)
-          const allProfsSnap = await pRef.get();
-          const allProfs = allProfsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          const existingProf = allProfs.find(p => p.name === profName);
-          if (!existingProf) {
+          const existCheck = await pRef.where("name", "==", profName).limit(1).get();
+          if (existCheck.empty) {
             await FirestoreWrite.add("professors", {
               name: profName,
               department: selectedDept?.name || "",
