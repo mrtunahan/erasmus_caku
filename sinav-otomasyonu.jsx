@@ -2494,6 +2494,19 @@ function SinavOtomasyonuApp({ currentUser }) {
                     )}
                   </>
                 )}
+                {periodExams.length === 0 && (
+                  <>
+                    <GhostBtn onClick={() => alert("Henüz takvime yerleştirilmiş sınav yok. Önce dersleri takvime sürükleyin.")} style={{ fontSize: 12, padding: "4px 10px", opacity: 0.5 }}>
+                      CSV
+                    </GhostBtn>
+                    <GhostBtn onClick={() => alert("Henüz takvime yerleştirilmiş sınav yok. Önce dersleri takvime sürükleyin.")} style={{ fontSize: 12, padding: "4px 10px", opacity: 0.5 }}>
+                      Word
+                    </GhostBtn>
+                    <GhostBtn onClick={() => alert("Henüz takvime yerleştirilmiş sınav yok. Önce dersleri takvime sürükleyin.")} style={{ fontSize: 12, padding: "4px 10px", background: "#059669", color: "white", border: "none", opacity: 0.5 }}>
+                      XLSX
+                    </GhostBtn>
+                  </>
+                )}
               </div>
             </div>
 
