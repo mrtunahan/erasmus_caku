@@ -137,7 +137,7 @@ const YazOkuluDB = {
 // ANA UYGULAMA
 // ══════════════════════════════════════════════════════════════
 
-const YazOkuluApp = ({ currentUser }) => {
+const YazOkuluApp = ({ currentUser, activeDepartment, departmentInfo }) => {
     const [activeTab, setActiveTab] = useState(TABS.SEARCH);
     const [students, setStudents] = useState([]);
     const [cakuCourses, setCakuCourses] = useState([]);
@@ -148,7 +148,7 @@ const YazOkuluApp = ({ currentUser }) => {
 
     useEffect(() => {
         loadInitialData();
-    }, [currentUser]);
+    }, [currentUser, activeDepartment]);
 
     const loadInitialData = async () => {
         setLoading(true);
@@ -159,9 +159,13 @@ const YazOkuluApp = ({ currentUser }) => {
         }
         setCakuCourses(catalog);
 
-        // 2. Öğrencileri Çek (Sadece Admin)
+        // 2. Öğrencileri Çek (Sadece Admin) - bölüm bazlı filtreleme
         if (isAdmin) {
-            const stds = await YazOkuluDB.fetchStudents();
+            const allStds = await YazOkuluDB.fetchStudents();
+            const stds = allStds.filter(s => {
+                const deptId = s.departmentId || "bilgisayar";
+                return deptId === activeDepartment;
+            });
             setStudents(stds);
             // Admin için varsayılan tab
             if (activeTab === TABS.SEARCH) setActiveTab(TABS.ADMIN);

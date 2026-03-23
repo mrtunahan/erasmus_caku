@@ -1574,7 +1574,7 @@ async function exportToXLSX(placedExams, periodLabel, period, customClassrooms, 
 // ══════════════════════════════════════════════════════════════
 // MAIN: SinavOtomasyonuApp
 // ══════════════════════════════════════════════════════════════
-function SinavOtomasyonuApp({ currentUser }) {
+function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
   const r = window.useResponsive ? window.useResponsive() : { isMobile: window.innerWidth <= 480, isTablet: window.innerWidth <= 768, width: window.innerWidth, val: (m,t,d) => window.innerWidth <= 480 ? m : window.innerWidth <= 768 ? (t||m) : (d||t||m), modalWidth: (w) => Math.min(w, window.innerWidth - 32) };
   const isAdmin = currentUser?.role === "admin";
   const isDeptManager = currentUser?.role === "bolum_yetkilisi";

@@ -471,7 +471,7 @@ const FormEkleModal = ({ onClose, onEkle }) => {
 // ══════════════════════════════════════════════════════════════
 // Ana Bileşen: FormlarModuluApp
 // ══════════════════════════════════════════════════════════════
-function FormlarModuluApp({ currentUser }) {
+function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [formlar, setFormlar] = useState([]);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [seciliKategori, setSeciliKategori] = useState("tumu");
@@ -489,20 +489,25 @@ function FormlarModuluApp({ currentUser }) {
   }, []);
   const isMobile = windowWidth <= 768;
 
-  // Formları yükle
+  // Formları yükle (bölüm bazlı filtreleme)
   const formlariYukle = useCallback(async () => {
     setYukleniyor(true);
     try {
       const FirebaseDB = window.FirebaseDB;
       if (!FirebaseDB) { setYukleniyor(false); return; }
       const data = await FirebaseDB.fetchForms();
-      setFormlar(data || []);
+      // Bölüm bazlı filtreleme: departmentId'si olmayan veriler bilgisayar bölümüne ait
+      const filtered = (data || []).filter(f => {
+        const deptId = f.departmentId || "bilgisayar";
+        return deptId === activeDepartment;
+      });
+      setFormlar(filtered);
     } catch (err) {
       console.error("Formlar yüklenirken hata:", err);
     } finally {
       setYukleniyor(false);
     }
-  }, []);
+  }, [activeDepartment]);
 
   useEffect(() => { formlariYukle(); }, [formlariYukle]);
 
