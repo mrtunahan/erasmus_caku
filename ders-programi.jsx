@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════════
 // ÇAKÜ Mühendislik Fakültesi - Ders Programı Otomasyonu
-// Bölüm bazlı haftalık ders programı oluşturma ve yönetimi
+// Sınav otomasyonundaki ders/hoca/derslik verilerini kullanır
 // ══════════════════════════════════════════════════════════════
 
 const { useState, useEffect, useMemo, useCallback } = React;
@@ -9,13 +9,10 @@ const DP = {
   primary: "#7C3AED",
   primaryLight: "#A78BFA",
   primaryPale: "#EDE9FE",
-  bg: "#F5F3FF",
-  card: "#FFFFFF",
   text: "#1F2937",
   textMuted: "#6B7280",
   border: "#E5E7EB",
   green: "#059669",
-  greenLight: "#D1FAE5",
   navy: "#1B2A4A",
 };
 
@@ -36,21 +33,68 @@ const HOURS = [
 const SLOT_COLORS = [
   "#3B82F6", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6",
   "#EC4899", "#06B6D4", "#F97316", "#6366F1", "#14B8A6",
+  "#84CC16", "#F43F5E",
 ];
 
 function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
   const [scheduleData, setScheduleData] = useState({});
   const [loading, setLoading] = useState(true);
-  const [semester, setSemester] = useState("guz"); // guz, bahar
-  const [year, setYear] = useState("1"); // 1,2,3,4
+  const [semester, setSemester] = useState("guz");
+  const [year, setYear] = useState("1");
   const [editMode, setEditMode] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState(null); // { day, hour }
+  const [selectedSlot, setSelectedSlot] = useState(null);
   const responsive = window.useResponsive();
+
+  // Sınav otomasyonundan paylaşılan veriler
+  const [courses, setCourses] = useState([]);
+  const [professors, setProfessors] = useState([]);
+  const [classrooms, setClassrooms] = useState([]);
+
+  // Modal form state
+  const [modalCourseId, setModalCourseId] = useState("");
+  const [modalClassroom, setModalClassroom] = useState("");
 
   const isAdmin = currentUser?.role === "admin";
   const isDeptManager = currentUser?.role === "bolum_yetkilisi";
   const canManage = isAdmin || isDeptManager;
+
+  // Sınav otomasyonundaki dersleri, hocaları ve derslikleri yükle
+  useEffect(() => {
+    const loadSharedData = async () => {
+      try {
+        const db = window.firebase?.firestore();
+        if (!db) return;
+
+        // Dersler (sinav_dersler) - bölüm bazlı
+        const coursesSnap = activeDepartment
+          ? await db.collection("sinav_dersler").where("departmentId", "==", activeDepartment).get()
+          : await db.collection("sinav_dersler").get();
+        const courseList = coursesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        courseList.sort((a, b) => (a.sinif || 0) - (b.sinif || 0) || (a.code || "").localeCompare(b.code || ""));
+        setCourses(courseList);
+
+        // Akademisyenler (professors) - bölüm bazlı
+        const profsSnap = activeDepartment
+          ? await db.collection("professors").where("departmentId", "==", activeDepartment).get()
+          : await db.collection("professors").get();
+        const profList = profsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        profList.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr"));
+        setProfessors(profList);
+
+        // Derslikler (department_classrooms) - bölüm bazlı
+        const roomsSnap = activeDepartment
+          ? await db.collection("department_classrooms").where("departmentId", "==", activeDepartment).get()
+          : await db.collection("department_classrooms").get();
+        const roomList = roomsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        roomList.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+        setClassrooms(roomList);
+      } catch (e) {
+        console.error("Paylaşılan veriler yüklenirken hata:", e);
+      }
+    };
+    loadSharedData();
+  }, [activeDepartment]);
 
   // Ders programını yükle
   useEffect(() => {
@@ -77,7 +121,63 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     loadSchedule();
   }, [activeDepartment, semester, year]);
 
-  // Renk ataması (ders koduna göre)
+  // Program kaydet
+  const saveSchedule = useCallback(async (newData) => {
+    try {
+      const docId = `${activeDepartment}_${semester}_${year}`;
+      await window.FirestoreWrite.set("course_schedules", docId, {
+        slots: newData,
+        departmentId: activeDepartment,
+        semester,
+        year,
+        updatedAt: new Date().toISOString(),
+      }, true);
+    } catch (e) {
+      console.error("Program kaydedilirken hata:", e);
+      alert("Program kaydedilirken hata: " + e.message);
+    }
+  }, [activeDepartment, semester, year]);
+
+  // Slot ekle
+  const handleAddSlot = useCallback(() => {
+    if (!selectedSlot || !modalCourseId) return;
+    const course = courses.find(c => c.id === modalCourseId);
+    if (!course) return;
+
+    const key = `${selectedSlot.day}_${selectedSlot.hourIndex}`;
+    const newData = {
+      ...scheduleData,
+      [key]: {
+        courseCode: course.code || "",
+        courseName: course.name || "",
+        instructor: course.professor || "",
+        classroom: modalClassroom || "",
+        courseId: course.id,
+        sinif: course.sinif || 0,
+      },
+    };
+    setScheduleData(newData);
+    saveSchedule(newData);
+    setShowAddModal(false);
+    setModalCourseId("");
+    setModalClassroom("");
+  }, [selectedSlot, modalCourseId, modalClassroom, scheduleData, courses, saveSchedule]);
+
+  // Slot sil
+  const handleRemoveSlot = useCallback((key) => {
+    const newData = { ...scheduleData };
+    delete newData[key];
+    setScheduleData(newData);
+    saveSchedule(newData);
+  }, [scheduleData, saveSchedule]);
+
+  // Seçili sınıfa ait dersler
+  const yearCourses = useMemo(() => {
+    const y = parseInt(year);
+    return courses.filter(c => c.sinif === y || c.sinif === 5);
+  }, [courses, year]);
+
+  // Renk ataması
   const courseColors = useMemo(() => {
     const map = {};
     let idx = 0;
@@ -88,6 +188,14 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
       }
     });
     return map;
+  }, [scheduleData]);
+
+  // İstatistikler
+  const stats = useMemo(() => {
+    const slotCount = Object.keys(scheduleData).length;
+    const uniqueCourses = new Set(Object.values(scheduleData).map(s => s.courseCode)).size;
+    const uniqueProfs = new Set(Object.values(scheduleData).map(s => s.instructor).filter(Boolean)).size;
+    return { slotCount, uniqueCourses, uniqueProfs };
   }, [scheduleData]);
 
   if (loading) {
@@ -106,7 +214,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
       {/* Header */}
       <div style={{
         display: "flex", flexWrap: "wrap", alignItems: "center",
-        justifyContent: "space-between", gap: 12, marginBottom: 24,
+        justifyContent: "space-between", gap: 12, marginBottom: 20,
       }}>
         <div>
           <h1 style={{ fontSize: responsive.val(20, 24, 28), fontWeight: 700, color: DP.navy, margin: 0 }}>
@@ -116,56 +224,97 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
             {departmentInfo?.name || "Bölüm"} - Haftalık ders programı
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {canManage && (
-            <button onClick={() => setEditMode(!editMode)} style={{
-              padding: "8px 16px", borderRadius: 8,
-              border: editMode ? "none" : "1px solid #D1D5DB",
-              background: editMode ? DP.primary : "white",
-              color: editMode ? "white" : DP.textMuted,
-              fontSize: 13, fontWeight: 500, cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 6,
+        {canManage && (
+          <button onClick={() => setEditMode(!editMode)} style={{
+            padding: "8px 16px", borderRadius: 8,
+            border: editMode ? "none" : "1px solid #D1D5DB",
+            background: editMode ? DP.green : "white",
+            color: editMode ? "white" : DP.textMuted,
+            fontSize: 13, fontWeight: 500, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 6,
+          }}>
+            <DPIcon path={editMode ? "M5 13l4 4L19 7" : "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"} size={14} />
+            {editMode ? "Düzenleme Modu Aktif" : "Düzenle"}
+          </button>
+        )}
+      </div>
+
+      {/* Stats + Filters */}
+      <div style={{
+        display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 20,
+        alignItems: "stretch",
+      }}>
+        {/* Stats */}
+        <div style={{
+          display: "flex", gap: 8, flex: "0 0 auto",
+        }}>
+          {[
+            { label: "Ders Saati", value: stats.slotCount, color: DP.primary },
+            { label: "Ders", value: stats.uniqueCourses, color: "#3B82F6" },
+            { label: "Hoca", value: stats.uniqueProfs, color: "#059669" },
+          ].map((s, i) => (
+            <div key={i} style={{
+              background: "white", borderRadius: 8, padding: "8px 16px",
+              border: "1px solid #E5E7EB", textAlign: "center", minWidth: 70,
             }}>
-              <DPIcon path={editMode ? "M5 13l4 4L19 7" : "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"} size={14} />
-              {editMode ? "Kaydet" : "Düzenle"}
-            </button>
+              <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: DP.textMuted }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Filters */}
+        <div style={{
+          display: "flex", flexWrap: "wrap", gap: 12, flex: 1,
+          background: "white", padding: responsive.val(10, 12, 12),
+          borderRadius: 8, border: "1px solid #E5E7EB", alignItems: "center",
+        }}>
+          <div>
+            <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: DP.textMuted, marginBottom: 2 }}>Dönem</label>
+            <div style={{ display: "flex", gap: 2 }}>
+              {[{ id: "guz", label: "Güz" }, { id: "bahar", label: "Bahar" }].map(s => (
+                <button key={s.id} onClick={() => setSemester(s.id)} style={{
+                  padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+                  border: "1px solid #D1D5DB", cursor: "pointer",
+                  background: semester === s.id ? DP.primary : "white",
+                  color: semester === s.id ? "white" : DP.text,
+                }}>{s.label}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: DP.textMuted, marginBottom: 2 }}>Sınıf</label>
+            <div style={{ display: "flex", gap: 2 }}>
+              {["1", "2", "3", "4"].map(y => (
+                <button key={y} onClick={() => setYear(y)} style={{
+                  padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+                  border: "1px solid #D1D5DB", cursor: "pointer",
+                  background: year === y ? DP.primary : "white",
+                  color: year === y ? "white" : DP.text,
+                }}>{y}. Sınıf</button>
+              ))}
+            </div>
+          </div>
+          {courses.length > 0 && (
+            <div style={{ fontSize: 11, color: DP.textMuted, marginLeft: "auto" }}>
+              Sınav Otomasyonundan: <strong>{courses.length}</strong> ders, <strong>{professors.length}</strong> hoca, <strong>{classrooms.length}</strong> derslik
+            </div>
           )}
         </div>
       </div>
 
-      {/* Filters */}
-      <div style={{
-        display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 20,
-        background: "white", padding: responsive.val(12, 16, 16),
-        borderRadius: 12, border: "1px solid #E5E7EB",
-      }}>
-        <div>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: DP.textMuted, marginBottom: 4 }}>Dönem</label>
-          <div style={{ display: "flex", gap: 4 }}>
-            {[{ id: "guz", label: "Güz" }, { id: "bahar", label: "Bahar" }].map(s => (
-              <button key={s.id} onClick={() => setSemester(s.id)} style={{
-                padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 500,
-                border: "1px solid #D1D5DB", cursor: "pointer",
-                background: semester === s.id ? DP.primary : "white",
-                color: semester === s.id ? "white" : DP.text,
-              }}>{s.label}</button>
-            ))}
+      {/* Info banner when no courses */}
+      {courses.length === 0 && (
+        <div style={{
+          background: "#FEF3C7", border: "1px solid #F59E0B", borderRadius: 10,
+          padding: 16, marginBottom: 20, display: "flex", alignItems: "center", gap: 12,
+        }}>
+          <DPIcon path="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" size={20} color="#F59E0B" />
+          <div style={{ fontSize: 13, color: "#92400E" }}>
+            Bu bölüm için henüz ders tanımlanmamış. Önce <strong>Sınav Otomasyonu</strong> modülünden ders ve akademisyen ekleyin.
           </div>
         </div>
-        <div>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: DP.textMuted, marginBottom: 4 }}>Sınıf</label>
-          <div style={{ display: "flex", gap: 4 }}>
-            {["1", "2", "3", "4"].map(y => (
-              <button key={y} onClick={() => setYear(y)} style={{
-                padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 500,
-                border: "1px solid #D1D5DB", cursor: "pointer",
-                background: year === y ? DP.primary : "white",
-                color: year === y ? "white" : DP.text,
-              }}>{y}. Sınıf</button>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Schedule Grid */}
       <div style={{
@@ -178,10 +327,10 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
             {DAYS.map(day => {
               const daySlots = HOURS.map((hour, hi) => {
                 const key = `${day}_${hi}`;
-                return scheduleData[key] ? { ...scheduleData[key], hour, hourIndex: hi } : null;
+                return scheduleData[key] ? { ...scheduleData[key], hour, hourIndex: hi, key } : null;
               }).filter(Boolean);
 
-              if (daySlots.length === 0) return null;
+              if (daySlots.length === 0 && !editMode) return null;
 
               return (
                 <div key={day} style={{ marginBottom: 16 }}>
@@ -195,17 +344,36 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                       padding: "8px 12px", marginBottom: 4, borderRadius: 8,
                       background: `${courseColors[slot.courseCode] || "#6B7280"}15`,
                       borderLeft: `3px solid ${courseColors[slot.courseCode] || "#6B7280"}`,
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
                     }}>
-                      <div style={{ fontSize: 11, color: DP.textMuted }}>{slot.hour}</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: DP.text }}>{slot.courseName || slot.courseCode}</div>
-                      {slot.instructor && <div style={{ fontSize: 11, color: DP.textMuted }}>{slot.instructor}</div>}
-                      {slot.classroom && <div style={{ fontSize: 11, color: DP.textMuted }}>Derslik: {slot.classroom}</div>}
+                      <div>
+                        <div style={{ fontSize: 11, color: DP.textMuted }}>{slot.hour}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: DP.text }}>{slot.courseCode} - {slot.courseName}</div>
+                        {slot.instructor && <div style={{ fontSize: 11, color: DP.textMuted }}>{slot.instructor}</div>}
+                        {slot.classroom && <div style={{ fontSize: 11, color: DP.textMuted }}>Derslik: {slot.classroom}</div>}
+                      </div>
+                      {editMode && (
+                        <button onClick={() => handleRemoveSlot(slot.key)} style={{
+                          background: "none", border: "none", cursor: "pointer", padding: 4, color: "#EF4444",
+                        }}>
+                          <DPIcon path="M18 6L6 18M6 6l12 12" size={16} color="#EF4444" />
+                        </button>
+                      )}
                     </div>
                   ))}
+                  {editMode && (
+                    <button onClick={() => { setSelectedSlot({ day, hourIndex: 0, hour: HOURS[0] }); setShowAddModal(true); }} style={{
+                      width: "100%", padding: 8, border: "1px dashed #D1D5DB", borderRadius: 8,
+                      background: "transparent", cursor: "pointer", fontSize: 12, color: DP.textMuted,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 4,
+                    }}>
+                      <DPIcon path="M12 5v14M5 12h14" size={14} color="#D1D5DB" /> Ders Ekle
+                    </button>
+                  )}
                 </div>
               );
             })}
-            {Object.keys(scheduleData).length === 0 && (
+            {Object.keys(scheduleData).length === 0 && !editMode && (
               <div style={{ textAlign: "center", padding: 40, color: DP.textMuted }}>
                 <DPIcon path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={48} color="#D1D5DB" />
                 <p style={{ marginTop: 12 }}>Bu dönem için ders programı henüz oluşturulmamış.</p>
@@ -246,14 +414,16 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                       <td
                         key={day}
                         onClick={() => {
-                          if (editMode) {
+                          if (editMode && !slot) {
                             setSelectedSlot({ day, hourIndex: hi, hour });
+                            setModalCourseId("");
+                            setModalClassroom("");
                             setShowAddModal(true);
                           }
                         }}
                         style={{
                           padding: 4, borderBottom: "1px solid #F3F4F6",
-                          cursor: editMode ? "pointer" : "default",
+                          cursor: editMode && !slot ? "pointer" : "default",
                           background: editMode && !slot ? "#FAFBFF" : "transparent",
                           transition: "background 0.15s",
                         }}
@@ -263,11 +433,20 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                             padding: "6px 8px", borderRadius: 6,
                             background: `${courseColors[slot.courseCode] || "#6B7280"}15`,
                             borderLeft: `3px solid ${courseColors[slot.courseCode] || "#6B7280"}`,
-                            minHeight: 40,
+                            minHeight: 40, position: "relative",
                           }}>
                             <div style={{ fontSize: 12, fontWeight: 600, color: DP.text }}>{slot.courseCode}</div>
-                            <div style={{ fontSize: 11, color: DP.textMuted }}>{slot.courseName}</div>
-                            {slot.classroom && <div style={{ fontSize: 10, color: DP.textMuted }}>{slot.classroom}</div>}
+                            <div style={{ fontSize: 11, color: DP.textMuted, lineHeight: 1.2 }}>{slot.courseName}</div>
+                            {slot.instructor && <div style={{ fontSize: 10, color: DP.textMuted, marginTop: 2 }}>{slot.instructor}</div>}
+                            {slot.classroom && <div style={{ fontSize: 10, color: DP.primary, fontWeight: 500 }}>{slot.classroom}</div>}
+                            {editMode && (
+                              <button onClick={(e) => { e.stopPropagation(); handleRemoveSlot(key); }} style={{
+                                position: "absolute", top: 2, right: 2,
+                                background: "none", border: "none", cursor: "pointer", padding: 2,
+                              }}>
+                                <DPIcon path="M18 6L6 18M6 6l12 12" size={12} color="#EF4444" />
+                              </button>
+                            )}
                           </div>
                         ) : editMode ? (
                           <div style={{
@@ -287,7 +466,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         )}
       </div>
 
-      {/* Add/Edit Modal Placeholder */}
+      {/* Add Slot Modal */}
       {showAddModal && selectedSlot && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -298,41 +477,111 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
           <div style={{
             background: "white", borderRadius: 16,
             padding: responsive.val(20, 24, 28),
-            width: "100%", maxWidth: 440,
+            width: "100%", maxWidth: 480,
             boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
           }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: 18, fontWeight: 700, color: DP.navy, marginBottom: 4 }}>
-              Ders Ekle
+              Ders Programına Ekle
             </h3>
             <p style={{ fontSize: 13, color: DP.textMuted, marginBottom: 20 }}>
               {selectedSlot.day} - {selectedSlot.hour}
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.textMuted, marginBottom: 4 }}>Ders Kodu</label>
-                <input placeholder="örn: BİL301" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
+
+            {/* Saat seçimi (mobilde) */}
+            {responsive.isMobile && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.textMuted, marginBottom: 4 }}>Saat</label>
+                <select
+                  value={selectedSlot.hourIndex}
+                  onChange={e => setSelectedSlot({ ...selectedSlot, hourIndex: parseInt(e.target.value), hour: HOURS[parseInt(e.target.value)] })}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", background: "white" }}
+                >
+                  {HOURS.map((h, i) => <option key={i} value={i}>{h}</option>)}
+                </select>
               </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.textMuted, marginBottom: 4 }}>Ders Adı</label>
-                <input placeholder="Ders adını girin" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.textMuted, marginBottom: 4 }}>Öğretim Üyesi</label>
-                <input placeholder="Hoca adı" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.textMuted, marginBottom: 4 }}>Derslik</label>
-                <input placeholder="örn: D-201" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-              </div>
+            )}
+
+            {/* Ders seçimi (sınav otomasyonundaki derslerden) */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.textMuted, marginBottom: 4 }}>
+                Ders Seçimi <span style={{ fontWeight: 400, color: "#9CA3AF" }}>(Sınav Otomasyonundan)</span>
+              </label>
+              {yearCourses.length > 0 ? (
+                <select
+                  value={modalCourseId}
+                  onChange={e => setModalCourseId(e.target.value)}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", background: "white" }}
+                >
+                  <option value="">Ders seçin...</option>
+                  {yearCourses.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.code} - {c.name} {c.professor ? `(${c.professor})` : ""}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{
+                  padding: "10px 12px", borderRadius: 8, border: "1px solid #FCD34D",
+                  background: "#FFFBEB", fontSize: 12, color: "#92400E",
+                }}>
+                  Bu sınıf için ders bulunamadı. Sınav Otomasyonundan ders ekleyin.
+                </div>
+              )}
             </div>
-            <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+
+            {/* Derslik seçimi */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.textMuted, marginBottom: 4 }}>
+                Derslik <span style={{ fontWeight: 400, color: "#9CA3AF" }}>(Sınav Otomasyonundan)</span>
+              </label>
+              {classrooms.length > 0 ? (
+                <select
+                  value={modalClassroom}
+                  onChange={e => setModalClassroom(e.target.value)}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", background: "white" }}
+                >
+                  <option value="">Derslik seçin (opsiyonel)...</option>
+                  {classrooms.map(r => (
+                    <option key={r.id} value={r.name}>{r.name} ({r.capacity} kişi)</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={modalClassroom}
+                  onChange={e => setModalClassroom(e.target.value)}
+                  placeholder="Derslik adı (ör: D-201)"
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }}
+                />
+              )}
+            </div>
+
+            {/* Seçili ders önizleme */}
+            {modalCourseId && (() => {
+              const c = courses.find(x => x.id === modalCourseId);
+              if (!c) return null;
+              return (
+                <div style={{
+                  padding: 12, borderRadius: 8, background: "#F3F4F6",
+                  marginBottom: 14, fontSize: 12,
+                }}>
+                  <div style={{ fontWeight: 600, color: DP.text }}>{c.code} - {c.name}</div>
+                  {c.professor && <div style={{ color: DP.textMuted, marginTop: 2 }}>Hoca: {c.professor}</div>}
+                  {c.sinif && <div style={{ color: DP.textMuted }}>Sınıf: {c.sinif === 5 ? "Seçmeli" : c.sinif + ". Sınıf"}</div>}
+                  {c.studentCount > 0 && <div style={{ color: DP.textMuted }}>Öğrenci: {c.studentCount}</div>}
+                </div>
+              );
+            })()}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button onClick={() => setShowAddModal(false)} style={{
                 padding: "10px 20px", borderRadius: 8, border: "1px solid #D1D5DB",
                 background: "white", color: DP.textMuted, fontSize: 13, cursor: "pointer",
               }}>İptal</button>
-              <button style={{
+              <button onClick={handleAddSlot} disabled={!modalCourseId} style={{
                 padding: "10px 20px", borderRadius: 8, border: "none",
-                background: DP.primary, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                background: modalCourseId ? DP.primary : "#D1D5DB",
+                color: "white", fontSize: 13, fontWeight: 600,
+                cursor: modalCourseId ? "pointer" : "default",
               }}>Ekle</button>
             </div>
           </div>
