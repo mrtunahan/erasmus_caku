@@ -389,28 +389,76 @@ function AppShell() {
     );
   }
 
+  // ── Lazy Loading State ──
+  const [loadedModules, setLoadedModules] = useState({});
+  const [moduleLoading, setModuleLoading] = useState(false);
+
+  // Modülü lazy olarak yükle
+  useEffect(() => {
+    const lazyMod = window.__lazyModules?.[route];
+    if (!lazyMod) return; // Fallback: eski yükleme yöntemi
+
+    const componentName = lazyMod.component;
+    if (window[componentName]) {
+      // Zaten yüklü
+      if (!loadedModules[route]) {
+        setLoadedModules(prev => ({ ...prev, [route]: true }));
+      }
+      return;
+    }
+
+    setModuleLoading(true);
+    lazyMod.loader().then(() => {
+      setLoadedModules(prev => ({ ...prev, [route]: true }));
+      setModuleLoading(false);
+    }).catch(err => {
+      console.error('Module load error:', err);
+      setModuleLoading(false);
+    });
+  }, [route]);
+
   // Render active module
   const renderModule = () => {
-    const components = {
-      erasmus: window.ErasmusLearningAgreementApp,
-      sinav: window.SinavOtomasyonuApp,
-      muafiyet: window.DersMuafiyetApp,
-      yazokulu: window.YazOkuluApp,
-      portal: window.OgrenciPortaliApp,
-      projeler: window.ProjeModuluApp,
-      formlar: window.FormlarModuluApp,
-      kullanici: window.KullaniciYonetimiApp,
-    };
-
     // Safety check for rendering availability
-    if (isDeptManager && route !== 'sinav') return null; // Wait for redirect
-    if (isProfessor && !['sinav', 'formlar'].includes(route)) return null; // Wait for redirect
-    if (!isAdmin && !isProfessor && !isDeptManager && !STUDENT_ALLOWED_ROUTES.includes(route)) return null; // Wait for redirect
+    if (isDeptManager && route !== 'sinav') return null;
+    if (isProfessor && !['sinav', 'formlar'].includes(route)) return null;
+    if (!isAdmin && !isProfessor && !isDeptManager && !STUDENT_ALLOWED_ROUTES.includes(route)) return null;
 
-    const Component = components[route] || components.erasmus;
+    // Loading spinner
+    if (moduleLoading) {
+      return (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 20px" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 36, height: 36, border: "3px solid #E5E1D8", borderTopColor: C.navy, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+            <p style={{ color: "#666", fontSize: 14 }}>Modül yükleniyor...</p>
+            <style dangerouslySetInnerHTML={{ __html: "@keyframes spin { to { transform: rotate(360deg) } }" }} />
+          </div>
+        </div>
+      );
+    }
+
+    // Lazy loading: modül adını window'dan al
+    const lazyMod = window.__lazyModules?.[route];
+    const componentName = lazyMod?.component;
+    const Component = componentName ? window[componentName] : null;
+
+    // Fallback: eski yöntemle dene (Vite olmadan çalışma durumu)
     if (!Component) {
+      const fallback = {
+        erasmus: window.ErasmusLearningAgreementApp,
+        sinav: window.SinavOtomasyonuApp,
+        muafiyet: window.DersMuafiyetApp,
+        yazokulu: window.YazOkuluApp,
+        portal: window.OgrenciPortaliApp,
+        projeler: window.ProjeModuluApp,
+        formlar: window.FormlarModuluApp,
+        kullanici: window.KullaniciYonetimiApp,
+      };
+      const FallbackComponent = fallback[route] || fallback.erasmus;
+      if (FallbackComponent) return React.createElement(FallbackComponent, { currentUser });
       return <div style={{ padding: "40px 16px", textAlign: "center", color: "#c00" }}>Modül yüklenemedi. Lütfen sayfayı yenileyin (Ctrl+Shift+R).</div>;
     }
+
     return React.createElement(Component, { currentUser });
   };
 

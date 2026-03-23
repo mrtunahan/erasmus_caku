@@ -6,7 +6,7 @@
     "source": "functions"
   },
   "hosting": {
-    "public": ".",
+    "public": "dist",
     "ignore": [
       "firebase.json",
       "firestore.rules",
@@ -17,15 +17,10 @@
       "README.md",
       "CLAUDE.md"
     ],
-    "headers": [
+    "rewrites": [
       {
-        "source": "**/*.jsx",
-        "headers": [
-          {
-            "key": "Content-Type",
-            "value": "text/javascript"
-          }
-        ]
+        "source": "**",
+        "destination": "/index.html"
       }
     ]
   }

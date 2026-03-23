@@ -5,4 +5,5 @@ __pycache__/
 .env
 *.xlsx
 node_modules/
+dist/
 functions/node_modules/
