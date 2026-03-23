@@ -1,0 +1,26 @@
+{
+  "name": "erasmus_caku",
+  "version": "1.0.0",
+  "description": "Çankırı Karatekin Üniversitesi için geliştirilmiş Erasmus öğrenci ders eşleştirme ve yönetim sistemi.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:53116/git/mrtunahan/erasmus_caku"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.2"
+  },
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  }
+}
