@@ -785,7 +785,14 @@ function AddCourseModal({ onClose, onAdd, editCourse }) {
 // ══════════════════════════════════════════════════════════════
 // ANA MODÜL
 // ══════════════════════════════════════════════════════════════
-function ProjeModuluApp({ currentUser }) {
+// ── Proje Kategorileri ──
+const PROJECT_CATEGORIES = [
+  { id: "bolum", label: "Grup / Bölüm", icon: PRJ_ICONS.users, color: "#3B82F6", description: "Bölüm içi ders bazlı proje grupları" },
+  { id: "universite", label: "Üniversite", icon: PRJ_ICONS.book, color: "#8B5CF6", description: "Üniversite genelinde ortak projeler" },
+  { id: "tubitak", label: "TÜBİTAK", icon: PRJ_ICONS.shield, color: "#059669", description: "TÜBİTAK destekli araştırma projeleri" },
+];
+
+function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var _s = useState;
   var cs = _s([]), courses = cs[0], setCourses = cs[1];
   var ps = _s([]), projects = ps[0], setProjects = ps[1];
@@ -795,12 +802,15 @@ function ProjeModuluApp({ currentUser }) {
   var scm = _s(false), showCourseModal = scm[0], setShowCourseModal = scm[1];
   var sq = _s(""), searchQuery = sq[0], setSearchQuery = sq[1];
   var ecv = _s(null), editingCourse = ecv[0], setEditingCourse = ecv[1]; // ders düzenleme
+  var [activeCategory, setActiveCategory] = useState("bolum"); // bolum, universite, tubitak
 
   var aps = _s([]), allProjects = aps[0], setAllProjects = aps[1];
 
   var userId = currentUser && (currentUser.studentNumber || currentUser.name) || "anonymous";
   var userName = currentUser && currentUser.name || "Anonim";
   var isAdmin = currentUser && currentUser.role === "admin";
+  var isDeptManager = currentUser && currentUser.role === "bolum_yetkilisi";
+  var canManage = isAdmin || isDeptManager;
 
   // ── Tüm projeleri yükle (üyelik kontrolü için) ──
   var loadAllProjects = useCallback(function () {
@@ -1062,11 +1072,12 @@ function ProjeModuluApp({ currentUser }) {
   // DERS LİSTESİ GÖRÜNÜMÜ
   // ══════════════════════════════════════════════════════════════
   if (!selectedCourse) {
+    var activeCat = PROJECT_CATEGORIES.find(function (c) { return c.id === activeCategory; }) || PROJECT_CATEGORIES[0];
     return (
       <div style={{ background: PRJ.bg, minHeight: "100vh", padding: "0 0 40px" }}>
         <div style={{
           background: "linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #60a5fa 100%)",
-          padding: "32px 0 24px", marginBottom: 24,
+          padding: "32px 0 24px", marginBottom: 0,
         }}>
           <div style={{ maxWidth: 1000, margin: "0 auto", padding: window.innerWidth <= 480 ? "0 10px" : "0 24px", boxSizing: "border-box" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
@@ -1074,15 +1085,45 @@ function ProjeModuluApp({ currentUser }) {
                 <h1 style={{ color: "white", fontSize: 28, fontWeight: 700, fontFamily: "'Playfair Display', serif", display: "flex", alignItems: "center", gap: 10 }}>
                   <PrjIcon path={PRJ_ICONS.folder} size={28} color="rgba(255,255,255,0.8)" /> Proje Grupları
                 </h1>
-                <p style={{ color: "rgba(255,255,255,0.7)", marginTop: 4, fontSize: 14 }}>Ders seçerek proje gruplarını görüntüleyin</p>
+                <p style={{ color: "rgba(255,255,255,0.7)", marginTop: 4, fontSize: 14 }}>
+                  {departmentInfo ? departmentInfo.name + " - " : ""}Ders seçerek proje gruplarını görüntüleyin
+                </p>
               </div>
-              {isAdmin && (
+              {canManage && activeCategory === "bolum" && (
                 <button onClick={function () { setShowCourseModal(true); }}
                   style={{ background: "rgba(255,255,255,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 10, padding: "10px 20px", cursor: "pointer", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, backdropFilter: "blur(8px)" }}>
                   <PrjIcon path={PRJ_ICONS.plus} size={18} color="white" /> Yeni Ders Ekle
                 </button>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Kategori Tabları */}
+        <div style={{
+          background: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)",
+          padding: "0", marginBottom: 24,
+        }}>
+          <div style={{ maxWidth: 1000, margin: "0 auto", padding: window.innerWidth <= 480 ? "0 10px" : "0 24px", display: "flex", gap: 0, overflowX: "auto" }}>
+            {PROJECT_CATEGORIES.map(function (cat) {
+              var isActive = activeCategory === cat.id;
+              return (
+                <button key={cat.id} onClick={function () { setActiveCategory(cat.id); setSearchQuery(""); }}
+                  style={{
+                    padding: "14px 20px", border: "none", cursor: "pointer",
+                    background: isActive ? "rgba(255,255,255,0.15)" : "transparent",
+                    color: isActive ? "white" : "rgba(255,255,255,0.6)",
+                    fontSize: 13, fontWeight: isActive ? 600 : 400,
+                    fontFamily: "'Source Sans 3', sans-serif",
+                    display: "flex", alignItems: "center", gap: 8,
+                    borderBottom: isActive ? "3px solid " + cat.color : "3px solid transparent",
+                    transition: "all 0.2s", whiteSpace: "nowrap",
+                  }}>
+                  <PrjIcon path={cat.icon} size={16} color={isActive ? cat.color : "rgba(255,255,255,0.5)"} />
+                  {cat.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 

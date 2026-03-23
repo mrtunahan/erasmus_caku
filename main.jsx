@@ -13,16 +13,18 @@ import './shared-components.jsx';
 
 // ── Phase 2: Lazy module loaders (sadece ihtiyaç olduğunda yüklenecek) ──
 window.__lazyModules = {
-  erasmus:   { loader: () => import('./erasmus-learning-agreement.jsx'), component: 'ErasmusLearningAgreementApp' },
-  sinav:     { loader: () => import('./sinav-otomasyonu.jsx'),          component: 'SinavOtomasyonuApp' },
-  muafiyet:  { loader: () => import('./ders-muafiyet.jsx'),             component: 'DersMuafiyetApp' },
-  yazokulu:  { loader: () => import('./yaz-okulu.jsx'),                 component: 'YazOkuluApp' },
-  portal:    { loader: () => import('./ogrenci-portali.jsx'),           component: 'OgrenciPortaliApp' },
-  projeler:  { loader: () => import('./proje-modulu.jsx'),              component: 'ProjeModuluApp' },
-  formlar:   { loader: () => import('./formlar-modulu.jsx'),            component: 'FormlarModuluApp' },
-  kullanici: { loader: () => import('./kullanici-yonetimi.jsx'),        component: 'KullaniciYonetimiApp' },
-  anket:     { loader: () => import('./anket-modulu.jsx'),              component: 'AnketModuluApp' },
-  kaynaklar: { loader: () => import('./kaynak-kutuphanesi.jsx'),        component: 'KaynakKutuphanesiApp' },
+  erasmus:       { loader: () => import('./erasmus-learning-agreement.jsx'), component: 'ErasmusLearningAgreementApp' },
+  sinav:         { loader: () => import('./sinav-otomasyonu.jsx'),          component: 'SinavOtomasyonuApp' },
+  muafiyet:      { loader: () => import('./ders-muafiyet.jsx'),             component: 'DersMuafiyetApp' },
+  yazokulu:      { loader: () => import('./yaz-okulu.jsx'),                 component: 'YazOkuluApp' },
+  portal:        { loader: () => import('./ogrenci-portali.jsx'),           component: 'OgrenciPortaliApp' },
+  projeler:      { loader: () => import('./proje-modulu.jsx'),              component: 'ProjeModuluApp' },
+  formlar:       { loader: () => import('./formlar-modulu.jsx'),            component: 'FormlarModuluApp' },
+  kullanici:     { loader: () => import('./kullanici-yonetimi.jsx'),        component: 'KullaniciYonetimiApp' },
+  anket:         { loader: () => import('./anket-modulu.jsx'),              component: 'AnketModuluApp' },
+  kaynaklar:     { loader: () => import('./kaynak-kutuphanesi.jsx'),        component: 'KaynakKutuphanesiApp' },
+  staj:          { loader: () => import('./staj-modulu.jsx'),               component: 'StajModuluApp' },
+  dersprogrami:  { loader: () => import('./ders-programi.jsx'),             component: 'DersProgramiApp' },
 };
 
 // ── Phase 3: App Shell (routing & navigation) ──
