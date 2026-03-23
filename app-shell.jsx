@@ -357,6 +357,10 @@ function AppShell() {
     navigate('portal'); // Reset route on logout
   };
 
+  // ── Lazy Loading State (must be before any early return) ──
+  const [loadedModules, setLoadedModules] = useState({});
+  const [moduleLoading, setModuleLoading] = useState(false);
+
   // Routing Protection
   useEffect(() => {
     if (!currentUser) return;
@@ -378,20 +382,6 @@ function AppShell() {
       }
     }
   }, [route, isAdmin, isProfessor, currentUser, navigate]);
-
-  // Show login if not authenticated
-  if (!currentUser) {
-    return (
-      <div style={{ minHeight: "100vh", background: C.bg }}>
-        <style dangerouslySetInnerHTML={{ __html: sharedStyles.global }} />
-        <LoginModal onLogin={handleLogin} />
-      </div>
-    );
-  }
-
-  // ── Lazy Loading State ──
-  const [loadedModules, setLoadedModules] = useState({});
-  const [moduleLoading, setModuleLoading] = useState(false);
 
   // Modülü lazy olarak yükle
   useEffect(() => {
@@ -416,6 +406,16 @@ function AppShell() {
       setModuleLoading(false);
     });
   }, [route]);
+
+  // Show login if not authenticated
+  if (!currentUser) {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg }}>
+        <style dangerouslySetInnerHTML={{ __html: sharedStyles.global }} />
+        <LoginModal onLogin={handleLogin} />
+      </div>
+    );
+  }
 
   // Render active module
   const renderModule = () => {
