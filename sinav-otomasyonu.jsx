@@ -1581,9 +1581,9 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
   const isProfessor = currentUser?.role === "professor";
   const canManage = isAdmin || isDeptManager;
 
-  // Department State
+  // Department State - activeDepartment prop ile senkronize
   const [departments, setDepartments] = useState([]);
-  const [selectedDeptId, setSelectedDeptId] = useState(currentUser?.departmentId || null);
+  const [selectedDeptId, setSelectedDeptId] = useState(activeDepartment || currentUser?.departmentId || null);
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [showClassroomModal, setShowClassroomModal] = useState(false);
   const [showSupervisorModal, setShowSupervisorModal] = useState(false);
@@ -1607,6 +1607,13 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
   const [courseSearch, setCourseSearch] = useState("");
 
   const selectedDept = departments.find(d => d.id === selectedDeptId);
+
+  // activeDepartment prop değiştiğinde senkronize et
+  useEffect(() => {
+    if (activeDepartment && activeDepartment !== selectedDeptId) {
+      setSelectedDeptId(activeDepartment);
+    }
+  }, [activeDepartment]);
 
   // Dynamic classroom assignment using department-specific classrooms
   const assignClassroomDynamic = useCallback((studentCount) => {
