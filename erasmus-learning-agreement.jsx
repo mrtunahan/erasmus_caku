@@ -1358,7 +1358,7 @@ ${rows.join('')}
 };
 
 // ── Main Erasmus Module (receives currentUser as prop) ──
-function ErasmusLearningAgreementApp({ currentUser }) {
+function ErasmusLearningAgreementApp({ currentUser, activeDepartment, departmentInfo }) {
   const r = useResponsive();
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -1382,7 +1382,12 @@ function ErasmusLearningAgreementApp({ currentUser }) {
           // Öğrenci şifreleri Cloud Functions üzerinden yönetilecek
           // İlk girişte her öğrenci kendi şifresini belirleyecek
         }
-        const fetchedStudents = await FirebaseDB.fetchStudents();
+        const allStudents = await FirebaseDB.fetchStudents();
+        // Bölüm bazlı filtreleme: departmentId'si olmayan veriler bilgisayar bölümüne ait
+        const fetchedStudents = allStudents.filter(s => {
+          const deptId = s.departmentId || "bilgisayar";
+          return deptId === activeDepartment;
+        });
         setStudents(fetchedStudents);
         // Mevcut öğrencilerin eşleştirmelerini geçmişe kaydet (ilk seferde)
         fetchedStudents.forEach(s => {
@@ -1397,7 +1402,7 @@ function ErasmusLearningAgreementApp({ currentUser }) {
       }
     };
     setTimeout(loadStudents, 500);
-  }, []);
+  }, [activeDepartment]);
 
   const canEdit = (student) => {
     if (!currentUser) return false;

@@ -132,7 +132,7 @@ const TopHeader = ({ currentUser, onLogout, isMobile, onToggleSidebar, sidebarOp
               {currentUser?.name || "Kullanıcı"}
             </div>
             <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>
-              {currentUser?.role === "admin" ? "Admin"
+              {currentUser?.role === "admin" ? "Fakülte Yöneticisi"
                 : currentUser?.role === "professor" ? "Akademisyen"
                 : currentUser?.role === "bolum_yetkilisi" ? "Bölüm Yetkilisi"
                 : `Öğrenci`}

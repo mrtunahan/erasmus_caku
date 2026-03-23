@@ -1619,7 +1619,7 @@ const LoginModal = ({ onLogin }) => {
     try {
       if (activeTab === "admin") {
         const email = FirebaseAuth.adminEmail();
-        const adminUser = { role: "admin", name: "Admin", studentNumber: null };
+        const adminUser = { role: "admin", name: "A. Tunahan KORKMAZ", studentNumber: null, departmentId: "bilgisayar", departmentName: "Bilgisayar Mühendisliği" };
 
         // 1. Cloud Functions ile sunucu tarafında admin şifre doğrulama
         const adminResult = await FirebaseDB.verifyAdminLogin(password);

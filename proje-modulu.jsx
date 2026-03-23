@@ -87,12 +87,26 @@ var ProjDB = {
     return window.firebase.firestore();
   },
 
-  // Ders listesi
-  async fetchCourses() {
+  // Kategori bazlı collection adı
+  _col: function (category) {
+    var cat = PROJECT_CATEGORIES.find(function (c) { return c.id === category; });
+    return (cat && cat.collection) || "project_courses";
+  },
+
+  // Ders listesi (kategori ve bölüm bazlı)
+  async fetchCourses(category, departmentId) {
     try {
       var db = this.db();
-      var snap = await db.collection("project_courses").get();
+      var col = this._col(category);
+      var snap = await db.collection(col).get();
       var docs = snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+      // Bölüm bazlı filtreleme: departmentId olmayan veriler bilgisayar bölümüne ait
+      if (departmentId) {
+        docs = docs.filter(function (d) {
+          var deptId = d.departmentId || "bilgisayar";
+          return deptId === departmentId;
+        });
+      }
       docs.sort(function (a, b) { return (a.name || "").localeCompare(b.name || ""); });
       return docs;
     } catch (e) {
@@ -100,9 +114,10 @@ var ProjDB = {
       throw e;
     }
   },
-  async addCourse(data) {
+  async addCourse(data, category) {
     try {
-      var result = await window.FirestoreWrite.add("project_courses", Object.assign({}, data, {
+      var col = this._col(category);
+      var result = await window.FirestoreWrite.add(col, Object.assign({}, data, {
         createdAt: new Date().toISOString(),
       }));
       return result;
@@ -111,27 +126,36 @@ var ProjDB = {
       throw e;
     }
   },
-  async updateCourse(id, data) {
-    await window.FirestoreWrite.update("project_courses", String(id), data);
+  async updateCourse(id, data, category) {
+    var col = this._col(category);
+    await window.FirestoreWrite.update(col, String(id), data);
   },
-  async deleteCourse(id) {
+  async deleteCourse(id, category) {
     try {
-      await window.FirestoreWrite.remove("project_courses", id);
+      var col = this._col(category);
+      await window.FirestoreWrite.remove(col, id);
     } catch (e) {
       console.error("Ders silinemedi:", e);
       throw e;
     }
   },
 
+  // Kategori bazlı proje collection adı
+  _projCol: function (category) {
+    if (category === "unides") return "unides_projects";
+    if (category === "tubitak2209") return "tubitak2209_projects";
+    return "projects";
+  },
+
   // Projeler
-  async fetchProjects(courseId) {
+  async fetchProjects(courseId, category) {
     try {
       var db = this.db();
-      var query = db.collection("projects");
+      var col = this._projCol(category);
+      var query = db.collection(col);
       if (courseId) query = query.where("courseId", "==", courseId);
       var snap = await query.get();
       var docs = snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
-      // Client-side sort to avoid composite index requirement
       docs.sort(function (a, b) {
         var ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
         var tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
@@ -144,14 +168,16 @@ var ProjDB = {
     }
   },
   // Tüm projeleri getir (üyelik kontrolü için)
-  async fetchAllProjects() {
+  async fetchAllProjects(category) {
     var db = this.db(); if (!db) return [];
-    var snap = await db.collection("projects").get();
+    var col = this._projCol(category);
+    var snap = await db.collection(col).get();
     return snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
   },
-  async createProject(data) {
+  async createProject(data, category) {
     try {
-      var result = await window.FirestoreWrite.add("projects", Object.assign({}, data, {
+      var col = this._projCol(category);
+      var result = await window.FirestoreWrite.add(col, Object.assign({}, data, {
         createdAt: new Date().toISOString(),
       }));
       return result;
@@ -160,12 +186,14 @@ var ProjDB = {
       throw e;
     }
   },
-  async updateProject(id, data) {
-    await window.FirestoreWrite.update("projects", String(id), data);
+  async updateProject(id, data, category) {
+    var col = this._projCol(category);
+    await window.FirestoreWrite.update(col, String(id), data);
   },
-  async deleteProject(id) {
+  async deleteProject(id, category) {
     try {
-      await window.FirestoreWrite.remove("projects", id);
+      var col = this._projCol(category);
+      await window.FirestoreWrite.remove(col, id);
     } catch (e) {
       console.error("Proje silinemedi:", e);
       throw e;
@@ -731,22 +759,23 @@ function CreateProjectModal({ onClose, onCreate, currentUserName }) {
 // ══════════════════════════════════════════════════════════════
 // DERS EKLEME MODALI (Admin)
 // ══════════════════════════════════════════════════════════════
-function AddCourseModal({ onClose, onAdd, editCourse }) {
+function AddCourseModal({ onClose, onAdd, editCourse, categoryLabel }) {
   var cs = useState(editCourse ? editCourse.code : ""), code = cs[0], setCode = cs[1];
   var ns = useState(editCourse ? editCourse.name : ""), name = ns[0], setName = ns[1];
   var ps = useState(editCourse ? (editCourse.professor || "") : ""), prof = ps[0], setProf = ps[1];
   var ds = useState(editCourse ? (editCourse.deadline || "") : ""), deadline = ds[0], setDeadline = ds[1];
+  var pds = useState(editCourse ? (editCourse.projectPeriod || "") : ""), projectPeriod = pds[0], setProjectPeriod = pds[1];
 
   var handleSubmit = function () {
     if (!code.trim() || !name.trim()) { alert("Ders kodu ve adı zorunludur!"); return; }
-    onAdd({ code: code.trim(), name: name.trim(), professor: prof.trim(), deadline: deadline || null });
+    onAdd({ code: code.trim(), name: name.trim(), professor: prof.trim(), deadline: deadline || null, projectPeriod: projectPeriod.trim() || null });
   };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
       <div style={{ background: "white", borderRadius: 16, padding: window.innerWidth <= 480 ? 16 : 28, width: "min(440px, calc(100vw - 32px))", boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }} onClick={function (e) { e.stopPropagation(); }}>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: PRJ.text, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
-          <PrjIcon path={PRJ_ICONS.book} size={20} color={PRJ.primary} /> {editCourse ? "Dersi Düzenle" : "Yeni Ders Ekle"}
+          <PrjIcon path={PRJ_ICONS.book} size={20} color={PRJ.primary} /> {editCourse ? "Düzenle" : (categoryLabel ? categoryLabel + " - Yeni Proje Alanı Ekle" : "Yeni Ders Ekle")}
         </h3>
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>Ders Kodu *</label>
@@ -761,6 +790,11 @@ function AddCourseModal({ onClose, onAdd, editCourse }) {
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>Dersin Hocası</label>
           <input type="text" value={prof} onChange={function (e) { setProf(e.target.value); }} placeholder="Dr. Öğr. Üyesi ..."
+            style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif" }} />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>Proje Dönemi</label>
+          <input type="text" value={projectPeriod} onChange={function (e) { setProjectPeriod(e.target.value); }} placeholder="2025-2026 Güz / 2025-2026 Bahar"
             style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif" }} />
         </div>
         <div style={{ marginBottom: 20 }}>
@@ -787,9 +821,9 @@ function AddCourseModal({ onClose, onAdd, editCourse }) {
 // ══════════════════════════════════════════════════════════════
 // ── Proje Kategorileri ──
 const PROJECT_CATEGORIES = [
-  { id: "bolum", label: "Grup / Bölüm", icon: PRJ_ICONS.users, color: "#3B82F6", description: "Bölüm içi ders bazlı proje grupları" },
-  { id: "universite", label: "Üniversite", icon: PRJ_ICONS.book, color: "#8B5CF6", description: "Üniversite genelinde ortak projeler" },
-  { id: "tubitak", label: "TÜBİTAK", icon: PRJ_ICONS.shield, color: "#059669", description: "TÜBİTAK destekli araştırma projeleri" },
+  { id: "bolum", label: "Bölüm", icon: PRJ_ICONS.users, color: "#3B82F6", description: "Bölüm içi ders bazlı proje grupları", collection: "project_courses" },
+  { id: "unides", label: "ÜNİDES", icon: PRJ_ICONS.book, color: "#8B5CF6", description: "ÜNİDES destekli projeler", collection: "unides_courses" },
+  { id: "tubitak2209", label: "TÜBİTAK 2209", icon: PRJ_ICONS.shield, color: "#059669", description: "TÜBİTAK 2209 destekli araştırma projeleri", collection: "tubitak2209_courses" },
 ];
 
 function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
@@ -814,54 +848,56 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // ── Tüm projeleri yükle (üyelik kontrolü için) ──
   var loadAllProjects = useCallback(function () {
-    ProjDB.fetchAllProjects().then(function (data) {
+    ProjDB.fetchAllProjects(activeCategory).then(function (data) {
       setAllProjects(data);
     }).catch(function () {});
-  }, []);
+  }, [activeCategory]);
 
-  // ── Dersleri Yükle ──
+  // ── Dersleri Yükle (kategori ve bölüm bazlı) ──
   useEffect(function () {
     setLoading(true);
+    setSelectedCourse(null);
+    setProjects([]);
     loadAllProjects();
-    ProjDB.fetchCourses().then(function (data) {
+    ProjDB.fetchCourses(activeCategory, activeDepartment).then(function (data) {
       setCourses(data);
       setLoading(false);
     }).catch(function (err) {
       console.error("Ders listesi yüklenemedi:", err);
-      alert("Ders listesi yüklenemedi: " + err.message);
       setLoading(false);
     });
-  }, []);
+  }, [activeCategory, activeDepartment]);
 
   // ── Seçili ders değiştiğinde projeleri yükle ──
   useEffect(function () {
     if (!selectedCourse) { setProjects([]); return; }
     setLoading(true);
-    ProjDB.fetchProjects(selectedCourse.id).then(function (data) {
+    ProjDB.fetchProjects(selectedCourse.id, activeCategory).then(function (data) {
       setProjects(data);
       setLoading(false);
     }).catch(function (err) {
       console.error("Projeler yüklenemedi:", err);
-      alert("Projeler yüklenemedi: " + err.message);
       setLoading(false);
     });
-  }, [selectedCourse]);
+  }, [selectedCourse, activeCategory]);
 
   // ── Ders Ekle / Düzenle ──
   var handleAddCourse = async function (data) {
+    // departmentId ekle
+    var courseData = Object.assign({}, data, { departmentId: activeDepartment });
     try {
       if (editingCourse) {
-        await ProjDB.updateCourse(editingCourse.id, data);
+        await ProjDB.updateCourse(editingCourse.id, courseData, activeCategory);
         setCourses(function (prev) {
-          return prev.map(function (c) { return c.id === editingCourse.id ? Object.assign({}, c, data) : c; });
+          return prev.map(function (c) { return c.id === editingCourse.id ? Object.assign({}, c, courseData) : c; });
         });
         if (selectedCourse && selectedCourse.id === editingCourse.id) {
-          setSelectedCourse(function (prev) { return Object.assign({}, prev, data); });
+          setSelectedCourse(function (prev) { return Object.assign({}, prev, courseData); });
         }
         setEditingCourse(null);
       } else {
-        var ref = await ProjDB.addCourse(data);
-        setCourses(function (prev) { return prev.concat([Object.assign({}, data, { id: ref.id })]); });
+        var ref = await ProjDB.addCourse(courseData, activeCategory);
+        setCourses(function (prev) { return prev.concat([Object.assign({}, courseData, { id: ref.id })]); });
       }
       setShowCourseModal(false);
     } catch (e) {
@@ -873,11 +909,10 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var handleDeleteCourse = async function (courseId) {
     if (!confirm("Bu dersi ve tüm proje gruplarını silmek istediğinize emin misiniz?")) return;
     try {
-      await ProjDB.deleteCourse(courseId);
-      // O derse ait projeleri de sil
-      var courseProjects = await ProjDB.fetchProjects(courseId);
+      await ProjDB.deleteCourse(courseId, activeCategory);
+      var courseProjects = await ProjDB.fetchProjects(courseId, activeCategory);
       for (var i = 0; i < courseProjects.length; i++) {
-        await ProjDB.deleteProject(courseProjects[i].id);
+        await ProjDB.deleteProject(courseProjects[i].id, activeCategory);
       }
       setCourses(function (prev) { return prev.filter(function (c) { return c.id !== courseId; }); });
       if (selectedCourse && selectedCourse.id === courseId) setSelectedCourse(null);
@@ -907,7 +942,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // ── Proje Onayla / Reddet ──
   var handleApproveProject = async function (projectId) {
     try {
-      await ProjDB.updateProject(projectId, { status: "approved" });
+      await ProjDB.updateProject(projectId, { status: "approved" }, activeCategory);
       setProjects(function (prev) { return prev.map(function (p) { return p.id === projectId ? Object.assign({}, p, { status: "approved" }) : p; }); });
       setAllProjects(function (prev) { return prev.map(function (p) { return p.id === projectId ? Object.assign({}, p, { status: "approved" }) : p; }); });
     } catch (e) {
@@ -918,7 +953,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var handleRejectProject = async function (projectId) {
     if (!confirm("Bu projeyi reddetmek istediğinize emin misiniz?")) return;
     try {
-      await ProjDB.updateProject(projectId, { status: "rejected" });
+      await ProjDB.updateProject(projectId, { status: "rejected" }, activeCategory);
       setProjects(function (prev) { return prev.map(function (p) { return p.id === projectId ? Object.assign({}, p, { status: "rejected" }) : p; }); });
       setAllProjects(function (prev) { return prev.map(function (p) { return p.id === projectId ? Object.assign({}, p, { status: "rejected" }) : p; }); });
     } catch (e) {
@@ -933,7 +968,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       if (!project) return;
       var newStatuses = (project.memberStatus || []).slice();
       newStatuses[memberIdx] = response;
-      await ProjDB.updateProject(projectId, { memberStatus: newStatuses });
+      await ProjDB.updateProject(projectId, { memberStatus: newStatuses }, activeCategory);
       var updater = function (prev) { return prev.map(function (p) { return p.id === projectId ? Object.assign({}, p, { memberStatus: newStatuses }) : p; }); };
       setProjects(updater);
       setAllProjects(updater);
@@ -1025,7 +1060,8 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         status: "pending",
         memberStatus: mStatuses,
       });
-      var ref = await ProjDB.createProject(docData);
+      docData.departmentId = activeDepartment;
+      var ref = await ProjDB.createProject(docData, activeCategory);
       var newProject = Object.assign({}, docData, { id: ref.id });
       setProjects(function (prev) { return [newProject].concat(prev); });
       setAllProjects(function (prev) { return [newProject].concat(prev); });
@@ -1039,7 +1075,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var handleDeleteProject = async function (projectId) {
     if (!confirm("Bu projeyi silmek istediğinize emin misiniz?")) return;
     try {
-      await ProjDB.deleteProject(projectId);
+      await ProjDB.deleteProject(projectId, activeCategory);
       setProjects(function (prev) { return prev.filter(function (p) { return p.id !== projectId; }); });
       setAllProjects(function (prev) { return prev.filter(function (p) { return p.id !== projectId; }); });
     } catch (e) {
@@ -1089,10 +1125,10 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   {departmentInfo ? departmentInfo.name + " - " : ""}Ders seçerek proje gruplarını görüntüleyin
                 </p>
               </div>
-              {canManage && activeCategory === "bolum" && (
+              {canManage && (
                 <button onClick={function () { setShowCourseModal(true); }}
                   style={{ background: "rgba(255,255,255,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 10, padding: "10px 20px", cursor: "pointer", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, backdropFilter: "blur(8px)" }}>
-                  <PrjIcon path={PRJ_ICONS.plus} size={18} color="white" /> Yeni Ders Ekle
+                  <PrjIcon path={PRJ_ICONS.plus} size={18} color="white" /> Yeni Alan Ekle
                 </button>
               )}
             </div>
@@ -1207,7 +1243,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             </div>
           )}
         </div>
-        {showCourseModal && <AddCourseModal onClose={function () { setShowCourseModal(false); setEditingCourse(null); }} onAdd={handleAddCourse} editCourse={editingCourse} />}
+        {showCourseModal && <AddCourseModal onClose={function () { setShowCourseModal(false); setEditingCourse(null); }} onAdd={handleAddCourse} editCourse={editingCourse} categoryLabel={activeCat.label} />}
       </div>
     );
   }

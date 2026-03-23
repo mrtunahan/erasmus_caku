@@ -1723,7 +1723,7 @@ const ExemptionHistory = ({ records, loading, onDelete, onExportWord }) => {
 // ANA MODÜL
 // ══════════════════════════════════════════════════════════════
 
-function DersMuafiyetApp({ currentUser }) {
+function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
   const [activeTab, setActiveTab] = useState("yeni");
   const [courseContents, setCourseContents] = useState([]);
   const [gradingSystem, setGradingSystem] = useState(null);
@@ -1737,13 +1737,18 @@ function DersMuafiyetApp({ currentUser }) {
         if (contents.length > 0) setCourseContents(contents);
         var grading = await MuafiyetDB.fetchGradingSystem();
         if (grading) setGradingSystem(grading);
-        var recs = await MuafiyetDB.fetchRecords();
+        var allRecs = await MuafiyetDB.fetchRecords();
+        // Bölüm bazlı filtreleme: departmentId'si olmayan veriler bilgisayar bölümüne ait
+        var recs = allRecs.filter(function (r) {
+          var deptId = r.departmentId || "bilgisayar";
+          return deptId === activeDepartment;
+        });
         setRecords(recs);
       } catch (err) { console.error("Muafiyet verileri yüklenirken hata:", err); }
       setRecordsLoading(false);
     }
     loadData();
-  }, []);
+  }, [activeDepartment]);
 
   const handleDeleteRecord = async function (id) {
     try {
