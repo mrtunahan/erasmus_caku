@@ -45,81 +45,157 @@ const GRADE_COLORS = {
 };
 
 // ── Çakışma Tespit Fonksiyonu ──
-function detectConflicts(scheduleData, allSchedules, activeDepartment, semester) {
+// deptAllYearsSlots: bölüm içi tüm sınıfların slotları [{year, slots}]
+// allFacultySlots: fakülte geneli tüm bölüm/sınıf slotları [{deptId, deptName, year, slots}]
+function detectConflicts(deptAllYearsSlots, allFacultySlots) {
   const conflicts = [];
-  // 1) Aynı bölüm içinde derslik çakışması: aynı saat + aynı derslik, farklı ders
-  const slotEntries = Object.entries(scheduleData);
-  for (let i = 0; i < slotEntries.length; i++) {
-    for (let j = i + 1; j < slotEntries.length; j++) {
-      const [keyA, a] = slotEntries[i];
-      const [keyB, b] = slotEntries[j];
-      const [dayA, hiA] = keyA.split("_");
-      const [dayB, hiB] = keyB.split("_");
-      if (dayA === dayB && hiA === hiB && a.classroom && b.classroom && a.classroom === b.classroom && a.courseCode !== b.courseCode) {
+  const seen = new Set();
+
+  // 1) Bölüm içi: tüm sınıflar arası derslik + saat çakışması
+  if (deptAllYearsSlots && deptAllYearsSlots.length > 0) {
+    // day_hourIndex -> [{year, slot}]
+    const timeMap = {};
+    deptAllYearsSlots.forEach(({ year: yr, slots }) => {
+      Object.entries(slots).forEach(([key, slot]) => {
+        if (!timeMap[key]) timeMap[key] = [];
+        timeMap[key].push({ year: yr, ...slot });
+      });
+    });
+    Object.entries(timeMap).forEach(([key, entries]) => {
+      if (entries.length <= 1) return;
+      const [day, hiStr] = key.split("_");
+      const hi = parseInt(hiStr);
+      const hour = HOURS[hi] || key;
+      // Aynı derslik kullanan farklı dersler
+      const classroomMap = {};
+      entries.forEach(e => {
+        if (!e.classroom) return;
+        if (!classroomMap[e.classroom]) classroomMap[e.classroom] = [];
+        classroomMap[e.classroom].push(e);
+      });
+      Object.entries(classroomMap).forEach(([room, roomEntries]) => {
+        if (roomEntries.length <= 1) return;
+        const uniqueCourses = new Set(roomEntries.map(e => e.courseCode));
+        if (uniqueCourses.size <= 1) return;
+        const cKey = `dept_${day}_${hi}_${room}`;
+        if (seen.has(cKey)) return;
+        seen.add(cKey);
         conflicts.push({
-          type: "classroom",
-          day: dayA,
-          hour: HOURS[parseInt(hiA)],
-          classroom: a.classroom,
-          courses: [a.courseCode + " - " + a.courseName, b.courseCode + " - " + b.courseName],
-          message: `Derslik çakışması: ${a.classroom} — ${dayA} ${HOURS[parseInt(hiA)]} — ${a.courseCode} & ${b.courseCode}`,
+          type: "dept_classroom",
+          day, hour, classroom: room,
+          courses: roomEntries.map(e => `${e.year}. Sınıf: ${e.courseCode} - ${e.courseName}`),
+          message: `Bölüm derslik çakışması: ${room} — ${day} ${hour} — ${roomEntries.map(e => e.courseCode + " (" + e.year + ". Sınıf)").join(" & ")}`,
         });
-      }
-    }
+      });
+      // Aynı hoca aynı saatte farklı derslerde
+      const profMap = {};
+      entries.forEach(e => {
+        if (!e.instructor) return;
+        if (!profMap[e.instructor]) profMap[e.instructor] = [];
+        profMap[e.instructor].push(e);
+      });
+      Object.entries(profMap).forEach(([prof, profEntries]) => {
+        if (profEntries.length <= 1) return;
+        const uniqueCourses = new Set(profEntries.map(e => e.courseCode));
+        if (uniqueCourses.size <= 1) return;
+        const cKey = `prof_${day}_${hi}_${prof}`;
+        if (seen.has(cKey)) return;
+        seen.add(cKey);
+        conflicts.push({
+          type: "dept_professor",
+          day, hour, instructor: prof,
+          courses: profEntries.map(e => `${e.year}. Sınıf: ${e.courseCode}`),
+          message: `Hoca çakışması: ${prof} — ${day} ${hour} — ${profEntries.map(e => e.courseCode + " (" + e.year + ". Sınıf)").join(" & ")}`,
+        });
+      });
+    });
   }
-  // 2) Fakülte genelinde çapraz bölüm derslik çakışması
-  if (allSchedules && allSchedules.length > 0) {
-    // Build map: day_hour_classroom -> [{dept, courseCode, courseName}]
+
+  // 2) Fakülte geneli: tüm bölümler arası derslik çakışması
+  if (allFacultySlots && allFacultySlots.length > 0) {
     const globalMap = {};
-    allSchedules.forEach(({ deptId, deptName, slots }) => {
+    allFacultySlots.forEach(({ deptId, deptName, year: yr, slots }) => {
       Object.entries(slots).forEach(([key, slot]) => {
         if (!slot.classroom) return;
-        const gKey = `${key}_${slot.classroom}`;
+        const gKey = `${key}__${slot.classroom}`;
         if (!globalMap[gKey]) globalMap[gKey] = [];
-        globalMap[gKey].push({ deptId, deptName, courseCode: slot.courseCode, courseName: slot.courseName });
+        globalMap[gKey].push({ deptId, deptName, year: yr, courseCode: slot.courseCode, courseName: slot.courseName });
       });
     });
     Object.entries(globalMap).forEach(([gKey, entries]) => {
       if (entries.length <= 1) return;
-      // Check if multiple departments use same classroom at same time
       const deptSet = new Set(entries.map(e => e.deptId));
-      if (deptSet.size > 1) {
-        const parts = gKey.split("_");
-        const classroom = parts.slice(2).join("_");
-        const day = parts[0];
-        const hi = parseInt(parts[1]);
-        conflicts.push({
-          type: "cross_dept",
-          day,
-          hour: HOURS[hi],
-          classroom,
-          courses: entries.map(e => `${e.deptName}: ${e.courseCode}`),
-          message: `Fakülte çakışması: ${classroom} — ${day} ${HOURS[hi]} — ${entries.map(e => e.deptName + ":" + e.courseCode).join(" & ")}`,
-        });
-      }
+      if (deptSet.size <= 1) return;
+      const parts = gKey.split("__");
+      const classroom = parts[1];
+      const [day, hiStr] = parts[0].split("_");
+      const hi = parseInt(hiStr);
+      const cKey = `fac_${day}_${hi}_${classroom}`;
+      if (seen.has(cKey)) return;
+      seen.add(cKey);
+      conflicts.push({
+        type: "cross_dept",
+        day, hour: HOURS[hi] || "", classroom,
+        courses: entries.map(e => `${e.deptName} (${e.year}. Sınıf): ${e.courseCode}`),
+        message: `Fakülte çakışması: ${classroom} — ${day} ${HOURS[hi] || ""} — ${entries.map(e => e.deptName + ":" + e.courseCode).join(" & ")}`,
+      });
     });
   }
   return conflicts;
 }
 
-// ── Fakülte Birleşik Program Çıktısı ──
-function exportFacultySchedule(allSchedules, semester, year) {
+// ── Slot ekleme öncesi anlık çakışma kontrolü ──
+function checkSlotConflict(day, hourIndex, classroom, instructor, deptAllYearsSlots, allFacultySlots) {
+  const warnings = [];
+  const key = `${day}_${hourIndex}`;
+  const hour = HOURS[hourIndex] || "";
+
+  // Bölüm içi: aynı saat + aynı derslik
+  if (deptAllYearsSlots && classroom) {
+    deptAllYearsSlots.forEach(({ year: yr, slots }) => {
+      Object.entries(slots).forEach(([slotKey, slot]) => {
+        if (slotKey === key && slot.classroom === classroom && slot.courseCode) {
+          warnings.push(`Derslik çakışması: ${classroom} bu saatte ${yr}. Sınıf'ta "${slot.courseCode}" dersi için kullanılıyor.`);
+        }
+      });
+    });
+  }
+  // Bölüm içi: aynı saat + aynı hoca
+  if (deptAllYearsSlots && instructor) {
+    deptAllYearsSlots.forEach(({ year: yr, slots }) => {
+      Object.entries(slots).forEach(([slotKey, slot]) => {
+        if (slotKey === key && slot.instructor === instructor && slot.courseCode) {
+          warnings.push(`Hoca çakışması: ${instructor} bu saatte ${yr}. Sınıf'ta "${slot.courseCode}" dersinde.`);
+        }
+      });
+    });
+  }
+  // Fakülte geneli: aynı saat + aynı derslik (farklı bölüm)
+  if (allFacultySlots && classroom) {
+    allFacultySlots.forEach(({ deptName, year: yr, slots }) => {
+      Object.entries(slots).forEach(([slotKey, slot]) => {
+        if (slotKey === key && slot.classroom === classroom) {
+          warnings.push(`Fakülte çakışması: ${classroom} bu saatte ${deptName} (${yr}. Sınıf) "${slot.courseCode}" için kullanılıyor.`);
+        }
+      });
+    });
+  }
+  return warnings;
+}
+
+// ── Fakülte Birleşik Program Çıktısı (tüm bölümler, tüm sınıflar) ──
+function exportFacultySchedule(allFacultySlots, semester) {
   const semesterLabel = semester === "guz" ? "GÜZ" : "BAHAR";
-  const yearLabel = year ? `${year}. Sınıf` : "Tüm Sınıflar";
 
-  // Build combined grid: day -> hour -> [{dept, courseCode, courseName, instructor, classroom, sinif}]
   const grid = {};
-  DAYS.forEach(day => {
-    grid[day] = {};
-    HOURS.forEach((_, hi) => { grid[day][hi] = []; });
-  });
+  DAYS.forEach(day => { grid[day] = {}; HOURS.forEach((_, hi) => { grid[day][hi] = []; }); });
 
-  allSchedules.forEach(({ deptName, slots }) => {
+  allFacultySlots.forEach(({ deptName, year: yr, slots }) => {
     Object.entries(slots).forEach(([key, slot]) => {
       const [day, hiStr] = key.split("_");
       const hi = parseInt(hiStr);
       if (grid[day] && grid[day][hi] !== undefined) {
-        grid[day][hi].push({ deptName, ...slot });
+        grid[day][hi].push({ deptName, year: yr, ...slot });
       }
     });
   });
@@ -138,10 +214,10 @@ function exportFacultySchedule(allSchedules, semester, year) {
       } else {
         const cells = entries.map(e => {
           const bg = GRADE_COLORS[e.sinif]?.bg || "#F3F4F6";
-          return `<div style="padding:3px 6px;margin:2px 0;border-radius:4px;background:${bg};font-size:10px;line-height:1.3">
-            <strong>${e.courseCode}</strong><br/>
-            <span style="color:#555">${e.deptName}</span><br/>
-            ${e.classroom ? `<span style="color:#7C3AED">${e.classroom}</span>` : ""}
+          return `<div style="padding:3px 6px;margin:2px 0;border-radius:4px;background:${bg};font-size:9px;line-height:1.3">
+            <strong>${e.courseCode}</strong>
+            <span style="color:#555;margin-left:3px">${e.deptName} ${e.year}.Sınıf</span>
+            ${e.classroom ? `<br/><span style="color:#7C3AED;font-weight:600">${e.classroom}</span>` : ""}
           </div>`;
         }).join("");
         row += `<td style="padding:2px;border:1px solid #ddd;vertical-align:top">${cells}</td>`;
@@ -151,7 +227,7 @@ function exportFacultySchedule(allSchedules, semester, year) {
     tableRows += row;
   });
 
-  const deptList = allSchedules.map(s => s.deptName).join(", ");
+  const deptNames = [...new Set(allFacultySlots.map(s => s.deptName))];
 
   const html = `<!DOCTYPE html>
 <html lang="tr">
@@ -160,109 +236,25 @@ function exportFacultySchedule(allSchedules, semester, year) {
   @media print { body { margin: 0; } @page { size: A4 landscape; margin: 0.8cm; } }
   body { font-family: 'Times New Roman', serif; background: #e8e8e8; }
   .page { max-width: 1100px; margin: 20px auto; background: white; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-  h1 { text-align: center; font-size: 16px; color: #1B2A4A; margin-bottom: 6px; }
-  h2 { text-align: center; font-size: 12px; color: #C00; margin-bottom: 12px; }
+  h1 { text-align: center; font-size: 16px; color: #1B2A4A; margin-bottom: 4px; border-bottom: 3px solid #1B2A4A; padding-bottom: 8px; }
+  h2 { text-align: center; font-size: 12px; color: #C00; margin-bottom: 12px; letter-spacing: 0.5px; }
   table { width: 100%; border-collapse: collapse; font-size: 11px; }
   th { padding: 8px 6px; border: 1px solid #999; background: #1B2A4A; color: white; font-weight: 700; text-align: center; font-size: 11px; }
   .legend { display: flex; gap: 12px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
   .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; }
   .legend-box { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #ccc; }
+  .footer { text-align: center; font-size: 9px; color: #999; margin-top: 14px; }
 </style>
 </head>
 <body>
 <div class="page">
-  <h1>ÇAKÜ MÜHENDİSLİK FAKÜLTESİ - DERS PROGRAMI</h1>
-  <h2>${semesterLabel} DÖNEMİ ${yearLabel.toUpperCase()} — ${deptList}</h2>
+  <h1>ÇAKÜ MÜHENDİSLİK FAKÜLTESİ - BİRLEŞİK DERS PROGRAMI</h1>
+  <h2>${semesterLabel} DÖNEMİ — ${deptNames.join(", ")}</h2>
   <table>
-    <thead>
-      <tr>
-        <th style="width:80px">Saat</th>
-        ${DAYS.map(d => `<th>${d}</th>`).join("")}
-      </tr>
-    </thead>
-    <tbody>${tableRows}</tbody>
-  </table>
-  <div class="legend">
-    <div class="legend-item"><div class="legend-box" style="background:#B2EBF2"></div>1. Sınıf</div>
-    <div class="legend-item"><div class="legend-box" style="background:#C8E6C9"></div>2. Sınıf</div>
-    <div class="legend-item"><div class="legend-box" style="background:#FFE0B2"></div>3. Sınıf</div>
-    <div class="legend-item"><div class="legend-box" style="background:#F8BBD0"></div>4. Sınıf</div>
-    <div class="legend-item"><div class="legend-box" style="background:#E1BEE7"></div>Seçmeli</div>
-  </div>
-</div>
-</body></html>`;
-
-  const w = window.open("", "_blank");
-  if (w) {
-    w.document.write(html);
-    w.document.close();
-    setTimeout(() => w.print(), 500);
-  }
-}
-
-// ── Bölüm Bazlı Ders Programı Çıktısı ──
-function exportDeptSchedule(scheduleData, deptName, semester, year) {
-  const semesterLabel = semester === "guz" ? "GÜZ" : "BAHAR";
-  const yearLabel = `${year}. Sınıf`;
-
-  let tableRows = "";
-  HOURS.forEach((hour, hi) => {
-    let hasAny = false;
-    DAYS.forEach(day => { if (scheduleData[`${day}_${hi}`]) hasAny = true; });
-    if (!hasAny) return;
-
-    let row = `<tr><td style="padding:8px 10px;border:1px solid #999;font-weight:600;text-align:center;background:#F9FAFB;white-space:nowrap">${hour}</td>`;
-    DAYS.forEach(day => {
-      const slot = scheduleData[`${day}_${hi}`];
-      if (!slot) {
-        row += `<td style="padding:4px;border:1px solid #ddd"></td>`;
-      } else {
-        const bg = GRADE_COLORS[slot.sinif]?.bg || "#F3F4F6";
-        row += `<td style="padding:6px 8px;border:1px solid #ddd;background:${bg};vertical-align:top">
-          <div style="font-weight:700;font-size:12px">${slot.courseCode}</div>
-          <div style="font-size:11px;color:#444">${slot.courseName}</div>
-          ${slot.instructor ? `<div style="font-size:10px;color:#666;margin-top:2px">${slot.instructor}</div>` : ""}
-          ${slot.classroom ? `<div style="font-size:10px;color:#7C3AED;font-weight:600;margin-top:1px">${slot.classroom}</div>` : ""}
-        </td>`;
-      }
-    });
-    row += "</tr>";
-    tableRows += row;
-  });
-
-  const slotCount = Object.keys(scheduleData).length;
-  const uniqueCourses = new Set(Object.values(scheduleData).map(s => s.courseCode)).size;
-
-  const html = `<!DOCTYPE html>
-<html lang="tr">
-<head><meta charset="utf-8"><title>Ders Programı - ${deptName}</title>
-<style>
-  @media print { body { margin: 0; } @page { size: A4 landscape; margin: 1cm; } }
-  body { font-family: 'Times New Roman', serif; background: #e8e8e8; }
-  .page { max-width: 1050px; margin: 20px auto; background: white; padding: 35px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-  h1 { text-align: center; font-size: 17px; color: #1B2A4A; margin-bottom: 4px; border-bottom: 3px solid #1B2A4A; padding-bottom: 8px; }
-  h2 { text-align: center; font-size: 13px; color: #C00; margin-bottom: 14px; letter-spacing: 0.5px; }
-  .info { text-align: center; font-size: 11px; color: #666; margin-bottom: 12px; }
-  table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  th { padding: 10px 8px; border: 1px solid #999; background: #1B2A4A; color: white; font-weight: 700; text-align: center; font-size: 12px; }
-  .legend { display: flex; gap: 12px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
-  .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; }
-  .legend-box { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #ccc; }
-  .footer { text-align: center; font-size: 9px; color: #999; margin-top: 16px; }
-</style>
-</head>
-<body>
-<div class="page">
-  <h1>ÇAKÜ MÜHENDİSLİK FAKÜLTESİ - HAFTALIK DERS PROGRAMI</h1>
-  <h2>${(deptName || "").toUpperCase()} — ${semesterLabel} DÖNEMİ ${yearLabel.toUpperCase()}</h2>
-  <div class="info">${uniqueCourses} ders, ${slotCount} ders saati</div>
-  <table>
-    <thead>
-      <tr>
-        <th style="width:90px">Saat</th>
-        ${DAYS.map(d => `<th>${d}</th>`).join("")}
-      </tr>
-    </thead>
+    <thead><tr>
+      <th style="width:80px">Saat</th>
+      ${DAYS.map(d => `<th>${d}</th>`).join("")}
+    </tr></thead>
     <tbody>${tableRows}</tbody>
   </table>
   <div class="legend">
@@ -277,11 +269,106 @@ function exportDeptSchedule(scheduleData, deptName, semester, year) {
 </body></html>`;
 
   const w = window.open("", "_blank");
-  if (w) {
-    w.document.write(html);
-    w.document.close();
-    setTimeout(() => w.print(), 500);
-  }
+  if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500); }
+}
+
+// ── Bölüm Bazlı Ders Programı Çıktısı (tüm sınıflar birleşik) ──
+function exportDeptSchedule(deptAllYearsSlots, deptName, semester) {
+  const semesterLabel = semester === "guz" ? "GÜZ" : "BAHAR";
+
+  // Grid: day -> hour -> [{year, slot}]
+  const grid = {};
+  DAYS.forEach(day => { grid[day] = {}; HOURS.forEach((_, hi) => { grid[day][hi] = []; }); });
+
+  deptAllYearsSlots.forEach(({ year: yr, slots }) => {
+    Object.entries(slots).forEach(([key, slot]) => {
+      const [day, hiStr] = key.split("_");
+      const hi = parseInt(hiStr);
+      if (grid[day] && grid[day][hi] !== undefined) {
+        grid[day][hi].push({ year: yr, ...slot });
+      }
+    });
+  });
+
+  let tableRows = "";
+  HOURS.forEach((hour, hi) => {
+    let hasAny = false;
+    DAYS.forEach(day => { if (grid[day][hi].length > 0) hasAny = true; });
+    if (!hasAny) return;
+
+    let row = `<tr><td style="padding:8px 10px;border:1px solid #999;font-weight:600;text-align:center;background:#F9FAFB;white-space:nowrap">${hour}</td>`;
+    DAYS.forEach(day => {
+      const entries = grid[day][hi];
+      if (entries.length === 0) {
+        row += `<td style="padding:4px;border:1px solid #ddd"></td>`;
+      } else {
+        const cells = entries.map(e => {
+          const bg = GRADE_COLORS[e.sinif]?.bg || "#F3F4F6";
+          return `<div style="padding:4px 6px;margin:1px 0;border-radius:4px;background:${bg}">
+            <div style="font-weight:700;font-size:11px">${e.courseCode} <span style="font-weight:400;color:#666">(${e.year}. Sınıf)</span></div>
+            <div style="font-size:10px;color:#444">${e.courseName}</div>
+            ${e.instructor ? `<div style="font-size:9px;color:#666">${e.instructor}</div>` : ""}
+            ${e.classroom ? `<div style="font-size:9px;color:#7C3AED;font-weight:600">${e.classroom}</div>` : ""}
+          </div>`;
+        }).join("");
+        row += `<td style="padding:2px;border:1px solid #ddd;vertical-align:top">${cells}</td>`;
+      }
+    });
+    row += "</tr>";
+    tableRows += row;
+  });
+
+  let totalSlots = 0;
+  const allCodes = new Set();
+  deptAllYearsSlots.forEach(({ slots }) => {
+    const keys = Object.keys(slots);
+    totalSlots += keys.length;
+    Object.values(slots).forEach(s => { if (s.courseCode) allCodes.add(s.courseCode); });
+  });
+
+  const html = `<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="utf-8"><title>Ders Programı - ${deptName}</title>
+<style>
+  @media print { body { margin: 0; } @page { size: A4 landscape; margin: 1cm; } }
+  body { font-family: 'Times New Roman', serif; background: #e8e8e8; }
+  .page { max-width: 1050px; margin: 20px auto; background: white; padding: 35px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  h1 { text-align: center; font-size: 17px; color: #1B2A4A; margin-bottom: 4px; border-bottom: 3px solid #1B2A4A; padding-bottom: 8px; }
+  h2 { text-align: center; font-size: 13px; color: #C00; margin-bottom: 14px; letter-spacing: 0.5px; }
+  .info { text-align: center; font-size: 11px; color: #666; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 10px; }
+  th { padding: 10px 8px; border: 1px solid #999; background: #1B2A4A; color: white; font-weight: 700; text-align: center; font-size: 12px; }
+  .legend { display: flex; gap: 12px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; }
+  .legend-box { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #ccc; }
+  .footer { text-align: center; font-size: 9px; color: #999; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>ÇAKÜ MÜHENDİSLİK FAKÜLTESİ - HAFTALIK DERS PROGRAMI</h1>
+  <h2>${(deptName || "").toUpperCase()} — ${semesterLabel} DÖNEMİ — TÜM SINIFLAR</h2>
+  <div class="info">${allCodes.size} ders, ${totalSlots} ders saati, 1-4. Sınıf birleşik</div>
+  <table>
+    <thead><tr>
+      <th style="width:90px">Saat</th>
+      ${DAYS.map(d => `<th>${d}</th>`).join("")}
+    </tr></thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-box" style="background:#B2EBF2"></div>1. Sınıf</div>
+    <div class="legend-item"><div class="legend-box" style="background:#C8E6C9"></div>2. Sınıf</div>
+    <div class="legend-item"><div class="legend-box" style="background:#FFE0B2"></div>3. Sınıf</div>
+    <div class="legend-item"><div class="legend-box" style="background:#F8BBD0"></div>4. Sınıf</div>
+    <div class="legend-item"><div class="legend-box" style="background:#E1BEE7"></div>Seçmeli</div>
+  </div>
+  <div class="footer">Oluşturulma: ${new Date().toLocaleDateString("tr-TR")} — ÇAKÜ Ders Programı Otomasyonu</div>
+</div>
+</body></html>`;
+
+  const w = window.open("", "_blank");
+  if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500); }
 }
 
 function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
@@ -312,7 +399,8 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const isAdmin = currentUser?.role === "admin";
   const isDeptManager = currentUser?.role === "bolum_yetkilisi";
-  const canManage = isAdmin || isDeptManager;
+  const isProfessor = currentUser?.role === "professor";
+  const canManage = isAdmin || isDeptManager || isProfessor;
 
   // Sınav otomasyonundaki dersleri, hocaları ve derslikleri yükle (bölüm bazlı)
   useEffect(() => {
@@ -407,11 +495,40 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   }, [activeDepartment, semester, year]);
 
-  // Slot ekle
-  const handleAddSlot = useCallback(() => {
+  // Slot ekle (çakışma kontrolü ile)
+  const handleAddSlot = useCallback((forceAdd) => {
     if (!selectedSlot || !modalCourseId) return;
     const course = courses.find(c => c.id === modalCourseId);
     if (!course) return;
+
+    // Akademisyen kontrolü: sadece kendi derslerini ekleyebilir
+    if (isProfessor && currentUser?.name && course.professor !== currentUser.name) {
+      alert("Sadece kendi derslerinizi programa ekleyebilirsiniz.");
+      return;
+    }
+
+    const day = selectedSlot.day;
+    const hi = selectedSlot.hourIndex;
+    const classroom = modalClassroom || "";
+    const instructor = course.professor || "";
+
+    // Çakışma kontrolü (force edilmemişse)
+    if (!forceAdd) {
+      // Mevcut sınıfın verileri hariç diğer sınıfları kontrol et
+      const otherYearsSlots = deptAllYearsSlots.filter(s => s.year !== year);
+      const warnings = checkSlotConflict(day, hi, classroom, instructor, otherYearsSlots, allFacultySlots);
+
+      // Aynı sınıf içinde aynı saat kontrolü (mevcut scheduleData)
+      const key = `${day}_${hi}`;
+      if (scheduleData[key] && scheduleData[key].courseCode !== course.code) {
+        warnings.unshift(`Bu saatte zaten "${scheduleData[key].courseCode}" dersi var (${year}. Sınıf).`);
+      }
+
+      if (warnings.length > 0) {
+        setAddSlotWarnings(warnings);
+        return; // Uyarı göster, ekle'ye basmazsa ekleme
+      }
+    }
 
     const key = `${selectedSlot.day}_${selectedSlot.hourIndex}`;
     const newData = {
@@ -420,7 +537,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         courseCode: course.code || "",
         courseName: course.name || "",
         instructor: course.professor || "",
-        classroom: modalClassroom || "",
+        classroom,
         courseId: course.id,
         sinif: course.sinif || 0,
       },
@@ -430,7 +547,8 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     setShowAddModal(false);
     setModalCourseId("");
     setModalClassroom("");
-  }, [selectedSlot, modalCourseId, modalClassroom, scheduleData, courses, saveSchedule]);
+    setAddSlotWarnings([]);
+  }, [selectedSlot, modalCourseId, modalClassroom, scheduleData, courses, saveSchedule, deptAllYearsSlots, allFacultySlots, year, isProfessor, currentUser]);
 
   // Slot sil
   const handleRemoveSlot = useCallback((key) => {
@@ -440,32 +558,61 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     saveSchedule(newData);
   }, [scheduleData, saveSchedule]);
 
-  // Fakülte geneli tüm bölüm programlarını yükle
+  // Bölüm içi tüm sınıfların programlarını yükle (çakışma kontrolü için)
+  const [deptAllYearsSlots, setDeptAllYearsSlots] = useState([]);
+  // Fakülte geneli tüm bölüm/sınıf slotları
+  const [allFacultySlots, setAllFacultySlots] = useState([]);
+  // Slot ekleme esnasında çakışma uyarıları
+  const [addSlotWarnings, setAddSlotWarnings] = useState([]);
+
+  // Bölüm içi tüm sınıfların programlarını yükle
+  const loadDeptAllYears = useCallback(async () => {
+    if (!activeDepartment) { setDeptAllYearsSlots([]); return []; }
+    try {
+      const db = window.firebase?.firestore();
+      if (!db) return [];
+      const result = [];
+      for (const yr of ["1", "2", "3", "4"]) {
+        const docId = `${activeDepartment}_${semester}_${yr}`;
+        const doc = await db.collection("course_schedules").doc(docId).get();
+        if (doc.exists && doc.data().slots && Object.keys(doc.data().slots).length > 0) {
+          result.push({ year: yr, slots: doc.data().slots });
+        }
+      }
+      setDeptAllYearsSlots(result);
+      return result;
+    } catch (e) {
+      console.error("Bölüm programları yüklenirken hata:", e);
+      return [];
+    }
+  }, [activeDepartment, semester]);
+
+  // Fakülte geneli tüm bölüm programlarını yükle (tüm sınıflar dahil)
   const loadAllFacultySchedules = useCallback(async () => {
     setLoadingFaculty(true);
     try {
       const db = window.firebase?.firestore();
-      if (!db) return;
-      // Tüm bölümleri al
+      if (!db) return [];
       const deptsSnap = await db.collection("departments").get();
       const depts = deptsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Her bölüm + dönem + sınıf kombinasyonu için programı yükle
       const schedules = [];
       for (const dept of depts) {
-        const docId = `${dept.id}_${semester}_${year}`;
-        const doc = await db.collection("course_schedules").doc(docId).get();
-        if (doc.exists && doc.data().slots && Object.keys(doc.data().slots).length > 0) {
-          schedules.push({
-            deptId: dept.id,
-            deptName: dept.name || dept.id,
-            slots: doc.data().slots,
-          });
+        // Aktif bölümü hariç tut (kendi bölümümüz zaten deptAllYearsSlots'ta)
+        if (dept.id === activeDepartment) continue;
+        for (const yr of ["1", "2", "3", "4"]) {
+          const docId = `${dept.id}_${semester}_${yr}`;
+          const doc = await db.collection("course_schedules").doc(docId).get();
+          if (doc.exists && doc.data().slots && Object.keys(doc.data().slots).length > 0) {
+            schedules.push({
+              deptId: dept.id,
+              deptName: dept.name || dept.id,
+              year: yr,
+              slots: doc.data().slots,
+            });
+          }
         }
       }
-      setAllSchedules(schedules);
-      // Çakışma tespiti
-      const c = detectConflicts(scheduleData, schedules, activeDepartment, semester);
-      setConflicts(c);
+      setAllFacultySlots(schedules);
       return schedules;
     } catch (e) {
       console.error("Fakülte programları yüklenirken hata:", e);
@@ -473,19 +620,28 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     } finally {
       setLoadingFaculty(false);
     }
-  }, [semester, year, scheduleData, activeDepartment]);
+  }, [semester, activeDepartment]);
 
-  // scheduleData değiştiğinde mevcut bölüm içi çakışmaları kontrol et
+  // Bölüm programı veya dönem değiştiğinde tüm sınıfları yükle
   useEffect(() => {
-    const c = detectConflicts(scheduleData, allSchedules, activeDepartment, semester);
-    setConflicts(c);
-  }, [scheduleData, allSchedules, activeDepartment, semester]);
+    loadDeptAllYears();
+  }, [activeDepartment, semester, scheduleData]);
 
-  // Seçili sınıfa ait dersler
+  // Çakışma tespiti
+  useEffect(() => {
+    const c = detectConflicts(deptAllYearsSlots, allFacultySlots);
+    setConflicts(c);
+  }, [deptAllYearsSlots, allFacultySlots]);
+
+  // Seçili sınıfa ait dersler — akademisyen sadece kendi derslerini görebilir
   const yearCourses = useMemo(() => {
     const y = parseInt(year);
-    return courses.filter(c => c.sinif === y || c.sinif === 5);
-  }, [courses, year]);
+    let filtered = courses.filter(c => c.sinif === y || c.sinif === 5);
+    if (isProfessor && currentUser?.name) {
+      filtered = filtered.filter(c => c.professor === currentUser.name);
+    }
+    return filtered;
+  }, [courses, year, isProfessor, currentUser]);
 
   // Renk ataması
   const courseColors = useMemo(() => {
@@ -546,28 +702,36 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
               {conflicts.length} Çakışma
             </button>
           )}
-          {/* Fakülte birleşik görünüm */}
-          {isAdmin && (
-            <button onClick={async () => {
-              const schedules = await loadAllFacultySchedules();
-              if (schedules && schedules.length > 0) {
-                setShowFacultyView(true);
-              } else {
-                alert("Fakülte genelinde bu dönem/sınıf için ders programı bulunamadı.");
-              }
-            }} disabled={loadingFaculty} style={{
-              padding: "8px 14px", borderRadius: 8, border: "1px solid #C4B5FD",
-              background: "#EDE9FE", color: DP.primary, fontSize: 12, fontWeight: 600,
-              cursor: loadingFaculty ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 6,
-              opacity: loadingFaculty ? 0.6 : 1,
-            }}>
-              <DPIcon path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" size={14} color={DP.primary} />
-              {loadingFaculty ? "Yükleniyor..." : "Fakülte Programı"}
-            </button>
-          )}
-          {/* Bölüm bazlı dışa aktarma */}
-          {Object.keys(scheduleData).length > 0 && (
-            <button onClick={() => exportDeptSchedule(scheduleData, departmentInfo?.name || "Bölüm", semester, year)} style={{
+          {/* Fakülte birleşik görünüm — herkese açık */}
+          <button onClick={async () => {
+            const deptData = await loadDeptAllYears();
+            const facData = await loadAllFacultySchedules();
+            // Kendi bölümümüz + diğer bölümler birleştir
+            const ownDeptSlots = (deptData || []).map(s => ({
+              deptId: activeDepartment,
+              deptName: departmentInfo?.name || "Bölüm",
+              year: s.year,
+              slots: s.slots,
+            }));
+            const combined = [...ownDeptSlots, ...(facData || [])];
+            if (combined.length > 0) {
+              setAllSchedules(combined);
+              setShowFacultyView(true);
+            } else {
+              alert("Fakülte genelinde bu dönem için ders programı bulunamadı.");
+            }
+          }} disabled={loadingFaculty} style={{
+            padding: "8px 14px", borderRadius: 8, border: "1px solid #C4B5FD",
+            background: "#EDE9FE", color: DP.primary, fontSize: 12, fontWeight: 600,
+            cursor: loadingFaculty ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 6,
+            opacity: loadingFaculty ? 0.6 : 1,
+          }}>
+            <DPIcon path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" size={14} color={DP.primary} />
+            {loadingFaculty ? "Yükleniyor..." : "Fakülte Programı"}
+          </button>
+          {/* Bölüm bazlı dışa aktarma (tüm sınıflar birleşik) */}
+          {(isAdmin || isDeptManager) && deptAllYearsSlots.length > 0 && (
+            <button onClick={() => exportDeptSchedule(deptAllYearsSlots, departmentInfo?.name || "Bölüm", semester)} style={{
               padding: "8px 14px", borderRadius: 8, border: "1px solid #6EE7B7",
               background: "#ECFDF5", color: "#059669", fontSize: 12, fontWeight: 600,
               cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
@@ -578,6 +742,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
           )}
           {/* Çakışma kontrolü tetikle */}
           <button onClick={async () => {
+            await loadDeptAllYears();
             await loadAllFacultySchedules();
             setShowConflicts(true);
           }} disabled={loadingFaculty} style={{
@@ -588,7 +753,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
             <DPIcon path="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" size={14} />
             Çakışma Kontrolü
           </button>
-          {canManage && (
+          {canManage && activeDepartment && (
             <button onClick={() => setEditMode(!editMode)} style={{
               padding: "8px 16px", borderRadius: 8,
               border: editMode ? "none" : "1px solid #D1D5DB",
@@ -668,6 +833,18 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         </div>
       </div>
 
+      {/* Professor bilgilendirme */}
+      {isProfessor && editMode && (
+        <div style={{
+          background: "#DBEAFE", border: "1px solid #93C5FD", borderRadius: 10,
+          padding: 12, marginBottom: 12, fontSize: 12, color: "#1E40AF",
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <DPIcon path="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" size={16} color="#1E40AF" />
+          Akademisyen olarak sadece kendi derslerinizi programa ekleyebilirsiniz.
+        </div>
+      )}
+
       {/* Info banner when no department selected */}
       {!activeDepartment && (
         <div style={{
@@ -740,7 +917,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                     </div>
                   ))}
                   {editMode && (
-                    <button onClick={() => { setSelectedSlot({ day, hourIndex: 0, hour: HOURS[0] }); setShowAddModal(true); }} style={{
+                    <button onClick={() => { setSelectedSlot({ day, hourIndex: 0, hour: HOURS[0] }); setAddSlotWarnings([]); setShowAddModal(true); }} style={{
                       width: "100%", padding: 8, border: "1px dashed #D1D5DB", borderRadius: 8,
                       background: "transparent", cursor: "pointer", fontSize: 12, color: DP.textMuted,
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 4,
@@ -796,6 +973,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                             setSelectedSlot({ day, hourIndex: hi, hour });
                             setModalCourseId("");
                             setModalClassroom("");
+                            setAddSlotWarnings([]);
                             setShowAddModal(true);
                           }
                         }}
@@ -950,17 +1128,43 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
               );
             })()}
 
+            {/* Çakışma uyarıları */}
+            {addSlotWarnings.length > 0 && (
+              <div style={{
+                padding: 12, borderRadius: 8, background: "#FEF2F2",
+                border: "1px solid #FECACA", marginBottom: 14,
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#991B1B", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                  <DPIcon path="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" size={14} color="#DC2626" />
+                  Çakışma Tespit Edildi!
+                </div>
+                {addSlotWarnings.map((w, i) => (
+                  <div key={i} style={{ fontSize: 11, color: "#7F1D1D", marginBottom: 3 }}>• {w}</div>
+                ))}
+                <div style={{ fontSize: 11, color: "#991B1B", marginTop: 8, fontStyle: "italic" }}>
+                  Yine de eklemek istiyor musunuz?
+                </div>
+              </div>
+            )}
+
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button onClick={() => setShowAddModal(false)} style={{
+              <button onClick={() => { setShowAddModal(false); setAddSlotWarnings([]); }} style={{
                 padding: "10px 20px", borderRadius: 8, border: "1px solid #D1D5DB",
                 background: "white", color: DP.textMuted, fontSize: 13, cursor: "pointer",
               }}>İptal</button>
-              <button onClick={handleAddSlot} disabled={!modalCourseId} style={{
-                padding: "10px 20px", borderRadius: 8, border: "none",
-                background: modalCourseId ? DP.primary : "#D1D5DB",
-                color: "white", fontSize: 13, fontWeight: 600,
-                cursor: modalCourseId ? "pointer" : "default",
-              }}>Ekle</button>
+              {addSlotWarnings.length > 0 ? (
+                <button onClick={() => handleAddSlot(true)} style={{
+                  padding: "10px 20px", borderRadius: 8, border: "none",
+                  background: "#DC2626", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                }}>Yine de Ekle</button>
+              ) : (
+                <button onClick={() => handleAddSlot(false)} disabled={!modalCourseId} style={{
+                  padding: "10px 20px", borderRadius: 8, border: "none",
+                  background: modalCourseId ? DP.primary : "#D1D5DB",
+                  color: "white", fontSize: 13, fontWeight: 600,
+                  cursor: modalCourseId ? "pointer" : "default",
+                }}>Ekle</button>
+              )}
             </div>
           </div>
         </div>
@@ -1019,7 +1223,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                         fontSize: 10, fontWeight: 600, textTransform: "uppercase",
                         color: c.type === "cross_dept" ? "#D97706" : "#DC2626",
                       }}>
-                        {c.type === "cross_dept" ? "Fakülte Çakışması" : "Derslik Çakışması"}
+                        {c.type === "cross_dept" ? "Fakülte Çakışması" : c.type === "dept_professor" ? "Hoca Çakışması" : "Derslik Çakışması"}
                       </span>
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: DP.text }}>{c.message}</div>
@@ -1054,11 +1258,11 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                   Fakülte Birleşik Ders Programı
                 </h3>
                 <p style={{ fontSize: 12, color: DP.textMuted, marginTop: 4 }}>
-                  {semester === "guz" ? "Güz" : "Bahar"} Dönemi — {year}. Sınıf — {allSchedules.length} bölüm
+                  {semester === "guz" ? "Güz" : "Bahar"} Dönemi — Tüm Sınıflar — {[...new Set(allSchedules.map(s => s.deptName))].length} bölüm
                 </p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => exportFacultySchedule(allSchedules, semester, year)} style={{
+                <button onClick={() => exportFacultySchedule(allSchedules, semester)} style={{
                   padding: "8px 16px", borderRadius: 8, border: "none",
                   background: DP.primary, color: "white", fontSize: 12, fontWeight: 600,
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
@@ -1077,12 +1281,12 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
 
             {/* Legend */}
             <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
-              {allSchedules.map((s, i) => (
+              {[...new Set(allSchedules.map(s => s.deptName))].map((name, i) => (
                 <span key={i} style={{
                   fontSize: 11, padding: "2px 8px", borderRadius: 4,
                   background: "#F3F4F6", color: DP.text, fontWeight: 500,
                 }}>
-                  {s.deptName}
+                  {name}
                 </span>
               ))}
             </div>
@@ -1124,7 +1328,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                         {DAYS.map(day => {
                           const entries = allSchedules
                             .filter(s => s.slots[`${day}_${hi}`])
-                            .map(s => ({ deptName: s.deptName, ...s.slots[`${day}_${hi}`] }));
+                            .map(s => ({ deptName: s.deptName, year: s.year, ...s.slots[`${day}_${hi}`] }));
                           return (
                             <td key={day} style={{
                               padding: 2, border: "1px solid #E5E7EB", verticalAlign: "top",
@@ -1137,7 +1341,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                                     background: bg, fontSize: 10, lineHeight: 1.3,
                                   }}>
                                     <strong>{e.courseCode}</strong>
-                                    <div style={{ color: "#555" }}>{e.deptName}</div>
+                                    <span style={{ color: "#555", marginLeft: 3 }}>{e.deptName} {e.year}.Sınıf</span>
                                     {e.instructor && <div style={{ color: "#777", fontSize: 9 }}>{e.instructor}</div>}
                                     {e.classroom && <div style={{ color: DP.primary, fontWeight: 500 }}>{e.classroom}</div>}
                                   </div>
