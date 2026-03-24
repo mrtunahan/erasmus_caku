@@ -1,4 +1,4 @@
-const functions = require("firebase-functions/v1");
+const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
@@ -86,8 +86,8 @@ function clearAttempts(key) {
 // ══════════════════════════════════════════════
 // 1. Öğrenci Giriş Doğrulama
 // ══════════════════════════════════════════════
-exports.verifyStudentLogin = functions.https.onCall(async (data, context) => {
-  const { studentNumber, password } = data;
+exports.verifyStudentLogin = functions.https.onCall(async (request) => {
+  const { studentNumber, password } = request.data;
   if (!studentNumber || !password) {
     throw new functions.https.HttpsError("invalid-argument", "Öğrenci numarası ve şifre gerekli.");
   }
@@ -133,8 +133,8 @@ exports.verifyStudentLogin = functions.https.onCall(async (data, context) => {
 // ══════════════════════════════════════════════
 // 2. Admin Giriş Doğrulama
 // ══════════════════════════════════════════════
-exports.verifyAdminLogin = functions.https.onCall(async (data, context) => {
-  const { password } = data;
+exports.verifyAdminLogin = functions.https.onCall(async (request) => {
+  const { password } = request.data;
   if (!password) {
     throw new functions.https.HttpsError("invalid-argument", "Şifre gerekli.");
   }
@@ -178,8 +178,8 @@ exports.verifyAdminLogin = functions.https.onCall(async (data, context) => {
 // ══════════════════════════════════════════════
 // 3. Profesör Giriş Doğrulama
 // ══════════════════════════════════════════════
-exports.verifyProfessorLogin = functions.https.onCall(async (data, context) => {
-  const { professorName, password } = data;
+exports.verifyProfessorLogin = functions.https.onCall(async (request) => {
+  const { professorName, password } = request.data;
   if (!professorName || !password) {
     throw new functions.https.HttpsError("invalid-argument", "Akademisyen adı ve şifre gerekli.");
   }
@@ -243,8 +243,8 @@ exports.verifyProfessorLogin = functions.https.onCall(async (data, context) => {
 // ══════════════════════════════════════════════
 // 3b. Bölüm Yetkilisi Giriş Doğrulama
 // ══════════════════════════════════════════════
-exports.verifyDepartmentManagerLogin = functions.https.onCall(async (data, context) => {
-  const { managerName, password } = data;
+exports.verifyDepartmentManagerLogin = functions.https.onCall(async (request) => {
+  const { managerName, password } = request.data;
   if (!managerName || !password) {
     throw new functions.https.HttpsError("invalid-argument", "Yetkili adı ve şifre gerekli.");
   }
@@ -325,8 +325,8 @@ exports.verifyDepartmentManagerLogin = functions.https.onCall(async (data, conte
 // ══════════════════════════════════════════════
 // 4. Şifre Değiştirme (tüm roller)
 // ══════════════════════════════════════════════
-exports.changePassword = functions.https.onCall(async (data, context) => {
-  const { role, identifier, newPassword, currentPassword } = data;
+exports.changePassword = functions.https.onCall(async (request) => {
+  const { role, identifier, newPassword, currentPassword } = request.data;
 
   if (!role || !newPassword) {
     throw new functions.https.HttpsError("invalid-argument", "Eksik parametreler.");
@@ -393,8 +393,8 @@ exports.changePassword = functions.https.onCall(async (data, context) => {
 // ══════════════════════════════════════════════
 // 5. Öğrenci şifre var mı kontrol (kayıt akışı)
 // ══════════════════════════════════════════════
-exports.checkStudentHasPassword = functions.https.onCall(async (data, context) => {
-  const { studentNumber } = data;
+exports.checkStudentHasPassword = functions.https.onCall(async (request) => {
+  const { studentNumber } = request.data;
   if (!studentNumber) {
     throw new functions.https.HttpsError("invalid-argument", "Öğrenci numarası gerekli.");
   }
@@ -412,8 +412,8 @@ exports.checkStudentHasPassword = functions.https.onCall(async (data, context) =
 // ══════════════════════════════════════════════
 // 6. Admin şifre yönetimi (toplu şifre sıfırlama)
 // ══════════════════════════════════════════════
-exports.adminResetPassword = functions.https.onCall(async (data, context) => {
-  const { adminPassword, targetRole, targetIdentifier, newPassword } = data;
+exports.adminResetPassword = functions.https.onCall(async (request) => {
+  const { adminPassword, targetRole, targetIdentifier, newPassword } = request.data;
 
   if (!adminPassword || !targetRole || !newPassword) {
     throw new functions.https.HttpsError("invalid-argument", "Eksik parametreler.");
@@ -453,8 +453,8 @@ exports.adminResetPassword = functions.https.onCall(async (data, context) => {
 // ══════════════════════════════════════════════
 // 6b. Kullanıcı Rolü Kaydet
 // ══════════════════════════════════════════════
-exports.saveUserRole = functions.https.onCall(async (data, context) => {
-  const { uid, roleData } = data;
+exports.saveUserRole = functions.https.onCall(async (request) => {
+  const { uid, roleData } = request.data;
 
   if (!uid || !roleData) {
     throw new functions.https.HttpsError("invalid-argument", "uid ve roleData gerekli.");
@@ -475,8 +475,8 @@ exports.saveUserRole = functions.https.onCall(async (data, context) => {
 // ══════════════════════════════════════════════
 // 7. Varsayılan Profesör Şifresini Ayarla (Admin)
 // ══════════════════════════════════════════════
-exports.setDefaultProfessorPassword = functions.https.onCall(async (data, context) => {
-  const { adminPassword, defaultPassword } = data;
+exports.setDefaultProfessorPassword = functions.https.onCall(async (request) => {
+  const { adminPassword, defaultPassword } = request.data;
 
   if (!adminPassword || !defaultPassword) {
     throw new functions.https.HttpsError("invalid-argument", "Eksik parametreler.");
@@ -534,8 +534,8 @@ const ALLOWED_COLLECTIONS = [
   "course_schedules",
 ];
 
-exports.firestoreWrite = functions.https.onCall(async (data, context) => {
-  const { operations } = data;
+exports.firestoreWrite = functions.https.onCall(async (request) => {
+  const { operations } = request.data;
 
   if (!operations || !Array.isArray(operations) || operations.length === 0) {
     throw new functions.https.HttpsError("invalid-argument", "operations dizisi gerekli.");
