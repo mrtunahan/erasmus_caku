@@ -1770,6 +1770,11 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
           }
         });
 
+        // Bölüm yetkilisi için: sadece kendi bölümünü göster
+        if (isDeptManager && currentUser?.departmentId) {
+          depts = depts.filter(d => d.id === currentUser.departmentId);
+        }
+
         // Akademisyen için: derslerinin olduğu bölümleri bul
         if (isProfessor && currentUser?.name) {
           const cRef = getCoursesRef();

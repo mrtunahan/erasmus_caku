@@ -434,9 +434,17 @@ function AppShell() {
           setActiveDepartment(user.departmentId);
         }
       }
-      // Kaydedilmiş bölüm tercihini yükle
+      // Kaydedilmiş bölüm tercihini yükle (sadece admin için, bölüm yetkilisi kendi bölümüne kilitli)
       const savedDept = localStorage.getItem("caku_active_department");
-      if (savedDept && DEPARTMENTS.find(d => d.id === savedDept)) {
+      if (saved) {
+        const user = JSON.parse(saved);
+        // Bölüm yetkilisi ise localStorage'daki eski tercihi yoksay, kendi bölümünde kalsın
+        if (user.role === "bolum_yetkilisi" && user.departmentId) {
+          setActiveDepartment(user.departmentId);
+        } else if (savedDept && DEPARTMENTS.find(d => d.id === savedDept)) {
+          setActiveDepartment(savedDept);
+        }
+      } else if (savedDept && DEPARTMENTS.find(d => d.id === savedDept)) {
         setActiveDepartment(savedDept);
       }
     } catch (e) {
@@ -459,11 +467,14 @@ function AppShell() {
     }
   }, []);
 
-  // Bölüm değiştiğinde kaydet
+  // Bölüm değiştiğinde kaydet (bölüm yetkilisi kendi bölümünden çıkamaz)
   const handleDepartmentChange = useCallback((deptId) => {
+    if (currentUser?.role === "bolum_yetkilisi" && deptId !== currentUser?.departmentId) {
+      return; // Bölüm yetkilisi sadece kendi bölümünü görebilir
+    }
     setActiveDepartment(deptId);
     localStorage.setItem("caku_active_department", deptId);
-  }, []);
+  }, [currentUser]);
 
   const isAdmin = currentUser?.role === "admin";
   const isProfessor = currentUser?.role === "professor";
