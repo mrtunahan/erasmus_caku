@@ -1407,6 +1407,8 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   const canEdit = (student) => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
+    // Bölüm yetkilisi kendi bölümündeki öğrencileri düzenleyebilir
+    if (currentUser.role === 'bolum_yetkilisi') return true;
     // Erasmus yetkisi olmayan öğrenciler hiçbir değişiklik yapamaz
     if (currentUser.role === 'student' && currentUser.erasmusAccess !== true) return false;
     return currentUser.role === 'student' && student.studentNumber === currentUser.studentNumber;
@@ -1539,7 +1541,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {/* Trip History button visible to all users */}
               <Btn onClick={() => setShowTripHistory(true)} variant="secondary" icon={<FileTextIcon />}>Eşleştirme Geçmişi</Btn>
-              {currentUser?.role === 'admin' && (
+              {(currentUser?.role === 'admin' || currentUser?.role === 'bolum_yetkilisi') && (
                 <>
                   <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
                   <Btn onClick={() => fileInputRef.current?.click()} variant="secondary" icon={<UploadIcon />}>İçe Aktar</Btn>

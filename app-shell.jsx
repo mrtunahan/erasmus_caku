@@ -428,6 +428,15 @@ function AppShell() {
       const saved = localStorage.getItem("caku_current_user");
       if (saved) {
         const user = JSON.parse(saved);
+        // Bölüm yetkilisi için: eski oturumda yanlış departmentId varsa düzelt
+        if (user.role === "bolum_yetkilisi" && user.departmentId && user.departmentName) {
+          const matchedDept = DEPARTMENTS.find(d => d.name === user.departmentName);
+          if (matchedDept && user.departmentId !== matchedDept.id) {
+            user.departmentId = matchedDept.id;
+            localStorage.setItem("caku_current_user", JSON.stringify(user));
+            localStorage.setItem("caku_active_department", matchedDept.id);
+          }
+        }
         setCurrentUser(user);
         // Bölüm yetkilisi ise kendi bölümünü aktif yap
         if (user.departmentId) {

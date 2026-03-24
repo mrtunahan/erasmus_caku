@@ -144,7 +144,7 @@ const YazOkuluApp = ({ currentUser, activeDepartment, departmentInfo }) => {
     const [myStudentProfile, setMyStudentProfile] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'professor';
+    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'bolum_yetkilisi' || currentUser?.role === 'professor';
 
     useEffect(() => {
         loadInitialData();

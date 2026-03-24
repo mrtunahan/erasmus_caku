@@ -1775,7 +1775,18 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
       const dRef = getDepartmentsRef();
       if (dRef) {
         const snap = await dRef.get();
-        let depts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const HARD_DEPTS = window.DEPARTMENTS || [];
+        let depts = snap.docs.map(d => {
+          const dept = { id: d.id, firestoreId: d.id, ...d.data() };
+          // Firestore doc ID'sini hardcoded DEPARTMENTS ID'sine eşleştir
+          // Tüm veriler (dersler, sınavlar vb.) hardcoded ID ile kaydedildiği için
+          // bu eşleştirme kritik önem taşır
+          const matched = HARD_DEPTS.find(hd => hd.name === dept.name);
+          if (matched) {
+            dept.id = matched.id; // "bilgisayar", "elektrik" vb.
+          }
+          return dept;
+        });
 
         // Bölüm adlarında tekrarlanan kelime varsa düzelt (ör: "Mühendisliği Mühendisliği")
         depts.forEach(dept => {
@@ -1785,14 +1796,22 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
             const fixedName = cleaned.join(" ");
             if (fixedName !== dept.name) {
               dept.name = fixedName;
-              FirestoreWrite.update("departments", dept.id, { name: fixedName }).catch(() => {});
+              FirestoreWrite.update("departments", dept.firestoreId, { name: fixedName }).catch(() => {});
+              // İsim düzeltildikten sonra tekrar eşleştir
+              const matched = HARD_DEPTS.find(hd => hd.name === fixedName);
+              if (matched) dept.id = matched.id;
             }
           }
         });
 
         // Bölüm yetkilisi için: sadece kendi bölümünü göster
         if (isDeptManager && currentUser?.departmentId) {
-          depts = depts.filter(d => d.id === currentUser.departmentId);
+          const userDeptId = currentUser.departmentId;
+          const userDeptName = currentUser.departmentName;
+          depts = depts.filter(d =>
+            d.id === userDeptId ||
+            (userDeptName && d.name === userDeptName)
+          );
         }
 
         // Akademisyen için: derslerinin olduğu bölümleri bul
@@ -1812,7 +1831,9 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
         setDepartments(depts);
         // Auto-select for department manager
         if (isDeptManager && currentUser?.departmentId) {
-          setSelectedDeptId(currentUser.departmentId);
+          // Eşleştirilmiş bölüm varsa onun ID'sini kullan
+          const matchedDept = depts.find(d => d.id === currentUser.departmentId || d.name === currentUser.departmentName);
+          setSelectedDeptId(matchedDept ? matchedDept.id : currentUser.departmentId);
         } else if (isProfessor && depts.length > 0 && !selectedDeptId) {
           setSelectedDeptId(depts[0].id);
         } else if (isAdmin && !selectedDeptId && depts.length > 0) {
@@ -2222,7 +2243,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
   // ── Department CRUD handlers ──
   const handleDeptSave = async (existingDept, formData) => {
     if (existingDept) {
-      await FirestoreWrite.update("departments", existingDept.id, formData);
+      await FirestoreWrite.update("departments", existingDept.firestoreId || existingDept.id, formData);
     } else {
       await FirestoreWrite.add("departments", { ...formData, createdAt: new Date().toISOString() });
     }
@@ -2232,7 +2253,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const handleDeptDelete = async (dept) => {
     if (!confirm(`"${dept.name}" bölümünü silmek istediğinize emin misiniz? Bu bölüme ait tüm veriler silinmez ama bölüm bağlantısı kaldırılır.`)) return;
-    await FirestoreWrite.remove("departments", dept.id);
+    await FirestoreWrite.remove("departments", dept.firestoreId || dept.id);
     if (selectedDeptId === dept.id) setSelectedDeptId(null);
     await loadDepartments();
   };
