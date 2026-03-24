@@ -531,6 +531,7 @@ const ALLOWED_COLLECTIONS = [
   "departments",
   "department_classrooms",
   "department_supervisors",
+  "course_schedules",
 ];
 
 exports.firestoreWrite = functions.https.onCall(async (request) => {
