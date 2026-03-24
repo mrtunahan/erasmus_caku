@@ -1262,89 +1262,6 @@ function exportDeptPrintable(placedExams, periodLabel, deptName, customClassroom
   }
 }
 
-function exportToCSV(placedExams, periodLabel) {
-  const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
-    if (a.sinif !== b.sinif) return a.sinif - b.sinif;
-    return a.date.localeCompare(b.date) || a.timeSlot.localeCompare(b.timeSlot);
-  });
-
-  const header = "Sınıf;Ders Kodu;Ders Adı;Sınava Girecek Toplam Öğrenci Sayısı;Öğretim Üyesi;Tarih;Gün;Saat;Süre (dk);Gözetmen;Salon";
-  const rows = sorted.map(e => {
-    const d = parseDateISO(e.date);
-    return [
-      `${e.sinif}. Sınıf`,
-      e.code,
-      e.name,
-      e.studentCount || "",
-      e.professor,
-      formatDate(d),
-      getDayName(d),
-      e.timeSlot,
-      e.duration,
-      e.supervisor || "",
-      e.room || "",
-    ].join(";");
-  });
-
-  const bom = "\uFEFF";
-  const csv = bom + [header, ...rows].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `sinav_programi_${periodLabel || "export"}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function exportToWord(placedExams, periodLabel, deptName) {
-  const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
-    if (a.sinif !== b.sinif) return a.sinif - b.sinif;
-    return a.date.localeCompare(b.date) || a.timeSlot.localeCompare(b.timeSlot);
-  });
-
-  let tableRows = sorted.map(e => {
-    const d = parseDateISO(e.date);
-    return `<tr>
-      <td style="padding:6px;text-align:center">${e.sinif}. Sınıf</td>
-      <td style="padding:6px"><b>${e.code}</b> - ${e.name}</td>
-      <td style="padding:6px;text-align:center;font-weight:bold">${e.studentCount || "-"}</td>
-      <td style="padding:6px;font-size:12px">${e.professor}</td>
-      <td style="padding:6px;text-align:center">${formatDate(d)} ${getDayName(d)}<br/>${e.timeSlot} (${e.duration} dk)</td>
-      <td style="padding:6px">${e.supervisor || "-"}</td>
-      <td style="padding:6px;text-align:center">${e.room || "-"}</td>
-    </tr>`;
-  }).join("");
-
-  const html = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
-    <head><meta charset="utf-8"><title>Sınav Programı</title></head>
-    <body style="font-family:Calibri,sans-serif;font-size:11pt;background:white">
-      <h2 style="text-align:center;color:#000">ÇAKÜ ${deptName || "Bilgisayar Mühendisliği"} - Sınav Programı</h2>
-      <p style="text-align:center;color:#333">${periodLabel || ""}</p>
-      <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:10pt;background:white">
-        <tr style="background:white;font-weight:bold">
-          <th style="padding:8px;border:1px solid #000">Sınıf</th>
-          <th style="padding:8px;border:1px solid #000">Ders Kodu - İsmi</th>
-          <th style="padding:8px;border:1px solid #000">Sınava Girecek Toplam Öğrenci Sayısı</th>
-          <th style="padding:8px;border:1px solid #000">Öğretim Üyesi</th>
-          <th style="padding:8px;border:1px solid #000">Tarih - Saat - Süre</th>
-          <th style="padding:8px;border:1px solid #000">Gözetmen</th>
-          <th style="padding:8px;border:1px solid #000">Salon</th>
-        </tr>
-        ${tableRows}
-      </table>
-    </body></html>`;
-
-  const blob = new Blob(["\uFEFF" + html], { type: "application/msword" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `sinav_programi_${periodLabel || "export"}.doc`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 async function exportToXLSX(placedExams, periodLabel, period, customClassrooms, customSupervisors, deptName) {
   // Load xlsx-js-style for cell styling support (colors, bold, borders)
   if (!window._XLSX_STYLE_LOADED) {
@@ -2593,14 +2510,8 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
                 </span>
                 {periodExams.length > 0 && (
                   <>
-                    <GhostBtn onClick={() => exportToCSV(periodExams, activePeriod.label)} style={{ fontSize: 12, padding: "4px 10px" }}>
-                      CSV
-                    </GhostBtn>
-                    <GhostBtn onClick={() => exportToWord(periodExams, activePeriod.label, selectedDept?.name)} style={{ fontSize: 12, padding: "4px 10px" }}>
-                      Word
-                    </GhostBtn>
                     <GhostBtn onClick={() => exportToXLSX(periodExams, activePeriod.label, activePeriod, deptClassrooms.length > 0 ? deptClassrooms : null, deptSupervisors.length > 0 ? deptSupervisors.map(s => s.name) : null, selectedDept?.name || null)} style={{ fontSize: 12, padding: "4px 10px", background: "#059669", color: "white", border: "none" }}>
-                      XLSX
+                      Dekanlık Çıktısı
                     </GhostBtn>
                     <GhostBtn onClick={() => exportDeptPrintable(periodExams, activePeriod.label, selectedDept?.name, deptClassrooms.length > 0 ? deptClassrooms : null)} style={{ fontSize: 12, padding: "4px 10px", background: "#7C3AED", color: "white", border: "none" }}>
                       Bölüm Çıktısı
@@ -2614,14 +2525,8 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
                 )}
                 {periodExams.length === 0 && (
                   <>
-                    <GhostBtn onClick={() => alert("Henüz takvime yerleştirilmiş sınav yok. Önce dersleri takvime sürükleyin.")} style={{ fontSize: 12, padding: "4px 10px", opacity: 0.5 }}>
-                      CSV
-                    </GhostBtn>
-                    <GhostBtn onClick={() => alert("Henüz takvime yerleştirilmiş sınav yok. Önce dersleri takvime sürükleyin.")} style={{ fontSize: 12, padding: "4px 10px", opacity: 0.5 }}>
-                      Word
-                    </GhostBtn>
                     <GhostBtn onClick={() => alert("Henüz takvime yerleştirilmiş sınav yok. Önce dersleri takvime sürükleyin.")} style={{ fontSize: 12, padding: "4px 10px", background: "#059669", color: "white", border: "none", opacity: 0.5 }}>
-                      XLSX
+                      Dekanlık Çıktısı
                     </GhostBtn>
                   </>
                 )}

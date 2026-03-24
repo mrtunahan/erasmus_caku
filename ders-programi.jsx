@@ -25,9 +25,8 @@ const DPIcon = ({ path, size = 18, color = "currentColor" }) => (
 
 const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"];
 const HOURS = [
-  "08:00-08:50", "09:00-09:50", "10:00-10:50", "11:00-11:50",
-  "12:00-12:50", "13:00-13:50", "14:00-14:50", "15:00-15:50",
-  "16:00-16:50", "17:00-17:50",
+  "08:30-09:15", "09:30-10:15", "10:30-11:15", "11:30-12:15",
+  "12:30-13:15", "13:30-14:15", "14:30-15:15", "15:30-16:15", "16:15-17:00",
 ];
 
 const SLOT_COLORS = [
@@ -495,7 +494,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   }, [activeDepartment, semester, year]);
 
-  // Slot ekle (çakışma kontrolü ile)
+  // Slot ekle — otomatik çakışma önleme (admin hariç herkes engellenir)
   const handleAddSlot = useCallback((forceAdd) => {
     if (!selectedSlot || !modalCourseId) return;
     const course = courses.find(c => c.id === modalCourseId);
@@ -512,13 +511,12 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     const classroom = modalClassroom || "";
     const instructor = course.professor || "";
 
-    // Çakışma kontrolü (force edilmemişse)
+    // Çakışma kontrolü
     if (!forceAdd) {
-      // Mevcut sınıfın verileri hariç diğer sınıfları kontrol et
       const otherYearsSlots = deptAllYearsSlots.filter(s => s.year !== year);
       const warnings = checkSlotConflict(day, hi, classroom, instructor, otherYearsSlots, allFacultySlots);
 
-      // Aynı sınıf içinde aynı saat kontrolü (mevcut scheduleData)
+      // Aynı sınıf içinde aynı saat kontrolü
       const key = `${day}_${hi}`;
       if (scheduleData[key] && scheduleData[key].courseCode !== course.code) {
         warnings.unshift(`Bu saatte zaten "${scheduleData[key].courseCode}" dersi var (${year}. Sınıf).`);
@@ -526,7 +524,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
 
       if (warnings.length > 0) {
         setAddSlotWarnings(warnings);
-        return; // Uyarı göster, ekle'ye basmazsa ekleme
+        return; // Çakışma var — admin ise "Geçersiz Kıl" gösterilecek, diğerleri engellenecek
       }
     }
 
@@ -622,12 +620,13 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   }, [semester, activeDepartment]);
 
-  // Bölüm programı veya dönem değiştiğinde tüm sınıfları yükle
+  // Bölüm programı veya dönem değiştiğinde tüm sınıfları ve fakülte verilerini yükle (otomatik çakışma kontrolü)
   useEffect(() => {
     loadDeptAllYears();
+    loadAllFacultySchedules();
   }, [activeDepartment, semester, scheduleData]);
 
-  // Çakışma tespiti
+  // Çakışma tespiti (otomatik)
   useEffect(() => {
     const c = detectConflicts(deptAllYearsSlots, allFacultySlots);
     setConflicts(c);
@@ -740,19 +739,6 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
               Bölüm Çıktısı
             </button>
           )}
-          {/* Çakışma kontrolü tetikle */}
-          <button onClick={async () => {
-            await loadDeptAllYears();
-            await loadAllFacultySchedules();
-            setShowConflicts(true);
-          }} disabled={loadingFaculty} style={{
-            padding: "8px 14px", borderRadius: 8, border: "1px solid #D1D5DB",
-            background: "white", color: DP.textMuted, fontSize: 12, fontWeight: 500,
-            cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-          }}>
-            <DPIcon path="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" size={14} />
-            Çakışma Kontrolü
-          </button>
           {canManage && activeDepartment && (
             <button onClick={() => setEditMode(!editMode)} style={{
               padding: "8px 16px", borderRadius: 8,
@@ -1136,14 +1122,20 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
               }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#991B1B", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
                   <DPIcon path="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" size={14} color="#DC2626" />
-                  Çakışma Tespit Edildi!
+                  Çakışma — Ders Eklenemez!
                 </div>
                 {addSlotWarnings.map((w, i) => (
                   <div key={i} style={{ fontSize: 11, color: "#7F1D1D", marginBottom: 3 }}>• {w}</div>
                 ))}
-                <div style={{ fontSize: 11, color: "#991B1B", marginTop: 8, fontStyle: "italic" }}>
-                  Yine de eklemek istiyor musunuz?
-                </div>
+                {isAdmin ? (
+                  <div style={{ fontSize: 11, color: "#991B1B", marginTop: 8, fontStyle: "italic" }}>
+                    Fakülte yöneticisi olarak çakışmayı geçersiz kılabilirsiniz.
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: "#991B1B", marginTop: 8, fontStyle: "italic" }}>
+                    Lütfen farklı bir saat veya derslik seçin. Çakışmalı ders eklenemez.
+                  </div>
+                )}
               </div>
             )}
 
@@ -1153,10 +1145,12 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                 background: "white", color: DP.textMuted, fontSize: 13, cursor: "pointer",
               }}>İptal</button>
               {addSlotWarnings.length > 0 ? (
-                <button onClick={() => handleAddSlot(true)} style={{
-                  padding: "10px 20px", borderRadius: 8, border: "none",
-                  background: "#DC2626", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                }}>Yine de Ekle</button>
+                isAdmin ? (
+                  <button onClick={() => handleAddSlot(true)} style={{
+                    padding: "10px 20px", borderRadius: 8, border: "none",
+                    background: "#DC2626", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  }}>Çakışmayı Geçersiz Kıl</button>
+                ) : null
               ) : (
                 <button onClick={() => handleAddSlot(false)} disabled={!modalCourseId} style={{
                   padding: "10px 20px", borderRadius: 8, border: "none",
