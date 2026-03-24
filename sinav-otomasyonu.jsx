@@ -1935,11 +1935,31 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
 
       const [coursesSnap, profsSnap, periodsSnap, examsSnap, classroomsSnap, supervisorsSnap] = await Promise.all(queries);
 
-      // Set courses
-      setCourses(coursesSnap ? coursesSnap.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+      // Set courses (mükerrer kayıtları filtrele - aynı code olan derslerden en iyisini tut)
+      const rawCourses = coursesSnap ? coursesSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+      const courseMap = {};
+      rawCourses.forEach(c => {
+        const key = (c.code || "").trim();
+        if (!key) { courseMap[c.id] = c; return; }
+        if (!courseMap[key]) { courseMap[key] = c; return; }
+        // Mevcut kaydı koru: professor ataması olanı tercih et
+        const existing = courseMap[key];
+        const eHasProf = existing.professor && existing.professor !== "-" && existing.professor !== "";
+        const cHasProf = c.professor && c.professor !== "-" && c.professor !== "";
+        if (cHasProf && !eHasProf) courseMap[key] = c;
+        else if (cHasProf === eHasProf && (c.studentCount || 0) > (existing.studentCount || 0)) courseMap[key] = c;
+      });
+      setCourses(Object.values(courseMap));
 
-      // Set professors
-      const profs = profsSnap ? profsSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+      // Set professors (mükerrer kayıtları filtrele)
+      const rawProfs = profsSnap ? profsSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+      const profMap = {};
+      rawProfs.forEach(p => {
+        const key = (p.name || "").trim();
+        if (!key || profMap[key]) return;
+        profMap[key] = p;
+      });
+      const profs = Object.values(profMap);
       setProfessors(profs.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr")));
 
       // Set periods
@@ -2009,22 +2029,23 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     init();
   }, []);
 
-  // Tek seferlik: mükerrer dersleri temizle (aynı code+departmentId olan kayıtlardan en iyisini tut)
+  // Tek seferlik: mükerrer dersleri ve profesörleri temizle
   useEffect(() => {
-    const deduplicateKey = "course_dedup_done_v2";
+    const deduplicateKey = "course_dedup_done_v4";
     if (localStorage.getItem(deduplicateKey)) return;
     const deduplicate = async () => {
       try {
         const cRef = getCoursesRef();
         if (!cRef) return;
         const snap = await cRef.get();
-        if (snap.empty) return;
+        if (snap.empty) { localStorage.setItem(deduplicateKey, "true"); return; }
 
         const allCourses = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-        // Grup: code + departmentId bazında
+        // Sadece code bazında grupla (departmentId fark etmez - aynı ders farklı ID ile kaydedilmiş olabilir)
         const groups = {};
         allCourses.forEach(c => {
-          const key = `${c.code || ""}_${c.departmentId || ""}`;
+          const key = (c.code || "").trim();
+          if (!key) return;
           if (!groups[key]) groups[key] = [];
           groups[key].push(c);
         });
@@ -2033,15 +2054,12 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
         for (const key of Object.keys(groups)) {
           const group = groups[key];
           if (group.length <= 1) continue;
-          // En iyi kaydı seç: professor ataması olan, studentCount'u olan, en eski
+          // En iyi kaydı seç: professor ataması olan, studentCount > 0, en eski
           group.sort((a, b) => {
-            // Professor ataması olanı öncelikle tut
-            const aHasProf = a.professor && a.professor !== "-" ? 1 : 0;
-            const bHasProf = b.professor && b.professor !== "-" ? 1 : 0;
+            const aHasProf = a.professor && a.professor !== "-" && a.professor !== "" ? 1 : 0;
+            const bHasProf = b.professor && b.professor !== "-" && b.professor !== "" ? 1 : 0;
             if (bHasProf !== aHasProf) return bHasProf - aHasProf;
-            // studentCount > 0 olanı tut
             if ((b.studentCount || 0) !== (a.studentCount || 0)) return (b.studentCount || 0) - (a.studentCount || 0);
-            // En eskisini tut
             return (a.createdAt || "").localeCompare(b.createdAt || "");
           });
           // İlk kayıt hariç hepsini sil
@@ -2050,14 +2068,15 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
           }
         }
 
-        // Profesörleri de temizle
+        // Profesörleri de temizle (name bazında)
         const pRef = getProfessorsRef();
         if (pRef) {
           const pSnap = await pRef.get();
           const allProfs = pSnap.docs.map(d => ({ docId: d.id, ...d.data() }));
           const profGroups = {};
           allProfs.forEach(p => {
-            const key = `${(p.name || "").trim()}_${p.departmentId || ""}`;
+            const key = (p.name || "").trim();
+            if (!key) return;
             if (!profGroups[key]) profGroups[key] = [];
             profGroups[key].push(p);
           });
@@ -2072,19 +2091,22 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
         }
 
         if (deleteOps.length > 0) {
-          await FirestoreWrite.batch(deleteOps);
+          // Batch işlem limitini aşmamak için 400'lük gruplar halinde sil
+          for (let i = 0; i < deleteOps.length; i += 400) {
+            const chunk = deleteOps.slice(i, i + 400);
+            await FirestoreWrite.batch(chunk);
+          }
           console.log(`Dedup: ${deleteOps.length} mükerrer kayıt silindi.`);
-          // Verileri yeniden yükle
           if (selectedDeptId) loadData();
         }
+        // Sadece başarılı olursa flag'ı set et
         localStorage.setItem(deduplicateKey, "true");
       } catch (e) {
         console.error("Dedup error:", e);
-        localStorage.setItem(deduplicateKey, "true");
+        // Hata olursa flag SET ETME - bir sonraki yüklemede tekrar denesin
       }
     };
-    // Biraz gecikmeyle çalıştır (init'ten sonra)
-    const timer = setTimeout(deduplicate, 2000);
+    const timer = setTimeout(deduplicate, 1500);
     return () => clearTimeout(timer);
   }, []);
 
