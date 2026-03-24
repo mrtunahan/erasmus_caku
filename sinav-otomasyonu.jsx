@@ -1159,6 +1159,109 @@ function turkishifyCourse(course) {
 // ══════════════════════════════════════════════════════════════
 // Export Functions
 // ══════════════════════════════════════════════════════════════
+
+// ── Bölüm Bazlı Yazdırılabilir Sınav Programı Çıktısı ──
+function exportDeptPrintable(placedExams, periodLabel, deptName, customClassrooms) {
+  const SINIF_BG = {
+    1: "#B2EBF2", 2: "#C8E6C9", 3: "#FFE0B2", 4: "#F8BBD0", 5: "#E1BEE7",
+  };
+
+  function assignRoom(studentCount) {
+    const rooms = customClassrooms && customClassrooms.length > 0 ? customClassrooms : DEPT_CLASSROOMS;
+    if (!studentCount || studentCount <= 0) return rooms[0]?.name || "";
+    const single = rooms.find(r => (r.capacity || 0) >= studentCount);
+    if (single) return single.name;
+    let best = null, bestDiff = Infinity;
+    for (let i = 0; i < rooms.length; i++) {
+      for (let j = i + 1; j < rooms.length; j++) {
+        const cap = (rooms[i].capacity || 0) + (rooms[j].capacity || 0);
+        if (cap >= studentCount && cap - studentCount < bestDiff) {
+          bestDiff = cap - studentCount;
+          best = rooms[i].name + " - " + rooms[j].name;
+        }
+      }
+    }
+    return best || rooms.map(r => r.name).join(" - ");
+  }
+
+  const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    return a.timeSlot.localeCompare(b.timeSlot);
+  });
+
+  const enriched = sorted.map(exam => {
+    const room = assignRoom(exam.studentCount);
+    const [sh, sm] = exam.timeSlot.split(":").map(Number);
+    const totalMin = sh * 60 + sm + (exam.duration || 60);
+    const eh = String(Math.floor(totalMin / 60)).padStart(2, "0");
+    const em = String(totalMin % 60).padStart(2, "0");
+    const dateObj = parseDateISO(exam.date);
+    return {
+      ...exam,
+      assignedRoom: room,
+      startStr: formatDate(dateObj) + " - " + exam.timeSlot,
+      endStr: formatDate(dateObj) + " - " + eh + ":" + em,
+      durationStr: (exam.duration || 60) + " dk",
+    };
+  });
+
+  // Parse period label for title
+  const titleDept = (deptName || "").toUpperCase();
+  const periodUpper = (periodLabel || "").toUpperCase();
+
+  const rows = enriched.map(e => {
+    const bg = SINIF_BG[e.sinif] || "#FFFFFF";
+    return `<tr style="background:${bg}">
+      <td style="padding:8px 10px;border:1px solid #999;text-align:center;font-weight:500">${e.name}</td>
+      <td style="padding:8px 10px;border:1px solid #999;text-align:center;font-weight:600">${e.code}</td>
+      <td style="padding:8px 10px;border:1px solid #999;text-align:center">${e.startStr}</td>
+      <td style="padding:8px 10px;border:1px solid #999;text-align:center">${e.endStr}</td>
+      <td style="padding:8px 10px;border:1px solid #999;text-align:center">${e.durationStr}</td>
+      <td style="padding:8px 10px;border:1px solid #999;text-align:center;font-weight:600">${e.assignedRoom}</td>
+    </tr>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="utf-8"><title>Sınav Programı - ${deptName || ""}</title>
+<style>
+  @media print { body { margin: 0; } @page { size: A4 landscape; margin: 1cm; } }
+  body { font-family: 'Times New Roman', serif; background: #e8e8e8; }
+  .page { max-width: 1000px; margin: 20px auto; background: white; padding: 40px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  h1 { text-align: center; font-size: 18px; color: #1B2A4A; margin-bottom: 20px; border-bottom: 3px solid #1B2A4A; padding-bottom: 10px; }
+  h2 { text-align: center; font-size: 13px; color: #C00; margin-bottom: 16px; letter-spacing: 0.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { padding: 10px 8px; border: 1px solid #999; background: #f5f5f5; font-weight: 700; text-align: center; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>${periodLabel || ""} Sınav Programı</h1>
+  <h2>${periodUpper} ${titleDept} SINAV PROGRAMI</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:22%">Dersin Adı</th>
+        <th style="width:10%">Dersin Kodu</th>
+        <th style="width:22%">Sınavın Başlama Tarihi ve Saati</th>
+        <th style="width:22%">Sınavın Bitiş Tarihi ve Saati</th>
+        <th style="width:10%">Sınav Süresi</th>
+        <th style="width:14%">SINIF</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+</div>
+</body></html>`;
+
+  const w = window.open("", "_blank");
+  if (w) {
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => w.print(), 500);
+  }
+}
+
 function exportToCSV(placedExams, periodLabel) {
   const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
     if (a.sinif !== b.sinif) return a.sinif - b.sinif;
@@ -1770,6 +1873,11 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
           }
         });
 
+        // Bölüm yetkilisi için: sadece kendi bölümünü göster
+        if (isDeptManager && currentUser?.departmentId) {
+          depts = depts.filter(d => d.id === currentUser.departmentId);
+        }
+
         // Akademisyen için: derslerinin olduğu bölümleri bul
         if (isProfessor && currentUser?.name) {
           const cRef = getCoursesRef();
@@ -2287,12 +2395,12 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
                 Gözetmenler
               </GhostBtn>
             )}
-            {isAdmin && courses.length === 0 && selectedDeptId && (
+            {isAdmin && courses.length === 0 && selectedDeptId && selectedDept?.name?.toLowerCase().includes("bilgisayar") && (
               <Btn onClick={seedData} style={{ background: "#059669" }}>
-                Örnek Verileri Yükle
+                Örnek Verileri Yükle (Bilgisayar Müh.)
               </Btn>
             )}
-            {isAdmin && courses.length > 0 && (
+            {isAdmin && courses.length > 0 && selectedDept?.name?.toLowerCase().includes("bilgisayar") && (
               <GhostBtn onClick={syncCourses} style={{ color: "#059669", borderColor: "#059669" }}>
                 Verileri Güncelle
               </GhostBtn>
@@ -2493,6 +2601,9 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
                     </GhostBtn>
                     <GhostBtn onClick={() => exportToXLSX(periodExams, activePeriod.label, activePeriod, deptClassrooms.length > 0 ? deptClassrooms : null, deptSupervisors.length > 0 ? deptSupervisors.map(s => s.name) : null, selectedDept?.name || null)} style={{ fontSize: 12, padding: "4px 10px", background: "#059669", color: "white", border: "none" }}>
                       XLSX
+                    </GhostBtn>
+                    <GhostBtn onClick={() => exportDeptPrintable(periodExams, activePeriod.label, selectedDept?.name, deptClassrooms.length > 0 ? deptClassrooms : null)} style={{ fontSize: 12, padding: "4px 10px", background: "#7C3AED", color: "white", border: "none" }}>
+                      Bölüm Çıktısı
                     </GhostBtn>
                     {canManage && (
                       <GhostBtn onClick={handleResetPlacements} style={{ fontSize: 12, padding: "4px 10px", color: "#DC2626" }}>
