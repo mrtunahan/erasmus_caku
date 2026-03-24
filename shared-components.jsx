@@ -1663,7 +1663,10 @@ const LoginModal = ({ onLogin }) => {
         const deptResult = await FirebaseDB.verifyDepartmentManagerLogin(identifier, password);
 
         if (deptResult.success) {
-          user.departmentId = deptResult.departmentId;
+          // Firebase doc ID ile hardcoded DEPARTMENTS ID'sini eşleştir
+          // Tüm veriler hardcoded ID ile kaydedildiği için bu eşleşme kritik
+          const matchedDept = DEPARTMENTS.find(d => d.name === deptResult.departmentName);
+          user.departmentId = matchedDept ? matchedDept.id : deptResult.departmentId;
           user.departmentName = deptResult.departmentName;
           onLogin(user);
         } else {
