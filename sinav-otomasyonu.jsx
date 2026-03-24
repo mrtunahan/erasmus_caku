@@ -1472,7 +1472,7 @@ async function exportToXLSX(placedExams, periodLabel, period, customClassrooms, 
     }
   }
 
-  var exportAllClassrooms = (customClassrooms && customClassrooms.length > 0) ? customClassrooms : ALL_FACULTY_CLASSROOMS;
+  var exportAllClassrooms = ALL_FACULTY_CLASSROOMS;
   var numCols = exportAllClassrooms.length + 1; // +1 for column A (time)
 
   // ══════ Create day sheet for EACH weekday ══════
