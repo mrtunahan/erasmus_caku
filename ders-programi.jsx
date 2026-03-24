@@ -421,15 +421,35 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         const db = window.firebase?.firestore();
         if (!db) return;
 
-        // Dersler (sinav_dersler) - sadece aktif bölüm
+        // Dersler (sinav_dersler) - sadece aktif bölüm + mükerrer filtreleme
         const coursesSnap = await db.collection("sinav_dersler").where("departmentId", "==", activeDepartment).get();
-        const courseList = coursesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const rawCourses = coursesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Mükerrer kayıtları filtrele (aynı code olan derslerden en iyisini tut)
+        const courseMap = {};
+        rawCourses.forEach(c => {
+          const key = (c.code || "").trim();
+          if (!key) { courseMap[c.id] = c; return; }
+          if (!courseMap[key]) { courseMap[key] = c; return; }
+          const existing = courseMap[key];
+          const eP = existing.professor && existing.professor !== "-" && existing.professor !== "";
+          const cP = c.professor && c.professor !== "-" && c.professor !== "";
+          if (cP && !eP) courseMap[key] = c;
+          else if (cP === eP && (c.studentCount || 0) > (existing.studentCount || 0)) courseMap[key] = c;
+        });
+        const courseList = Object.values(courseMap);
         courseList.sort((a, b) => (a.sinif || 0) - (b.sinif || 0) || (a.code || "").localeCompare(b.code || ""));
         setCourses(courseList);
 
-        // Akademisyenler (professors) - sadece aktif bölüm
+        // Akademisyenler (professors) - sadece aktif bölüm + mükerrer filtreleme
         const profsSnap = await db.collection("professors").where("departmentId", "==", activeDepartment).get();
-        const profList = profsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const rawProfs = profsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const profMap = {};
+        rawProfs.forEach(p => {
+          const key = (p.name || "").trim();
+          if (!key || profMap[key]) return;
+          profMap[key] = p;
+        });
+        const profList = Object.values(profMap);
         profList.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr"));
         setProfessors(profList);
 
