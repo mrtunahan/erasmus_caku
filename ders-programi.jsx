@@ -396,6 +396,13 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
   const [showConflicts, setShowConflicts] = useState(false);
   const [loadingFaculty, setLoadingFaculty] = useState(false);
 
+  // Bölüm içi tüm sınıfların programlarını yükle (çakışma kontrolü için)
+  const [deptAllYearsSlots, setDeptAllYearsSlots] = useState([]);
+  // Fakülte geneli tüm bölüm/sınıf slotları
+  const [allFacultySlots, setAllFacultySlots] = useState([]);
+  // Slot ekleme esnasında çakışma uyarıları
+  const [addSlotWarnings, setAddSlotWarnings] = useState([]);
+
   const isAdmin = currentUser?.role === "admin";
   const isDeptManager = currentUser?.role === "bolum_yetkilisi";
   const isProfessor = currentUser?.role === "professor";
@@ -555,13 +562,6 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     setScheduleData(newData);
     saveSchedule(newData);
   }, [scheduleData, saveSchedule]);
-
-  // Bölüm içi tüm sınıfların programlarını yükle (çakışma kontrolü için)
-  const [deptAllYearsSlots, setDeptAllYearsSlots] = useState([]);
-  // Fakülte geneli tüm bölüm/sınıf slotları
-  const [allFacultySlots, setAllFacultySlots] = useState([]);
-  // Slot ekleme esnasında çakışma uyarıları
-  const [addSlotWarnings, setAddSlotWarnings] = useState([]);
 
   // Bölüm içi tüm sınıfların programlarını yükle
   const loadDeptAllYears = useCallback(async () => {
