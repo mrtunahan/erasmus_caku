@@ -1981,135 +1981,139 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     setLoading(false);
   };
 
-  // Initial load: departments first, then data
+  // Initial load: departments first, then comprehensive migration, then data
   useEffect(() => {
     const init = async () => {
       const depts = await loadDepartments();
-      // Sahipsiz verileri otomatik olarak Bilgisayar Mühendisliği'ne ata (tek seferlik, localStorage ile kontrol)
-      const migrationKey = "orphan_migration_done_v1";
+
+      // ── Kapsamlı tek seferlik migration: tüm departmentId'leri normalize et + mükerrerleri sil ──
+      const migrationKey = "dept_normalize_v3";
       if (depts.length > 0 && !localStorage.getItem(migrationKey)) {
-        const csDept = depts.find(d => d.name && d.name.toLowerCase().includes("bilgisayar"));
-        if (csDept) {
-          try {
-            const ops = [];
-            const collections = [
-              { ref: getCoursesRef(), col: "sinav_dersler" },
-              { ref: getProfessorsRef(), col: "professors" },
-              { ref: getPeriodsRef(), col: "sinav_donemler" },
-              { ref: getExamsRef(), col: "sinav_programi" },
-            ];
-            for (const { ref, col } of collections) {
-              if (ref) {
-                const snap = await ref.where("departmentId", "==", "").get().catch(() => null);
-                const snap2 = await ref.where("departmentId", "==", null).get().catch(() => null);
-                [snap, snap2].forEach(s => {
-                  if (s) s.docs.forEach(d => {
-                    if (!d.data().departmentId) {
-                      ops.push({ collection: col, type: "update", docId: d.id, data: { departmentId: csDept.id } });
-                    }
-                  });
-                });
+        try {
+          const HARD_DEPTS = window.DEPARTMENTS || [];
+          // 1. Firestore doc ID → hardcoded ID eşleştirmesi
+          const idMap = {}; // firestoreAutoId → hardcodedId
+          const dRef = getDepartmentsRef();
+          if (dRef) {
+            const dSnap = await dRef.get();
+            dSnap.docs.forEach(doc => {
+              const data = doc.data();
+              const matched = HARD_DEPTS.find(hd => hd.name === data.name);
+              if (matched && doc.id !== matched.id) {
+                idMap[doc.id] = matched.id;
+              }
+            });
+          }
+
+          // 2. Tüm koleksiyonlardaki yanlış departmentId'leri düzelt
+          const collections = [
+            { ref: getCoursesRef(), col: "sinav_dersler" },
+            { ref: getProfessorsRef(), col: "professors" },
+            { ref: getPeriodsRef(), col: "sinav_donemler" },
+            { ref: getExamsRef(), col: "sinav_programi" },
+            { ref: getDeptClassroomsRef(), col: "department_classrooms" },
+            { ref: getDeptSupervisorsRef(), col: "department_supervisors" },
+          ];
+
+          const updateOps = [];
+          const allRecordsByCollection = {};
+
+          for (const { ref, col } of collections) {
+            if (!ref) continue;
+            const snap = await ref.get();
+            const records = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+            allRecordsByCollection[col] = records;
+
+            records.forEach(record => {
+              const currentId = record.departmentId;
+              // departmentId yoksa veya boşsa → bilgisayar olarak ata
+              if (!currentId || currentId === "") {
+                updateOps.push({ collection: col, type: "update", docId: record.docId, data: { departmentId: "bilgisayar" } });
+              }
+              // departmentId bir Firestore auto-ID ise → hardcoded ID'ye çevir
+              else if (idMap[currentId]) {
+                updateOps.push({ collection: col, type: "update", docId: record.docId, data: { departmentId: idMap[currentId] } });
+              }
+            });
+          }
+
+          // Batch update (400'lük gruplar)
+          if (updateOps.length > 0) {
+            for (let i = 0; i < updateOps.length; i += 400) {
+              await FirestoreWrite.batch(updateOps.slice(i, i + 400));
+            }
+            console.log(`Migration: ${updateOps.length} kayıt normalize edildi.`);
+          }
+
+          // 3. Mükerrer kayıtları sil (normalize sonrası tüm verileri tekrar yükle)
+          const deleteOps = [];
+
+          // Dersleri tekrar yükle (normalize sonrası)
+          const cRef2 = getCoursesRef();
+          if (cRef2) {
+            const snap2 = await cRef2.get();
+            const allCourses = snap2.docs.map(d => ({ docId: d.id, ...d.data() }));
+            const courseGroups = {};
+            allCourses.forEach(c => {
+              const key = (c.code || "").trim();
+              if (!key) return;
+              if (!courseGroups[key]) courseGroups[key] = [];
+              courseGroups[key].push(c);
+            });
+            for (const group of Object.values(courseGroups)) {
+              if (group.length <= 1) continue;
+              group.sort((a, b) => {
+                const aP = a.professor && a.professor !== "-" && a.professor !== "" ? 1 : 0;
+                const bP = b.professor && b.professor !== "-" && b.professor !== "" ? 1 : 0;
+                if (bP !== aP) return bP - aP;
+                if ((b.studentCount || 0) !== (a.studentCount || 0)) return (b.studentCount || 0) - (a.studentCount || 0);
+                return (a.createdAt || "").localeCompare(b.createdAt || "");
+              });
+              for (let i = 1; i < group.length; i++) {
+                deleteOps.push({ collection: "sinav_dersler", type: "delete", docId: group[i].docId });
               }
             }
-            if (ops.length > 0) {
-              await FirestoreWrite.batch(ops);
-              console.log(`Migration: ${ops.length} sahipsiz kayıt atandı.`);
-            }
-            localStorage.setItem(migrationKey, "true");
-          } catch (e) {
-            console.error("Auto-migration error:", e);
-            // Hata olsa bile bir daha denemesin
-            localStorage.setItem(migrationKey, "true");
           }
-        } else {
+
+          // Profesörleri de temizle
+          const pRef2 = getProfessorsRef();
+          if (pRef2) {
+            const snap2 = await pRef2.get();
+            const allProfs = snap2.docs.map(d => ({ docId: d.id, ...d.data() }));
+            const profGroups = {};
+            allProfs.forEach(p => {
+              const key = (p.name || "").trim();
+              if (!key) return;
+              if (!profGroups[key]) profGroups[key] = [];
+              profGroups[key].push(p);
+            });
+            for (const group of Object.values(profGroups)) {
+              if (group.length <= 1) continue;
+              group.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+              for (let i = 1; i < group.length; i++) {
+                deleteOps.push({ collection: "professors", type: "delete", docId: group[i].docId });
+              }
+            }
+          }
+
+          if (deleteOps.length > 0) {
+            for (let i = 0; i < deleteOps.length; i += 400) {
+              await FirestoreWrite.batch(deleteOps.slice(i, i + 400));
+            }
+            console.log(`Migration: ${deleteOps.length} mükerrer kayıt silindi.`);
+          }
+
           localStorage.setItem(migrationKey, "true");
+          // Migration tamamlandı - verileri yeniden yükle
+          if (selectedDeptId) loadData();
+        } catch (e) {
+          console.error("Migration error:", e);
+          // Hata olursa flag SET ETME - sonraki yüklemede tekrar dener
         }
       }
     };
     init();
   }, []);
-
-  // Tek seferlik: mükerrer dersleri ve profesörleri temizle
-  useEffect(() => {
-    const deduplicateKey = "course_dedup_done_v4";
-    if (localStorage.getItem(deduplicateKey)) return;
-    const deduplicate = async () => {
-      try {
-        const cRef = getCoursesRef();
-        if (!cRef) return;
-        const snap = await cRef.get();
-        if (snap.empty) { localStorage.setItem(deduplicateKey, "true"); return; }
-
-        const allCourses = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-        // Sadece code bazında grupla (departmentId fark etmez - aynı ders farklı ID ile kaydedilmiş olabilir)
-        const groups = {};
-        allCourses.forEach(c => {
-          const key = (c.code || "").trim();
-          if (!key) return;
-          if (!groups[key]) groups[key] = [];
-          groups[key].push(c);
-        });
-
-        const deleteOps = [];
-        for (const key of Object.keys(groups)) {
-          const group = groups[key];
-          if (group.length <= 1) continue;
-          // En iyi kaydı seç: professor ataması olan, studentCount > 0, en eski
-          group.sort((a, b) => {
-            const aHasProf = a.professor && a.professor !== "-" && a.professor !== "" ? 1 : 0;
-            const bHasProf = b.professor && b.professor !== "-" && b.professor !== "" ? 1 : 0;
-            if (bHasProf !== aHasProf) return bHasProf - aHasProf;
-            if ((b.studentCount || 0) !== (a.studentCount || 0)) return (b.studentCount || 0) - (a.studentCount || 0);
-            return (a.createdAt || "").localeCompare(b.createdAt || "");
-          });
-          // İlk kayıt hariç hepsini sil
-          for (let i = 1; i < group.length; i++) {
-            deleteOps.push({ collection: "sinav_dersler", type: "delete", docId: group[i].docId });
-          }
-        }
-
-        // Profesörleri de temizle (name bazında)
-        const pRef = getProfessorsRef();
-        if (pRef) {
-          const pSnap = await pRef.get();
-          const allProfs = pSnap.docs.map(d => ({ docId: d.id, ...d.data() }));
-          const profGroups = {};
-          allProfs.forEach(p => {
-            const key = (p.name || "").trim();
-            if (!key) return;
-            if (!profGroups[key]) profGroups[key] = [];
-            profGroups[key].push(p);
-          });
-          for (const key of Object.keys(profGroups)) {
-            const group = profGroups[key];
-            if (group.length <= 1) continue;
-            group.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
-            for (let i = 1; i < group.length; i++) {
-              deleteOps.push({ collection: "professors", type: "delete", docId: group[i].docId });
-            }
-          }
-        }
-
-        if (deleteOps.length > 0) {
-          // Batch işlem limitini aşmamak için 400'lük gruplar halinde sil
-          for (let i = 0; i < deleteOps.length; i += 400) {
-            const chunk = deleteOps.slice(i, i + 400);
-            await FirestoreWrite.batch(chunk);
-          }
-          console.log(`Dedup: ${deleteOps.length} mükerrer kayıt silindi.`);
-          if (selectedDeptId) loadData();
-        }
-        // Sadece başarılı olursa flag'ı set et
-        localStorage.setItem(deduplicateKey, "true");
-      } catch (e) {
-        console.error("Dedup error:", e);
-        // Hata olursa flag SET ETME - bir sonraki yüklemede tekrar denesin
-      }
-    };
-    const timer = setTimeout(deduplicate, 1500);
-    return () => clearTimeout(timer);
-  }, []);
-
   // Reload data when selected department changes
   useEffect(() => {
     if (selectedDeptId) {
