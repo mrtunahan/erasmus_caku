@@ -2,6 +2,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
+// v1.0.1 - course_schedules collection permission fix
 
 admin.initializeApp();
 const db = admin.firestore();
