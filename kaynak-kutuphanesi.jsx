@@ -88,7 +88,7 @@ function KaynakKutuphanesiApp({ currentUser }) {
   const [selectedResource, setSelectedResource] = useState(null);
 
   const userId = currentUser?.studentNumber || currentUser?.name || "anonymous";
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "bolum_yetkilisi";
 
   // ── Kaynakları Yükle ──
   useEffect(() => {

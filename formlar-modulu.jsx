@@ -478,7 +478,7 @@ function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [aramaMetni, setAramaMetni] = useState("");
   const [modalAcik, setModalAcik] = useState(false);
 
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "bolum_yetkilisi";
 
   // Responsive
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
