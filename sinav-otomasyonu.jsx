@@ -2009,6 +2009,85 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     init();
   }, []);
 
+  // Tek seferlik: mükerrer dersleri temizle (aynı code+departmentId olan kayıtlardan en iyisini tut)
+  useEffect(() => {
+    const deduplicateKey = "course_dedup_done_v2";
+    if (localStorage.getItem(deduplicateKey)) return;
+    const deduplicate = async () => {
+      try {
+        const cRef = getCoursesRef();
+        if (!cRef) return;
+        const snap = await cRef.get();
+        if (snap.empty) return;
+
+        const allCourses = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+        // Grup: code + departmentId bazında
+        const groups = {};
+        allCourses.forEach(c => {
+          const key = `${c.code || ""}_${c.departmentId || ""}`;
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(c);
+        });
+
+        const deleteOps = [];
+        for (const key of Object.keys(groups)) {
+          const group = groups[key];
+          if (group.length <= 1) continue;
+          // En iyi kaydı seç: professor ataması olan, studentCount'u olan, en eski
+          group.sort((a, b) => {
+            // Professor ataması olanı öncelikle tut
+            const aHasProf = a.professor && a.professor !== "-" ? 1 : 0;
+            const bHasProf = b.professor && b.professor !== "-" ? 1 : 0;
+            if (bHasProf !== aHasProf) return bHasProf - aHasProf;
+            // studentCount > 0 olanı tut
+            if ((b.studentCount || 0) !== (a.studentCount || 0)) return (b.studentCount || 0) - (a.studentCount || 0);
+            // En eskisini tut
+            return (a.createdAt || "").localeCompare(b.createdAt || "");
+          });
+          // İlk kayıt hariç hepsini sil
+          for (let i = 1; i < group.length; i++) {
+            deleteOps.push({ collection: "sinav_dersler", type: "delete", docId: group[i].docId });
+          }
+        }
+
+        // Profesörleri de temizle
+        const pRef = getProfessorsRef();
+        if (pRef) {
+          const pSnap = await pRef.get();
+          const allProfs = pSnap.docs.map(d => ({ docId: d.id, ...d.data() }));
+          const profGroups = {};
+          allProfs.forEach(p => {
+            const key = `${(p.name || "").trim()}_${p.departmentId || ""}`;
+            if (!profGroups[key]) profGroups[key] = [];
+            profGroups[key].push(p);
+          });
+          for (const key of Object.keys(profGroups)) {
+            const group = profGroups[key];
+            if (group.length <= 1) continue;
+            group.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+            for (let i = 1; i < group.length; i++) {
+              deleteOps.push({ collection: "professors", type: "delete", docId: group[i].docId });
+            }
+          }
+        }
+
+        if (deleteOps.length > 0) {
+          await FirestoreWrite.batch(deleteOps);
+          console.log(`Dedup: ${deleteOps.length} mükerrer kayıt silindi.`);
+          // Verileri yeniden yükle
+          if (selectedDeptId) loadData();
+        }
+        localStorage.setItem(deduplicateKey, "true");
+      } catch (e) {
+        console.error("Dedup error:", e);
+        localStorage.setItem(deduplicateKey, "true");
+      }
+    };
+    // Biraz gecikmeyle çalıştır (init'ten sonra)
+    const timer = setTimeout(deduplicate, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Reload data when selected department changes
   useEffect(() => {
     if (selectedDeptId) {
