@@ -1,9 +1,4 @@
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.env
-*.xlsx
 node_modules/
 dist/
-functions/node_modules/
+server/node_modules/
+.env
