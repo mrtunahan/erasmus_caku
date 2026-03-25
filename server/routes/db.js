@@ -38,6 +38,14 @@ const ALLOWED_COLLECTIONS = [
   "yaz_okulu_settings",
   "portal_posts_comments",
   "portal_notifications_items",
+  "trip_history",
+  "course_groups",
+  "course_group_posts",
+  "events",
+  "unides_projects",
+  "unides_courses",
+  "tubitak2209_projects",
+  "tubitak2209_courses",
 ];
 
 // Okuma izni verilen koleksiyonlar (write + read-only)
