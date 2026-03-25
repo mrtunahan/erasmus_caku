@@ -42,6 +42,10 @@ const ALLOWED_COLLECTIONS = [
   "course_groups",
   "course_group_posts",
   "events",
+  "unides_projects",
+  "unides_courses",
+  "tubitak2209_projects",
+  "tubitak2209_courses",
 ];
 
 // Okuma izni verilen koleksiyonlar (write + read-only)
