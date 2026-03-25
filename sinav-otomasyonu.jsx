@@ -2277,18 +2277,34 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     if (!confirm(`${course.code} - ${course.name} dersini silmek istediğinize emin misiniz?`)) return;
 
     try {
-      // Check for placed exams
-      const linkedExams = placedExams.filter(e => e.courseId === course.id);
+      // Aynı code+name+departmentId olan tüm kopyaları bul (dedup gizliyor olabilir)
+      const cRef = getCoursesRef();
+      let duplicateIds = [course.id];
+      if (cRef) {
+        try {
+          const dupsSnap = await cRef.where("code", "==", course.code).where("departmentId", "==", selectedDeptId || course.departmentId || null).get();
+          if (dupsSnap && !dupsSnap.empty) {
+            const nameNorm = (course.name || "").trim().toLowerCase();
+            duplicateIds = dupsSnap.docs
+              .filter(d => (d.data().name || "").trim().toLowerCase() === nameNorm)
+              .map(d => d.id);
+            if (duplicateIds.length === 0) duplicateIds = [course.id];
+          }
+        } catch (_) { /* fallback to single delete */ }
+      }
+
+      // Check for placed exams linked to any of the duplicates
+      const linkedExams = placedExams.filter(e => duplicateIds.includes(e.courseId));
       if (linkedExams.length > 0) {
         if (!confirm(`Bu derse ait ${linkedExams.length} adet sınav planlanmış durumda. Dersi silerseniz bu sınavlar da takvimden silinecek. Devam etmek istiyor musunuz?`)) return;
+      }
 
-        // Cascade delete exams + course in one batch
-        const ops = linkedExams.map(e => ({ collection: "sinav_programi", type: "delete", docId: e.id }));
-        ops.push({ collection: "sinav_dersler", type: "delete", docId: course.id });
-        await FirestoreWrite.batch(ops);
-        setPlacedExams(prev => prev.filter(e => e.courseId !== course.id));
-      } else {
-        await FirestoreWrite.remove("sinav_dersler", course.id);
+      // Batch delete: all duplicate courses + their linked exams
+      const ops = linkedExams.map(e => ({ collection: "sinav_programi", type: "delete", docId: e.id }));
+      duplicateIds.forEach(id => ops.push({ collection: "sinav_dersler", type: "delete", docId: id }));
+      await FirestoreWrite.batch(ops);
+      if (linkedExams.length > 0) {
+        setPlacedExams(prev => prev.filter(e => !duplicateIds.includes(e.courseId)));
       }
 
       alert("Ders silindi.");
