@@ -4,6 +4,7 @@ const { connect, disconnect } = require("./config/database");
 const healthRoutes = require("./routes/health");
 const authRoutes = require("./routes/auth");
 const dbRoutes = require("./routes/db");
+const fileRoutes = require("./routes/files");
 
 const PORT = process.env.PORT || 3001;
 const app = express();
@@ -16,6 +17,7 @@ app.use(express.json({ limit: "10mb" }));
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/db", dbRoutes);
+app.use("/api/files", fileRoutes);
 
 // Sunucuyu başlat
 async function start() {

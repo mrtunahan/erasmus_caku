@@ -730,15 +730,15 @@ var PortalDB = {
     return doc.exists;
   },
 
-  // ── Dosya Yükleme (Firebase Storage) ──
+  // ── Dosya Yükleme (API üzerinden) ──
   async uploadFile(file) {
-    var storage = window.firebase.storage();
-    var ext = file.name.split(".").pop();
-    var filename = "portal_files/" + Date.now() + "_" + Math.random().toString(36).substr(2) + "." + ext;
-    var ref = storage.ref(filename);
-    await ref.put(file);
-    var url = await ref.getDownloadURL();
-    return { url: url, name: file.name, type: file.type, size: file.size };
+    var formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", "portal_files");
+    var response = await fetch("/api/files/upload", { method: "POST", body: formData });
+    if (!response.ok) throw new Error("Dosya yüklenemedi");
+    var result = await response.json();
+    return { url: result.downloadURL, name: file.name, type: file.type, size: file.size };
   },
 
   // ── Bildirimler ──

@@ -606,15 +606,16 @@ function UploadResourceModal({ onClose, onUpload, categories }) {
 
   const uploadToStorage = async (file) => {
     try {
-      const storage = window.firebase?.storage();
-      if (!storage) {
-        console.warn("Firebase Storage kullanamıyor - dosya bilgileri kaydedilecek");
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "resources");
+      const response = await fetch("/api/files/upload", { method: "POST", body: formData });
+      if (!response.ok) {
+        console.warn("Dosya yüklenemedi - dosya bilgileri kaydedilecek");
         return;
       }
-      const ref = storage.ref(`resources/${Date.now()}_${file.name}`);
-      const snapshot = await ref.put(file);
-      const url = await snapshot.ref.getDownloadURL();
-      setFileUrl(url);
+      const result = await response.json();
+      setFileUrl(result.downloadURL);
     } catch (e) {
       console.error("Storage yuklemesi basarisiz:", e);
     }
