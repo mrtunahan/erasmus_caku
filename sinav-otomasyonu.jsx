@@ -1959,14 +1959,13 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
 
       const [coursesSnap, profsSnap, periodsSnap, examsSnap, classroomsSnap, supervisorsSnap] = await Promise.all(queries);
 
-      // Set courses (mükerrer kayıtları filtrele - aynı code olan derslerden en iyisini tut)
+      // Set courses (aynı code + aynı name olanları filtrele, farklı şubeler korunsun)
       const rawCourses = coursesSnap ? coursesSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
       const courseMap = {};
       rawCourses.forEach(c => {
-        const key = (c.code || "").trim();
-        if (!key) { courseMap[c.id] = c; return; }
+        const key = ((c.code || "").trim() + "||" + (c.name || "").trim()).toLowerCase();
         if (!courseMap[key]) { courseMap[key] = c; return; }
-        // Mevcut kaydı koru: professor ataması olanı tercih et
+        // Aynı code+name: professor ataması olanı tercih et
         const existing = courseMap[key];
         const eHasProf = existing.professor && existing.professor !== "-" && existing.professor !== "";
         const cHasProf = c.professor && c.professor !== "-" && c.professor !== "";

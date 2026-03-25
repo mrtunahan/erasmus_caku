@@ -118,32 +118,31 @@ async function executeSingleOp(db, op) {
     }
     case "set": {
       const { cleaned } = addTimestamps(op.data, true);
+      const setId = ObjectId.isValid(op.docId) ? new ObjectId(op.docId) : op.docId;
+      // Hem string hem ObjectId ile eşleşme dene
+      const setFilter = { $or: [{ _id: op.docId }, ...(ObjectId.isValid(op.docId) ? [{ _id: new ObjectId(op.docId) }] : [])] };
       if (op.merge) {
-        await col.updateOne(
-          { _id: op.docId },
-          { $set: cleaned },
-          { upsert: true }
-        );
+        await col.updateOne(setFilter, { $set: cleaned }, { upsert: true });
       } else {
-        await col.replaceOne(
-          { _id: op.docId },
-          { ...cleaned, _id: op.docId },
-          { upsert: true }
-        );
+        await col.replaceOne(setFilter, { ...cleaned, _id: setId }, { upsert: true });
       }
       return { success: true };
     }
     case "update": {
       const updateOps = buildUpdateOps(op.data, false);
-      await col.updateOne(
-        { _id: op.docId },
-        updateOps
-      );
+      let updateResult = await col.updateOne({ _id: op.docId }, updateOps);
+      if (updateResult.matchedCount === 0 && ObjectId.isValid(op.docId)) {
+        await col.updateOne({ _id: new ObjectId(op.docId) }, updateOps);
+      }
       return { success: true };
     }
     case "delete": {
-      await col.deleteOne({ _id: op.docId });
-      return { success: true };
+      let result = await col.deleteOne({ _id: op.docId });
+      // String ile eşleşmediyse ObjectId ile dene
+      if (result.deletedCount === 0 && ObjectId.isValid(op.docId)) {
+        result = await col.deleteOne({ _id: new ObjectId(op.docId) });
+      }
+      return { success: true, deleted: result.deletedCount };
     }
     default:
       throw new Error(`Geçersiz işlem tipi: ${op.type}`);
@@ -266,7 +265,11 @@ router.get("/:collection/:docId", async (req, res) => {
 
   try {
     const db = getDb();
-    const doc = await db.collection(collection).findOne({ _id: docId });
+    let doc = await db.collection(collection).findOne({ _id: docId });
+    // String ile bulunamadıysa ObjectId ile dene
+    if (!doc && ObjectId.isValid(docId)) {
+      doc = await db.collection(collection).findOne({ _id: new ObjectId(docId) });
+    }
 
     if (!doc) {
       return res.json({ exists: false, data: null });
