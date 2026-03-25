@@ -460,20 +460,44 @@ function AppShell() {
       console.error("Session restore error:", e);
     }
 
-    // Firebase Auth oturum dinleyicisi
+    // Oturum dinleyicisi: JWT token süresi dolmuşsa çıkış yap
+    const tokenCheckInterval = setInterval(() => {
+      const token = localStorage.getItem('caku_auth_token');
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          if (payload.exp * 1000 < Date.now()) {
+            localStorage.removeItem('caku_auth_token');
+            localStorage.removeItem('caku_current_user');
+            setCurrentUser(null);
+          }
+        } catch (e) {
+          localStorage.removeItem('caku_auth_token');
+        }
+      }
+    }, 60000); // Her 1 dakikada kontrol
+
+    // Firebase Auth oturum dinleyicisi (geriye uyumluluk)
     const auth = window.firebase?.auth();
+    let unsubscribeAuth = null;
     if (auth) {
-      const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
+      unsubscribeAuth = auth.onAuthStateChanged((firebaseUser) => {
         if (!firebaseUser) {
           const current = localStorage.getItem("caku_current_user");
-          if (current) {
+          const hasJwtToken = localStorage.getItem("caku_auth_token");
+          // JWT token varsa Firebase Auth'un çıkışını yoksay
+          if (current && !hasJwtToken) {
             setCurrentUser(null);
             localStorage.removeItem("caku_current_user");
           }
         }
       });
-      return () => unsubscribe();
     }
+
+    return () => {
+      clearInterval(tokenCheckInterval);
+      if (unsubscribeAuth) unsubscribeAuth();
+    };
   }, []);
 
   // Bölüm değiştiğinde kaydet (bölüm yetkilisi kendi bölümünden çıkamaz)

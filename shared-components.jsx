@@ -432,7 +432,19 @@ const convertGrade = (inputGrade, system = "auto") => {
 };
 
 // ── Firebase Database Functions ──
-// ── Cloud Functions referansı ──
+// ── Cloud Functions referansı (auth çağrıları MongoDB API'ye yönlendirilir) ──
+const AUTH_API_ROUTES = {
+  verifyStudentLogin: { method: 'POST', path: '/api/auth/student' },
+  verifyAdminLogin: { method: 'POST', path: '/api/auth/admin' },
+  verifyProfessorLogin: { method: 'POST', path: '/api/auth/professor' },
+  verifyDepartmentManagerLogin: { method: 'POST', path: '/api/auth/department-manager' },
+  changePassword: { method: 'POST', path: '/api/auth/change-password' },
+  checkStudentHasPassword: { method: 'POST', path: '/api/auth/student-has-password-check' },
+  adminResetPassword: { method: 'POST', path: '/api/auth/admin-reset' },
+  saveUserRole: { method: 'POST', path: '/api/auth/save-role' },
+  setDefaultProfessorPassword: { method: 'POST', path: '/api/auth/default-professor-password' },
+};
+
 const CloudFunctions = {
   _functions: null,
   get() {
@@ -441,7 +453,44 @@ const CloudFunctions = {
     }
     return this._functions;
   },
-  call(name, data) {
+  async call(name, data) {
+    // Auth çağrıları yeni API'ye yönlendirilir
+    const route = AUTH_API_ROUTES[name];
+    if (route) {
+      const token = localStorage.getItem('caku_auth_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(route.path, {
+        method: route.method,
+        headers,
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      // Rate limit hatası
+      if (response.status === 429) {
+        const error = new Error(result.error);
+        error.code = 'functions/resource-exhausted';
+        throw error;
+      }
+
+      // Sunucu hatası
+      if (response.status >= 500) {
+        throw new Error(result.error || 'Sunucu hatası');
+      }
+
+      // Token varsa kaydet
+      if (result.token) {
+        localStorage.setItem('caku_auth_token', result.token);
+      }
+
+      // Firebase Cloud Functions uyumlu format: { data: result }
+      return { data: result };
+    }
+
+    // Auth dışı çağrılar Firebase Cloud Functions'a gider
     const fn = this.get();
     if (!fn) throw new Error('Firebase Functions SDK yüklenmemiş!');
     return fn.httpsCallable(name)(data);
@@ -1034,11 +1083,12 @@ const FirebaseDB = {
   },
 };
 
-// ── Firebase Authentication Helper ──
+// ── Authentication Helper (JWT tabanlı) ──
 const FirebaseAuth = {
+  // Geriye uyumluluk: Firebase Auth varsa kullan, yoksa JWT ile çalış
   auth: () => window.firebase?.auth(),
 
-  // Email formatları (gerçek email değil, Firebase Auth identifier olarak kullanılıyor)
+  // Email formatları (geriye uyumluluk)
   studentEmail: (studentNumber) => `${studentNumber}@student.caku.app`,
   professorEmail: (name) => {
     const slug = name.toLowerCase()
@@ -1049,51 +1099,70 @@ const FirebaseAuth = {
   },
   adminEmail: () => 'admin@caku.app',
 
-  // Giriş yap
+  // Giriş yap - JWT token zaten CloudFunctions.call tarafından kaydediliyor
   async signIn(email, password) {
+    // Firebase Auth varsa kullan (geriye uyumluluk)
     const auth = FirebaseAuth.auth();
-    if (!auth) throw new Error('Firebase Auth yuklenemedi');
-    try {
-      return await auth.signInWithEmailAndPassword(email, password);
-    } catch (e) {
-      throw e;
+    if (auth) {
+      try { return await auth.signInWithEmailAndPassword(email, password); }
+      catch (e) { console.warn('Firebase Auth signIn opsiyonel:', e.message); }
     }
+    return { user: { uid: email } };
   },
 
   // Hesap oluştur
   async createAccount(email, password) {
     const auth = FirebaseAuth.auth();
-    if (!auth) throw new Error('Firebase Auth yuklenemedi');
-    try {
-      return await auth.createUserWithEmailAndPassword(email, password);
-    } catch (e) {
-      throw e;
+    if (auth) {
+      try { return await auth.createUserWithEmailAndPassword(email, password); }
+      catch (e) { console.warn('Firebase Auth createAccount opsiyonel:', e.message); }
     }
+    return { user: { uid: email } };
   },
 
   // Çıkış yap
   async signOut() {
+    localStorage.removeItem('caku_auth_token');
     const auth = FirebaseAuth.auth();
-    if (auth) await auth.signOut();
+    if (auth) {
+      try { await auth.signOut(); } catch (e) { /* opsiyonel */ }
+    }
   },
 
-  // Mevcut kullanıcı
-  currentUser: () => FirebaseAuth.auth()?.currentUser,
+  // Mevcut kullanıcı - JWT token varsa geçerli sayılır
+  currentUser() {
+    const auth = FirebaseAuth.auth();
+    if (auth?.currentUser) return auth.currentUser;
+    const token = localStorage.getItem('caku_auth_token');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.exp * 1000 > Date.now()) {
+          return { uid: payload.identifier || payload.role };
+        }
+        localStorage.removeItem('caku_auth_token');
+      } catch (e) { /* geçersiz token */ }
+    }
+    return null;
+  },
 
-  // Şifre güncelle (kullanıcı giriş yapmış olmalı)
+  // Şifre güncelle - artık API üzerinden
   async updatePassword(newPassword) {
-    const user = FirebaseAuth.currentUser();
-    if (!user) throw new Error('Giris yapilmamis');
-    return user.updatePassword(newPassword);
+    // Firebase Auth varsa güncelle (opsiyonel)
+    const auth = FirebaseAuth.auth();
+    if (auth?.currentUser) {
+      try { await auth.currentUser.updatePassword(newPassword); }
+      catch (e) { console.warn('Firebase Auth updatePassword opsiyonel:', e.message); }
+    }
   },
 
-  // Kullanıcı rolünü Firestore'a kaydet (Cloud Functions üzerinden)
+  // Kullanıcı rolünü kaydet (API üzerinden)
   async saveUserRole(uid, roleData) {
     const result = await CloudFunctions.call('saveUserRole', { uid, roleData });
     return result.data;
   },
 
-  // Kullanıcı rolünü Firestore'dan oku
+  // Kullanıcı rolünü oku
   async getUserRole(uid) {
     const db = FirebaseDB.db();
     if (!db) return null;
