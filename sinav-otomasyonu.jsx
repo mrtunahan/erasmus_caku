@@ -312,41 +312,65 @@ function slotSpan(durationMinutes) {
   return Math.ceil(durationMinutes / 30);
 }
 
-// ── Firebase helpers ──
-function getExamsRef() {
-  if (!window.firebase || !window.firebase.firestore) return null;
-  return window.firebase.firestore().collection("sinav_programi");
+// ── API Read helpers (MongoDB üzerinden) ──
+// Firestore ref'leri yerine apiRead kullanan yardımcılar
+// Eski ref-tabanlı çağrılar için uyumluluk katmanı
+function apiQueryHelper(collection) {
+  return {
+    _collection: collection,
+    _filters: [],
+    _limitVal: 0,
+    where(field, op, value) {
+      const clone = apiQueryHelper(this._collection);
+      clone._filters = [...this._filters, { field, op, value }];
+      clone._limitVal = this._limitVal;
+      return clone;
+    },
+    limit(n) {
+      const clone = apiQueryHelper(this._collection);
+      clone._filters = [...this._filters];
+      clone._limitVal = n;
+      return clone;
+    },
+    async get() {
+      const params = {};
+      if (this._filters.length > 0) {
+        params.where = this._filters.map(f => `${f.field}:eq:${f.value}`);
+      }
+      if (this._limitVal > 0) params.limit = this._limitVal;
+      const docs = await window.apiRead(this._collection, params);
+      return {
+        empty: docs.length === 0,
+        docs: docs.map(d => ({
+          id: d.id,
+          data: () => d,
+          exists: true,
+        })),
+      };
+    },
+    doc(docId) {
+      const col = this._collection;
+      return {
+        async get() {
+          const result = await window.apiReadDoc(col, docId);
+          return {
+            exists: result.exists,
+            id: result.id || docId,
+            data: () => result.data,
+          };
+        },
+      };
+    },
+  };
 }
 
-function getCoursesRef() {
-  if (!window.firebase || !window.firebase.firestore) return null;
-  return window.firebase.firestore().collection("sinav_dersler");
-}
-
-function getProfessorsRef() {
-  if (!window.firebase || !window.firebase.firestore) return null;
-  return window.firebase.firestore().collection("professors"); // Global collection
-}
-
-function getPeriodsRef() {
-  if (!window.firebase || !window.firebase.firestore) return null;
-  return window.firebase.firestore().collection("sinav_donemler");
-}
-
-function getDepartmentsRef() {
-  if (!window.firebase || !window.firebase.firestore) return null;
-  return window.firebase.firestore().collection("departments");
-}
-
-function getDeptClassroomsRef() {
-  if (!window.firebase || !window.firebase.firestore) return null;
-  return window.firebase.firestore().collection("department_classrooms");
-}
-
-function getDeptSupervisorsRef() {
-  if (!window.firebase || !window.firebase.firestore) return null;
-  return window.firebase.firestore().collection("department_supervisors");
-}
+function getExamsRef() { return apiQueryHelper("sinav_programi"); }
+function getCoursesRef() { return apiQueryHelper("sinav_dersler"); }
+function getProfessorsRef() { return apiQueryHelper("professors"); }
+function getPeriodsRef() { return apiQueryHelper("sinav_donemler"); }
+function getDepartmentsRef() { return apiQueryHelper("departments"); }
+function getDeptClassroomsRef() { return apiQueryHelper("department_classrooms"); }
+function getDeptSupervisorsRef() { return apiQueryHelper("department_supervisors"); }
 
 // ══════════════════════════════════════════════════════════════
 // Period Config Modal

@@ -26,6 +26,18 @@ const ALLOWED_COLLECTIONS = [
   "department_classrooms",
   "department_supervisors",
   "course_schedules",
+  "exams",
+  "exam_results",
+  "exam_periods",
+  "resources",
+  "surveys",
+  "forms",
+  "internships",
+  "yaz_okulu_students",
+  "yaz_okulu_records",
+  "yaz_okulu_settings",
+  "portal_posts_comments",
+  "portal_notifications_items",
 ];
 
 // Okuma izni verilen koleksiyonlar (write + read-only)
@@ -51,14 +63,30 @@ const READABLE_COLLECTIONS = [
 // Timestamp alanlarını temizle ve sunucu timestamp'i ekle
 function addTimestamps(data, isNew) {
   const cleaned = {};
+  const increments = {};
   for (const [key, value] of Object.entries(data || {})) {
     // Client-side FieldValue.serverTimestamp() serialize edilemez, atla
     if (value && typeof value === "object" && value._methodName) continue;
+    // __increment:N → MongoDB $inc operatörü
+    if (typeof value === "string" && value.startsWith("__increment:")) {
+      increments[key] = parseInt(value.split(":")[1], 10) || 1;
+      continue;
+    }
     cleaned[key] = value;
   }
   cleaned.updatedAt = new Date();
   if (isNew) cleaned.createdAt = new Date();
-  return cleaned;
+  return { cleaned, increments };
+}
+
+// addTimestamps sonucunu MongoDB update'e çevir
+function buildUpdateOps(data, isNew) {
+  const { cleaned, increments } = addTimestamps(data, isNew);
+  const ops = { $set: cleaned };
+  if (Object.keys(increments).length > 0) {
+    ops.$inc = increments;
+  }
+  return ops;
 }
 
 // Koleksiyon referansı al (subcollection destekli)
@@ -76,32 +104,32 @@ async function executeSingleOp(db, op) {
 
   switch (op.type) {
     case "add": {
-      const data = addTimestamps(op.data, true);
-      const result = await col.insertOne(data);
+      const { cleaned } = addTimestamps(op.data, true);
+      const result = await col.insertOne(cleaned);
       return { success: true, id: result.insertedId.toString() };
     }
     case "set": {
-      const data = addTimestamps(op.data, true);
+      const { cleaned } = addTimestamps(op.data, true);
       if (op.merge) {
         await col.updateOne(
           { _id: op.docId },
-          { $set: data },
+          { $set: cleaned },
           { upsert: true }
         );
       } else {
         await col.replaceOne(
           { _id: op.docId },
-          { ...data, _id: op.docId },
+          { ...cleaned, _id: op.docId },
           { upsert: true }
         );
       }
       return { success: true };
     }
     case "update": {
-      const data = addTimestamps(op.data, false);
+      const updateOps = buildUpdateOps(op.data, false);
       await col.updateOne(
         { _id: op.docId },
-        { $set: data }
+        updateOps
       );
       return { success: true };
     }

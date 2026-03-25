@@ -49,10 +49,7 @@ const ACADEMIC_YEARS = [
 
 const YazOkuluDB = {
     _checkDb() {
-        if (!window.firebase || !window.firebase.firestore) {
-            throw new Error("Firebase bağlantısı yok! Sayfa yenilenmelidir.");
-        }
-        return window.firebase.firestore();
+        return window.apiFirestore;
     },
 
     studentsRef() { return this._checkDb().collection("yaz_okulu_students"); },
@@ -71,14 +68,14 @@ const YazOkuluDB = {
     },
 
     async saveStudent(student) {
-        const data = { ...student, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() };
+        const data = { ...student, updatedAt: window.apiFieldValue.serverTimestamp() };
         if (student.id) {
             await this.studentsRef().doc(student.id).update(data);
             return student;
         } else {
             const ref = await this.studentsRef().add({
                 ...data,
-                createdAt: window.firebase.firestore.FieldValue.serverTimestamp()
+                createdAt: window.apiFieldValue.serverTimestamp()
             });
             return { ...data, id: ref.id };
         }
@@ -92,7 +89,7 @@ const YazOkuluDB = {
     async saveCourseCatalog(courses) {
         await this.settingsRef().doc("caku_catalog").set({
             courses,
-            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+            updatedAt: window.apiFieldValue.serverTimestamp()
         });
     },
 
@@ -107,7 +104,7 @@ const YazOkuluDB = {
 
     // İntibak Kaydı (Başvuru)
     async saveApplication(appData) {
-        const data = { ...appData, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() };
+        const data = { ...appData, updatedAt: window.apiFieldValue.serverTimestamp() };
         if (appData.id) {
             await this.recordsRef().doc(appData.id).update(data);
             return appData;
@@ -115,7 +112,7 @@ const YazOkuluDB = {
             const ref = await this.recordsRef().add({
                 ...data,
                 status: "pending",
-                createdAt: window.firebase.firestore.FieldValue.serverTimestamp()
+                createdAt: window.apiFieldValue.serverTimestamp()
             });
             return { ...data, id: ref.id };
         }

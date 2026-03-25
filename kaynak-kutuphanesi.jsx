@@ -98,7 +98,7 @@ function KaynakKutuphanesiApp({ currentUser }) {
   const loadResources = async () => {
     setLoading(true);
     try {
-      const db = window.firebase?.firestore();
+      const db = window.apiFirestore;
       if (!db) { setLoading(false); return; }
       const snapshot = await db.collection("resources").orderBy("createdAt", "desc").get();
       const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
@@ -112,8 +112,8 @@ function KaynakKutuphanesiApp({ currentUser }) {
   // ── Kaynak Ekle ──
   const handleUploadResource = async (resourceData) => {
     try {
-      const db = window.firebase?.firestore();
-      if (!db) throw new Error("Firebase bağlantısı yok!");
+      const db = window.apiFirestore;
+      if (!db) throw new Error("API bağlantısı yok!");
 
       // Yinelenen dosya kontrolü
       const isDuplicate = resources.some(r =>
@@ -134,7 +134,7 @@ function KaynakKutuphanesiApp({ currentUser }) {
         ratingCount: 0,
         uploadedBy: userId,
         uploadedByName: currentUser?.name || userId,
-        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: window.apiFieldValue.serverTimestamp(),
       };
 
       const docRef = await db.collection("resources").add(docData);
@@ -149,11 +149,11 @@ function KaynakKutuphanesiApp({ currentUser }) {
   // ── İndirme Sayacı (sadece giriş yapmış kullanıcılar için) ──
   const handleDownload = async (resource) => {
     try {
-      const db = window.firebase?.firestore();
+      const db = window.apiFirestore;
       if (!db || !currentUser || resource.id.startsWith("sample_")) return;
 
       await db.collection("resources").doc(resource.id).update({
-        downloadCount: window.firebase.firestore.FieldValue.increment(1),
+        downloadCount: window.apiFieldValue.increment(1),
       });
 
       setResources(prev => prev.map(r =>
@@ -172,8 +172,8 @@ function KaynakKutuphanesiApp({ currentUser }) {
   // ── Değerlendirme ──
   const handleRate = async (resourceId, rating) => {
     try {
-      const db = window.firebase?.firestore();
-      if (!db) throw new Error("Firebase bağlantısı yok!");
+      const db = window.apiFirestore;
+      if (!db) throw new Error("API bağlantısı yok!");
 
       const resource = resources.find(r => r.id === resourceId);
       if (!resource) return;
@@ -203,8 +203,8 @@ function KaynakKutuphanesiApp({ currentUser }) {
   const handleDeleteResource = async (resourceId) => {
     if (!confirm("Bu kaynağı silmek istediğinize emin misiniz?")) return;
     try {
-      const db = window.firebase?.firestore();
-      if (!db) throw new Error("Firebase bağlantısı yok!");
+      const db = window.apiFirestore;
+      if (!db) throw new Error("API bağlantısı yok!");
       await db.collection("resources").doc(resourceId).delete();
       setResources(prev => prev.filter(r => r.id !== resourceId));
       if (selectedResource?.id === resourceId) setSelectedResource(null);
