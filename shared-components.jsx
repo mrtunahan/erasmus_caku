@@ -431,8 +431,8 @@ const convertGrade = (inputGrade, system = "auto") => {
   return inputGrade;
 };
 
-// ── Firebase Database Functions ──
-// ── Cloud Functions referansı (auth çağrıları MongoDB API'ye yönlendirilir) ──
+// ── API Functions ──
+// ── Auth çağrıları MongoDB API'ye yönlendirilir ──
 const AUTH_API_ROUTES = {
   verifyStudentLogin: { method: 'POST', path: '/api/auth/student' },
   verifyAdminLogin: { method: 'POST', path: '/api/auth/admin' },
@@ -446,54 +446,37 @@ const AUTH_API_ROUTES = {
 };
 
 const CloudFunctions = {
-  _functions: null,
-  get() {
-    if (!this._functions && window.firebase?.functions) {
-      this._functions = window.firebase.functions();
-    }
-    return this._functions;
-  },
   async call(name, data) {
-    // Auth çağrıları yeni API'ye yönlendirilir
     const route = AUTH_API_ROUTES[name];
-    if (route) {
-      const token = localStorage.getItem('caku_auth_token');
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (!route) throw new Error(`Bilinmeyen API çağrısı: ${name}`);
 
-      const response = await fetch(route.path, {
-        method: route.method,
-        headers,
-        body: JSON.stringify(data),
-      });
+    const token = localStorage.getItem('caku_auth_token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const result = await response.json();
+    const response = await fetch(route.path, {
+      method: route.method,
+      headers,
+      body: JSON.stringify(data),
+    });
 
-      // Rate limit hatası
-      if (response.status === 429) {
-        const error = new Error(result.error);
-        error.code = 'functions/resource-exhausted';
-        throw error;
-      }
+    const result = await response.json();
 
-      // Sunucu hatası
-      if (response.status >= 500) {
-        throw new Error(result.error || 'Sunucu hatası');
-      }
-
-      // Token varsa kaydet
-      if (result.token) {
-        localStorage.setItem('caku_auth_token', result.token);
-      }
-
-      // Firebase Cloud Functions uyumlu format: { data: result }
-      return { data: result };
+    if (response.status === 429) {
+      const error = new Error(result.error);
+      error.code = 'functions/resource-exhausted';
+      throw error;
     }
 
-    // Auth dışı çağrılar Firebase Cloud Functions'a gider
-    const fn = this.get();
-    if (!fn) throw new Error('Firebase Functions SDK yüklenmemiş!');
-    return fn.httpsCallable(name)(data);
+    if (response.status >= 500) {
+      throw new Error(result.error || 'Sunucu hatası');
+    }
+
+    if (result.token) {
+      localStorage.setItem('caku_auth_token', result.token);
+    }
+
+    return { data: result };
   }
 };
 window.CloudFunctions = CloudFunctions;
@@ -692,16 +675,10 @@ window.apiFieldValue = {
 };
 
 const FirebaseDB = {
-  // Geriye uyumluluk: Firestore referansları (diğer modüller kullanıyor olabilir)
-  db: () => {
-    if (!window.firebase) {
-      console.warn('Firebase SDK yuklenmemis!');
-      return null;
-    }
-    return window.firebase.firestore();
-  },
+  // Firestore uyumluluk katmanını döndür
+  db: () => window.apiFirestore,
 
-  isReady: () => true, // API her zaman hazır
+  isReady: () => true,
 
   // Bağlantı kontrolü - API health check
   async checkConnection() {
@@ -1205,54 +1182,14 @@ const FirebaseDB = {
 
 // ── Authentication Helper (JWT tabanlı) ──
 const FirebaseAuth = {
-  // Geriye uyumluluk: Firebase Auth varsa kullan, yoksa JWT ile çalış
-  auth: () => window.firebase?.auth(),
-
-  // Email formatları (geriye uyumluluk)
-  studentEmail: (studentNumber) => `${studentNumber}@student.caku.app`,
-  professorEmail: (name) => {
-    const slug = name.toLowerCase()
-      .replace(/ç/g,'c').replace(/ğ/g,'g').replace(/ı/g,'i')
-      .replace(/ö/g,'o').replace(/ş/g,'s').replace(/ü/g,'u')
-      .replace(/[^a-z0-9]/g,'.').replace(/\.{2,}/g,'.').replace(/^\.|\.$/, '');
-    return `${slug}@prof.caku.app`;
-  },
-  adminEmail: () => 'admin@caku.app',
-
-  // Giriş yap - JWT token zaten CloudFunctions.call tarafından kaydediliyor
-  async signIn(email, password) {
-    // Firebase Auth varsa kullan (geriye uyumluluk)
-    const auth = FirebaseAuth.auth();
-    if (auth) {
-      try { return await auth.signInWithEmailAndPassword(email, password); }
-      catch (e) { console.warn('Firebase Auth signIn opsiyonel:', e.message); }
-    }
-    return { user: { uid: email } };
-  },
-
-  // Hesap oluştur
-  async createAccount(email, password) {
-    const auth = FirebaseAuth.auth();
-    if (auth) {
-      try { return await auth.createUserWithEmailAndPassword(email, password); }
-      catch (e) { console.warn('Firebase Auth createAccount opsiyonel:', e.message); }
-    }
-    return { user: { uid: email } };
-  },
-
   // Çıkış yap
   async signOut() {
     localStorage.removeItem('caku_auth_token');
-    const auth = FirebaseAuth.auth();
-    if (auth) {
-      try { await auth.signOut(); } catch (e) { /* opsiyonel */ }
-    }
+    localStorage.removeItem('caku_current_user');
   },
 
   // Mevcut kullanıcı - JWT token varsa geçerli sayılır
   currentUser() {
-    const auth = FirebaseAuth.auth();
-    if (auth?.currentUser) return auth.currentUser;
     const token = localStorage.getItem('caku_auth_token');
     if (token) {
       try {
@@ -1264,16 +1201,6 @@ const FirebaseAuth = {
       } catch (e) { /* geçersiz token */ }
     }
     return null;
-  },
-
-  // Şifre güncelle - artık API üzerinden
-  async updatePassword(newPassword) {
-    // Firebase Auth varsa güncelle (opsiyonel)
-    const auth = FirebaseAuth.auth();
-    if (auth?.currentUser) {
-      try { await auth.currentUser.updatePassword(newPassword); }
-      catch (e) { console.warn('Firebase Auth updatePassword opsiyonel:', e.message); }
-    }
   },
 
   // Kullanıcı rolünü kaydet (API üzerinden)
@@ -1599,31 +1526,14 @@ const LoginModal = ({ onLogin }) => {
       const identifier = pendingUser.role === "student" ? pendingUser.studentNumber : pendingUser.name;
       await FirebaseDB.changePassword(pendingUser.role, identifier, newPassword);
 
-      // Firebase Auth hesabı oluşturmayı dene (başarısız olursa sorun değil)
+      // Kullanıcı rolünü kaydet
       try {
-        let email;
-        if (pendingUser.role === "student") {
-          email = FirebaseAuth.studentEmail(pendingUser.studentNumber);
-        } else if (pendingUser.role === "professor") {
-          email = FirebaseAuth.professorEmail(pendingUser.name);
-        } else if (pendingUser.role === "admin") {
-          email = FirebaseAuth.adminEmail();
+        const user = FirebaseAuth.currentUser();
+        if (user) {
+          await FirebaseAuth.saveUserRole(user.uid, pendingUser);
         }
-        try {
-          await FirebaseAuth.createAccount(email, newPassword);
-        } catch (authErr) {
-          if (authErr.code === 'auth/email-already-in-use') {
-            try { await FirebaseAuth.signIn(email, newPassword); } catch (e) {
-              // Eski şifrelerle giriş denemesi artık sunucu tarafında yapılıyor
-              console.warn("Firebase Auth şifre güncelleme başarısız - kullanıcı yöneticiye başvurmalı");
-            }
-          }
-        }
-        if (FirebaseAuth.currentUser()) {
-          await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, pendingUser);
-        }
-      } catch (authError) {
-        console.warn("Firebase Auth opsiyonel - devam ediliyor:", authError.message);
+      } catch (e) {
+        console.warn("Rol kaydetme hatası:", e.message);
       }
 
       onLogin(pendingUser);
@@ -1655,7 +1565,7 @@ const LoginModal = ({ onLogin }) => {
         return;
       }
 
-      // Öğrenciyi Firestore'a kaydet
+      // Öğrenciyi veritabanına kaydet
       const studentData = {
         studentNumber: pendingStudentNumber,
         firstName: firstName.trim(),
@@ -1663,20 +1573,18 @@ const LoginModal = ({ onLogin }) => {
         erasmusAccess: false,
       };
       await FirebaseDB.addStudent(studentData);
-      // Şifreyi Firestore'a kaydet
+      // Şifreyi kaydet
       await FirebaseDB.updatePassword(pendingStudentNumber, newPassword);
       // Kullanıcı rolünü kaydet
       const user = { role: "student", name: `${firstName.trim()} ${lastName.trim()}`, studentNumber: pendingStudentNumber, erasmusAccess: false };
 
-      // Firebase Auth hesabı oluştur (opsiyonel - başarısız olsa bile kayıt engellenmez)
       try {
-        const email = FirebaseAuth.studentEmail(pendingStudentNumber);
-        await FirebaseAuth.createAccount(email, newPassword);
-        if (FirebaseAuth.currentUser()) {
-          await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user);
+        const currentUser = FirebaseAuth.currentUser();
+        if (currentUser) {
+          await FirebaseAuth.saveUserRole(currentUser.uid, user);
         }
-      } catch (authErr) {
-        console.warn("Firebase Auth opsiyonel - devam ediliyor:", authErr.message);
+      } catch (e) {
+        console.warn("Rol kaydetme hatası:", e.message);
       }
 
       onLogin(user);
@@ -1756,32 +1664,26 @@ const LoginModal = ({ onLogin }) => {
     setLoading(true);
     try {
       const trimmedId = identifier.trim();
-      const email = FirebaseAuth.studentEmail(trimmedId);
       const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId, erasmusAccess: studentInfo.erasmusAccess === true };
 
-      // 1. Cloud Functions ile sunucu tarafında şifre doğrulama
+      // Sunucu tarafında şifre doğrulama
       const loginResult = await FirebaseDB.verifyStudentLogin(trimmedId, password);
 
       if (loginResult.success) {
-        // Sunucu doğruladı - Firebase Auth'a giriş/kayıt dene
         if (password.length < 6) {
           setPendingUser(user);
           setSetupPasswordMode(true);
           setLoading(false);
           return;
         }
-        // Firebase Auth opsiyonel - başarısız olsa bile giriş engellenmez
+        // Kullanıcı rolünü kaydet
         try {
-          let authed = false;
-          try { await FirebaseAuth.signIn(email, password); authed = true; } catch (e) { /* hesap yok, oluşturulacak */ }
-          if (!authed) {
-            try { await FirebaseAuth.createAccount(email, password); authed = true; } catch (e) { /* Firebase Auth opsiyonel */ }
+          const currentUser = FirebaseAuth.currentUser();
+          if (currentUser) {
+            await FirebaseAuth.saveUserRole(currentUser.uid, user);
           }
-          if (authed && FirebaseAuth.currentUser()) {
-            try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user); } catch (e) { console.error("Role save error:", e); }
-          }
-        } catch (authErr) {
-          console.warn("Firebase Auth opsiyonel - devam ediliyor:", authErr.message);
+        } catch (e) {
+          console.warn("Rol kaydetme hatası:", e.message);
         }
         onLogin(user);
       } else {

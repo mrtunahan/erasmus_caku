@@ -477,26 +477,8 @@ function AppShell() {
       }
     }, 60000); // Her 1 dakikada kontrol
 
-    // Firebase Auth oturum dinleyicisi (geriye uyumluluk)
-    const auth = window.firebase?.auth();
-    let unsubscribeAuth = null;
-    if (auth) {
-      unsubscribeAuth = auth.onAuthStateChanged((firebaseUser) => {
-        if (!firebaseUser) {
-          const current = localStorage.getItem("caku_current_user");
-          const hasJwtToken = localStorage.getItem("caku_auth_token");
-          // JWT token varsa Firebase Auth'un çıkışını yoksay
-          if (current && !hasJwtToken) {
-            setCurrentUser(null);
-            localStorage.removeItem("caku_current_user");
-          }
-        }
-      });
-    }
-
     return () => {
       clearInterval(tokenCheckInterval);
-      if (unsubscribeAuth) unsubscribeAuth();
     };
   }, []);
 
@@ -551,13 +533,8 @@ function AppShell() {
   };
 
   const handleLogout = async () => {
-    try {
-      await FirebaseAuth.signOut();
-    } catch (e) {
-      console.error("Firebase Auth signOut error:", e);
-    }
+    await FirebaseAuth.signOut();
     setCurrentUser(null);
-    localStorage.removeItem("caku_current_user");
     navigate("portal");
   };
 
