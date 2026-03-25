@@ -498,16 +498,33 @@ const CloudFunctions = {
 };
 window.CloudFunctions = CloudFunctions;
 
-// ── Firestore yazma yardımcısı (Cloud Functions üzerinden) ──
+// ── Veritabanı yazma yardımcısı (MongoDB API üzerinden) ──
 const FirestoreWrite = {
+  async _apiCall(operations) {
+    const token = localStorage.getItem('caku_auth_token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch('/api/db/write', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ operations }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Yazma hatası' }));
+      throw new Error(err.error || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  },
   async single(collection, type, data, docId, merge, parentDocId, subCollection) {
     const op = { collection, type, data };
     if (docId) op.docId = docId;
     if (merge) op.merge = true;
     if (parentDocId) op.parentDocId = parentDocId;
     if (subCollection) op.subCollection = subCollection;
-    const result = await CloudFunctions.call('firestoreWrite', { operations: [op] });
-    return result.data;
+    return this._apiCall([op]);
   },
   async add(collection, data, parentDocId, subCollection) {
     return this.single(collection, 'add', data, null, false, parentDocId, subCollection);
@@ -522,8 +539,7 @@ const FirestoreWrite = {
     return this.single(collection, 'delete', null, docId, false, parentDocId, subCollection);
   },
   async batch(operations) {
-    const result = await CloudFunctions.call('firestoreWrite', { operations });
-    return result.data;
+    return this._apiCall(operations);
   }
 };
 window.FirestoreWrite = FirestoreWrite;
