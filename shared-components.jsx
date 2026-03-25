@@ -1712,39 +1712,27 @@ const LoginModal = ({ onLogin }) => {
 
     try {
       if (activeTab === "admin") {
-        const email = FirebaseAuth.adminEmail();
         const adminUser = { role: "admin", name: "A. Tunahan KORKMAZ", studentNumber: null, departmentId: "bilgisayar", departmentName: "Bilgisayar Mühendisliği" };
 
-        // 1. Cloud Functions ile sunucu tarafında admin şifre doğrulama
         const adminResult = await FirebaseDB.verifyAdminLogin(password);
 
         if (!adminResult.success && adminResult.error?.includes('belirlenmemiş')) {
-          setError("Admin şifresi henüz belirlenmemiş. Firebase Console üzerinden ayarlayın.");
+          setError("Admin şifresi henüz belirlenmemiş.");
           setLoading(false);
           return;
         }
 
         if (adminResult.success) {
-          // Sunucu doğruladı - Firebase Auth giriş/kayıt dene
           if (password.length < 6) {
             setPendingUser(adminUser);
             setSetupPasswordMode(true);
             setLoading(false);
             return;
           }
-          // Firebase Auth opsiyonel - başarısız olsa bile giriş engellenmez
           try {
-            let authed = false;
-            try { await FirebaseAuth.signIn(email, password); authed = true; } catch (e) { /* hesap yok */ }
-            if (!authed) {
-              try { await FirebaseAuth.createAccount(email, password); authed = true; } catch (e) { /* Firebase Auth opsiyonel */ }
-            }
-            if (authed && FirebaseAuth.currentUser()) {
-              try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, adminUser); } catch (e) { console.error("Role save error:", e); }
-            }
-          } catch (authErr) {
-            console.warn("Firebase Auth opsiyonel - devam ediliyor:", authErr.message);
-          }
+            const currentUser = FirebaseAuth.currentUser();
+            if (currentUser) await FirebaseAuth.saveUserRole(currentUser.uid, adminUser);
+          } catch (e) { console.warn("Rol kaydetme hatası:", e.message); }
           onLogin(adminUser);
         } else {
           // Cloud Functions doğrulamadı - hata göster
@@ -1768,13 +1756,10 @@ const LoginModal = ({ onLogin }) => {
         }
       } else if (activeTab === "professor") {
         if (!identifier.trim()) { setError("Akademisyen seçimi gerekli!"); setLoading(false); return; }
-        const email = FirebaseAuth.professorEmail(identifier);
         const user = { role: "professor", name: identifier, studentNumber: null };
 
-        // Cloud Functions ile sunucu tarafında profesör şifre doğrulama
         const profResult = await FirebaseDB.verifyProfessorLogin(identifier, password);
 
-        // Şifre belirlenmemişse: ilk giriş, şifre belirleme ekranına
         if (profResult.needsSetup) {
           setPendingUser(user);
           setSetupPasswordMode(true);
@@ -1783,25 +1768,16 @@ const LoginModal = ({ onLogin }) => {
         }
 
         if (profResult.success) {
-          // Sunucu doğruladı - Firebase Auth giriş/kayıt dene
           if (password.length < 6) {
             setPendingUser(user);
             setSetupPasswordMode(true);
             setLoading(false);
             return;
           }
-          // Firebase Auth opsiyonel - başarısız olsa bile giriş engellenmez
           try {
-            let authed = false;
-            try { await FirebaseAuth.signIn(email, password); authed = true; } catch (e) { /* hesap yok */ }
-            if (!authed) {
-              try { await FirebaseAuth.createAccount(email, password); authed = true; } catch (e) { /* Firebase Auth opsiyonel */ }
-            }
-            if (authed && FirebaseAuth.currentUser()) {
-              try { await FirebaseAuth.saveUserRole(FirebaseAuth.currentUser().uid, user); } catch (e) { console.error("Role save error:", e); }
-            }
-          } catch (authErr) {
-            console.warn("Firebase Auth opsiyonel - devam ediliyor:", authErr.message);
+            const currentUser = FirebaseAuth.currentUser();
+            if (currentUser) await FirebaseAuth.saveUserRole(currentUser.uid, user);
+          } catch (e) { console.warn("Rol kaydetme hatası:", e.message);
           }
           onLogin(user);
         } else {
