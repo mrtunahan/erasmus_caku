@@ -28,6 +28,26 @@ const ALLOWED_COLLECTIONS = [
   "course_schedules",
 ];
 
+// Okuma izni verilen koleksiyonlar (write + read-only)
+const READABLE_COLLECTIONS = [
+  ...ALLOWED_COLLECTIONS,
+  "exams",
+  "exam_results",
+  "exam_periods",
+  "course_groups",
+  "course_group_posts",
+  "trip_history",
+  "surveys",
+  "events",
+  "resources",
+  "forms",
+  "yaz_okulu_students",
+  "yaz_okulu_records",
+  "yaz_okulu_settings",
+  "internships",
+  "passwords",
+];
+
 // Timestamp alanlarını temizle ve sunucu timestamp'i ekle
 function addTimestamps(data, isNew) {
   const cleaned = {};
@@ -129,6 +149,98 @@ router.post("/write", async (req, res) => {
   } catch (error) {
     console.error("firestoreWrite error:", error);
     return res.status(500).json({ error: "Yazma hatası: " + error.message });
+  }
+});
+
+// ══════════════════════════════════════════════
+// GET /api/db/:collection - Koleksiyon okuma
+// Query params:
+//   where=field:op:value (tekrarlanabilir) - op: eq, ne, gt, gte, lt, lte
+//   orderBy=field:direction (asc/desc)
+//   limit=N
+// ══════════════════════════════════════════════
+router.get("/:collection", async (req, res) => {
+  const { collection } = req.params;
+
+  if (!READABLE_COLLECTIONS.includes(collection)) {
+    return res.status(403).json({ error: `Koleksiyon okuma izni yok: ${collection}` });
+  }
+
+  try {
+    const db = getDb();
+    const col = db.collection(collection);
+
+    // MongoDB filter oluştur
+    const filter = {};
+    const whereParams = req.query.where
+      ? (Array.isArray(req.query.where) ? req.query.where : [req.query.where])
+      : [];
+
+    for (const w of whereParams) {
+      const parts = w.split(":");
+      if (parts.length < 3) continue;
+      const field = parts[0];
+      const op = parts[1];
+      const value = parts.slice(2).join(":");
+
+      const mongoOps = { eq: "$eq", ne: "$ne", gt: "$gt", gte: "$gte", lt: "$lt", lte: "$lte" };
+      if (op === "eq") {
+        filter[field] = value;
+      } else if (mongoOps[op]) {
+        filter[field] = { [mongoOps[op]]: value };
+      }
+    }
+
+    // Sort
+    const sort = {};
+    if (req.query.orderBy) {
+      const [field, dir] = req.query.orderBy.split(":");
+      sort[field] = dir === "desc" ? -1 : 1;
+    }
+
+    // Limit
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 0;
+
+    let cursor = col.find(filter);
+    if (Object.keys(sort).length > 0) cursor = cursor.sort(sort);
+    if (limit > 0) cursor = cursor.limit(limit);
+
+    const docs = await cursor.toArray();
+
+    // _id'yi id olarak dönüştür (Firestore uyumluluğu)
+    const result = docs.map(doc => {
+      const { _id, ...rest } = doc;
+      return { ...rest, id: _id.toString() };
+    });
+
+    return res.json(result);
+  } catch (error) {
+    console.error(`Read ${collection} error:`, error);
+    return res.status(500).json({ error: "Okuma hatası: " + error.message });
+  }
+});
+
+// GET /api/db/:collection/:docId - Tek doküman okuma
+router.get("/:collection/:docId", async (req, res) => {
+  const { collection, docId } = req.params;
+
+  if (!READABLE_COLLECTIONS.includes(collection)) {
+    return res.status(403).json({ error: `Koleksiyon okuma izni yok: ${collection}` });
+  }
+
+  try {
+    const db = getDb();
+    const doc = await db.collection(collection).findOne({ _id: docId });
+
+    if (!doc) {
+      return res.json({ exists: false, data: null });
+    }
+
+    const { _id, ...rest } = doc;
+    return res.json({ exists: true, data: rest, id: _id.toString() });
+  } catch (error) {
+    console.error(`Read ${collection}/${docId} error:`, error);
+    return res.status(500).json({ error: "Okuma hatası: " + error.message });
   }
 });
 

@@ -544,7 +544,43 @@ const FirestoreWrite = {
 };
 window.FirestoreWrite = FirestoreWrite;
 
+// ── MongoDB API okuma yardımcısı ──
+async function apiRead(collection, params = {}) {
+  const url = new URL(`/api/db/${collection}`, window.location.origin);
+  if (params.where) {
+    const wheres = Array.isArray(params.where) ? params.where : [params.where];
+    wheres.forEach(w => url.searchParams.append('where', w));
+  }
+  if (params.orderBy) url.searchParams.set('orderBy', params.orderBy);
+  if (params.limit) url.searchParams.set('limit', params.limit);
+
+  const token = localStorage.getItem('caku_auth_token');
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(url.toString(), { headers });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: 'Okuma hatası' }));
+    throw new Error(err.error || `HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+async function apiReadDoc(collection, docId) {
+  const token = localStorage.getItem('caku_auth_token');
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(`/api/db/${collection}/${encodeURIComponent(docId)}`, { headers });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: 'Okuma hatası' }));
+    throw new Error(err.error || `HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
 const FirebaseDB = {
+  // Geriye uyumluluk: Firestore referansları (diğer modüller kullanıyor olabilir)
   db: () => {
     if (!window.firebase) {
       console.warn('Firebase SDK yuklenmemis!');
@@ -553,69 +589,45 @@ const FirebaseDB = {
     return window.firebase.firestore();
   },
 
-  isReady: () => !!window.firebase,
+  isReady: () => true, // API her zaman hazır
 
-  // Check Firestore connectivity - returns { ok, error }
+  // Bağlantı kontrolü - API health check
   async checkConnection() {
     try {
-      const db = FirebaseDB.db();
-      if (!db) return { ok: false, error: 'Firebase SDK yüklenmemiş' };
-      await db.collection('students').limit(1).get();
-      return { ok: true, error: null };
+      const response = await fetch('/api/health');
+      if (response.ok) return { ok: true, error: null };
+      return { ok: false, error: 'API sunucusu yanıt vermiyor.' };
     } catch (err) {
       const msg = err.message || '';
-      if (err.code === 'permission-denied') {
-        return { ok: false, error: 'Firestore erişim izni reddedildi. Güvenlik kurallarını kontrol edin.' };
-      }
-      if (msg.includes('400') || msg.includes('Bad Request')) {
-        return { ok: false, error: 'Firestore veritabanı yanıt vermiyor. Firebase Console\'da Firestore veritabanının oluşturulduğundan emin olun.' };
-      }
       if (msg.includes('Failed to fetch') || msg.includes('network')) {
         return { ok: false, error: 'Sunucuya bağlanılamıyor. İnternet bağlantınızı kontrol edin.' };
       }
-      return { ok: false, error: 'Firestore bağlantı hatası: ' + msg };
+      return { ok: false, error: 'API bağlantı hatası: ' + msg };
     }
   },
 
-  // Erasmus collections
+  // Koleksiyon referansları (geriye uyumluluk - diğer modüller için)
   studentsRef: () => FirebaseDB.db()?.collection('students'),
   usersRef: () => FirebaseDB.db()?.collection('users'),
-
-  // Exam collections
   examsRef: () => FirebaseDB.db()?.collection('exams'),
   examResultsRef: () => FirebaseDB.db()?.collection('exam_results'),
   examPeriodsRef: () => FirebaseDB.db()?.collection('exam_periods'),
   professorsRef: () => FirebaseDB.db()?.collection('professors'),
-
-  // Course Groups collections
   courseGroupsRef: () => FirebaseDB.db()?.collection('course_groups'),
   courseGroupPostsRef: () => FirebaseDB.db()?.collection('course_group_posts'),
-
-  // Survey collections
   surveysRef: () => FirebaseDB.db()?.collection('surveys'),
-
-  // Event collections
   eventsRef: () => FirebaseDB.db()?.collection('events'),
-
-  // Resource Library collections
   resourcesRef: () => FirebaseDB.db()?.collection('resources'),
-
-  // Forms collections
   formsRef: () => FirebaseDB.db()?.collection('forms'),
-
-  // Trip History collection (Erasmus eşleştirme geçmişi)
   tripHistoryRef: () => FirebaseDB.db()?.collection('trip_history'),
 
-  // Firebase Storage
+  // Firebase Storage (henüz migrate edilmedi)
   storage: () => window.firebase?.storage(),
 
   // ── Forms CRUD ──
   async fetchForms() {
     try {
-      const ref = FirebaseDB.formsRef();
-      if (!ref) return [];
-      const snapshot = await ref.orderBy('createdAt', 'desc').get();
-      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      return await apiRead('forms', { orderBy: 'createdAt:desc' });
     } catch (error) {
       console.error('Error fetching forms:', error);
       return [];
@@ -666,10 +678,8 @@ const FirebaseDB = {
   // ── Erasmus Student CRUD ──
   async fetchStudents() {
     try {
-      const ref = FirebaseDB.studentsRef();
-      if (!ref) throw new Error('Firebase bağlantısı yok');
-      const snapshot = await ref.get();
-      return snapshot.docs.map(doc => { const data = doc.data(); return { ...data, id: doc.id, outgoingMatches: data.outgoingMatches || [], returnMatches: data.returnMatches || [] }; });
+      const students = await apiRead('students');
+      return students.map(s => ({ ...s, outgoingMatches: s.outgoingMatches || [], returnMatches: s.returnMatches || [] }));
     } catch (error) {
       console.error('Error fetching students:', error);
       throw error;
@@ -709,20 +719,12 @@ const FirebaseDB = {
   async fetchTripHistory(hostInstitution) {
     if (FirebaseDB._tripHistoryDisabled) return [];
     try {
-      const ref = FirebaseDB.tripHistoryRef();
-      if (!ref) return [];
-      let query = ref;
+      const params = {};
       if (hostInstitution) {
-        query = ref.where('hostInstitution', '==', hostInstitution);
+        params.where = `hostInstitution:eq:${hostInstitution}`;
       }
-      const snapshot = await query.get();
-      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      return await apiRead('trip_history', params);
     } catch (error) {
-      if (error.code === 'permission-denied') {
-        console.warn('Trip history fetch disabled: Firestore rules need to be deployed. Run: firebase deploy --only firestore:rules');
-        FirebaseDB._tripHistoryDisabled = true;
-        return [];
-      }
       console.error('Error fetching trip history:', error);
       return [];
     }
@@ -751,16 +753,15 @@ const FirebaseDB = {
     // Skip if previously disabled due to permission errors
     if (FirebaseDB._tripHistoryDisabled) return;
     try {
-      const ref = FirebaseDB.tripHistoryRef();
-      if (!ref) return;
       if (!student.hostInstitution) return;
 
       // Fetch existing entries for this student
-      const snapshot = await ref
-        .where('studentNumber', '==', student.studentNumber)
-        .where('hostInstitution', '==', student.hostInstitution)
-        .get();
-      const existingEntries = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      const existingEntries = await apiRead('trip_history', {
+        where: [
+          `studentNumber:eq:${student.studentNumber}`,
+          `hostInstitution:eq:${student.hostInstitution}`,
+        ],
+      });
 
       // Build match signature for deduplication
       const matchKey = (m) => JSON.stringify({
@@ -942,13 +943,11 @@ const FirebaseDB = {
   // ── Exam CRUD ──
   async fetchExams(semester) {
     try {
-      let query = FirebaseDB.examsRef();
-      if (!query) return [];
+      const params = {};
       if (semester && semester !== 'all') {
-        query = query.where('semester', '==', semester);
+        params.where = `semester:eq:${semester}`;
       }
-      const snapshot = await query.get();
-      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      return await apiRead('exams', params);
     } catch (error) {
       console.error('Error fetching exams:', error);
       return [];
@@ -985,10 +984,7 @@ const FirebaseDB = {
   },
   async fetchExamResults(examId) {
     try {
-      const ref = FirebaseDB.examResultsRef();
-      if (!ref) return [];
-      const snapshot = await ref.where('examId', '==', examId).get();
-      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      return await apiRead('exam_results', { where: `examId:eq:${examId}` });
     } catch (error) {
       console.error('Error fetching exam results:', error);
       return [];
@@ -1027,10 +1023,7 @@ const FirebaseDB = {
   // ── Exam Periods CRUD ──
   async fetchExamPeriods() {
     try {
-      const ref = FirebaseDB.examPeriodsRef();
-      if (!ref) return [];
-      const snapshot = await ref.get();
-      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      return await apiRead('exam_periods');
     } catch (error) {
       console.error('Error fetching exam periods:', error);
       return [];
@@ -1064,10 +1057,7 @@ const FirebaseDB = {
   // ── Professors CRUD ──
   async fetchProfessors() {
     try {
-      const ref = FirebaseDB.professorsRef();
-      if (!ref) return [];
-      const snapshot = await ref.get();
-      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      return await apiRead('professors');
     } catch (error) {
       console.error('Error fetching professors:', error);
       return [];
@@ -1180,10 +1170,13 @@ const FirebaseAuth = {
 
   // Kullanıcı rolünü oku
   async getUserRole(uid) {
-    const db = FirebaseDB.db();
-    if (!db) return null;
-    const doc = await db.collection('users').doc(uid).get();
-    return doc.exists ? doc.data() : null;
+    try {
+      const result = await apiReadDoc('users', uid);
+      return result.exists ? result.data : null;
+    } catch (error) {
+      console.error('getUserRole error:', error);
+      return null;
+    }
   },
 };
 
