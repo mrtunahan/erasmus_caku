@@ -38,6 +38,10 @@ const ALLOWED_COLLECTIONS = [
   "yaz_okulu_settings",
   "portal_posts_comments",
   "portal_notifications_items",
+  "trip_history",
+  "course_groups",
+  "course_group_posts",
+  "events",
 ];
 
 // Okuma izni verilen koleksiyonlar (write + read-only)
