@@ -164,6 +164,13 @@ router.post("/write", async (req, res) => {
     }
   }
 
+  // KORUMA: Tek istekte 20'den fazla silme işlemi engelle (toplu veri kaybını önler)
+  const deleteCount = operations.filter(op => op.type === "delete").length;
+  if (deleteCount > 20) {
+    console.error(`BLOCKED: ${deleteCount} silme işlemi engellendi (max 20)`);
+    return res.status(403).json({ error: `Tek istekte en fazla 20 silme işlemi yapılabilir (istenen: ${deleteCount})` });
+  }
+
   try {
     const db = getDb();
 
