@@ -2091,7 +2091,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
                 const bP = b.professor && b.professor !== "-" && b.professor !== "" ? 1 : 0;
                 if (bP !== aP) return bP - aP;
                 if ((b.studentCount || 0) !== (a.studentCount || 0)) return (b.studentCount || 0) - (a.studentCount || 0);
-                return (a.createdAt || "").localeCompare(b.createdAt || "");
+                return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
               });
               for (let i = 1; i < group.length; i++) {
                 deleteOps.push({ collection: "sinav_dersler", type: "delete", docId: group[i].docId });
@@ -2113,7 +2113,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
             });
             for (const group of Object.values(profGroups)) {
               if (group.length <= 1) continue;
-              group.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+              group.sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
               for (let i = 1; i < group.length; i++) {
                 deleteOps.push({ collection: "professors", type: "delete", docId: group[i].docId });
               }
