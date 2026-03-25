@@ -233,17 +233,13 @@ async function importToMongoDB() {
     }
 
     try {
-      // GÜVENLİK: Mevcut veriyi silmeden önce kontrol
+      // GÜVENLİK: drop() YASAKLANDI - mevcut veri asla silinmez
       const existingCount = await db.collection(colName).countDocuments();
-      if (existingCount > 0 && !args["force-overwrite"]) {
-        log(`⚠ ${colName}: ${existingCount} mevcut belge var, --force-overwrite olmadan atlanıyor`);
+      if (existingCount > 0) {
+        log(`⚠ ${colName}: ${existingCount} mevcut belge var, ATLANIYPR (veri koruması)`);
         continue;
       }
-      if (existingCount > 0) {
-        log(`⚠ ${colName}: ${existingCount} mevcut belge SİLİNİYOR (force-overwrite)`);
-      }
-      await db.collection(colName).drop().catch(() => {});
-      // Import et
+      // Sadece BOŞ koleksiyonlara import et
       await db.collection(colName).insertMany(data);
       totalImported += data.length;
       log(`✓ ${colName}: ${data.length} belge import edildi`);
