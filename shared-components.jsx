@@ -579,6 +579,118 @@ async function apiReadDoc(collection, docId) {
   return response.json();
 }
 
+// API yardımcılarını global yap (diğer modüller için)
+window.apiRead = apiRead;
+window.apiReadDoc = apiReadDoc;
+
+// Firestore uyumluluk katmanı: db.collection("x").where().get() API'sini MongoDB API'ye yönlendirir
+// Tüm modüller window.firebase.firestore() yerine bunu kullanabilir
+function createApiCollection(collectionName) {
+  return {
+    _collection: collectionName,
+    _filters: [],
+    _orderField: null,
+    _orderDir: null,
+    _limitVal: 0,
+    where(field, op, value) {
+      const clone = createApiCollection(this._collection);
+      clone._filters = [...this._filters, { field, value }];
+      clone._orderField = this._orderField;
+      clone._orderDir = this._orderDir;
+      clone._limitVal = this._limitVal;
+      return clone;
+    },
+    orderBy(field, dir) {
+      const clone = createApiCollection(this._collection);
+      clone._filters = [...this._filters];
+      clone._orderField = field;
+      clone._orderDir = dir || 'asc';
+      clone._limitVal = this._limitVal;
+      return clone;
+    },
+    limit(n) {
+      const clone = createApiCollection(this._collection);
+      clone._filters = [...this._filters];
+      clone._orderField = this._orderField;
+      clone._orderDir = this._orderDir;
+      clone._limitVal = n;
+      return clone;
+    },
+    async get() {
+      const params = {};
+      if (this._filters.length > 0) {
+        params.where = this._filters.map(f => `${f.field}:eq:${f.value}`);
+      }
+      if (this._orderField) params.orderBy = `${this._orderField}:${this._orderDir || 'asc'}`;
+      if (this._limitVal > 0) params.limit = this._limitVal;
+      const docs = await apiRead(this._collection, params);
+      return {
+        empty: docs.length === 0,
+        size: docs.length,
+        docs: docs.map(d => ({
+          id: d.id,
+          data: () => d,
+          exists: true,
+        })),
+      };
+    },
+    onSnapshot(callback, errorCallback) {
+      // onSnapshot → polling ile simüle et
+      let active = true;
+      const poll = async () => {
+        try {
+          const result = await this.get();
+          if (active) callback(result);
+        } catch (err) {
+          if (active && errorCallback) errorCallback(err);
+        }
+      };
+      poll();
+      const interval = setInterval(poll, 15000);
+      return () => { active = false; clearInterval(interval); };
+    },
+    doc(docId) {
+      const col = this._collection;
+      return {
+        async get() {
+          const result = await apiReadDoc(col, docId);
+          return {
+            exists: result.exists,
+            id: result.id || docId,
+            data: () => result.data,
+          };
+        },
+        collection(subCol) {
+          return createApiCollection(`${col}_${subCol}`);
+        },
+        async update(data) {
+          await FirestoreWrite.update(col, String(docId), data);
+        },
+        async set(data, options) {
+          await FirestoreWrite.set(col, String(docId), data, options?.merge || false);
+        },
+        async delete() {
+          await FirestoreWrite.remove(col, String(docId));
+        },
+      };
+    },
+    async add(data) {
+      const result = await FirestoreWrite.add(this._collection, data);
+      return { id: result?.id || String(Date.now()) };
+    },
+  };
+}
+
+// Global Firestore uyumluluk nesnesi
+window.apiFirestore = {
+  collection: (name) => createApiCollection(name),
+};
+// FieldValue uyumluluğu
+window.apiFieldValue = {
+  serverTimestamp: () => new Date().toISOString(),
+  increment: (n) => `__increment:${n}`,
+};
+
 const FirebaseDB = {
   // Geriye uyumluluk: Firestore referansları (diğer modüller kullanıyor olabilir)
   db: () => {

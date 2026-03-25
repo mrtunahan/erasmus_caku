@@ -61,7 +61,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     const loadRecords = async () => {
       setLoading(true);
       try {
-        const db = window.firebase?.firestore();
+        const db = window.apiFirestore;
         if (db) {
           let query = db.collection("internships");
           if (activeDepartment) {

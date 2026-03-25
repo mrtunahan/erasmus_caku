@@ -418,7 +418,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         return;
       }
       try {
-        const db = window.firebase?.firestore();
+        const db = window.apiFirestore;
         if (!db) return;
 
         // Dersler (sinav_dersler) - sadece aktif bölüm + mükerrer filtreleme
@@ -478,7 +478,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     const loadSchedule = async () => {
       setLoading(true);
       try {
-        const db = window.firebase?.firestore();
+        const db = window.apiFirestore;
         if (db && activeDepartment) {
           const docId = `${activeDepartment}_${semester}_${year}`;
           const doc = await db.collection("course_schedules").doc(docId).get();
@@ -587,7 +587,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
   const loadDeptAllYears = useCallback(async () => {
     if (!activeDepartment) { setDeptAllYearsSlots([]); return []; }
     try {
-      const db = window.firebase?.firestore();
+      const db = window.apiFirestore;
       if (!db) return [];
       const result = [];
       for (const yr of ["1", "2", "3", "4"]) {
@@ -609,7 +609,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
   const loadAllFacultySchedules = useCallback(async () => {
     setLoadingFaculty(true);
     try {
-      const db = window.firebase?.firestore();
+      const db = window.apiFirestore;
       if (!db) return [];
       const deptsSnap = await db.collection("departments").get();
       const depts = deptsSnap.docs.map(d => ({ id: d.id, ...d.data() }));

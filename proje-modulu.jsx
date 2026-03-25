@@ -81,10 +81,7 @@ function prjFormatDate(ts) {
 // ── DB Helpers ──
 var ProjDB = {
   db: function () {
-    if (!window.firebase || !window.firebase.firestore) {
-      throw new Error("Firebase bağlantısı yok! Sayfa yenilenmelidir.");
-    }
-    return window.firebase.firestore();
+    return window.apiFirestore;
   },
 
   // Kategori bazlı collection adı

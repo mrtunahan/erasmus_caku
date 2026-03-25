@@ -444,10 +444,10 @@ function useViewTracker(postId, currentUser) {
 
 var PortalDB = {
   postsRef: function () {
-    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_posts") : null;
+    return window.apiFirestore.collection("portal_posts");
   },
   commentsRef: function (postId) {
-    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_posts").doc(String(postId)).collection("comments") : null;
+    return window.apiFirestore.collection("portal_posts").doc(String(postId)).collection("comments");
   },
 
   // Gönderiler
@@ -699,7 +699,7 @@ var PortalDB = {
 
   // ── Moderatör Yönetimi ──
   moderatorsRef: function () {
-    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_moderators") : null;
+    return window.apiFirestore.collection("portal_moderators");
   },
 
   async getModerators() {
@@ -743,7 +743,7 @@ var PortalDB = {
 
   // ── Bildirimler ──
   notificationsRef: function (userId) {
-    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_notifications").doc(String(userId)).collection("items") : null;
+    return window.apiFirestore.collection("portal_notifications").doc(String(userId)).collection("items");
   },
 
   async addNotification(targetUserId, notification) {
@@ -785,7 +785,7 @@ var PortalDB = {
 
   // ── Kullanıcı Profilleri ──
   profilesRef: function () {
-    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_profiles") : null;
+    return window.apiFirestore.collection("portal_profiles");
   },
 
   async getProfile(userId) {
@@ -803,7 +803,7 @@ var PortalDB = {
 
   // ── Takip Sistemi ──
   followsRef: function () {
-    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_follows") : null;
+    return window.apiFirestore.collection("portal_follows");
   },
 
   async getFollows(userId) {
@@ -885,7 +885,7 @@ var PortalDB = {
 
   // ── Raporlama ──
   reportsRef: function () {
-    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("portal_reports") : null;
+    return window.apiFirestore.collection("portal_reports");
   },
 
   async reportPost(postId, reportData) {
@@ -1307,7 +1307,7 @@ const CommentItem = ({ comment, postId, currentUser, onUpdate, onRemove, onReply
     try {
       var updateData = {
         text: comment.contentFormat === "html" ? editContent : editContent.trim(),
-        editedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+        editedAt: window.apiFieldValue.serverTimestamp(),
       };
       if (comment.contentFormat === "html") updateData.contentFormat = "html";
       await PortalDB.updateComment(postId, comment.id, updateData);
@@ -4940,7 +4940,7 @@ function OgrenciPortaliApp({ currentUser }) {
   const handleEdit = async function (postId, updates) {
     try {
       await PortalDB.updatePost(postId, Object.assign({}, updates, {
-        editedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+        editedAt: window.apiFieldValue.serverTimestamp(),
       }));
       setPosts(function (prev) {
         return prev.map(function (p) {

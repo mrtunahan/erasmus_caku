@@ -576,10 +576,10 @@ function autoMatchCourses(sourceCourses, targetCourses, threshold) {
 
 var MuafiyetDB = {
   settingsRef: function () {
-    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("muafiyet_settings") : null;
+    return window.apiFirestore.collection("muafiyet_settings");
   },
   recordsRef: function () {
-    return window.FirebaseDB.db() ? window.FirebaseDB.db().collection("muafiyet_records") : null;
+    return window.apiFirestore.collection("muafiyet_records");
   },
   async saveCourseContents(contents) {
     await window.FirestoreWrite.set("muafiyet_settings", "course_contents", { courses: contents, updatedAt: new Date().toISOString() });

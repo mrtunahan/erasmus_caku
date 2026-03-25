@@ -73,7 +73,7 @@ function AnketModuluApp({ currentUser }) {
   const loadSurveys = async () => {
     setLoading(true);
     try {
-      const db = window.firebase?.firestore();
+      const db = window.apiFirestore;
       if (!db) { setLoading(false); return; }
       const snapshot = await db.collection("surveys").orderBy("createdAt", "desc").get();
       const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
@@ -87,8 +87,8 @@ function AnketModuluApp({ currentUser }) {
   // ── Anket Oluştur ──
   const handleCreateSurvey = async (surveyData) => {
     try {
-      const db = window.firebase?.firestore();
-      if (!db) throw new Error("Firebase bağlantısı yok!");
+      const db = window.apiFirestore;
+      if (!db) throw new Error("API bağlantısı yok!");
 
       const optionsMap = {};
       surveyData.options.forEach((opt, i) => {
@@ -106,7 +106,7 @@ function AnketModuluApp({ currentUser }) {
         voters: {},
         createdBy: userId,
         createdByName: currentUser?.name || userId,
-        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: window.apiFieldValue.serverTimestamp(),
       };
 
       const docRef = await db.collection("surveys").add(docData);
@@ -121,8 +121,8 @@ function AnketModuluApp({ currentUser }) {
   // ── Oy Ver ──
   const handleVote = async (surveyId, selectedOptions) => {
     try {
-      const db = window.firebase?.firestore();
-      if (!db) throw new Error("Firebase bağlantısı yok!");
+      const db = window.apiFirestore;
+      if (!db) throw new Error("API bağlantısı yok!");
 
       const survey = surveys.find(s => s.id === surveyId);
       if (!survey) return;
@@ -178,8 +178,8 @@ function AnketModuluApp({ currentUser }) {
   const handleDeleteSurvey = async (surveyId) => {
     if (!confirm("Bu anketi silmek istediğinize emin misiniz?")) return;
     try {
-      const db = window.firebase?.firestore();
-      if (!db) throw new Error("Firebase bağlantısı yok!");
+      const db = window.apiFirestore;
+      if (!db) throw new Error("API bağlantısı yok!");
       await db.collection("surveys").doc(surveyId).delete();
       setSurveys(prev => prev.filter(s => s.id !== surveyId));
       if (selectedSurvey?.id === surveyId) setSelectedSurvey(null);
