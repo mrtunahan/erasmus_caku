@@ -733,8 +733,8 @@ const FirebaseDB = {
   formsRef: () => FirebaseDB.db()?.collection('forms'),
   tripHistoryRef: () => FirebaseDB.db()?.collection('trip_history'),
 
-  // Firebase Storage (henüz migrate edilmedi)
-  storage: () => window.firebase?.storage(),
+  // Storage artık /api/files üzerinden çalışıyor
+  storage: () => null,
 
   // ── Forms CRUD ──
   async fetchForms() {
@@ -764,13 +764,13 @@ const FirebaseDB = {
   },
   async uploadFormFile(file) {
     try {
-      const storage = FirebaseDB.storage();
-      if (!storage) throw new Error('Firebase Storage baglantisi yok');
-      const fileName = `forms/${Date.now()}_${file.name}`;
-      const storageRef = storage.ref(fileName);
-      await storageRef.put(file);
-      const downloadURL = await storageRef.getDownloadURL();
-      return { downloadURL, fileName };
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'forms');
+      const response = await fetch('/api/files/upload', { method: 'POST', body: formData });
+      if (!response.ok) throw new Error('Dosya yüklenemedi');
+      const result = await response.json();
+      return { downloadURL: result.downloadURL, fileName: result.fileName };
     } catch (error) {
       console.error('Error uploading file:', error);
       throw error;
@@ -778,9 +778,11 @@ const FirebaseDB = {
   },
   async deleteFormFile(fileName) {
     try {
-      const storage = FirebaseDB.storage();
-      if (!storage) throw new Error('Firebase Storage bağlantısı yok');
-      await storage.ref(fileName).delete();
+      const response = await fetch(`/api/files/${fileName}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Dosya silinemedi');
+      }
     } catch (error) {
       console.error('Error deleting file:', error);
       throw error;

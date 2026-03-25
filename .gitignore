@@ -2,3 +2,4 @@ node_modules/
 dist/
 server/node_modules/
 .env
+server/uploads/
