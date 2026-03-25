@@ -2320,6 +2320,20 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
       if (existingCourse) {
         await FirestoreWrite.update("sinav_dersler", existingCourse.id, formData);
       } else {
+        // Aynı code+name+departmentId zaten varsa ekleme (duplicate önleme)
+        const cRef = getCoursesRef();
+        if (cRef) {
+          const deptId = selectedDeptId || null;
+          const dupCheck = await cRef.where("code", "==", formData.code.trim()).where("departmentId", "==", deptId).get();
+          if (dupCheck && !dupCheck.empty) {
+            const nameNorm = (formData.name || "").trim().toLowerCase();
+            const exists = dupCheck.docs.some(d => (d.data().name || "").trim().toLowerCase() === nameNorm);
+            if (exists) {
+              alert("Bu ders zaten mevcut! Aynı ders kodu ve adıyla tekrar eklenemez.");
+              return;
+            }
+          }
+        }
         await FirestoreWrite.add("sinav_dersler", { ...formData, studentCount: 0, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() });
       }
       // Akademisyen adı girilmişse ve professors koleksiyonunda yoksa otomatik ekle
