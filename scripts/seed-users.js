@@ -15,7 +15,7 @@ c.connect().then(async function() {
     await db.collection('departments').updateOne({_id: d._id}, {$set: d}, {upsert: true});
   }
   console.log('Bolumler:', await db.collection('departments').countDocuments());
-  await db.collection('passwords').updateOne({_id:'admin_password'}, {$set:{password:'160525'}}, {upsert:true});
+  await db.collection('passwords').updateOne({_id:'admin'}, {$set:{password:'160525'}}, {upsert:true});
   await db.collection('passwords').updateOne({_id:'defaults'}, {$set:{professorDefault:'132333'}}, {upsert:true});
   await db.collection('passwords').updateOne({_id:'department_manager_passwords'}, {$set:{}}, {upsert:true});
   console.log('Sifreler:', await db.collection('passwords').countDocuments());
