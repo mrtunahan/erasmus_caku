@@ -200,20 +200,21 @@ router.get("/proxy/photo", async function(req, res) {
 router.get("/", async function(req, res) {
   try {
     var db = await getDbSafe();
-    var filter = {};
+    var query = db.collection("akademisyen_cache");
     if (req.query.departmentId) {
-      filter.departmentId = req.query.departmentId;
+      query = query.where("departmentId", "==", req.query.departmentId);
     }
-    var all = await db.collection("akademisyen_cache").find(filter).toArray();
-    var list = all.map(function(doc) {
+    var snapshot = await query.get();
+    var list = snapshot.docs.map(function(doc) {
+      var d = doc.data();
       return {
-        username: doc._id,
-        fullName: doc.data ? doc.data.fullName : "",
-        photo: doc.data ? doc.data.photo : "",
-        email: doc.data ? doc.data.email : "",
-        department: doc.data ? doc.data.department : "",
-        departmentId: doc.departmentId || null,
-        fetchedAt: doc.fetchedAt
+        username: doc.id,
+        fullName: d.data ? d.data.fullName : "",
+        photo: d.data ? d.data.photo : "",
+        email: d.data ? d.data.email : "",
+        department: d.data ? d.data.department : "",
+        departmentId: d.departmentId || null,
+        fetchedAt: d.fetchedAt
       };
     });
     res.json(list);
@@ -231,11 +232,11 @@ router.post("/:username/assign", async function(req, res) {
 
   try {
     var db = await getDbSafe();
-    await db.collection("akademisyen_cache").updateOne(
-      { _id: username },
-      { $set: { departmentId: departmentId } },
-      { upsert: false }
-    );
+    var docRef = db.collection("akademisyen_cache").doc(username);
+    var doc = await docRef.get();
+    if (doc.exists) {
+      await docRef.update({ departmentId: departmentId });
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -247,7 +248,7 @@ router.delete("/:username", async function(req, res) {
   var username = normalizeUsername(req.params.username);
   try {
     var db = await getDbSafe();
-    await db.collection("akademisyen_cache").deleteOne({ _id: username });
+    await db.collection("akademisyen_cache").doc(username).delete();
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -265,15 +266,19 @@ router.get("/:username", async function(req, res) {
     var db = await getDbSafe();
 
     // Önce cache'e bak (24 saat geçerli)
-    var cached = await db.collection("akademisyen_cache").findOne({ _id: username });
-    if (cached && cached.fetchedAt) {
-      var age = Date.now() - new Date(cached.fetchedAt).getTime();
-      if (age < 24 * 60 * 60 * 1000) {
-        // departmentId varsa ata
-        if (departmentId && !cached.departmentId) {
-          await db.collection("akademisyen_cache").updateOne({ _id: username }, { $set: { departmentId: departmentId } });
+    var docRef = db.collection("akademisyen_cache").doc(username);
+    var cached = await docRef.get();
+    if (cached.exists) {
+      var cachedData = cached.data();
+      if (cachedData.fetchedAt) {
+        var age = Date.now() - new Date(cachedData.fetchedAt).getTime();
+        if (age < 24 * 60 * 60 * 1000) {
+          // departmentId varsa ata
+          if (departmentId && !cachedData.departmentId) {
+            await docRef.update({ departmentId: departmentId });
+          }
+          return res.json(cachedData.data);
         }
-        return res.json(cached.data);
       }
     }
 
@@ -290,11 +295,7 @@ router.get("/:username", async function(req, res) {
     // Cache'e kaydet (departmentId ile birlikte)
     var updateData = { data: data, fetchedAt: new Date().toISOString() };
     if (departmentId) updateData.departmentId = departmentId;
-    await db.collection("akademisyen_cache").updateOne(
-      { _id: username },
-      { $set: updateData },
-      { upsert: true }
-    );
+    await docRef.set(updateData, { merge: true });
 
     res.json(data);
   } catch (err) {
@@ -302,8 +303,8 @@ router.get("/:username", async function(req, res) {
     // Cache varsa eski veriyi dön
     try {
       var db2 = await getDbSafe();
-      var old = await db2.collection("akademisyen_cache").findOne({ _id: username });
-      if (old && old.data) return res.json(old.data);
+      var old = await db2.collection("akademisyen_cache").doc(username).get();
+      if (old.exists && old.data().data) return res.json(old.data().data);
     } catch (_) {}
     res.status(500).json({ error: "Akademisyen bilgisi alınamadı: " + err.message });
   }
