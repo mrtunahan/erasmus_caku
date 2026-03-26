@@ -78,7 +78,8 @@ function addTimestamps(data, isNew) {
     if (value && typeof value === "object" && value._methodName) continue;
     // __increment:N → Firestore FieldValue.increment
     if (typeof value === "string" && value.startsWith("__increment:")) {
-      increments[key] = parseInt(value.split(":")[1], 10) || 1;
+      var incVal = parseInt(value.split(":")[1], 10);
+      increments[key] = isNaN(incVal) ? 1 : incVal;
       continue;
     }
     cleaned[key] = value;
@@ -228,7 +229,12 @@ router.get("/:collection", async (req, res) => {
 
       const fsOp = firestoreOps[op];
       if (fsOp) {
-        query = query.where(field, fsOp, value);
+        // Tip dönüşümü: string → uygun tip
+        let convertedValue = value;
+        if (value === "true") convertedValue = true;
+        else if (value === "false") convertedValue = false;
+        else if (value !== "" && !isNaN(value)) convertedValue = Number(value);
+        query = query.where(field, fsOp, convertedValue);
       }
     }
 
