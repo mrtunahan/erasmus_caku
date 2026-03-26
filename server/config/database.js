@@ -7,11 +7,11 @@ const DB_NAME = process.env.DB_NAME || "caku_erasmus";
 const CLIENT_OPTIONS = {
   maxPoolSize: 10,
   minPoolSize: 2,
-  maxIdleTimeMS: 30000,
+  maxIdleTimeMS: 120000,
   connectTimeoutMS: 10000,
   socketTimeoutMS: 45000,
-  serverSelectionTimeoutMS: 10000,
-  heartbeatFrequencyMS: 10000,
+  serverSelectionTimeoutMS: 15000,
+  heartbeatFrequencyMS: 30000,
   retryWrites: true,
   retryReads: true,
 };
