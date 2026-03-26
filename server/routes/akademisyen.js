@@ -271,7 +271,10 @@ router.get("/:username", async function(req, res) {
     if (cached.exists) {
       var cachedData = cached.data();
       if (cachedData.fetchedAt) {
-        var age = Date.now() - new Date(cachedData.fetchedAt).getTime();
+        var fetchedTime = cachedData.fetchedAt && cachedData.fetchedAt._seconds
+          ? cachedData.fetchedAt._seconds * 1000
+          : new Date(cachedData.fetchedAt).getTime();
+        var age = Date.now() - fetchedTime;
         if (age < 24 * 60 * 60 * 1000) {
           // departmentId varsa ata
           if (departmentId && !cachedData.departmentId) {
@@ -293,7 +296,7 @@ router.get("/:username", async function(req, res) {
     var data = parseAcademicianHTML(html, username);
 
     // Cache'e kaydet (departmentId ile birlikte)
-    var updateData = { data: data, fetchedAt: new Date().toISOString() };
+    var updateData = { data: data, fetchedAt: new Date() };
     if (departmentId) updateData.departmentId = departmentId;
     await docRef.set(updateData, { merge: true });
 
@@ -304,7 +307,10 @@ router.get("/:username", async function(req, res) {
     try {
       var db2 = await getDbSafe();
       var old = await db2.collection("akademisyen_cache").doc(username).get();
-      if (old.exists && old.data().data) return res.json(old.data().data);
+      if (old.exists) {
+          var oldData = old.data();
+          if (oldData && oldData.data) return res.json(oldData.data);
+        }
     } catch (_) {}
     res.status(500).json({ error: "Akademisyen bilgisi alınamadı: " + err.message });
   }
