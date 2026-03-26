@@ -1,0 +1,308 @@
+[
+  {
+    "_id": "2PRxHNWjCLP9HvaD55sw",
+    "_firestoreId": "2PRxHNWjCLP9HvaD55sw",
+    "baslik": "Not Onay Kaldırma Formu",
+    "aciklama": "",
+    "kategori": "ogrenci-isleri",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127244070_Not%20Onay%20Kald%C4%B1rma%20I%CC%87stek%20Formu%20Word.docx?alt=media&token=93d9ff91-d715-4a4d-9467-fbec27875668",
+    "dosyaAdi": "Not Onay Kaldırma İstek Formu Word.docx",
+    "dosyaBoyutu": 15143,
+    "storagePath": "forms/1773127244070_Not Onay Kaldırma İstek Formu Word.docx",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127245,
+      "_nanoseconds": 319000000,
+      "_isoDate": "2026-03-10T07:20:45.319Z"
+    }
+  },
+  {
+    "_id": "IturGczidLf4fPqH7fpm",
+    "_firestoreId": "IturGczidLf4fPqH7fpm",
+    "baslik": "Staj",
+    "aciklama": "Staj Defteri Şablonu",
+    "kategori": "bolum",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127819866_O%CC%88rnek%20Staj%20Defteri.docx?alt=media&token=06e13236-74f6-4629-a47f-7366f1da411e",
+    "dosyaAdi": "Örnek Staj Defteri.docx",
+    "dosyaBoyutu": 74923,
+    "storagePath": "forms/1773127819866_Örnek Staj Defteri.docx",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127822,
+      "_nanoseconds": 567000000,
+      "_isoDate": "2026-03-10T07:30:22.567Z"
+    }
+  },
+  {
+    "_id": "KXVDQg4IjcBDqfardpHP",
+    "_firestoreId": "KXVDQg4IjcBDqfardpHP",
+    "baslik": "Staj",
+    "aciklama": "Zorunlu Staj Formu",
+    "kategori": "bolum",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127724956_Zorunlu%20Staj%20Formu.docx?alt=media&token=62629adf-040b-4056-a3ea-525d1589b370",
+    "dosyaAdi": "Zorunlu Staj Formu.docx",
+    "dosyaBoyutu": 99778,
+    "storagePath": "forms/1773127724956_Zorunlu Staj Formu.docx",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127727,
+      "_nanoseconds": 982000000,
+      "_isoDate": "2026-03-10T07:28:47.982Z"
+    }
+  },
+  {
+    "_id": "Kb9revyHeCAceCiYkS9u",
+    "_firestoreId": "Kb9revyHeCAceCiYkS9u",
+    "baslik": "Kayıt Sildirme Dilekçesi",
+    "aciklama": "",
+    "kategori": "ogrenci-isleri",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127393558_Kay%C4%B1t%20Sildirme%20Dilekc%CC%A7esi06112024.pdf?alt=media&token=9ea1a55b-8ee7-4f2f-b73a-0d570085b8bb",
+    "dosyaAdi": "Kayıt Sildirme Dilekçesi06112024.pdf",
+    "dosyaBoyutu": 453372,
+    "storagePath": "forms/1773127393558_Kayıt Sildirme Dilekçesi06112024.pdf",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127398,
+      "_nanoseconds": 145000000,
+      "_isoDate": "2026-03-10T07:23:18.145Z"
+    }
+  },
+  {
+    "_id": "Mbkey0ULz43JJPEYsDlC",
+    "_firestoreId": "Mbkey0ULz43JJPEYsDlC",
+    "baslik": "Tek Ders Sınavı",
+    "aciklama": "Tek Ders Sınavına Giriş Talebi için Dilekçe",
+    "kategori": "bolum",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127649395_Tek%20Ders%20S%C4%B1nav%20Dilekc%CC%A7esi.doc?alt=media&token=6f5e654f-5426-4aa2-957f-2c7e39bb6211",
+    "dosyaAdi": "Tek Ders Sınav Dilekçesi.doc",
+    "dosyaBoyutu": 46592,
+    "storagePath": "forms/1773127649395_Tek Ders Sınav Dilekçesi.doc",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127650,
+      "_nanoseconds": 477000000,
+      "_isoDate": "2026-03-10T07:27:30.477Z"
+    }
+  },
+  {
+    "_id": "TY0QzoYOSySW2bKTuASb",
+    "_firestoreId": "TY0QzoYOSySW2bKTuASb",
+    "baslik": "Yaz Okulu",
+    "aciklama": "Başka Bir Üniversiteden Ders Almak için Dilekçe",
+    "kategori": "bolum",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127451444_YazOkuluDilekc%CC%A7eO%CC%88rneg%CC%86i%20(1).docx?alt=media&token=789302b3-d1d8-4403-86bd-025c2159109e",
+    "dosyaAdi": "YazOkuluDilekçeÖrneği (1).docx",
+    "dosyaBoyutu": 111607,
+    "storagePath": "forms/1773127451444_YazOkuluDilekçeÖrneği (1).docx",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127453,
+      "_nanoseconds": 722000000,
+      "_isoDate": "2026-03-10T07:24:13.722Z"
+    }
+  },
+  {
+    "_id": "VKoWHnnN7nNKE9SWHGfs",
+    "_firestoreId": "VKoWHnnN7nNKE9SWHGfs",
+    "baslik": "Staj",
+    "aciklama": "Staj Başvuru Formu (EK-1)",
+    "kategori": "bolum",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127752297_EK-1.docx?alt=media&token=4cb244f4-97b6-4e40-a633-8e611ae56bc3",
+    "dosyaAdi": "EK-1.docx",
+    "dosyaBoyutu": 17566,
+    "storagePath": "forms/1773127752297_EK-1.docx",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127753,
+      "_nanoseconds": 782000000,
+      "_isoDate": "2026-03-10T07:29:13.782Z"
+    }
+  },
+  {
+    "_id": "YZhNBIb28HrPd8fknZWh",
+    "_firestoreId": "YZhNBIb28HrPd8fknZWh",
+    "baslik": "Bitirme Projesi",
+    "aciklama": "",
+    "kategori": "bolum",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127516548_New_TEZ_SABLONU%20(1)%20(1)%20(2).docx?alt=media&token=16ed0b05-4344-40f3-9f28-8485690e308d",
+    "dosyaAdi": "New_TEZ_SABLONU (1) (1) (2).docx",
+    "dosyaBoyutu": 125139,
+    "storagePath": "forms/1773127516548_New_TEZ_SABLONU (1) (1) (2).docx",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127518,
+      "_nanoseconds": 541000000,
+      "_isoDate": "2026-03-10T07:25:18.541Z"
+    }
+  },
+  {
+    "_id": "YftIFhOzQyXmIgVanAzl",
+    "_firestoreId": "YftIFhOzQyXmIgVanAzl",
+    "baslik": "Staj",
+    "aciklama": "Staj Değerlendirme Anket Formu (EK-2)",
+    "kategori": "bolum",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127768699_EK-2.docx?alt=media&token=6e241cce-e7e5-4087-a627-b27e3c6c910d",
+    "dosyaAdi": "EK-2.docx",
+    "dosyaBoyutu": 117320,
+    "storagePath": "forms/1773127768699_EK-2.docx",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127770,
+      "_nanoseconds": 985000000,
+      "_isoDate": "2026-03-10T07:29:30.985Z"
+    }
+  },
+  {
+    "_id": "bhnjnmf3cU719ppGoks4",
+    "_firestoreId": "bhnjnmf3cU719ppGoks4",
+    "baslik": "Ders Sildirme",
+    "aciklama": "Ders Sildirme Talebi için Dilekçe",
+    "kategori": "bolum",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127558257_DERS%20SI%CC%87LDI%CC%87RME%20DI%CC%87LEKC%CC%A7E.docx?alt=media&token=b2520a97-3d58-4241-aac8-67bd5bcbad35",
+    "dosyaAdi": "DERS SİLDİRME DİLEKÇE.docx",
+    "dosyaBoyutu": 15061,
+    "storagePath": "forms/1773127558257_DERS SİLDİRME DİLEKÇE.docx",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127559,
+      "_nanoseconds": 555000000,
+      "_isoDate": "2026-03-10T07:25:59.555Z"
+    }
+  },
+  {
+    "_id": "e5g8BncUjm5ozlOA91OF",
+    "_firestoreId": "e5g8BncUjm5ozlOA91OF",
+    "baslik": "Mazaret Kayıt Dilekçesi",
+    "aciklama": "",
+    "kategori": "ogrenci-isleri",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127263625_Mazeret%20Kay%C4%B1t%20Dilekc%CC%A7esi06112024.pdf?alt=media&token=a18647d2-09af-4c82-b6e3-c09e873853b4",
+    "dosyaAdi": "Mazeret Kayıt Dilekçesi06112024.pdf",
+    "dosyaBoyutu": 84808,
+    "storagePath": "forms/1773127263625_Mazeret Kayıt Dilekçesi06112024.pdf",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127265,
+      "_nanoseconds": 608000000,
+      "_isoDate": "2026-03-10T07:21:05.608Z"
+    }
+  },
+  {
+    "_id": "j3HYK9fZbeM7U0AwDdAP",
+    "_firestoreId": "j3HYK9fZbeM7U0AwDdAP",
+    "baslik": "Staj",
+    "aciklama": "Staj Teslim Formu",
+    "kategori": "bolum",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127834623_staj_teslim_formu.docx?alt=media&token=f53d2a3a-3cdb-4cdd-96f9-a2ae8c0a239b",
+    "dosyaAdi": "staj_teslim_formu.docx",
+    "dosyaBoyutu": 22425,
+    "storagePath": "forms/1773127834623_staj_teslim_formu.docx",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127836,
+      "_nanoseconds": 110000000,
+      "_isoDate": "2026-03-10T07:30:36.110Z"
+    }
+  },
+  {
+    "_id": "kiWt2iNz2dBESCkrftvh",
+    "_firestoreId": "kiWt2iNz2dBESCkrftvh",
+    "baslik": "Askerlik Yazısı İçin Dilekçe",
+    "aciklama": "",
+    "kategori": "ogrenci-isleri",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127318903_Askerlik%20Yaz%C4%B1s%C4%B1%20I%CC%87c%CC%A7in%20Dilekc%CC%A7e06112024.pdf?alt=media&token=d5f80554-1aeb-46ea-ad7c-89d414ca1838",
+    "dosyaAdi": "Askerlik Yazısı İçin Dilekçe06112024.pdf",
+    "dosyaBoyutu": 105144,
+    "storagePath": "forms/1773127318903_Askerlik Yazısı İçin Dilekçe06112024.pdf",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127321,
+      "_nanoseconds": 153000000,
+      "_isoDate": "2026-03-10T07:22:01.153Z"
+    }
+  },
+  {
+    "_id": "nyjBZ2KOhZ4IBGg7sNjY",
+    "_firestoreId": "nyjBZ2KOhZ4IBGg7sNjY",
+    "baslik": "Mezuniyet Dilekçesi + Ders Sildirme Dilekçesi",
+    "aciklama": "",
+    "kategori": "bolum",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773128025259_Mezuniyet%20Dilekc%CC%A7esi.docx?alt=media&token=228c044c-a4e8-4bf2-9563-54273d98ba69",
+    "dosyaAdi": "Mezuniyet Dilekçesi.docx",
+    "dosyaBoyutu": 74199,
+    "storagePath": "forms/1773128025259_Mezuniyet Dilekçesi.docx",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773128027,
+      "_nanoseconds": 907000000,
+      "_isoDate": "2026-03-10T07:33:47.907Z"
+    }
+  },
+  {
+    "_id": "rzleXjxPgU9BogMsR7UK",
+    "_firestoreId": "rzleXjxPgU9BogMsR7UK",
+    "baslik": "Genel Talep",
+    "aciklama": "Fakülte Öğrenci Genel Talep Dilekçesi",
+    "kategori": "bolum",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127619957_MF%20O%CC%88g%CC%86renci%20Genel%20Talep%20Dilekc%CC%A7esi.docx?alt=media&token=776c57f2-1580-42d1-b88d-44bfc19b768e",
+    "dosyaAdi": "MF Öğrenci Genel Talep Dilekçesi.docx",
+    "dosyaBoyutu": 19899,
+    "storagePath": "forms/1773127619957_MF Öğrenci Genel Talep Dilekçesi.docx",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127621,
+      "_nanoseconds": 485000000,
+      "_isoDate": "2026-03-10T07:27:01.485Z"
+    }
+  },
+  {
+    "_id": "tbeULpjYF18vAyMJLI25",
+    "_firestoreId": "tbeULpjYF18vAyMJLI25",
+    "baslik": "Staj",
+    "aciklama": "Staj Kurum Başvuru Dilekçesi (EK-3)",
+    "kategori": "bolum",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127787811_EK-3_Staj_Kurum_Bas%CC%A7vuru_Dilekc%CC%A7esi%20(1)%20(1).docx?alt=media&token=229b1c85-67f3-461e-99f5-717f7d4b2486",
+    "dosyaAdi": "EK-3_Staj_Kurum_Başvuru_Dilekçesi (1) (1).docx",
+    "dosyaBoyutu": 27750,
+    "storagePath": "forms/1773127787811_EK-3_Staj_Kurum_Başvuru_Dilekçesi (1) (1).docx",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127789,
+      "_nanoseconds": 138000000,
+      "_isoDate": "2026-03-10T07:29:49.138Z"
+    }
+  },
+  {
+    "_id": "ut4mWwBjs48tzCCJx1Yk",
+    "_firestoreId": "ut4mWwBjs48tzCCJx1Yk",
+    "baslik": "Kimlik Kaybetme Dilekçesi",
+    "aciklama": "",
+    "kategori": "ogrenci-isleri",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127216980_Kimlik%20Kaybetme%20Dilekc%CC%A7esi06112024.pdf?alt=media&token=e2de1c36-7af0-45b7-b87a-460dea22cf1e",
+    "dosyaAdi": "Kimlik Kaybetme Dilekçesi06112024.pdf",
+    "dosyaBoyutu": 445920,
+    "storagePath": "forms/1773127216980_Kimlik Kaybetme Dilekçesi06112024.pdf",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127221,
+      "_nanoseconds": 834000000,
+      "_isoDate": "2026-03-10T07:20:21.834Z"
+    }
+  },
+  {
+    "_id": "xlnqhqHsbKvoN7JNSrqF",
+    "_firestoreId": "xlnqhqHsbKvoN7JNSrqF",
+    "baslik": "Liseden Mezun Olamayanlar İçin Dilekçe",
+    "aciklama": "",
+    "kategori": "ogrenci-isleri",
+    "dosyaURL": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/forms%2F1773127346923_Liseden%20Mezun%20Olamayanlar%20I%CC%87c%CC%A7in%20Dilekc%CC%A7e06112024.pdf?alt=media&token=2e3a4231-ff5d-4028-9953-45848c974b1a",
+    "dosyaAdi": "Liseden Mezun Olamayanlar İçin Dilekçe06112024.pdf",
+    "dosyaBoyutu": 64648,
+    "storagePath": "forms/1773127346923_Liseden Mezun Olamayanlar İçin Dilekçe06112024.pdf",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773127348,
+      "_nanoseconds": 489000000,
+      "_isoDate": "2026-03-10T07:22:28.489Z"
+    }
+  }
+]

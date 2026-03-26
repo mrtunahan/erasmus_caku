@@ -1,0 +1,306 @@
+[
+  {
+    "_id": "0xTGoyys99xhyPLc18NI",
+    "_firestoreId": "0xTGoyys99xhyPLc18NI",
+    "name": "Dr. Öğr. Üyesi Fatih ISSI",
+    "department": "BİLGİSAYAR",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770838093,
+      "_nanoseconds": 211000000,
+      "_isoDate": "2026-02-11T19:28:13.211Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "1ckDokSmz70RbTW9QM5X",
+    "_firestoreId": "1ckDokSmz70RbTW9QM5X",
+    "name": "Dr. Öğr. Üyesi Celalettin KAYA",
+    "department": "MATEMATİK",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770839075,
+      "_nanoseconds": 344000000,
+      "_isoDate": "2026-02-11T19:44:35.344Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "74rXdNkcowALm5jrUENF",
+    "_firestoreId": "74rXdNkcowALm5jrUENF",
+    "name": "Dr. Öğr. Üyesi Osman GÜLER",
+    "department": "BİLGİSAYAR",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770838240,
+      "_nanoseconds": 584000000,
+      "_isoDate": "2026-02-11T19:30:40.584Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "GdbnUfZYBZFU8pfViwsJ",
+    "_firestoreId": "GdbnUfZYBZFU8pfViwsJ",
+    "name": "Dr. Öğr. Üyesi Kübra K. UYAR",
+    "department": "TÜBİTAK",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770839248,
+      "_nanoseconds": 787000000,
+      "_isoDate": "2026-02-11T19:47:28.787Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "Gie4HDPXKABG1nC90NGD",
+    "_firestoreId": "Gie4HDPXKABG1nC90NGD",
+    "name": "Dr. Öğr. Üyesi Mahmut O. TAŞÇI",
+    "department": "KUZKA",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770839190,
+      "_nanoseconds": 157000000,
+      "_isoDate": "2026-02-11T19:46:30.157Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "IVCLTJ8JdIhkitIQf5PK",
+    "_firestoreId": "IVCLTJ8JdIhkitIQf5PK",
+    "name": "Dr. Öğr. Üyesi Esma B. ÖZKAN",
+    "department": "MATEMATİK",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774011274,
+      "_nanoseconds": 644000000,
+      "_isoDate": "2026-03-20T12:54:34.644Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "OcvWzbf4oZjmkRCpbvFW",
+    "_firestoreId": "OcvWzbf4oZjmkRCpbvFW",
+    "name": "Doç. Dr. Müfit ŞAN",
+    "department": "MATEMATİK",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770838016,
+      "_nanoseconds": 165000000,
+      "_isoDate": "2026-02-11T19:26:56.165Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "PpHHVglgbMMPDz6PN7ik",
+    "_firestoreId": "PpHHVglgbMMPDz6PN7ik",
+    "name": "Prof. Dr. Hamit ALYAR",
+    "department": "FİZİK",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770837866,
+      "_nanoseconds": 318000000,
+      "_isoDate": "2026-02-11T19:24:26.318Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "UBYrDfMt6WFlydX2Ztyo",
+    "_firestoreId": "UBYrDfMt6WFlydX2Ztyo",
+    "name": "Dr. Öğr. Üyesi Uğur BİNZAT",
+    "department": "İSTATİSTİK",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770838220,
+      "_nanoseconds": 2000000,
+      "_isoDate": "2026-02-11T19:30:20.002Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "Xs80wM8KpdE4wASHp1dd",
+    "_firestoreId": "Xs80wM8KpdE4wASHp1dd",
+    "name": "Dr. Öğr. Üyesi Mehmet A. ALPER",
+    "department": "BİLGİSAYAR",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770838167,
+      "_nanoseconds": 692000000,
+      "_isoDate": "2026-02-11T19:29:27.692Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "YcoLXAnzGfG7TzuMhG0L",
+    "_firestoreId": "YcoLXAnzGfG7TzuMhG0L",
+    "name": "Dr. Öğr. Üyesi Seda ŞAHİN",
+    "department": "BİLGİSAYAR",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770838148,
+      "_nanoseconds": 376000000,
+      "_isoDate": "2026-02-11T19:29:08.376Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "hvKlaKfkEvPyDcavzwxX",
+    "_firestoreId": "hvKlaKfkEvPyDcavzwxX",
+    "department": "BİLGİSAYAR",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770838127,
+      "_nanoseconds": 283000000,
+      "_isoDate": "2026-02-11T19:28:47.283Z"
+    },
+    "name": "Doç. Dr. Taha ETEM",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "lr8QWgkaH8KSdamni19n",
+    "_firestoreId": "lr8QWgkaH8KSdamni19n",
+    "name": "Doç. Dr. Selim BUYRUKOĞLU",
+    "department": "BİLGİSAYAR ",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770838038,
+      "_nanoseconds": 524000000,
+      "_isoDate": "2026-02-11T19:27:18.524Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "trkCB54R40tlJcyMKsXH",
+    "_firestoreId": "trkCB54R40tlJcyMKsXH",
+    "name": "Prof. Dr.  Çiğdem Y. ATAOL",
+    "department": "FİZİK",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770837914,
+      "_nanoseconds": 601000000,
+      "_isoDate": "2026-02-11T19:25:14.601Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "wTm2hZhTnxpTnBkzJfsL",
+    "_firestoreId": "wTm2hZhTnxpTnBkzJfsL",
+    "name": "Prof Dr. İlyas İNCİ",
+    "department": "MATEMATİK",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770837800,
+      "_nanoseconds": 264000000,
+      "_isoDate": "2026-02-11T19:23:20.264Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "xdM3DLFE9n5CA7bAzx7g",
+    "_firestoreId": "xdM3DLFE9n5CA7bAzx7g",
+    "name": "Dr. Öğr. Üyesi Selim SÜRÜCÜ",
+    "department": "BİLGİSAYAR",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1770838104,
+      "_nanoseconds": 925000000,
+      "_isoDate": "2026-02-11T19:28:24.925Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  }
+]

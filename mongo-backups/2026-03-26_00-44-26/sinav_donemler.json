@@ -1,0 +1,83 @@
+[
+  {
+    "_id": "JWrvG4vojSvQAGsCsKx1",
+    "_firestoreId": "JWrvG4vojSvQAGsCsKx1",
+    "examType": "vize",
+    "semester": "Bahar 2025-2026",
+    "startDate": "2026-04-13",
+    "endDate": "2026-04-18",
+    "weeks": 1,
+    "label": "Vize - Bahar 2025-2026",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774352635,
+      "_nanoseconds": 548000000,
+      "_isoDate": "2026-03-24T11:43:55.548Z"
+    },
+    "departmentId": "makine",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "jRaNQVuJdX4nom8ZtLGZ",
+    "_firestoreId": "jRaNQVuJdX4nom8ZtLGZ",
+    "examType": "vize",
+    "semester": "Bahar 2025-2026",
+    "startDate": "2026-04-13",
+    "endDate": "2026-04-18",
+    "weeks": 1,
+    "label": "Vize - Bahar 2025-2026",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774011342,
+      "_nanoseconds": 792000000,
+      "_isoDate": "2026-03-20T12:55:42.792Z"
+    },
+    "departmentId": "kimya",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "qTcSicEw6YXGvqyFILCc",
+    "_firestoreId": "qTcSicEw6YXGvqyFILCc",
+    "examType": "vize",
+    "semester": "Bahar 2025-2026",
+    "startDate": "2026-04-13",
+    "endDate": "2026-04-18",
+    "weeks": 1,
+    "label": "Vize - Bahar 2025-2026",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774011330,
+      "_nanoseconds": 161000000,
+      "_isoDate": "2026-03-20T12:55:30.161Z"
+    },
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "69c47202eef7293a306b82b5",
+    "examType": "vize",
+    "semester": "Bahar 2025-2026",
+    "startDate": "2026-04-13",
+    "endDate": "2026-04-18",
+    "weeks": 1,
+    "label": "Vize - Bahar 2025-2026",
+    "departmentId": "elektrik",
+    "updatedAt": "2026-03-25T23:38:42.965Z",
+    "createdAt": "2026-03-25T23:38:42.965Z"
+  }
+]

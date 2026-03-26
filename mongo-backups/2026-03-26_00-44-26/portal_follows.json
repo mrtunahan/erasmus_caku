@@ -1,0 +1,26 @@
+[
+  {
+    "_id": "Admin",
+    "_firestoreId": "Admin",
+    "users": []
+  },
+  {
+    "_id": "OSMAN CAN06 EKİZ",
+    "_firestoreId": "OSMAN CAN06 EKİZ",
+    "users": []
+  },
+  {
+    "_id": "Sezai Kılıç",
+    "_firestoreId": "Sezai Kılıç",
+    "tags": [
+      "PROJE"
+    ]
+  },
+  {
+    "_id": "YÜCEL BOZKURT",
+    "_firestoreId": "YÜCEL BOZKURT",
+    "users": [
+      "Admin"
+    ]
+  }
+]

@@ -1,0 +1,177 @@
+[
+  {
+    "_id": "7lxBiGNUU13rKMJF4UqN",
+    "_firestoreId": "7lxBiGNUU13rKMJF4UqN",
+    "category": "kaynak",
+    "title": "OpenClaw: The Evolution of Personal AI Agents (Clawdbot, Moltbot)",
+    "content": "<p><strong style=\"color: rgb(48, 48, 48);\">OpenClaw</strong><span style=\"color: rgb(48, 48, 48);\">, kullanıcının kendi bilgisayarında çalışan ve dijital görevleri otonom olarak yerine getiren&nbsp;</span><strong style=\"color: rgb(48, 48, 48);\">açık kaynaklı bir kişisel yapay zeka asistanıdır.</strong><span style=\"color: rgb(48, 48, 48);\">&nbsp;WhatsApp ve Telegram gibi popüler mesajlaşma uygulamaları üzerinden kontrol edilebilen bu sistem; e-posta yönetimi, takvim düzenleme ve dosya işlemleri gibi karmaşık işleri gerçekleştirebilmektedir. Yazılımın en dikkat çekici özelliği,&nbsp;</span><strong style=\"color: rgb(48, 48, 48);\">verileri yerel ortamda tutarak gizliliği koruması</strong><span style=\"color: rgb(48, 48, 48);\">&nbsp;ve kullanıcının ihtiyaçlarına göre yeni yetenekler geliştirebilmesidir. Geniş bir topluluk desteğine sahip olan proje, kullanıcılar tarafından&nbsp;</span><strong style=\"color: rgb(48, 48, 48);\">\"geleceğin dijital iş arkadaşı\"</strong><span style=\"color: rgb(48, 48, 48);\">&nbsp;ve Apple’ın Siri çözümüne daha güçlü bir alternatif olarak nitelendirilmektedir. Tarayıcı kontrolü ve kalıcı hafıza yetenekleriyle donatılan bu araç, yapay zekayı pasif bir araçtan aktif bir&nbsp;</span><strong style=\"color: rgb(48, 48, 48);\">yönetim merkezine</strong><span style=\"color: rgb(48, 48, 48);\">&nbsp;dönüştürmeyi hedeflemektedir.</span></p>",
+    "contentFormat": "html",
+    "tag": "Genel",
+    "courseCode": "",
+    "tags": [
+      "openclaw",
+      "AI"
+    ],
+    "authorName": "Admin",
+    "authorId": "Admin",
+    "attachment": {
+      "url": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/portal_files%2F1773950233891_tz5fzhlsjt8.pdf?alt=media&token=16325a8a-c26c-4771-8a74-8e300e2ee05e",
+      "name": "OpenClaw_Personal_AI_OS-sıkıştırıldı.pdf",
+      "type": "application/pdf",
+      "size": 843077
+    },
+    "resourceUrl": "https://github.com/openclaw/openclaw",
+    "reactions": {},
+    "upvotes": [],
+    "downvotes": [],
+    "voteScore": 0,
+    "pinned": false,
+    "status": "approved",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773950242,
+      "_nanoseconds": 965000000,
+      "_isoDate": "2026-03-19T19:57:22.965Z"
+    },
+    "commentCount": 1,
+    "views": 42,
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774339965,
+      "_nanoseconds": 714000000,
+      "_isoDate": "2026-03-24T08:12:45.714Z"
+    }
+  },
+  {
+    "_id": "aVZVTbxd4ieQ1OHtOlGJ",
+    "_firestoreId": "aVZVTbxd4ieQ1OHtOlGJ",
+    "category": "kaynak",
+    "title": "NotebookLM Nedir? (SUNUM DOSYASI NOTEBOOKLM İLE HAZIRLANMIŞTIR)",
+    "content": "<p>NotebookLM, Google tarafından geliştirilen yapay zekâ destekli bir araştırma ve not alma aracıdır. Kullanıcının yüklediği dokümanlar (PDF, makale, sunum, Google Docs vb.) üzerinden çalışarak içerik analizi yapar, özet çıkarır, soruları yanıtlar ve içerik üretir.</p><p>NotebookLM’in en önemli özelliği, genel internet verisi yerine&nbsp;<strong>kullanıcının sağladığı kaynaklara dayalı (source-grounded) yanıtlar üretmesidir.</strong>&nbsp;Bu sayede akademik çalışmalarda daha kontrollü ve bağlama uygun içerik üretimi sağlar.</p><p><strong>NotebookLM Nasıl Çalışır?</strong></p><p>NotebookLM, büyük dil modellerini (LLM) kullanarak yüklenen belgeleri analiz eder ve şu işlemleri gerçekleştirir:</p><ul><li>Metin özetleme</li><li>Kavram açıklama</li><li>Soru-cevap üretimi</li><li>Sunum taslağı oluşturma</li><li>Anahtar kavram çıkarımı</li><li>Çalışma rehberi oluşturma</li></ul><p>Sistem, yalnızca yüklenen dokümanlara dayanarak cevap üretir ve referans göstererek hangi kaynaktan bilgi aldığını belirtir.</p>",
+    "contentFormat": "html",
+    "tag": "Genel",
+    "courseCode": "",
+    "tags": [
+      "GOOGLE"
+    ],
+    "authorName": "Admin",
+    "authorId": "Admin",
+    "attachment": {
+      "url": "https://firebasestorage.googleapis.com/v0/b/caku-erasmus.firebasestorage.app/o/portal_files%2F1772508042891_2itso653lns.pdf?alt=media&token=55f4246b-1f89-4f80-a452-ca817e71164d",
+      "name": "Java_OOP_Essentials-sıkıştırıldı.pdf",
+      "type": "application/pdf",
+      "size": 902575
+    },
+    "resourceUrl": "https://notebooklm.google.com",
+    "commentCount": 0,
+    "pinned": false,
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1772508049,
+      "_nanoseconds": 92000000,
+      "_isoDate": "2026-03-03T03:20:49.092Z"
+    },
+    "voteScore": 1,
+    "upvotes": [
+      "Halil İbrahim Çelik"
+    ],
+    "downvotes": [],
+    "reactions": {
+      "idea": [
+        "Mehmet Can Altuntaş"
+      ]
+    },
+    "views": 144,
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774297986,
+      "_nanoseconds": 456000000,
+      "_isoDate": "2026-03-23T20:33:06.456Z"
+    }
+  },
+  {
+    "_id": "eGXBqusP3dhUywRIa88U",
+    "_firestoreId": "eGXBqusP3dhUywRIa88U",
+    "category": "duyuru",
+    "title": "Nesne Yönelimli Programlama (OOP) Projesi: Gereksinimler ve Değerlendirme Kriterleri",
+    "content": "<p><strong>Değerli Arkadaşlar,</strong></p><p>Dönem kapsamında geliştireceğiniz Nesne Yönelimli Programlama (OOP) projelerinizde uymanız gereken teknik standartlar ve değerlendirme kriterleri aşağıda belirtilmiştir. Projelerinizin sadece çalışması değil, yazılım mimarisi kurallarına uygunluğu da notlandırmanın temelini oluşturacaktır.</p><p><strong>Değerlendirme Kriterleri:</strong></p><ul><li><strong>OOP Temel Prensiplerine Uygunluk (30 Puan):</strong>&nbsp;Projenizde verilerin&nbsp;<code>private</code>&nbsp;erişim belirleyicileri ve&nbsp;<code>getter/setter</code>&nbsp;metodları ile korunması (Encapsulation), sınıflar arası mantıklı bir kalıtım hiyerarşisi (Inheritance), metod ezme veya aşırı yükleme (Polymorphism) ve soyut sınıfların/arayüzlerin (Abstraction) etkin kullanımı beklenmektedir.</li><li><strong>Sınıf Tasarımı ve Yapısı (25 Puan):</strong>&nbsp;Her sınıfın tek bir sorumluluğu olmalı (Single Responsibility) ve sınıflar arasındaki ilişkiler (Association, Aggregation, Composition) doğru kurgulanmalıdır. Kod tekrarından (Code Duplication) kaçınılması kritiktir.</li><li><strong>Kod Kalitesi ve Okunabilirlik (20 Puan):</strong>&nbsp;Değişken, metod ve sınıf isimlerinin anlamlı seçilmesi, kodun genel düzeni, temizliği ve gerekli yerlerde açıklayıcı yorum satırlarının bulunması değerlendirilecektir. Ayrıca, ana işlem mantığının sınıflara dağıtıldığı sade bir&nbsp;<code>Main</code>&nbsp;metodu tasarımı istenmektedir.</li><li><strong>Fonksiyonellik ve Doğruluk (25 Puan):</strong>&nbsp;Projenin belirlenen tüm gereksinimleri eksiksiz karşılaması ve farklı kullanıcı girdileri altında hatasız (Exception Handling uygulanmış şekilde) çalışması gerekmektedir.</li></ul><p><strong>Önemli Not:</strong>&nbsp;Projelerinizi zamanında teslim etmeniz ve kodun tamamen özgün olması gerektiğini hatırlatır, çalışmalarınızda başarılar dilerim.</p>",
+    "contentFormat": "html",
+    "tag": "1. Sınıf",
+    "courseCode": "BLM102",
+    "tags": [
+      "PROJE",
+      "JAVA",
+      "OOP",
+      "BLM102"
+    ],
+    "authorName": "Admin",
+    "authorId": "Admin",
+    "commentCount": 0,
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1772140285,
+      "_nanoseconds": 359000000,
+      "_isoDate": "2026-02-26T21:11:25.359Z"
+    },
+    "pinned": true,
+    "reactions": {
+      "like": [
+        "Halil İbrahim Çelik",
+        "Tahacan Demirbaş"
+      ],
+      "hundred": [
+        "Mehmet Can Altuntaş",
+        "Ebrar Demirtaş"
+      ]
+    },
+    "upvotes": [
+      "Tahacan Demirbaş",
+      "Mustafa Emir Ata",
+      "Bilge Nur Aksoy",
+      "Burcu Şişman"
+    ],
+    "voteScore": 3,
+    "downvotes": [
+      "Ömer Oral"
+    ],
+    "views": 291,
+    "updatedAt": "2026-03-25T22:59:28.901Z"
+  },
+  {
+    "_id": "ivetzfmAV1pHRf0yKWGU",
+    "_firestoreId": "ivetzfmAV1pHRf0yKWGU",
+    "category": "kaynak",
+    "title": "Ücretsiz Yapay Zekâ Kursları: Anthropic Academy",
+    "content": "<p>Yapay zekâ alanında kendini geliştirmek isteyen öğrenciler için önemli bir fırsat!</p><p>Anthropic&nbsp;tarafından geliştirilen ve&nbsp;Claude AI&nbsp;modellerini de içeren&nbsp;<strong>Anthropic Academy</strong>&nbsp;platformunda, yapay zekâ kullanımı ve geliştirme üzerine birçok&nbsp;<strong>ücretsiz çevrim içi kurs</strong>&nbsp;sunulmaktadır.&nbsp;</p><p>Platformda yer alan eğitimler&nbsp;<strong>kendi hızınızda ilerleyebileceğiniz (self-paced)</strong>&nbsp;şekilde hazırlanmıştır ve kursların tamamlanmasının ardından&nbsp;<strong>dijital sertifika</strong>&nbsp;alma imkânı bulunmaktadır.&nbsp;</p><h3>Sunulan Başlıca Kurslar</h3><p>Platformda farklı seviyelere yönelik çok sayıda eğitim bulunmaktadır. Öne çıkan bazı kurslar:</p><ul><li><strong>Claude 101</strong>&nbsp;– Claude yapay zekâ asistanını günlük işlerde kullanmayı öğrenme</li><li><strong>AI Fluency: Framework &amp; Foundations</strong>&nbsp;– Yapay zekâ ile etkili ve güvenli çalışma prensipleri</li><li><strong>AI Fluency for Students</strong>&nbsp;– Öğrencilerin öğrenme süreçlerinde AI kullanımı</li><li><strong>Building with the Claude API</strong>&nbsp;– Claude modellerini uygulamalara entegre etmek</li><li><strong>Introduction to Model Context Protocol (MCP)</strong>&nbsp;– AI sistemlerini dış araçlarla bağlama</li><li><strong>Claude with Amazon Bedrock</strong>&nbsp;ve&nbsp;<strong>Claude with Google Vertex AI</strong>&nbsp;– Bulut ortamlarında AI entegrasyonu</li></ul><p>Bu eğitimler&nbsp;<strong>başlangıç seviyesinden geliştirici seviyesine kadar</strong>&nbsp;geniş bir kapsam sunmaktadır.&nbsp;</p><h3>Kimler Katılabilir?</h3><ul><li>Yapay zekâ hakkında temel bilgi edinmek isteyen öğrenciler</li><li>Yazılım geliştirme ve AI uygulamalarıyla ilgilenenler</li><li>Akademik çalışmalarında AI araçlarını kullanmak isteyenler</li><li>AI alanında kariyer hedefleyenler</li></ul><h3>Sertifika</h3><p>Kursların tamamlanması ve değerlendirme aşamasının geçilmesi durumunda&nbsp;<strong>resmi dijital sertifika</strong>&nbsp;alınabilmektedir. Bu sertifikalar CV veya LinkedIn profilinde kullanılabilir.&nbsp;</p><h3>Kurslara erişim</h3><p>Kurslara aşağıdaki bağlantıdan ücretsiz olarak kayıt olunabilir:</p>",
+    "contentFormat": "html",
+    "tag": "Genel",
+    "courseCode": "",
+    "tags": [
+      "CLAUDE",
+      "AI"
+    ],
+    "authorName": "Admin",
+    "authorId": "Admin",
+    "resourceUrl": "https://anthropic.skilljar.com",
+    "reactions": {},
+    "upvotes": [],
+    "downvotes": [],
+    "voteScore": 0,
+    "commentCount": 0,
+    "pinned": false,
+    "status": "approved",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1773131706,
+      "_nanoseconds": 208000000,
+      "_isoDate": "2026-03-10T08:35:06.208Z"
+    },
+    "views": 99,
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774297985,
+      "_nanoseconds": 508000000,
+      "_isoDate": "2026-03-23T20:33:05.508Z"
+    }
+  }
+]

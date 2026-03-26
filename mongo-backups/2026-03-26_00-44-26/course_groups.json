@@ -1,0 +1,44 @@
+[
+  {
+    "_id": "nEKAccC686TVDNIJn1L7",
+    "_firestoreId": "nEKAccC686TVDNIJn1L7",
+    "courseName": "Bilgisayar Programlama II",
+    "createdBy": "Admin",
+    "createdByName": "Admin",
+    "admins": [
+      "Admin"
+    ],
+    "postCount": 0,
+    "pinnedPosts": [],
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1771354924,
+      "_nanoseconds": 338000000,
+      "_isoDate": "2026-02-17T19:02:04.338Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1771534815,
+      "_nanoseconds": 20000000,
+      "_isoDate": "2026-02-19T21:00:15.020Z"
+    },
+    "description": "",
+    "lastMessage": "dsadasd",
+    "lastMessageTime": {
+      "_type": "timestamp",
+      "_seconds": 1772136700,
+      "_nanoseconds": 341000000,
+      "_isoDate": "2026-02-26T20:11:40.341Z"
+    },
+    "courseCode": "BLM102",
+    "memberCount": 6,
+    "members": [
+      "Admin",
+      "250905079",
+      "250905041",
+      "250905047",
+      "250905015",
+      "999999999"
+    ]
+  }
+]

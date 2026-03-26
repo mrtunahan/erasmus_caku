@@ -40,6 +40,25 @@ function log(msg) {
  * use the backups dir as the source.
  */
 function findLatestBackupDir() {
+  // Komut satırı argümanı kontrolü
+  const arg = process.argv[2] || "";
+
+  if (arg) {
+    // Tam yol verilmişse direkt kullan
+    if (fs.existsSync(arg)) return arg;
+    // Kısmi isim verilmişse backup dizininde ara
+    if (fs.existsSync(BACKUPS_DIR)) {
+      const entries = fs.readdirSync(BACKUPS_DIR, { withFileTypes: true });
+      const match = entries
+        .filter((e) => e.isDirectory() && e.name.includes(arg))
+        .map((e) => e.name)
+        .sort();
+      if (match.length > 0) return path.join(BACKUPS_DIR, match[match.length - 1]);
+    }
+    console.error(`ERROR: Backup not found: ${arg}`);
+    process.exit(1);
+  }
+
   if (!fs.existsSync(BACKUPS_DIR)) {
     console.error(`ERROR: Backup directory not found: ${BACKUPS_DIR}`);
     process.exit(1);
