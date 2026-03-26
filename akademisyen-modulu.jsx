@@ -8,11 +8,23 @@ const { useState, useEffect, useCallback } = React;
 const C = window.C;
 const Card = window.Card;
 const Btn = window.Btn;
-const GhostBtn = window.GhostBtn;
 const Modal = window.Modal;
 const Input = window.Input;
 const Badge = window.Badge;
 const FormField = window.FormField;
+
+// GhostBtn - lokal tanım (shared-components'ta yok)
+var GhostBtn = function({ children, onClick, disabled, style: customStyle }) {
+  return React.createElement("button", {
+    onClick: onClick,
+    disabled: disabled,
+    style: Object.assign({
+      padding: "8px 16px", background: "transparent", border: "1px solid " + (C ? C.border : "#E5E1D8"),
+      borderRadius: 8, cursor: disabled ? "not-allowed" : "pointer", fontSize: 13,
+      color: C ? C.text : "#1B2A4A", fontWeight: 500, opacity: disabled ? 0.5 : 1,
+    }, customStyle || {})
+  }, children);
+};
 
 // ── Renk paleti ──
 const COLORS = {
@@ -418,7 +430,7 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
           </div>
         </Card>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340, 1fr))", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 12 }}>
           {filtered.map(function(prof) {
             return (
               <AcademicianCard
