@@ -177,6 +177,51 @@ function parseAcademicianHTML(html, username) {
   return result;
 }
 
+// GET /api/akademisyen/proxy/photo - Profil fotoğrafı proxy (CSP bypass)
+// Bu route /:username'den ÖNCE tanımlanmalı yoksa "proxy" username olarak yakalanır
+router.get("/proxy/photo", async function(req, res) {
+  var url = req.query.url;
+  if (!url) return res.status(400).send("url gerekli");
+  if (url.indexOf("karatekin.edu.tr") < 0 && url.indexOf("websitem.karatekin.edu.tr") < 0) {
+    return res.status(403).send("Sadece karatekin.edu.tr resimleri");
+  }
+  try {
+    var mod = url.startsWith("https") ? https : require("http");
+    mod.get(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; CAKU-Asistan/1.0)" } }, function(imgRes) {
+      if (imgRes.statusCode !== 200) return res.status(imgRes.statusCode).send("Resim alınamadı");
+      res.set("Content-Type", imgRes.headers["content-type"] || "image/jpeg");
+      res.set("Cache-Control", "public, max-age=86400");
+      imgRes.pipe(res);
+    }).on("error", function() { res.status(500).send("Resim alınamadı"); });
+  } catch (e) { res.status(500).send("Resim alınamadı"); }
+});
+
+// GET /api/akademisyen - Akademisyenleri listele (departmentId filtreli)
+router.get("/", async function(req, res) {
+  try {
+    var db = getDb();
+    var filter = {};
+    if (req.query.departmentId) {
+      filter.departmentId = req.query.departmentId;
+    }
+    var all = await db.collection("akademisyen_cache").find(filter).toArray();
+    var list = all.map(function(doc) {
+      return {
+        username: doc._id,
+        fullName: doc.data ? doc.data.fullName : "",
+        photo: doc.data ? doc.data.photo : "",
+        email: doc.data ? doc.data.email : "",
+        department: doc.data ? doc.data.department : "",
+        departmentId: doc.departmentId || null,
+        fetchedAt: doc.fetchedAt
+      };
+    });
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/akademisyen/:username/assign - Akademisyeni bölüme ata
 router.post("/:username/assign", async function(req, res) {
   var username = normalizeUsername(req.params.username);
@@ -261,32 +306,6 @@ router.get("/:username", async function(req, res) {
       if (old && old.data) return res.json(old.data);
     } catch (_) {}
     res.status(500).json({ error: "Akademisyen bilgisi alınamadı: " + err.message });
-  }
-});
-
-// GET /api/akademisyen - Akademisyenleri listele (departmentId filtreli)
-router.get("/", async function(req, res) {
-  try {
-    var db = getDb();
-    var filter = {};
-    if (req.query.departmentId) {
-      filter.departmentId = req.query.departmentId;
-    }
-    var all = await db.collection("akademisyen_cache").find(filter).toArray();
-    var list = all.map(function(doc) {
-      return {
-        username: doc._id,
-        fullName: doc.data ? doc.data.fullName : "",
-        photo: doc.data ? doc.data.photo : "",
-        email: doc.data ? doc.data.email : "",
-        department: doc.data ? doc.data.department : "",
-        departmentId: doc.departmentId || null,
-        fetchedAt: doc.fetchedAt
-      };
-    });
-    res.json(list);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
 });
 
