@@ -28,7 +28,8 @@ router.get("/", async (req, res) => {
 
     await Promise.all(
       COLLECTIONS.map(async (name) => {
-        const count = await db.collection(name).countDocuments();
+        const snapshot = await db.collection(name).get();
+        const count = snapshot.size;
         counts[name] = count;
         totalDocuments += count;
       })
@@ -36,7 +37,7 @@ router.get("/", async (req, res) => {
 
     res.json({
       status: "ok",
-      database: db.databaseName,
+      database: "firestore",
       totalCollections: COLLECTIONS.length,
       totalDocuments,
       collections: counts,

@@ -79,26 +79,14 @@ function clearAttempts(key) {
 // Helper: passwords koleksiyonundan doküman oku
 async function getPasswordDoc(docId) {
   const db = await getDbSafe();
-  const doc = await db.collection("passwords").findOne({ _id: docId });
-  return doc || {};
+  const doc = await db.collection("passwords").doc(docId).get();
+  return doc.exists ? doc.data() : {};
 }
 
 // Helper: passwords koleksiyonuna doküman yaz
 async function setPasswordDoc(docId, data, merge = false) {
   const db = await getDbSafe();
-  if (merge) {
-    await db.collection("passwords").updateOne(
-      { _id: docId },
-      { $set: data },
-      { upsert: true }
-    );
-  } else {
-    await db.collection("passwords").replaceOne(
-      { _id: docId },
-      { ...data, _id: docId },
-      { upsert: true }
-    );
-  }
+  await db.collection("passwords").doc(docId).set(data, { merge });
 }
 
 // ══════════════════════════════════════════════
@@ -270,11 +258,16 @@ router.post("/department-manager", async (req, res) => {
 
   try {
     const db = await getDbSafe();
-    const deptDoc = await db.collection("departments").findOne({ managerName });
-    if (!deptDoc) {
+    const deptSnapshot = await db.collection("departments").where("managerName", "==", managerName).get();
+    if (deptSnapshot.empty) {
       recordAttempt(rateLimitKey);
       return res.json({ success: false, error: "Bu isimle kayıtlı bir bölüm yetkilisi bulunamadı." });
     }
+
+    const deptDoc = deptSnapshot.docs[0];
+    const deptData = deptDoc.data();
+    const departmentId = deptDoc.id;
+    const departmentName = deptData.name;
 
     const doc = await getPasswordDoc("department_manager_passwords");
     const storedPassword = doc[managerName];
@@ -293,8 +286,8 @@ router.post("/department-manager", async (req, res) => {
         clearAttempts(rateLimitKey);
         const bcryptHash = await hashPassword(password);
         await setPasswordDoc("department_manager_passwords", { [managerName]: bcryptHash }, true);
-        const token = generateToken({ role: "bolum_yetkilisi", identifier: managerName, departmentId: deptDoc._id, departmentName: deptDoc.name });
-        return res.json({ success: true, token, departmentId: deptDoc._id, departmentName: deptDoc.name });
+        const token = generateToken({ role: "bolum_yetkilisi", identifier: managerName, departmentId, departmentName });
+        return res.json({ success: true, token, departmentId, departmentName });
       } else {
         recordAttempt(rateLimitKey);
         return res.json({ success: false, error: "Giriş bilgileri hatalı!" });
@@ -309,8 +302,8 @@ router.post("/department-manager", async (req, res) => {
         const bcryptHash = await hashPassword(password);
         await setPasswordDoc("department_manager_passwords", { [managerName]: bcryptHash }, true);
       }
-      const token = generateToken({ role: "bolum_yetkilisi", identifier: managerName, departmentId: deptDoc._id, departmentName: deptDoc.name });
-      return res.json({ success: true, token, departmentId: deptDoc._id, departmentName: deptDoc.name });
+      const token = generateToken({ role: "bolum_yetkilisi", identifier: managerName, departmentId, departmentName });
+      return res.json({ success: true, token, departmentId, departmentName });
     } else {
       recordAttempt(rateLimitKey);
       return res.json({ success: false, error: "Giriş bilgileri hatalı!" });
@@ -461,10 +454,9 @@ router.post("/save-role", async (req, res) => {
 
   try {
     const db = await getDbSafe();
-    await db.collection("users").updateOne(
-      { _id: uid },
-      { $set: { ...roleData, updatedAt: new Date() } },
-      { upsert: true }
+    await db.collection("users").doc(uid).set(
+      { ...roleData, updatedAt: new Date() },
+      { merge: true }
     );
     return res.json({ success: true });
   } catch (error) {

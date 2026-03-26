@@ -3,3 +3,6 @@ dist/
 server/node_modules/
 .env
 server/uploads/
+scripts/serviceAccountKey.json
+mongo-backups/
+functions/node_modules/
