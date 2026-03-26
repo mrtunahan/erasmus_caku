@@ -10,7 +10,24 @@ function stripTags(html) {
   return html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/&#x([0-9A-Fa-f]+);/g, function(m, c) { return String.fromCharCode(parseInt(c, 16)); })
     .replace(/&#(\d+);/g, function(m, c) { return String.fromCharCode(parseInt(c)); })
-    .replace(/&nbsp;/g, " ").replace(/&quot;/g, '"').trim();
+    .replace(/&nbsp;/g, " ").replace(/&quot;/g, '"')
+    .replace(/\r\n/g, " ").replace(/\r/g, " ").replace(/\n/g, " ")
+    .replace(/\s+/g, " ").trim();
+}
+
+// Kullanıcı adını normalize et (boşlukları sil, küçük harf)
+function normalizeUsername(input) {
+  if (!input) return "";
+  return input.replace(/\s+/g, "").toLowerCase().trim();
+}
+
+// "Kayıt Yok" sayfası mı kontrol et
+function isNotFoundPage(html) {
+  // ÇAKUAVİS, bulunamayan kullanıcılar için "Kayıt Yok" veya boş profil döner
+  if (html.indexOf("Kayıt Yok") >= 0 || html.indexOf("Kay&#x131;t Yok") >= 0) return true;
+  // Profil ismi yoksa da kayıt yok demektir
+  if (!html.match(/id="kisiselBilgiler"/i)) return true;
+  return false;
 }
 
 // Section içeriğini çıkar
@@ -162,7 +179,7 @@ function parseAcademicianHTML(html, username) {
 
 // POST /api/akademisyen/:username/assign - Akademisyeni bölüme ata
 router.post("/:username/assign", async function(req, res) {
-  var username = req.params.username.toLowerCase().trim();
+  var username = normalizeUsername(req.params.username);
   var departmentId = req.body.departmentId;
 
   if (!departmentId) return res.status(400).json({ error: "departmentId gerekli" });
@@ -182,7 +199,7 @@ router.post("/:username/assign", async function(req, res) {
 
 // DELETE /api/akademisyen/:username - Akademisyeni sil
 router.delete("/:username", async function(req, res) {
-  var username = req.params.username.toLowerCase().trim();
+  var username = normalizeUsername(req.params.username);
   try {
     var db = getDb();
     await db.collection("akademisyen_cache").deleteOne({ _id: username });
@@ -194,8 +211,10 @@ router.delete("/:username", async function(req, res) {
 
 // GET /api/akademisyen/:username - Tek akademisyen bilgisi
 router.get("/:username", async function(req, res) {
-  var username = req.params.username.toLowerCase().trim();
+  var username = normalizeUsername(req.params.username);
   var departmentId = req.query.departmentId || null;
+
+  if (!username) return res.status(400).json({ error: "Kullanıcı adı gerekli" });
 
   try {
     var db = getDb();
@@ -215,6 +234,12 @@ router.get("/:username", async function(req, res) {
 
     // Siteden çek
     var html = await fetchAcademicianPage(username);
+
+    // "Kayıt Yok" kontrolü
+    if (isNotFoundPage(html)) {
+      return res.status(404).json({ error: "Bu kullanıcı adı ile akademisyen bulunamadı: " + username, notFound: true });
+    }
+
     var data = parseAcademicianHTML(html, username);
 
     // Cache'e kaydet (departmentId ile birlikte)
