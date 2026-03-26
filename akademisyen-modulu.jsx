@@ -340,13 +340,23 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
     if (token) headers["Authorization"] = "Bearer " + token;
 
     fetch("/api/akademisyen/" + encodeURIComponent(username), { headers: headers })
-      .then(function(r) { return r.json(); })
+      .then(function(r) {
+        if (!r.ok) {
+          return r.json().then(function(err) { throw new Error(err.error || "Akademisyen bulunamadı"); });
+        }
+        return r.json();
+      })
       .then(function(data) {
+        if (data.error) {
+          throw new Error(data.error);
+        }
         setProfDetail(data);
         setLoading(false);
       })
       .catch(function(err) {
         alert("Akademisyen bilgisi alınamadı: " + err.message);
+        setSelectedProf(null);
+        setProfDetail(null);
         setLoading(false);
       });
   }, []);
@@ -360,10 +370,13 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
   // Yeni akademisyen ekle (bölüme atayarak)
   var handleAdd = function() {
     if (!newUsername.trim()) return alert("ÇAKUAVİS kullanıcı adı gerekli");
-    var username = newUsername.trim().toLowerCase();
+    // Boşlukları sil, küçük harf yap (kullanıcı "taha etem" yazsa "tahaetem" olsun)
+    var username = newUsername.replace(/\s+/g, "").toLowerCase().trim();
+    if (!username) return alert("Geçerli bir kullanıcı adı girin");
     var assignDeptId = deptId;
     setAddModal(false);
     setNewUsername("");
+    setLoading(true);
     // Direkt detay yükle (departmentId ile cache'e kaydedilecek)
     setSelectedProf({ username: username });
     var token = localStorage.getItem("caku_auth_token");
@@ -372,8 +385,16 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
 
     // Önce bilgileri çek
     fetch("/api/akademisyen/" + encodeURIComponent(username) + (assignDeptId ? "?departmentId=" + encodeURIComponent(assignDeptId) : ""), { headers: headers })
-      .then(function(r) { return r.json(); })
+      .then(function(r) {
+        if (!r.ok) {
+          return r.json().then(function(err) { throw new Error(err.error || "Akademisyen bulunamadı"); });
+        }
+        return r.json();
+      })
       .then(function(data) {
+        if (data.error || data.notFound) {
+          throw new Error(data.error || "Akademisyen bulunamadı");
+        }
         setProfDetail(data);
         setLoading(false);
         // Listeyi güncelle
@@ -381,6 +402,8 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
       })
       .catch(function(err) {
         alert("Akademisyen bilgisi alınamadı: " + err.message);
+        setSelectedProf(null);
+        setProfDetail(null);
         setLoading(false);
       });
   };
@@ -501,7 +524,10 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
                 placeholder="Örn: aliegi, ksenturk"
               />
               <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 4 }}>
-                cakuavis.karatekin.edu.tr/<strong>{newUsername || "kullaniciadi"}</strong> adresindeki kullanıcı adı
+                cakuavis.karatekin.edu.tr/<strong>{newUsername ? newUsername.replace(/\s+/g, "").toLowerCase() : "kullaniciadi"}</strong> adresindeki kullanıcı adı
+              </div>
+              <div style={{ fontSize: 11, color: COLORS.warning, marginTop: 2 }}>
+                Ad soyad girerseniz otomatik olarak boşluklar silinir (ör: "taha etem" → "tahaetem")
               </div>
             </FormField>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
