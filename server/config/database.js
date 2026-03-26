@@ -7,7 +7,7 @@ async function connect() {
   if (db) return db;
 
   try {
-    const serviceAccount = require(path.join(__dirname, "../scripts/serviceAccountKey.json"));
+    const serviceAccount = require(path.join(__dirname, "../../scripts/serviceAccountKey.json"));
 
     if (!admin.apps.length) {
       admin.initializeApp({
