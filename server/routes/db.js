@@ -46,6 +46,7 @@ const ALLOWED_COLLECTIONS = [
   "unides_courses",
   "tubitak2209_projects",
   "tubitak2209_courses",
+  "akademisyen_cache",
 ];
 
 // Okuma izni verilen koleksiyonlar (write + read-only)

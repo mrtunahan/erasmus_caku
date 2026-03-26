@@ -25,6 +25,7 @@ window.__lazyModules = {
   kaynaklar:     { loader: () => import('./kaynak-kutuphanesi.jsx'),        component: 'KaynakKutuphanesiApp' },
   staj:          { loader: () => import('./staj-modulu.jsx'),               component: 'StajModuluApp' },
   dersprogrami:  { loader: () => import('./ders-programi.jsx'),             component: 'DersProgramiApp' },
+  akademisyen:   { loader: () => import('./akademisyen-modulu.jsx'),        component: 'AkademisyenModuluApp' },
 };
 
 // ── Phase 3: App Shell (routing & navigation) ──
