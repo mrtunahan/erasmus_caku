@@ -138,11 +138,13 @@ async function executeSingleOp(db, op) {
       return { success: true };
     }
     case "delete": {
+      console.warn(`[DELETE] koleksiyon: ${op.collection}, docId: ${op.docId}, zaman: ${new Date().toISOString()}`);
       let result = await col.deleteOne({ _id: op.docId });
       // String ile eşleşmediyse ObjectId ile dene
       if (result.deletedCount === 0 && ObjectId.isValid(op.docId)) {
         result = await col.deleteOne({ _id: new ObjectId(op.docId) });
       }
+      console.warn(`[DELETE] sonuç: ${result.deletedCount} belge silindi (${op.collection}/${op.docId})`);
       return { success: true, deleted: result.deletedCount };
     }
     default:
