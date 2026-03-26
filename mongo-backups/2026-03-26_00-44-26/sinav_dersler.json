@@ -1,0 +1,3390 @@
+[
+  {
+    "_id": "0CTbwO7xLbcqfPrY86AC",
+    "_firestoreId": "0CTbwO7xLbcqfPrY86AC",
+    "code": "MAT142",
+    "name": "Ayrık Matematik ve Uygulamaları",
+    "sinif": 1,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387829,
+      "_nanoseconds": 893000000,
+      "_isoDate": "2026-03-24T21:30:29.893Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387829,
+      "_nanoseconds": 893000000,
+      "_isoDate": "2026-03-24T21:30:29.893Z"
+    }
+  },
+  {
+    "_id": "0DvYOfkRJ0By0Ztd59Ka",
+    "_firestoreId": "0DvYOfkRJ0By0Ztd59Ka",
+    "sinif": 3,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:27.873Z",
+    "professor": "Dr. Öğr. Üyesi Mehmet Akif ALPER",
+    "code": "BİL305",
+    "name": "İşletim Sistemleri",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "0Z8Lu6RMIJx9i0qceR1G",
+    "_firestoreId": "0Z8Lu6RMIJx9i0qceR1G",
+    "code": "OSD144",
+    "name": "Siber Güvenlik ve Etik Hacker",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 952000000,
+      "_isoDate": "2026-03-24T21:30:51.952Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 952000000,
+      "_isoDate": "2026-03-24T21:30:51.952Z"
+    }
+  },
+  {
+    "_id": "2W4ryEI2iqHevJCAFGZa",
+    "_firestoreId": "2W4ryEI2iqHevJCAFGZa",
+    "code": "BIL427",
+    "name": "Oyun Teknolojileri",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387847,
+      "_nanoseconds": 836000000,
+      "_isoDate": "2026-03-24T21:30:47.836Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387847,
+      "_nanoseconds": 836000000,
+      "_isoDate": "2026-03-24T21:30:47.836Z"
+    }
+  },
+  {
+    "_id": "3GWszvBiWcEUBPsc3l52",
+    "_firestoreId": "3GWszvBiWcEUBPsc3l52",
+    "code": "MAT142",
+    "sinif": 1,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:26.721Z",
+    "name": "Ayrık Matematik ve Uygulamaları",
+    "professor": "Dr. Öğr. Üyesi Celalettin KAYA",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "3ivnCjCyu0ERTWAM0swE",
+    "_firestoreId": "3ivnCjCyu0ERTWAM0swE",
+    "code": "BIL493",
+    "name": "Gerçek Zamanlı Sistemler",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 302000000,
+      "_isoDate": "2026-03-24T21:30:51.302Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 302000000,
+      "_isoDate": "2026-03-24T21:30:51.302Z"
+    }
+  },
+  {
+    "_id": "3oEM4cw7QINtJuPQ6I8Y",
+    "_firestoreId": "3oEM4cw7QINtJuPQ6I8Y",
+    "duration": 60,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:17:35.690Z",
+    "name": "Derin Öğrenme",
+    "professor": "Doç. Dr. Selim BUYRUKOĞLU",
+    "code": "BİL425",
+    "sinif": 5,
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "4JBHhCFmtEbVVXiKnmOl",
+    "_firestoreId": "4JBHhCFmtEbVVXiKnmOl",
+    "code": "BIL434",
+    "name": "Gömülü Sistemler",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387847,
+      "_nanoseconds": 978000000,
+      "_isoDate": "2026-03-24T21:30:47.978Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387847,
+      "_nanoseconds": 978000000,
+      "_isoDate": "2026-03-24T21:30:47.978Z"
+    }
+  },
+  {
+    "_id": "4YeYg0DTPBNJBwn9wq6C",
+    "_firestoreId": "4YeYg0DTPBNJBwn9wq6C",
+    "code": "BIL462",
+    "name": "Bulut Çözüme Giriş",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 36000000,
+      "_isoDate": "2026-03-24T21:30:50.036Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 36000000,
+      "_isoDate": "2026-03-24T21:30:50.036Z"
+    }
+  },
+  {
+    "_id": "4ZPE655DIYz5q4Qm7kHN",
+    "_firestoreId": "4ZPE655DIYz5q4Qm7kHN",
+    "code": "BLM201",
+    "sinif": 2,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:17:35.223Z",
+    "professor": "Doç. Dr. Selim BUYRUKOĞLU",
+    "duration": 30,
+    "name": "Nesneye Yönelik Programlama",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "5Rwmpin7bhP9tCdzEe5v",
+    "_firestoreId": "5Rwmpin7bhP9tCdzEe5v",
+    "code": "BIL473",
+    "name": "Bilgisayarlı Görme",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 895000000,
+      "_isoDate": "2026-03-24T21:30:50.895Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 895000000,
+      "_isoDate": "2026-03-24T21:30:50.895Z"
+    }
+  },
+  {
+    "_id": "6LquOINR4JIiumYMWtPN",
+    "_firestoreId": "6LquOINR4JIiumYMWtPN",
+    "code": "BLM101",
+    "name": "Bilgisayar Mühendisliğine Giriş",
+    "sinif": 1,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Seda ŞAHİN",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387826,
+      "_nanoseconds": 180000000,
+      "_isoDate": "2026-03-24T21:30:26.180Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387826,
+      "_nanoseconds": 180000000,
+      "_isoDate": "2026-03-24T21:30:26.180Z"
+    }
+  },
+  {
+    "_id": "78oQmp7WKo0HFFk58E34",
+    "_firestoreId": "78oQmp7WKo0HFFk58E34",
+    "code": "BIL307",
+    "name": "Yazılım Mühendisliği",
+    "sinif": 3,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Osman GÜLER",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387836,
+      "_nanoseconds": 176000000,
+      "_isoDate": "2026-03-24T21:30:36.176Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387836,
+      "_nanoseconds": 176000000,
+      "_isoDate": "2026-03-24T21:30:36.176Z"
+    }
+  },
+  {
+    "_id": "7OEnYeB1uB3FZHipRdVO",
+    "_firestoreId": "7OEnYeB1uB3FZHipRdVO",
+    "code": "BIL205",
+    "name": "Sayısal Sistem Tasarımı",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387834,
+      "_nanoseconds": 727000000,
+      "_isoDate": "2026-03-24T21:30:34.727Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387834,
+      "_nanoseconds": 727000000,
+      "_isoDate": "2026-03-24T21:30:34.727Z"
+    }
+  },
+  {
+    "_id": "7jkRuj6BMGCYNmJNwT00",
+    "_firestoreId": "7jkRuj6BMGCYNmJNwT00",
+    "code": "BIL493",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:30.397Z",
+    "sinif": 5,
+    "name": "Gerçek Zamanlı Sistemler",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "8DB1QlJyiCnW4zebjiDl",
+    "_firestoreId": "8DB1QlJyiCnW4zebjiDl",
+    "code": "BIL466",
+    "name": "Girişimcilik",
+    "sinif": 4,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Osman GÜLER",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387842,
+      "_nanoseconds": 785000000,
+      "_isoDate": "2026-03-24T21:30:42.785Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387842,
+      "_nanoseconds": 785000000,
+      "_isoDate": "2026-03-24T21:30:42.785Z"
+    }
+  },
+  {
+    "_id": "8LjxNpcxMspYb2ORxYpG",
+    "_firestoreId": "8LjxNpcxMspYb2ORxYpG",
+    "sinif": 4,
+    "duration": 60,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:17:36.233Z",
+    "professor": "Dr. Ögr. Üyesi Osman GÜLER",
+    "code": "BİL466",
+    "name": "Girişimcilik",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "8N6eFWLBnwuCsl3QSyCG",
+    "_firestoreId": "8N6eFWLBnwuCsl3QSyCG",
+    "code": "BIL482",
+    "name": "Yönetim Bilişim Sistemleri",
+    "sinif": 4,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387843,
+      "_nanoseconds": 501000000,
+      "_isoDate": "2026-03-24T21:30:43.501Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387843,
+      "_nanoseconds": 501000000,
+      "_isoDate": "2026-03-24T21:30:43.501Z"
+    }
+  },
+  {
+    "_id": "8ZpI2chIobdtmqIEw6W9",
+    "_firestoreId": "8ZpI2chIobdtmqIEw6W9",
+    "code": "BİL471",
+    "name": "Sayısal Analiz Yöntemleri",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "Doç. Dr. Taha ETEM",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 622000000,
+      "_isoDate": "2026-03-24T21:30:48.622Z"
+    },
+    "updatedAt": "2026-03-25T23:34:34.316Z"
+  },
+  {
+    "_id": "8pOHuzLIj5vPNo8jOIaE",
+    "_firestoreId": "8pOHuzLIj5vPNo8jOIaE",
+    "sinif": 3,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:28.112Z",
+    "name": "Web Tasarımı ve Programlama",
+    "professor": "Dr. Öğr. Üyesi Osman GÜLER",
+    "code": "BİL312",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "8wsZ7i69rf9gDcDQO1Fl",
+    "_firestoreId": "8wsZ7i69rf9gDcDQO1Fl",
+    "code": "BIL476",
+    "name": "Veri Madenciliğine Giriş",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 494000000,
+      "_isoDate": "2026-03-24T21:30:49.494Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 494000000,
+      "_isoDate": "2026-03-24T21:30:49.494Z"
+    }
+  },
+  {
+    "_id": "91ZapwsJOunoPNUWbGKy",
+    "_firestoreId": "91ZapwsJOunoPNUWbGKy",
+    "code": "BIL421",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:29.390Z",
+    "sinif": 5,
+    "name": "E-Ticaret ve Dijital Dönüşüm",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "9FxUqWlI4t5YcLgjrS8P",
+    "_firestoreId": "9FxUqWlI4t5YcLgjrS8P",
+    "code": "BLM201",
+    "name": "Nesneye Yönelik Programlama",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "Doç. Dr. Selim BÜYÜKOĞLU",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387834,
+      "_nanoseconds": 551000000,
+      "_isoDate": "2026-03-24T21:30:34.551Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387834,
+      "_nanoseconds": 551000000,
+      "_isoDate": "2026-03-24T21:30:34.551Z"
+    }
+  },
+  {
+    "_id": "9H8vQTCwADiuqRkqAiRB",
+    "_firestoreId": "9H8vQTCwADiuqRkqAiRB",
+    "code": "BLM201",
+    "name": "Nesneye Yönelik Programlama",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "Doç. Dr. Selim BÜYÜKOĞLU",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387828,
+      "_nanoseconds": 987000000,
+      "_isoDate": "2026-03-24T21:30:28.987Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387828,
+      "_nanoseconds": 987000000,
+      "_isoDate": "2026-03-24T21:30:28.987Z"
+    }
+  },
+  {
+    "_id": "9vEqj8RVIP8CTjRlIQSm",
+    "_firestoreId": "9vEqj8RVIP8CTjRlIQSm",
+    "code": "BIL307",
+    "name": "Yazılım Mühendisliği",
+    "sinif": 3,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Osman GÜLER",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387837,
+      "_nanoseconds": 732000000,
+      "_isoDate": "2026-03-24T21:30:37.732Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387837,
+      "_nanoseconds": 732000000,
+      "_isoDate": "2026-03-24T21:30:37.732Z"
+    }
+  },
+  {
+    "_id": "AHuS7B1zVNPjjiOdyBBP",
+    "_firestoreId": "AHuS7B1zVNPjjiOdyBBP",
+    "code": "BIL434",
+    "name": "Gömülü Sistemler",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 160000000,
+      "_isoDate": "2026-03-24T21:30:48.160Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 160000000,
+      "_isoDate": "2026-03-24T21:30:48.160Z"
+    }
+  },
+  {
+    "_id": "APjVEr8ZIwbfQ4eewo8t",
+    "_firestoreId": "APjVEr8ZIwbfQ4eewo8t",
+    "code": "BIL477",
+    "name": "Örüntü Tanıma",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 824000000,
+      "_isoDate": "2026-03-24T21:30:49.824Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 824000000,
+      "_isoDate": "2026-03-24T21:30:49.824Z"
+    }
+  },
+  {
+    "_id": "Ahb1IBe8gPKNeWGGokwr",
+    "_firestoreId": "Ahb1IBe8gPKNeWGGokwr",
+    "code": "BİL412",
+    "name": "İnsan Bilgisayar Etkileşimi",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Mehmet A. ALPER",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387846,
+      "_nanoseconds": 861000000,
+      "_isoDate": "2026-03-24T21:30:46.861Z"
+    },
+    "updatedAt": "2026-03-25T23:37:11.403Z"
+  },
+  {
+    "_id": "BOVMU5LW8fJiEUarv9kB",
+    "_firestoreId": "BOVMU5LW8fJiEUarv9kB",
+    "code": "BIL307",
+    "name": "Yazılım Mühendisliği",
+    "sinif": 3,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Osman GÜLER",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387839,
+      "_nanoseconds": 282000000,
+      "_isoDate": "2026-03-24T21:30:39.282Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387839,
+      "_nanoseconds": 282000000,
+      "_isoDate": "2026-03-24T21:30:39.282Z"
+    }
+  },
+  {
+    "_id": "BSseNtvoqYzvPiHIShrs",
+    "_firestoreId": "BSseNtvoqYzvPiHIShrs",
+    "code": "BIL466",
+    "name": "Girişimcilik",
+    "sinif": 4,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Osman GÜLER",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387842,
+      "_nanoseconds": 511000000,
+      "_isoDate": "2026-03-24T21:30:42.511Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387842,
+      "_nanoseconds": 511000000,
+      "_isoDate": "2026-03-24T21:30:42.511Z"
+    }
+  },
+  {
+    "_id": "BdIODN8IDOqjneO01yDf",
+    "_firestoreId": "BdIODN8IDOqjneO01yDf",
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:30.656Z",
+    "sinif": 3,
+    "professor": "Dr. Öğr. Üyesi Kübra K. UYAR",
+    "code": "MTH412",
+    "name": "Doğal Dil İşleme ve Büyük Dil Modelleri",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "Bmd9kH81B90MF14pkFhP",
+    "_firestoreId": "Bmd9kH81B90MF14pkFhP",
+    "code": "BIL477",
+    "name": "Örüntü Tanıma",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 593000000,
+      "_isoDate": "2026-03-24T21:30:49.593Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 593000000,
+      "_isoDate": "2026-03-24T21:30:49.593Z"
+    }
+  },
+  {
+    "_id": "CK35Cnq8vbneONTuFCPW",
+    "_firestoreId": "CK35Cnq8vbneONTuFCPW",
+    "sinif": 2,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:27.333Z",
+    "name": "Mühendislik Ekonomisi",
+    "donem": "bahar",
+    "professor": "Dr. Öğr. Üyesi Mahmut O. TAŞÇI",
+    "code": "BİL232",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "CS8u3z6C0FKhBRTiF8bb",
+    "_firestoreId": "CS8u3z6C0FKhBRTiF8bb",
+    "code": "BIL421",
+    "name": "E-Ticaret ve Dijital Dönüşüm",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387847,
+      "_nanoseconds": 185000000,
+      "_isoDate": "2026-03-24T21:30:47.185Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387847,
+      "_nanoseconds": 185000000,
+      "_isoDate": "2026-03-24T21:30:47.185Z"
+    }
+  },
+  {
+    "_id": "CiHb0bMtLf88sHQzvK6m",
+    "_firestoreId": "CiHb0bMtLf88sHQzvK6m",
+    "code": "OSD144",
+    "name": "Siber Güvenlik ve Etik Hacker",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 530000000,
+      "_isoDate": "2026-03-24T21:30:51.530Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 530000000,
+      "_isoDate": "2026-03-24T21:30:51.530Z"
+    }
+  },
+  {
+    "_id": "CjFrxH8Jl97KhgEp7f3O",
+    "_firestoreId": "CjFrxH8Jl97KhgEp7f3O",
+    "code": "BIL432",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:28.739Z",
+    "sinif": 5,
+    "name": "Kriptografi ve Bilgi Güvenliği",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "D2RZn7GEsTNjoaoO5VBS",
+    "_firestoreId": "D2RZn7GEsTNjoaoO5VBS",
+    "code": "BIL496",
+    "name": "Sinyal İşleme Uygulamaları",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387855,
+      "_nanoseconds": 25000000,
+      "_isoDate": "2026-03-24T21:30:55.025Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387855,
+      "_nanoseconds": 25000000,
+      "_isoDate": "2026-03-24T21:30:55.025Z"
+    }
+  },
+  {
+    "_id": "D7Rnssja8A7Jj6OaVJFg",
+    "_firestoreId": "D7Rnssja8A7Jj6OaVJFg",
+    "code": "BIL466",
+    "name": "Girişimcilik",
+    "sinif": 4,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Osman GÜLER",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387844,
+      "_nanoseconds": 355000000,
+      "_isoDate": "2026-03-24T21:30:44.355Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387844,
+      "_nanoseconds": 355000000,
+      "_isoDate": "2026-03-24T21:30:44.355Z"
+    }
+  },
+  {
+    "_id": "D8AMZTYbLPQggRme6S9K",
+    "_firestoreId": "D8AMZTYbLPQggRme6S9K",
+    "code": "MAT142",
+    "name": "Ayrık Matematik ve Uygulamaları",
+    "sinif": 1,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387826,
+      "_nanoseconds": 789000000,
+      "_isoDate": "2026-03-24T21:30:26.789Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387826,
+      "_nanoseconds": 789000000,
+      "_isoDate": "2026-03-24T21:30:26.789Z"
+    }
+  },
+  {
+    "_id": "ES9AGudc9WZvu0SFVEGS",
+    "_firestoreId": "ES9AGudc9WZvu0SFVEGS",
+    "code": "BIL432",
+    "name": "Kriptografi ve Bilgi Güvenliği",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387844,
+      "_nanoseconds": 144000000,
+      "_isoDate": "2026-03-24T21:30:44.144Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387844,
+      "_nanoseconds": 144000000,
+      "_isoDate": "2026-03-24T21:30:44.144Z"
+    }
+  },
+  {
+    "_id": "EkYKoIlw4oNW0Y0cY1Aw",
+    "_firestoreId": "EkYKoIlw4oNW0Y0cY1Aw",
+    "code": "MAT166",
+    "name": "Matematik-II (Şb:2)",
+    "sinif": 1,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-11T20:01:21.144Z",
+    "professor": "Dr. Öğr. Üyesi Esma Baran ÖZKAN",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "F48SD9TIygWQ9uO5lSkl",
+    "_firestoreId": "F48SD9TIygWQ9uO5lSkl",
+    "code": "BIL427",
+    "name": "Oyun Teknolojileri",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 395000000,
+      "_isoDate": "2026-03-24T21:30:49.395Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 395000000,
+      "_isoDate": "2026-03-24T21:30:49.395Z"
+    }
+  },
+  {
+    "_id": "FXBf3WUYMHuIF1eA7boo",
+    "_firestoreId": "FXBf3WUYMHuIF1eA7boo",
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:29.819Z",
+    "name": "Sayısal Analiz Yöntemleri",
+    "sinif": 4,
+    "code": "BİL471",
+    "donem": "bahar",
+    "professor": "Doç. Dr. Taha ETEM",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "FcGX6ugVxpXkyG3BLmDa",
+    "_firestoreId": "FcGX6ugVxpXkyG3BLmDa",
+    "code": "MAT242",
+    "name": "Diferansiyel Denklemler",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "Prof. Dr. İlyas İNCİ",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387830,
+      "_nanoseconds": 129000000,
+      "_isoDate": "2026-03-24T21:30:30.129Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387830,
+      "_nanoseconds": 129000000,
+      "_isoDate": "2026-03-24T21:30:30.129Z"
+    }
+  },
+  {
+    "_id": "FgijX3xy7C8nAifP9mIV",
+    "_firestoreId": "FgijX3xy7C8nAifP9mIV",
+    "code": "BIL476",
+    "name": "Veri Madenciliğine Giriş",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 211000000,
+      "_isoDate": "2026-03-24T21:30:51.211Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 211000000,
+      "_isoDate": "2026-03-24T21:30:51.211Z"
+    }
+  },
+  {
+    "_id": "HC59phqeNIgk7w5P0mdn",
+    "_firestoreId": "HC59phqeNIgk7w5P0mdn",
+    "code": "BIL432",
+    "name": "Kriptografi ve Bilgi Güvenliği",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387844,
+      "_nanoseconds": 409000000,
+      "_isoDate": "2026-03-24T21:30:44.409Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387844,
+      "_nanoseconds": 409000000,
+      "_isoDate": "2026-03-24T21:30:44.409Z"
+    }
+  },
+  {
+    "_id": "HExfvxSWQq2bu1pLndRt",
+    "_firestoreId": "HExfvxSWQq2bu1pLndRt",
+    "code": "BIL466",
+    "name": "Biyobilişim ve Biyoteknoloji",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387845,
+      "_nanoseconds": 240000000,
+      "_isoDate": "2026-03-24T21:30:45.240Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387845,
+      "_nanoseconds": 240000000,
+      "_isoDate": "2026-03-24T21:30:45.240Z"
+    }
+  },
+  {
+    "_id": "HPxxFwQBlVdpU3OsRDTG",
+    "_firestoreId": "HPxxFwQBlVdpU3OsRDTG",
+    "code": "BIL481",
+    "name": "Yapay Zeka",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 145000000,
+      "_isoDate": "2026-03-24T21:30:50.145Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 145000000,
+      "_isoDate": "2026-03-24T21:30:50.145Z"
+    }
+  },
+  {
+    "_id": "He1RQp6YQkhY0HVVgznR",
+    "_firestoreId": "He1RQp6YQkhY0HVVgznR",
+    "sinif": 1,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:17:34.577Z",
+    "code": "BLM101",
+    "duration": 30,
+    "name": "Bilgisayar Mühendisliğine Giriş",
+    "donem": "guz",
+    "professor": "Dr. Öğr. Üyesi Seda ŞAHİN",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "HfwXYHKKg6UmoZDWZqYx",
+    "_firestoreId": "HfwXYHKKg6UmoZDWZqYx",
+    "name": "Otomata Teorisi ve Formal Diller",
+    "sinif": 3,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:28.192Z",
+    "professor": "Dr. Öğr. Üyesi Selim SÜRÜCÜ",
+    "code": "BİL314",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "IbT6wzjPb6ifX7eot5TJ",
+    "_firestoreId": "IbT6wzjPb6ifX7eot5TJ",
+    "code": "BIL496",
+    "name": "Sinyal İşleme Uygulamaları",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 202000000,
+      "_isoDate": "2026-03-24T21:30:51.202Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 202000000,
+      "_isoDate": "2026-03-24T21:30:51.202Z"
+    }
+  },
+  {
+    "_id": "JEzROK28IQCMWfQO0CBA",
+    "_firestoreId": "JEzROK28IQCMWfQO0CBA",
+    "code": "BLM206",
+    "sinif": 2,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:26.821Z",
+    "name": "Algoritmalar",
+    "professor": "Dr. Öğr. Üyesi Selim SÜRÜCÜ",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": "2026-03-25T23:31:57.063Z"
+  },
+  {
+    "_id": "JatNmxv1EYdD9ZoMJXys",
+    "_firestoreId": "JatNmxv1EYdD9ZoMJXys",
+    "code": "BIL477",
+    "name": "Örüntü Tanıma",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 527000000,
+      "_isoDate": "2026-03-24T21:30:51.527Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 527000000,
+      "_isoDate": "2026-03-24T21:30:51.527Z"
+    }
+  },
+  {
+    "_id": "Jg51eLYPlKYe10YJgNpJ",
+    "_firestoreId": "Jg51eLYPlKYe10YJgNpJ",
+    "code": "BIL427",
+    "name": "Oyun Teknolojileri",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387847,
+      "_nanoseconds": 649000000,
+      "_isoDate": "2026-03-24T21:30:47.649Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387847,
+      "_nanoseconds": 649000000,
+      "_isoDate": "2026-03-24T21:30:47.649Z"
+    }
+  },
+  {
+    "_id": "KRIy4d2kKJjdE04G8pmA",
+    "_firestoreId": "KRIy4d2kKJjdE04G8pmA",
+    "code": "OSD144",
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:30.577Z",
+    "sinif": 5,
+    "professor": "Dr. Öğr. Üyesi Taha ETEM",
+    "name": "Siber Güvenlik ve Etik Hacker",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "L6vBibYj7ObFuKs5kWcZ",
+    "_firestoreId": "L6vBibYj7ObFuKs5kWcZ",
+    "code": "BLM201",
+    "name": "Nesneye Yönelik Programlama",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "Doç. Dr. Selim BÜYÜKOĞLU",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387830,
+      "_nanoseconds": 466000000,
+      "_isoDate": "2026-03-24T21:30:30.466Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387830,
+      "_nanoseconds": 466000000,
+      "_isoDate": "2026-03-24T21:30:30.466Z"
+    }
+  },
+  {
+    "_id": "L6zOiU1ITIoeFtXlJply",
+    "_firestoreId": "L6zOiU1ITIoeFtXlJply",
+    "code": "BIL473",
+    "name": "Bilgisayarlı Görme",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 946000000,
+      "_isoDate": "2026-03-24T21:30:48.946Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 946000000,
+      "_isoDate": "2026-03-24T21:30:48.946Z"
+    }
+  },
+  {
+    "_id": "L99c3feAqvOD8ZkfOzHr",
+    "_firestoreId": "L99c3feAqvOD8ZkfOzHr",
+    "code": "BIL483",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:30.235Z",
+    "sinif": 5,
+    "name": "Çoklu Ortam Sistemleri",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "LA7PQlbIaPX0hnY2yaPP",
+    "_firestoreId": "LA7PQlbIaPX0hnY2yaPP",
+    "code": "BIL481",
+    "name": "Yapay Zeka",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 848000000,
+      "_isoDate": "2026-03-24T21:30:51.848Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 848000000,
+      "_isoDate": "2026-03-24T21:30:51.848Z"
+    }
+  },
+  {
+    "_id": "LK0fWUoEpSdB2eGpcSC8",
+    "_firestoreId": "LK0fWUoEpSdB2eGpcSC8",
+    "code": "BIL434",
+    "name": "Gömülü Sistemler",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 716000000,
+      "_isoDate": "2026-03-24T21:30:49.716Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 716000000,
+      "_isoDate": "2026-03-24T21:30:49.716Z"
+    }
+  },
+  {
+    "_id": "LKlVeZCt5D5jm150JLvw",
+    "_firestoreId": "LKlVeZCt5D5jm150JLvw",
+    "code": "BIL462",
+    "name": "Bulut Çözüme Giriş",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 301000000,
+      "_isoDate": "2026-03-24T21:30:48.301Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 301000000,
+      "_isoDate": "2026-03-24T21:30:48.301Z"
+    }
+  },
+  {
+    "_id": "LRvapYxmXgSzxmTDCsNv",
+    "_firestoreId": "LRvapYxmXgSzxmTDCsNv",
+    "code": "MAT142",
+    "name": "Ayrık Matematik ve Uygulamaları",
+    "sinif": 1,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387828,
+      "_nanoseconds": 367000000,
+      "_isoDate": "2026-03-24T21:30:28.367Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387828,
+      "_nanoseconds": 367000000,
+      "_isoDate": "2026-03-24T21:30:28.367Z"
+    }
+  },
+  {
+    "_id": "LSFO4At6lvsK8TLcXELh",
+    "_firestoreId": "LSFO4At6lvsK8TLcXELh",
+    "code": "BIL427",
+    "name": "Oyun Teknolojileri",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:29.564Z",
+    "sinif": 5,
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "Lf9VJBK7HpzFNg1jJi5X",
+    "_firestoreId": "Lf9VJBK7HpzFNg1jJi5X",
+    "code": "BIL482",
+    "name": "Yönetim Bilişim Sistemleri",
+    "sinif": 4,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387845,
+      "_nanoseconds": 510000000,
+      "_isoDate": "2026-03-24T21:30:45.510Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387845,
+      "_nanoseconds": 510000000,
+      "_isoDate": "2026-03-24T21:30:45.510Z"
+    }
+  },
+  {
+    "_id": "MDELxzxmngjxgCk4JQhX",
+    "_firestoreId": "MDELxzxmngjxgCk4JQhX",
+    "code": "BIL323",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:28.993Z",
+    "sinif": 5,
+    "name": "Sayısal İşaret İşleme",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "MVOl4vMRIRDGTUGi0tws",
+    "_firestoreId": "MVOl4vMRIRDGTUGi0tws",
+    "code": "BIL493",
+    "name": "Gerçek Zamanlı Sistemler",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387854,
+      "_nanoseconds": 708000000,
+      "_isoDate": "2026-03-24T21:30:54.708Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387854,
+      "_nanoseconds": 708000000,
+      "_isoDate": "2026-03-24T21:30:54.708Z"
+    }
+  },
+  {
+    "_id": "Mx75vk35LlI80YHENqJH",
+    "_firestoreId": "Mx75vk35LlI80YHENqJH",
+    "code": "BIL205",
+    "name": "Sayısal Sistem Tasarımı",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387836,
+      "_nanoseconds": 285000000,
+      "_isoDate": "2026-03-24T21:30:36.285Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387836,
+      "_nanoseconds": 285000000,
+      "_isoDate": "2026-03-24T21:30:36.285Z"
+    }
+  },
+  {
+    "_id": "MyM61hHRoGkXKYBnqRq7",
+    "_firestoreId": "MyM61hHRoGkXKYBnqRq7",
+    "code": "BIL412",
+    "name": "İnsan Bilgisayar Etkileşimi",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387846,
+      "_nanoseconds": 678000000,
+      "_isoDate": "2026-03-24T21:30:46.678Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387846,
+      "_nanoseconds": 678000000,
+      "_isoDate": "2026-03-24T21:30:46.678Z"
+    }
+  },
+  {
+    "_id": "NKhHhH8wtPauxGGXnJcf",
+    "_firestoreId": "NKhHhH8wtPauxGGXnJcf",
+    "code": "BIL496",
+    "name": "Sinyal İşleme Uygulamaları",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 630000000,
+      "_isoDate": "2026-03-24T21:30:51.630Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387851,
+      "_nanoseconds": 630000000,
+      "_isoDate": "2026-03-24T21:30:51.630Z"
+    }
+  },
+  {
+    "_id": "Nz8b8aXuNmtPiZf2vjlJ",
+    "_firestoreId": "Nz8b8aXuNmtPiZf2vjlJ",
+    "code": "BIL432",
+    "name": "Görüntü İşleme",
+    "sinif": 4,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Seda ŞAHİN",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387844,
+      "_nanoseconds": 28000000,
+      "_isoDate": "2026-03-24T21:30:44.028Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387844,
+      "_nanoseconds": 28000000,
+      "_isoDate": "2026-03-24T21:30:44.028Z"
+    }
+  },
+  {
+    "_id": "OLYzBAnKAOqZwGGnr5BM",
+    "_firestoreId": "OLYzBAnKAOqZwGGnr5BM",
+    "code": "BIL323",
+    "name": "Sayısal İşaret İşleme",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387845,
+      "_nanoseconds": 567000000,
+      "_isoDate": "2026-03-24T21:30:45.567Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387845,
+      "_nanoseconds": 567000000,
+      "_isoDate": "2026-03-24T21:30:45.567Z"
+    }
+  },
+  {
+    "_id": "OoOnkEoustp0mhAB601h",
+    "_firestoreId": "OoOnkEoustp0mhAB601h",
+    "code": "BLM101",
+    "name": "Bilgisayar Mühendisliğine Giriş",
+    "sinif": 1,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Seda ŞAHİN",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387819,
+      "_nanoseconds": 863000000,
+      "_isoDate": "2026-03-24T21:30:19.863Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387819,
+      "_nanoseconds": 863000000,
+      "_isoDate": "2026-03-24T21:30:19.863Z"
+    }
+  },
+  {
+    "_id": "PB3lfepyqotMCbK4ieZz",
+    "_firestoreId": "PB3lfepyqotMCbK4ieZz",
+    "code": "BIL471",
+    "name": "Sayısal Analiz Yöntemleri",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 562000000,
+      "_isoDate": "2026-03-24T21:30:50.562Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 562000000,
+      "_isoDate": "2026-03-24T21:30:50.562Z"
+    }
+  },
+  {
+    "_id": "PBgM0Aqfx7DwA0GEXipM",
+    "_firestoreId": "PBgM0Aqfx7DwA0GEXipM",
+    "code": "BIL466",
+    "name": "Biyobilişim ve Biyoteknoloji",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387846,
+      "_nanoseconds": 804000000,
+      "_isoDate": "2026-03-24T21:30:46.804Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387846,
+      "_nanoseconds": 804000000,
+      "_isoDate": "2026-03-24T21:30:46.804Z"
+    }
+  },
+  {
+    "_id": "Q4bTotPF7wEzfAykgl29",
+    "_firestoreId": "Q4bTotPF7wEzfAykgl29",
+    "code": "BIL473",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:29.893Z",
+    "sinif": 5,
+    "name": "Bilgisayarlı Görme",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "RGfNbIpjffBcLQib14B4",
+    "_firestoreId": "RGfNbIpjffBcLQib14B4",
+    "sinif": 4,
+    "duration": 60,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:17:36.137Z",
+    "professor": "Dr. Öğr. Üyesi Seda ŞAHİN",
+    "code": "BİL438",
+    "name": "Görüntü İşleme",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "RqMIXOoUveoOZjg7M4Yt",
+    "_firestoreId": "RqMIXOoUveoOZjg7M4Yt",
+    "code": "BIL482",
+    "name": "Yönetim Bilişim Sistemleri",
+    "sinif": 4,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387843,
+      "_nanoseconds": 757000000,
+      "_isoDate": "2026-03-24T21:30:43.757Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387843,
+      "_nanoseconds": 757000000,
+      "_isoDate": "2026-03-24T21:30:43.757Z"
+    }
+  },
+  {
+    "_id": "RsCfwtbWW0HriDzz3Gge",
+    "_firestoreId": "RsCfwtbWW0HriDzz3Gge",
+    "code": "BIL113",
+    "name": "Web Programlama",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Fatih ISSI",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387830,
+      "_nanoseconds": 234000000,
+      "_isoDate": "2026-03-24T21:30:30.234Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387830,
+      "_nanoseconds": 234000000,
+      "_isoDate": "2026-03-24T21:30:30.234Z"
+    }
+  },
+  {
+    "_id": "S54rf56od0pLAVF9K8Fo",
+    "_firestoreId": "S54rf56od0pLAVF9K8Fo",
+    "code": "MAT242",
+    "name": "Diferansiyel Denklemler",
+    "sinif": 2,
+    "duration": 90,
+    "professor": "Prof. Dr. Ilyas INCI",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:17:35.152Z",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "SPVwJ0aUQ2wXbYg5pVB0",
+    "_firestoreId": "SPVwJ0aUQ2wXbYg5pVB0",
+    "code": "BIL432",
+    "name": "Kriptografi ve Bilgi Güvenliği",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387846,
+      "_nanoseconds": 160000000,
+      "_isoDate": "2026-03-24T21:30:46.160Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387846,
+      "_nanoseconds": 160000000,
+      "_isoDate": "2026-03-24T21:30:46.160Z"
+    }
+  },
+  {
+    "_id": "SUuUqehBuI3an1mIif6t",
+    "_firestoreId": "SUuUqehBuI3an1mIif6t",
+    "code": "BİL438",
+    "name": "Görüntü İşleme",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Seda ŞAHİN",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387857,
+      "_nanoseconds": 754000000,
+      "_isoDate": "2026-03-24T21:30:57.754Z"
+    },
+    "updatedAt": "2026-03-25T23:35:09.225Z"
+  },
+  {
+    "_id": "SezDYcupPKMIy1UCmJZw",
+    "_firestoreId": "SezDYcupPKMIy1UCmJZw",
+    "code": "OZD101",
+    "name": "Kariyer Planlama",
+    "sinif": 1,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-11T20:07:09.148Z",
+    "donem": "bahar",
+    "professor": "Doç. Dr. Taha ETEM",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "Sj3IqUNHC4tpAbTTT4GM",
+    "_firestoreId": "Sj3IqUNHC4tpAbTTT4GM",
+    "code": "BIL403",
+    "name": "Yapay Zeka",
+    "sinif": 4,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Taha ETEM",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387843,
+      "_nanoseconds": 382000000,
+      "_isoDate": "2026-03-24T21:30:43.382Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387843,
+      "_nanoseconds": 382000000,
+      "_isoDate": "2026-03-24T21:30:43.382Z"
+    }
+  },
+  {
+    "_id": "TdhMv0933BdPP12a4lrC",
+    "_firestoreId": "TdhMv0933BdPP12a4lrC",
+    "name": "Diferansiyel Denklemler",
+    "sinif": 2,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:27.241Z",
+    "code": "BİL222",
+    "donem": "bahar",
+    "professor": "Prof Dr. İlyas İNCİ",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "UBXy33crKhnBVPxSrWxa",
+    "_firestoreId": "UBXy33crKhnBVPxSrWxa",
+    "code": "BIL486",
+    "name": "Optimizasyon",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 564000000,
+      "_isoDate": "2026-03-24T21:30:50.564Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 564000000,
+      "_isoDate": "2026-03-24T21:30:50.564Z"
+    }
+  },
+  {
+    "_id": "UzeonnvdqdnSaV4PkmBE",
+    "_firestoreId": "UzeonnvdqdnSaV4PkmBE",
+    "code": "BIL438",
+    "name": "Görüntü İşleme",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387852,
+      "_nanoseconds": 597000000,
+      "_isoDate": "2026-03-24T21:30:52.597Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387852,
+      "_nanoseconds": 597000000,
+      "_isoDate": "2026-03-24T21:30:52.597Z"
+    }
+  },
+  {
+    "_id": "VGQPT3J6Ebdzgf9N7OHJ",
+    "_firestoreId": "VGQPT3J6Ebdzgf9N7OHJ",
+    "code": "BIL474",
+    "name": "Tıp Bilişimi",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387852,
+      "_nanoseconds": 504000000,
+      "_isoDate": "2026-03-24T21:30:52.504Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387852,
+      "_nanoseconds": 504000000,
+      "_isoDate": "2026-03-24T21:30:52.504Z"
+    }
+  },
+  {
+    "_id": "VQx6stfavFf2TOudAua6",
+    "_firestoreId": "VQx6stfavFf2TOudAua6",
+    "code": "BIL438",
+    "name": "Görüntü İşleme",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387852,
+      "_nanoseconds": 180000000,
+      "_isoDate": "2026-03-24T21:30:52.180Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387852,
+      "_nanoseconds": 180000000,
+      "_isoDate": "2026-03-24T21:30:52.180Z"
+    }
+  },
+  {
+    "_id": "W0v09BMFlgq2XOW3XCa9",
+    "_firestoreId": "W0v09BMFlgq2XOW3XCa9",
+    "code": "BIL474",
+    "name": "Tıp Bilişimi",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387858,
+      "_nanoseconds": 81000000,
+      "_isoDate": "2026-03-24T21:30:58.081Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387858,
+      "_nanoseconds": 81000000,
+      "_isoDate": "2026-03-24T21:30:58.081Z"
+    }
+  },
+  {
+    "_id": "WltZGcgZue8oQRFHzJ74",
+    "_firestoreId": "WltZGcgZue8oQRFHzJ74",
+    "code": "BIL411",
+    "name": "Sistem Mühendisliği",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387846,
+      "_nanoseconds": 542000000,
+      "_isoDate": "2026-03-24T21:30:46.542Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387846,
+      "_nanoseconds": 542000000,
+      "_isoDate": "2026-03-24T21:30:46.542Z"
+    }
+  },
+  {
+    "_id": "XPvanIoE6TXSZwgIqiTy",
+    "_firestoreId": "XPvanIoE6TXSZwgIqiTy",
+    "code": "BIL493",
+    "name": "Gerçek Zamanlı Sistemler",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 883000000,
+      "_isoDate": "2026-03-24T21:30:50.883Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 883000000,
+      "_isoDate": "2026-03-24T21:30:50.883Z"
+    }
+  },
+  {
+    "_id": "YW2XcNiDwZShnBtOEm8w",
+    "_firestoreId": "YW2XcNiDwZShnBtOEm8w",
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:29.721Z",
+    "professor": "Dr. Öğr. Üyesi Osman GÜLER",
+    "code": "BLM426",
+    "name": "Bulut Bilişime Giriş",
+    "donem": "bahar",
+    "sinif": 2,
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "YY4E8lZrKbhk5Ef0Dm04",
+    "_firestoreId": "YY4E8lZrKbhk5Ef0Dm04",
+    "code": "BIL481",
+    "name": "Yapay Zeka",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 914000000,
+      "_isoDate": "2026-03-24T21:30:49.914Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 914000000,
+      "_isoDate": "2026-03-24T21:30:49.914Z"
+    }
+  },
+  {
+    "_id": "YnFPX4NeIiOnABrNkeC7",
+    "_firestoreId": "YnFPX4NeIiOnABrNkeC7",
+    "code": "MAT241",
+    "name": "Doğrusal Cebir (Şube 1-2)",
+    "sinif": 1,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Celalettin KAYA",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387827,
+      "_nanoseconds": 239000000,
+      "_isoDate": "2026-03-24T21:30:27.239Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387827,
+      "_nanoseconds": 239000000,
+      "_isoDate": "2026-03-24T21:30:27.239Z"
+    }
+  },
+  {
+    "_id": "ZRh1RZYCaoX0ID8JCbNX",
+    "_firestoreId": "ZRh1RZYCaoX0ID8JCbNX",
+    "code": "BIL205",
+    "sinif": 2,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:26.991Z",
+    "name": "Sayısal Sistem Tasarımı",
+    "professor": "Dr. Öğr. Üyesi Fatih ISSI",
+    "donem": "guz",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "ZrRjrfeOlOEQwHrUFxFI",
+    "_firestoreId": "ZrRjrfeOlOEQwHrUFxFI",
+    "code": "BIL474",
+    "name": "Tıp Bilişimi",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387854,
+      "_nanoseconds": 711000000,
+      "_isoDate": "2026-03-24T21:30:54.711Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387854,
+      "_nanoseconds": 711000000,
+      "_isoDate": "2026-03-24T21:30:54.711Z"
+    }
+  },
+  {
+    "_id": "aka96zCOygtXCjLUr6aL",
+    "_firestoreId": "aka96zCOygtXCjLUr6aL",
+    "code": "BIL473",
+    "name": "Bilgisayarlı Görme",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 172000000,
+      "_isoDate": "2026-03-24T21:30:49.172Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 172000000,
+      "_isoDate": "2026-03-24T21:30:49.172Z"
+    }
+  },
+  {
+    "_id": "bIooVM0WNbij6lCskMnf",
+    "_firestoreId": "bIooVM0WNbij6lCskMnf",
+    "sinif": 1,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:26.367Z",
+    "code": "FZK182",
+    "name": "Fizik ve Laboratuvar Uygulamaları-II (Şb: 2)",
+    "professor": "Prof. Dr. Çiğdem YÜKSEKTEPE ATAOL",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "bmrsVTv2TIEkPftCOmML",
+    "_firestoreId": "bmrsVTv2TIEkPftCOmML",
+    "sinif": 1,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:26.109Z",
+    "code": "MAT166",
+    "name": "Matematik-II (Şb:1) ",
+    "professor": "Dr. Öğr. Üyesi Celalettin KAYA",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "bqBVIlrnojjLVmiJhDQu",
+    "_firestoreId": "bqBVIlrnojjLVmiJhDQu",
+    "code": "BIL411",
+    "name": "Sistem Mühendisliği",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387846,
+      "_nanoseconds": 359000000,
+      "_isoDate": "2026-03-24T21:30:46.359Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387846,
+      "_nanoseconds": 359000000,
+      "_isoDate": "2026-03-24T21:30:46.359Z"
+    }
+  },
+  {
+    "_id": "bsWJfolhYdUDqxpYGkw2",
+    "_firestoreId": "bsWJfolhYdUDqxpYGkw2",
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:29.305Z",
+    "name": "İnsan Bilgisayar Etkileşimi",
+    "sinif": 4,
+    "professor": "Dr. Öğr. Üyesi Mehmet A. ALPER",
+    "code": "BİL412",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "c9AzC9Om5JpvPr0EZZYF",
+    "_firestoreId": "c9AzC9Om5JpvPr0EZZYF",
+    "code": "BIL476",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:29.990Z",
+    "sinif": 5,
+    "name": "Veri Madenciliğine Giriş",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "cxlz9Lf6aygEOhMJNKwb",
+    "_firestoreId": "cxlz9Lf6aygEOhMJNKwb",
+    "code": "MAT244",
+    "name": "Nümerik Analiz",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "Doç. Dr. Müfit ŞAN",
+    "donem": "bahar",
+    "studentCount": 0,
+    "createdAt": "2026-02-13T08:06:27.771Z",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "d9a11BXhbc09JJVyHUV6",
+    "_firestoreId": "d9a11BXhbc09JJVyHUV6",
+    "code": "BIL203",
+    "name": "Nesnesel Tasarım ve Programlama",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387830,
+      "_nanoseconds": 351000000,
+      "_isoDate": "2026-03-24T21:30:30.351Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387830,
+      "_nanoseconds": 351000000,
+      "_isoDate": "2026-03-24T21:30:30.351Z"
+    }
+  },
+  {
+    "_id": "deolX7fW2Kz3YZGVTVfz",
+    "_firestoreId": "deolX7fW2Kz3YZGVTVfz",
+    "name": "Bilgisayar Mimarisi ve Organizasyonu",
+    "sinif": 3,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:28.036Z",
+    "professor": "Dr. Öğr. Üyesi Mehmet A. ALPER",
+    "code": "BİL308",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "eWeExPfqmQXBUIkfaOjR",
+    "_firestoreId": "eWeExPfqmQXBUIkfaOjR",
+    "code": "BIL411",
+    "name": "Sistem Mühendisliği",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 101000000,
+      "_isoDate": "2026-03-24T21:30:48.101Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 101000000,
+      "_isoDate": "2026-03-24T21:30:48.101Z"
+    }
+  },
+  {
+    "_id": "fIUXSB2cfYMPgVnu25Ja",
+    "_firestoreId": "fIUXSB2cfYMPgVnu25Ja",
+    "name": "Yapay Zeka",
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:30.141Z",
+    "sinif": 5,
+    "professor": "Dr. Öğr. Üyesi Seda ŞAHİN",
+    "code": "BLM440",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "fPmLppzJ6lZNkHb7Rv5G",
+    "_firestoreId": "fPmLppzJ6lZNkHb7Rv5G",
+    "code": "BIL432",
+    "name": "Görüntü İşleme",
+    "sinif": 4,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Seda ŞAHİN",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387842,
+      "_nanoseconds": 189000000,
+      "_isoDate": "2026-03-24T21:30:42.189Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387842,
+      "_nanoseconds": 189000000,
+      "_isoDate": "2026-03-24T21:30:42.189Z"
+    }
+  },
+  {
+    "_id": "frrVAU3Bo9soeQzRZvyF",
+    "_firestoreId": "frrVAU3Bo9soeQzRZvyF",
+    "code": "BIL483",
+    "name": "Çoklu Ortam Sistemleri",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 249000000,
+      "_isoDate": "2026-03-24T21:30:50.249Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 249000000,
+      "_isoDate": "2026-03-24T21:30:50.249Z"
+    }
+  },
+  {
+    "_id": "gCFVI9pZeDIfjiYdCLgg",
+    "_firestoreId": "gCFVI9pZeDIfjiYdCLgg",
+    "code": "BIL438",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:30.739Z",
+    "sinif": 5,
+    "name": "Görüntü İşleme",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "gVrXDEKqi1Z4fIV6tJbX",
+    "_firestoreId": "gVrXDEKqi1Z4fIV6tJbX",
+    "code": "BLM101",
+    "name": "Bilgisayar Mühendisliğine Giriş",
+    "sinif": 1,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Seda ŞAHİN",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387827,
+      "_nanoseconds": 576000000,
+      "_isoDate": "2026-03-24T21:30:27.576Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387827,
+      "_nanoseconds": 576000000,
+      "_isoDate": "2026-03-24T21:30:27.576Z"
+    }
+  },
+  {
+    "_id": "hMZnf7ZpgunT29md84tR",
+    "_firestoreId": "hMZnf7ZpgunT29md84tR",
+    "code": "MAT241",
+    "name": "Doğrusal Cebir (Şube 1-2)",
+    "sinif": 1,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Celalettin KAYA",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387825,
+      "_nanoseconds": 628000000,
+      "_isoDate": "2026-03-24T21:30:25.628Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387825,
+      "_nanoseconds": 628000000,
+      "_isoDate": "2026-03-24T21:30:25.628Z"
+    }
+  },
+  {
+    "_id": "heG4gs8Wo8KYttS6zro4",
+    "_firestoreId": "heG4gs8Wo8KYttS6zro4",
+    "code": "MAT241",
+    "name": "Doğrusal Cebir (Şube 1-2)",
+    "sinif": 1,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Celalettin KAYA",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387819,
+      "_nanoseconds": 5000000,
+      "_isoDate": "2026-03-24T21:30:19.005Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387819,
+      "_nanoseconds": 5000000,
+      "_isoDate": "2026-03-24T21:30:19.005Z"
+    }
+  },
+  {
+    "_id": "hi1wN7o4Id5j23S2nqh5",
+    "_firestoreId": "hi1wN7o4Id5j23S2nqh5",
+    "code": "BIL113",
+    "name": "Web Programlama",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Fatih ISSI",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387828,
+      "_nanoseconds": 703000000,
+      "_isoDate": "2026-03-24T21:30:28.703Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387828,
+      "_nanoseconds": 703000000,
+      "_isoDate": "2026-03-24T21:30:28.703Z"
+    }
+  },
+  {
+    "_id": "hjQAtYczzOnls9W0n6pO",
+    "_firestoreId": "hjQAtYczzOnls9W0n6pO",
+    "code": "BIL403",
+    "name": "Yapay Zeka",
+    "sinif": 4,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Taha ETEM",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387841,
+      "_nanoseconds": 829000000,
+      "_isoDate": "2026-03-24T21:30:41.829Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387841,
+      "_nanoseconds": 829000000,
+      "_isoDate": "2026-03-24T21:30:41.829Z"
+    }
+  },
+  {
+    "_id": "i7qKi6xMSwDd7nxZYIPp",
+    "_firestoreId": "i7qKi6xMSwDd7nxZYIPp",
+    "code": "BIL466",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:28.916Z",
+    "sinif": 5,
+    "name": "Biyobilişim ve Biyoteknoloji",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "imBe9fKEWdoLUrrclhCa",
+    "_firestoreId": "imBe9fKEWdoLUrrclhCa",
+    "code": "BIL477",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:30.066Z",
+    "sinif": 5,
+    "name": "Örüntü Tanıma",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "j3ja6mDGLNmANoAa5VFB",
+    "_firestoreId": "j3ja6mDGLNmANoAa5VFB",
+    "name": "Bilgisayar Programlama II",
+    "sinif": 1,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:26.641Z",
+    "code": "BLM102",
+    "donem": "bahar",
+    "professor": "Doç. Dr. Taha ETEM",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "j7ZBAaCJVfZihwcJfct7",
+    "_firestoreId": "j7ZBAaCJVfZihwcJfct7",
+    "code": "BIL203",
+    "sinif": 2,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:26.898Z",
+    "name": "Nesnesel Tasarım ve Programlama",
+    "professor": "Dr. Öğr. Üyesi Mehmet A. ALPER",
+    "donem": "guz",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "jDMU1CT7hHTT8tFP1oZb",
+    "_firestoreId": "jDMU1CT7hHTT8tFP1oZb",
+    "sinif": 2,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:27.513Z",
+    "donem": "bahar",
+    "code": "BLM208",
+    "professor": "Dr. Öğr. Üyesi Fatih ISSI",
+    "name": "Elektrik Devre Temelleri",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "jGUK00087IlxEJI84uA2",
+    "_firestoreId": "jGUK00087IlxEJI84uA2",
+    "code": "FZK182",
+    "name": "Fizik ve Laboratuvar Uygulamaları-II (Şb: 1)",
+    "sinif": 1,
+    "duration": 30,
+    "professor": "Prof. Dr. Hamit ALYAR",
+    "studentCount": 0,
+    "createdAt": "2026-02-11T20:03:42.660Z",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "jRrgL5s46WN9ro1xI9E7",
+    "_firestoreId": "jRrgL5s46WN9ro1xI9E7",
+    "code": "OSD144",
+    "name": "Siber Güvenlik ve Etik Hacker",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387857,
+      "_nanoseconds": 104000000,
+      "_isoDate": "2026-03-24T21:30:57.104Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387857,
+      "_nanoseconds": 104000000,
+      "_isoDate": "2026-03-24T21:30:57.104Z"
+    }
+  },
+  {
+    "_id": "kYHKodYuOksgh5710vUh",
+    "_firestoreId": "kYHKodYuOksgh5710vUh",
+    "code": "BIL403",
+    "name": "Yapay Zeka",
+    "sinif": 4,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Taha ETEM",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387841,
+      "_nanoseconds": 553000000,
+      "_isoDate": "2026-03-24T21:30:41.553Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387841,
+      "_nanoseconds": 553000000,
+      "_isoDate": "2026-03-24T21:30:41.553Z"
+    }
+  },
+  {
+    "_id": "ljMdezqUjNixEjjOwYia",
+    "_firestoreId": "ljMdezqUjNixEjjOwYia",
+    "code": "BIL474",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:30.813Z",
+    "sinif": 5,
+    "name": "Tıp Bilişimi",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "lyPFBpGBKxCBzM7flsPC",
+    "_firestoreId": "lyPFBpGBKxCBzM7flsPC",
+    "code": "BIL483",
+    "name": "Çoklu Ortam Sistemleri",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 656000000,
+      "_isoDate": "2026-03-24T21:30:50.656Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 656000000,
+      "_isoDate": "2026-03-24T21:30:50.656Z"
+    }
+  },
+  {
+    "_id": "mEE7S16CsOwIOT0Faj9W",
+    "_firestoreId": "mEE7S16CsOwIOT0Faj9W",
+    "code": "BIL486",
+    "name": "Optimizasyon",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:30.320Z",
+    "sinif": 5,
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "nge1FZOa0MYopz9s2xIP",
+    "_firestoreId": "nge1FZOa0MYopz9s2xIP",
+    "sinif": 4,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:28.544Z",
+    "name": "Yönetim Bilişim Sistemleri",
+    "code": "BİL482",
+    "donem": "bahar",
+    "professor": "Dr. Öğr. Üyesi Seda ŞAHİN",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "oFmVJkAFFzOFNDt3139y",
+    "_firestoreId": "oFmVJkAFFzOFNDt3139y",
+    "code": "BIL486",
+    "name": "Optimizasyon",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 976000000,
+      "_isoDate": "2026-03-24T21:30:50.976Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387850,
+      "_nanoseconds": 976000000,
+      "_isoDate": "2026-03-24T21:30:50.976Z"
+    }
+  },
+  {
+    "_id": "oXhpRtWaxwCFVXUzbQYy",
+    "_firestoreId": "oXhpRtWaxwCFVXUzbQYy",
+    "code": "BIL203",
+    "name": "Nesnesel Tasarım ve Programlama",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387835,
+      "_nanoseconds": 946000000,
+      "_isoDate": "2026-03-24T21:30:35.946Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387835,
+      "_nanoseconds": 946000000,
+      "_isoDate": "2026-03-24T21:30:35.946Z"
+    }
+  },
+  {
+    "_id": "oxSyt2MWx0nhqFMqKO1B",
+    "_firestoreId": "oxSyt2MWx0nhqFMqKO1B",
+    "code": "MAT242",
+    "name": "Diferansiyel Denklemler",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "Prof. Dr. İlyas İNCİ",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387828,
+      "_nanoseconds": 468000000,
+      "_isoDate": "2026-03-24T21:30:28.468Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387828,
+      "_nanoseconds": 468000000,
+      "_isoDate": "2026-03-24T21:30:28.468Z"
+    }
+  },
+  {
+    "_id": "pjRHqSbpsCKnijQRpD7H",
+    "_firestoreId": "pjRHqSbpsCKnijQRpD7H",
+    "code": "BIL203",
+    "name": "Nesnesel Tasarım ve Programlama",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387834,
+      "_nanoseconds": 402000000,
+      "_isoDate": "2026-03-24T21:30:34.402Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387834,
+      "_nanoseconds": 402000000,
+      "_isoDate": "2026-03-24T21:30:34.402Z"
+    }
+  },
+  {
+    "_id": "q1oLkU56xXFCGoOs0yJ1",
+    "_firestoreId": "q1oLkU56xXFCGoOs0yJ1",
+    "code": "BIL486",
+    "name": "Optimizasyon",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387852,
+      "_nanoseconds": 499000000,
+      "_isoDate": "2026-03-24T21:30:52.499Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387852,
+      "_nanoseconds": 499000000,
+      "_isoDate": "2026-03-24T21:30:52.499Z"
+    }
+  },
+  {
+    "_id": "qEHmiv8ZxNeyWbH8MOmK",
+    "_firestoreId": "qEHmiv8ZxNeyWbH8MOmK",
+    "code": "BIL421",
+    "name": "E-Ticaret ve Dijital Dönüşüm",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 743000000,
+      "_isoDate": "2026-03-24T21:30:48.743Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 743000000,
+      "_isoDate": "2026-03-24T21:30:48.743Z"
+    }
+  },
+  {
+    "_id": "qIMEcA0AGtGiMkWeKIOS",
+    "_firestoreId": "qIMEcA0AGtGiMkWeKIOS",
+    "code": "BIL421",
+    "name": "E-Ticaret ve Dijital Dönüşüm",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387847,
+      "_nanoseconds": 3000000,
+      "_isoDate": "2026-03-24T21:30:47.003Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387847,
+      "_nanoseconds": 3000000,
+      "_isoDate": "2026-03-24T21:30:47.003Z"
+    }
+  },
+  {
+    "_id": "qRJ6XInoR5SQji2q9DUO",
+    "_firestoreId": "qRJ6XInoR5SQji2q9DUO",
+    "code": "BIL411",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:29.229Z",
+    "sinif": 5,
+    "name": "Sistem Mühendisliği",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "qcY1altJMvNSBh5IXstM",
+    "_firestoreId": "qcY1altJMvNSBh5IXstM",
+    "code": "BIL323",
+    "name": "Sayısal İşaret İşleme",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387845,
+      "_nanoseconds": 301000000,
+      "_isoDate": "2026-03-24T21:30:45.301Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387845,
+      "_nanoseconds": 301000000,
+      "_isoDate": "2026-03-24T21:30:45.301Z"
+    }
+  },
+  {
+    "_id": "qg5Z03KmHOWNnCpUDdne",
+    "_firestoreId": "qg5Z03KmHOWNnCpUDdne",
+    "code": "BIL113",
+    "name": "Web Programlama",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Fatih ISSI",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387827,
+      "_nanoseconds": 128000000,
+      "_isoDate": "2026-03-24T21:30:27.128Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387827,
+      "_nanoseconds": 128000000,
+      "_isoDate": "2026-03-24T21:30:27.128Z"
+    }
+  },
+  {
+    "_id": "qiOg7vAGrpu45ClyDEYu",
+    "_firestoreId": "qiOg7vAGrpu45ClyDEYu",
+    "name": "Gömülü Sistemler",
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-11T21:51:05.182Z",
+    "sinif": 4,
+    "professor": "Dr. Öğr. Üyesi Fatih ISSI",
+    "code": "BİL434",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "qjdzx1tS5iEtSvJiaYCE",
+    "_firestoreId": "qjdzx1tS5iEtSvJiaYCE",
+    "code": "BIL462",
+    "name": "Bulut Çözüme Giriş",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 480000000,
+      "_isoDate": "2026-03-24T21:30:48.480Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 480000000,
+      "_isoDate": "2026-03-24T21:30:48.480Z"
+    }
+  },
+  {
+    "_id": "r1dr9IFBnDpX7Es1cU87",
+    "_firestoreId": "r1dr9IFBnDpX7Es1cU87",
+    "sinif": 2,
+    "duration": 60,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:17:34.901Z",
+    "professor": "Dr. Öğr. Üyesi Mehmet Akif ALPER",
+    "code": "BLM202",
+    "name": "Bilgisayar Mimarisi ve Organizasyonu",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "rqDMx2QaLZz5GV6x5iTF",
+    "_firestoreId": "rqDMx2QaLZz5GV6x5iTF",
+    "code": "BIL323",
+    "name": "Sayısal İşaret İşleme",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387847,
+      "_nanoseconds": 130000000,
+      "_isoDate": "2026-03-24T21:30:47.130Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387847,
+      "_nanoseconds": 130000000,
+      "_isoDate": "2026-03-24T21:30:47.130Z"
+    }
+  },
+  {
+    "_id": "sEagI0AZUyrZd8vgPnT4",
+    "_firestoreId": "sEagI0AZUyrZd8vgPnT4",
+    "code": "BIL412",
+    "name": "İnsan Bilgisayar Etkileşimi",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 420000000,
+      "_isoDate": "2026-03-24T21:30:48.420Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 420000000,
+      "_isoDate": "2026-03-24T21:30:48.420Z"
+    }
+  },
+  {
+    "_id": "sP5XYkZ5eDlHnhAd2rCR",
+    "_firestoreId": "sP5XYkZ5eDlHnhAd2rCR",
+    "code": "BIL205",
+    "name": "Sayısal Sistem Tasarımı",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387833,
+      "_nanoseconds": 93000000,
+      "_isoDate": "2026-03-24T21:30:33.093Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387833,
+      "_nanoseconds": 93000000,
+      "_isoDate": "2026-03-24T21:30:33.093Z"
+    }
+  },
+  {
+    "_id": "sgtlHwtAedvoO9qnyi5f",
+    "_firestoreId": "sgtlHwtAedvoO9qnyi5f",
+    "code": "BİL321",
+    "name": "Makine Öğrenmesi",
+    "sinif": 3,
+    "duration": 30,
+    "professor": "Doç. Dr. Selim BUYRUKOĞLU",
+    "donem": "bahar",
+    "studentCount": 0,
+    "createdAt": "2026-02-13T10:03:46.151Z",
+    "departmentId": "bilgisayar",
+    "updatedAt": "2026-03-25T23:38:02.602Z"
+  },
+  {
+    "_id": "svqemtRc0KA8iGFHhC8b",
+    "_firestoreId": "svqemtRc0KA8iGFHhC8b",
+    "code": "BIL496",
+    "duration": 30,
+    "professor": "",
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:30.476Z",
+    "sinif": 5,
+    "name": "Sinyal İşleme Uygulamaları",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "t0CK1FMIPL2c6eM1itzn",
+    "_firestoreId": "t0CK1FMIPL2c6eM1itzn",
+    "code": "BIL476",
+    "name": "Veri Madenciliğine Giriş",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 270000000,
+      "_isoDate": "2026-03-24T21:30:49.270Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387849,
+      "_nanoseconds": 270000000,
+      "_isoDate": "2026-03-24T21:30:49.270Z"
+    }
+  },
+  {
+    "_id": "uBYUyrQm6dhomQVAPsUQ",
+    "_firestoreId": "uBYUyrQm6dhomQVAPsUQ",
+    "code": "BIL466",
+    "name": "Biyobilişim ve Biyoteknoloji",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387844,
+      "_nanoseconds": 786000000,
+      "_isoDate": "2026-03-24T21:30:44.786Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387844,
+      "_nanoseconds": 786000000,
+      "_isoDate": "2026-03-24T21:30:44.786Z"
+    }
+  },
+  {
+    "_id": "uNWnWjyO2cwPk08s4rer",
+    "_firestoreId": "uNWnWjyO2cwPk08s4rer",
+    "code": "MAT241",
+    "sinif": 1,
+    "duration": 90,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:17:34.671Z",
+    "professor": "Dr. Ögr. Üyesi Celalettin KAYA",
+    "name": "Doğrusal Cebir (Şube 1-2)",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "ulxy2xyWCImlT4K2ABM5",
+    "_firestoreId": "ulxy2xyWCImlT4K2ABM5",
+    "sinif": 3,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:27.773Z",
+    "professor": "Doç. Dr. Selim BUYRUKOĞLU",
+    "code": "BİL303",
+    "name": "Veritabanı Sistemleri",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  },
+  {
+    "_id": "whuAWcjWM5kOSBUapMeM",
+    "_firestoreId": "whuAWcjWM5kOSBUapMeM",
+    "code": "BIL432",
+    "name": "Görüntü İşleme",
+    "sinif": 4,
+    "duration": 30,
+    "professor": "Dr. Öğr. Üyesi Seda ŞAHİN",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387842,
+      "_nanoseconds": 465000000,
+      "_isoDate": "2026-03-24T21:30:42.465Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387842,
+      "_nanoseconds": 465000000,
+      "_isoDate": "2026-03-24T21:30:42.465Z"
+    }
+  },
+  {
+    "_id": "xBe0nfXp1RvRyzjhEF6F",
+    "_firestoreId": "xBe0nfXp1RvRyzjhEF6F",
+    "code": "MAT242",
+    "name": "Diferansiyel Denklemler",
+    "sinif": 2,
+    "duration": 30,
+    "professor": "Prof. Dr. İlyas İNCİ",
+    "donem": "guz",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387833,
+      "_nanoseconds": 999000000,
+      "_isoDate": "2026-03-24T21:30:33.999Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387833,
+      "_nanoseconds": 999000000,
+      "_isoDate": "2026-03-24T21:30:33.999Z"
+    }
+  },
+  {
+    "_id": "zFAaNGdhzbFfXqfe14d1",
+    "_firestoreId": "zFAaNGdhzbFfXqfe14d1",
+    "code": "BIL471",
+    "name": "Sayısal Analiz Yöntemleri",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 846000000,
+      "_isoDate": "2026-03-24T21:30:48.846Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387848,
+      "_nanoseconds": 846000000,
+      "_isoDate": "2026-03-24T21:30:48.846Z"
+    }
+  },
+  {
+    "_id": "ziBPrZPLwfez7qJCakR8",
+    "_firestoreId": "ziBPrZPLwfez7qJCakR8",
+    "code": "BIL483",
+    "name": "Çoklu Ortam Sistemleri",
+    "sinif": 5,
+    "duration": 30,
+    "professor": "",
+    "donem": "bahar",
+    "studentCount": 0,
+    "departmentId": "bilgisayar",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387852,
+      "_nanoseconds": 175000000,
+      "_isoDate": "2026-03-24T21:30:52.175Z"
+    },
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774387852,
+      "_nanoseconds": 175000000,
+      "_isoDate": "2026-03-24T21:30:52.175Z"
+    }
+  },
+  {
+    "_id": "zrk1l9SbLPM6mRRF3mgV",
+    "_firestoreId": "zrk1l9SbLPM6mRRF3mgV",
+    "sinif": 2,
+    "duration": 30,
+    "studentCount": 0,
+    "createdAt": "2026-02-09T22:58:27.604Z",
+    "name": "Olasılık Teorisi ve İstatistik",
+    "professor": "Dr. Öğr. Üyesi Uğur BİNZAT",
+    "code": "BİL212",
+    "donem": "bahar",
+    "departmentId": "bilgisayar",
+    "updatedAt": {
+      "_type": "timestamp",
+      "_seconds": 1774390068,
+      "_nanoseconds": 749000000,
+      "_isoDate": "2026-03-24T22:07:48.749Z"
+    }
+  }
+]

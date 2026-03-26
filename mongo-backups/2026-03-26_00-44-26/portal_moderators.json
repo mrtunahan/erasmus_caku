@@ -1,0 +1,26 @@
+[
+  {
+    "_id": "student_250905041",
+    "_firestoreId": "student_250905041",
+    "userId": "student_250905041",
+    "userName": "Mehmet Can Altuntaş",
+    "assignedAt": {
+      "_type": "timestamp",
+      "_seconds": 1772621126,
+      "_nanoseconds": 672000000,
+      "_isoDate": "2026-03-04T10:45:26.672Z"
+    }
+  },
+  {
+    "_id": "student_250905049",
+    "_firestoreId": "student_250905049",
+    "userId": "student_250905049",
+    "userName": "sıla Özkara",
+    "assignedAt": {
+      "_type": "timestamp",
+      "_seconds": 1772385197,
+      "_nanoseconds": 503000000,
+      "_isoDate": "2026-03-01T17:13:17.503Z"
+    }
+  }
+]

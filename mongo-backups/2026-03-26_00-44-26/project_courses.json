@@ -1,0 +1,15 @@
+[
+  {
+    "_id": "hm8H6gbhW6muatV96Afu",
+    "_firestoreId": "hm8H6gbhW6muatV96Afu",
+    "code": "BLM102",
+    "name": "BİLGİSAYAR PROGRAMLAMA",
+    "professor": "Doç. Dr. Taha ETEM",
+    "createdAt": {
+      "_type": "timestamp",
+      "_seconds": 1772386858,
+      "_nanoseconds": 194000000,
+      "_isoDate": "2026-03-01T17:40:58.194Z"
+    }
+  }
+]
