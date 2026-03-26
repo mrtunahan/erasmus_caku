@@ -53,7 +53,7 @@ const SECTION_ICONS = {
 };
 
 // ── Akademisyen Kart Bileşeni ──
-function AcademicianCard({ prof, onSelect, isSelected }) {
+function AcademicianCard({ prof, onSelect, onDelete, isSelected, canManage, isAdmin }) {
   return (
     <div
       onClick={function() { onSelect(prof); }}
@@ -96,11 +96,21 @@ function AcademicianCard({ prof, onSelect, isSelected }) {
           <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 2 }}>{prof.department}</div>
         )}
       </div>
-      {prof.fetchedAt && (
-        <div style={{ fontSize: 10, color: COLORS.textLight }}>
-          {new Date(prof.fetchedAt).toLocaleDateString("tr-TR")}
-        </div>
-      )}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+        {isAdmin && prof.departmentId && (
+          <div style={{ fontSize: 10, color: COLORS.accent, background: COLORS.accent + "10", padding: "2px 6px", borderRadius: 4 }}>
+            {prof.departmentId}
+          </div>
+        )}
+        {canManage && onDelete && (
+          <button
+            onClick={function(e) { e.stopPropagation(); onDelete(prof); }}
+            style={{ background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 12, padding: "2px 4px" }}
+          >
+            Kaldır
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -294,15 +304,22 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
   var isAdmin = currentUser && currentUser.role === "admin";
   var isDeptManager = currentUser && currentUser.role === "bolum_yetkilisi";
   var canManage = isAdmin || isDeptManager;
+  var deptId = activeDepartment || (currentUser && currentUser.departmentId) || null;
 
-  // Akademisyen listesini yükle
+  // Akademisyen listesini yükle (bölüm bazlı)
   var loadProfessors = useCallback(function() {
     setLoading(true);
     var token = localStorage.getItem("caku_auth_token");
     var headers = {};
     if (token) headers["Authorization"] = "Bearer " + token;
 
-    fetch("/api/akademisyen", { headers: headers })
+    var url = "/api/akademisyen";
+    // Admin hepsini görür, diğerleri sadece kendi bölümünü
+    if (!isAdmin && deptId) {
+      url += "?departmentId=" + encodeURIComponent(deptId);
+    }
+
+    fetch(url, { headers: headers })
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (Array.isArray(data)) {
@@ -311,7 +328,7 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
         setLoading(false);
       })
       .catch(function() { setLoading(false); });
-  }, []);
+  }, [isAdmin, deptId]);
 
   useEffect(function() { loadProfessors(); }, [loadProfessors]);
 
@@ -340,17 +357,43 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
     loadDetail(prof.username);
   };
 
-  // Yeni akademisyen ekle
+  // Yeni akademisyen ekle (bölüme atayarak)
   var handleAdd = function() {
     if (!newUsername.trim()) return alert("ÇAKUAVİS kullanıcı adı gerekli");
     var username = newUsername.trim().toLowerCase();
+    var assignDeptId = deptId;
     setAddModal(false);
     setNewUsername("");
-    // Direkt detay yükle (cache'e de kaydedilecek)
+    // Direkt detay yükle (departmentId ile cache'e kaydedilecek)
     setSelectedProf({ username: username });
-    loadDetail(username);
-    // Listeyi güncelle
-    setTimeout(loadProfessors, 2000);
+    var token = localStorage.getItem("caku_auth_token");
+    var headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = "Bearer " + token;
+
+    // Önce bilgileri çek
+    fetch("/api/akademisyen/" + encodeURIComponent(username) + (assignDeptId ? "?departmentId=" + encodeURIComponent(assignDeptId) : ""), { headers: headers })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        setProfDetail(data);
+        setLoading(false);
+        // Listeyi güncelle
+        setTimeout(loadProfessors, 1000);
+      })
+      .catch(function(err) {
+        alert("Akademisyen bilgisi alınamadı: " + err.message);
+        setLoading(false);
+      });
+  };
+
+  // Akademisyeni sil
+  var handleDelete = function(prof) {
+    if (!confirm((prof.fullName || prof.username) + " akademisyeni listeden kaldırılsın mı?")) return;
+    var token = localStorage.getItem("caku_auth_token");
+    var headers = {};
+    if (token) headers["Authorization"] = "Bearer " + token;
+    fetch("/api/akademisyen/" + encodeURIComponent(prof.username), { method: "DELETE", headers: headers })
+      .then(function() { loadProfessors(); })
+      .catch(function(err) { alert("Hata: " + err.message); });
   };
 
   // Filtreleme
@@ -437,7 +480,10 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
                 key={prof.username}
                 prof={prof}
                 onSelect={handleSelect}
+                onDelete={handleDelete}
                 isSelected={selectedProf && selectedProf.username === prof.username}
+                canManage={canManage}
+                isAdmin={isAdmin}
               />
             );
           })}
