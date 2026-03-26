@@ -1,5 +1,5 @@
 const express = require("express");
-const { getDb } = require("../config/database");
+const { getDbSafe } = require("../config/database");
 
 const router = express.Router();
 
@@ -22,7 +22,7 @@ const COLLECTIONS = [
 // GET /api/health - Sunucu durumu ve koleksiyon sayıları
 router.get("/", async (req, res) => {
   try {
-    const db = getDb();
+    const db = await getDbSafe();
     const counts = {};
     let totalDocuments = 0;
 

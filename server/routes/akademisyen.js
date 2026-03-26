@@ -1,6 +1,6 @@
 var express = require("express");
 var https = require("https");
-var { getDb } = require("../config/database");
+var { getDbSafe } = require("../config/database");
 
 var router = express.Router();
 
@@ -199,7 +199,7 @@ router.get("/proxy/photo", async function(req, res) {
 // GET /api/akademisyen - Akademisyenleri listele (departmentId filtreli)
 router.get("/", async function(req, res) {
   try {
-    var db = getDb();
+    var db = await getDbSafe();
     var filter = {};
     if (req.query.departmentId) {
       filter.departmentId = req.query.departmentId;
@@ -230,7 +230,7 @@ router.post("/:username/assign", async function(req, res) {
   if (!departmentId) return res.status(400).json({ error: "departmentId gerekli" });
 
   try {
-    var db = getDb();
+    var db = await getDbSafe();
     await db.collection("akademisyen_cache").updateOne(
       { _id: username },
       { $set: { departmentId: departmentId } },
@@ -246,7 +246,7 @@ router.post("/:username/assign", async function(req, res) {
 router.delete("/:username", async function(req, res) {
   var username = normalizeUsername(req.params.username);
   try {
-    var db = getDb();
+    var db = await getDbSafe();
     await db.collection("akademisyen_cache").deleteOne({ _id: username });
     res.json({ success: true });
   } catch (err) {
@@ -262,7 +262,7 @@ router.get("/:username", async function(req, res) {
   if (!username) return res.status(400).json({ error: "Kullanıcı adı gerekli" });
 
   try {
-    var db = getDb();
+    var db = await getDbSafe();
 
     // Önce cache'e bak (24 saat geçerli)
     var cached = await db.collection("akademisyen_cache").findOne({ _id: username });
@@ -301,7 +301,7 @@ router.get("/:username", async function(req, res) {
     console.error("Akademisyen fetch error:", err.message);
     // Cache varsa eski veriyi dön
     try {
-      var db2 = getDb();
+      var db2 = await getDbSafe();
       var old = await db2.collection("akademisyen_cache").findOne({ _id: username });
       if (old && old.data) return res.json(old.data);
     } catch (_) {}

@@ -1,5 +1,5 @@
 const express = require("express");
-const { getDb } = require("../config/database");
+const { getDbSafe } = require("../config/database");
 const { ObjectId } = require("mongodb");
 
 const router = express.Router();
@@ -173,7 +173,7 @@ router.post("/write", async (req, res) => {
   }
 
   try {
-    const db = getDb();
+    const db = await getDbSafe();
 
     // Tek işlem
     if (operations.length === 1) {
@@ -210,7 +210,7 @@ router.get("/:collection", async (req, res) => {
   }
 
   try {
-    const db = getDb();
+    const db = await getDbSafe();
     const col = db.collection(collection);
 
     // MongoDB filter oluştur
@@ -272,7 +272,7 @@ router.get("/:collection/:docId", async (req, res) => {
   }
 
   try {
-    const db = getDb();
+    const db = await getDbSafe();
     let doc = await db.collection(collection).findOne({ _id: docId });
     // String ile bulunamadıysa ObjectId ile dene
     if (!doc && ObjectId.isValid(docId)) {

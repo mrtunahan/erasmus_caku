@@ -1,7 +1,7 @@
 const express = require("express");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
-const { getDb } = require("../config/database");
+const { getDbSafe } = require("../config/database");
 const { generateToken, requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
@@ -78,14 +78,14 @@ function clearAttempts(key) {
 
 // Helper: passwords koleksiyonundan doküman oku
 async function getPasswordDoc(docId) {
-  const db = getDb();
+  const db = await getDbSafe();
   const doc = await db.collection("passwords").findOne({ _id: docId });
   return doc || {};
 }
 
 // Helper: passwords koleksiyonuna doküman yaz
 async function setPasswordDoc(docId, data, merge = false) {
-  const db = getDb();
+  const db = await getDbSafe();
   if (merge) {
     await db.collection("passwords").updateOne(
       { _id: docId },
@@ -269,7 +269,7 @@ router.post("/department-manager", async (req, res) => {
   }
 
   try {
-    const db = getDb();
+    const db = await getDbSafe();
     const deptDoc = await db.collection("departments").findOne({ managerName });
     if (!deptDoc) {
       recordAttempt(rateLimitKey);
@@ -460,7 +460,7 @@ router.post("/save-role", async (req, res) => {
   }
 
   try {
-    const db = getDb();
+    const db = await getDbSafe();
     await db.collection("users").updateOne(
       { _id: uid },
       { $set: { ...roleData, updatedAt: new Date() } },
