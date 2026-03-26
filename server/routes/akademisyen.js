@@ -160,9 +160,42 @@ function parseAcademicianHTML(html, username) {
   return result;
 }
 
+// POST /api/akademisyen/:username/assign - Akademisyeni bölüme ata
+router.post("/:username/assign", async function(req, res) {
+  var username = req.params.username.toLowerCase().trim();
+  var departmentId = req.body.departmentId;
+
+  if (!departmentId) return res.status(400).json({ error: "departmentId gerekli" });
+
+  try {
+    var db = getDb();
+    await db.collection("akademisyen_cache").updateOne(
+      { _id: username },
+      { $set: { departmentId: departmentId } },
+      { upsert: false }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/akademisyen/:username - Akademisyeni sil
+router.delete("/:username", async function(req, res) {
+  var username = req.params.username.toLowerCase().trim();
+  try {
+    var db = getDb();
+    await db.collection("akademisyen_cache").deleteOne({ _id: username });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/akademisyen/:username - Tek akademisyen bilgisi
 router.get("/:username", async function(req, res) {
   var username = req.params.username.toLowerCase().trim();
+  var departmentId = req.query.departmentId || null;
 
   try {
     var db = getDb();
@@ -172,6 +205,10 @@ router.get("/:username", async function(req, res) {
     if (cached && cached.fetchedAt) {
       var age = Date.now() - new Date(cached.fetchedAt).getTime();
       if (age < 24 * 60 * 60 * 1000) {
+        // departmentId varsa ata
+        if (departmentId && !cached.departmentId) {
+          await db.collection("akademisyen_cache").updateOne({ _id: username }, { $set: { departmentId: departmentId } });
+        }
         return res.json(cached.data);
       }
     }
@@ -180,10 +217,12 @@ router.get("/:username", async function(req, res) {
     var html = await fetchAcademicianPage(username);
     var data = parseAcademicianHTML(html, username);
 
-    // Cache'e kaydet
+    // Cache'e kaydet (departmentId ile birlikte)
+    var updateData = { data: data, fetchedAt: new Date().toISOString() };
+    if (departmentId) updateData.departmentId = departmentId;
     await db.collection("akademisyen_cache").updateOne(
       { _id: username },
-      { $set: { data: data, fetchedAt: new Date().toISOString() } },
+      { $set: updateData },
       { upsert: true }
     );
 
@@ -200,11 +239,15 @@ router.get("/:username", async function(req, res) {
   }
 });
 
-// GET /api/akademisyen - Tüm cache'lenmiş akademisyenleri listele
+// GET /api/akademisyen - Akademisyenleri listele (departmentId filtreli)
 router.get("/", async function(req, res) {
   try {
     var db = getDb();
-    var all = await db.collection("akademisyen_cache").find({}).toArray();
+    var filter = {};
+    if (req.query.departmentId) {
+      filter.departmentId = req.query.departmentId;
+    }
+    var all = await db.collection("akademisyen_cache").find(filter).toArray();
     var list = all.map(function(doc) {
       return {
         username: doc._id,
@@ -212,6 +255,7 @@ router.get("/", async function(req, res) {
         photo: doc.data ? doc.data.photo : "",
         email: doc.data ? doc.data.email : "",
         department: doc.data ? doc.data.department : "",
+        departmentId: doc.departmentId || null,
         fetchedAt: doc.fetchedAt
       };
     });
