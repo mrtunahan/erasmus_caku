@@ -494,8 +494,8 @@ var PortalDB = {
       return Object.assign({}, doc.data(), { id: doc.id });
     });
     results.sort(function (a, b) {
-      var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : 0;
-      var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : 0;
+      var ta = a.createdAt ? (a.createdAt._seconds ? a.createdAt._seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
+      var tb = b.createdAt ? (b.createdAt._seconds ? b.createdAt._seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
       return tb - ta;
     });
     if (category && category !== "tumu") {
@@ -597,8 +597,8 @@ var PortalDB = {
       return Object.assign({}, doc.data(), { id: doc.id });
     });
     results.sort(function (a, b) {
-      var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : 0;
-      var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : 0;
+      var ta = a.createdAt ? (a.createdAt._seconds ? a.createdAt._seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
+      var tb = b.createdAt ? (b.createdAt._seconds ? b.createdAt._seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
       return ta - tb;
     });
     return results;
@@ -761,8 +761,8 @@ var PortalDB = {
       return Object.assign({}, doc.data(), { id: doc.id });
     });
     results.sort(function (a, b) {
-      var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : 0;
-      var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : 0;
+      var ta = a.createdAt ? (a.createdAt._seconds ? a.createdAt._seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
+      var tb = b.createdAt ? (b.createdAt._seconds ? b.createdAt._seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
       return tb - ta;
     });
     return results;
@@ -904,8 +904,8 @@ var PortalDB = {
       return Object.assign({}, doc.data(), { id: doc.id });
     });
     results.sort(function (a, b) {
-      var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : 0;
-      var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : 0;
+      var ta = a.createdAt ? (a.createdAt._seconds ? a.createdAt._seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
+      var tb = b.createdAt ? (b.createdAt._seconds ? b.createdAt._seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
       return tb - ta;
     });
     return results;
@@ -922,7 +922,7 @@ var PortalDB = {
 
 function timeAgo(timestamp) {
   if (!timestamp) return "";
-  var date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  var date = timestamp._seconds ? new Date(timestamp._seconds * 1000) : (timestamp.toDate ? timestamp.toDate() : new Date(timestamp));
   var now = new Date();
   var diff = Math.floor((now - date) / 1000);
   if (diff < 60) return "Az önce";
@@ -3516,13 +3516,13 @@ const LeaderboardPanel = ({ posts, allUsers, currentUser }) => {
     if (period === "week") {
       var weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       filteredPosts = posts.filter(function (p) {
-        var d = p.createdAt && p.createdAt.toDate ? p.createdAt.toDate() : new Date(p.createdAt);
+        var d = p.createdAt && p.createdAt._seconds ? new Date(p.createdAt._seconds * 1000) : new Date(p.createdAt);
         return d >= weekAgo;
       });
     } else if (period === "month") {
       var monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       filteredPosts = posts.filter(function (p) {
-        var d = p.createdAt && p.createdAt.toDate ? p.createdAt.toDate() : new Date(p.createdAt);
+        var d = p.createdAt && p.createdAt._seconds ? new Date(p.createdAt._seconds * 1000) : new Date(p.createdAt);
         return d >= monthAgo;
       });
     }
@@ -4418,7 +4418,7 @@ const ModerationQueuePanel = ({ pendingPosts, onApprove, onReject, onEdit, curre
           var cat = getCategoryInfo(post.category);
           var textContent = post.contentFormat === "html" ? stripHtmlTags(post.content) : (post.content || "");
           var preview = textContent.length > 150 ? textContent.substring(0, 150) + "..." : textContent;
-          var timeStr = post.createdAt ? (post.createdAt.toDate ? timeAgo(post.createdAt.toDate()) : timeAgo(new Date(post.createdAt))) : "";
+          var timeStr = post.createdAt ? timeAgo(post.createdAt._seconds ? new Date(post.createdAt._seconds * 1000) : new Date(post.createdAt)) : "";
 
           return (
             <div key={post.id} style={{
@@ -4821,8 +4821,8 @@ function OgrenciPortaliApp({ currentUser }) {
         return Object.assign({}, doc.data(), { id: doc.id });
       });
       fetched.sort(function (a, b) {
-        var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : 0;
-        var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : 0;
+        var ta = a.createdAt ? (a.createdAt._seconds ? a.createdAt._seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
+        var tb = b.createdAt ? (b.createdAt._seconds ? b.createdAt._seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
         return tb - ta;
       });
       setAllPosts(fetched);
@@ -5055,7 +5055,7 @@ function OgrenciPortaliApp({ currentUser }) {
       startDate.setHours(0, 0, 0, 0);
       result = result.filter(function (p) {
         if (!p.createdAt) return false;
-        var postDate = p.createdAt.toDate ? p.createdAt.toDate() : new Date(p.createdAt);
+        var postDate = p.createdAt._seconds ? new Date(p.createdAt._seconds * 1000) : new Date(p.createdAt);
         return postDate >= startDate;
       });
     }
@@ -5064,7 +5064,7 @@ function OgrenciPortaliApp({ currentUser }) {
       endDate.setHours(23, 59, 59, 999);
       result = result.filter(function (p) {
         if (!p.createdAt) return false;
-        var postDate = p.createdAt.toDate ? p.createdAt.toDate() : new Date(p.createdAt);
+        var postDate = p.createdAt._seconds ? new Date(p.createdAt._seconds * 1000) : new Date(p.createdAt);
         return postDate <= endDate;
       });
     }

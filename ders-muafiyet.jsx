@@ -1660,7 +1660,7 @@ const ExemptionHistory = ({ records, loading, onDelete, onExportWord }) => {
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {filtered.map(function (rec) {
           var matchCount = (rec.matches || []).length;
-          var dateStr = rec.createdAt && rec.createdAt.toDate ? rec.createdAt.toDate().toLocaleDateString("tr-TR") : "";
+          var dateStr = rec.createdAt ? (rec.createdAt._seconds ? new Date(rec.createdAt._seconds * 1000) : new Date(rec.createdAt)).toLocaleDateString("tr-TR") : "";
           return (
             <div key={rec.id} style={{
               padding: "16px 20px", borderRadius: DS.radius,

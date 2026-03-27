@@ -54,7 +54,8 @@ function formatFileSize(bytes) {
 // ── Tarih formatla ──
 function formatTarih(ts) {
   if (!ts) return "";
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const d = ts.toDate ? ts.toDate() : (ts._seconds ? new Date(ts._seconds * 1000) : new Date(ts));
+  if (isNaN(d.getTime())) return "";
   return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 }
 
