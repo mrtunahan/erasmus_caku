@@ -52,238 +52,575 @@ const SECTION_ICONS = {
   awards: "⭐",
 };
 
-// ── Akademisyen Kart Bileşeni ──
+// ── Akademisyen Kart Bileşeni (Zenginleştirilmiş) ──
 function AcademicianCard({ prof, onSelect, onDelete, isSelected, canManage, isAdmin }) {
+  var [hovered, setHovered] = useState(false);
+  var [imgError, setImgError] = useState(false);
+
+  // Unvanı isimden ayır
+  var titleParts = (prof.fullName || "").match(/^(Prof\.\s*Dr\.|Doç\.\s*Dr\.|Dr\.\s*Öğr\.\s*Üyesi|Öğr\.\s*Gör\.\s*Dr\.|Öğr\.\s*Gör\.|Arş\.\s*Gör\.\s*Dr\.|Arş\.\s*Gör\.)\s*(.*)/i);
+  var academicTitle = titleParts ? titleParts[1] : null;
+  var displayName = titleParts ? titleParts[2] : (prof.fullName || prof.name || prof.username);
+
+  // Unvan renkleri
+  var titleColor = "#6B7280";
+  var titleBg = "#F3F4F6";
+  if (academicTitle) {
+    if (academicTitle.match(/^Prof/i)) { titleColor = "#7C3AED"; titleBg = "#EDE9FE"; }
+    else if (academicTitle.match(/^Doç/i)) { titleColor = "#2563EB"; titleBg = "#DBEAFE"; }
+    else if (academicTitle.match(/^Dr\.\s*Öğr/i)) { titleColor = "#059669"; titleBg = "#D1FAE5"; }
+    else if (academicTitle.match(/^Arş/i)) { titleColor = "#D97706"; titleBg = "#FEF3C7"; }
+  }
+
+  // İsmin baş harflerini al (avatar fallback)
+  var initials = (displayName || "?").split(" ").map(function(w) { return w.charAt(0); }).slice(0, 2).join("").toUpperCase();
+
+  // Avatar renkleri (isim hash'ine göre)
+  var avatarColors = ["#3B82F6", "#8B5CF6", "#EC4899", "#F59E0B", "#10B981", "#EF4444", "#6366F1"];
+  var hash = 0;
+  var nameStr = prof.fullName || prof.username || "";
+  for (var i = 0; i < nameStr.length; i++) hash = nameStr.charCodeAt(i) + ((hash << 5) - hash);
+  var avatarBg = avatarColors[Math.abs(hash) % avatarColors.length];
+
   return (
     <div
       onClick={function() { onSelect(prof); }}
+      onMouseEnter={function() { setHovered(true); }}
+      onMouseLeave={function() { setHovered(false); }}
       style={{
         background: isSelected ? "#EBF5FF" : COLORS.cardBg,
-        border: "1px solid " + (isSelected ? COLORS.accent : COLORS.border),
-        borderRadius: 12,
-        padding: 16,
+        border: "2px solid " + (isSelected ? COLORS.accent : hovered ? COLORS.accent + "60" : COLORS.border),
+        borderRadius: 16,
+        padding: 0,
         cursor: "pointer",
-        transition: "all 0.2s",
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
+        transition: "all 0.25s ease",
+        overflow: "hidden",
+        boxShadow: hovered ? "0 8px 25px rgba(37,99,235,0.12)" : "0 2px 8px rgba(0,0,0,0.04)",
+        transform: hovered ? "translateY(-2px)" : "translateY(0)",
+        position: "relative",
       }}
     >
-      {prof.photo ? (
-        <img
-          src={prof.photo}
-          alt={prof.fullName}
-          style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", border: "2px solid " + COLORS.border }}
-          onError={function(e) { e.target.style.display = "none"; }}
-        />
-      ) : (
-        <div style={{
-          width: 56, height: 56, borderRadius: "50%", background: COLORS.accent + "20",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 20, fontWeight: 700, color: COLORS.accent,
-        }}>
-          {(prof.fullName || "?").charAt(0)}
+      {/* Üst gradient şerit */}
+      <div style={{
+        height: 4,
+        background: isSelected
+          ? "linear-gradient(90deg, " + COLORS.accent + ", #8B5CF6)"
+          : "linear-gradient(90deg, " + COLORS.primary + "40, " + COLORS.accent + "40)",
+        transition: "all 0.25s ease",
+      }} />
+
+      <div style={{ padding: "16px 18px", display: "flex", alignItems: "center", gap: 14 }}>
+        {/* Avatar */}
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          {prof.photo && !imgError ? (
+            <img
+              src={prof.photo}
+              alt={prof.fullName}
+              style={{
+                width: 60, height: 60, borderRadius: 14, objectFit: "cover",
+                border: "3px solid " + (isSelected ? COLORS.accent : COLORS.border),
+                transition: "border-color 0.2s",
+              }}
+              onError={function() { setImgError(true); }}
+            />
+          ) : (
+            <div style={{
+              width: 60, height: 60, borderRadius: 14,
+              background: "linear-gradient(135deg, " + avatarBg + ", " + avatarBg + "CC)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 18, fontWeight: 700, color: "#FFFFFF",
+              border: "3px solid " + avatarBg + "30",
+              letterSpacing: 1,
+            }}>
+              {initials}
+            </div>
+          )}
+          {/* Online/cache durumu */}
+          {prof.fetchedAt && (
+            <div style={{
+              position: "absolute", bottom: -2, right: -2,
+              width: 14, height: 14, borderRadius: "50%",
+              background: "#10B981", border: "2px solid white",
+            }} />
+          )}
         </div>
-      )}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 600, fontSize: 14, color: COLORS.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {prof.fullName || prof.name || prof.username}
-        </div>
-        {prof.email && (
-          <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>{prof.email}</div>
-        )}
-        {prof.department && (
-          <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 2 }}>{prof.department}</div>
-        )}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-        {isAdmin && prof.departmentId && (
-          <div style={{ fontSize: 10, color: COLORS.accent, background: COLORS.accent + "10", padding: "2px 6px", borderRadius: 4 }}>
-            {prof.departmentId}
+
+        {/* Bilgi */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Unvan badge */}
+          {academicTitle && (
+            <div style={{
+              display: "inline-block",
+              fontSize: 10, fontWeight: 700, color: titleColor, background: titleBg,
+              padding: "2px 8px", borderRadius: 6, marginBottom: 4,
+              letterSpacing: 0.3, textTransform: "uppercase",
+            }}>
+              {academicTitle}
+            </div>
+          )}
+          <div style={{
+            fontWeight: 700, fontSize: 15, color: COLORS.text,
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            lineHeight: 1.3,
+          }}>
+            {displayName}
           </div>
-        )}
-        {canManage && onDelete && (
-          <button
-            onClick={function(e) { e.stopPropagation(); onDelete(prof); }}
-            style={{ background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 12, padding: "2px 4px" }}
-          >
-            Kaldır
-          </button>
-        )}
+          {prof.email && (
+            <div style={{
+              fontSize: 12, color: COLORS.textLight, marginTop: 3,
+              display: "flex", alignItems: "center", gap: 4,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>
+              <span style={{ fontSize: 11, opacity: 0.7 }}>✉</span> {prof.email}
+            </div>
+          )}
+          {prof.department && (
+            <div style={{
+              fontSize: 11, color: COLORS.textLight, marginTop: 3,
+              display: "flex", alignItems: "center", gap: 4,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>
+              <span style={{ fontSize: 11, opacity: 0.7 }}>🏛</span> {prof.department}
+            </div>
+          )}
+        </div>
+
+        {/* Sağ taraf aksiyonlar */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
+          {isAdmin && prof.departmentId && (
+            <div style={{
+              fontSize: 9, color: COLORS.accent, background: COLORS.accent + "12",
+              padding: "3px 8px", borderRadius: 6, fontWeight: 600,
+              maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {prof.departmentId}
+            </div>
+          )}
+          {/* Detay göster ikonu */}
+          <div style={{
+            fontSize: 16, color: hovered ? COLORS.accent : COLORS.textLight + "60",
+            transition: "all 0.2s",
+            transform: hovered ? "translateX(2px)" : "translateX(0)",
+          }}>
+            →
+          </div>
+          {canManage && onDelete && (
+            <button
+              onClick={function(e) { e.stopPropagation(); onDelete(prof); }}
+              style={{
+                background: "none", border: "none", color: "#DC2626", cursor: "pointer",
+                fontSize: 11, padding: "3px 6px", borderRadius: 4,
+                opacity: hovered ? 1 : 0, transition: "opacity 0.2s",
+              }}
+            >
+              Kaldır
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Akademisyen Detay Sayfası ──
+// ── Akademisyen Detay Sayfası (Dashboard Tarzı) ──
 function AcademicianDetail({ data, onBack }) {
   var [activeSection, setActiveSection] = useState(null);
+  var [imgError, setImgError] = useState(false);
 
   if (!data) return null;
 
   var sectionKeys = Object.keys(data.sections || {});
 
+  // Unvanı isimden ayır
+  var titleParts = (data.fullName || "").match(/^(Prof\.\s*Dr\.|Doç\.\s*Dr\.|Dr\.\s*Öğr\.\s*Üyesi|Öğr\.\s*Gör\.\s*Dr\.|Öğr\.\s*Gör\.|Arş\.\s*Gör\.\s*Dr\.|Arş\.\s*Gör\.)\s*(.*)/i);
+  var academicTitle = titleParts ? titleParts[1] : null;
+  var displayName = titleParts ? titleParts[2] : (data.fullName || data.username);
+
+  // Avatar fallback rengi
+  var avatarColors = ["#3B82F6", "#8B5CF6", "#EC4899", "#F59E0B", "#10B981", "#EF4444", "#6366F1"];
+  var hash = 0;
+  var nameStr = data.fullName || data.username || "";
+  for (var ci = 0; ci < nameStr.length; ci++) hash = nameStr.charCodeAt(ci) + ((hash << 5) - hash);
+  var avatarBg = avatarColors[Math.abs(hash) % avatarColors.length];
+  var initials = (displayName || "?").split(" ").map(function(w) { return w.charAt(0); }).slice(0, 2).join("").toUpperCase();
+
+  // İstatistik renkleri
+  var statColors = [
+    { bg: "#EFF6FF", color: "#2563EB", border: "#BFDBFE" },
+    { bg: "#F0FDF4", color: "#16A34A", border: "#BBF7D0" },
+    { bg: "#FEF3C7", color: "#D97706", border: "#FDE68A" },
+    { bg: "#EDE9FE", color: "#7C3AED", border: "#DDD6FE" },
+    { bg: "#FFF1F2", color: "#E11D48", border: "#FECDD3" },
+  ];
+
+  // Section renkleri
+  var sectionColors = {
+    education: { bg: "#EFF6FF", color: "#2563EB", border: "#BFDBFE" },
+    researchAreas: { bg: "#F0FDF4", color: "#059669", border: "#A7F3D0" },
+    experience: { bg: "#FEF3C7", color: "#D97706", border: "#FDE68A" },
+    theses: { bg: "#FDF2F8", color: "#DB2777", border: "#FBCFE8" },
+    courses: { bg: "#EDE9FE", color: "#7C3AED", border: "#DDD6FE" },
+    publications: { bg: "#ECFDF5", color: "#059669", border: "#A7F3D0" },
+    projects: { bg: "#FFF7ED", color: "#EA580C", border: "#FED7AA" },
+    activities: { bg: "#F0F9FF", color: "#0284C7", border: "#BAE6FD" },
+    awards: { bg: "#FFFBEB", color: "#D97706", border: "#FDE68A" },
+  };
+
+  // Akademik link konfigürasyonları
+  var linkConfigs = {
+    yoksis: { label: "YÖKSİS", icon: "🎓", bg: "linear-gradient(135deg, #FEF3C7, #FDE68A)", color: "#92400E", hoverBg: "#FDE68A" },
+    orcid: { label: "ORCID", icon: "🔗", bg: "linear-gradient(135deg, #D1FAE5, #A7F3D0)", color: "#065F46", hoverBg: "#A7F3D0" },
+    scholar: { label: "Google Scholar", icon: "📊", bg: "linear-gradient(135deg, #DBEAFE, #BFDBFE)", color: "#1E40AF", hoverBg: "#BFDBFE" },
+    wos: { label: "Web of Science", icon: "🌐", bg: "linear-gradient(135deg, #EDE9FE, #DDD6FE)", color: "#5B21B6", hoverBg: "#DDD6FE" },
+  };
+
   return (
     <div>
-      {/* Üst Bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <GhostBtn onClick={onBack} style={{ fontSize: 13 }}>← Geri</GhostBtn>
-        <a
-          href={"https://cakuavis.karatekin.edu.tr/" + data.username}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ fontSize: 12, color: COLORS.accent, textDecoration: "none", marginLeft: "auto" }}
-        >
-          ÇAKUAVİS Profili →
-        </a>
+      {/* Üst Navigasyon Bar */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 12, marginBottom: 24,
+        padding: "12px 20px", background: COLORS.cardBg, borderRadius: 12,
+        border: "1px solid " + COLORS.border, boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+      }}>
+        <GhostBtn onClick={onBack} style={{
+          fontSize: 13, display: "flex", alignItems: "center", gap: 6,
+          borderRadius: 8, padding: "8px 14px",
+        }}>
+          ← Listeye Dön
+        </GhostBtn>
+        <div style={{ flex: 1 }} />
+        {data.username && (
+          <a
+            href={"https://cakuavis.karatekin.edu.tr/" + data.username}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontSize: 12, color: COLORS.accent, textDecoration: "none",
+              padding: "6px 14px", background: COLORS.accent + "10", borderRadius: 8,
+              fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
+              transition: "all 0.2s",
+            }}
+          >
+            ÇAKUAVİS Profili ↗
+          </a>
+        )}
       </div>
 
-      {/* Profil Kartı */}
-      <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-          {data.photo ? (
-            <img
-              src={data.photo}
-              alt={data.fullName}
-              style={{ width: 120, height: 120, borderRadius: 12, objectFit: "cover", border: "3px solid " + COLORS.border }}
-            />
-          ) : (
-            <div style={{
-              width: 120, height: 120, borderRadius: 12, background: COLORS.accent + "15",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 40, fontWeight: 700, color: COLORS.accent,
-            }}>
-              {(data.fullName || "?").charAt(0)}
-            </div>
-          )}
-          <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: 22, fontWeight: 700, color: COLORS.text, margin: "0 0 8px 0" }}>
-              {data.fullName}
-            </h2>
-            {data.department && (
-              <div style={{ fontSize: 14, color: COLORS.textLight, marginBottom: 8 }}>{data.department}</div>
-            )}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 13 }}>
-              {data.email && (
-                <div>
-                  <span style={{ color: COLORS.textLight }}>E-posta: </span>
-                  <a href={"mailto:" + data.email} style={{ color: COLORS.accent, textDecoration: "none" }}>{data.email}</a>
-                </div>
-              )}
-              {data.phone && (
-                <div>
-                  <span style={{ color: COLORS.textLight }}>Tel: </span>
-                  <span>{data.phone}</span>
-                </div>
-              )}
-              {data.web && (
-                <div>
-                  <a href={data.web} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.accent, textDecoration: "none" }}>
-                    Web Sitesi
-                  </a>
+      {/* Hero Profil Kartı */}
+      <div style={{
+        background: "linear-gradient(135deg, " + COLORS.primary + " 0%, #2D4A7A 100%)",
+        borderRadius: 20, padding: 0, marginBottom: 24, overflow: "hidden",
+        boxShadow: "0 10px 40px rgba(27,42,74,0.2)",
+      }}>
+        {/* Dekoratif pattern */}
+        <div style={{
+          position: "relative", padding: "32px 32px 28px",
+          backgroundImage: "radial-gradient(circle at 80% 20%, rgba(255,255,255,0.08) 0%, transparent 60%), radial-gradient(circle at 20% 80%, rgba(255,255,255,0.05) 0%, transparent 50%)",
+        }}>
+          <div style={{ display: "flex", gap: 28, flexWrap: "wrap", alignItems: "flex-start" }}>
+            {/* Profil Fotoğrafı */}
+            <div style={{ position: "relative" }}>
+              {data.photo && !imgError ? (
+                <img
+                  src={data.photo}
+                  alt={data.fullName}
+                  onError={function() { setImgError(true); }}
+                  style={{
+                    width: 130, height: 130, borderRadius: 20, objectFit: "cover",
+                    border: "4px solid rgba(255,255,255,0.3)",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+                  }}
+                />
+              ) : (
+                <div style={{
+                  width: 130, height: 130, borderRadius: 20,
+                  background: "linear-gradient(135deg, " + avatarBg + ", " + avatarBg + "CC)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 44, fontWeight: 700, color: "#FFFFFF",
+                  border: "4px solid rgba(255,255,255,0.3)",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+                  letterSpacing: 2,
+                }}>
+                  {initials}
                 </div>
               )}
             </div>
 
-            {/* Akademik Linkler */}
-            {data.links && Object.keys(data.links).length > 0 && (
-              <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-                {data.links.yoksis && (
-                  <a href={data.links.yoksis} target="_blank" rel="noopener noreferrer"
-                    style={{ padding: "4px 10px", background: "#FEF3C7", color: "#92400E", borderRadius: 6, fontSize: 11, textDecoration: "none", fontWeight: 600 }}>
-                    YÖKSİS
-                  </a>
-                )}
-                {data.links.orcid && (
-                  <a href={data.links.orcid} target="_blank" rel="noopener noreferrer"
-                    style={{ padding: "4px 10px", background: "#D1FAE5", color: "#065F46", borderRadius: 6, fontSize: 11, textDecoration: "none", fontWeight: 600 }}>
-                    ORCID
-                  </a>
-                )}
-                {data.links.scholar && (
-                  <a href={data.links.scholar} target="_blank" rel="noopener noreferrer"
-                    style={{ padding: "4px 10px", background: "#DBEAFE", color: "#1E40AF", borderRadius: 6, fontSize: 11, textDecoration: "none", fontWeight: 600 }}>
-                    Google Scholar
-                  </a>
-                )}
-                {data.links.wos && (
-                  <a href={data.links.wos} target="_blank" rel="noopener noreferrer"
-                    style={{ padding: "4px 10px", background: "#EDE9FE", color: "#5B21B6", borderRadius: 6, fontSize: 11, textDecoration: "none", fontWeight: 600 }}>
-                    Web of Science
-                  </a>
-                )}
-              </div>
-            )}
+            {/* İsim ve Bilgiler */}
+            <div style={{ flex: 1, minWidth: 200 }}>
+              {academicTitle && (
+                <div style={{
+                  display: "inline-block", fontSize: 11, fontWeight: 700,
+                  color: "#FCD34D", background: "rgba(255,255,255,0.12)",
+                  padding: "4px 12px", borderRadius: 8, marginBottom: 10,
+                  letterSpacing: 0.5, textTransform: "uppercase",
+                  backdropFilter: "blur(4px)",
+                }}>
+                  {academicTitle}
+                </div>
+              )}
+              <h2 style={{
+                fontSize: 26, fontWeight: 800, color: "#FFFFFF", margin: "0 0 8px 0",
+                lineHeight: 1.2, fontFamily: "'Playfair Display', serif",
+              }}>
+                {displayName}
+              </h2>
+              {data.department && (
+                <div style={{
+                  fontSize: 14, color: "rgba(255,255,255,0.7)", marginBottom: 16,
+                  display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  🏛 {data.department}
+                </div>
+              )}
 
-            {/* İstatistikler */}
-            {data.stats && Object.keys(data.stats).length > 0 && (
-              <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
-                {Object.keys(data.stats).map(function(key) {
-                  return (
-                    <div key={key} style={{ textAlign: "center", padding: "8px 16px", background: COLORS.bg, borderRadius: 8 }}>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: COLORS.accent }}>{data.stats[key]}</div>
-                      <div style={{ fontSize: 11, color: COLORS.textLight, textTransform: "capitalize" }}>{key}</div>
-                    </div>
-                  );
-                })}
+              {/* İletişim Bilgileri */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                {data.email && (
+                  <a href={"mailto:" + data.email} style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    fontSize: 13, color: "rgba(255,255,255,0.85)", textDecoration: "none",
+                    padding: "6px 12px", background: "rgba(255,255,255,0.1)", borderRadius: 8,
+                    transition: "all 0.2s",
+                  }}>
+                    ✉ {data.email}
+                  </a>
+                )}
+                {data.phone && (
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    fontSize: 13, color: "rgba(255,255,255,0.85)",
+                    padding: "6px 12px", background: "rgba(255,255,255,0.1)", borderRadius: 8,
+                  }}>
+                    📞 {data.phone}
+                  </div>
+                )}
+                {data.web && (
+                  <a href={data.web} target="_blank" rel="noopener noreferrer" style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    fontSize: 13, color: "rgba(255,255,255,0.85)", textDecoration: "none",
+                    padding: "6px 12px", background: "rgba(255,255,255,0.1)", borderRadius: 8,
+                    transition: "all 0.2s",
+                  }}>
+                    🌐 Web Sitesi
+                  </a>
+                )}
+                {data.address && (
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    fontSize: 13, color: "rgba(255,255,255,0.85)",
+                    padding: "6px 12px", background: "rgba(255,255,255,0.1)", borderRadius: 8,
+                  }}>
+                    📍 {data.address}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
-      </Card>
 
-      {/* Bölümler */}
+        {/* Akademik Linkler Bar */}
+        {data.links && Object.keys(data.links).length > 0 && (
+          <div style={{
+            display: "flex", gap: 0, borderTop: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(0,0,0,0.15)",
+          }}>
+            {Object.keys(data.links).map(function(key) {
+              var conf = linkConfigs[key];
+              if (!conf || !data.links[key]) return null;
+              return (
+                <a
+                  key={key}
+                  href={data.links[key]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    padding: "12px 16px", fontSize: 12, fontWeight: 600,
+                    color: "rgba(255,255,255,0.9)", textDecoration: "none",
+                    borderRight: "1px solid rgba(255,255,255,0.08)",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <span>{conf.icon}</span> {conf.label}
+                </a>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* İstatistik Kartları */}
+      {data.stats && Object.keys(data.stats).length > 0 && (
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+          gap: 14, marginBottom: 24,
+        }}>
+          {Object.keys(data.stats).map(function(key, idx) {
+            var sc = statColors[idx % statColors.length];
+            return (
+              <div key={key} style={{
+                background: COLORS.cardBg, borderRadius: 16, padding: "20px 18px",
+                border: "1px solid " + sc.border,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                textAlign: "center",
+                transition: "all 0.2s",
+              }}>
+                <div style={{
+                  fontSize: 28, fontWeight: 800, color: sc.color,
+                  lineHeight: 1, marginBottom: 6,
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}>
+                  {data.stats[key]}
+                </div>
+                <div style={{
+                  fontSize: 11, color: COLORS.textLight, fontWeight: 600,
+                  textTransform: "capitalize", letterSpacing: 0.3,
+                }}>
+                  {key}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Bölüm Özet Kartları (mini dashboard) */}
+      {sectionKeys.length > 0 && (
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+          gap: 10, marginBottom: 24,
+        }}>
+          {sectionKeys.map(function(key) {
+            var section = data.sections[key];
+            var sc = sectionColors[key] || { bg: "#F3F4F6", color: "#6B7280", border: "#E5E7EB" };
+            var isActive = activeSection === key;
+            return (
+              <div
+                key={key}
+                onClick={function() { setActiveSection(isActive ? null : key); }}
+                style={{
+                  background: isActive ? sc.bg : COLORS.cardBg,
+                  border: "2px solid " + (isActive ? sc.color : COLORS.border),
+                  borderRadius: 14, padding: "14px 12px", cursor: "pointer",
+                  textAlign: "center", transition: "all 0.2s",
+                  boxShadow: isActive ? "0 4px 12px " + sc.color + "20" : "0 1px 4px rgba(0,0,0,0.04)",
+                }}
+              >
+                <div style={{ fontSize: 22, marginBottom: 4 }}>{SECTION_ICONS[key] || "📄"}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: sc.color }}>{section.items.length}</div>
+                <div style={{ fontSize: 10, color: COLORS.textLight, fontWeight: 600, marginTop: 2, lineHeight: 1.3 }}>
+                  {section.label}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Detay Bölümleri (Accordion) */}
       {sectionKeys.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {sectionKeys.map(function(key) {
             var section = data.sections[key];
             var isOpen = activeSection === key;
+            var sc = sectionColors[key] || { bg: "#F3F4F6", color: "#6B7280", border: "#E5E7EB" };
             return (
-              <Card key={key} style={{ padding: 0, overflow: "hidden" }}>
+              <div key={key} style={{
+                background: COLORS.cardBg, borderRadius: 16, overflow: "hidden",
+                border: "1px solid " + (isOpen ? sc.color + "60" : COLORS.border),
+                boxShadow: isOpen ? "0 4px 16px " + sc.color + "15" : "0 1px 4px rgba(0,0,0,0.04)",
+                transition: "all 0.25s ease",
+              }}>
                 <div
                   onClick={function() { setActiveSection(isOpen ? null : key); }}
                   style={{
-                    padding: "14px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                    background: isOpen ? COLORS.accent + "08" : "transparent",
-                    borderBottom: isOpen ? "1px solid " + COLORS.border : "none",
+                    padding: "16px 22px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
+                    background: isOpen ? sc.bg : "transparent",
+                    transition: "all 0.2s",
                   }}
                 >
-                  <span style={{ fontSize: 18 }}>{SECTION_ICONS[key] || "📄"}</span>
-                  <span style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>{section.label}</span>
-                  <Badge style={{ background: COLORS.accent + "15", color: COLORS.accent }}>{section.items.length}</Badge>
-                  <span style={{ fontSize: 12, color: COLORS.textLight }}>{isOpen ? "▲" : "▼"}</span>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 12,
+                    background: isOpen ? sc.color + "18" : COLORS.bg,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 20, transition: "all 0.2s",
+                  }}>
+                    {SECTION_ICONS[key] || "📄"}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: isOpen ? sc.color : COLORS.text }}>
+                      {section.label}
+                    </span>
+                  </div>
+                  <div style={{
+                    padding: "4px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    background: sc.color + "15", color: sc.color,
+                    minWidth: 32, textAlign: "center",
+                  }}>
+                    {section.items.length}
+                  </div>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 8,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: isOpen ? sc.color + "15" : COLORS.bg,
+                    color: isOpen ? sc.color : COLORS.textLight,
+                    fontSize: 12, fontWeight: 700,
+                    transition: "all 0.25s ease",
+                    transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                  }}>
+                    ▼
+                  </div>
                 </div>
                 {isOpen && (
-                  <div style={{ padding: "12px 20px" }}>
+                  <div style={{ padding: "4px 22px 16px" }}>
                     {section.items.map(function(item, i) {
                       return (
                         <div key={i} style={{
-                          padding: "10px 0",
-                          borderBottom: i < section.items.length - 1 ? "1px solid " + COLORS.border + "80" : "none",
+                          padding: "12px 16px",
+                          margin: "6px 0",
+                          background: i % 2 === 0 ? COLORS.bg : "transparent",
+                          borderRadius: 10,
                           fontSize: 13,
-                          lineHeight: 1.6,
+                          lineHeight: 1.7,
                           color: COLORS.text,
+                          borderLeft: "3px solid " + sc.color + "40",
                         }}>
+                          <span style={{ color: sc.color, fontWeight: 600, marginRight: 8, fontSize: 11 }}>
+                            {String(i + 1).padStart(2, "0")}
+                          </span>
                           {item}
                         </div>
                       );
                     })}
                   </div>
                 )}
-              </Card>
+              </div>
             );
           })}
         </div>
       ) : (
-        <Card>
-          <div style={{ textAlign: "center", padding: 30, color: COLORS.textLight }}>
-            Henüz detay bilgisi yüklenmedi.
+        <div style={{
+          textAlign: "center", padding: "50px 30px",
+          background: COLORS.cardBg, borderRadius: 16,
+          border: "1px solid " + COLORS.border,
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.5 }}>📋</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: COLORS.text, marginBottom: 6 }}>
+            Henüz detay bilgisi yüklenmedi
           </div>
-        </Card>
+          <div style={{ fontSize: 13, color: COLORS.textLight }}>
+            ÇAKUAVİS profilinde ek bilgi bulunamadı.
+          </div>
+        </div>
       )}
 
+      {/* Footer */}
       {data.lastUpdate && (
-        <div style={{ textAlign: "right", fontSize: 11, color: COLORS.textLight, marginTop: 12 }}>
+        <div style={{
+          textAlign: "center", fontSize: 11, color: COLORS.textLight, marginTop: 20,
+          padding: "12px", background: COLORS.bg, borderRadius: 10,
+        }}>
           YÖKSİS Son Güncelleme: {data.lastUpdate}
         </div>
       )}
