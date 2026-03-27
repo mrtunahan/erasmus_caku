@@ -87,35 +87,51 @@ const ALL_FACULTY_CLASSROOMS = [
 ];
 
 function assignClassroom(studentCount) {
-  if (!studentCount || studentCount <= 0) return "M11101";
-  // 42 ve altı → M11101
-  if (studentCount <= 42) return "M11101";
-  // 42 üstü → kapasiteleri toplamı öğrenci sayısına en yakın 2 salon
-  let bestPair = null;
+  return assignClassroomFromList(DEPT_CLASSROOMS, studentCount);
+}
+
+// Genel salon atama fonksiyonu: tek salon → 2'li kombinasyon → 3+ salon (greedy)
+function assignClassroomFromList(rooms, studentCount) {
+  if (!rooms || rooms.length === 0) return "TBD";
+  if (!studentCount || studentCount <= 0) return rooms[0].name;
+  // 1) Tek salon yeterli mi? (best-fit: kapasitesi yeten en küçük salon)
+  const validRooms = rooms.filter(r => (r.capacity || 0) > 0);
+  const sortedByCapAsc = [...validRooms].sort((a, b) => (a.capacity || 0) - (b.capacity || 0));
+  const single = sortedByCapAsc.find(r => (r.capacity || 0) >= studentCount);
+  if (single) return single.name;
+  // 2) İkili kombinasyon dene (best-fit)
+  let bestCombo = null;
   let bestDiff = Infinity;
-  for (let i = 0; i < DEPT_CLASSROOMS.length; i++) {
-    for (let j = i + 1; j < DEPT_CLASSROOMS.length; j++) {
-      const cap = DEPT_CLASSROOMS[i].capacity + DEPT_CLASSROOMS[j].capacity;
-      if (cap >= studentCount) {
-        const diff = cap - studentCount;
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          bestPair = DEPT_CLASSROOMS[i].name + " - " + DEPT_CLASSROOMS[j].name;
-        }
+  for (let i = 0; i < validRooms.length; i++) {
+    for (let j = i + 1; j < validRooms.length; j++) {
+      const cap = (validRooms[i].capacity || 0) + (validRooms[j].capacity || 0);
+      if (cap >= studentCount && cap - studentCount < bestDiff) {
+        bestDiff = cap - studentCount;
+        bestCombo = [validRooms[i], validRooms[j]];
       }
     }
   }
-  // Hiçbir çift yetmezse en büyük kapasiteli çifti al
-  if (!bestPair) {
-    const sorted = [...DEPT_CLASSROOMS].sort((a, b) => b.capacity - a.capacity);
-    bestPair = sorted[0].name + " - " + sorted[1].name;
+  if (bestCombo) return bestCombo.map(r => r.name).join(" - ");
+  // 3) İkili yetmezse: büyükten küçüğe salonları ekleyerek kapasiteyi doldur
+  const sortedByCapDesc = [...validRooms].sort((a, b) => (b.capacity || 0) - (a.capacity || 0));
+  const selected = [];
+  let totalCap = 0;
+  for (const room of sortedByCapDesc) {
+    selected.push(room);
+    totalCap += (room.capacity || 0);
+    if (totalCap >= studentCount) break;
   }
-  return bestPair;
+  return selected.map(r => r.name).join(" - ");
 }
 
 function assignSupervisorsToExams(exams) {
-  const counts = {};
-  DEPT_SUPERVISORS.forEach(s => counts[s] = 0);
+  return assignSupervisorsFromList(DEPT_SUPERVISORS, exams, assignClassroom);
+}
+
+// Genel gözetmen atama: toplam sınav süresine göre dengeli dağıtım
+function assignSupervisorsFromList(supervisorNames, exams, classroomFn) {
+  const totalMinutes = {};
+  supervisorNames.forEach(s => totalMinutes[s] = 0);
   const assignments = {};
   const shuffled = [...exams];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -123,12 +139,14 @@ function assignSupervisorsToExams(exams) {
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   shuffled.forEach(exam => {
-    const room = assignClassroom(exam.studentCount);
-    const isMultiRoom = room.includes(" - ");
-    const numSupervisors = isMultiRoom ? 3 : (exam.studentCount < 30 ? 1 : 2);
-    const sortedSups = [...DEPT_SUPERVISORS].sort((a, b) => counts[a] - counts[b]);
-    const assigned = sortedSups.slice(0, numSupervisors);
-    assigned.forEach(s => counts[s]++);
+    const room = classroomFn(exam.studentCount);
+    const roomCount = room.split(" - ").length;
+    const numSupervisors = roomCount >= 3 ? roomCount : (roomCount === 2 ? 3 : (exam.studentCount < 30 ? 1 : 2));
+    // Toplam süreye göre sırala (en az dakikası olan önce)
+    const sortedSups = [...supervisorNames].sort((a, b) => totalMinutes[a] - totalMinutes[b]);
+    const assigned = sortedSups.slice(0, Math.min(numSupervisors, sortedSups.length));
+    const duration = exam.duration || 60;
+    assigned.forEach(s => totalMinutes[s] += duration);
     assignments[exam.id || (exam.code + exam.date + exam.timeSlot)] = assigned;
   });
   return assignments;
@@ -1192,20 +1210,7 @@ function exportDeptPrintable(placedExams, periodLabel, deptName, customClassroom
 
   function assignRoom(studentCount) {
     const rooms = customClassrooms && customClassrooms.length > 0 ? customClassrooms : DEPT_CLASSROOMS;
-    if (!studentCount || studentCount <= 0) return rooms[0]?.name || "";
-    const single = rooms.find(r => (r.capacity || 0) >= studentCount);
-    if (single) return single.name;
-    let best = null, bestDiff = Infinity;
-    for (let i = 0; i < rooms.length; i++) {
-      for (let j = i + 1; j < rooms.length; j++) {
-        const cap = (rooms[i].capacity || 0) + (rooms[j].capacity || 0);
-        if (cap >= studentCount && cap - studentCount < bestDiff) {
-          bestDiff = cap - studentCount;
-          best = rooms[i].name + " - " + rooms[j].name;
-        }
-      }
-    }
-    return best || rooms.map(r => r.name).join(" - ");
+    return assignClassroomFromList(rooms, studentCount);
   }
 
   const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
@@ -1328,50 +1333,12 @@ async function exportToXLSX(placedExams, periodLabel, period, customClassrooms, 
   const exportClassrooms = customClassrooms || DEPT_CLASSROOMS;
   const exportSupervisorNames = customSupervisors || DEPT_SUPERVISORS;
 
-  // Supervisor assignment for export
-  const exportSupervisorMap = (() => {
-    const counts = {};
-    exportSupervisorNames.forEach(s => counts[s] = 0);
-    const assignments = {};
-    const shuffled = [...sorted];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    shuffled.forEach(exam => {
-      const room = exportAssignClassroom(exam.studentCount);
-      const isMultiRoom = room.includes(" - ");
-      const numSups = isMultiRoom ? 3 : (exam.studentCount < 30 ? 1 : 2);
-      const sortedSups = [...exportSupervisorNames].sort((a, b) => counts[a] - counts[b]);
-      const assigned = sortedSups.slice(0, Math.min(numSups, sortedSups.length));
-      assigned.forEach(s => counts[s]++);
-      assignments[exam.id || (exam.code + exam.date + exam.timeSlot)] = assigned;
-    });
-    return assignments;
-  })();
-
+  // Supervisor assignment for export (süre bazlı dengeli dağıtım)
   function exportAssignClassroom(studentCount) {
-    const rooms = exportClassrooms;
-    if (!studentCount || studentCount <= 0) return rooms[0]?.name || "TBD";
-    const singleRoom = rooms.find(r => (r.capacity || 0) >= studentCount);
-    if (singleRoom) return singleRoom.name;
-    let bestPair = null;
-    let bestDiff = Infinity;
-    for (let i = 0; i < rooms.length; i++) {
-      for (let j = i + 1; j < rooms.length; j++) {
-        const cap = (rooms[i].capacity || 0) + (rooms[j].capacity || 0);
-        if (cap >= studentCount) {
-          const diff = cap - studentCount;
-          if (diff < bestDiff) { bestDiff = diff; bestPair = rooms[i].name + " - " + rooms[j].name; }
-        }
-      }
-    }
-    if (!bestPair) {
-      const s = [...rooms].sort((a, b) => (b.capacity || 0) - (a.capacity || 0));
-      bestPair = (s[0]?.name || "TBD") + (s[1] ? " - " + s[1].name : "");
-    }
-    return bestPair;
+    return assignClassroomFromList(exportClassrooms, studentCount);
   }
+
+  const exportSupervisorMap = assignSupervisorsFromList(exportSupervisorNames, sorted, exportAssignClassroom);
 
   const enriched = sorted.map(exam => {
     const key = exam.id || (exam.code + exam.date + exam.timeSlot);
@@ -1662,30 +1629,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
   // Dynamic classroom assignment using department-specific classrooms
   const assignClassroomDynamic = useCallback((studentCount) => {
     const rooms = deptClassrooms.length > 0 ? deptClassrooms : DEPT_CLASSROOMS;
-    if (!studentCount || studentCount <= 0) return rooms[0]?.name || "TBD";
-    // Find single room
-    const singleRoom = rooms.find(r => r.capacity >= studentCount);
-    if (singleRoom) return singleRoom.name;
-    // Try pairs
-    let bestPair = null;
-    let bestDiff = Infinity;
-    for (let i = 0; i < rooms.length; i++) {
-      for (let j = i + 1; j < rooms.length; j++) {
-        const cap = (rooms[i].capacity || 0) + (rooms[j].capacity || 0);
-        if (cap >= studentCount) {
-          const diff = cap - studentCount;
-          if (diff < bestDiff) {
-            bestDiff = diff;
-            bestPair = rooms[i].name + " - " + rooms[j].name;
-          }
-        }
-      }
-    }
-    if (!bestPair) {
-      const sorted = [...rooms].sort((a, b) => (b.capacity || 0) - (a.capacity || 0));
-      bestPair = (sorted[0]?.name || "TBD") + (sorted[1] ? " - " + sorted[1].name : "");
-    }
-    return bestPair;
+    return assignClassroomFromList(rooms, studentCount);
   }, [deptClassrooms]);
 
   // Dynamic supervisor assignment using department-specific supervisors
@@ -1693,24 +1637,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     const supervisorNames = deptSupervisors.length > 0
       ? deptSupervisors.map(s => s.name)
       : DEPT_SUPERVISORS;
-    const counts = {};
-    supervisorNames.forEach(s => counts[s] = 0);
-    const assignments = {};
-    const shuffled = [...exams];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    shuffled.forEach(exam => {
-      const room = assignClassroomDynamic(exam.studentCount);
-      const isMultiRoom = room.includes(" - ");
-      const numSupervisors = isMultiRoom ? 3 : (exam.studentCount < 30 ? 1 : 2);
-      const sortedSups = [...supervisorNames].sort((a, b) => counts[a] - counts[b]);
-      const assigned = sortedSups.slice(0, Math.min(numSupervisors, sortedSups.length));
-      assigned.forEach(s => counts[s]++);
-      assignments[exam.id || (exam.code + exam.date + exam.timeSlot)] = assigned;
-    });
-    return assignments;
+    return assignSupervisorsFromList(supervisorNames, exams, assignClassroomDynamic);
   }, [deptSupervisors, assignClassroomDynamic]);
 
   // ── Seed data to Firebase ──
