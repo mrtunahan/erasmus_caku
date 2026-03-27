@@ -18,7 +18,7 @@ function stripTags(html) {
 // Kullanıcı adını normalize et (boşlukları sil, küçük harf)
 function normalizeUsername(input) {
   if (!input) return "";
-  return input.replace(/\s+/g, "").toLowerCase().trim();
+  return input.replace(/İ/g, "i").replace(/I/g, "ı").replace(/\s+/g, "").toLocaleLowerCase("tr").trim();
 }
 
 // "Kayıt Yok" sayfası mı kontrol et

@@ -513,7 +513,7 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose, readOnly =
         </FormField>}
         <FormField label="Sınav Süresi (dk)">
           <Select value={duration} onChange={e => !readOnly && setDuration(e.target.value)} disabled={readOnly} style={readOnly ? { background: "#F3F4F6" } : {}}>
-            {[30, 45, 60, 75, 90, 105, 120].map(d => <option key={d} value={d}>{d} dakika</option>)}
+            {[30, 45, 60, 75, 90, 105, 120, 150].map(d => <option key={d} value={d}>{d} dakika</option>)}
           </Select>
         </FormField>
         <FormField label={readOnly ? "Öğrenci Sayısı" : "Öğrenci Sayısı *"}>
@@ -637,7 +637,7 @@ const CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose 
             </FormField>
             <FormField label="Süre (dk)">
               <Select value={form.duration} onChange={e => setForm({ ...form, duration: parseInt(e.target.value) })}>
-                {[30, 45, 60, 75, 90, 105, 120].map(d => <option key={d} value={d}>{d} dk</option>)}
+                {[30, 45, 60, 75, 90, 105, 120, 150].map(d => <option key={d} value={d}>{d} dk</option>)}
               </Select>
             </FormField>
             <FormField label="Akademisyen">
@@ -2167,11 +2167,11 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
       filtered = filtered.filter(c => c.sinif === filterSinif);
     }
     if (courseSearch.trim()) {
-      const q = courseSearch.trim().toLowerCase();
+      const q = courseSearch.trim().toLocaleLowerCase("tr");
       filtered = filtered.filter(c =>
-        c.code.toLowerCase().includes(q) ||
-        c.name.toLowerCase().includes(q) ||
-        (c.professor && c.professor.toLowerCase().includes(q))
+        c.code.toLocaleLowerCase("tr").includes(q) ||
+        c.name.toLocaleLowerCase("tr").includes(q) ||
+        (c.professor && c.professor.toLocaleLowerCase("tr").includes(q))
       );
     }
     return filtered.map(c => ({
@@ -2184,7 +2184,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     const groups = { 1: [], 2: [], 3: [], 4: [], 5: [] };
     poolCourses.forEach(c => {
       // Check for Elective (Seçmeli)
-      if (c.name.toLowerCase().includes("seçmeli") || c.name.toLowerCase().includes("secimlik") || c.code.startsWith("SEÇ")) {
+      if (c.name.toLocaleLowerCase("tr").includes("seçmeli") || c.name.toLocaleLowerCase("tr").includes("seçimlik") || c.name.toLocaleLowerCase("tr").includes("secimlik") || c.code.startsWith("SEÇ")) {
         groups[5].push(c);
       } else {
         if (groups[c.sinif]) groups[c.sinif].push(c);
