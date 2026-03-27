@@ -708,7 +708,7 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
   var handleAdd = function() {
     if (!newUsername.trim()) return alert("ÇAKUAVİS kullanıcı adı gerekli");
     // Boşlukları sil, küçük harf yap (kullanıcı "taha etem" yazsa "tahaetem" olsun)
-    var username = newUsername.replace(/\s+/g, "").toLowerCase().trim();
+    var username = newUsername.replace(/İ/g, "i").replace(/I/g, "ı").replace(/\s+/g, "").toLocaleLowerCase("tr").trim();
     if (!username) return alert("Geçerli bir kullanıcı adı girin");
     var assignDeptId = deptId;
     setAddModal(false);
