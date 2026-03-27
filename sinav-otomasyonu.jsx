@@ -94,17 +94,19 @@ function assignClassroom(studentCount) {
 function assignClassroomFromList(rooms, studentCount) {
   if (!rooms || rooms.length === 0) return "TBD";
   if (!studentCount || studentCount <= 0) return rooms[0].name;
+  // capacity değerlerini sayıya çevir (Firestore string döndürebilir)
+  const getCap = (r) => Number(r.capacity) || 0;
   // 1) Tek salon yeterli mi? (best-fit: kapasitesi yeten en küçük salon)
-  const validRooms = rooms.filter(r => (r.capacity || 0) > 0);
-  const sortedByCapAsc = [...validRooms].sort((a, b) => (a.capacity || 0) - (b.capacity || 0));
-  const single = sortedByCapAsc.find(r => (r.capacity || 0) >= studentCount);
+  const validRooms = rooms.filter(r => getCap(r) > 0);
+  const sortedByCapAsc = [...validRooms].sort((a, b) => getCap(a) - getCap(b));
+  const single = sortedByCapAsc.find(r => getCap(r) >= studentCount);
   if (single) return single.name;
   // 2) İkili kombinasyon dene (best-fit)
   let bestCombo = null;
   let bestDiff = Infinity;
   for (let i = 0; i < validRooms.length; i++) {
     for (let j = i + 1; j < validRooms.length; j++) {
-      const cap = (validRooms[i].capacity || 0) + (validRooms[j].capacity || 0);
+      const cap = getCap(validRooms[i]) + getCap(validRooms[j]);
       if (cap >= studentCount && cap - studentCount < bestDiff) {
         bestDiff = cap - studentCount;
         bestCombo = [validRooms[i], validRooms[j]];
@@ -113,12 +115,12 @@ function assignClassroomFromList(rooms, studentCount) {
   }
   if (bestCombo) return bestCombo.map(r => r.name).join(" - ");
   // 3) İkili yetmezse: büyükten küçüğe salonları ekleyerek kapasiteyi doldur
-  const sortedByCapDesc = [...validRooms].sort((a, b) => (b.capacity || 0) - (a.capacity || 0));
+  const sortedByCapDesc = [...validRooms].sort((a, b) => getCap(b) - getCap(a));
   const selected = [];
   let totalCap = 0;
   for (const room of sortedByCapDesc) {
     selected.push(room);
-    totalCap += (room.capacity || 0);
+    totalCap += getCap(room);
     if (totalCap >= studentCount) break;
   }
   return selected.map(r => r.name).join(" - ");
