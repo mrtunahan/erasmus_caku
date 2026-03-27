@@ -444,7 +444,7 @@ function ResourceCard({ resource, userId, isAdmin, onDownload, onRate, onDelete,
 
   const formatDate = (ts) => {
     if (!ts) return "";
-    const d = ts.toDate ? ts.toDate() : new Date(ts.seconds ? ts.seconds * 1000 : ts);
+    const d = ts._seconds ? new Date(ts._seconds * 1000) : (ts.toDate ? ts.toDate() : new Date(ts.seconds ? ts.seconds * 1000 : ts));
     return d.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" });
   };
 
