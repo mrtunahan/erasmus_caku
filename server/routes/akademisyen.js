@@ -38,6 +38,47 @@ function extractSection(html, sectionId) {
   return match ? match[1] : "";
 }
 
+// Alt kategori başlıklarıyla birlikte öğeleri çıkar (yayınlar, projeler vb.)
+function extractCategorizedItems(sectionHtml) {
+  if (!sectionHtml) return [];
+  var categories = [];
+  // card veya panel sınırlarında böl
+  var parts = sectionHtml.split(/(?=<div[^>]*class="[^"]*(?:card\s|panel\s)[^"]*")/i);
+  if (parts.length <= 1) {
+    // card yapısı yoksa h3/h4/h5 başlıklarında böl
+    parts = sectionHtml.split(/(?=<h[3-5][^>]*>)/i);
+  }
+  for (var i = 0; i < parts.length; i++) {
+    var part = parts[i];
+    // Başlık çıkar
+    var headMatch = part.match(/<(?:h[3-5]|div)[^>]*(?:class="[^"]*(?:card-header|card-title|panel-heading|timeline-heading)[^"]*")?[^>]*>([\s\S]*?)<\/(?:h[3-5]|div)>/i);
+    var label = headMatch ? stripTags(headMatch[1]).trim() : "";
+    // Bu parçadaki öğeleri çıkar
+    var items = extractListItems(part);
+    if (items.length > 0) {
+      categories.push({ label: label || "", items: items, count: items.length });
+    }
+  }
+  return categories.filter(function(c) { return c.items.length > 0; });
+}
+
+// Metin içinden yıl çıkar
+function extractYear(text) {
+  var m = text.match(/\b(20[0-2]\d|19[89]\d)\b/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+// Yayın metnini kategorize et
+function categorizePublicationText(text, subLabel) {
+  var upper = (text + " " + (subLabel || "")).toUpperCase();
+  if (upper.indexOf("SCI") >= 0 || upper.indexOf("SSCI") >= 0 || upper.indexOf("AHCI") >= 0) return "sci";
+  if (upper.indexOf("ÜAK") >= 0 || upper.indexOf("ALAN İNDEKS") >= 0 || upper.indexOf("UAK") >= 0) return "uak";
+  if (upper.indexOf("ULAKBİM") >= 0 || upper.indexOf("ULAKBIM") >= 0 || upper.indexOf("TR DİZİN") >= 0 || upper.indexOf("TR DIZIN") >= 0) return "ulakbim";
+  if (upper.indexOf("KİTAP") >= 0 || upper.indexOf("KITAP") >= 0 || upper.indexOf("BOOK") >= 0 || upper.indexOf("BÖLÜM") >= 0 || upper.indexOf("BOLUM") >= 0) return "book";
+  if (upper.indexOf("BİLDİRİ") >= 0 || upper.indexOf("BILDIRI") >= 0 || upper.indexOf("KONGRE") >= 0 || upper.indexOf("SEMPOZYUM") >= 0 || upper.indexOf("CONFERENCE") >= 0 || upper.indexOf("SYMPOSIUM") >= 0) return "conference";
+  return "other";
+}
+
 // Liste öğelerini çıkar (timeline-body veya card-body içinden)
 function extractListItems(sectionHtml) {
   var items = [];
@@ -169,6 +210,34 @@ function parseAcademicianHTML(html, username) {
       }
     }
   });
+
+  // Kategorize edilmiş yayın verileri (analiz dashboard'u için)
+  var pubHtml = extractSection(html, "yayinlarEserler");
+  if (pubHtml) {
+    var subCats = extractCategorizedItems(pubHtml);
+    var metrics = { sci: [], uak: [], ulakbim: [], book: [], conference: [], other: [] };
+    // Alt kategori başlıklarıyla eşleştir
+    subCats.forEach(function(cat) {
+      cat.items.forEach(function(item) {
+        var type = categorizePublicationText(item, cat.label);
+        var year = extractYear(item);
+        metrics[type].push({ text: item, year: year, subCategory: cat.label });
+      });
+    });
+    // Alt kategori yoksa düz item listesinden kategorize et
+    if (subCats.length === 0 && result.sections.publications) {
+      result.sections.publications.items.forEach(function(item) {
+        var type = categorizePublicationText(item, "");
+        var year = extractYear(item);
+        metrics[type].push({ text: item, year: year, subCategory: "" });
+      });
+    }
+    result.publicationMetrics = metrics;
+  }
+
+  // 2209 proje sayısı
+  var projItems = (result.sections.projects || {}).items || [];
+  result.project2209Count = projItems.filter(function(item) { return item.indexOf("2209") >= 0; }).length;
 
   // YÖKSİS güncelleme tarihi
   var dateMatch = html.match(/YÖKSİS Son Veri Güncelleme Tarihi\s*:\s*<\/span>\s*<span[^>]*>\s*([^<]+)/i) ||
