@@ -34,8 +34,9 @@ const Utils = window.MuafiyetUtils || {
 // ══════════════════════════════════════════════════════════════
 
 const TABS = {
-    SEARCH: "search", // Öğrenci için arama/başvuru
-    ADMIN: "admin",   // Admin öğrenci yönetimi
+    SEARCH: "search",   // Öğrenci için arama/başvuru
+    ADMIN: "admin",     // Admin öğrenci yönetimi
+    REVIEW: "review",   // Admin insan onayı paneli
     SETTINGS: "settings" // Ayarlar
 };
 
@@ -127,7 +128,38 @@ const YazOkuluDB = {
             console.error("Başvuru yüklenemedi:", e);
             return null;
         }
-    }
+    },
+
+    // Tüm başvuruları çek (admin için inceleme listesi)
+    async fetchAllApplications() {
+        try {
+            const snap = await this.recordsRef().orderBy("updatedAt", "desc").get();
+            return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+        } catch (e) {
+            console.error("Başvurular yüklenemedi:", e);
+            return [];
+        }
+    },
+
+    // Admin insan onayı: tek bir match'in kararını günceller
+    async updateMatchDecision(recordId, matchIndex, decision) {
+        const doc = await this.recordsRef().doc(recordId).get();
+        if (!doc.exists) throw new Error("Başvuru bulunamadı");
+        const data = doc.data();
+        const matches = (data.matches || []).slice();
+        matches[matchIndex] = {
+            ...matches[matchIndex],
+            adminDecision: decision,
+            adminUpdatedAt: new Date().toISOString(),
+        };
+        const pendingLeft = matches.filter(m => m.tier === "review" && !m.adminDecision).length;
+        await this.recordsRef().doc(recordId).update({
+            matches,
+            pendingReviewCount: pendingLeft,
+            updatedAt: window.apiFieldValue.serverTimestamp(),
+        });
+        return matches;
+    },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -224,6 +256,7 @@ const YazOkuluApp = ({ currentUser, activeDepartment, departmentInfo }) => {
                     {isAdmin && (
                         <>
                             <TabBtn id={TABS.ADMIN} active={activeTab} onClick={setActiveTab}>Öğrenciler</TabBtn>
+                            <TabBtn id={TABS.REVIEW} active={activeTab} onClick={setActiveTab}>İnceleme</TabBtn>
                             <TabBtn id={TABS.SETTINGS} active={activeTab} onClick={setActiveTab}>Ayarlar</TabBtn>
                         </>
                     )}
@@ -250,6 +283,10 @@ const YazOkuluApp = ({ currentUser, activeDepartment, departmentInfo }) => {
                                 }
                             }}
                         />
+                    )}
+
+                    {activeTab === TABS.REVIEW && (
+                        <AdminReviewPanel />
                     )}
 
                     {activeTab === TABS.SETTINGS && (
@@ -305,6 +342,160 @@ const TabBtn = ({ id, active, onClick, children }) => {
 // ADMIN: ÖĞRENCİ YÖNETİMİ
 // ══════════════════════════════════════════════════════════════
 
+// ── Admin İnceleme Paneli (yaz okulu başvuruları) ──
+const AdminReviewPanel = () => {
+    const [applications, setApplications] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [expandedId, setExpandedId] = useState(null);
+    const [processing, setProcessing] = useState(false);
+
+    useEffect(() => {
+        YazOkuluDB.fetchAllApplications().then(apps => {
+            setApplications(apps);
+            setLoading(false);
+        });
+    }, []);
+
+    const handleDecision = async (appId, matchIdx, decision) => {
+        setProcessing(true);
+        try {
+            const updatedMatches = await YazOkuluDB.updateMatchDecision(appId, matchIdx, decision);
+            setApplications(prev => prev.map(a => {
+                if (a.id !== appId) return a;
+                const pendingLeft = updatedMatches.filter(m => m.tier === "review" && !m.adminDecision).length;
+                return { ...a, matches: updatedMatches, pendingReviewCount: pendingLeft };
+            }));
+        } catch (e) {
+            alert("Karar güncellenemedi: " + e.message);
+        }
+        setProcessing(false);
+    };
+
+    const pendingApps = applications.filter(a => (a.pendingReviewCount || 0) > 0);
+    const reviewedApps = applications.filter(a => (a.pendingReviewCount || 0) === 0 && (a.matches || []).length > 0);
+
+    if (loading) return <div style={{ padding: 40, textAlign: "center", color: _C.textMuted }}>Başvurular yükleniyor...</div>;
+
+    return (
+        <div>
+            {/* Özet */}
+            <div style={{ display: "flex", gap: 14, marginBottom: 24, flexWrap: "wrap" }}>
+                {[
+                    { label: "Toplam Başvuru", value: applications.length, color: _C.navy, bg: "#F1F5F9" },
+                    { label: "İnceleme Bekliyor", value: pendingApps.length, color: "#D97706", bg: "#FEF3C7" },
+                    { label: "Tamamlandı", value: reviewedApps.length, color: "#059669", bg: "#D1FAE5" },
+                ].map((s, i) => (
+                    <div key={i} style={{
+                        flex: "1 1 120px", padding: "14px 18px", borderRadius: 12,
+                        background: s.bg, textAlign: "center",
+                        border: "1px solid " + _C.border,
+                    }}>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.value}</div>
+                        <div style={{ fontSize: 12, color: _C.textMuted, marginTop: 4 }}>{s.label}</div>
+                    </div>
+                ))}
+            </div>
+
+            {pendingApps.length === 0 && (
+                <div style={{ padding: 40, textAlign: "center", color: _C.textMuted, background: "white", borderRadius: 12, border: "1px solid " + _C.border }}>
+                    İnceleme bekleyen başvuru bulunmuyor.
+                </div>
+            )}
+
+            {applications.map(app => {
+                const isExpanded = expandedId === app.id;
+                const hasPending = (app.pendingReviewCount || 0) > 0;
+                return (
+                    <div key={app.id} style={{
+                        marginBottom: 12, borderRadius: 12,
+                        border: "1px solid " + (hasPending ? "#FCD34D" : _C.border),
+                        background: "white", overflow: "hidden",
+                    }}>
+                        {/* Başlık */}
+                        <div style={{
+                            padding: "14px 18px", display: "flex", justifyContent: "space-between",
+                            alignItems: "center", cursor: "pointer",
+                        }} onClick={() => setExpandedId(isExpanded ? null : app.id)}>
+                            <div>
+                                <div style={{ fontWeight: 700, color: _C.navy }}>
+                                    {app.studentName || "İsimsiz"}
+                                    <span style={{ fontFamily: "monospace", fontSize: 12, color: _C.textMuted, marginLeft: 8 }}>#{app.studentNo}</span>
+                                </div>
+                                <div style={{ fontSize: 12, color: _C.textMuted, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                    <span>{app.targetUniversity || "—"}</span>
+                                    <span>{app.academicYear}</span>
+                                    {hasPending && (
+                                        <span style={{ color: "#D97706", fontWeight: 600, background: "#FEF3C7", padding: "0 6px", borderRadius: 10 }}>
+                                            ⏳ {app.pendingReviewCount} bekliyor
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            <span style={{ color: _C.textMuted, fontSize: 18 }}>{isExpanded ? "▲" : "▼"}</span>
+                        </div>
+
+                        {/* İnceleme Satırları */}
+                        {isExpanded && (
+                            <div style={{ padding: "0 18px 16px", borderTop: "1px solid " + _C.border }}>
+                                {(app.matches || []).map((m, idx) => {
+                                    if (m.tier !== "review") return null;
+                                    const decided = m.adminDecision;
+                                    return (
+                                        <div key={idx} style={{
+                                            display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+                                            padding: "10px 12px", marginTop: 10, borderRadius: 8,
+                                            background: decided ? (decided === "confirmed" ? "#F0FDF4" : "#FEF2F2") : "#FFFBEB",
+                                            border: "1px solid " + (decided ? (decided === "confirmed" ? "#BBF7D0" : "#FECACA") : "#FCD34D"),
+                                            fontSize: 13,
+                                        }}>
+                                            <div style={{ flex: "1 1 180px" }}>
+                                                <span style={{ fontWeight: 700, color: _C.navy }}>{m.external?.code}</span>
+                                                <span style={{ color: _C.textMuted, marginLeft: 6 }}>{m.external?.name}</span>
+                                            </div>
+                                            <div style={{ fontSize: 11, color: _C.textMuted, flex: "1 1 140px" }}>
+                                                {m.local ? "→ " + m.local.code + " " + m.local.name : "→ Eşleşme yok"}
+                                            </div>
+                                            <span style={{
+                                                fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10,
+                                                background: "#DBEAFE", color: _C.navy,
+                                            }}>%{Math.round((m.score || 0) * 100)}</span>
+                                            {decided ? (
+                                                <span style={{
+                                                    padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                                                    background: decided === "confirmed" ? "#D1FAE5" : "#FEE2E2",
+                                                    color: decided === "confirmed" ? "#059669" : "#DC2626",
+                                                }}>
+                                                    {decided === "confirmed" ? "✓ Onaylandı" : "✗ Reddedildi"}
+                                                </span>
+                                            ) : (
+                                                <div style={{ display: "flex", gap: 6 }}>
+                                                    <button disabled={processing} onClick={() => handleDecision(app.id, idx, "confirmed")}
+                                                        style={{ padding: "4px 14px", borderRadius: 20, border: "none", background: "#059669", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                                                        Onayla
+                                                    </button>
+                                                    <button disabled={processing} onClick={() => handleDecision(app.id, idx, "rejected")}
+                                                        style={{ padding: "4px 14px", borderRadius: 20, border: "none", background: "#DC2626", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                                                        Reddet
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                                {!(app.matches || []).some(m => m.tier === "review") && (
+                                    <div style={{ padding: 16, textAlign: "center", color: _C.textMuted, fontSize: 13 }}>
+                                        Bu başvuruda inceleme bekleyen ders bulunmuyor.
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
 const AdminStudentPanel = ({ students, onSave, onDelete }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [form, setForm] = useState({ firstName: "", lastName: "", studentNo: "", password: "" });
@@ -356,7 +547,7 @@ const AdminStudentPanel = ({ students, onSave, onDelete }) => {
             </table></div>
 
             {isModalOpen && (
-                <_Modal title="Yeni Öğrenci Ekle" onClose={() => setIsModalOpen(false)}>
+                <_Modal open={true} title="Yeni Öğrenci Ekle" onClose={() => setIsModalOpen(false)}>
                     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                         <_FormField label="Öğrenci No">
                             <_Input value={form.studentNo} onChange={e => setForm({ ...form, studentNo: e.target.value })} required />
@@ -481,16 +672,25 @@ const StudentApplicationPanel = ({ student, cakuCourses }) => {
     // Otomatik Eşleştirme Motoru
     const runAutoMatch = () => {
         setLoading(true);
-        // score 0.4'ün üzerindekiler eşleşmiş sayılır
-        const results = Utils.autoMatchCourses(externalCourses, cakuCourses, 0.4);
+        // 3-katmanlı eşik: %80+ otomatik onay, %60-79 inceleme, <%60 red
+        const AUTO_APPROVE = Utils.THRESHOLD_AUTO_APPROVE || 0.80;
+        const REVIEW_MIN   = Utils.THRESHOLD_REVIEW || 0.60;
+        const results = Utils.autoMatchCourses(externalCourses, cakuCourses, REVIEW_MIN);
 
-        // Formatı bizim match yapımıza çevir
-        const formattedMatches = results.map(r => ({
-            external: r.source,
-            local: r.target,
-            score: r.score,
-            status: r.matched ? "Uygundur" : "İncelenmeli"
-        }));
+        // Formatı bizim match yapımıza çevir; tier bilgisini aktar
+        const formattedMatches = results.map(r => {
+            const tier = r.tier || (r.matched ? "approved" : (r.contentScore >= REVIEW_MIN ? "review" : "rejected"));
+            return {
+                external: r.source,
+                local: r.target,
+                score: r.contentScore,
+                tier: tier,
+                adminDecision: null,
+                status: tier === "approved" ? "Otomatik Onay"
+                       : tier === "review"   ? "İnceleme Bekliyor"
+                       :                       "Red",
+            };
+        });
 
         setMatches(formattedMatches);
         setViewMode("compare");
@@ -502,6 +702,8 @@ const StudentApplicationPanel = ({ student, cakuCourses }) => {
         if (!student.id) return alert("Öğrenci kaydı bulunamadı! Lütfen önce giriş yapın.");
         setLoading(true);
         try {
+            const pendingCount = matches.filter(m => m.tier === "review" && !m.adminDecision).length;
+            const approvedCount = matches.filter(m => m.tier === "approved" || m.adminDecision === "confirmed").length;
             await YazOkuluDB.saveApplication({
                 studentId: student.id,
                 studentName: `${student.firstName} ${student.lastName}`,
@@ -512,6 +714,8 @@ const StudentApplicationPanel = ({ student, cakuCourses }) => {
                 academicYear: info.academicYear,
                 externalCourses,
                 matches,
+                pendingReviewCount: pendingCount,
+                approvedCount: approvedCount,
                 submittedAt: new Date().toISOString()
             });
             alert("Başvurunuz başarıyla kaydedildi!");
@@ -709,9 +913,9 @@ const StudentApplicationPanel = ({ student, cakuCourses }) => {
                                 {matches.map((m, i) => (
                                     <div key={i} style={{
                                         height: 120, marginBottom: 12, padding: 12,
-                                        borderLeft: "4px solid " + (m.status === "Uygundur" ? _C.green : "#F59E0B"),
+                                        borderLeft: "4px solid " + (m.tier === "approved" || m.adminDecision === "confirmed" ? _C.green : m.tier === "review" ? "#F59E0B" : "#EF4444"),
                                         border: "1px solid " + _C.border,
-                                        borderRadius: 8, background: m.status === "Uygundur" ? "#F0FDF4" : "#FFFBEB",
+                                        borderRadius: 8, background: m.tier === "approved" || m.adminDecision === "confirmed" ? "#F0FDF4" : m.tier === "review" ? "#FFFBEB" : "#FFF5F5",
                                         position: "relative", display: "flex", flexDirection: "column", justifyContent: "center"
                                     }}>
                                         {/* Seçim Dropdown */}
@@ -739,12 +943,24 @@ const StudentApplicationPanel = ({ student, cakuCourses }) => {
 
                                         {m.local ? (
                                             <div style={{ fontSize: 12 }}>
-                                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2, flexWrap: "wrap", gap: 4 }}>
                                                     <span>Statü: <b>{m.local.type || "Zorunlu"}</b></span>
                                                     {m.score > 0 && <span style={{ color: _C.navy, background: "#dbeafe", padding: "0 4px", borderRadius: 4 }}>Benzerlik: %{Math.round(m.score * 100)}</span>}
                                                 </div>
-                                                <div style={{ marginTop: 4 }}>
-                                                    Durum: <span style={{ fontWeight: 700, color: m.status === "Uygundur" ? _C.green : "#D97706" }}>{m.status}</span>
+                                                <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                                                    <span style={{
+                                                        padding: "2px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                                                        background: m.tier === "approved" || m.adminDecision === "confirmed" ? "#D1FAE5"
+                                                                  : m.tier === "review" ? "#FEF3C7" : "#FEE2E2",
+                                                        color: m.tier === "approved" || m.adminDecision === "confirmed" ? "#059669"
+                                                             : m.tier === "review" ? "#D97706" : "#DC2626",
+                                                    }}>
+                                                        {m.tier === "approved" ? "✓ Otomatik Onay"
+                                                       : m.adminDecision === "confirmed" ? "✓ Onaylandı"
+                                                       : m.adminDecision === "rejected"  ? "✗ Reddedildi"
+                                                       : m.tier === "review"   ? "⏳ İnceleme Bekliyor"
+                                                       :                         "✗ Red"}
+                                                    </span>
                                                 </div>
                                             </div>
                                         ) : (
