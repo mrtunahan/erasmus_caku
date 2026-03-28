@@ -632,36 +632,13 @@ function AcademicianDetail({ data, onBack }) {
 function generateXLSX(metricsData, periodLabel) {
   // XML Spreadsheet 2003 format - no library needed
   var categories = [
-    { key: "sci", label: "SCI-Exp/SSCI/AHCI Yayın" },
-    { key: "uak", label: "ÜAK Alan İndeksi Yayın" },
-    { key: "ulakbim", label: "Ulakbim/TR Dizin Yayın" },
-    { key: "book", label: "Kitap/Kitap Bölümü" },
-    { key: "conference", label: "Kongre/Sempozyum Bildiri" },
-    { key: "other", label: "Diğer Yayınlar" },
+    { key: "sci", label: "SCI-Exp/SSCI, AHCI kapsamındaki dergilerdeki yayın sayısı" },
+    { key: "uak", label: "ÜAK tarafından alan indeksi olarak kabul edilen indekslerdeki yayın sayısı" },
+    { key: "ulakbim", label: "Ulakbim/TR Dizin'de taranan dergilerdeki ulusal yayın sayısı" },
+    { key: "book", label: "ÜAK tarafından kabul edilen yayınevlerinde yayımlanmış kitap ve kitap bölümü sayısı" },
+    { key: "conference", label: "Uluslararası kongre ve sempozyumlarda sunulmuş tam metin bildiri sayısı" },
+    { key: "other", label: "Diğer yayınlar" },
   ];
-
-  var rows = metricsData.map(function(m) {
-    var row = { fullName: m.fullName, department: m.department };
-    var totalPub = 0;
-    categories.forEach(function(cat) {
-      var count = m.filtered[cat.key] || 0;
-      row[cat.key] = count;
-      totalPub += count;
-    });
-    row.totalPub = totalPub;
-    row.project2209 = m.project2209Count || 0;
-    // Atıf sayısı - stats'tan çekmeye çalış
-    var citationVal = 0;
-    if (m.stats) {
-      Object.keys(m.stats).forEach(function(k) {
-        if (k.toLocaleLowerCase("tr").indexOf("atıf") >= 0 || k.toLocaleLowerCase("tr").indexOf("atif") >= 0 || k.toLowerCase().indexOf("citation") >= 0) {
-          citationVal = parseInt(m.stats[k]) || 0;
-        }
-      });
-    }
-    row.citations = citationVal;
-    return row;
-  });
 
   var esc = function(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
 
@@ -670,33 +647,149 @@ function generateXLSX(metricsData, periodLabel) {
   xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\n';
   xml += ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
   xml += '<Styles>\n';
-  xml += '<Style ss:ID="hdr"><Font ss:Bold="1" ss:Size="11"/><Interior ss:Color="#1B2A4A" ss:Pattern="Solid"/><Font ss:Color="#FFFFFF" ss:Bold="1"/></Style>\n';
-  xml += '<Style ss:ID="num"><NumberFormat ss:Format="0"/></Style>\n';
+  xml += '<Style ss:ID="hdr"><Interior ss:Color="#1B2A4A" ss:Pattern="Solid"/><Font ss:Color="#FFFFFF" ss:Bold="1" ss:Size="10"/><Alignment ss:Horizontal="Center" ss:WrapText="1"/></Style>\n';
+  xml += '<Style ss:ID="cat"><Font ss:Bold="1" ss:Size="10"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/></Style>\n';
+  xml += '<Style ss:ID="sec"><Font ss:Bold="1" ss:Size="11"/><Interior ss:Color="#E2EFDA" ss:Pattern="Solid"/></Style>\n';
+  xml += '<Style ss:ID="num"><NumberFormat ss:Format="0"/><Alignment ss:Horizontal="Center"/></Style>\n';
+  xml += '<Style ss:ID="numY"><NumberFormat ss:Format="0"/><Alignment ss:Horizontal="Center"/><Interior ss:Color="#FFFF00" ss:Pattern="Solid"/></Style>\n';
+  xml += '<Style ss:ID="txt"><Alignment ss:WrapText="1"/></Style>\n';
   xml += '</Styles>\n';
-  xml += '<Worksheet ss:Name="Akademisyen Metrikleri">\n<Table>\n';
 
-  // Header
-  var headers = ["Ad Soyad", "Bölüm"];
-  categories.forEach(function(c) { headers.push(c.label); });
-  headers.push("Toplam Yayın", "Atıf Sayısı", "2209 Proje");
+  // ═══ SAYFA 1: Genel Özet (görsellerdeki format) ═══
+  xml += '<Worksheet ss:Name="Genel Özet">\n<Table ss:DefaultColumnWidth="100">\n';
+  xml += '<Column ss:Width="60"/><Column ss:Width="350"/><Column ss:Width="70"/>';
 
+  // Akademisyen isimlerini sütun olarak ekle
+  metricsData.forEach(function() { xml += '<Column ss:Width="100"/>'; });
+  xml += '\n';
+
+  // Header row
   xml += '<Row>\n';
-  headers.forEach(function(h) {
-    xml += '<Cell ss:StyleID="hdr"><Data ss:Type="String">' + esc(h) + '</Data></Cell>\n';
+  xml += '<Cell ss:StyleID="hdr"><Data ss:Type="String">No</Data></Cell>\n';
+  xml += '<Cell ss:StyleID="hdr"><Data ss:Type="String">GÖSTERGE</Data></Cell>\n';
+  xml += '<Cell ss:StyleID="hdr"><Data ss:Type="String">ÖLÇÜ BİRİMİ</Data></Cell>\n';
+  metricsData.forEach(function(m) {
+    var shortName = (m.fullName || "").replace(/^(Prof\.|Doç\.|Dr\.|Arş\.|Öğr\.|Gör\.|Yrd\.)\s*/gi, "").trim();
+    xml += '<Cell ss:StyleID="hdr"><Data ss:Type="String">' + esc(shortName || m.username) + '</Data></Cell>\n';
   });
   xml += '</Row>\n';
 
-  // Data rows
-  rows.forEach(function(r) {
+  // Section header: ARAŞTIRMA
+  xml += '<Row><Cell ss:StyleID="sec"/><Cell ss:StyleID="sec"><Data ss:Type="String">YÜKSEKÖĞRETİMDE BİLİMSEL ARAŞTIRMA GELİŞTİRME</Data></Cell><Cell ss:StyleID="sec"/>';
+  metricsData.forEach(function() { xml += '<Cell ss:StyleID="sec"/>'; });
+  xml += '</Row>\n';
+
+  // Gösterge satırları
+  var rowNum = 1;
+  categories.forEach(function(cat) {
     xml += '<Row>\n';
-    xml += '<Cell><Data ss:Type="String">' + esc(r.fullName) + '</Data></Cell>\n';
-    xml += '<Cell><Data ss:Type="String">' + esc(r.department) + '</Data></Cell>\n';
-    categories.forEach(function(cat) {
-      xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + (r[cat.key] || 0) + '</Data></Cell>\n';
+    xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + rowNum + '</Data></Cell>\n';
+    xml += '<Cell ss:StyleID="txt"><Data ss:Type="String">' + esc(cat.label) + '</Data></Cell>\n';
+    xml += '<Cell><Data ss:Type="String">Sayı</Data></Cell>\n';
+    metricsData.forEach(function(m) {
+      var val = m.filtered[cat.key] || 0;
+      xml += '<Cell ss:StyleID="' + (val > 0 ? "numY" : "num") + '"><Data ss:Type="Number">' + val + '</Data></Cell>\n';
     });
-    xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + r.totalPub + '</Data></Cell>\n';
-    xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + r.citations + '</Data></Cell>\n';
-    xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + r.project2209 + '</Data></Cell>\n';
+    xml += '</Row>\n';
+    rowNum++;
+  });
+
+  // Toplam yayın satırı
+  xml += '<Row>\n';
+  xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + rowNum + '</Data></Cell>\n';
+  xml += '<Cell ss:StyleID="cat"><Data ss:Type="String">Toplam Yayın Sayısı</Data></Cell>\n';
+  xml += '<Cell><Data ss:Type="String">Sayı</Data></Cell>\n';
+  metricsData.forEach(function(m) {
+    var total = (m.filtered.sci || 0) + (m.filtered.uak || 0) + (m.filtered.ulakbim || 0) + (m.filtered.book || 0) + (m.filtered.conference || 0) + (m.filtered.other || 0);
+    xml += '<Cell ss:StyleID="numY"><Data ss:Type="Number">' + total + '</Data></Cell>\n';
+  });
+  xml += '</Row>\n';
+  rowNum++;
+
+  // Atıf sayısı satırı
+  xml += '<Row>\n';
+  xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + rowNum + '</Data></Cell>\n';
+  xml += '<Cell ss:StyleID="txt"><Data ss:Type="String">Toplam atıf sayısı</Data></Cell>\n';
+  xml += '<Cell><Data ss:Type="String">Sayı</Data></Cell>\n';
+  metricsData.forEach(function(m) {
+    var citationVal = 0;
+    if (m.stats) {
+      Object.keys(m.stats).forEach(function(k) {
+        if (k.toLocaleLowerCase("tr").indexOf("atıf") >= 0 || k.toLocaleLowerCase("tr").indexOf("atif") >= 0 || k.toLowerCase().indexOf("citation") >= 0) {
+          citationVal = parseInt(m.stats[k]) || 0;
+        }
+      });
+    }
+    xml += '<Cell ss:StyleID="' + (citationVal > 0 ? "numY" : "num") + '"><Data ss:Type="Number">' + citationVal + '</Data></Cell>\n';
+  });
+  xml += '</Row>\n';
+  rowNum++;
+
+  // 2209 Proje satırı
+  xml += '<Row>\n';
+  xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + rowNum + '</Data></Cell>\n';
+  xml += '<Cell ss:StyleID="txt"><Data ss:Type="String">TÜBİTAK 2209 proje sayısı</Data></Cell>\n';
+  xml += '<Cell><Data ss:Type="String">Sayı</Data></Cell>\n';
+  metricsData.forEach(function(m) {
+    var val = m.project2209Count || 0;
+    xml += '<Cell ss:StyleID="' + (val > 0 ? "numY" : "num") + '"><Data ss:Type="Number">' + val + '</Data></Cell>\n';
+  });
+  xml += '</Row>\n';
+
+  // Öğretim elemanı sayısı
+  xml += '<Row><Cell ss:StyleID="sec"/><Cell ss:StyleID="sec"><Data ss:Type="String">GENEL BİLGİLER</Data></Cell><Cell ss:StyleID="sec"/>';
+  metricsData.forEach(function() { xml += '<Cell ss:StyleID="sec"/>'; });
+  xml += '</Row>\n';
+  xml += '<Row>\n';
+  xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + (rowNum + 1) + '</Data></Cell>\n';
+  xml += '<Cell ss:StyleID="txt"><Data ss:Type="String">Öğretim elemanı sayısı</Data></Cell>\n';
+  xml += '<Cell><Data ss:Type="String">Sayı</Data></Cell>\n';
+  xml += '<Cell ss:StyleID="numY" ss:MergeAcross="' + (metricsData.length - 1) + '"><Data ss:Type="Number">' + metricsData.length + '</Data></Cell>\n';
+  xml += '</Row>\n';
+
+  xml += '</Table>\n</Worksheet>\n';
+
+  // ═══ SAYFA 2: Akademisyen Detay ═══
+  xml += '<Worksheet ss:Name="Akademisyen Detay">\n<Table>\n';
+  xml += '<Column ss:Width="200"/><Column ss:Width="150"/>';
+  categories.forEach(function() { xml += '<Column ss:Width="90"/>'; });
+  xml += '<Column ss:Width="80"/><Column ss:Width="80"/><Column ss:Width="80"/>\n';
+
+  // Header
+  xml += '<Row>\n';
+  xml += '<Cell ss:StyleID="hdr"><Data ss:Type="String">Ad Soyad</Data></Cell>\n';
+  xml += '<Cell ss:StyleID="hdr"><Data ss:Type="String">Bölüm</Data></Cell>\n';
+  categories.forEach(function(c) {
+    var shortLabel = c.key === "sci" ? "SCI/SSCI/AHCI" : c.key === "uak" ? "ÜAK İndeks" : c.key === "ulakbim" ? "Ulakbim/TR Dizin" : c.key === "book" ? "Kitap/Bölüm" : c.key === "conference" ? "Kongre/Bildiri" : "Diğer";
+    xml += '<Cell ss:StyleID="hdr"><Data ss:Type="String">' + esc(shortLabel) + '</Data></Cell>\n';
+  });
+  xml += '<Cell ss:StyleID="hdr"><Data ss:Type="String">Toplam</Data></Cell>\n';
+  xml += '<Cell ss:StyleID="hdr"><Data ss:Type="String">Atıf</Data></Cell>\n';
+  xml += '<Cell ss:StyleID="hdr"><Data ss:Type="String">2209 Proje</Data></Cell>\n';
+  xml += '</Row>\n';
+
+  // Data rows
+  metricsData.forEach(function(m) {
+    xml += '<Row>\n';
+    xml += '<Cell><Data ss:Type="String">' + esc(m.fullName) + '</Data></Cell>\n';
+    xml += '<Cell><Data ss:Type="String">' + esc(m.department) + '</Data></Cell>\n';
+    var total = 0;
+    categories.forEach(function(cat) {
+      var val = m.filtered[cat.key] || 0;
+      total += val;
+      xml += '<Cell ss:StyleID="' + (val > 0 ? "numY" : "num") + '"><Data ss:Type="Number">' + val + '</Data></Cell>\n';
+    });
+    xml += '<Cell ss:StyleID="numY"><Data ss:Type="Number">' + total + '</Data></Cell>\n';
+    var citationVal = 0;
+    if (m.stats) {
+      Object.keys(m.stats).forEach(function(k) {
+        if (k.toLocaleLowerCase("tr").indexOf("atıf") >= 0 || k.toLocaleLowerCase("tr").indexOf("atif") >= 0 || k.toLowerCase().indexOf("citation") >= 0) {
+          citationVal = parseInt(m.stats[k]) || 0;
+        }
+      });
+    }
+    xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + citationVal + '</Data></Cell>\n';
+    xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + (m.project2209Count || 0) + '</Data></Cell>\n';
     xml += '</Row>\n';
   });
 
@@ -1041,7 +1134,7 @@ function AnalyticsDashboard({ deptId, isAdmin }) {
     ),
 
     // Grafikler Grid
-    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 } },
+    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 } },
 
       // Sol: Donut Chart - Yayın Dağılımı
       React.createElement("div", { style: {
@@ -1059,7 +1152,7 @@ function AnalyticsDashboard({ deptId, isAdmin }) {
       } },
         React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: COLORS.text, marginBottom: 12 } }, "Yıllara Göre Yayın Trendi"),
         yearlyTrend.length >= 2
-          ? React.createElement(TrendChart, { data: yearlyTrend, width: 380, height: 200, lineColor: COLORS.accent })
+          ? React.createElement("div", { style: { width: "100%", overflowX: "auto" } }, React.createElement(TrendChart, { data: yearlyTrend, width: 400, height: 200, lineColor: COLORS.accent }))
           : React.createElement("div", { style: { textAlign: "center", padding: 40, color: COLORS.textLight, fontSize: 12 } }, "Yeterli yıl verisi yok")
       )
     ),
@@ -1070,7 +1163,7 @@ function AnalyticsDashboard({ deptId, isAdmin }) {
       border: "1px solid " + COLORS.border,
     } },
       React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: COLORS.text, marginBottom: 12 } }, "En Çok Yayın Yapan Akademisyenler (Top 10)"),
-      React.createElement(HBarChart, { data: topAuthors, width: 580, height: topAuthors.length * 32 + 20, barColor: COLORS.accent })
+      React.createElement("div", { style: { width: "100%", overflowX: "auto" } }, React.createElement(HBarChart, { data: topAuthors, width: 700, height: topAuthors.length * 32 + 20, barColor: COLORS.accent }))
     ),
 
     // Akademisyen Detay Tablosu
