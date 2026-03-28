@@ -708,7 +708,8 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
   var handleAdd = function() {
     if (!newUsername.trim()) return alert("ÇAKUAVİS kullanıcı adı gerekli");
     // Boşlukları sil, küçük harf yap (kullanıcı "taha etem" yazsa "tahaetem" olsun)
-    var username = newUsername.replace(/İ/g, "i").replace(/I/g, "ı").replace(/\s+/g, "").toLocaleLowerCase("tr").trim();
+    var username = newUsername.replace(/İ/g, "i").replace(/I/g, "ı").replace(/\s+/g, "").toLocaleLowerCase("tr")
+      .replace(/ı/g, "i").replace(/ü/g, "u").replace(/ö/g, "o").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g").trim();
     if (!username) return alert("Geçerli bir kullanıcı adı girin");
     var assignDeptId = deptId;
     setAddModal(false);
@@ -861,7 +862,7 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
                 placeholder="Örn: aliegi, ksenturk"
               />
               <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 4 }}>
-                cakuavis.karatekin.edu.tr/<strong>{newUsername ? newUsername.replace(/\s+/g, "").toLowerCase() : "kullaniciadi"}</strong> adresindeki kullanıcı adı
+                cakuavis.karatekin.edu.tr/<strong>{newUsername ? newUsername.replace(/İ/g, "i").replace(/I/g, "ı").replace(/\s+/g, "").toLocaleLowerCase("tr").replace(/ı/g, "i").replace(/ü/g, "u").replace(/ö/g, "o").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g").trim() : "kullaniciadi"}</strong> adresindeki kullanıcı adı
               </div>
               <div style={{ fontSize: 11, color: COLORS.warning, marginTop: 2 }}>
                 Ad soyad girerseniz otomatik olarak boşluklar silinir (ör: "taha etem" → "tahaetem")
