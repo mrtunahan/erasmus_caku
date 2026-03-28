@@ -3,7 +3,7 @@
 // Bölüm akademisyenlerinin bilgilerini çeker ve gösterir
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useCallback } = React;
+const { useState, useEffect, useCallback, useMemo } = React;
 
 const C = window.C;
 const Card = window.Card;
@@ -628,6 +628,509 @@ function AcademicianDetail({ data, onBack }) {
   );
 }
 
+// ── XLSX Export Fonksiyonu ──
+function generateXLSX(metricsData, periodLabel) {
+  // XML Spreadsheet 2003 format - no library needed
+  var categories = [
+    { key: "sci", label: "SCI-Exp/SSCI/AHCI Yayın" },
+    { key: "uak", label: "ÜAK Alan İndeksi Yayın" },
+    { key: "ulakbim", label: "Ulakbim/TR Dizin Yayın" },
+    { key: "book", label: "Kitap/Kitap Bölümü" },
+    { key: "conference", label: "Kongre/Sempozyum Bildiri" },
+    { key: "other", label: "Diğer Yayınlar" },
+  ];
+
+  var rows = metricsData.map(function(m) {
+    var row = { fullName: m.fullName, department: m.department };
+    var totalPub = 0;
+    categories.forEach(function(cat) {
+      var count = m.filtered[cat.key] || 0;
+      row[cat.key] = count;
+      totalPub += count;
+    });
+    row.totalPub = totalPub;
+    row.project2209 = m.project2209Count || 0;
+    // Atıf sayısı - stats'tan çekmeye çalış
+    var citationVal = 0;
+    if (m.stats) {
+      Object.keys(m.stats).forEach(function(k) {
+        if (k.toLocaleLowerCase("tr").indexOf("atıf") >= 0 || k.toLocaleLowerCase("tr").indexOf("atif") >= 0 || k.toLowerCase().indexOf("citation") >= 0) {
+          citationVal = parseInt(m.stats[k]) || 0;
+        }
+      });
+    }
+    row.citations = citationVal;
+    return row;
+  });
+
+  var esc = function(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
+
+  var xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<?mso-application progid="Excel.Sheet"?>\n';
+  xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\n';
+  xml += ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
+  xml += '<Styles>\n';
+  xml += '<Style ss:ID="hdr"><Font ss:Bold="1" ss:Size="11"/><Interior ss:Color="#1B2A4A" ss:Pattern="Solid"/><Font ss:Color="#FFFFFF" ss:Bold="1"/></Style>\n';
+  xml += '<Style ss:ID="num"><NumberFormat ss:Format="0"/></Style>\n';
+  xml += '</Styles>\n';
+  xml += '<Worksheet ss:Name="Akademisyen Metrikleri">\n<Table>\n';
+
+  // Header
+  var headers = ["Ad Soyad", "Bölüm"];
+  categories.forEach(function(c) { headers.push(c.label); });
+  headers.push("Toplam Yayın", "Atıf Sayısı", "2209 Proje");
+
+  xml += '<Row>\n';
+  headers.forEach(function(h) {
+    xml += '<Cell ss:StyleID="hdr"><Data ss:Type="String">' + esc(h) + '</Data></Cell>\n';
+  });
+  xml += '</Row>\n';
+
+  // Data rows
+  rows.forEach(function(r) {
+    xml += '<Row>\n';
+    xml += '<Cell><Data ss:Type="String">' + esc(r.fullName) + '</Data></Cell>\n';
+    xml += '<Cell><Data ss:Type="String">' + esc(r.department) + '</Data></Cell>\n';
+    categories.forEach(function(cat) {
+      xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + (r[cat.key] || 0) + '</Data></Cell>\n';
+    });
+    xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + r.totalPub + '</Data></Cell>\n';
+    xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + r.citations + '</Data></Cell>\n';
+    xml += '<Cell ss:StyleID="num"><Data ss:Type="Number">' + r.project2209 + '</Data></Cell>\n';
+    xml += '</Row>\n';
+  });
+
+  xml += '</Table>\n</Worksheet>\n</Workbook>';
+
+  var blob = new Blob([xml], { type: "application/vnd.ms-excel" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "akademisyen_metrikleri_" + periodLabel + ".xlsx";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── SVG Chart Bileşenleri ──
+
+// Yatay Bar Chart
+function HBarChart({ data, width, height, barColor }) {
+  if (!data || data.length === 0) return null;
+  var maxVal = Math.max.apply(null, data.map(function(d) { return d.value; }));
+  if (maxVal === 0) maxVal = 1;
+  var barH = Math.min(28, (height - 20) / data.length - 4);
+  var labelW = 140;
+  var chartW = width - labelW - 50;
+
+  return React.createElement("svg", { width: width, height: Math.max(height, data.length * (barH + 4) + 10), style: { display: "block" } },
+    data.map(function(d, i) {
+      var y = i * (barH + 4) + 5;
+      var bw = (d.value / maxVal) * chartW;
+      return React.createElement("g", { key: i },
+        React.createElement("text", {
+          x: labelW - 8, y: y + barH / 2 + 4, textAnchor: "end",
+          fontSize: 11, fill: COLORS.text, fontWeight: 500,
+        }, d.label.length > 20 ? d.label.substring(0, 18) + "…" : d.label),
+        React.createElement("rect", {
+          x: labelW, y: y, width: Math.max(bw, 2), height: barH,
+          rx: 4, fill: barColor || COLORS.accent, opacity: 0.85,
+        }),
+        React.createElement("text", {
+          x: labelW + bw + 6, y: y + barH / 2 + 4,
+          fontSize: 11, fill: COLORS.text, fontWeight: 600,
+        }, d.value)
+      );
+    })
+  );
+}
+
+// Donut Chart
+function DonutChart({ data, size, title }) {
+  if (!data || data.length === 0) return null;
+  var total = data.reduce(function(s, d) { return s + d.value; }, 0);
+  if (total === 0) return React.createElement("div", { style: { textAlign: "center", padding: 20, color: COLORS.textLight, fontSize: 13 } }, "Veri yok");
+  var r = (size - 40) / 2;
+  var cx = size / 2;
+  var cy = size / 2 - 10;
+  var strokeW = r * 0.35;
+  var innerR = r - strokeW / 2;
+  var colors = ["#2563EB", "#059669", "#D97706", "#DC2626", "#7C3AED", "#0891B2"];
+  var startAngle = -Math.PI / 2;
+
+  var arcs = data.map(function(d, i) {
+    var angle = (d.value / total) * Math.PI * 2;
+    var endAngle = startAngle + angle;
+    var largeArc = angle > Math.PI ? 1 : 0;
+    var x1 = cx + innerR * Math.cos(startAngle);
+    var y1 = cy + innerR * Math.sin(startAngle);
+    var x2 = cx + innerR * Math.cos(endAngle);
+    var y2 = cy + innerR * Math.sin(endAngle);
+    var pathD = "M " + x1 + " " + y1 + " A " + innerR + " " + innerR + " 0 " + largeArc + " 1 " + x2 + " " + y2;
+    startAngle = endAngle;
+    return React.createElement("path", {
+      key: i, d: pathD, fill: "none",
+      stroke: colors[i % colors.length], strokeWidth: strokeW, strokeLinecap: "round",
+    });
+  });
+
+  var legend = data.map(function(d, i) {
+    return React.createElement("div", { key: i, style: { display: "flex", alignItems: "center", gap: 6, fontSize: 11 } },
+      React.createElement("div", { style: { width: 10, height: 10, borderRadius: 2, background: colors[i % colors.length], flexShrink: 0 } }),
+      React.createElement("span", { style: { color: COLORS.textLight } }, d.label),
+      React.createElement("span", { style: { fontWeight: 600, color: COLORS.text, marginLeft: "auto" } }, d.value)
+    );
+  });
+
+  return React.createElement("div", { style: { textAlign: "center" } },
+    React.createElement("svg", { width: size, height: size - 20, style: { display: "block", margin: "0 auto" } },
+      arcs,
+      React.createElement("text", { x: cx, y: cy - 4, textAnchor: "middle", fontSize: 22, fontWeight: 700, fill: COLORS.text }, total),
+      React.createElement("text", { x: cx, y: cy + 14, textAnchor: "middle", fontSize: 10, fill: COLORS.textLight }, title || "Toplam")
+    ),
+    React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 4, marginTop: 8, maxWidth: 220, margin: "8px auto 0" } }, legend)
+  );
+}
+
+// Trend Line Chart (yıllara göre)
+function TrendChart({ data, width, height, lineColor }) {
+  if (!data || data.length < 2) return null;
+  var maxVal = Math.max.apply(null, data.map(function(d) { return d.value; }));
+  if (maxVal === 0) maxVal = 1;
+  var padL = 36, padR = 16, padT = 16, padB = 28;
+  var chartW = width - padL - padR;
+  var chartH = height - padT - padB;
+  var step = chartW / (data.length - 1);
+
+  var points = data.map(function(d, i) {
+    var x = padL + i * step;
+    var y = padT + chartH - (d.value / maxVal) * chartH;
+    return { x: x, y: y, label: d.label, value: d.value };
+  });
+
+  var pathD = points.map(function(p, i) { return (i === 0 ? "M" : "L") + p.x + "," + p.y; }).join(" ");
+  var areaD = pathD + " L" + points[points.length - 1].x + "," + (padT + chartH) + " L" + points[0].x + "," + (padT + chartH) + " Z";
+
+  return React.createElement("svg", { width: width, height: height, style: { display: "block" } },
+    // Grid lines
+    [0, 0.25, 0.5, 0.75, 1].map(function(frac, i) {
+      var y = padT + chartH - frac * chartH;
+      return React.createElement("line", { key: "g" + i, x1: padL, y1: y, x2: width - padR, y2: y, stroke: COLORS.border, strokeWidth: 0.5 });
+    }),
+    // Y axis labels
+    [0, 0.5, 1].map(function(frac, i) {
+      var y = padT + chartH - frac * chartH;
+      return React.createElement("text", { key: "yl" + i, x: padL - 6, y: y + 4, textAnchor: "end", fontSize: 9, fill: COLORS.textLight }, Math.round(maxVal * frac));
+    }),
+    // Area fill
+    React.createElement("path", { d: areaD, fill: lineColor || COLORS.accent, opacity: 0.08 }),
+    // Line
+    React.createElement("path", { d: pathD, fill: "none", stroke: lineColor || COLORS.accent, strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }),
+    // Dots & labels
+    points.map(function(p, i) {
+      return React.createElement("g", { key: "d" + i },
+        React.createElement("circle", { cx: p.x, cy: p.y, r: 3.5, fill: lineColor || COLORS.accent }),
+        React.createElement("text", { x: p.x, y: padT + chartH + 16, textAnchor: "middle", fontSize: 9, fill: COLORS.textLight }, p.label),
+        p.value > 0 ? React.createElement("text", { x: p.x, y: p.y - 8, textAnchor: "middle", fontSize: 9, fontWeight: 600, fill: COLORS.text }, p.value) : null
+      );
+    })
+  );
+}
+
+// ── Analitik Dashboard Bileşeni ──
+function AnalyticsDashboard({ deptId, isAdmin }) {
+  var [metricsData, setMetricsData] = useState(null);
+  var [loading, setLoading] = useState(true);
+  var [period, setPeriod] = useState(12); // 3, 6, 9, 12 ay
+
+  useEffect(function() {
+    setLoading(true);
+    var token = localStorage.getItem("caku_auth_token");
+    var headers = {};
+    if (token) headers["Authorization"] = "Bearer " + token;
+    var url = "/api/akademisyen/metrics/all";
+    if (!isAdmin && deptId) url += "?departmentId=" + encodeURIComponent(deptId);
+
+    fetch(url, { headers: headers })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (Array.isArray(data)) setMetricsData(data);
+        setLoading(false);
+      })
+      .catch(function() { setLoading(false); });
+  }, [deptId, isAdmin]);
+
+  // Zaman dilimine göre filtreleme
+  var cutoffDate = useMemo(function() {
+    var d = new Date();
+    d.setMonth(d.getMonth() - period);
+    return d.getFullYear();
+  }, [period]);
+
+  var processedData = useMemo(function() {
+    if (!metricsData) return [];
+    return metricsData.map(function(m) {
+      var pm = m.publicationMetrics || {};
+      var filtered = {};
+      var cats = ["sci", "uak", "ulakbim", "book", "conference", "other"];
+      cats.forEach(function(cat) {
+        var items = pm[cat] || [];
+        filtered[cat] = items.filter(function(item) {
+          if (!item.year) return true; // yılı bilinmeyenleri dahil et
+          return item.year >= cutoffDate;
+        }).length;
+      });
+      return Object.assign({}, m, { filtered: filtered });
+    });
+  }, [metricsData, cutoffDate]);
+
+  // Toplu istatistikler
+  var totals = useMemo(function() {
+    var t = { sci: 0, uak: 0, ulakbim: 0, book: 0, conference: 0, other: 0, project2209: 0, citations: 0 };
+    processedData.forEach(function(m) {
+      t.sci += m.filtered.sci || 0;
+      t.uak += m.filtered.uak || 0;
+      t.ulakbim += m.filtered.ulakbim || 0;
+      t.book += m.filtered.book || 0;
+      t.conference += m.filtered.conference || 0;
+      t.other += m.filtered.other || 0;
+      t.project2209 += m.project2209Count || 0;
+      if (m.stats) {
+        Object.keys(m.stats).forEach(function(k) {
+          if (k.toLocaleLowerCase("tr").indexOf("atıf") >= 0 || k.toLocaleLowerCase("tr").indexOf("atif") >= 0 || k.toLowerCase().indexOf("citation") >= 0) {
+            t.citations += parseInt(m.stats[k]) || 0;
+          }
+        });
+      }
+    });
+    return t;
+  }, [processedData]);
+
+  // Yıllara göre trend verisi
+  var yearlyTrend = useMemo(function() {
+    if (!metricsData) return [];
+    var yearMap = {};
+    metricsData.forEach(function(m) {
+      var pm = m.publicationMetrics || {};
+      ["sci", "uak", "ulakbim", "book", "conference", "other"].forEach(function(cat) {
+        (pm[cat] || []).forEach(function(item) {
+          if (item.year && item.year >= cutoffDate) {
+            yearMap[item.year] = (yearMap[item.year] || 0) + 1;
+          }
+        });
+      });
+    });
+    var years = Object.keys(yearMap).sort();
+    return years.map(function(y) { return { label: y, value: yearMap[y] }; });
+  }, [metricsData, cutoffDate]);
+
+  // Akademisyen bazlı bar chart verisi (top 10)
+  var topAuthors = useMemo(function() {
+    return processedData
+      .map(function(m) {
+        var total = (m.filtered.sci || 0) + (m.filtered.uak || 0) + (m.filtered.ulakbim || 0) +
+                    (m.filtered.book || 0) + (m.filtered.conference || 0) + (m.filtered.other || 0);
+        var shortName = (m.fullName || "").replace(/^(Prof\.|Doç\.|Dr\.|Arş\.|Öğr\.|Gör\.|Yrd\.)\s*/gi, "").trim();
+        return { label: shortName || m.username, value: total };
+      })
+      .filter(function(d) { return d.value > 0; })
+      .sort(function(a, b) { return b.value - a.value; })
+      .slice(0, 10);
+  }, [processedData]);
+
+  var periodButtons = [
+    { val: 3, label: "3 Ay" },
+    { val: 6, label: "6 Ay" },
+    { val: 9, label: "9 Ay" },
+    { val: 12, label: "12 Ay" },
+  ];
+
+  if (loading) {
+    return React.createElement("div", { style: { textAlign: "center", padding: 60, color: COLORS.textLight } },
+      React.createElement("div", { style: { fontSize: 14 } }, "Metrikler yükleniyor...")
+    );
+  }
+
+  if (!metricsData || metricsData.length === 0) {
+    return React.createElement(Card, null,
+      React.createElement("div", { style: { textAlign: "center", padding: 40 } },
+        React.createElement("div", { style: { fontSize: 16, fontWeight: 600, color: COLORS.text, marginBottom: 8 } }, "Henüz metrik verisi yok"),
+        React.createElement("div", { style: { fontSize: 13, color: COLORS.textLight } }, "Akademisyen ekleyerek başlayabilirsiniz.")
+      )
+    );
+  }
+
+  var donutData = [
+    { label: "SCI/SSCI/AHCI", value: totals.sci },
+    { label: "ÜAK Alan İndeksi", value: totals.uak },
+    { label: "Ulakbim/TR Dizin", value: totals.ulakbim },
+    { label: "Kitap/Bölüm", value: totals.book },
+    { label: "Kongre/Bildiri", value: totals.conference },
+    { label: "Diğer", value: totals.other },
+  ].filter(function(d) { return d.value > 0; });
+
+  // Metric cards
+  var metricCards = [
+    { label: "SCI/SSCI/AHCI", value: totals.sci, color: "#2563EB" },
+    { label: "ÜAK Alan İndeksi", value: totals.uak, color: "#059669" },
+    { label: "Ulakbim/TR Dizin", value: totals.ulakbim, color: "#D97706" },
+    { label: "Kitap/Bölüm", value: totals.book, color: "#DC2626" },
+    { label: "Kongre/Bildiri", value: totals.conference, color: "#7C3AED" },
+    { label: "Atıf Sayısı", value: totals.citations, color: "#0891B2" },
+    { label: "2209 Proje", value: totals.project2209, color: "#BE185D" },
+  ];
+
+  return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
+
+    // Üst Kontroller: Dönem seçimi + XLSX export
+    React.createElement("div", { style: {
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      flexWrap: "wrap", gap: 12,
+    } },
+      React.createElement("div", { style: { display: "flex", gap: 4, background: COLORS.bg, borderRadius: 8, padding: 3 } },
+        periodButtons.map(function(pb) {
+          var isActive = period === pb.val;
+          return React.createElement("button", {
+            key: pb.val,
+            onClick: function() { setPeriod(pb.val); },
+            style: {
+              padding: "6px 14px", fontSize: 12, fontWeight: isActive ? 600 : 400,
+              border: "none", borderRadius: 6, cursor: "pointer",
+              background: isActive ? COLORS.accent : "transparent",
+              color: isActive ? "#fff" : COLORS.textLight,
+              transition: "all 0.15s",
+            }
+          }, pb.label);
+        })
+      ),
+      React.createElement("button", {
+        onClick: function() { generateXLSX(processedData, period + "_ay"); },
+        style: {
+          padding: "8px 18px", fontSize: 12, fontWeight: 600,
+          background: "#059669", color: "#fff", border: "none", borderRadius: 8,
+          cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+        }
+      },
+        React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2 },
+          React.createElement("path", { d: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" }),
+          React.createElement("polyline", { points: "7 10 12 15 17 10" }),
+          React.createElement("line", { x1: 12, y1: 15, x2: 12, y2: 3 })
+        ),
+        "XLSX İndir"
+      )
+    ),
+
+    // Özet Metrik Kartları
+    React.createElement("div", { style: {
+      display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10,
+    } },
+      metricCards.map(function(mc, i) {
+        return React.createElement("div", {
+          key: i,
+          style: {
+            background: COLORS.cardBg, borderRadius: 10, padding: "14px 16px",
+            border: "1px solid " + COLORS.border,
+            borderLeft: "3px solid " + mc.color,
+          }
+        },
+          React.createElement("div", { style: { fontSize: 22, fontWeight: 700, color: mc.color } }, mc.value),
+          React.createElement("div", { style: { fontSize: 11, color: COLORS.textLight, marginTop: 2, lineHeight: 1.3 } }, mc.label)
+        );
+      })
+    ),
+
+    // Grafikler Grid
+    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 } },
+
+      // Sol: Donut Chart - Yayın Dağılımı
+      React.createElement("div", { style: {
+        background: COLORS.cardBg, borderRadius: 12, padding: 20,
+        border: "1px solid " + COLORS.border,
+      } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: COLORS.text, marginBottom: 12 } }, "Yayın Türü Dağılımı"),
+        React.createElement(DonutChart, { data: donutData, size: 200, title: "Yayın" })
+      ),
+
+      // Sağ: Trend Chart - Yıllara Göre
+      React.createElement("div", { style: {
+        background: COLORS.cardBg, borderRadius: 12, padding: 20,
+        border: "1px solid " + COLORS.border,
+      } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: COLORS.text, marginBottom: 12 } }, "Yıllara Göre Yayın Trendi"),
+        yearlyTrend.length >= 2
+          ? React.createElement(TrendChart, { data: yearlyTrend, width: 380, height: 200, lineColor: COLORS.accent })
+          : React.createElement("div", { style: { textAlign: "center", padding: 40, color: COLORS.textLight, fontSize: 12 } }, "Yeterli yıl verisi yok")
+      )
+    ),
+
+    // En Çok Yayın Yapan Akademisyenler - Bar Chart
+    topAuthors.length > 0 && React.createElement("div", { style: {
+      background: COLORS.cardBg, borderRadius: 12, padding: 20,
+      border: "1px solid " + COLORS.border,
+    } },
+      React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: COLORS.text, marginBottom: 12 } }, "En Çok Yayın Yapan Akademisyenler (Top 10)"),
+      React.createElement(HBarChart, { data: topAuthors, width: 580, height: topAuthors.length * 32 + 20, barColor: COLORS.accent })
+    ),
+
+    // Akademisyen Detay Tablosu
+    React.createElement("div", { style: {
+      background: COLORS.cardBg, borderRadius: 12, padding: 20,
+      border: "1px solid " + COLORS.border, overflow: "auto",
+    } },
+      React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: COLORS.text, marginBottom: 12 } }, "Akademisyen Bazlı Yayın Detayı"),
+      React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
+        React.createElement("thead", null,
+          React.createElement("tr", { style: { borderBottom: "2px solid " + COLORS.border } },
+            ["Akademisyen", "SCI/SSCI/AHCI", "ÜAK", "Ulakbim", "Kitap", "Bildiri", "Diğer", "Toplam", "2209"].map(function(h, i) {
+              return React.createElement("th", {
+                key: i,
+                style: {
+                  padding: "8px 6px", textAlign: i === 0 ? "left" : "center",
+                  color: COLORS.text, fontWeight: 600, whiteSpace: "nowrap",
+                  fontSize: 11,
+                }
+              }, h);
+            })
+          )
+        ),
+        React.createElement("tbody", null,
+          processedData
+            .map(function(m) {
+              var total = (m.filtered.sci || 0) + (m.filtered.uak || 0) + (m.filtered.ulakbim || 0) +
+                          (m.filtered.book || 0) + (m.filtered.conference || 0) + (m.filtered.other || 0);
+              return Object.assign({}, m, { totalPub: total });
+            })
+            .sort(function(a, b) { return b.totalPub - a.totalPub; })
+            .map(function(m, i) {
+              var shortName = (m.fullName || "").replace(/^(Prof\.|Doç\.|Dr\.|Arş\.|Öğr\.|Gör\.|Yrd\.)\s*/gi, "").trim();
+              return React.createElement("tr", {
+                key: i,
+                style: { borderBottom: "1px solid " + COLORS.border, background: i % 2 === 0 ? "transparent" : COLORS.bg }
+              },
+                React.createElement("td", { style: { padding: "7px 6px", fontWeight: 500, color: COLORS.text, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, shortName || m.username),
+                [m.filtered.sci, m.filtered.uak, m.filtered.ulakbim, m.filtered.book, m.filtered.conference, m.filtered.other, m.totalPub, m.project2209Count || 0].map(function(v, j) {
+                  return React.createElement("td", {
+                    key: j,
+                    style: {
+                      padding: "7px 6px", textAlign: "center", color: v > 0 ? COLORS.text : COLORS.textLight,
+                      fontWeight: v > 0 ? 600 : 400,
+                    }
+                  }, v || 0);
+                })
+              );
+            })
+        )
+      )
+    ),
+
+    // Akademisyen sayısı bilgisi
+    React.createElement("div", { style: { fontSize: 11, color: COLORS.textLight, textAlign: "right", padding: "0 4px" } },
+      processedData.length + " akademisyen · Son " + period + " ay · " + new Date().toLocaleDateString("tr-TR")
+    )
+  );
+}
+
 // ── Ana Modül Bileşeni ──
 function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var [professors, setProfessors] = useState([]);
@@ -637,6 +1140,7 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
   var [addModal, setAddModal] = useState(false);
   var [newUsername, setNewUsername] = useState("");
   var [searchTerm, setSearchTerm] = useState("");
+  var [viewMode, setViewMode] = useState("list"); // "list" | "analytics"
 
   var isAdmin = currentUser && currentUser.role === "admin";
   var isDeptManager = currentUser && currentUser.role === "bolum_yetkilisi";
@@ -791,32 +1295,60 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
             ÇAKUAVİS entegrasyonu ile akademisyen profilleri
           </p>
         </div>
-        {canManage && (
-          <Btn onClick={function() { setAddModal(true); }}>
-            + Akademisyen Ekle
-          </Btn>
-        )}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {canManage && viewMode === "list" && (
+            <Btn onClick={function() { setAddModal(true); }}>
+              + Akademisyen Ekle
+            </Btn>
+          )}
+        </div>
       </div>
 
-      {/* Arama */}
-      <div style={{ marginBottom: 16 }}>
-        <Input
-          placeholder="Akademisyen ara..."
-          value={searchTerm}
-          onChange={function(e) { setSearchTerm(e.target.value); }}
-          style={{ maxWidth: 400 }}
-        />
+      {/* Görünüm Sekmeleri */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: "2px solid " + COLORS.border }}>
+        {[
+          { key: "list", label: "Akademisyenler" },
+          { key: "analytics", label: "Analitik Dashboard" },
+        ].map(function(tab) {
+          var isActive = viewMode === tab.key;
+          return React.createElement("button", {
+            key: tab.key,
+            onClick: function() { setViewMode(tab.key); },
+            style: {
+              padding: "10px 20px", fontSize: 13, fontWeight: isActive ? 600 : 400,
+              border: "none", borderBottom: isActive ? "2px solid " + COLORS.accent : "2px solid transparent",
+              marginBottom: -2, cursor: "pointer",
+              background: "transparent", color: isActive ? COLORS.accent : COLORS.textLight,
+              transition: "all 0.15s",
+            }
+          }, tab.label);
+        })}
       </div>
+
+      {/* Analitik Dashboard Görünümü */}
+      {viewMode === "analytics" && (
+        React.createElement(AnalyticsDashboard, { deptId: deptId, isAdmin: isAdmin })
+      )}
+
+      {/* Arama - sadece liste görünümünde */}
+      {viewMode === "list" && React.createElement("div", { style: { marginBottom: 16 } },
+        React.createElement(Input, {
+          placeholder: "Akademisyen ara...",
+          value: searchTerm,
+          onChange: function(e) { setSearchTerm(e.target.value); },
+          style: { maxWidth: 400 },
+        })
+      )}
 
       {/* Loading */}
-      {loading && !selectedProf && (
+      {viewMode === "list" && loading && !selectedProf && (
         <div style={{ textAlign: "center", padding: 40, color: COLORS.textLight }}>
           Yükleniyor...
         </div>
       )}
 
       {/* Liste */}
-      {!loading && filtered.length === 0 ? (
+      {viewMode === "list" && !loading && filtered.length === 0 ? (
         <Card>
           <div style={{ textAlign: "center", padding: 40 }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>👨‍🏫</div>
@@ -833,7 +1365,7 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
             )}
           </div>
         </Card>
-      ) : (
+      ) : viewMode === "list" ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 12 }}>
           {filtered.map(function(prof) {
             return (
@@ -849,7 +1381,7 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
             );
           })}
         </div>
-      )}
+      ) : null}
 
       {/* Akademisyen Ekleme Modal */}
       {addModal && (
