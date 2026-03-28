@@ -1811,6 +1811,24 @@ const LoginModal = ({ onLogin }) => {
     }
   };
 
+  const stars = React.useMemo(() => Array.from({ length: 60 }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    top: Math.random() * 60,
+    size: Math.random() * 2.5 + 0.5,
+    delay: Math.random() * 4,
+    duration: Math.random() * 3 + 2,
+  })), []);
+
+  const snowflakes = React.useMemo(() => Array.from({ length: 25 }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    size: Math.random() * 3 + 1,
+    delay: Math.random() * 8,
+    duration: Math.random() * 6 + 6,
+    opacity: Math.random() * 0.4 + 0.1,
+  })), []);
+
   const loginStyles = `
     @keyframes loginFadeIn {
       from { opacity: 0; transform: translateY(20px); }
@@ -1824,18 +1842,93 @@ const LoginModal = ({ onLogin }) => {
       20%, 60% { transform: translateX(-6px); }
       40%, 80% { transform: translateX(6px); }
     }
+    @keyframes starTwinkle {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+    @keyframes auroraPulse {
+      0% { opacity: 0.3; d: path("M0,200 Q200,120 400,180 T800,160 L800,300 L0,300 Z"); }
+      33% { opacity: 0.5; d: path("M0,180 Q250,100 500,160 T800,140 L800,300 L0,300 Z"); }
+      66% { opacity: 0.4; d: path("M0,190 Q180,130 450,150 T800,170 L800,300 L0,300 Z"); }
+      100% { opacity: 0.3; d: path("M0,200 Q200,120 400,180 T800,160 L800,300 L0,300 Z"); }
+    }
+    @keyframes auroraPulse2 {
+      0% { opacity: 0.2; d: path("M0,220 Q300,140 600,200 T800,180 L800,300 L0,300 Z"); }
+      50% { opacity: 0.4; d: path("M0,200 Q250,160 500,180 T800,200 L800,300 L0,300 Z"); }
+      100% { opacity: 0.2; d: path("M0,220 Q300,140 600,200 T800,180 L800,300 L0,300 Z"); }
+    }
+    @keyframes snowFall {
+      0% { transform: translateY(-10px) rotate(0deg); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+    }
   `;
 
 
   return (
     <div style={{
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: "#141008",
+      background: "linear-gradient(180deg, #020b18 0%, #0a1628 25%, #0f1f3a 50%, #132844 70%, #1a3352 100%)",
       display: "flex", alignItems: "center", justifyContent: "center",
       zIndex: 10000, padding: 20, overflow: "hidden",
       fontFamily: "'Source Sans 3', sans-serif",
     }}>
       <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
+
+      {/* Yıldızlar */}
+      {stars.map(s => (
+        <div key={s.id} style={{
+          position: "absolute", left: `${s.left}%`, top: `${s.top}%`,
+          width: s.size, height: s.size, borderRadius: "50%",
+          background: "#FCD34D",
+          animation: `starTwinkle ${s.duration}s ease-in-out ${s.delay}s infinite`,
+          opacity: 0.3, zIndex: 0,
+        }} />
+      ))}
+
+      {/* Aurora Borealis SVG */}
+      <svg style={{ position: "absolute", bottom: 0, left: 0, width: "100%", height: "60%", zIndex: 0, pointerEvents: "none" }} viewBox="0 0 800 300" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="auroraGrad1" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22d3ee" stopOpacity="0" />
+            <stop offset="40%" stopColor="#22d3ee" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="auroraGrad2" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#a78bfa" stopOpacity="0" />
+            <stop offset="40%" stopColor="#a78bfa" stopOpacity="0.12" />
+            <stop offset="100%" stopColor="#a78bfa" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="auroraGrad3" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#34d399" stopOpacity="0" />
+            <stop offset="50%" stopColor="#34d399" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d="M0,200 Q200,120 400,180 T800,160 L800,300 L0,300 Z" fill="url(#auroraGrad1)" style={{ animation: "auroraPulse 8s ease-in-out infinite" }} />
+        <path d="M0,220 Q300,140 600,200 T800,180 L800,300 L0,300 Z" fill="url(#auroraGrad2)" style={{ animation: "auroraPulse2 10s ease-in-out infinite" }} />
+        <path d="M0,240 Q150,180 350,220 T800,200 L800,300 L0,300 Z" fill="url(#auroraGrad3)" style={{ animation: "auroraPulse 12s ease-in-out 2s infinite" }} />
+      </svg>
+
+      {/* Dağlar */}
+      <svg style={{ position: "absolute", bottom: 0, left: 0, width: "100%", height: "30%", zIndex: 0, pointerEvents: "none" }} viewBox="0 0 800 200" preserveAspectRatio="none">
+        <polygon points="0,200 100,80 200,140 320,50 420,120 500,70 620,130 720,60 800,110 800,200" fill="#0d1b2a" opacity="0.8" />
+        <polygon points="0,200 80,120 180,160 280,90 400,140 520,100 650,150 750,100 800,130 800,200" fill="#1b2838" opacity="0.6" />
+        <polyline points="318,52 322,48 326,52" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" />
+        <polyline points="498,72 502,67 506,72" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
+        <polyline points="718,62 722,57 726,62" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
+      </svg>
+
+      {/* Kar Taneleri */}
+      {snowflakes.map(s => (
+        <div key={`snow-${s.id}`} style={{
+          position: "absolute", left: `${s.left}%`, top: "-10px",
+          width: s.size, height: s.size, borderRadius: "50%",
+          background: "white", opacity: s.opacity, zIndex: 1,
+          animation: `snowFall ${s.duration}s linear ${s.delay}s infinite`,
+        }} />
+      ))}
 
       <div style={{
         maxWidth: 480, width: "calc(100% - 24px)", position: "relative", zIndex: 2,
@@ -1860,10 +1953,10 @@ const LoginModal = ({ onLogin }) => {
 
         {/* Kart */}
         <div style={{
-          background: "rgba(30, 26, 18, 0.7)",
+          background: "rgba(10, 15, 30, 0.75)",
           backdropFilter: "blur(16px)",
           WebkitBackdropFilter: "blur(16px)",
-          border: "1px solid rgba(252,211,77,0.08)",
+          border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: 16, overflow: "hidden",
           boxShadow: "0 16px 48px rgba(0,0,0,0.4)",
         }}>
