@@ -631,7 +631,7 @@ function AppShell() {
         erasmus: window.ErasmusLearningAgreementApp,
         sinav: window.SinavOtomasyonuApp,
         muafiyet: window.DersMuafiyetApp,
-        yazokulu: window.YazOkuluApp,
+
         portal: window.OgrenciPortaliApp,
         projeler: window.ProjeModuluApp,
         formlar: window.FormlarModuluApp,
