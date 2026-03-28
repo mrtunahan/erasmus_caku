@@ -1898,7 +1898,7 @@ const LoginModal = ({ onLogin }) => {
   return (
     <div style={{
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: "linear-gradient(180deg, #010810 0%, #061020 18%, #0b1a30 35%, #0f2240 50%, #132d50 65%, #152f4d 80%, #1a3352 100%)",
+      background: "linear-gradient(180deg, #0a0806 0%, #141008 18%, #1a1610 35%, #1e1a12 50%, #221e16 65%, #262018 80%, #2a2418 100%)",
       display: "flex", alignItems: "center", justifyContent: "center",
       zIndex: 10000, padding: 20, overflow: "hidden",
       fontFamily: "'Source Sans 3', sans-serif",
@@ -1910,84 +1910,20 @@ const LoginModal = ({ onLogin }) => {
         <div key={`s-${i}`} style={{
           position: "absolute", left: s.left, top: s.top,
           width: s.size, height: s.size, borderRadius: "50%",
-          background: "#fff",
+          background: "rgba(252,211,77,0.7)",
           animation: `starTwinkle ${s.duration} ease-in-out ${s.delay} infinite`,
           pointerEvents: "none",
         }} />
       ))}
 
       {/* Aurora Borealis katmanları */}
-      <svg viewBox="0 0 1440 200" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "40%", pointerEvents: "none" }} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="aurora1" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#00ff87" stopOpacity="0" />
-            <stop offset="20%" stopColor="#00ff87" stopOpacity="0.5" />
-            <stop offset="40%" stopColor="#60efff" stopOpacity="0.6" />
-            <stop offset="60%" stopColor="#7c3aed" stopOpacity="0.4" />
-            <stop offset="80%" stopColor="#00ff87" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#60efff" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="aurora2" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#60efff" stopOpacity="0" />
-            <stop offset="25%" stopColor="#60efff" stopOpacity="0.4" />
-            <stop offset="50%" stopColor="#00ff87" stopOpacity="0.5" />
-            <stop offset="75%" stopColor="#a855f7" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#00ff87" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="aurora3" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#a855f7" stopOpacity="0" />
-            <stop offset="30%" stopColor="#7c3aed" stopOpacity="0.3" />
-            <stop offset="50%" stopColor="#60efff" stopOpacity="0.35" />
-            <stop offset="70%" stopColor="#00ff87" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
-          </linearGradient>
-          <filter id="auroraBlur">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="8" />
-          </filter>
-          <filter id="auroraBlur2">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="12" />
-          </filter>
-        </defs>
-        <path d="M0,120 C200,60 400,140 600,80 C800,30 1000,110 1200,60 C1350,30 1440,70 1440,70 L1440,0 L0,0 Z" fill="url(#aurora1)" filter="url(#auroraBlur)" style={{ animation: "auroraSway1 8s ease-in-out infinite" }} />
-        <path d="M0,160 C180,100 360,180 540,120 C720,70 900,160 1080,100 C1260,60 1440,110 1440,110 L1440,0 L0,0 Z" fill="url(#aurora2)" filter="url(#auroraBlur2)" style={{ animation: "auroraSway2 10s ease-in-out infinite" }} />
-        <path d="M0,100 C240,150 480,60 720,130 C960,70 1200,140 1440,90 L1440,0 L0,0 Z" fill="url(#aurora3)" filter="url(#auroraBlur)" style={{ animation: "auroraSway3 12s ease-in-out infinite" }} />
-      </svg>
+      {/* Sıcak ışık yansıması */}
+      <div style={{ position: "absolute", top: "0%", left: "25%", width: "50%", height: "35%", background: "radial-gradient(ellipse at center, rgba(245,158,11,0.06) 0%, rgba(217,119,6,0.02) 40%, transparent 70%)", pointerEvents: "none" }} />
 
-      {/* Aurora yansıma ışığı */}
-      <div style={{ position: "absolute", top: "5%", left: "20%", width: "60%", height: "30%", background: "radial-gradient(ellipse at center, rgba(0,255,135,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
-
-      {/* Dağ silüetleri (kar) - 3 katman */}
-      <svg viewBox="0 0 1440 320" style={{ position: "absolute", bottom: 0, left: 0, width: "100%", height: "38%", pointerEvents: "none" }} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="mtGrad1" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#081525" />
-            <stop offset="100%" stopColor="#0a1628" />
-          </linearGradient>
-          <linearGradient id="mtGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#0c1d33" />
-            <stop offset="100%" stopColor="#0f1a2e" />
-          </linearGradient>
-          <linearGradient id="mtGrad3" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#111f35" />
-            <stop offset="100%" stopColor="#132238" />
-          </linearGradient>
-        </defs>
-        {/* Arka katman */}
-        <path d="M0,320 L0,240 L60,230 L120,180 L180,210 L240,150 L300,180 L360,120 L420,160 L480,100 L540,140 L600,80 L660,120 L720,60 L780,100 L840,55 L900,90 L960,60 L1020,100 L1080,80 L1140,120 L1200,100 L1260,140 L1320,120 L1380,150 L1440,130 L1440,320 Z" fill="url(#mtGrad1)" />
-        {/* Orta katman */}
-        <path d="M0,320 L0,260 L80,250 L150,190 L200,220 L280,140 L340,180 L400,100 L450,160 L520,80 L580,130 L640,60 L700,110 L760,50 L820,100 L880,70 L940,130 L1000,90 L1060,150 L1120,110 L1180,170 L1240,130 L1300,180 L1360,150 L1440,190 L1440,320 Z" fill="url(#mtGrad2)" />
-        {/* Ön katman */}
-        <path d="M0,320 L0,280 L100,270 L180,230 L250,260 L340,200 L420,240 L500,180 L580,220 L660,170 L740,210 L820,160 L900,200 L980,170 L1060,210 L1140,180 L1220,220 L1300,200 L1380,230 L1440,220 L1440,320 Z" fill="url(#mtGrad3)" />
-        {/* Kar tepeleri */}
-        <path d="M270,144 L280,140 L290,147" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.5" />
-        <path d="M390,104 L400,100 L410,107" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
-        <path d="M510,84 L520,80 L530,87" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
-        <path d="M630,64 L640,60 L650,67" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
-        <path d="M750,54 L760,50 L770,57" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-        <path d="M870,74 L880,70 L890,77" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
-        <path d="M240,154 L248,150 L256,157" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
-        <path d="M960,64 L968,60 L976,67" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
-        <path d="M120,184 L128,180 L136,187" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+      {/* Dağ silüetleri - sıcak tonlar */}
+      <svg viewBox="0 0 1440 320" style={{ position: "absolute", bottom: 0, left: 0, width: "100%", height: "32%", pointerEvents: "none" }} preserveAspectRatio="none">
+        <path d="M0,320 L0,260 L80,250 L150,190 L200,220 L280,140 L340,180 L400,100 L450,160 L520,80 L580,130 L640,60 L700,110 L760,50 L820,100 L880,70 L940,130 L1000,90 L1060,150 L1120,110 L1180,170 L1240,130 L1300,180 L1360,150 L1440,190 L1440,320 Z" fill="#100e08" />
+        <path d="M0,320 L0,280 L100,270 L180,230 L250,260 L340,200 L420,240 L500,180 L580,220 L660,170 L740,210 L820,160 L900,200 L980,170 L1060,210 L1140,180 L1220,220 L1300,200 L1380,230 L1440,220 L1440,320 Z" fill="#141008" />
       </svg>
 
       {/* Kar taneleri */}
@@ -2001,44 +1937,39 @@ const LoginModal = ({ onLogin }) => {
         }} />
       ))}
 
-      {/* Logo Watermark - arkaplanda büyük, soluk */}
-      <img src="logo.png" alt="" style={{
-        position: "absolute", top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: 320, height: 320, objectFit: "cover",
-        opacity: 0.04, pointerEvents: "none",
-        filter: "grayscale(50%)",
-      }} />
-
       <div style={{
-        maxWidth: 420, width: "calc(100% - 24px)", position: "relative", zIndex: 2,
+        maxWidth: 480, width: "calc(100% - 24px)", position: "relative", zIndex: 2,
         animation: "loginFadeIn 0.5s ease-out",
         margin: "0 auto", padding: "0 12px", boxSizing: "border-box",
       }}>
-        {/* Kurumsal Başlık */}
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
+        {/* Papatya Logo & Başlık */}
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <img src="logo.png" alt="Logo" style={{
+            width: 72, height: 72, borderRadius: 18,
+            objectFit: "cover", margin: "0 auto 14px",
+            display: "block",
+          }} />
           <h1 style={{
-            margin: 0, fontSize: 26, fontWeight: 700, color: "white",
-            fontFamily: "'Inter', sans-serif", letterSpacing: "-0.01em",
+            margin: 0, fontSize: 24, fontWeight: 600, color: "#FCD34D",
+            fontFamily: "'Inter', sans-serif", letterSpacing: "0.01em",
           }}>Offline Asistan</h1>
-          <div style={{ width: 40, height: 2, background: "rgba(16,185,129,0.5)", margin: "12px auto", borderRadius: 1 }} />
-          <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.4)", fontWeight: 400, letterSpacing: "0.05em" }}>
+          <p style={{ margin: "6px 0 0", fontSize: 12, color: "rgba(255,255,255,0.3)", fontWeight: 400, letterSpacing: "0.06em" }}>
             Çankırı Karatekin Üniversitesi
           </p>
         </div>
 
         {/* Kart */}
         <div style={{
-          background: "rgba(13, 22, 45, 0.7)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          border: "1px solid rgba(255,255,255,0.06)",
+          background: "rgba(30, 26, 18, 0.7)",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+          border: "1px solid rgba(252,211,77,0.08)",
           borderRadius: 16, overflow: "hidden",
-          boxShadow: "0 20px 50px rgba(0,0,0,0.4)",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.4)",
         }}>
           {/* Sekmeler - Admin hariç (admin URL ile girer) */}
           {activeTab !== "admin" && (
-          <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ display: "flex", borderBottom: "1px solid rgba(252,211,77,0.08)" }}>
             {[
               { key: "student", label: "Öğrenci" },
               { key: "professor", label: "Akademisyen" },
@@ -2048,14 +1979,13 @@ const LoginModal = ({ onLogin }) => {
               return (
                 <button key={tab.key} onClick={() => { setActiveTab(tab.key); setError(""); setIdentifier(""); setPassword(""); setStudentStep("number"); setStudentInfo(null); resetSetupState(); setProfSearch(""); setProfDropdownOpen(false); }} type="button" style={{
                   flex: 1, padding: "14px 8px", border: "none", cursor: "pointer",
-                  background: active ? "rgba(255,255,255,0.04)" : "transparent",
-                  color: active ? "white" : "rgba(255,255,255,0.35)",
-                  fontSize: 13, fontWeight: active ? 600 : 500,
+                  background: "transparent",
+                  color: active ? "#FCD34D" : "rgba(255,255,255,0.3)",
+                  fontSize: 13, fontWeight: active ? 600 : 400,
                   transition: "all 0.25s ease",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
                   fontFamily: "'Inter', sans-serif",
-                  borderBottom: active ? "2px solid rgba(255,255,255,0.7)" : "2px solid transparent",
-                  letterSpacing: "0.01em",
+                  borderBottom: active ? "2px solid #F59E0B" : "2px solid transparent",
                 }}>
                   {tab.label}
                 </button>
@@ -2066,8 +1996,8 @@ const LoginModal = ({ onLogin }) => {
 
           {/* Admin URL ile giriş - üst bar */}
           {activeTab === "admin" && (
-            <div style={{ padding: "14px 28px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.6)", letterSpacing: "0.05em" }}>Yönetici Girişi</span>
+            <div style={{ padding: "14px 28px", borderBottom: "1px solid rgba(252,211,77,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#FCD34D", letterSpacing: "0.05em" }}>Yönetici Girişi</span>
             </div>
           )}
 
@@ -2077,15 +2007,15 @@ const LoginModal = ({ onLogin }) => {
               <div style={{ textAlign: "center", marginBottom: 24 }}>
                 <div style={{
                   width: 56, height: 56, borderRadius: "50%", margin: "0 auto 16px",
-                  background: "rgba(59,130,246,0.15)", display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "rgba(245,158,11,0.1)", display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" />
                   </svg>
                 </div>
                 <h3 style={{ color: "white", fontSize: 18, fontWeight: 600, margin: 0 }}>Kayıt Ol</h3>
                 <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, margin: "8px 0 0" }}>
-                  <strong style={{ color: "#3B82F6" }}>{pendingStudentNumber}</strong> numaralı öğrenci olarak kayıt olun.
+                  <strong style={{ color: "#FCD34D" }}>{pendingStudentNumber}</strong> numaralı öğrenci olarak kayıt olun.
                 </p>
               </div>
 
@@ -2093,14 +2023,14 @@ const LoginModal = ({ onLogin }) => {
                 <div style={{ flex: 1 }}>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Ad</label>
                   <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Adınız" autoFocus
-                    style={{ width: "100%", padding: "12px 16px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(15,23,42,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(255,255,255,0.25)"; e.target.style.boxShadow = "0 0 0 3px rgba(255,255,255,0.04)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.boxShadow = "none"; }} />
+                    style={{ width: "100%", padding: "12px 16px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
+                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Soyad</label>
                   <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Soyadınız"
-                    style={{ width: "100%", padding: "12px 16px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(15,23,42,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(255,255,255,0.25)"; e.target.style.boxShadow = "0 0 0 3px rgba(255,255,255,0.04)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.boxShadow = "none"; }} />
+                    style={{ width: "100%", padding: "12px 16px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
+                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
                 </div>
               </div>
 
@@ -2111,8 +2041,8 @@ const LoginModal = ({ onLogin }) => {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                   </div>
                   <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Şifrenizi belirleyin (en az 4 karakter)"
-                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(15,23,42,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(255,255,255,0.25)"; e.target.style.boxShadow = "0 0 0 3px rgba(255,255,255,0.04)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.boxShadow = "none"; }} />
+                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
+                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
                 </div>
               </div>
 
@@ -2123,8 +2053,8 @@ const LoginModal = ({ onLogin }) => {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
                   </div>
                   <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifrenizi tekrar girin"
-                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(15,23,42,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(255,255,255,0.25)"; e.target.style.boxShadow = "0 0 0 3px rgba(255,255,255,0.04)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.boxShadow = "none"; }} />
+                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
+                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
                 </div>
               </div>
 
@@ -2137,7 +2067,7 @@ const LoginModal = ({ onLogin }) => {
 
               <button type="submit" disabled={loading} style={{
                 width: "100%", padding: "12px 20px", borderRadius: 8, border: "none",
-                background: loading ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.9)", color: loading ? "rgba(255,255,255,0.3)" : "#0f172a",
+                background: loading ? "rgba(255,255,255,0.06)" : "#F59E0B", color: loading ? "rgba(255,255,255,0.3)" : "#1a1408",
                 fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
                 fontFamily: "'Inter', sans-serif", transition: "all 0.2s ease",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
@@ -2152,7 +2082,7 @@ const LoginModal = ({ onLogin }) => {
 
               <button type="button" onClick={resetSetupState} style={{
                 width: "100%", padding: "10px", marginTop: 12, borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.06)", background: "transparent",
                 color: "rgba(255,255,255,0.5)", fontSize: 13, cursor: "pointer", fontFamily: "'Inter', sans-serif",
                 borderRadius: 10, transition: "all 0.2s ease",
               }}>Geri Dön</button>
@@ -2164,15 +2094,15 @@ const LoginModal = ({ onLogin }) => {
               <div style={{ textAlign: "center", marginBottom: 24 }}>
                 <div style={{
                   width: 56, height: 56, borderRadius: "50%", margin: "0 auto 16px",
-                  background: "rgba(5,150,105,0.15)", display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "rgba(245,158,11,0.1)", display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
                   </svg>
                 </div>
                 <h3 style={{ color: "white", fontSize: 18, fontWeight: 600, margin: 0 }}>Yeni Şifre Belirleyin</h3>
                 <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, margin: "8px 0 0" }}>
-                  Hoş geldiniz, <strong style={{ color: "#059669" }}>{pendingUser?.name}</strong>! Güvenliğiniz için lütfen yeni bir şifre belirleyin.
+                  Hoş geldiniz, <strong style={{ color: "#FCD34D" }}>{pendingUser?.name}</strong>! Güvenliğiniz için lütfen yeni bir şifre belirleyin.
                 </p>
               </div>
 
@@ -2183,8 +2113,8 @@ const LoginModal = ({ onLogin }) => {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                   </div>
                   <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Yeni şifrenizi girin (en az 4 karakter)" autoFocus
-                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(15,23,42,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(255,255,255,0.25)"; e.target.style.boxShadow = "0 0 0 3px rgba(255,255,255,0.04)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.boxShadow = "none"; }} />
+                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
+                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
                 </div>
               </div>
 
@@ -2195,8 +2125,8 @@ const LoginModal = ({ onLogin }) => {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
                   </div>
                   <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifrenizi tekrar girin"
-                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(15,23,42,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(255,255,255,0.25)"; e.target.style.boxShadow = "0 0 0 3px rgba(255,255,255,0.04)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.boxShadow = "none"; }} />
+                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
+                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
                 </div>
               </div>
 
@@ -2209,7 +2139,7 @@ const LoginModal = ({ onLogin }) => {
 
               <button type="submit" disabled={loading} style={{
                 width: "100%", padding: "12px 20px", borderRadius: 8, border: "none",
-                background: loading ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.9)", color: loading ? "rgba(255,255,255,0.3)" : "#0f172a",
+                background: loading ? "rgba(255,255,255,0.06)" : "#F59E0B", color: loading ? "rgba(255,255,255,0.3)" : "#1a1408",
                 fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
                 fontFamily: "'Inter', sans-serif", transition: "all 0.2s ease",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
@@ -2224,7 +2154,7 @@ const LoginModal = ({ onLogin }) => {
 
               <button type="button" onClick={resetSetupState} style={{
                 width: "100%", padding: "10px", marginTop: 12, borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.06)", background: "transparent",
                 color: "rgba(255,255,255,0.5)", fontSize: 13, cursor: "pointer", fontFamily: "'Inter', sans-serif",
                 borderRadius: 10, transition: "all 0.2s ease",
               }}>Geri Dön</button>
@@ -2232,10 +2162,10 @@ const LoginModal = ({ onLogin }) => {
           ) : activeTab === "student" && studentStep === "password" ? (
           /* Öğrenci: Şifre Giriş Adımı */
           <form onSubmit={handleStudentLogin} style={{ padding: 28 }}>
-            <div style={{ marginBottom: 20, padding: "16px 18px", borderRadius: 14, background: "linear-gradient(135deg, rgba(5,150,105,0.08) 0%, rgba(16,185,129,0.04) 100%)", border: "1px solid rgba(5,150,105,0.15)", animation: "tabContentIn 0.3s ease-out" }}>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 6, letterSpacing: "0.05em" }}>Hoş geldiniz</div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: "#34d399", letterSpacing: "-0.01em" }}>{studentInfo?.firstName} {studentInfo?.lastName}</div>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{identifier}</div>
+            <div style={{ marginBottom: 20, padding: "14px 16px", borderRadius: 10, background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.12)" }}>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>Hoş geldiniz</div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: "#FCD34D" }}>{studentInfo?.firstName} {studentInfo?.lastName}</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 3, fontFamily: "'JetBrains Mono', monospace" }}>{identifier}</div>
             </div>
 
             <div style={{ marginBottom: 24 }}>
@@ -2279,7 +2209,7 @@ const LoginModal = ({ onLogin }) => {
             </button>
             <button type="button" onClick={() => { setStudentStep("number"); setPassword(""); setStudentInfo(null); setError(""); }} style={{
               width: "100%", padding: "10px", marginTop: 12, borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.06)", background: "transparent",
               color: "rgba(255,255,255,0.5)", fontSize: 13, cursor: "pointer", fontFamily: "'Inter', sans-serif",
               borderRadius: 10, transition: "all 0.2s ease",
             }}>Farklı numara ile giriş</button>
@@ -2314,8 +2244,8 @@ const LoginModal = ({ onLogin }) => {
 
             <button type="submit" disabled={loading || identifier.length !== 9} style={{
               width: "100%", padding: "12px 20px", borderRadius: 8, border: "none",
-              background: (loading || identifier.length !== 9) ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.9)",
-              color: (loading || identifier.length !== 9) ? "rgba(255,255,255,0.3)" : "#0f172a",
+              background: (loading || identifier.length !== 9) ? "rgba(255,255,255,0.06)" : "#F59E0B",
+              color: (loading || identifier.length !== 9) ? "rgba(255,255,255,0.3)" : "#1a1408",
               fontSize: 14, fontWeight: 600, cursor: (loading || identifier.length !== 9) ? "not-allowed" : "pointer",
               fontFamily: "'Inter', sans-serif", transition: "all 0.2s ease",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
@@ -2343,8 +2273,8 @@ const LoginModal = ({ onLogin }) => {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                   </div>
                   <input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Adınızı ve soyadınızı girin" autoFocus
-                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(15,23,42,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(255,255,255,0.25)"; e.target.style.boxShadow = "0 0 0 3px rgba(255,255,255,0.04)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.1)"; e.target.style.boxShadow = "none"; }} />
+                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
+                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
                 </div>
               </div>
             )}
@@ -2354,99 +2284,74 @@ const LoginModal = ({ onLogin }) => {
                 <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
                   Akademisyen
                 </label>
-                <div style={{ position: "relative" }}>
-                  {identifier && !profDropdownOpen ? (
-                    <div
-                      onClick={() => { setProfDropdownOpen(true); setProfSearch(""); }}
-                      style={{
-                        width: "100%", padding: "12px 40px 12px 14px", borderRadius: 10,
-                        border: "1px solid rgba(255,255,255,0.15)", background: "rgba(15,23,42,0.6)",
-                        color: "white", fontSize: 14, cursor: "pointer",
-                        fontFamily: "'Inter', sans-serif", boxSizing: "border-box",
-                        display: "flex", alignItems: "center", gap: 10,
-                      }}
-                    >
-                      <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.5)", flexShrink: 0 }}>
-                        {(identifier || "").split(" ").map(w => w.charAt(0)).slice(0, 2).join("").toUpperCase()}
-                      </div>
-                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{identifier}</span>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setIdentifier(""); setProfSearch(""); setProfDropdownOpen(true); }} style={{
-                        position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-                        background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: 18, padding: 4,
-                      }}>×</button>
+                {/* Seçili akademisyen gösterimi */}
+                {identifier && !profDropdownOpen && (
+                  <div
+                    onClick={() => { setProfDropdownOpen(true); setProfSearch(""); }}
+                    style={{
+                      padding: "10px 14px", borderRadius: 10, marginBottom: 0,
+                      border: "1px solid rgba(245,158,11,0.2)", background: "rgba(245,158,11,0.06)",
+                      color: "#FCD34D", fontSize: 14, cursor: "pointer",
+                      fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", gap: 10,
+                      position: "relative",
+                    }}
+                  >
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(245,158,11,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#F59E0B", flexShrink: 0 }}>
+                      {(identifier || "").split(" ").map(w => w.charAt(0)).slice(0, 2).join("").toUpperCase()}
                     </div>
-                  ) : (
-                    <>
-                      <div style={{ position: "absolute", left: 14, top: 14, color: "rgba(255,255,255,0.25)", pointerEvents: "none" }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <span style={{ flex: 1 }}>{identifier}</span>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setIdentifier(""); setProfSearch(""); setProfDropdownOpen(true); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: 16, padding: "2px 6px" }}>×</button>
+                  </div>
+                )}
+                {/* Arama + Liste */}
+                {(!identifier || profDropdownOpen) && (
+                  <div>
+                    <div style={{ position: "relative", marginBottom: 6 }}>
+                      <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.2)", pointerEvents: "none" }}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                       </div>
                       <input
-                        type="text"
-                        value={profSearch}
-                        onChange={e => { setProfSearch(e.target.value); setProfDropdownOpen(true); }}
-                        onFocus={() => setProfDropdownOpen(true)}
-                        placeholder="Ad veya soyad yazarak arayın..."
+                        type="text" value={profSearch}
+                        onChange={e => setProfSearch(e.target.value)}
+                        placeholder="Akademisyen adı yazın..."
                         autoFocus
                         style={{
-                          width: "100%", padding: "12px 14px 12px 38px", borderRadius: 10,
-                          border: "1px solid rgba(255,255,255,0.15)", background: "rgba(15,23,42,0.6)",
-                          color: "white", fontSize: 14, outline: "none",
+                          width: "100%", padding: "10px 14px 10px 34px", borderRadius: 10,
+                          border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)",
+                          color: "white", fontSize: 13, outline: "none",
                           fontFamily: "'Inter', sans-serif", boxSizing: "border-box",
-                          transition: "all 0.3s ease",
                         }}
                       />
-                    </>
-                  )}
-                  {profDropdownOpen && (
+                    </div>
                     <div style={{
-                      position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-                      maxHeight: 220, overflowY: "auto",
-                      background: "rgba(10,18,35,0.97)", backdropFilter: "blur(12px)",
-                      border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10,
-                      zIndex: 20, boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+                      maxHeight: 180, overflowY: "auto", borderRadius: 10,
+                      border: "1px solid rgba(255,255,255,0.05)", background: "rgba(16,13,8,0.8)",
                     }}>
-                      {professorList.filter(p => {
-                        if (!profSearch) return true;
-                        return (p.name || "").toLocaleLowerCase("tr").indexOf(profSearch.toLocaleLowerCase("tr")) >= 0;
-                      }).length === 0 ? (
-                        <div style={{ padding: "16px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
-                          Sonuç bulunamadı
-                        </div>
-                      ) : (
-                        professorList.filter(p => {
-                          if (!profSearch) return true;
-                          return (p.name || "").toLocaleLowerCase("tr").indexOf(profSearch.toLocaleLowerCase("tr")) >= 0;
-                        }).map((p, idx) => (
-                          <div
-                            key={p.id || p.name}
+                      {(() => {
+                        const filtered = professorList.filter(p => !profSearch || (p.name || "").toLocaleLowerCase("tr").indexOf(profSearch.toLocaleLowerCase("tr")) >= 0);
+                        if (filtered.length === 0) return <div style={{ padding: "14px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 12 }}>Sonuç bulunamadı</div>;
+                        return filtered.map(p => (
+                          <div key={p.id || p.name}
                             onClick={() => { setIdentifier(p.name); setProfDropdownOpen(false); setProfSearch(""); }}
                             style={{
-                              padding: "10px 14px", cursor: "pointer",
-                              display: "flex", alignItems: "center", gap: 10,
-                              borderBottom: "1px solid rgba(255,255,255,0.04)",
+                              padding: "9px 12px", cursor: "pointer",
+                              display: "flex", alignItems: "center", gap: 8,
+                              borderBottom: "1px solid rgba(255,255,255,0.03)",
                               transition: "background 0.15s",
-                              fontSize: 13, color: "rgba(255,255,255,0.8)",
+                              fontSize: 13, color: "rgba(255,255,255,0.7)",
                             }}
-                            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                            onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,158,11,0.08)"; e.currentTarget.style.color = "#FCD34D"; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
                           >
-                            <div style={{
-                              width: 28, height: 28, borderRadius: 6,
-                              background: "rgba(255,255,255,0.06)",
-                              display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", flexShrink: 0,
-                            }}>
+                            <div style={{ width: 26, height: 26, borderRadius: 6, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>
                               {(p.name || "").split(" ").map(w => w.charAt(0)).slice(0, 2).join("").toUpperCase()}
                             </div>
-                            <span>{p.name}</span>
+                            {p.name}
                           </div>
-                        ))
-                      )}
+                        ));
+                      })()}
                     </div>
-                  )}
-                </div>
-                {profDropdownOpen && (
-                  <div onClick={() => setProfDropdownOpen(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 15 }} />
+                  </div>
                 )}
               </div>
             )}
