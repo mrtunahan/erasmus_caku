@@ -795,11 +795,12 @@ function generateXLSX(metricsData, periodLabel) {
 
   xml += '</Table>\n</Worksheet>\n</Workbook>';
 
-  var blob = new Blob([xml], { type: "application/vnd.ms-excel" });
+  var BOM = "\uFEFF";
+  var blob = new Blob([BOM + xml], { type: "application/vnd.ms-excel;charset=utf-8" });
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a");
   a.href = url;
-  a.download = "akademisyen_metrikleri_" + periodLabel + ".xlsx";
+  a.download = "akademisyen_metrikleri_" + periodLabel + ".xls";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1154,7 +1155,7 @@ function AnalyticsDashboard({ deptId, isAdmin }) {
             React.createElement("polyline", { points: "7 10 12 15 17 10" }),
             React.createElement("line", { x1: 12, y1: 15, x2: 12, y2: 3 })
           ),
-          "XLSX İndir"
+          "Excel İndir"
         )
       )
     ),
