@@ -935,9 +935,10 @@ function TrendChart({ data, width, height, lineColor }) {
 function AnalyticsDashboard({ deptId, isAdmin }) {
   var [metricsData, setMetricsData] = useState(null);
   var [loading, setLoading] = useState(true);
+  var [refreshing, setRefreshing] = useState(false);
   var [period, setPeriod] = useState(12); // 3, 6, 9, 12 ay
 
-  useEffect(function() {
+  var loadMetrics = useCallback(function() {
     setLoading(true);
     var token = localStorage.getItem("caku_auth_token");
     var headers = {};
@@ -953,6 +954,28 @@ function AnalyticsDashboard({ deptId, isAdmin }) {
       })
       .catch(function() { setLoading(false); });
   }, [deptId, isAdmin]);
+
+  // Tüm akademisyenleri force refresh et (cache'i yenile)
+  var handleRefresh = function() {
+    if (!metricsData || metricsData.length === 0) return;
+    setRefreshing(true);
+    var token = localStorage.getItem("caku_auth_token");
+    var headers = {};
+    if (token) headers["Authorization"] = "Bearer " + token;
+    var promises = metricsData.map(function(m) {
+      return fetch("/api/akademisyen/" + encodeURIComponent(m.username) + "?force=true", { headers: headers })
+        .then(function(r) { return r.json(); })
+        .catch(function() { return null; });
+    });
+    Promise.all(promises).then(function() {
+      setRefreshing(false);
+      loadMetrics(); // Yenilenen verileri tekrar çek
+    });
+  };
+
+  useEffect(function() {
+    loadMetrics();
+  }, [loadMetrics]);
 
   // Zaman dilimine göre filtreleme
   var cutoffDate = useMemo(function() {
@@ -1097,20 +1120,42 @@ function AnalyticsDashboard({ deptId, isAdmin }) {
           }, pb.label);
         })
       ),
-      React.createElement("button", {
-        onClick: function() { generateXLSX(processedData, period + "_ay"); },
-        style: {
-          padding: "8px 18px", fontSize: 12, fontWeight: 600,
-          background: "#059669", color: "#fff", border: "none", borderRadius: 8,
-          cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-        }
-      },
-        React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2 },
-          React.createElement("path", { d: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" }),
-          React.createElement("polyline", { points: "7 10 12 15 17 10" }),
-          React.createElement("line", { x1: 12, y1: 15, x2: 12, y2: 3 })
+      React.createElement("div", { style: { display: "flex", gap: 8 } },
+        React.createElement("button", {
+          onClick: handleRefresh,
+          disabled: refreshing,
+          style: {
+            padding: "8px 16px", fontSize: 12, fontWeight: 600,
+            background: refreshing ? COLORS.textLight : COLORS.accent, color: "#fff",
+            border: "none", borderRadius: 8,
+            cursor: refreshing ? "wait" : "pointer",
+            display: "flex", alignItems: "center", gap: 6,
+            opacity: refreshing ? 0.7 : 1,
+          }
+        },
+          React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2,
+            style: refreshing ? { animation: "loginSpin 1s linear infinite" } : {} },
+            React.createElement("path", { d: "M23 4v6h-6" }),
+            React.createElement("path", { d: "M1 20v-6h6" }),
+            React.createElement("path", { d: "M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" })
+          ),
+          refreshing ? "Yenileniyor..." : "Verileri Yenile"
         ),
-        "XLSX İndir"
+        React.createElement("button", {
+          onClick: function() { generateXLSX(processedData, period + "_ay"); },
+          style: {
+            padding: "8px 18px", fontSize: 12, fontWeight: 600,
+            background: "#059669", color: "#fff", border: "none", borderRadius: 8,
+            cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+          }
+        },
+          React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2 },
+            React.createElement("path", { d: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" }),
+            React.createElement("polyline", { points: "7 10 12 15 17 10" }),
+            React.createElement("line", { x1: 12, y1: 15, x2: 12, y2: 3 })
+          ),
+          "XLSX İndir"
+        )
       )
     ),
 
