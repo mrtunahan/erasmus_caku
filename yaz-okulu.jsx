@@ -547,7 +547,7 @@ const AdminStudentPanel = ({ students, onSave, onDelete }) => {
             </table></div>
 
             {isModalOpen && (
-                <_Modal title="Yeni Öğrenci Ekle" onClose={() => setIsModalOpen(false)}>
+                <_Modal open={true} title="Yeni Öğrenci Ekle" onClose={() => setIsModalOpen(false)}>
                     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                         <_FormField label="Öğrenci No">
                             <_Input value={form.studentNo} onChange={e => setForm({ ...form, studentNo: e.target.value })} required />
