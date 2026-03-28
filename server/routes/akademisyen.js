@@ -257,10 +257,16 @@ router.get("/metrics/all", async function(req, res) {
     }
     var snapshot = await query.get();
     var results = [];
+    var staleUsernames = [];
+
     snapshot.docs.forEach(function(doc) {
       var d = doc.data();
       if (!d.data) return;
       var data = d.data;
+      // publicationMetrics eksikse yeniden çekilecekler listesine ekle
+      if (!data.publicationMetrics) {
+        staleUsernames.push({ username: doc.id, departmentId: d.departmentId });
+      }
       results.push({
         username: doc.id,
         fullName: data.fullName || "",
@@ -272,6 +278,22 @@ router.get("/metrics/all", async function(req, res) {
         fetchedAt: d.fetchedAt
       });
     });
+
+    // Eski formattaki cache'leri arka planda yenile
+    if (staleUsernames.length > 0) {
+      Promise.all(staleUsernames.map(function(item) {
+        return fetchAcademicianPage(item.username).then(function(html) {
+          if (isNotFoundPage(html)) return null;
+          var data = parseAcademicianHTML(html, item.username);
+          var updateData = { data: data, fetchedAt: new Date() };
+          if (item.departmentId) updateData.departmentId = item.departmentId;
+          return db.collection("akademisyen_cache").doc(item.username).set(updateData, { merge: true });
+        }).catch(function() { return null; });
+      })).then(function() {
+        console.log("Stale cache refreshed for: " + staleUsernames.map(function(s) { return s.username; }).join(", "));
+      });
+    }
+
     res.json(results);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -360,6 +382,7 @@ router.delete("/:username", async function(req, res) {
 router.get("/:username", async function(req, res) {
   var username = normalizeUsername(req.params.username);
   var departmentId = req.query.departmentId || null;
+  var forceRefresh = req.query.force === "true";
 
   if (!username) return res.status(400).json({ error: "Kullanıcı adı gerekli" });
 
@@ -369,9 +392,11 @@ router.get("/:username", async function(req, res) {
     // Önce cache'e bak (24 saat geçerli)
     var docRef = db.collection("akademisyen_cache").doc(username);
     var cached = await docRef.get();
-    if (cached.exists) {
+    if (!forceRefresh && cached.exists) {
       var cachedData = cached.data();
-      if (cachedData.fetchedAt) {
+      // publicationMetrics yoksa cache'i geçersiz say (eski format)
+      var hasMetrics = cachedData.data && cachedData.data.publicationMetrics;
+      if (cachedData.fetchedAt && hasMetrics) {
         var fetchedTime = cachedData.fetchedAt && cachedData.fetchedAt._seconds
           ? cachedData.fetchedAt._seconds * 1000
           : new Date(cachedData.fetchedAt).getTime();
