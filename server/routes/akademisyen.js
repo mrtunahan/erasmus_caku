@@ -42,17 +42,45 @@ function extractSection(html, sectionId) {
 function extractCategorizedItems(sectionHtml) {
   if (!sectionHtml) return [];
   var categories = [];
-  // card veya panel sınırlarında böl
-  var parts = sectionHtml.split(/(?=<div[^>]*class="[^"]*(?:card\s|panel\s)[^"]*")/i);
+
+  // Strateji 1: timeline-heading / timeline-body yapısı (ÇAKUAVIS ana yapısı)
+  var timelineRegex = /<div[^>]*class="[^"]*timeline-heading[^"]*"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<div[^>]*class="[^"]*timeline-body[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+  var tmMatch;
+  var currentLabel = "";
+  var labelItems = {};
+  while ((tmMatch = timelineRegex.exec(sectionHtml)) !== null) {
+    var heading = stripTags(tmMatch[1]).trim();
+    var body = stripTags(tmMatch[2]).trim();
+    // Heading boşsa veya çok kısaysa, bu bir alt başlık değil öğedir
+    if (heading && heading.length > 3 && !body) {
+      currentLabel = heading;
+    } else if (body && body.length > 5) {
+      if (!labelItems[currentLabel]) labelItems[currentLabel] = [];
+      labelItems[currentLabel].push(body);
+    }
+  }
+
+  // timeline-heading'de sadece başlık, body'de item varsa kullan
+  var keys = Object.keys(labelItems);
+  if (keys.length > 0) {
+    keys.forEach(function(k) {
+      categories.push({ label: k, items: labelItems[k], count: labelItems[k].length });
+    });
+    return categories;
+  }
+
+  // Strateji 2: card veya panel sınırlarında böl
+  var parts = sectionHtml.split(/(?=<div[^>]*class="[^"]*(?:card\s|card"|panel\s|panel")[^"]*)/i);
   if (parts.length <= 1) {
     // card yapısı yoksa h3/h4/h5 başlıklarında böl
     parts = sectionHtml.split(/(?=<h[3-5][^>]*>)/i);
   }
   for (var i = 0; i < parts.length; i++) {
     var part = parts[i];
-    // Başlık çıkar
-    var headMatch = part.match(/<(?:h[3-5]|div)[^>]*(?:class="[^"]*(?:card-header|card-title|panel-heading|timeline-heading)[^"]*")?[^>]*>([\s\S]*?)<\/(?:h[3-5]|div)>/i);
-    var label = headMatch ? stripTags(headMatch[1]).trim() : "";
+    // Başlık çıkar - tüm heading varyasyonları
+    var headMatch = part.match(/<(?:h[3-5])[^>]*>([\s\S]*?)<\/(?:h[3-5])>/i) ||
+                    part.match(/<div[^>]*class="[^"]*(?:card-header|card-title|panel-heading|timeline-heading)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+    var label = headMatch ? stripTags(headMatch[1] || headMatch[2] || "").trim() : "";
     // Bu parçadaki öğeleri çıkar
     var items = extractListItems(part);
     if (items.length > 0) {
@@ -70,20 +98,63 @@ function extractYear(text) {
 
 // Yayın metnini kategorize et
 function categorizePublicationText(text, subLabel) {
-  var upper = (text + " " + (subLabel || "")).toUpperCase();
+  var combined = (text + " " + (subLabel || "")).toUpperCase();
+  // Türkçe karakterleri de normalize et
+  var upper = combined
+    .replace(/İ/g, "I").replace(/Ğ/g, "G").replace(/Ü/g, "U")
+    .replace(/Ş/g, "S").replace(/Ö/g, "O").replace(/Ç/g, "C")
+    .replace(/ı/g, "I").replace(/ğ/g, "G").replace(/ü/g, "U")
+    .replace(/ş/g, "S").replace(/ö/g, "O").replace(/ç/g, "C");
+
+  // SCI/SSCI/AHCI - açık eşleşme
   if (upper.indexOf("SCI") >= 0 || upper.indexOf("SSCI") >= 0 || upper.indexOf("AHCI") >= 0) return "sci";
-  if (upper.indexOf("ÜAK") >= 0 || upper.indexOf("ALAN İNDEKS") >= 0 || upper.indexOf("UAK") >= 0) return "uak";
-  if (upper.indexOf("ULAKBİM") >= 0 || upper.indexOf("ULAKBIM") >= 0 || upper.indexOf("TR DİZİN") >= 0 || upper.indexOf("TR DIZIN") >= 0) return "ulakbim";
-  if (upper.indexOf("KİTAP") >= 0 || upper.indexOf("KITAP") >= 0 || upper.indexOf("BOOK") >= 0 || upper.indexOf("BÖLÜM") >= 0 || upper.indexOf("BOLUM") >= 0) return "book";
-  if (upper.indexOf("BİLDİRİ") >= 0 || upper.indexOf("BILDIRI") >= 0 || upper.indexOf("KONGRE") >= 0 || upper.indexOf("SEMPOZYUM") >= 0 || upper.indexOf("CONFERENCE") >= 0 || upper.indexOf("SYMPOSIUM") >= 0) return "conference";
+  if (upper.indexOf("SCIENCE CITATION") >= 0 || upper.indexOf("WEB OF SCIENCE") >= 0 || upper.indexOf("WOS") >= 0) return "sci";
+
+  // ÜAK indeksi
+  if (upper.indexOf("UAK") >= 0 || upper.indexOf("ALAN INDEKS") >= 0 || upper.indexOf("ALAN INDEKSI") >= 0) return "uak";
+
+  // Ulakbim / TR Dizin
+  if (upper.indexOf("ULAKBIM") >= 0 || upper.indexOf("TR DIZIN") >= 0 || upper.indexOf("TR-DIZIN") >= 0 || upper.indexOf("TRDIZIN") >= 0) return "ulakbim";
+
+  // Kitap / Bölüm
+  if (upper.indexOf("KITAP") >= 0 || upper.indexOf("BOOK") >= 0 || upper.indexOf("BOLUM") >= 0 || upper.indexOf("CHAPTER") >= 0) return "book";
+
+  // Bildiri / Kongre / Sempozyum / Konferans
+  if (upper.indexOf("BILDIRI") >= 0 || upper.indexOf("KONGRE") >= 0 || upper.indexOf("SEMPOZYUM") >= 0 ||
+      upper.indexOf("CONFERENCE") >= 0 || upper.indexOf("SYMPOSIUM") >= 0 || upper.indexOf("PROCEEDING") >= 0 ||
+      upper.indexOf("WORKSHOP") >= 0 || upper.indexOf("CONGRESS") >= 0 || upper.indexOf("SUNUL") >= 0) return "conference";
+
+  // Alt başlık bazlı ek kategorizasyon (ÇAKUAVIS alt başlıkları)
+  var subUp = (subLabel || "").toUpperCase()
+    .replace(/İ/g, "I").replace(/Ğ/g, "G").replace(/Ü/g, "U")
+    .replace(/Ş/g, "S").replace(/Ö/g, "O").replace(/Ç/g, "C");
+
+  // "Uluslararası Hakemli Dergilerde" → genelde SCI/SSCI
+  if (subUp.indexOf("ULUSLARARASI") >= 0 && subUp.indexOf("DERGI") >= 0) return "sci";
+  // "Ulusal Hakemli Dergilerde" → genelde Ulakbim/TR Dizin
+  if (subUp.indexOf("ULUSAL") >= 0 && subUp.indexOf("DERGI") >= 0) return "ulakbim";
+  // "Uluslararası ... Bildiri" veya "Kongre" alt başlığı
+  if (subUp.indexOf("BILDIRI") >= 0 || subUp.indexOf("KONGRE") >= 0 || subUp.indexOf("SEMPOZYUM") >= 0 || subUp.indexOf("KONFERANS") >= 0) return "conference";
+  // "Kitap" alt başlığı
+  if (subUp.indexOf("KITAP") >= 0 || subUp.indexOf("BOOK") >= 0) return "book";
+  // "Hakemli Dergi" genel (ne uluslararası ne ulusal belirtilmemiş) → uak
+  if (subUp.indexOf("HAKEMLI") >= 0 && subUp.indexOf("DERGI") >= 0) return "uak";
+
+  // Metin bazlı ek ipuçları
+  if (upper.indexOf("JOURNAL") >= 0 || upper.indexOf("DERGI") >= 0) {
+    // "International" veya "Uluslararası" varsa SCI kabul et
+    if (upper.indexOf("INTERNATIONAL") >= 0 || upper.indexOf("ULUSLARARASI") >= 0) return "sci";
+    return "uak";
+  }
+
   return "other";
 }
 
 // Liste öğelerini çıkar (timeline-body veya card-body içinden)
 function extractListItems(sectionHtml) {
   var items = [];
-  // timeline-body veya card-body divlerini bul
-  var bodyRegex = /<div[^>]*class="[^"]*(?:timeline-body|card-body)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+  // timeline-body veya card-body divlerini bul (timeline-heading hariç)
+  var bodyRegex = /<div[^>]*class="[^"]*(?:timeline-body|card-body|panel-body)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
   var match;
   while ((match = bodyRegex.exec(sectionHtml)) !== null) {
     var text = stripTags(match[1]).trim();
@@ -178,14 +249,29 @@ function parseAcademicianHTML(html, username) {
     if (m) result.links[lp.key] = m[1];
   });
 
-  // Atıf istatistikleri (dashboard-stat divleri)
-  var statRegex = /<div[^>]*class="[^"]*dashboard-stat[^"]*"[\s\S]*?<span[^>]*class="[^"]*stat-digit[^"]*"[^>]*>([\s\S]*?)<\/span>[\s\S]*?<span[^>]*class="[^"]*stat-label[^"]*"[^>]*>([\s\S]*?)<\/span>/gi;
+  // Atıf istatistikleri (dashboard-stat divleri) - birden fazla pattern dene
   result.stats = {};
+  // Pattern 1: dashboard-stat sınıfı
+  var statRegex = /<div[^>]*class="[^"]*dashboard-stat[^"]*"[\s\S]*?<span[^>]*class="[^"]*stat-digit[^"]*"[^>]*>([\s\S]*?)<\/span>[\s\S]*?<span[^>]*class="[^"]*stat-label[^"]*"[^>]*>([\s\S]*?)<\/span>/gi;
   var statMatch;
   while ((statMatch = statRegex.exec(html)) !== null) {
     var label = stripTags(statMatch[2]).trim().toLowerCase();
     var value = stripTags(statMatch[1]).trim();
     if (label && value) result.stats[label] = value;
+  }
+  // Pattern 2: stat-count / stat-title yapısı
+  if (Object.keys(result.stats).length === 0) {
+    var statRegex2 = /<div[^>]*class="[^"]*stat[^"]*"[^>]*>[\s\S]*?<(?:span|div|h\d)[^>]*class="[^"]*(?:count|digit|number|value)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|h\d)>[\s\S]*?<(?:span|div|p)[^>]*class="[^"]*(?:label|title|desc|text)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|p)>/gi;
+    while ((statMatch = statRegex2.exec(html)) !== null) {
+      var label2 = stripTags(statMatch[2]).trim().toLowerCase();
+      var value2 = stripTags(statMatch[1]).trim();
+      if (label2 && value2) result.stats[label2] = value2;
+    }
+  }
+  // Pattern 3: Sayfa metninde "Atıf Sayısı" veya "Toplam Atıf" ara
+  if (Object.keys(result.stats).length === 0) {
+    var citMatch = html.match(/(?:at&#x131;f|atıf|atif|citation)[^<]*?(?:say&#x131;s&#x131;|sayısı|sayisi|count)?[^<]*?<[^>]*>[\s]*?(\d+)/i);
+    if (citMatch) result.stats["atıf sayısı"] = citMatch[1];
   }
 
   // Bölümleri çıkar
@@ -235,9 +321,21 @@ function parseAcademicianHTML(html, username) {
     result.publicationMetrics = metrics;
   }
 
-  // 2209 proje sayısı
+  // 2209 proje sayısı - projeleri ve tüm section'ları tara
   var projItems = (result.sections.projects || {}).items || [];
-  result.project2209Count = projItems.filter(function(item) { return item.indexOf("2209") >= 0; }).length;
+  var allSectionItems = [];
+  Object.keys(result.sections).forEach(function(key) {
+    allSectionItems = allSectionItems.concat(result.sections[key].items || []);
+  });
+  // Hem project section'ında hem tüm sayfalarda 2209 ara
+  result.project2209Count = projItems.filter(function(item) {
+    return item.indexOf("2209") >= 0 || item.toUpperCase().indexOf("TUBITAK 2209") >= 0 || item.toUpperCase().indexOf("TÜBİTAK 2209") >= 0;
+  }).length;
+  // HTML'de de 2209 arama (section parse'ı kaçırmış olabilir)
+  if (result.project2209Count === 0) {
+    var count2209 = (html.match(/2209/g) || []).length;
+    if (count2209 > 0) result.project2209Count = count2209;
+  }
 
   // YÖKSİS güncelleme tarihi
   var dateMatch = html.match(/YÖKSİS Son Veri Güncelleme Tarihi\s*:\s*<\/span>\s*<span[^>]*>\s*([^<]+)/i) ||
