@@ -247,6 +247,37 @@ function parseAcademicianHTML(html, username) {
   return result;
 }
 
+// GET /api/akademisyen/metrics/all - Tüm akademisyenlerin yayın metriklerini toplu getir
+router.get("/metrics/all", async function(req, res) {
+  try {
+    var db = await getDbSafe();
+    var query = db.collection("akademisyen_cache");
+    if (req.query.departmentId) {
+      query = query.where("departmentId", "==", req.query.departmentId);
+    }
+    var snapshot = await query.get();
+    var results = [];
+    snapshot.docs.forEach(function(doc) {
+      var d = doc.data();
+      if (!d.data) return;
+      var data = d.data;
+      results.push({
+        username: doc.id,
+        fullName: data.fullName || "",
+        department: data.department || "",
+        departmentId: d.departmentId || null,
+        stats: data.stats || {},
+        publicationMetrics: data.publicationMetrics || { sci: [], uak: [], ulakbim: [], book: [], conference: [], other: [] },
+        project2209Count: data.project2209Count || 0,
+        fetchedAt: d.fetchedAt
+      });
+    });
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/akademisyen/proxy/photo - Profil fotoğrafı proxy (CSP bypass)
 // Bu route /:username'den ÖNCE tanımlanmalı yoksa "proxy" username olarak yakalanır
 router.get("/proxy/photo", async function(req, res) {
