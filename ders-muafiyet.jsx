@@ -182,6 +182,9 @@ function turkishStem(word) {
 }
 
 const SIMILARITY_THRESHOLD = 0.70;
+const THRESHOLD_AUTO_APPROVE = 0.80;  // %80+ → Otomatik Muaf
+const THRESHOLD_REVIEW      = 0.60;  // %60-79 → İnsan onayı bekliyor
+// %60 altı → Otomatik Red
 const AKTS_CHECK_ENABLED = true;
 const W_NAME = 0.35;
 const W_CONTENT = 0.55;
@@ -557,14 +560,32 @@ function autoMatchCourses(sourceCourses, targetCourses, threshold) {
         bestAktsPass = aktsPass; bestMatch = tgt;
       }
     });
-    var isMatched = bestAktsPass && bestTotalScore >= threshold;
-    if (!bestAktsPass) bestRejectReason = "AKTS yetersiz";
-    else if (bestTotalScore < threshold) bestRejectReason = "Benzerlik düşük (%" + Math.round(bestTotalScore * 100) + ")";
+
+    // ── 3-Katmanlı Karar Mekanizması ──
+    // AKTS yetersizse direk red; değilse skora göre tier belirlenir
+    var tier, isMatched;
+    if (!bestAktsPass) {
+      tier = "rejected";
+      isMatched = false;
+      bestRejectReason = "AKTS yetersiz";
+    } else if (bestTotalScore >= THRESHOLD_AUTO_APPROVE) {
+      tier = "approved";   // %80+ → otomatik muaf
+      isMatched = true;
+    } else if (bestTotalScore >= THRESHOLD_REVIEW) {
+      tier = "review";     // %60-79 → insan onayı bekliyor
+      isMatched = false;
+      bestRejectReason = "İnceleme gerekiyor (%" + Math.round(bestTotalScore * 100) + ")";
+    } else {
+      tier = "rejected";   // %60 altı → otomatik red
+      isMatched = false;
+      bestRejectReason = "Benzerlik düşük (%" + Math.round(bestTotalScore * 100) + ")";
+    }
+
     matches.push({
       source: src, target: bestMatch, aktsPass: bestAktsPass,
       contentScore: bestTotalScore, nameScore: bestScoreDetails.nameScore,
       detailContentScore: bestScoreDetails.contentScore, codeScore: bestScoreDetails.codeScore,
-      matched: isMatched, rejectReason: bestRejectReason,
+      matched: isMatched, tier: tier, rejectReason: bestRejectReason,
     });
   });
   return matches;
@@ -609,6 +630,32 @@ var MuafiyetDB = {
   },
   async deleteRecord(id) {
     await window.FirestoreWrite.remove("muafiyet_records", String(id));
+  },
+
+  // Admin insan onayı: tek bir match'in kararını günceller
+  // decision: "confirmed" (muaf) | "rejected" (red)
+  async updateMatchDecision(recordId, matchIndex, decision, adminNote) {
+    var ref = this.recordsRef();
+    if (!ref) throw new Error("Firestore bağlantısı yok");
+    var doc = await ref.doc(String(recordId)).get();
+    if (!doc.exists) throw new Error("Kayıt bulunamadı");
+    var data = doc.data();
+    var matches = (data.matches || []).slice();
+    if (!matches[matchIndex]) throw new Error("Eşleşme bulunamadı");
+    matches[matchIndex] = Object.assign({}, matches[matchIndex], {
+      adminDecision: decision,
+      adminNote: adminNote || "",
+      adminUpdatedAt: new Date().toISOString(),
+    });
+    var pendingLeft = matches.filter(function(m) {
+      return m.tier === "review" && !m.adminDecision;
+    }).length;
+    await window.FirestoreWrite.update("muafiyet_records", String(recordId), {
+      matches: matches,
+      pendingReviewCount: pendingLeft,
+      updatedAt: new Date().toISOString(),
+    });
+    return matches;
   },
 };
 
@@ -753,8 +800,8 @@ const Icons = {
 // ── Skor Badge ──
 const ScoreBadge = ({ value, size, label }) => {
   var pct = Math.round(value * 100);
-  var color = pct >= 70 ? DS.green : pct >= 40 ? DS.amber : DS.red;
-  var bgColor = pct >= 70 ? DS.greenLight : pct >= 40 ? DS.amberLight : DS.redLight;
+  var color = pct >= 80 ? DS.green : pct >= 60 ? DS.amber : DS.red;
+  var bgColor = pct >= 80 ? DS.greenLight : pct >= 60 ? DS.amberLight : DS.redLight;
   var sz = size === "lg" ? 42 : size === "sm" ? 26 : 34;
   var fs = size === "lg" ? 13 : size === "sm" ? 9 : 11;
   return (
@@ -774,8 +821,11 @@ const ScoreBadge = ({ value, size, label }) => {
 };
 
 // ── Status Pill ──
-const StatusPill = ({ matched, reason }) => {
-  if (matched) {
+// tier: "approved" | "review" | "rejected"  (yoksa matched boolean'a düşer)
+const StatusPill = ({ matched, reason, tier }) => {
+  var resolvedTier = tier || (matched ? "approved" : "rejected");
+
+  if (resolvedTier === "approved") {
     return (
       <span style={{
         display: "inline-flex", alignItems: "center", gap: 4,
@@ -788,6 +838,24 @@ const StatusPill = ({ matched, reason }) => {
       </span>
     );
   }
+
+  if (resolvedTier === "review") {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: "4px 10px", borderRadius: 20,
+          background: DS.amberLight, color: DS.amber,
+          fontSize: 11, fontWeight: 700, letterSpacing: "0.5px",
+          border: "1px solid #FCD34D",
+        }}>
+          ⏳ İNCELEME
+        </span>
+        {reason && <span style={{ fontSize: 9, color: DS.amber, maxWidth: 110, textAlign: "center" }}>{reason}</span>}
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
       <span style={{
@@ -1239,17 +1307,24 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
   };
 
   const handleSave = async function () {
+    // Tüm eşleşmeleri kaydet (approved + review); rejected olanları da saklayalım ki
+    // admin geçmişe bakabilsin. Word çıktısında sadece approved + admin-confirmed kullanılır.
+    var allMatchesForRecord = matches.map(function (m) {
+      return {
+        source: { code: m.source.code, name: m.source.name, akts: m.source.akts, grade: m.source.grade },
+        target: m.target ? { code: m.target.code, name: m.target.name, akts: m.target.akts, status: m.target.status || "" } : null,
+        convertedGrade: m.convertedGrade, score: m.contentScore,
+        aktsPass: m.aktsPass, tier: m.tier || (m.matched ? "approved" : "rejected"),
+        adminDecision: null, adminNote: "",
+      };
+    });
     var record = {
       studentName: studentName, studentNo: studentNo,
       otherUniversity: otherUni, otherFaculty: otherFaculty,
       otherDepartment: otherDept, localDepartment: localDept,
-      matches: matches.filter(function (m) { return m.matched; }).map(function (m) {
-        return {
-          source: { code: m.source.code, name: m.source.name, akts: m.source.akts, grade: m.source.grade },
-          target: m.target ? { code: m.target.code, name: m.target.name, akts: m.target.akts, status: m.target.status || "" } : null,
-          convertedGrade: m.convertedGrade, score: m.contentScore, aktsPass: m.aktsPass,
-        };
-      }),
+      matches: allMatchesForRecord,
+      pendingReviewCount: allMatchesForRecord.filter(function(m) { return m.tier === "review"; }).length,
+      approvedCount:      allMatchesForRecord.filter(function(m) { return m.tier === "approved"; }).length,
     };
     try {
       var saved = await MuafiyetDB.saveRecord(record);
@@ -1259,13 +1334,17 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
   };
 
   const handleExportWord = function () {
+    // Word'e sadece onaylanmış (approved) ve admin tarafından kabul edilmiş (review→confirmed) dersler gider
+    var exportMatches = matches.filter(function (m) {
+      return m.tier === "approved" || m.adminDecision === "confirmed";
+    }).map(function (m) {
+      return { source: m.source, target: m.target, convertedGrade: m.convertedGrade };
+    });
     exportMuafiyetWord({
       studentName: studentName || "xxxxx XXXXX", studentNo: studentNo || "xxxxx",
       otherUniversity: otherUni || "xxxxx Üniversitesi", otherFaculty: otherFaculty || "xxxxx Fakültesi",
       otherDepartment: otherDept || "xxxxx Mühendisliği", localDepartment: localDept || "Bilgisayar",
-      matches: matches.filter(function (m) { return m.matched; }).map(function (m) {
-        return { source: m.source, target: m.target, convertedGrade: m.convertedGrade };
-      }),
+      matches: exportMatches,
     });
   };
 
@@ -1427,12 +1506,20 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
       {step === 2 && matches.length > 0 && (
         <div>
           {/* Özet Kartları */}
+          {(() => {
+            var reviewCount   = matches.filter(function(m) { return m.tier === "review"; }).length;
+            var rejectedCount = matches.filter(function(m) { return m.tier === "rejected"; }).length;
+            return null; // sadece değişkenleri tanımlamak için IIFE
+          })()}
           <div className="responsive-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
             {[
               { label: "Toplam Ders", value: matches.length, color: DS.navy, bg: DS.bg },
-              { label: "Muaf", value: matchedCount, color: DS.green, bg: DS.greenBg },
-              { label: "Red", value: matches.length - matchedCount, color: DS.red, bg: DS.redLight },
-              { label: "Eşik", value: "%" + Math.round(SIMILARITY_THRESHOLD * 100), color: DS.accent, bg: DS.accentLight },
+              { label: "Otomatik Muaf", value: matchedCount, color: DS.green, bg: DS.greenBg,
+                sub: "≥%80 eşleşme" },
+              { label: "İnceleme Bekliyor", value: matches.filter(function(m) { return m.tier === "review"; }).length,
+                color: DS.amber, bg: DS.amberLight, sub: "%60–79 eşleşme" },
+              { label: "Red", value: matches.filter(function(m) { return m.tier === "rejected"; }).length,
+                color: DS.red, bg: DS.redLight, sub: "<%60 eşleşme" },
             ].map(function(stat, i) {
               return (
                 <div key={i} style={{
@@ -1442,6 +1529,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                 }}>
                   <div style={{ fontSize: 26, fontWeight: 800, color: stat.color, fontFamily: "'JetBrains Mono', monospace" }}>{stat.value}</div>
                   <div style={{ fontSize: 12, color: DS.textSecondary, marginTop: 4, fontWeight: 500 }}>{stat.label}</div>
+                  {stat.sub && <div style={{ fontSize: 10, color: stat.color, marginTop: 2, opacity: 0.75 }}>{stat.sub}</div>}
                 </div>
               );
             })}
@@ -1463,8 +1551,8 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                     display: "flex", alignItems: "center", gap: 12,
                     padding: "14px 16px",
                     borderRadius: DS.radiusSm,
-                    background: m.matched ? "white" : "#FFFBF5",
-                    border: "1px solid " + (m.matched ? DS.border : "#FED7AA"),
+                    background: m.tier === "approved" ? "white" : m.tier === "review" ? "#FFFBEB" : "#FFF5F5",
+                    border: "1px solid " + (m.tier === "approved" ? DS.border : m.tier === "review" ? "#FCD34D" : "#FECACA"),
                     marginBottom: 10,
                     transition: "all 0.2s",
                     flexWrap: "wrap",
@@ -1548,8 +1636,8 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                     </div>
 
                     {/* Sonuç */}
-                    <div style={{ flex: "0 0 80px", display: "flex", justifyContent: "center" }}>
-                      <StatusPill matched={m.matched} reason={m.rejectReason} />
+                    <div style={{ flex: "0 0 100px", display: "flex", justifyContent: "center" }}>
+                      <StatusPill matched={m.matched} tier={m.tier} reason={m.rejectReason} />
                     </div>
                   </div>
                 );
@@ -1598,8 +1686,91 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
 // GEÇMİŞ KAYITLAR
 // ══════════════════════════════════════════════════════════════
 
-const ExemptionHistory = ({ records, loading, onDelete, onExportWord }) => {
+// ── İnceleme Paneli ── (admin insan onayı)
+const ReviewPanel = ({ record, onDecision }) => {
+  const [reviewing, setReviewing] = useState(false);
+  const pendingMatches = (record.matches || []).filter(function(m) {
+    return m.tier === "review" && !m.adminDecision;
+  });
+  if (pendingMatches.length === 0) return null;
+
+  return (
+    <div style={{
+      marginTop: 12, padding: "14px 16px", borderRadius: DS.radiusSm,
+      background: "#FFFBEB", border: "1px solid #FCD34D",
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: DS.amber, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+        <span>⏳</span> {pendingMatches.length} ders insan onayı bekliyor
+      </div>
+      {(record.matches || []).map(function(m, idx) {
+        if (m.tier !== "review") return null;
+        var decided = m.adminDecision;
+        return (
+          <div key={idx} style={{
+            display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+            padding: "8px 10px", marginBottom: 6, borderRadius: DS.radiusSm,
+            background: decided ? (decided === "confirmed" ? DS.greenBg : DS.redLight) : "white",
+            border: "1px solid " + (decided ? (decided === "confirmed" ? DS.greenLight : DS.redLight) : DS.border),
+            fontSize: 12,
+          }}>
+            <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+              <span style={{ fontWeight: 700, color: DS.navy }}>{m.source.code}</span>
+              <span style={{ color: DS.textSecondary, marginLeft: 6 }}>{m.source.name}</span>
+              <span style={{
+                marginLeft: 8, fontSize: 10, fontWeight: 600,
+                color: DS.amber, background: DS.amberLight,
+                padding: "1px 6px", borderRadius: 10,
+              }}>%{Math.round((m.score || 0) * 100)} eşleşme</span>
+            </div>
+            <div style={{ fontSize: 11, color: DS.textMuted, flex: "1 1 150px", minWidth: 0 }}>
+              {m.target ? ("→ " + m.target.code + " " + m.target.name) : "→ Eşleşme yok"}
+            </div>
+            {decided ? (
+              <span style={{
+                padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                background: decided === "confirmed" ? DS.greenLight : DS.redLight,
+                color: decided === "confirmed" ? DS.green : DS.red,
+              }}>
+                {decided === "confirmed" ? "✓ Onaylandı" : "✗ Reddedildi"}
+              </span>
+            ) : (
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  disabled={reviewing}
+                  onClick={async function() {
+                    setReviewing(true);
+                    await onDecision(record.id, idx, "confirmed");
+                    setReviewing(false);
+                  }}
+                  style={{
+                    padding: "4px 12px", borderRadius: 20, border: "none",
+                    background: DS.green, color: "white",
+                    fontSize: 11, fontWeight: 700, cursor: "pointer",
+                  }}>Onayla</button>
+                <button
+                  disabled={reviewing}
+                  onClick={async function() {
+                    setReviewing(true);
+                    await onDecision(record.id, idx, "rejected");
+                    setReviewing(false);
+                  }}
+                  style={{
+                    padding: "4px 12px", borderRadius: 20, border: "none",
+                    background: DS.red, color: "white",
+                    fontSize: 11, fontWeight: 700, cursor: "pointer",
+                  }}>Reddet</button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const ExemptionHistory = ({ records, loading, onDelete, onExportWord, onUpdateDecision }) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [expandedReview, setExpandedReview] = useState(null);
 
   var filtered = records.filter(function(r) {
     if (!searchTerm) return true;
@@ -1661,50 +1832,75 @@ const ExemptionHistory = ({ records, loading, onDelete, onExportWord }) => {
         {filtered.map(function (rec) {
           var matchCount = (rec.matches || []).length;
           var dateStr = rec.createdAt ? (rec.createdAt._seconds ? new Date(rec.createdAt._seconds * 1000) : new Date(rec.createdAt)).toLocaleDateString("tr-TR") : "";
+          var isExpanded = expandedReview === rec.id;
           return (
             <div key={rec.id} style={{
-              padding: "16px 20px", borderRadius: DS.radius,
-              background: DS.bgCard, border: "1px solid " + DS.border,
+              borderRadius: DS.radius,
+              background: DS.bgCard, border: "1px solid " + (rec.pendingReviewCount > 0 ? "#FCD34D" : DS.border),
               boxShadow: DS.shadow,
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-              transition: "box-shadow 0.2s, transform 0.2s",
+              overflow: "hidden",
+              transition: "box-shadow 0.2s",
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <div style={{
-                  width: 42, height: 42, borderRadius: "50%",
-                  background: "linear-gradient(135deg, " + DS.navy + ", " + DS.navyLight + ")",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "white", fontSize: 15, fontWeight: 700,
-                }}>
-                  {(rec.studentName || "?")[0].toUpperCase()}
+              {/* Kart Başlığı */}
+              <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{
+                    width: 42, height: 42, borderRadius: "50%",
+                    background: "linear-gradient(135deg, " + DS.navy + ", " + DS.navyLight + ")",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "white", fontSize: 15, fontWeight: 700,
+                  }}>
+                    {(rec.studentName || "?")[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, color: DS.navy, fontSize: 15 }}>
+                      {rec.studentName || "İsimsiz"}
+                      <span style={{ fontWeight: 400, color: DS.textMuted, marginLeft: 8, fontSize: 13, fontFamily: "'JetBrains Mono', monospace" }}>
+                        #{rec.studentNo || "-"}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: DS.textSecondary, marginTop: 3, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                      <span>{rec.otherUniversity || "—"}</span>
+                      <span style={{
+                        background: DS.greenLight, color: DS.green,
+                        padding: "1px 8px", borderRadius: 12, fontWeight: 600, fontSize: 11,
+                      }}>{matchCount} ders</span>
+                      {(rec.pendingReviewCount > 0) && (
+                        <span style={{
+                          background: DS.amberLight, color: DS.amber,
+                          padding: "1px 8px", borderRadius: 12, fontWeight: 600, fontSize: 11,
+                          cursor: "pointer", border: "1px solid #FCD34D",
+                        }} onClick={function(e) { e.stopPropagation(); setExpandedReview(isExpanded ? null : rec.id); }}>
+                          ⏳ {rec.pendingReviewCount} inceleme {isExpanded ? "▲" : "▼"}
+                        </span>
+                      )}
+                      {dateStr && <span style={{ color: DS.textMuted }}>{dateStr}</span>}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontWeight: 700, color: DS.navy, fontSize: 15 }}>
-                    {rec.studentName || "İsimsiz"}
-                    <span style={{ fontWeight: 400, color: DS.textMuted, marginLeft: 8, fontSize: 13, fontFamily: "'JetBrains Mono', monospace" }}>
-                      #{rec.studentNo || "-"}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 12, color: DS.textSecondary, marginTop: 3, display: "flex", gap: 12, alignItems: "center" }}>
-                    <span>{rec.otherUniversity || "—"}</span>
-                    <span style={{
-                      background: DS.greenLight, color: DS.green,
-                      padding: "1px 8px", borderRadius: 12, fontWeight: 600, fontSize: 11,
-                    }}>{matchCount} ders</span>
-                    {dateStr && <span style={{ color: DS.textMuted }}>{dateStr}</span>}
-                  </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Button small variant="ghost" onClick={function () { onExportWord(rec); }} icon={<Icons.download />}>
+                    Word
+                  </Button>
+                  <Button small variant="danger" onClick={function () {
+                    if (confirm("Bu kaydı silmek istediğinizden emin misiniz?")) onDelete(rec.id);
+                  }} icon={<Icons.trash />}>
+                    Sil
+                  </Button>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <Button small variant="ghost" onClick={function () { onExportWord(rec); }} icon={<Icons.download />}>
-                  Word
-                </Button>
-                <Button small variant="danger" onClick={function () {
-                  if (confirm("Bu kaydı silmek istediğinizden emin misiniz?")) onDelete(rec.id);
-                }} icon={<Icons.trash />}>
-                  Sil
-                </Button>
-              </div>
+
+              {/* İnceleme Paneli (genişletilebilir) */}
+              {isExpanded && onUpdateDecision && (
+                <div style={{ padding: "0 20px 16px" }}>
+                  <ReviewPanel
+                    record={rec}
+                    onDecision={async function(recId, matchIdx, decision) {
+                      await onUpdateDecision(recId, matchIdx, decision);
+                    }}
+                  />
+                </div>
+              )}
             </div>
           );
         })}
@@ -1755,6 +1951,22 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
       await MuafiyetDB.deleteRecord(id);
       setRecords(function (prev) { return prev.filter(function (r) { return r.id !== id; }); });
     } catch (err) { alert("Silme hatası: " + err.message); }
+  };
+
+  const handleUpdateDecision = async function (recordId, matchIndex, decision) {
+    try {
+      var updatedMatches = await MuafiyetDB.updateMatchDecision(recordId, matchIndex, decision, "");
+      // Kayıtları güncelle
+      setRecords(function (prev) {
+        return prev.map(function (r) {
+          if (r.id !== recordId) return r;
+          var pendingLeft = updatedMatches.filter(function(m) {
+            return m.tier === "review" && !m.adminDecision;
+          }).length;
+          return Object.assign({}, r, { matches: updatedMatches, pendingReviewCount: pendingLeft });
+        });
+      });
+    } catch (err) { alert("Karar güncellenemedi: " + err.message); }
   };
 
   return (
@@ -1835,6 +2047,14 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
                     padding: "1px 7px", borderRadius: 10,
                   }}>{records.length}</span>
                 )}
+                {tab.id === "gecmis" && records.some(function(r) { return r.pendingReviewCount > 0; }) && (
+                  <span style={{
+                    fontSize: 9, fontWeight: 700,
+                    background: DS.amberLight, color: DS.amber,
+                    padding: "1px 5px", borderRadius: 10,
+                    border: "1px solid #FCD34D",
+                  }}>⏳</span>
+                )}
               </button>
             );
           })}
@@ -1852,7 +2072,8 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         {activeTab === "gecmis" && (
           <ExemptionHistory records={records} loading={recordsLoading}
             onDelete={handleDeleteRecord}
-            onExportWord={function (rec) { exportMuafiyetWord(rec); }} />
+            onExportWord={function (rec) { exportMuafiyetWord(rec); }}
+            onUpdateDecision={handleUpdateDecision} />
         )}
       </div>
     </div>
@@ -1871,5 +2092,7 @@ window.MuafiyetUtils = {
   charNgrams, wordBigrams, autoMatchCourses,
   extractFromFile, parseCoursesFromTable, parseCoursesFromText, ensureLibsLoaded,
   FileDropZone,
-  TR_STOPWORDS, DOMAIN_SYNONYMS, SIMILARITY_THRESHOLD, W_NAME, W_CONTENT, W_CODE,
+  TR_STOPWORDS, DOMAIN_SYNONYMS,
+  SIMILARITY_THRESHOLD, THRESHOLD_AUTO_APPROVE, THRESHOLD_REVIEW,
+  W_NAME, W_CONTENT, W_CODE,
 };
