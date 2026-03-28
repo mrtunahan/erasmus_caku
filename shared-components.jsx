@@ -1813,8 +1813,8 @@ const LoginModal = ({ onLogin }) => {
 
   const loginStyles = `
     @keyframes loginFadeIn {
-      from { opacity: 0; transform: translateY(30px) scale(0.95); filter: blur(4px); }
-      to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     @keyframes loginSpin {
       to { transform: rotate(360deg); }
@@ -1824,118 +1824,18 @@ const LoginModal = ({ onLogin }) => {
       20%, 60% { transform: translateX(-6px); }
       40%, 80% { transform: translateX(6px); }
     }
-    @keyframes auroraSway1 {
-      0%, 100% { d: path("M0,120 C200,60 400,140 600,80 C800,30 1000,110 1200,60 C1350,30 1440,70 1440,70 L1440,0 L0,0 Z"); opacity: 0.3; }
-      33% { d: path("M0,100 C180,140 380,50 580,110 C780,60 980,130 1180,50 C1340,80 1440,40 1440,40 L1440,0 L0,0 Z"); opacity: 0.45; }
-      66% { d: path("M0,130 C220,40 420,120 620,70 C820,120 1020,40 1220,90 C1360,50 1440,80 1440,80 L1440,0 L0,0 Z"); opacity: 0.25; }
-    }
-    @keyframes auroraSway2 {
-      0%, 100% { d: path("M0,160 C180,100 360,180 540,120 C720,70 900,160 1080,100 C1260,60 1440,110 1440,110 L1440,0 L0,0 Z"); opacity: 0.2; }
-      50% { d: path("M0,140 C200,180 400,90 600,150 C800,100 1000,170 1200,90 C1340,120 1440,80 1440,80 L1440,0 L0,0 Z"); opacity: 0.35; }
-    }
-    @keyframes auroraSway3 {
-      0%, 100% { d: path("M0,100 C240,150 480,60 720,130 C960,70 1200,140 1440,90 L1440,0 L0,0 Z"); opacity: 0.15; }
-      50% { d: path("M0,130 C240,70 480,150 720,80 C960,140 1200,60 1440,120 L1440,0 L0,0 Z"); opacity: 0.28; }
-    }
-    @keyframes starTwinkle {
-      0%, 100% { opacity: 0.1; transform: scale(1); }
-      50% { opacity: 0.9; transform: scale(1.4); }
-    }
-    @keyframes snowFall {
-      0% { transform: translateY(-10px) translateX(0) rotate(0deg); opacity: 0; }
-      10% { opacity: 0.7; }
-      90% { opacity: 0.5; }
-      100% { transform: translateY(100vh) translateX(40px) rotate(360deg); opacity: 0; }
-    }
-    @keyframes pulseGlow {
-      0%, 100% { box-shadow: 0 0 20px rgba(5,150,105,0.15), 0 0 60px rgba(96,239,255,0.05); }
-      50% { box-shadow: 0 0 40px rgba(5,150,105,0.3), 0 0 80px rgba(96,239,255,0.12); }
-    }
-    @keyframes logoFloat {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-8px); }
-    }
-    @keyframes floatOrb {
-      0%, 100% { transform: translate(0, 0) scale(1); }
-      25% { transform: translate(15px, -25px) scale(1.05); }
-      50% { transform: translate(-10px, -15px) scale(0.95); }
-      75% { transform: translate(10px, -30px) scale(1.02); }
-    }
-    @keyframes tabContentIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes gradientShift {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-    @keyframes borderPulse {
-      0%, 100% { border-color: rgba(5,150,105,0.2); }
-      50% { border-color: rgba(96,239,255,0.4); }
-    }
-    @keyframes meshFloat {
-      0%, 100% { transform: rotate(0deg) scale(1); }
-      50% { transform: rotate(3deg) scale(1.02); }
-    }
   `;
 
-  const stars = useMemo(() => Array.from({ length: 50 }, (_, i) => ({
-    left: `${(i * 19 + 5) % 100}%`,
-    top: `${(i * 13 + 2) % 50}%`,
-    size: 1 + (i % 3),
-    delay: `${(i * 0.6) % 5}s`,
-    duration: `${2 + (i % 4)}s`,
-  })), []);
-
-  const snowflakes = useMemo(() => Array.from({ length: 20 }, (_, i) => ({
-    left: `${(i * 5 + 1) % 100}%`,
-    size: 1.5 + (i % 3),
-    delay: `${(i * 1.2) % 8}s`,
-    duration: `${8 + (i % 6)}s`,
-  })), []);
 
   return (
     <div style={{
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: "linear-gradient(180deg, #0a0806 0%, #141008 18%, #1a1610 35%, #1e1a12 50%, #221e16 65%, #262018 80%, #2a2418 100%)",
+      background: "#141008",
       display: "flex", alignItems: "center", justifyContent: "center",
       zIndex: 10000, padding: 20, overflow: "hidden",
       fontFamily: "'Source Sans 3', sans-serif",
     }}>
       <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
-
-      {/* Yıldızlar */}
-      {stars.map((s, i) => (
-        <div key={`s-${i}`} style={{
-          position: "absolute", left: s.left, top: s.top,
-          width: s.size, height: s.size, borderRadius: "50%",
-          background: "rgba(252,211,77,0.7)",
-          animation: `starTwinkle ${s.duration} ease-in-out ${s.delay} infinite`,
-          pointerEvents: "none",
-        }} />
-      ))}
-
-      {/* Aurora Borealis katmanları */}
-      {/* Sıcak ışık yansıması */}
-      <div style={{ position: "absolute", top: "0%", left: "25%", width: "50%", height: "35%", background: "radial-gradient(ellipse at center, rgba(245,158,11,0.06) 0%, rgba(217,119,6,0.02) 40%, transparent 70%)", pointerEvents: "none" }} />
-
-      {/* Dağ silüetleri - sıcak tonlar */}
-      <svg viewBox="0 0 1440 320" style={{ position: "absolute", bottom: 0, left: 0, width: "100%", height: "32%", pointerEvents: "none" }} preserveAspectRatio="none">
-        <path d="M0,320 L0,260 L80,250 L150,190 L200,220 L280,140 L340,180 L400,100 L450,160 L520,80 L580,130 L640,60 L700,110 L760,50 L820,100 L880,70 L940,130 L1000,90 L1060,150 L1120,110 L1180,170 L1240,130 L1300,180 L1360,150 L1440,190 L1440,320 Z" fill="#100e08" />
-        <path d="M0,320 L0,280 L100,270 L180,230 L250,260 L340,200 L420,240 L500,180 L580,220 L660,170 L740,210 L820,160 L900,200 L980,170 L1060,210 L1140,180 L1220,220 L1300,200 L1380,230 L1440,220 L1440,320 Z" fill="#141008" />
-      </svg>
-
-      {/* Kar taneleri */}
-      {snowflakes.map((sf, i) => (
-        <div key={`sf-${i}`} style={{
-          position: "absolute", left: sf.left, top: "-5px",
-          width: sf.size, height: sf.size, borderRadius: "50%",
-          background: "rgba(255,255,255,0.5)",
-          animation: `snowFall ${sf.duration} linear ${sf.delay} infinite`,
-          pointerEvents: "none",
-        }} />
-      ))}
 
       <div style={{
         maxWidth: 480, width: "calc(100% - 24px)", position: "relative", zIndex: 2,
