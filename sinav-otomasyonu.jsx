@@ -96,7 +96,6 @@ function assignClassroomFromList(rooms, studentCount) {
   if (!studentCount || studentCount <= 0) return rooms[0].name;
   // capacity değerlerini sayıya çevir (Firestore string döndürebilir)
   const getCap = (r) => Number(r.capacity) || 0;
-  console.log("[SALON-ATAMA] Giriş:", { studentCount, rooms: rooms.map(r => r.name + "(" + getCap(r) + ")") });
   // 1) Tek salon yeterli mi? (best-fit: kapasitesi yeten en küçük salon)
   const validRooms = rooms.filter(r => getCap(r) > 0);
   const sortedByCapAsc = [...validRooms].sort((a, b) => getCap(a) - getCap(b));
@@ -114,9 +113,8 @@ function assignClassroomFromList(rooms, studentCount) {
       }
     }
   }
-  if (bestCombo) { console.log("[SALON-ATAMA] 2'li sonuç:", bestCombo.map(r => r.name).join(" - ")); return bestCombo.map(r => r.name).join(" - "); }
+  if (bestCombo) return bestCombo.map(r => r.name).join(" - ");
   // 3) İkili yetmezse: büyükten küçüğe salonları ekleyerek kapasiteyi doldur
-  console.log("[SALON-ATAMA] 2'li yetmedi, 3+ salon deneniyor...");
   const sortedByCapDesc = [...validRooms].sort((a, b) => getCap(b) - getCap(a));
   const selected = [];
   let totalCap = 0;
@@ -125,9 +123,7 @@ function assignClassroomFromList(rooms, studentCount) {
     totalCap += getCap(room);
     if (totalCap >= studentCount) break;
   }
-  const result = selected.map(r => r.name).join(" - ");
-  console.log("[SALON-ATAMA] Greedy sonuç:", result, "toplam kapasite:", totalCap);
-  return result;
+  return selected.map(r => r.name).join(" - ");
 }
 
 function assignSupervisorsToExams(exams) {
@@ -1210,8 +1206,6 @@ function turkishifyCourse(course) {
 
 // ── Bölüm Bazlı Yazdırılabilir Sınav Programı Çıktısı ──
 function exportDeptPrintable(placedExams, periodLabel, deptName, customClassrooms) {
-  console.log("[BOLUM-CIKTISI] v3 - 3+ salon desteği aktif");
-  console.log("[BOLUM-CIKTISI] customClassrooms:", customClassrooms);
   const SINIF_BG = {
     1: "#B2EBF2", 2: "#C8E6C9", 3: "#FFE0B2", 4: "#F8BBD0", 5: "#E1BEE7",
   };
@@ -1300,8 +1294,6 @@ function exportDeptPrintable(placedExams, periodLabel, deptName, customClassroom
 }
 
 async function exportToXLSX(placedExams, periodLabel, period, customClassrooms, customSupervisors, deptName) {
-  console.log("[DEKANLIK-CIKTISI] v3 - 3+ salon + süre dengeli gözetmen");
-  console.log("[DEKANLIK-CIKTISI] customClassrooms:", customClassrooms);
   // Load xlsx-js-style for cell styling support (colors, bold, borders)
   if (!window._XLSX_STYLE_LOADED) {
     try {
