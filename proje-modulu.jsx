@@ -841,7 +841,8 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var userName = currentUser && currentUser.name || "Anonim";
   var isAdmin = currentUser && currentUser.role === "admin";
   var isDeptManager = currentUser && currentUser.role === "bolum_yetkilisi";
-  var canManage = isAdmin || isDeptManager;
+  var isProfessor = currentUser && currentUser.role === "professor";
+  var canManage = isAdmin || isDeptManager || isProfessor;
 
   // ── Tüm projeleri yükle (üyelik kontrolü için) ──
   var loadAllProjects = useCallback(function () {
@@ -1288,7 +1289,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {isAdmin && projects.length > 0 && (
+              {canManage && projects.length > 0 && (
                 <>
                   <button onClick={function () { exportProjectsXLSX(projects, selectedCourse.code + "_" + selectedCourse.name); }}
                     style={{ background: "#059669", color: "white", border: "none", borderRadius: 10, padding: "10px 18px", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
@@ -1300,12 +1301,12 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   </button>
                 </>
               )}
-              {isDeadlinePassed && !isAdmin ? (
+              {isDeadlinePassed && !canManage ? (
                 <div style={{ background: "rgba(220,38,38,0.2)", color: "white", border: "1px solid rgba(220,38,38,0.4)", borderRadius: 10, padding: "10px 20px", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
                   <PrjIcon path={PRJ_ICONS.calendar} size={16} color="#fca5a5" />
                   <span>Proje grubu oluşturma süresi doldu ({selectedCourse.deadline})</span>
                 </div>
-              ) : !isAdmin && userExistingProject ? (
+              ) : !canManage && userExistingProject ? (
                 <div style={{ background: "rgba(234,88,12,0.2)", color: "white", border: "1px solid rgba(234,88,12,0.4)", borderRadius: 10, padding: "10px 20px", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
                   <PrjIcon path={PRJ_ICONS.info} size={16} color="#fbbf24" />
                   <span>Zaten bir proje grubundasınız: <strong>{userExistingProject.name}</strong></span>
@@ -1437,7 +1438,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   project={project}
                   userId={userId}
                   userName={userName}
-                  isAdmin={isAdmin}
+                  isAdmin={canManage}
                   onDelete={handleDeleteProject}
                   onApprove={handleApproveProject}
                   onReject={handleRejectProject}
