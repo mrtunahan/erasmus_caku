@@ -180,9 +180,9 @@ const Sidebar = ({
   // Öğrenciler ve profesörler için erişilebilir modüller
   const getVisibleModules = () => {
     if (isAdmin || isDeptManager) return DEPARTMENT_MODULES;
-    if (isProfessor) return DEPARTMENT_MODULES.filter(m => ["sinav", "formlar", "dersprogrami", "akademisyen", "roadmaps", "projeler"].includes(m.id));
+    if (isProfessor) return DEPARTMENT_MODULES.filter(m => ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler"].includes(m.id));
     // Öğrenci
-    return DEPARTMENT_MODULES.filter(m => ["erasmus", "projeler", "formlar", "roadmaps"].includes(m.id));
+    return DEPARTMENT_MODULES.filter(m => ["erasmus", "projeler", "formlar"].includes(m.id));
   };
 
   const visibleModules = getVisibleModules();
@@ -549,10 +549,10 @@ function AppShell() {
     const allowedDeptModules = isDeptManager
       ? DEPARTMENT_MODULES.map(m => m.id)
       : isProfessor
-        ? ["sinav", "formlar", "dersprogrami", "akademisyen", "roadmaps", "projeler"]
+        ? ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler"]
         : isAdmin
           ? DEPARTMENT_MODULES.map(m => m.id)
-          : ["erasmus", "projeler", "formlar", "roadmaps"]; // student
+          : ["erasmus", "projeler", "formlar"]; // student
 
     const allowedCommon = COMMON_MODULES.map(m => m.id);
     const allowedAdmin = isAdmin ? ADMIN_MODULES.map(m => m.id) : [];
