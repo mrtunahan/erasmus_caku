@@ -164,7 +164,7 @@ function GanttMini({ steps, accent, accentMid }) {
   );
 }
 
-export default function RoadmapsModule() {
+export default function RoadmapsModule({ currentUser, activeDepartment, departmentInfo } = {}) {
   const [activeProject, setActiveProject] = useState("unides");
   const [expanded, setExpanded] = useState(null);
   const [view, setView] = useState("steps");
@@ -358,3 +358,5 @@ export default function RoadmapsModule() {
     </div>
   );
 }
+
+window.RoadmapsModuleApp = RoadmapsModule;

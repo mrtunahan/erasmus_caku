@@ -26,6 +26,7 @@ window.__lazyModules = {
   staj:          { loader: () => import('./staj-modulu.jsx'),               component: 'StajModuluApp' },
   dersprogrami:  { loader: () => import('./ders-programi.jsx'),             component: 'DersProgramiApp' },
   akademisyen:   { loader: () => import('./akademisyen-modulu.jsx'),        component: 'AkademisyenModuluApp' },
+  roadmaps:      { loader: () => import('./roadmaps-module.jsx'),           component: 'RoadmapsModuleApp' },
 };
 
 // ── Phase 3: App Shell (routing & navigation) ──
