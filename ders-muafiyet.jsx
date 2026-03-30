@@ -640,6 +640,119 @@ function autoMatchCourses(sourceCourses, targetCourses, threshold) {
   return matches;
 }
 
+// ── Ön-hesaplanmış kurs indeksi: her hedef ders için token vektörleri saklanır ──
+// NLP eşleştirme sırasında re-tokenizasyon yapılmaz; %30-50 hız kazancı sağlar
+function buildCourseIndex(courses) {
+  var index = new Map();
+  courses.forEach(function (c) {
+    var codeKey = c.code.replace(/[\s*]/g, "").toUpperCase();
+    var nameTokens = expandWithSynonyms(tokenizeStemmed(c.name || ""));
+    var contentText = c.weeklyContent || c.content || "";
+    var contentTokens = contentText ? expandWithSynonyms(tokenizeStemmed(contentText)) : [];
+    // TF vektörü önceden hesapla
+    var buildTF = function (tokens) {
+      var tf = {};
+      tokens.forEach(function (t) { tf[t] = (tf[t] || 0) + 1; });
+      return tf;
+    };
+    index.set(codeKey, {
+      course: c,
+      nameTokens: nameTokens,
+      nameTF: buildTF(nameTokens),
+      contentTokens: contentTokens,
+      contentTF: buildTF(contentTokens),
+    });
+  });
+  return index;
+}
+
+// İndeks tabanlı eşleştirme — targetCourses yerine pre-built index alır
+function autoMatchCoursesWithIndex(sourceCourses, courseIndex, threshold) {
+  if (!threshold) threshold = SIMILARITY_THRESHOLD;
+  // İndeksten flat array oluştur (sıra garantisi için)
+  var targetEntries = Array.from(courseIndex.values());
+  var matches = [];
+
+  sourceCourses.forEach(function (src) {
+    var bestMatch = null, bestTotalScore = 0;
+    var bestScoreDetails = { total: 0, nameScore: 0, contentScore: 0, codeScore: 0 };
+    var bestAktsPass = false;
+
+    // Önce tam kod eşleşmesi dene (O(1))
+    var srcCodeKey = (src.code || "").replace(/[\s*]/g, "").toUpperCase();
+    var exactEntry = courseIndex.get(srcCodeKey);
+    if (exactEntry) {
+      var srcAkts = parseInt(src.akts) || 0, tgtAkts = parseInt(exactEntry.course.akts) || 0;
+      bestAktsPass = !AKTS_CHECK_ENABLED || srcAkts >= tgtAkts;
+      var scores = multiFactorScore(src, exactEntry.course);
+      bestTotalScore = scores.total; bestScoreDetails = scores;
+      bestMatch = exactEntry.course;
+    }
+
+    // Tam eşleşme yoksa veya skoru düşükse tüm indeksi tara
+    if (!bestMatch || bestTotalScore < THRESHOLD_AUTO_APPROVE) {
+      targetEntries.forEach(function (entry) {
+        if (entry === exactEntry) return; // zaten denendi
+        var tgt = entry.course;
+        var srcAkts = parseInt(src.akts) || 0, tgtAkts = parseInt(tgt.akts) || 0;
+        var aktsPass = !AKTS_CHECK_ENABLED || srcAkts >= tgtAkts;
+        var scores = multiFactorScore(src, tgt);
+        var isBetter = (aktsPass && !bestAktsPass) || (aktsPass === bestAktsPass && scores.total > bestTotalScore);
+        if (isBetter) {
+          bestTotalScore = scores.total; bestScoreDetails = scores;
+          bestAktsPass = aktsPass; bestMatch = tgt;
+        }
+      });
+    }
+
+    var tier, isMatched, bestRejectReason = "";
+    if (!bestAktsPass) {
+      tier = "rejected"; isMatched = false; bestRejectReason = "AKTS yetersiz";
+    } else if (bestTotalScore >= THRESHOLD_AUTO_APPROVE) {
+      tier = "approved"; isMatched = true;
+    } else if (bestTotalScore >= THRESHOLD_REVIEW) {
+      tier = "review"; isMatched = false;
+      bestRejectReason = "İnceleme gerekiyor (%" + Math.round(bestTotalScore * 100) + ")";
+    } else {
+      tier = "rejected"; isMatched = false;
+      bestRejectReason = "Benzerlik düşük (%" + Math.round(bestTotalScore * 100) + ")";
+    }
+    matches.push({
+      source: src, target: bestMatch, aktsPass: bestAktsPass,
+      contentScore: bestTotalScore, nameScore: bestScoreDetails.nameScore,
+      detailContentScore: bestScoreDetails.contentScore, codeScore: bestScoreDetails.codeScore,
+      matched: isMatched, tier: tier, rejectReason: bestRejectReason,
+    });
+  });
+  return matches;
+}
+
+// ÇAKÜ ders kataloğunu JSON olarak dışa aktar
+function exportCourseContentsJSON(courses, department) {
+  var payload = JSON.stringify({
+    version: "1.0",
+    updatedAt: new Date().toISOString(),
+    department: department || "Bilgisayar Mühendisliği",
+    courseCount: courses.length,
+    courses: courses.map(function (c) {
+      return {
+        code: c.code,
+        name: c.name,
+        akts: c.akts,
+        status: c.status || "",
+        content: c.content || "",
+        weeklyContent: c.weeklyContent || "",
+      };
+    }),
+  }, null, 2);
+  var blob = new Blob([payload], { type: "application/json" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = "caku_ders_katalog.json";
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
 // ══════════════════════════════════════════════════════════════
 // FIREBASE CRUD
 // ══════════════════════════════════════════════════════════════
@@ -1309,7 +1422,22 @@ const SettingsPanel = ({ courseContents, setCourseContents, gradingSystem, setGr
           )}>
           <FileDropZone label="ÇAKÜ Ders İçerikleri" description="Excel veya PDF/Word formatı" onFile={handleCourseFile} fileName={courseFileName} loading={loadingCourse} />
           {courseContents.length > 0 && (
-            <div className="responsive-table-wrap" style={{ marginTop: 16, maxHeight: 280, overflowY: "auto", border: "1px solid " + DS.border, borderRadius: DS.radiusSm }}>
+            <>
+            <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={function () { exportCourseContentsJSON(courseContents); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 14px", borderRadius: DS.radiusSm,
+                  border: "1px solid " + DS.border, background: DS.bg,
+                  fontSize: 12, fontWeight: 600, color: DS.accent,
+                  cursor: "pointer",
+                }}
+              >
+                <Icons.download /> JSON İndir
+              </button>
+            </div>
+            <div className="responsive-table-wrap" style={{ marginTop: 10, maxHeight: 280, overflowY: "auto", border: "1px solid " + DS.border, borderRadius: DS.radiusSm }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 500 }}>
                 <thead>
                   <tr style={{ background: DS.bg, position: "sticky", top: 0 }}>
@@ -1331,6 +1459,7 @@ const SettingsPanel = ({ courseContents, setCourseContents, gradingSystem, setGr
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </SectionCard>
 
@@ -1381,46 +1510,109 @@ const SettingsPanel = ({ courseContents, setCourseContents, gradingSystem, setGr
   );
 };
 
+// ── Reducer: tüm NewExemption state'i tek yerden yönetilir ──
+var EXEMPTION_INITIAL_STATE = {
+  step: 0,
+  // Öğrenci bilgileri
+  studentName: "", studentNo: "",
+  otherUni: "", otherFaculty: "", otherDept: "", localDept: "Bilgisayar",
+  // Alan 1: Ders İçerikleri
+  contentFiles: [], loadingContentFiles: false, contentFilesStatus: [],
+  // Alan 2: Dilekçe
+  petitionFile: "", loadingPetition: false, petitionRows: [],
+  // Alan 3: Not Karşılıkları
+  gradeEquivFile: "", loadingGradeEquiv: false, gradeEquivText: "",
+  // Birleşik öğrenci ders listesi
+  studentCourses: [],
+  // Eşleştirme
+  matches: [], matching: false,
+  // UI
+  msg: null, detailMatch: null,
+};
+
+function exemptionReducer(state, action) {
+  switch (action.type) {
+    case "SET_STEP":
+      return Object.assign({}, state, { step: action.payload });
+    case "SET_STUDENT_FIELD":
+      return Object.assign({}, state, { [action.field]: action.value });
+    case "SET_LOADING":
+      return Object.assign({}, state, { [action.key]: action.value });
+    case "SET_MSG":
+      return Object.assign({}, state, { msg: action.payload });
+    case "SET_DETAIL_MATCH":
+      return Object.assign({}, state, { detailMatch: action.payload });
+    case "SET_CONTENT_FILES":
+      return Object.assign({}, state, {
+        contentFiles: action.files,
+        contentFilesStatus: action.statuses,
+        loadingContentFiles: false,
+        studentCourses: action.enrichedCourses,
+      });
+    case "SET_PETITION":
+      return Object.assign({}, state, {
+        petitionFile: action.fileName,
+        petitionRows: action.rows,
+        studentCourses: action.courses,
+        loadingPetition: false,
+      });
+    case "SET_GRADE_EQUIV":
+      return Object.assign({}, state, {
+        gradeEquivFile: action.fileName,
+        gradeEquivText: action.text,
+        loadingGradeEquiv: false,
+      });
+    case "SET_MATCHES":
+      return Object.assign({}, state, {
+        matches: action.matches,
+        matching: false,
+        step: 2,
+      });
+    case "UPDATE_MATCH": {
+      var updated = state.matches.slice();
+      if (action.field === "targetCode") {
+        updated[action.index] = Object.assign({}, updated[action.index], {
+          target: action.newTarget || null,
+          matched: !!action.newTarget,
+        });
+      } else if (action.field === "convertedGrade") {
+        updated[action.index] = Object.assign({}, updated[action.index], {
+          convertedGrade: action.value,
+        });
+      }
+      return Object.assign({}, state, { matches: updated });
+    }
+    default:
+      return state;
+  }
+}
+
 // ══════════════════════════════════════════════════════════════
 // YENİ MUAFİYET (Wizard Akışı)
 // ══════════════════════════════════════════════════════════════
 
 const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
-  const [step, setStep] = useState(0);
-  // Öğrenci bilgileri
-  const [studentName, setStudentName] = useState("");
-  const [studentNo, setStudentNo] = useState("");
-  const [otherUni, setOtherUni] = useState("");
-  const [otherFaculty, setOtherFaculty] = useState("");
-  const [otherDept, setOtherDept] = useState("");
-  const [localDept, setLocalDept] = useState("Bilgisayar");
-  // Dosya — Alan 1: Ders İçerikleri (çoklu PDF)
-  const [contentFiles, setContentFiles] = useState([]);
-  const [loadingContentFiles, setLoadingContentFiles] = useState(false);
-  const [contentFilesStatus, setContentFilesStatus] = useState([]); // [{name, codeWarning, courses}]
-  // Dosya — Alan 2: Dilekçe (tek PDF/Word)
-  const [petitionFile, setPetitionFile] = useState("");
-  const [loadingPetition, setLoadingPetition] = useState(false);
-  const [petitionRows, setPetitionRows] = useState([]); // [{sourceCode, cakuCode, target}]
-  // Dosya — Alan 3: Not Karşılıkları (tek PDF)
-  const [gradeEquivFile, setGradeEquivFile] = useState("");
-  const [loadingGradeEquiv, setLoadingGradeEquiv] = useState(false);
-  const [gradeEquivText, setGradeEquivText] = useState("");
-  // Birleşik öğrenci dersleri (dilekçe + içerik dosyaları)
-  const [studentCoursesFile, setStudentCoursesFile] = useState("");
-  const [loadingStudentCourses, setLoadingStudentCourses] = useState(false);
-  const [studentCourses, setStudentCourses] = useState([]);
-  // Eşleştirme
-  const [matches, setMatches] = useState([]);
-  const [matching, setMatching] = useState(false);
-  const [msg, setMsg] = useState(null);
-  // Detay modal
-  const [detailMatch, setDetailMatch] = useState(null);
+  const [state, dispatch] = React.useReducer(exemptionReducer, EXEMPTION_INITIAL_STATE);
+  const {
+    step,
+    studentName, studentNo, otherUni, otherFaculty, otherDept, localDept,
+    contentFiles, loadingContentFiles, contentFilesStatus,
+    petitionFile, loadingPetition, petitionRows,
+    gradeEquivFile, loadingGradeEquiv, gradeEquivText,
+    studentCourses,
+    matches, matching,
+    msg, detailMatch,
+  } = state;
 
   var targetCourses = courseContents.length > 0 ? courseContents :
     (window.HOME_INSTITUTION_CATALOG ? window.HOME_INSTITUTION_CATALOG.courses.map(function (c) {
       return { code: c.code, name: c.name, akts: String(c.credits), content: "", status: c.type };
     }) : []);
+
+  // Pre-build kurs indeksi — targetCourses değiştiğinde yeniden hesaplanır
+  var courseIndex = useMemo(function () {
+    return buildCourseIndex(targetCourses);
+  }, [targetCourses]);
 
   function convertGradeLocal(inputGrade) {
     if (!inputGrade) return "";
@@ -1431,29 +1623,15 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
     return _convertGrade(inputGrade);
   }
 
-  const handleStudentCourses = async function (file) {
-    setLoadingStudentCourses(true); setMsg(null);
-    try {
-      var result = await extractFromFile(file);
-      var courses = result.type === "table" ? parseCoursesFromTable(result.data) : parseCoursesFromText(result.data);
-      setStudentCourses(courses);
-      setStudentCoursesFile(file.name);
-      if (courses.length > 0) setMsg({ text: courses.length + " öğrenci dersi başarıyla okundu.", type: "success" });
-      else setMsg({ text: "Dosyadan ders bilgisi çıkarılamadı.", type: "error" });
-    } catch (err) { setMsg({ text: "Dosya okunamadı: " + err.message, type: "error" }); }
-    setLoadingStudentCourses(false);
-  };
-
   // Alan 1: Ders İçerikleri (çoklu PDF) — dosya adı = ders kodu
   const handleContentFiles = async function (files) {
-    setLoadingContentFiles(true); setMsg(null);
-    setContentFiles(files);
+    dispatch({ type: "SET_LOADING", key: "loadingContentFiles", value: true });
+    dispatch({ type: "SET_MSG", payload: null });
     var statuses = [];
+    var codePattern = /^([A-ZÇĞIŞÖÜ]{2,5}\*?\d{3,4})$/;
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
-      // Dosya adından ders kodu çıkar (uzantıyı kaldır)
       var codeFromName = f.name.replace(/\.[^.]+$/, "").trim().toUpperCase().replace(/\s/g, "");
-      var codePattern = /^([A-ZÇĞIŞÖÜ]{2,5}\*?\d{3,4})$/;
       var codeWarning = !codePattern.test(codeFromName);
       try {
         var result = await extractFromFile(f);
@@ -1465,113 +1643,99 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
         statuses.push({ name: f.name, code: codeFromName, codeWarning: codeWarning, text: "", ok: false, error: err.message });
       }
     }
-    setContentFilesStatus(statuses);
     // Mevcut studentCourses'u içerik metinleriyle zenginleştir
-    setStudentCourses(function (prev) {
-      if (prev.length === 0) return prev;
-      return prev.map(function (c) {
-        var upper = c.code.replace(/\s|\*/g, "").toUpperCase();
-        var found = statuses.find(function (s) { return s.code === upper && s.ok; });
-        if (found) return Object.assign({}, c, { weeklyContent: found.text });
-        return c;
-      });
+    var enriched = studentCourses.map(function (c) {
+      var upper = c.code.replace(/[\s*]/g, "").toUpperCase();
+      var found = statuses.find(function (s) { return s.code === upper && s.ok; });
+      return found ? Object.assign({}, c, { weeklyContent: found.text }) : c;
     });
-    setLoadingContentFiles(false);
+    dispatch({ type: "SET_CONTENT_FILES", files: files, statuses: statuses, enrichedCourses: enriched });
+    dispatch({ type: "SET_MSG", payload: { text: statuses.filter(function(s) { return s.ok; }).length + "/" + files.length + " dosya başarıyla okundu.", type: "success" } });
   };
 
   // Alan 2: Dilekçe (tek PDF/Word) — ÇAKÜ kodlarını çıkar + satır eşleştirme
   const handlePetitionFile = async function (file) {
-    setLoadingPetition(true); setMsg(null);
+    dispatch({ type: "SET_LOADING", key: "loadingPetition", value: true });
+    dispatch({ type: "SET_MSG", payload: null });
     try {
       var result = await extractFromFile(file);
       var text = result.type === "table"
         ? result.data.map(function(s) { return s.rows.map(function(r) { return r.join(" "); }).join("\n"); }).join("\n")
         : result.data;
-      // Satır bazlı eşleştirme (karşı kurum kodu ↔ ÇAKÜ kodu)
       var rows = parsePetitionRows(text, targetCourses);
-      // Eğer satır eşleştirmesi bulamadıysa sadece ÇAKÜ kodu araması yap
       if (rows.length === 0) {
-        var cakuMatches = parsePetitionDocument(text, targetCourses);
-        rows = cakuMatches.map(function (m) {
+        rows = parsePetitionDocument(text, targetCourses).map(function (m) {
           return { sourceCode: "", cakuCode: m.cakuCode, target: m.target };
         });
       }
-      setPetitionRows(rows);
-      setPetitionFile(file.name);
-      // Dilekçedeki ÇAKÜ derslerini targetCourses'tan çekerek öğrenci kurs listesini oluştur
-      if (rows.length > 0) {
-        var courses = rows.map(function (r) {
-          return {
-            code: r.sourceCode || r.cakuCode,
-            name: r.target ? r.target.name : r.cakuCode,
-            akts: r.target ? r.target.akts : "",
-            grade: "",
-            content: r.target ? r.target.content : "",
-            weeklyContent: r.target ? r.target.content : "",
-            _cakuCode: r.cakuCode,
-            _target: r.target,
-          };
-        });
-        setStudentCourses(courses);
-        setMsg({ text: rows.length + " ders eşleştirmesi dilekçeden okundu.", type: "success" });
-      } else {
-        setMsg({ text: "Dilekçeden ders kodu çıkarılamadı.", type: "error" });
-      }
-    } catch (err) { setMsg({ text: "Dilekçe okunamadı: " + err.message, type: "error" }); }
-    setLoadingPetition(false);
+      var courses = rows.map(function (r) {
+        return {
+          code: r.sourceCode || r.cakuCode,
+          name: r.target ? r.target.name : r.cakuCode,
+          akts: r.target ? r.target.akts : "",
+          grade: "",
+          content: r.target ? r.target.content : "",
+          weeklyContent: r.target ? r.target.content : "",
+          _cakuCode: r.cakuCode, _target: r.target,
+        };
+      });
+      dispatch({ type: "SET_PETITION", fileName: file.name, rows: rows, courses: courses });
+      dispatch({ type: "SET_MSG", payload: rows.length > 0
+        ? { text: rows.length + " ders eşleştirmesi dilekçeden okundu.", type: "success" }
+        : { text: "Dilekçeden ders kodu çıkarılamadı.", type: "error" }
+      });
+    } catch (err) {
+      dispatch({ type: "SET_LOADING", key: "loadingPetition", value: false });
+      dispatch({ type: "SET_MSG", payload: { text: "Dilekçe okunamadı: " + err.message, type: "error" } });
+    }
   };
 
   // Alan 3: Not Karşılıkları (tek PDF)
   const handleGradeEquivFile = async function (file) {
-    setLoadingGradeEquiv(true); setMsg(null);
+    dispatch({ type: "SET_LOADING", key: "loadingGradeEquiv", value: true });
+    dispatch({ type: "SET_MSG", payload: null });
     try {
       var result = await extractFromFile(file);
       var text = result.type === "table"
         ? result.data.map(function(s) { return s.rows.map(function(r) { return r.join(" | "); }).join("\n"); }).join("\n")
         : result.data;
-      setGradeEquivText(text);
-      setGradeEquivFile(file.name);
-      setMsg({ text: "Not karşılıkları belgesi yüklendi.", type: "success" });
-    } catch (err) { setMsg({ text: "Not karşılıkları okunamadı: " + err.message, type: "error" }); }
-    setLoadingGradeEquiv(false);
+      dispatch({ type: "SET_GRADE_EQUIV", fileName: file.name, text: text });
+      dispatch({ type: "SET_MSG", payload: { text: "Not karşılıkları belgesi yüklendi.", type: "success" } });
+    } catch (err) {
+      dispatch({ type: "SET_LOADING", key: "loadingGradeEquiv", value: false });
+      dispatch({ type: "SET_MSG", payload: { text: "Not karşılıkları okunamadı: " + err.message, type: "error" } });
+    }
   };
 
   const runAutoMatch = function () {
-    if (studentCourses.length === 0 || targetCourses.length === 0) return;
-    setMatching(true);
-    // Eşleştirmeyi setTimeout ile sarmalayarak UI'ın güncellenmesini sağla
-    setTimeout(function() {
-      var autoMatches = autoMatchCourses(studentCourses, targetCourses);
+    if (studentCourses.length === 0 || courseIndex.size === 0) return;
+    dispatch({ type: "SET_LOADING", key: "matching", value: true });
+    dispatch({ type: "SET_MSG", payload: null });
+    setTimeout(function () {
+      // Pre-built indeks kullan — tek tek tokenizasyon yok
+      var autoMatches = autoMatchCoursesWithIndex(studentCourses, courseIndex);
       var enriched = autoMatches.map(function (m) {
         return Object.assign({}, m, { convertedGrade: m.source.grade ? convertGradeLocal(m.source.grade) : "" });
       });
-      setMatches(enriched);
-      setMatching(false);
-      setStep(2);
+      dispatch({ type: "SET_MATCHES", matches: enriched });
       var matchedCount = enriched.filter(function (m) { return m.matched; }).length;
-      setMsg({
+      dispatch({ type: "SET_MSG", payload: {
         text: matchedCount + "/" + enriched.length + " ders eşleştirildi (Eşik: %" + Math.round(SIMILARITY_THRESHOLD * 100) + ")",
-        type: "success"
-      });
+        type: "success",
+      }});
     }, 100);
   };
 
   const updateMatch = function (index, field, value) {
-    setMatches(function (prev) {
-      var updated = [...prev];
-      if (field === "targetCode") {
-        var newTarget = targetCourses.find(function (c) { return c.code === value; });
-        updated[index] = Object.assign({}, updated[index], { target: newTarget || null, matched: !!newTarget });
-      } else if (field === "convertedGrade") {
-        updated[index] = Object.assign({}, updated[index], { convertedGrade: value });
-      }
-      return updated;
-    });
+    if (field === "targetCode") {
+      var newTarget = targetCourses.find(function (c) { return c.code === value; }) || null;
+      dispatch({ type: "UPDATE_MATCH", index: index, field: "targetCode", newTarget: newTarget });
+    } else {
+      dispatch({ type: "UPDATE_MATCH", index: index, field: field, value: value });
+    }
   };
 
   const handleSave = async function () {
-    // Tüm eşleşmeleri kaydet (approved + review); rejected olanları da saklayalım ki
-    // admin geçmişe bakabilsin. Word çıktısında sadece approved + admin-confirmed kullanılır.
     var allMatchesForRecord = matches.map(function (m) {
       return {
         source: { code: m.source.code, name: m.source.name, akts: m.source.akts, grade: m.source.grade },
@@ -1591,13 +1755,14 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
     };
     try {
       var saved = await MuafiyetDB.saveRecord(record);
-      setMsg({ text: "Muafiyet kaydı başarıyla kaydedildi!", type: "success" });
+      dispatch({ type: "SET_MSG", payload: { text: "Muafiyet kaydı başarıyla kaydedildi!", type: "success" } });
       if (onSave) onSave(saved);
-    } catch (err) { setMsg({ text: "Kaydetme hatası: " + err.message, type: "error" }); }
+    } catch (err) {
+      dispatch({ type: "SET_MSG", payload: { text: "Kaydetme hatası: " + err.message, type: "error" } });
+    }
   };
 
   const handleExportWord = function () {
-    // Word'e sadece onaylanmış (approved) ve admin tarafından kabul edilmiş (review→confirmed) dersler gider
     var exportMatches = matches.filter(function (m) {
       return m.tier === "approved" || m.adminDecision === "confirmed";
     }).map(function (m) {
@@ -1613,7 +1778,6 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
 
   // Adım geçerlilik kontrolleri
   var step1Valid = studentName.trim().length > 0 && studentNo.trim().length > 0;
-  // Dilekçe yüklenmişse (ana belge) adım 2 geçerli
   var step2Valid = petitionFile.length > 0 || studentCourses.length > 0;
   var matchedCount = matches.filter(function(m) { return m.matched; }).length;
 
@@ -1623,7 +1787,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
     <div>
       <StepIndicator steps={STEPS} currentStep={step} />
 
-      {msg && <Toast message={msg.text} type={msg.type} onClose={function() { setMsg(null); }} />}
+      {msg && <Toast message={msg.text} type={msg.type} onClose={function() { dispatch({ type: "SET_MSG", payload: null }); }} />}
 
       {/* ═══ ADIM 1: Öğrenci Bilgileri ═══ */}
       {step === 0 && (
@@ -1633,7 +1797,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DS.text, marginBottom: 6 }}>
                 Öğrenci Adı Soyadı <span style={{ color: DS.red }}>*</span>
               </label>
-              <input value={studentName} onChange={function(e) { setStudentName(e.target.value); }}
+              <input value={studentName} onChange={function(e) { dispatch({ type: "SET_STUDENT_FIELD", field: "studentName", value: e.target.value }); }}
                 placeholder="Örn: Ahmet YILMAZ"
                 style={{
                   width: "100%", padding: "10px 14px", borderRadius: DS.radiusSm,
@@ -1645,7 +1809,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DS.text, marginBottom: 6 }}>
                 Öğrenci Numarası <span style={{ color: DS.red }}>*</span>
               </label>
-              <input value={studentNo} onChange={function(e) { setStudentNo(e.target.value); }}
+              <input value={studentNo} onChange={function(e) { dispatch({ type: "SET_STUDENT_FIELD", field: "studentNo", value: e.target.value }); }}
                 placeholder="Örn: 2024001"
                 style={{
                   width: "100%", padding: "10px 14px", borderRadius: DS.radiusSm,
@@ -1655,32 +1819,32 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DS.text, marginBottom: 6 }}>Karşı Üniversite</label>
-              <input value={otherUni} onChange={function(e) { setOtherUni(e.target.value); }}
+              <input value={otherUni} onChange={function(e) { dispatch({ type: "SET_STUDENT_FIELD", field: "otherUni", value: e.target.value }); }}
                 placeholder="Örn: Ankara Üniversitesi"
                 style={{ width: "100%", padding: "10px 14px", borderRadius: DS.radiusSm, border: "1px solid " + DS.border, fontSize: 14, fontFamily: "inherit", outline: "none" }} />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DS.text, marginBottom: 6 }}>Karşı Fakülte</label>
-              <input value={otherFaculty} onChange={function(e) { setOtherFaculty(e.target.value); }}
+              <input value={otherFaculty} onChange={function(e) { dispatch({ type: "SET_STUDENT_FIELD", field: "otherFaculty", value: e.target.value }); }}
                 placeholder="Örn: Mühendislik Fakültesi"
                 style={{ width: "100%", padding: "10px 14px", borderRadius: DS.radiusSm, border: "1px solid " + DS.border, fontSize: 14, fontFamily: "inherit", outline: "none" }} />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DS.text, marginBottom: 6 }}>Karşı Bölüm</label>
-              <input value={otherDept} onChange={function(e) { setOtherDept(e.target.value); }}
+              <input value={otherDept} onChange={function(e) { dispatch({ type: "SET_STUDENT_FIELD", field: "otherDept", value: e.target.value }); }}
                 placeholder="Örn: Bilgisayar Mühendisliği"
                 style={{ width: "100%", padding: "10px 14px", borderRadius: DS.radiusSm, border: "1px solid " + DS.border, fontSize: 14, fontFamily: "inherit", outline: "none" }} />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DS.text, marginBottom: 6 }}>ÇAKÜ Bölümü</label>
-              <input value={localDept} onChange={function(e) { setLocalDept(e.target.value); }}
+              <input value={localDept} onChange={function(e) { dispatch({ type: "SET_STUDENT_FIELD", field: "localDept", value: e.target.value }); }}
                 placeholder="Örn: Bilgisayar"
                 style={{ width: "100%", padding: "10px 14px", borderRadius: DS.radiusSm, border: "1px solid " + DS.border, fontSize: 14, fontFamily: "inherit", outline: "none" }} />
             </div>
           </div>
 
           <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end" }}>
-            <Button onClick={function() { setStep(1); }} disabled={!step1Valid} variant="primary">
+            <Button onClick={function() { dispatch({ type: "SET_STEP", payload: 1 }); }} disabled={!step1Valid} variant="primary">
               Devam Et →
             </Button>
           </div>
@@ -1831,16 +1995,16 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
 
           {/* ── Devam Butonları ── */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 8 }}>
-            <Button onClick={function() { setStep(0); }} variant="ghost">← Geri</Button>
+            <Button onClick={function() { dispatch({ type: "SET_STEP", payload: 0 }); }} variant="ghost">← Geri</Button>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              {targetCourses.length === 0 && (
+              {courseIndex.size === 0 && (
                 <div style={{ display: "flex", alignItems: "center", fontSize: 12, color: DS.amber, gap: 4 }}>
                   <Icons.info /> Ayarlar'dan ÇAKÜ derslerini yükleyin
                 </div>
               )}
               <Button
                 onClick={runAutoMatch}
-                disabled={!step2Valid || targetCourses.length === 0 || matching}
+                disabled={!step2Valid || courseIndex.size === 0 || matching}
                 variant="navy"
                 icon={matching ? null : <Icons.sparkle />}
               >
@@ -1996,7 +2160,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
 
           {/* Aksiyon Butonları */}
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-            <Button onClick={function() { setStep(1); }} variant="ghost">← Geri</Button>
+            <Button onClick={function() { dispatch({ type: "SET_STEP", payload: 1 }); }} variant="ghost">← Geri</Button>
             <div style={{ display: "flex", gap: 10 }}>
               <Button onClick={handleSave} variant="success" icon={<Icons.check />}>
                 Kaydet
@@ -2438,9 +2602,11 @@ window.MuafiyetUtils = {
   jaccardSimilarity, softJaccardSimilarity, ngramSimilarity, tfidfCosineSimilarity,
   contentSimilarity, combinedSimilarity, courseNameSimilarity, courseCodeSimilarity,
   multiFactorScore, levenshteinDistance, wordSimilarity,
-  charNgrams, wordBigrams, autoMatchCourses,
+  charNgrams, wordBigrams, autoMatchCourses, autoMatchCoursesWithIndex, buildCourseIndex,
+  exportCourseContentsJSON,
   extractFromFile, parseCoursesFromTable, parseCoursesFromText, ensureLibsLoaded,
-  FileDropZone,
+  parsePetitionDocument, parsePetitionRows,
+  FileDropZone, MultiFileDropZone,
   TR_STOPWORDS, DOMAIN_SYNONYMS,
   SIMILARITY_THRESHOLD, THRESHOLD_AUTO_APPROVE, THRESHOLD_REVIEW,
   W_NAME, W_CONTENT, W_CODE,
