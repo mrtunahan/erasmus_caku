@@ -1,4 +1,4 @@
-import { useState } from "react";
+const { useState, useEffect, useMemo } = React;
 
 const PROJECTS = {
   unides: {
@@ -22,17 +22,17 @@ const PROJECTS = {
         { name: "Koordinatör Özgeçmiş Formu", url: "https://e-genc.gsb.gov.tr/Content/Yardim/UnidesBelgeler/koordinator-ozgecmis-formu.docx" },
       ] },
       { id: 3, title: "Proje Yazımı & Belgeler", desc: "Başvuru formu doldurulur, bütçe formu hazırlanır (yerel: 75 bin ₺, ulusal: 125 bin ₺), taahhütname imzalanır, paydaşlık formu ve yönetim kurulu kararı alınır.", result: "Tüm belgeler hazır", duration: "3 Hafta", docs: [
-        { name: "Başvuru Formu", url: "https://e-genc.gsb.gov.tr" },
-        { name: "Bütçe Formu", url: "https://e-genc.gsb.gov.tr" },
-        { name: "Taahhütname", url: "https://e-genc.gsb.gov.tr" },
-        { name: "Paydaşlık Formu", url: "https://e-genc.gsb.gov.tr" },
-        { name: "YK Kararı", url: "https://e-genc.gsb.gov.tr" },
+        { name: "Başvuru Formu (e-Genç Portal)", url: "https://e-genc.gsb.gov.tr" },
+        { name: "Bütçe Formu (e-Genç Portal)", url: "https://e-genc.gsb.gov.tr" },
+        { name: "Taahhütname (e-Genç Portal)", url: "https://e-genc.gsb.gov.tr" },
+        { name: "Paydaşlık Formu (e-Genç Portal)", url: "https://e-genc.gsb.gov.tr" },
+        { name: "YK Kararı (e-Genç Portal)", url: "https://e-genc.gsb.gov.tr" },
       ] },
       { id: 4, title: "Online Başvuru", desc: "e-genc.gsb.gov.tr adresinden online başvuru yapılır. Tüm belgeler sisteme yüklenir ve başvuru tamamlanır.", result: "Başvuru onayı alındı", duration: "1 Hafta", docs: [] },
       { id: 5, title: "Değerlendirme & Sonuç", desc: "Başvurular Gençlik Hizmetleri Genel Müdürlüğü tarafından değerlendirilir. Kabul edilen projelere destek sağlanır.", result: "Kabul / Red bildirimi", duration: "4-6 Hafta", docs: [] },
       { id: 6, title: "Projenin Uygulanması", desc: "Proje planına uygun şekilde faaliyetler gerçekleştirilir. Bütçe kullanımı takip edilir, GSB tesis ve genç ofislerinden yararlanılır.", result: "Faaliyetler tamamlandı", duration: "3-6 Ay", docs: [] },
       { id: 7, title: "Sonuç Raporu & Kapanış", desc: "Proje tamamlandıktan sonra sonuç raporu hazırlanır ve sisteme yüklenir. Mali rapor ve çıktılar sunulur.", result: "Sonuç raporu onaylandı", duration: "2 Hafta", docs: [
-        { name: "Sonuç Raporu", url: "https://e-genc.gsb.gov.tr" },
+        { name: "Sonuç Raporu (e-Genç Portal)", url: "https://e-genc.gsb.gov.tr" },
       ] },
     ],
   },
@@ -63,7 +63,7 @@ const PROJECTS = {
         { name: "ARBİS Kaydı", url: "https://arbis.tubitak.gov.tr" },
       ] },
       { id: 2, title: "Araştırma Önerisi Yazımı", desc: "TÜBİTAK formatında ve Türkçe olarak araştırma önerisi hazırlanır. Proje başlığı araştırmanın amacını yansıtmalı. Bireysel veya en fazla 1 yürütücü + 4 ortak ile ekip halinde başvurulabilir.", result: "Araştırma önerisi formu tamamlandı", duration: "3 Hafta", docs: [
-        { name: "Araştırma Önerisi Formu", url: "https://tybs.tubitak.gov.tr" },
+        { name: "Araştırma Önerisi Formu (TYBS)", url: "https://tybs.tubitak.gov.tr" },
         { name: "Öncelikli Alanlar Listesi", url: "https://www.tubitak.gov.tr/tr/destekler/akademik/ulusal-destek-programlari/icerik-2209-a" },
       ] },
       { id: 3, title: "TYBS Online Başvuru", desc: "Başvuru, proje yürütücüsü tarafından TÜBİTAK Yönetim Bilgi Sistemi (tybs.tubitak.gov.tr) üzerinden çevrimiçi yapılır. IBAN proje yürütücüsüne ait olmalıdır. Son başvuru günü 17:30'da sistem kapanır.", result: "Başvuru sisteme yüklendi", duration: "1 Hafta", docs: [] },
@@ -73,7 +73,7 @@ const PROJECTS = {
       { id: 7, title: "Bilimsel Değerlendirme", desc: "Uzman danışma kurulu / panelist tarafından değerlendirilir: Bilimsel nitelik %35, Yöntem %25, Proje yönetimi %20, Yaygın etki %20. Sonuçlar e-bideb üzerinden açıklanır.", result: "Kabul / Red bildirimi", duration: "6-8 Hafta", docs: [] },
       { id: 8, title: "Projenin Yürütülmesi", desc: "Destek yürütücünün banka hesabına yatırılır. Harcamalar fatura ile belgelenir. Etik kurul gereken projelerde onay belgesi yüklenir. Proje en fazla 12 ay sürer.", result: "Araştırma tamamlandı + harcamalar belgelendi", duration: "6-12 Ay", docs: [] },
       { id: 9, title: "Sonuç Raporu & Kapanış", desc: "TÜBİTAK formatında sonuç raporu BİDEB sistemine yüklenir, danışman nihai onay verir. Çıktılar (makale, bildiri vb.) bildirilir. Tamamlayanlara 2224-A/B/D programlarında avantaj sağlanır.", result: "Rapor onaylandı + proje kapandı", duration: "2 Hafta", docs: [
-        { name: "Sonuç Raporu Formatı", url: "https://tybs.tubitak.gov.tr" },
+        { name: "Sonuç Raporu Formatı (TYBS)", url: "https://tybs.tubitak.gov.tr" },
       ] },
     ],
   },
@@ -104,14 +104,14 @@ const PROJECTS = {
         { name: "ARBİS Kaydı", url: "https://arbis.tubitak.gov.tr" },
       ] },
       { id: 3, title: "Araştırma Önerisi Yazımı", desc: "TÜBİTAK formatında, Türkçe olarak sanayi odaklı araştırma önerisi hazırlanır. Sanayi kuruluşunun ihtiyacı ve projenin uygulanabilirliği net şekilde belirtilir.", result: "Sanayi odaklı araştırma önerisi hazır", duration: "3 Hafta", docs: [
-        { name: "Araştırma Önerisi Formu", url: "https://tybs.tubitak.gov.tr" },
+        { name: "Araştırma Önerisi Formu (TYBS)", url: "https://tybs.tubitak.gov.tr" },
       ] },
       { id: 4, title: "TYBS Online Başvuru", desc: "tybs.tubitak.gov.tr üzerinden çevrimiçi başvuru yapılır. Sanayi kuruluşu bilgileri ve danışman bilgileri sisteme girilir.", result: "Başvuru sisteme yüklendi", duration: "1 Hafta", docs: [] },
       { id: 5, title: "Danışman Onayı & e-İmza", desc: "Akademik danışman sistem üzerinden onay verir. Ardından kuruluş yetkilisinin e-imzası ile başvuru geçerli hale gelir.", result: "Danışman onayı + e-İmza tamamlandı", duration: "1-2 Hafta", docs: [] },
       { id: 6, title: "Ön İnceleme & Değerlendirme", desc: "Ön incelemede belge ve koşul kontrolü yapılır. Bilimsel değerlendirme uzman paneller tarafından gerçekleştirilir: Bilimsel nitelik %35, Yöntem %25, Proje yönetimi %20, Yaygın etki %20.", result: "Kabul / Red bildirimi", duration: "6-8 Hafta", docs: [] },
       { id: 7, title: "Sanayi Odaklı Araştırma", desc: "Destek yürütücüye aktarılır. Sanayi kuruluşu ile koordineli olarak araştırma yürütülür. Harcamalar fatura ile belgelenir.", result: "Araştırma + sanayi çıktısı tamamlandı", duration: "6-12 Ay", docs: [] },
       { id: 8, title: "Sonuç Raporu & Kapanış", desc: "Sonuç raporu BİDEB sistemine yüklenir, danışman onayı alınır. Çıktılar bildirilir. Tamamlayanlara 2224-A/B/D fırsatları sunulur.", result: "Rapor onaylandı + proje kapandı", duration: "2 Hafta", docs: [
-        { name: "Sonuç Raporu", url: "https://tybs.tubitak.gov.tr" },
+        { name: "Sonuç Raporu (TYBS)", url: "https://tybs.tubitak.gov.tr" },
       ] },
     ],
   },
@@ -144,18 +144,18 @@ const PROJECTS = {
       { id: 2, title: "T3 KYS Üyelik & Giriş", desc: "T3 Kurumsal Yönetim Sistemi'ne (t3kys.com) üye olunur ve giriş yapılır. Bu platform üzerinden tüm başvuru ve takip işlemleri yürütülür.", result: "T3 KYS hesabı aktif", duration: "1 Gün", docs: [] },
       { id: 3, title: "Takım Kurma", desc: "Takım kaptanı olarak ekip oluşturulur, üyeler sisteme davet edilir. Yarışmaya göre takım en az 3, en fazla 15 kişiden oluşabilir. Bireysel veya takım halinde katılım mümkündür.", result: "Takım oluşturuldu + üyeler davet edildi", duration: "1 Hafta", docs: [] },
       { id: 4, title: "Online Başvuru", desc: "Yarışma kategorisi seçilir, proje özeti ve başvuru formu doldurulur. Proje bilgileri, takım detayları ve teknik açıklamalar girilir. Başvuru son tarihi: 28 Şubat 2026 (uzatıldı).", result: "Başvuru tamamlandı", duration: "1-2 Hafta", docs: [
-        { name: "Başvuru Formu", url: "https://t3kys.com" },
+        { name: "Başvuru Formu (T3 KYS)", url: "https://t3kys.com" },
       ] },
       { id: 5, title: "Teknik Yeterlilik Formu", desc: "Başvuru sonrası teknik yeterlilik formu hazırlanır ve sisteme yüklenir. Son teslim: 24 Mart 2026. Sonuçlar: 10 Nisan 2026.", result: "Teknik yeterlilik onaylandı", duration: "3-4 Hafta", docs: [
-        { name: "Teknik Yeterlilik Formu", url: "https://t3kys.com" },
+        { name: "Teknik Yeterlilik Formu (T3 KYS)", url: "https://t3kys.com" },
       ] },
       { id: 6, title: "Kritik Tasarım Raporu (KTR)", desc: "Detaylı teknik tasarım raporu, CAD çizimleri ve simülasyonlar hazırlanır. Son teslim: 30 Nisan 2026. Sonuçlar: 22 Mayıs 2026.", result: "KTR onaylandı", duration: "4-5 Hafta", docs: [
-        { name: "KTR Raporu", url: "https://t3kys.com" },
-        { name: "Teknik Çizimler", url: "https://t3kys.com" },
+        { name: "KTR Raporu (T3 KYS)", url: "https://t3kys.com" },
+        { name: "Teknik Çizimler (T3 KYS)", url: "https://t3kys.com" },
       ] },
       { id: 7, title: "Prototip & Test Videoları", desc: "Prototip üretilir ve test edilir. Sistem tanımlama ve kanıt videoları hazırlanır. Son teslim: 14 Temmuz 2026. Finalist takımlar: 31 Temmuz 2026.", result: "Finalist olarak seçildi", duration: "8-10 Hafta", docs: [
-        { name: "Kanıt Videoları", url: "https://t3kys.com" },
-        { name: "Sistem Tanımlama", url: "https://t3kys.com" },
+        { name: "Kanıt Videoları (T3 KYS)", url: "https://t3kys.com" },
+        { name: "Sistem Tanımlama (T3 KYS)", url: "https://t3kys.com" },
       ] },
       { id: 8, title: "Final Hazırlık", desc: "Son testler, lojistik planlama (Şanlıurfa ulaşım/konaklama), yedek parça temini ve jüri sunum provası yapılır. Yarışmacılara ulaşım ve konaklama desteği sağlanır.", result: "Yarışmaya hazır", duration: "2-4 Hafta", docs: [] },
       { id: 9, title: "TEKNOFEST Şanlıurfa Final", desc: "30 Eylül – 4 Ekim 2026 tarihlerinde GAP Havalimanı'nda yarışma sahasında kurulum, jüri sunumu ve performans sergilenir. Hava gösterileri, atölyeler ve sergilerle birlikte festival deneyimi yaşanır.", result: "Yarışma tamamlandı", duration: "5 Gün", docs: [] },
@@ -346,7 +346,7 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
           fontWeight: 900, fontSize: 12, letterSpacing: "0.12em",
           boxShadow: `0 4px 18px ${proj.accent}55`,
           display: "inline-flex", alignItems: "center", gap: 8,
-        }}>🚦 BAŞLANGIÇ</div>
+        }}>BAŞLANGIÇ</div>
       </div>
 
       {/* ── Steps ── */}
@@ -421,7 +421,7 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
           fontWeight: 900, fontSize: 12, letterSpacing: "0.12em",
           boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
           display: "inline-flex", alignItems: "center", gap: 8,
-        }}>🏁 BİTİŞ</div>
+        }}>BİTİŞ</div>
       </div>
     </div>
   );
@@ -434,7 +434,15 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
   const [activeProject, setActiveProject] = useState("unides");
   const [expanded, setExpanded] = useState(null);
   const [view, setView] = useState("road");
-  const [statuses, setStatuses] = useState({});
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [areasOpen, setAreasOpen] = useState(false);
+  const STORAGE_KEY = "roadmaps_statuses_" + (currentUser && currentUser.uid ? currentUser.uid : "guest");
+  const [statuses, setStatuses] = useState(function() {
+    try { var s = localStorage.getItem(STORAGE_KEY); return s ? JSON.parse(s) : {}; } catch(e) { return {}; }
+  });
+  React.useEffect(function() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(statuses)); } catch(e) {}
+  }, [statuses, STORAGE_KEY]);
 
   const proj = PROJECTS[activeProject];
   const steps = proj.steps.map((s, i) => ({
@@ -450,6 +458,15 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
     const cur = statuses[key] || steps[idx]._status;
     const next = order[(order.indexOf(cur) + 1) % order.length];
     setStatuses((p) => ({ ...p, [key]: next }));
+  };
+
+  const resetProgress = function() {
+    var keys = Object.keys(statuses).filter(function(k) { return k.startsWith(activeProject + "-"); });
+    setStatuses(function(prev) {
+      var next = Object.assign({}, prev);
+      keys.forEach(function(k) { delete next[k]; });
+      return next;
+    });
   };
 
   /* ── Section Divider ── */
@@ -584,14 +601,25 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
           <>
             <SectionDivider label="Desteklenen Alanlar" />
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {proj.areas.map((a, i) => (
-                <span key={i} style={{
+              {(areasOpen ? proj.areas : proj.areas.slice(0, 6)).map(function(a, i) {
+                return (
+                  <span key={i} style={{
+                    fontSize: 12, padding: "5px 13px", borderRadius: 20,
+                    background: "#fff", color: proj.accent, fontWeight: 600,
+                    border: "1px solid " + proj.accent + "25",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                  }}>{a}</span>
+                );
+              })}
+              {proj.areas.length > 6 && (
+                <button onClick={function() { setAreasOpen(function(p) { return !p; }); }} style={{
                   fontSize: 12, padding: "5px 13px", borderRadius: 20,
-                  background: "#fff", color: proj.accent, fontWeight: 600,
-                  border: `1px solid ${proj.accent}25`,
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                }}>{a}</span>
-              ))}
+                  background: proj.accentSoft, color: proj.accent, fontWeight: 700,
+                  border: "1px solid " + proj.accent + "30", cursor: "pointer",
+                }}>
+                  {areasOpen ? "Daha az" : "+" + (proj.areas.length - 6) + " daha"}
+                </button>
+              )}
             </div>
           </>
         )}
@@ -606,30 +634,44 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
 
         {/* ── Progress Stats ── */}
         <SectionDivider label="İlerleme" />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 6 }}>
-          <div style={{
-            background: "#fff", border: `1px solid ${proj.accent}15`, borderRadius: 16, padding: "16px 18px",
-            display: "flex", alignItems: "center", gap: 14,
-            boxShadow: `0 2px 8px ${proj.accent}08`,
-          }}>
-            <ProgressArc pct={pct} color={proj.accent} />
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tamamlanan</div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: "#0F172A" }}>{pct}%</div>
+        {/* Single progress bar */}
+        <div style={{
+          background: "#fff", border: "1px solid #F1F5F9", borderRadius: 14,
+          padding: "16px 20px", marginBottom: 6,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>
+                {completed} / {steps.length} adım tamamlandı
+              </span>
+              {steps.find(function(s) { return s._status === "in-progress"; }) && (
+                <span style={{
+                  fontSize: 11, fontWeight: 600, color: proj.accent,
+                  background: proj.accentSoft, padding: "3px 10px", borderRadius: 20,
+                  border: "1px solid " + proj.accent + "20",
+                }}>
+                  {steps.find(function(s) { return s._status === "in-progress"; }).title} devam ediyor
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 18, fontWeight: 900, color: proj.accent, fontFamily: "monospace" }}>{pct}%</span>
+              {Object.keys(statuses).some(function(k) { return k.startsWith(activeProject + "-"); }) && (
+                <button onClick={resetProgress} style={{
+                  fontSize: 11, fontWeight: 600, color: "#94A3B8",
+                  background: "none", border: "1px solid #E2E8F0",
+                  borderRadius: 8, padding: "3px 10px", cursor: "pointer",
+                }}>Sıfırla</button>
+              )}
             </div>
           </div>
-          <div style={{ background: "#fff", border: `1px solid ${proj.accent}15`, borderRadius: 16, padding: "16px 18px", boxShadow: `0 2px 8px ${proj.accent}08`, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Adımlar</div>
-            <div style={{ marginTop: 8 }}>
-              <span style={{ fontSize: 26, fontWeight: 900, color: "#16A34A" }}>{completed}</span>
-              <span style={{ fontSize: 18, color: "#CBD5E1", fontWeight: 700 }}> / {steps.length}</span>
-            </div>
-          </div>
-          <div style={{ background: "#fff", border: `1px solid ${proj.accent}15`, borderRadius: 16, padding: "16px 18px", boxShadow: `0 2px 8px ${proj.accent}08`, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Aktif Adım</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: proj.accent, marginTop: 8, lineHeight: 1.4 }}>
-              {steps.find((s) => s._status === "in-progress")?.title || "—"}
-            </div>
+          <div style={{ height: 8, background: "#F1F5F9", borderRadius: 8, overflow: "hidden" }}>
+            <div style={{
+              height: "100%", width: pct + "%",
+              background: "linear-gradient(to right, " + proj.accent + ", " + proj.accentMid + ")",
+              borderRadius: 8, transition: "width 0.6s ease",
+            }} />
           </div>
         </div>
 
