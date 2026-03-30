@@ -5,7 +5,9 @@ const PROJECTS = {
     name: "ÜNİDES",
     subtitle: "Üniversite Öğrenci Toplulukları İş Birliği ve Destek Programı",
     accent: "#E8590C", accentSoft: "#FFF7ED", accentMid: "#FDBA74",
-    icon: "🏛️", badge: "75-125 bin ₺",
+    logo: "https://www.gsb.gov.tr/favicon.ico",
+    logoFull: "https://www.google.com/s2/favicons?domain=gsb.gov.tr&sz=64",
+    badge: "75-125 bin ₺",
     badgeDesc: "Yerel: 75.000 ₺ · Ulusal: 125.000 ₺",
     info: "Gençlik ve Spor Bakanlığı Gençlik Hizmetleri Genel Müdürlüğü tarafından yürütülen ÜNİDES, üniversite öğrenci topluluklarının projelerine mali destek sağlar. 2025-2026 döneminde 5. ve 6. dönem başvuruları e-genc.gsb.gov.tr üzerinden alınmaktadır.",
     links: [
@@ -38,7 +40,9 @@ const PROJECTS = {
     name: "2209-A",
     subtitle: "Üniversite Öğrencileri Araştırma Projeleri Destekleme Programı",
     accent: "#059669", accentSoft: "#ECFDF5", accentMid: "#6EE7B7",
-    icon: "🔬", badge: "Maks. 12.000 ₺",
+    logo: "https://www.tubitak.gov.tr/favicon.ico",
+    logoFull: "https://www.google.com/s2/favicons?domain=tubitak.gov.tr&sz=64",
+    badge: "Maks. 12.000 ₺",
     badgeDesc: "En fazla 12 ay · TYBS üzerinden başvuru",
     info: "TÜBİTAK BİDEB tarafından yürütülen 2209-A programı, ön lisans ve lisans öğrencilerine araştırma ve proje yönetimi deneyimi kazandırmayı amaçlar. Makine/teçhizat, sarf malzeme, seyahat ve hizmet alımı giderleri desteklenir. Kongre katılım, yayın, patent ve konaklama masrafları bütçeye dahil edilemez.",
     links: [
@@ -77,7 +81,9 @@ const PROJECTS = {
     name: "2209-B",
     subtitle: "Üniversite Öğrencileri Sanayiye Yönelik Araştırma Projeleri Desteği",
     accent: "#0369A1", accentSoft: "#F0F9FF", accentMid: "#7DD3FC",
-    icon: "🏭", badge: "Maks. 12.000 ₺",
+    logo: "https://www.tubitak.gov.tr/favicon.ico",
+    logoFull: "https://www.google.com/s2/favicons?domain=tubitak.gov.tr&sz=64",
+    badge: "Maks. 12.000 ₺",
     badgeDesc: "En fazla 12 ay · Sanayi iş birliği zorunlu",
     info: "TÜBİTAK BİDEB tarafından yürütülen 2209-B programı, ön lisans ve lisans öğrencilerinin sanayinin ihtiyaç duyduğu alanlarda çözümler üretmesini teşvik eder. 2209-A'dan farkı: Akademik danışmanın yanı sıra bir sanayi danışmanı da zorunludur. Sanayi kuruluşu; Ar-Ge merkezi, tasarım merkezi, teknoloji geliştirme bölgesi, OSB'de faaliyet gösteren veya TÜBİTAK destekli proje tamamlamış sermaye şirketi olmalıdır.",
     links: [
@@ -113,7 +119,9 @@ const PROJECTS = {
     name: "TEKNOFEST",
     subtitle: "2026 · Şanlıurfa GAP Havalimanı · 30 Eylül – 4 Ekim",
     accent: "#7C3AED", accentSoft: "#F5F3FF", accentMid: "#C4B5FD",
-    icon: "🚀", badge: "75 Milyon ₺ Ödül",
+    logo: "https://www.teknofest.org/favicon.ico",
+    logoFull: "https://www.google.com/s2/favicons?domain=teknofest.org&sz=64",
+    badge: "75 Milyon ₺ Ödül",
     badgeDesc: "52 yarışma · 127 alt kategori · 100M+ ₺ maddi destek",
     info: "T3 Vakfı ve T.C. Sanayi ve Teknoloji Bakanlığı öncülüğünde düzenlenen TEKNOFEST, dünyanın en büyük havacılık, uzay ve teknoloji festivalidir. 2026'da Şanlıurfa GAP Havalimanı'nda 30 Eylül – 4 Ekim tarihleri arasında gerçekleşecektir. İlkokuldan lisansüstüne, mezunlardan özel sektöre kadar geniş katılımcı profiline açıktır.",
     links: [
@@ -444,6 +452,41 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
     setStatuses((p) => ({ ...p, [key]: next }));
   };
 
+  /* ── Section Divider ── */
+  const SectionDivider = ({ label }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "22px 0" }}>
+      <div style={{ flex: 1, height: 1, background: `linear-gradient(to right, transparent, ${proj.accent}25)` }} />
+      {label && (
+        <span style={{ fontSize: 11, fontWeight: 700, color: proj.accent, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.7, flexShrink: 0 }}>
+          {label}
+        </span>
+      )}
+      <div style={{ flex: 1, height: 1, background: `linear-gradient(to left, transparent, ${proj.accent}25)` }} />
+    </div>
+  );
+
+  /* ── Logo with fallback ── */
+  const ProjectLogo = ({ p, size = 36 }) => {
+    const [err, setErr] = useState(false);
+    return err ? (
+      <div style={{
+        width: size, height: size, borderRadius: size * 0.25,
+        background: p.accent, display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: size * 0.36, fontWeight: 900, color: "#fff", flexShrink: 0,
+        letterSpacing: "-0.03em",
+      }}>
+        {p.name.slice(0, 2)}
+      </div>
+    ) : (
+      <img
+        src={p.logoFull}
+        alt={p.name}
+        onError={() => setErr(true)}
+        style={{ width: size, height: size, objectFit: "contain", borderRadius: size * 0.2, flexShrink: 0 }}
+      />
+    );
+  };
+
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#FAFBFC", minHeight: "100vh", color: "#1E293B" }}>
       <style>{`
@@ -474,20 +517,20 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "32px 24px" }}>
 
         {/* ── Project Tabs ── */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 28, flexWrap: "wrap" }}>
           {Object.entries(PROJECTS).map(([key, p]) => {
             const act = activeProject === key;
             return (
-              <button key={key} onClick={() => { setActiveProject(key); setExpanded(null); }} style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", borderRadius: 14,
+              <button key={key} onClick={() => { setActiveProject(key); setExpanded(null); setView("road"); }} style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 18px", borderRadius: 14,
                 border: "none", cursor: "pointer",
                 background: act ? p.accentSoft : "#fff",
-                boxShadow: act ? `0 0 0 2px ${p.accent}40` : "0 0 0 1px #E2E8F0",
+                boxShadow: act ? `0 0 0 2px ${p.accent}50, 0 2px 8px ${p.accent}15` : "0 0 0 1px #E2E8F0",
                 transition: "all 0.2s", minWidth: "fit-content",
               }}>
-                <span style={{ fontSize: 20 }}>{p.icon}</span>
+                <ProjectLogo p={p} size={32} />
                 <div style={{ textAlign: "left" }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: act ? p.accent : "#475569" }}>{p.name}</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: act ? p.accent : "#475569" }}>{p.name}</div>
                   <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 500 }}>{p.badge}</div>
                 </div>
               </button>
@@ -495,95 +538,118 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
           })}
         </div>
 
-        {/* ── Project Info Card ── */}
+        {/* ── Program Info Card ── */}
         <div style={{
-          background: proj.accentSoft, border: `1px solid ${proj.accent}18`,
-          borderRadius: 16, padding: "18px 22px", marginBottom: 18,
+          background: proj.accentSoft,
+          border: `1px solid ${proj.accent}20`,
+          borderRadius: 18,
+          overflow: "hidden",
         }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: proj.accent, marginBottom: 6 }}>{proj.subtitle}</div>
-          <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.75, margin: 0 }}>{proj.info}</p>
-          {proj.badgeDesc && (
-            <div style={{ marginTop: 10, fontSize: 15, fontWeight: 800, color: proj.accent }}>{proj.badgeDesc}</div>
-          )}
-          {/* Quick Links */}
-          {proj.links && proj.links.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-              {proj.links.map((link, i) => (
-                <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
-                  className="rm-ext-link" style={{ color: proj.accent }}>
-                  <LinkIcon size={13} color={proj.accent} />
-                  {link.label}
-                </a>
-              ))}
+          {/* Card header stripe */}
+          <div style={{
+            background: `linear-gradient(135deg, ${proj.accent} 0%, ${proj.accent}CC 100%)`,
+            padding: "16px 24px",
+            display: "flex", alignItems: "center", gap: 16,
+          }}>
+            <ProjectLogo p={proj} size={44} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.75)", textTransform: "uppercase", letterSpacing: "0.1em" }}>{proj.badge}</div>
+              <div style={{ fontSize: 17, fontWeight: 900, color: "#fff", lineHeight: 1.3, marginTop: 2 }}>{proj.subtitle}</div>
             </div>
-          )}
+            {proj.badgeDesc && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)", background: "rgba(255,255,255,0.15)", padding: "6px 14px", borderRadius: 20, flexShrink: 0, backdropFilter: "blur(4px)" }}>
+                {proj.badgeDesc}
+              </div>
+            )}
+          </div>
+          {/* Card body */}
+          <div style={{ padding: "18px 24px" }}>
+            <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.8, margin: 0 }}>{proj.info}</p>
+            {proj.links && proj.links.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+                {proj.links.map((link, i) => (
+                  <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+                    className="rm-ext-link" style={{ color: proj.accent }}>
+                    <LinkIcon size={13} color={proj.accent} />
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Areas ── */}
         {proj.areas && proj.areas.length > 0 && (
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-              Desteklenen Alanlar
-            </div>
+          <>
+            <SectionDivider label="Desteklenen Alanlar" />
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {proj.areas.map((a, i) => (
                 <span key={i} style={{
-                  fontSize: 12, padding: "4px 12px", borderRadius: 14,
+                  fontSize: 12, padding: "5px 13px", borderRadius: 20,
                   background: "#fff", color: proj.accent, fontWeight: 600,
-                  border: `1px solid ${proj.accent}20`,
+                  border: `1px solid ${proj.accent}25`,
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
                 }}>{a}</span>
               ))}
             </div>
-          </div>
+          </>
         )}
 
-        <EvalBar criteria={proj.evalCriteria} accent={proj.accent} />
+        {/* ── Eval Criteria ── */}
+        {proj.evalCriteria && proj.evalCriteria.length > 0 && (
+          <>
+            <SectionDivider label="Değerlendirme Kriterleri" />
+            <EvalBar criteria={proj.evalCriteria} accent={proj.accent} />
+          </>
+        )}
 
-        {/* ── Stats Row ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
+        {/* ── Progress Stats ── */}
+        <SectionDivider label="İlerleme" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 6 }}>
           <div style={{
-            background: "#fff", border: "1px solid #F1F5F9", borderRadius: 14, padding: 18,
+            background: "#fff", border: `1px solid ${proj.accent}15`, borderRadius: 16, padding: "16px 18px",
             display: "flex", alignItems: "center", gap: 14,
+            boxShadow: `0 2px 8px ${proj.accent}08`,
           }}>
             <ProgressArc pct={pct} color={proj.accent} />
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>İlerleme</div>
-              <div style={{ fontSize: 24, fontWeight: 900, color: "#0F172A" }}>{pct}%</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tamamlanan</div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: "#0F172A" }}>{pct}%</div>
             </div>
           </div>
-          <div style={{ background: "#fff", border: "1px solid #F1F5F9", borderRadius: 14, padding: 18 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Adımlar</div>
-            <div style={{ marginTop: 6 }}>
-              <span style={{ fontSize: 24, fontWeight: 900, color: "#16A34A" }}>{completed}</span>
+          <div style={{ background: "#fff", border: `1px solid ${proj.accent}15`, borderRadius: 16, padding: "16px 18px", boxShadow: `0 2px 8px ${proj.accent}08`, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Adımlar</div>
+            <div style={{ marginTop: 8 }}>
+              <span style={{ fontSize: 26, fontWeight: 900, color: "#16A34A" }}>{completed}</span>
               <span style={{ fontSize: 18, color: "#CBD5E1", fontWeight: 700 }}> / {steps.length}</span>
             </div>
           </div>
-          <div style={{ background: "#fff", border: "1px solid #F1F5F9", borderRadius: 14, padding: 18 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Aktif Adım</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: proj.accent, marginTop: 8, lineHeight: 1.3 }}>
+          <div style={{ background: "#fff", border: `1px solid ${proj.accent}15`, borderRadius: 16, padding: "16px 18px", boxShadow: `0 2px 8px ${proj.accent}08`, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Aktif Adım</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: proj.accent, marginTop: 8, lineHeight: 1.4 }}>
               {steps.find((s) => s._status === "in-progress")?.title || "—"}
             </div>
           </div>
         </div>
 
         {/* ── View Toggle ── */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0F172A" }}>Yol Haritası</h2>
+        <SectionDivider label="Yol Haritası" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: "#B0B8C4" }}>
+            💡 Numaraya tıklayarak durumu değiştirebilirsiniz
+          </div>
           <div style={{ display: "flex", gap: 4, background: "#F1F5F9", borderRadius: 10, padding: 4 }}>
             {[{ k: "road", l: "🛣 Yol" }, { k: "steps", l: "Adımlar" }, { k: "gantt", l: "Gantt" }].map((v) => (
               <button key={v.k} onClick={() => setView(v.k)} style={{
-                padding: "7px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+                padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer",
                 background: view === v.k ? "#fff" : "transparent",
                 color: view === v.k ? "#0F172A" : "#94A3B8",
-                fontSize: 13, fontWeight: 700,
+                fontSize: 12, fontWeight: 700,
                 boxShadow: view === v.k ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
               }}>{v.l}</button>
             ))}
           </div>
-        </div>
-
-        <div style={{ fontSize: 12, color: "#B0B8C4", marginBottom: 14 }}>
-          💡 Numaraya tıklayarak durumu değiştirebilirsiniz
         </div>
 
         {/* ── Road / Steps / Gantt ── */}
@@ -705,11 +771,15 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
 
         {/* ── Footer ── */}
         <div style={{
-          marginTop: 32, padding: "14px 0", borderTop: "1px solid #F1F5F9",
+          marginTop: 28, padding: "14px 0",
+          borderTop: `1px solid ${proj.accent}15`,
           display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10,
         }}>
-          <span style={{ fontSize: 12, color: "#CBD5E1" }}>Yol Haritaları Modülü</span>
-          <div style={{ display: "flex", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <ProjectLogo p={proj} size={18} />
+            <span style={{ fontSize: 12, color: "#CBD5E1", fontWeight: 500 }}>{proj.name} · Yol Haritası</span>
+          </div>
+          <div style={{ display: "flex", gap: 14 }}>
             {[
               { c: "#16A34A", l: "Tamamlandı" },
               { c: "#D97706", l: "Devam Ediyor" },
@@ -717,7 +787,7 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
             ].map((x, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: x.c }} />
-                <span style={{ fontSize: 12, color: "#94A3B8" }}>{x.l}</span>
+                <span style={{ fontSize: 11, color: "#94A3B8" }}>{x.l}</span>
               </div>
             ))}
           </div>
