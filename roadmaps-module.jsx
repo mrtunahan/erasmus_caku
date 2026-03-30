@@ -675,14 +675,59 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
           </div>
         </div>
 
+        {/* ── How to use guide ── */}
+        <div style={{ marginBottom: 14 }}>
+          <button
+            onClick={function() { setGuideOpen(function(p) { return !p; }); }}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "10px 16px", borderRadius: 10,
+              background: "#F8FAFC", border: "1px solid #E2E8F0",
+              fontSize: 12, fontWeight: 600, color: "#475569",
+              cursor: "pointer",
+            }}
+          >
+            <span>Nasıl kullanılır?</span>
+            <span style={{ fontSize: 11, color: "#94A3B8", transform: guideOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
+          </button>
+          {guideOpen && (
+            <div style={{
+              marginTop: 1, padding: "14px 16px",
+              background: "#F8FAFC", border: "1px solid #E2E8F0",
+              borderTop: "none", borderRadius: "0 0 10px 10px",
+            }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+                {[
+                  { num: "1", text: "Yol haritasındaki numaralı dairelere tıklayarak durumu değiştirin: Bekliyor → Devam Ediyor → Tamamlandı." },
+                  { num: "2", text: "İlerlemeniz otomatik olarak tarayıcınıza kaydedilir. Sayfayı kapatsanız bile nerede kaldığınız korunur." },
+                  { num: "3", text: "Bir adıma tıklayarak ayrıntıları ve belge bağlantılarını görün. Belge adına tıklayarak ilgili portala gidin." },
+                  { num: "4", text: "Üstteki program sekmelerinden ÜNİDES, 2209-A/B ve TEKNOFEST yol haritaları arasında geçiş yapın." },
+                ].map(function(tip, ti) {
+                  return (
+                    <div key={ti} style={{ display: "flex", gap: 10 }}>
+                      <div style={{
+                        width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                        background: proj.accent + "15", display: "flex",
+                        alignItems: "center", justifyContent: "center",
+                        fontSize: 11, fontWeight: 800, color: proj.accent,
+                      }}>{tip.num}</div>
+                      <p style={{ fontSize: 12, color: "#64748B", lineHeight: 1.6, margin: 0 }}>{tip.text}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* ── View Toggle ── */}
         <SectionDivider label="Yol Haritası" />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{ fontSize: 12, color: "#B0B8C4" }}>
-            💡 Numaraya tıklayarak durumu değiştirebilirsiniz
+            Numaraya tıklayarak durumunuzu güncelleyin
           </div>
           <div style={{ display: "flex", gap: 4, background: "#F1F5F9", borderRadius: 10, padding: 4 }}>
-            {[{ k: "road", l: "🛣 Yol" }, { k: "steps", l: "Adımlar" }, { k: "gantt", l: "Gantt" }].map((v) => (
+            {[{ k: "road", l: "Yol" }, { k: "steps", l: "Adımlar" }, { k: "gantt", l: "Gantt" }].map((v) => (
               <button key={v.k} onClick={() => setView(v.k)} style={{
                 padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer",
                 background: view === v.k ? "#fff" : "transparent",
