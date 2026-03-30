@@ -360,6 +360,55 @@ function parseCoursesFromText(text) {
   return courses;
 }
 
+// Dilekçeden ÇAKÜ ders kodlarını çıkarır ve targetCourses ile eşleştirir
+function parsePetitionDocument(text, targetCourses) {
+  // ÇAKÜ ders kodu formatları: BM*301, BM301, CSE 301 vb.
+  var cakuPattern = /([A-ZÇĞİÖŞÜ]{2,5})\*?(\d{3,4})/g;
+  var found = [];
+  var seen = new Set();
+  var match;
+  while ((match = cakuPattern.exec(text)) !== null) {
+    var code = match[1] + match[2];
+    if (!seen.has(code)) {
+      seen.add(code);
+      found.push(code);
+    }
+  }
+  // Her bulunan kodu targetCourses'ta ara
+  var results = [];
+  found.forEach(function (code) {
+    var upper = code.toUpperCase();
+    var target = targetCourses.find(function (c) {
+      return c.code && c.code.replace(/\s|\*/g, "").toUpperCase() === upper;
+    });
+    if (target) {
+      results.push({ cakuCode: code, target: target });
+    }
+  });
+  return results;
+}
+
+// Dilekçedeki satırlardan karşı kurum kodu → ÇAKÜ kodu çiftlerini çıkarır
+function parsePetitionRows(text, targetCourses) {
+  var lines = text.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+  var rows = [];
+  // Her satırda iki ders kodu varsa (sol = karşı kurum, sağ = ÇAKÜ)
+  var pairPattern = /([A-ZÇĞİÖŞÜa-zçğıöşü]{2,5}\s?\d{3,4})[^\n]*?([A-ZÇĞİÖŞÜ]{2,5}\*?\s?\d{3,4})/;
+  var cakuColPattern = /([A-ZÇĞİÖŞÜ]{2,5})\*?(\d{3,4})/g;
+  lines.forEach(function (line) {
+    var m = line.match(pairPattern);
+    if (m) {
+      var sourceCode = m[1].replace(/\s/g, "");
+      var cakuCode = m[2].replace(/[\s*]/g, "");
+      var target = targetCourses.find(function (c) {
+        return c.code && c.code.replace(/\s|\*/g, "").toUpperCase() === cakuCode.toUpperCase();
+      });
+      rows.push({ sourceCode: sourceCode, cakuCode: cakuCode, target: target || null });
+    }
+  });
+  return rows;
+}
+
 // ══════════════════════════════════════════════════════════════
 // NLP MOTORU
 // ══════════════════════════════════════════════════════════════
@@ -976,6 +1025,116 @@ const FileDropZone = ({ label, description, accept, onFile, fileName, loading, c
   );
 };
 
+// ── Çoklu Dosya Yükleme Alanı (PDF, maks 25) ──
+const MultiFileDropZone = ({ label, description, accept, onFiles, files, loading, maxFiles }) => {
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef(null);
+  var max = maxFiles || 25;
+
+  const handleDrop = useCallback(function (e) {
+    e.preventDefault(); setDragOver(false);
+    if (e.dataTransfer.files.length > 0) {
+      var arr = Array.from(e.dataTransfer.files).slice(0, max);
+      onFiles(arr);
+    }
+  }, [onFiles, max]);
+
+  const handleChange = function (e) {
+    if (e.target.files.length > 0) {
+      var arr = Array.from(e.target.files).slice(0, max);
+      onFiles(arr);
+    }
+  };
+
+  var isLoaded = files && files.length > 0;
+
+  return (
+    <div>
+      <div
+        onDrop={handleDrop}
+        onDragOver={function(e) { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={function() { setDragOver(false); }}
+        onClick={function () { inputRef.current && inputRef.current.click(); }}
+        style={{
+          border: "2px dashed " + (dragOver ? DS.accent : (isLoaded ? DS.green : DS.border)),
+          borderRadius: DS.radius,
+          padding: "20px 24px",
+          textAlign: "center",
+          cursor: "pointer",
+          background: dragOver ? DS.accentLight : (isLoaded ? DS.greenBg : "white"),
+          transition: "all 0.25s ease",
+          minHeight: 100,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+        }}
+      >
+        <input
+          ref={inputRef} type="file"
+          accept={accept || ".pdf"}
+          multiple
+          style={{ display: "none" }}
+          onChange={handleChange}
+        />
+        {loading ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 20, height: 20, borderRadius: "50%",
+              border: "2px solid " + DS.accentLight, borderTopColor: DS.accent,
+              animation: "spin 0.8s linear infinite",
+            }} />
+            <span style={{ color: DS.accent, fontWeight: 600, fontSize: 13 }}>Dosyalar okunuyor...</span>
+          </div>
+        ) : isLoaded ? (
+          <>
+            <div style={{
+              width: 32, height: 32, borderRadius: "50%",
+              background: DS.green, display: "flex",
+              alignItems: "center", justifyContent: "center",
+              color: "white", flexShrink: 0,
+            }}>
+              <Icons.check />
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, color: DS.green, fontSize: 13 }}>{files.length} dosya yüklendi</div>
+              <div style={{ fontSize: 11, color: DS.textMuted, marginTop: 2 }}>Değiştirmek için tıklayın veya sürükleyin</div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ color: DS.textMuted }}><Icons.upload /></div>
+            <div>
+              <div style={{ fontWeight: 600, color: DS.text, fontSize: 14 }}>{label}</div>
+              {description && <div style={{ fontSize: 11, color: DS.textMuted, marginTop: 4, lineHeight: 1.4 }}>{description}</div>}
+              <div style={{ fontSize: 11, color: DS.accent, marginTop: 4 }}>Maks. {max} dosya</div>
+            </div>
+          </>
+        )}
+      </div>
+      {/* Yüklenen dosya listesi */}
+      {isLoaded && (
+        <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {files.map(function (f, i) {
+            return (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 5,
+                padding: "4px 10px", borderRadius: 20,
+                background: DS.bg, border: "1px solid " + DS.border,
+                fontSize: 11, color: DS.text,
+              }}>
+                <span style={{ color: DS.accent, fontWeight: 700, fontSize: 10 }}>PDF</span>
+                <span>{f.name}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Adım Göstergesi ──
 const StepIndicator = ({ steps, currentStep }) => {
   return (
@@ -1235,7 +1394,19 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
   const [otherFaculty, setOtherFaculty] = useState("");
   const [otherDept, setOtherDept] = useState("");
   const [localDept, setLocalDept] = useState("Bilgisayar");
-  // Dosya
+  // Dosya — Alan 1: Ders İçerikleri (çoklu PDF)
+  const [contentFiles, setContentFiles] = useState([]);
+  const [loadingContentFiles, setLoadingContentFiles] = useState(false);
+  const [contentFilesStatus, setContentFilesStatus] = useState([]); // [{name, codeWarning, courses}]
+  // Dosya — Alan 2: Dilekçe (tek PDF/Word)
+  const [petitionFile, setPetitionFile] = useState("");
+  const [loadingPetition, setLoadingPetition] = useState(false);
+  const [petitionRows, setPetitionRows] = useState([]); // [{sourceCode, cakuCode, target}]
+  // Dosya — Alan 3: Not Karşılıkları (tek PDF)
+  const [gradeEquivFile, setGradeEquivFile] = useState("");
+  const [loadingGradeEquiv, setLoadingGradeEquiv] = useState(false);
+  const [gradeEquivText, setGradeEquivText] = useState("");
+  // Birleşik öğrenci dersleri (dilekçe + içerik dosyaları)
   const [studentCoursesFile, setStudentCoursesFile] = useState("");
   const [loadingStudentCourses, setLoadingStudentCourses] = useState(false);
   const [studentCourses, setStudentCourses] = useState([]);
@@ -1271,6 +1442,98 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
       else setMsg({ text: "Dosyadan ders bilgisi çıkarılamadı.", type: "error" });
     } catch (err) { setMsg({ text: "Dosya okunamadı: " + err.message, type: "error" }); }
     setLoadingStudentCourses(false);
+  };
+
+  // Alan 1: Ders İçerikleri (çoklu PDF) — dosya adı = ders kodu
+  const handleContentFiles = async function (files) {
+    setLoadingContentFiles(true); setMsg(null);
+    setContentFiles(files);
+    var statuses = [];
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      // Dosya adından ders kodu çıkar (uzantıyı kaldır)
+      var codeFromName = f.name.replace(/\.[^.]+$/, "").trim().toUpperCase().replace(/\s/g, "");
+      var codePattern = /^([A-ZÇĞIŞÖÜ]{2,5}\*?\d{3,4})$/;
+      var codeWarning = !codePattern.test(codeFromName);
+      try {
+        var result = await extractFromFile(f);
+        var text = result.type === "table"
+          ? result.data.map(function(s) { return s.rows.map(function(r) { return r.join(" "); }).join("\n"); }).join("\n")
+          : result.data;
+        statuses.push({ name: f.name, code: codeFromName, codeWarning: codeWarning, text: text, ok: true });
+      } catch (err) {
+        statuses.push({ name: f.name, code: codeFromName, codeWarning: codeWarning, text: "", ok: false, error: err.message });
+      }
+    }
+    setContentFilesStatus(statuses);
+    // Mevcut studentCourses'u içerik metinleriyle zenginleştir
+    setStudentCourses(function (prev) {
+      if (prev.length === 0) return prev;
+      return prev.map(function (c) {
+        var upper = c.code.replace(/\s|\*/g, "").toUpperCase();
+        var found = statuses.find(function (s) { return s.code === upper && s.ok; });
+        if (found) return Object.assign({}, c, { weeklyContent: found.text });
+        return c;
+      });
+    });
+    setLoadingContentFiles(false);
+  };
+
+  // Alan 2: Dilekçe (tek PDF/Word) — ÇAKÜ kodlarını çıkar + satır eşleştirme
+  const handlePetitionFile = async function (file) {
+    setLoadingPetition(true); setMsg(null);
+    try {
+      var result = await extractFromFile(file);
+      var text = result.type === "table"
+        ? result.data.map(function(s) { return s.rows.map(function(r) { return r.join(" "); }).join("\n"); }).join("\n")
+        : result.data;
+      // Satır bazlı eşleştirme (karşı kurum kodu ↔ ÇAKÜ kodu)
+      var rows = parsePetitionRows(text, targetCourses);
+      // Eğer satır eşleştirmesi bulamadıysa sadece ÇAKÜ kodu araması yap
+      if (rows.length === 0) {
+        var cakuMatches = parsePetitionDocument(text, targetCourses);
+        rows = cakuMatches.map(function (m) {
+          return { sourceCode: "", cakuCode: m.cakuCode, target: m.target };
+        });
+      }
+      setPetitionRows(rows);
+      setPetitionFile(file.name);
+      // Dilekçedeki ÇAKÜ derslerini targetCourses'tan çekerek öğrenci kurs listesini oluştur
+      if (rows.length > 0) {
+        var courses = rows.map(function (r) {
+          return {
+            code: r.sourceCode || r.cakuCode,
+            name: r.target ? r.target.name : r.cakuCode,
+            akts: r.target ? r.target.akts : "",
+            grade: "",
+            content: r.target ? r.target.content : "",
+            weeklyContent: r.target ? r.target.content : "",
+            _cakuCode: r.cakuCode,
+            _target: r.target,
+          };
+        });
+        setStudentCourses(courses);
+        setMsg({ text: rows.length + " ders eşleştirmesi dilekçeden okundu.", type: "success" });
+      } else {
+        setMsg({ text: "Dilekçeden ders kodu çıkarılamadı.", type: "error" });
+      }
+    } catch (err) { setMsg({ text: "Dilekçe okunamadı: " + err.message, type: "error" }); }
+    setLoadingPetition(false);
+  };
+
+  // Alan 3: Not Karşılıkları (tek PDF)
+  const handleGradeEquivFile = async function (file) {
+    setLoadingGradeEquiv(true); setMsg(null);
+    try {
+      var result = await extractFromFile(file);
+      var text = result.type === "table"
+        ? result.data.map(function(s) { return s.rows.map(function(r) { return r.join(" | "); }).join("\n"); }).join("\n")
+        : result.data;
+      setGradeEquivText(text);
+      setGradeEquivFile(file.name);
+      setMsg({ text: "Not karşılıkları belgesi yüklendi.", type: "success" });
+    } catch (err) { setMsg({ text: "Not karşılıkları okunamadı: " + err.message, type: "error" }); }
+    setLoadingGradeEquiv(false);
   };
 
   const runAutoMatch = function () {
@@ -1350,7 +1613,8 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
 
   // Adım geçerlilik kontrolleri
   var step1Valid = studentName.trim().length > 0 && studentNo.trim().length > 0;
-  var step2Valid = studentCourses.length > 0;
+  // Dilekçe yüklenmişse (ana belge) adım 2 geçerli
+  var step2Valid = petitionFile.length > 0 || studentCourses.length > 0;
   var matchedCount = matches.filter(function(m) { return m.matched; }).length;
 
   const STEPS = ["Öğrenci Bilgileri", "Belge Yükleme", "Sonuçlar"];
@@ -1423,67 +1687,152 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
         </SectionCard>
       )}
 
-      {/* ═══ ADIM 2: Belge Yükleme & Eşleştirme ═══ */}
+      {/* ═══ ADIM 2: Belge Yükleme ═══ */}
       {step === 1 && (
-        <SectionCard
-          title="Ders Belgesi Yükleme"
-          subtitle="Öğrencinin aldığı dersleri içeren belgeyi yükleyin"
-          icon={<Icons.file />}
-        >
-          <FileDropZone
-            label="Öğrenci Ders Belgesi"
-            description="Excel formatı önerilir: Kodu | Adı | AKTS | Not | Haftalık İçerik. PDF/Word da desteklenir."
-            onFile={handleStudentCourses}
-            fileName={studentCoursesFile}
-            loading={loadingStudentCourses}
-          />
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
 
-          {/* Yüklenen dersler önizlemesi */}
-          {studentCourses.length > 0 && (
-            <div style={{ marginTop: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: DS.navy, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-                <Icons.check />
-                {studentCourses.length} ders okundu — Ön İzleme
+          {/* ── Alan 1: Dilekçe ── */}
+          <SectionCard
+            title="Dilekçe"
+            subtitle="Muaf olunmak istenen derslerin listelendiği belge (PDF veya Word)"
+            icon={<Icons.file />}
+          >
+            <FileDropZone
+              label="Dilekçeyi Buraya Sürükleyin veya Tıklayın"
+              description="PDF veya Word formatında dilekçe. Belgeden ÇAKÜ ders kodları otomatik çıkarılır."
+              accept=".pdf,.docx,.doc"
+              onFile={handlePetitionFile}
+              fileName={petitionFile}
+              loading={loadingPetition}
+            />
+
+            {/* Ders Eşleştirme Tablosu */}
+            {petitionRows.length > 0 && (
+              <div style={{ marginTop: 18 }}>
+                <div style={{
+                  fontSize: 12, fontWeight: 700, color: DS.navy,
+                  marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em",
+                  display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  <Icons.check />
+                  Ders Eşleştirme Tablosu — {petitionRows.length} kayıt
+                </div>
+                <div className="responsive-table-wrap" style={{ maxHeight: 240, overflowY: "auto", border: "1px solid " + DS.border, borderRadius: DS.radiusSm }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 520 }}>
+                    <thead>
+                      <tr style={{ background: DS.bg, position: "sticky", top: 0 }}>
+                        <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>Karşı Kurum Kodu</th>
+                        <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>ÇAKÜ Kodu</th>
+                        <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>ÇAKÜ Ders Adı</th>
+                        <th style={{ padding: "8px 10px", textAlign: "center", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>AKTS</th>
+                        <th style={{ padding: "8px 10px", textAlign: "center", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>Durum</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {petitionRows.map(function (r, i) {
+                        return (
+                          <tr key={i} style={{ borderBottom: "1px solid " + DS.borderLight }}>
+                            <td style={{ padding: "6px 10px", fontWeight: 600, color: DS.textSecondary, fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>{r.sourceCode || "—"}</td>
+                            <td style={{ padding: "6px 10px", fontWeight: 600, color: DS.accent, fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>{r.cakuCode}</td>
+                            <td style={{ padding: "6px 10px", color: DS.text }}>{r.target ? r.target.name : <span style={{ color: DS.textMuted, fontStyle: "italic" }}>Bulunamadı</span>}</td>
+                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600 }}>{r.target ? r.target.akts : "—"}</td>
+                            <td style={{ padding: "6px 10px", textAlign: "center" }}>
+                              {r.target
+                                ? <span style={{ color: DS.green, fontSize: 11, fontWeight: 700 }}>✓ Eşleşti</span>
+                                : <span style={{ color: DS.amber, fontSize: 11, fontWeight: 700 }}>? Bulunamadı</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className="responsive-table-wrap" style={{ maxHeight: 220, overflowY: "auto", border: "1px solid " + DS.border, borderRadius: DS.radiusSm }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 500 }}>
-                  <thead>
-                    <tr style={{ background: DS.bg, position: "sticky", top: 0 }}>
-                      <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>Kod</th>
-                      <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>Ders Adı</th>
-                      <th style={{ padding: "8px 10px", textAlign: "center", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>AKTS</th>
-                      <th style={{ padding: "8px 10px", textAlign: "center", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>Not</th>
-                      <th style={{ padding: "8px 10px", textAlign: "center", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>İçerik</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {studentCourses.map(function (c, i) {
-                      var hasContent = !!(c.weeklyContent || c.content);
-                      return (
-                        <tr key={i} style={{ borderBottom: "1px solid " + DS.borderLight }}>
-                          <td style={{ padding: "6px 10px", fontWeight: 600, color: DS.accent, fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>{c.code}</td>
-                          <td style={{ padding: "6px 10px", color: DS.text }}>{c.name}</td>
-                          <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600 }}>{c.akts || "-"}</td>
-                          <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600 }}>{c.grade || "-"}</td>
-                          <td style={{ padding: "6px 10px", textAlign: "center" }}>
-                            {hasContent ? (
-                              <span style={{ color: DS.green, fontSize: 13 }}>✓</span>
-                            ) : (
-                              <span style={{ color: DS.textMuted, fontSize: 11 }}>—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+            )}
+          </SectionCard>
+
+          {/* ── Alan 2: Ders İçerikleri ── */}
+          <SectionCard
+            title="Ders İçerikleri"
+            subtitle="Muaf olunmak istenen derslerin haftalık içeriklerini gösteren PDF dosyaları"
+            icon={<Icons.file />}
+          >
+            <div style={{
+              padding: "10px 14px", borderRadius: DS.radiusSm,
+              background: DS.amberLight, border: "1px solid " + DS.amber + "44",
+              display: "flex", alignItems: "flex-start", gap: 8,
+              marginBottom: 14, fontSize: 12, color: DS.amber, lineHeight: 1.5,
+            }}>
+              <Icons.info />
+              <span>Her PDF dosyasının adı, ilgili ders kodunu içermelidir. Örn: <strong>CSE301.pdf</strong>, <strong>BM401.pdf</strong></span>
             </div>
-          )}
+            <MultiFileDropZone
+              label="Ders İçerik PDF Dosyalarını Sürükleyin veya Seçin"
+              description="Birden fazla PDF dosyası seçebilirsiniz. Her dosya adı ders koduna karşılık gelmelidir."
+              accept=".pdf,.docx,.doc"
+              onFiles={handleContentFiles}
+              files={contentFiles}
+              loading={loadingContentFiles}
+              maxFiles={25}
+            />
 
-          <div style={{ marginTop: 24, display: "flex", justifyContent: "space-between" }}>
+            {/* İçerik durumu */}
+            {contentFilesStatus.length > 0 && (
+              <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
+                {contentFilesStatus.map(function (s, i) {
+                  return (
+                    <div key={i} style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "8px 12px", borderRadius: DS.radiusSm,
+                      background: s.ok ? DS.greenBg : DS.redLight,
+                      border: "1px solid " + (s.ok ? DS.green + "44" : DS.red + "44"),
+                      fontSize: 12,
+                    }}>
+                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: s.ok ? DS.green : DS.red, minWidth: 80 }}>{s.code}</span>
+                      <span style={{ color: DS.textSecondary, flex: 1 }}>{s.name}</span>
+                      {s.codeWarning && (
+                        <span style={{ color: DS.amber, fontSize: 11 }}>⚠ Kod formatı kontrol edilsin</span>
+                      )}
+                      {!s.ok && <span style={{ color: DS.red, fontSize: 11 }}>✕ {s.error}</span>}
+                      {s.ok && <span style={{ color: DS.green, fontSize: 11 }}>✓ Okundu</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* ── Alan 3: Not Karşılıkları ── */}
+          <SectionCard
+            title="Not Karşılıkları"
+            subtitle="Karşı kurumun not sistemini ÇAKÜ notlarına dönüştürmek için not karşılıkları belgesi"
+            icon={<Icons.file />}
+          >
+            <FileDropZone
+              label="Not Karşılıkları Belgesini Yükleyin"
+              description="Karşı kurumun harf notlarını veya puan aralıklarını içeren PDF. NLP eşleştirme aşamasında kullanılır."
+              accept=".pdf,.docx,.doc"
+              onFile={handleGradeEquivFile}
+              fileName={gradeEquivFile}
+              loading={loadingGradeEquiv}
+            />
+            {gradeEquivText && (
+              <div style={{
+                marginTop: 12, padding: "8px 12px", borderRadius: DS.radiusSm,
+                background: DS.bg, border: "1px solid " + DS.border,
+                fontSize: 11, color: DS.textSecondary, maxHeight: 100,
+                overflowY: "auto", whiteSpace: "pre-wrap", lineHeight: 1.6,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}>
+                {gradeEquivText.substring(0, 500)}{gradeEquivText.length > 500 ? "..." : ""}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* ── Devam Butonları ── */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 8 }}>
             <Button onClick={function() { setStep(0); }} variant="ghost">← Geri</Button>
-            <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               {targetCourses.length === 0 && (
                 <div style={{ display: "flex", alignItems: "center", fontSize: 12, color: DS.amber, gap: 4 }}>
                   <Icons.info /> Ayarlar'dan ÇAKÜ derslerini yükleyin
@@ -1499,7 +1848,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
               </Button>
             </div>
           </div>
-        </SectionCard>
+        </div>
       )}
 
       {/* ═══ ADIM 3: Sonuçlar ═══ */}
