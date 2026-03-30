@@ -1,7 +1,8 @@
-import { useState } from "react";
+const { useState, useEffect, useMemo } = React;
 
 const PROJECTS = {
   unides: {
+    abbr: "ÜN",
     name: "ÜNİDES",
     subtitle: "Üniversite Öğrenci Toplulukları İş Birliği ve Destek Programı",
     accent: "#E8590C", accentSoft: "#FFF7ED", accentMid: "#FDBA74",
@@ -22,21 +23,22 @@ const PROJECTS = {
         { name: "Koordinatör Özgeçmiş Formu", url: "https://e-genc.gsb.gov.tr/Content/Yardim/UnidesBelgeler/koordinator-ozgecmis-formu.docx" },
       ] },
       { id: 3, title: "Proje Yazımı & Belgeler", desc: "Başvuru formu doldurulur, bütçe formu hazırlanır (yerel: 75 bin ₺, ulusal: 125 bin ₺), taahhütname imzalanır, paydaşlık formu ve yönetim kurulu kararı alınır.", result: "Tüm belgeler hazır", duration: "3 Hafta", docs: [
-        { name: "Başvuru Formu", url: "https://e-genc.gsb.gov.tr" },
-        { name: "Bütçe Formu", url: "https://e-genc.gsb.gov.tr" },
-        { name: "Taahhütname", url: "https://e-genc.gsb.gov.tr" },
-        { name: "Paydaşlık Formu", url: "https://e-genc.gsb.gov.tr" },
-        { name: "YK Kararı", url: "https://e-genc.gsb.gov.tr" },
+        { name: "Başvuru Formu (e-Genç Portal)", url: "https://e-genc.gsb.gov.tr" },
+        { name: "Bütçe Formu (e-Genç Portal)", url: "https://e-genc.gsb.gov.tr" },
+        { name: "Taahhütname (e-Genç Portal)", url: "https://e-genc.gsb.gov.tr" },
+        { name: "Paydaşlık Formu (e-Genç Portal)", url: "https://e-genc.gsb.gov.tr" },
+        { name: "YK Kararı (e-Genç Portal)", url: "https://e-genc.gsb.gov.tr" },
       ] },
       { id: 4, title: "Online Başvuru", desc: "e-genc.gsb.gov.tr adresinden online başvuru yapılır. Tüm belgeler sisteme yüklenir ve başvuru tamamlanır.", result: "Başvuru onayı alındı", duration: "1 Hafta", docs: [] },
       { id: 5, title: "Değerlendirme & Sonuç", desc: "Başvurular Gençlik Hizmetleri Genel Müdürlüğü tarafından değerlendirilir. Kabul edilen projelere destek sağlanır.", result: "Kabul / Red bildirimi", duration: "4-6 Hafta", docs: [] },
       { id: 6, title: "Projenin Uygulanması", desc: "Proje planına uygun şekilde faaliyetler gerçekleştirilir. Bütçe kullanımı takip edilir, GSB tesis ve genç ofislerinden yararlanılır.", result: "Faaliyetler tamamlandı", duration: "3-6 Ay", docs: [] },
       { id: 7, title: "Sonuç Raporu & Kapanış", desc: "Proje tamamlandıktan sonra sonuç raporu hazırlanır ve sisteme yüklenir. Mali rapor ve çıktılar sunulur.", result: "Sonuç raporu onaylandı", duration: "2 Hafta", docs: [
-        { name: "Sonuç Raporu", url: "https://e-genc.gsb.gov.tr" },
+        { name: "Sonuç Raporu (e-Genç Portal)", url: "https://e-genc.gsb.gov.tr" },
       ] },
     ],
   },
   tubitak2209a: {
+    abbr: "2A",
     name: "2209-A",
     subtitle: "Üniversite Öğrencileri Araştırma Projeleri Destekleme Programı",
     accent: "#059669", accentSoft: "#ECFDF5", accentMid: "#6EE7B7",
@@ -63,7 +65,7 @@ const PROJECTS = {
         { name: "ARBİS Kaydı", url: "https://arbis.tubitak.gov.tr" },
       ] },
       { id: 2, title: "Araştırma Önerisi Yazımı", desc: "TÜBİTAK formatında ve Türkçe olarak araştırma önerisi hazırlanır. Proje başlığı araştırmanın amacını yansıtmalı. Bireysel veya en fazla 1 yürütücü + 4 ortak ile ekip halinde başvurulabilir.", result: "Araştırma önerisi formu tamamlandı", duration: "3 Hafta", docs: [
-        { name: "Araştırma Önerisi Formu", url: "https://tybs.tubitak.gov.tr" },
+        { name: "Araştırma Önerisi Formu (TYBS)", url: "https://tybs.tubitak.gov.tr" },
         { name: "Öncelikli Alanlar Listesi", url: "https://www.tubitak.gov.tr/tr/destekler/akademik/ulusal-destek-programlari/icerik-2209-a" },
       ] },
       { id: 3, title: "TYBS Online Başvuru", desc: "Başvuru, proje yürütücüsü tarafından TÜBİTAK Yönetim Bilgi Sistemi (tybs.tubitak.gov.tr) üzerinden çevrimiçi yapılır. IBAN proje yürütücüsüne ait olmalıdır. Son başvuru günü 17:30'da sistem kapanır.", result: "Başvuru sisteme yüklendi", duration: "1 Hafta", docs: [] },
@@ -73,11 +75,12 @@ const PROJECTS = {
       { id: 7, title: "Bilimsel Değerlendirme", desc: "Uzman danışma kurulu / panelist tarafından değerlendirilir: Bilimsel nitelik %35, Yöntem %25, Proje yönetimi %20, Yaygın etki %20. Sonuçlar e-bideb üzerinden açıklanır.", result: "Kabul / Red bildirimi", duration: "6-8 Hafta", docs: [] },
       { id: 8, title: "Projenin Yürütülmesi", desc: "Destek yürütücünün banka hesabına yatırılır. Harcamalar fatura ile belgelenir. Etik kurul gereken projelerde onay belgesi yüklenir. Proje en fazla 12 ay sürer.", result: "Araştırma tamamlandı + harcamalar belgelendi", duration: "6-12 Ay", docs: [] },
       { id: 9, title: "Sonuç Raporu & Kapanış", desc: "TÜBİTAK formatında sonuç raporu BİDEB sistemine yüklenir, danışman nihai onay verir. Çıktılar (makale, bildiri vb.) bildirilir. Tamamlayanlara 2224-A/B/D programlarında avantaj sağlanır.", result: "Rapor onaylandı + proje kapandı", duration: "2 Hafta", docs: [
-        { name: "Sonuç Raporu Formatı", url: "https://tybs.tubitak.gov.tr" },
+        { name: "Sonuç Raporu Formatı (TYBS)", url: "https://tybs.tubitak.gov.tr" },
       ] },
     ],
   },
   tubitak2209b: {
+    abbr: "2B",
     name: "2209-B",
     subtitle: "Üniversite Öğrencileri Sanayiye Yönelik Araştırma Projeleri Desteği",
     accent: "#0369A1", accentSoft: "#F0F9FF", accentMid: "#7DD3FC",
@@ -104,18 +107,19 @@ const PROJECTS = {
         { name: "ARBİS Kaydı", url: "https://arbis.tubitak.gov.tr" },
       ] },
       { id: 3, title: "Araştırma Önerisi Yazımı", desc: "TÜBİTAK formatında, Türkçe olarak sanayi odaklı araştırma önerisi hazırlanır. Sanayi kuruluşunun ihtiyacı ve projenin uygulanabilirliği net şekilde belirtilir.", result: "Sanayi odaklı araştırma önerisi hazır", duration: "3 Hafta", docs: [
-        { name: "Araştırma Önerisi Formu", url: "https://tybs.tubitak.gov.tr" },
+        { name: "Araştırma Önerisi Formu (TYBS)", url: "https://tybs.tubitak.gov.tr" },
       ] },
       { id: 4, title: "TYBS Online Başvuru", desc: "tybs.tubitak.gov.tr üzerinden çevrimiçi başvuru yapılır. Sanayi kuruluşu bilgileri ve danışman bilgileri sisteme girilir.", result: "Başvuru sisteme yüklendi", duration: "1 Hafta", docs: [] },
       { id: 5, title: "Danışman Onayı & e-İmza", desc: "Akademik danışman sistem üzerinden onay verir. Ardından kuruluş yetkilisinin e-imzası ile başvuru geçerli hale gelir.", result: "Danışman onayı + e-İmza tamamlandı", duration: "1-2 Hafta", docs: [] },
       { id: 6, title: "Ön İnceleme & Değerlendirme", desc: "Ön incelemede belge ve koşul kontrolü yapılır. Bilimsel değerlendirme uzman paneller tarafından gerçekleştirilir: Bilimsel nitelik %35, Yöntem %25, Proje yönetimi %20, Yaygın etki %20.", result: "Kabul / Red bildirimi", duration: "6-8 Hafta", docs: [] },
       { id: 7, title: "Sanayi Odaklı Araştırma", desc: "Destek yürütücüye aktarılır. Sanayi kuruluşu ile koordineli olarak araştırma yürütülür. Harcamalar fatura ile belgelenir.", result: "Araştırma + sanayi çıktısı tamamlandı", duration: "6-12 Ay", docs: [] },
       { id: 8, title: "Sonuç Raporu & Kapanış", desc: "Sonuç raporu BİDEB sistemine yüklenir, danışman onayı alınır. Çıktılar bildirilir. Tamamlayanlara 2224-A/B/D fırsatları sunulur.", result: "Rapor onaylandı + proje kapandı", duration: "2 Hafta", docs: [
-        { name: "Sonuç Raporu", url: "https://tybs.tubitak.gov.tr" },
+        { name: "Sonuç Raporu (TYBS)", url: "https://tybs.tubitak.gov.tr" },
       ] },
     ],
   },
   teknofest: {
+    abbr: "TE",
     name: "TEKNOFEST",
     subtitle: "2026 · Şanlıurfa GAP Havalimanı · 30 Eylül – 4 Ekim",
     accent: "#7C3AED", accentSoft: "#F5F3FF", accentMid: "#C4B5FD",
@@ -144,18 +148,18 @@ const PROJECTS = {
       { id: 2, title: "T3 KYS Üyelik & Giriş", desc: "T3 Kurumsal Yönetim Sistemi'ne (t3kys.com) üye olunur ve giriş yapılır. Bu platform üzerinden tüm başvuru ve takip işlemleri yürütülür.", result: "T3 KYS hesabı aktif", duration: "1 Gün", docs: [] },
       { id: 3, title: "Takım Kurma", desc: "Takım kaptanı olarak ekip oluşturulur, üyeler sisteme davet edilir. Yarışmaya göre takım en az 3, en fazla 15 kişiden oluşabilir. Bireysel veya takım halinde katılım mümkündür.", result: "Takım oluşturuldu + üyeler davet edildi", duration: "1 Hafta", docs: [] },
       { id: 4, title: "Online Başvuru", desc: "Yarışma kategorisi seçilir, proje özeti ve başvuru formu doldurulur. Proje bilgileri, takım detayları ve teknik açıklamalar girilir. Başvuru son tarihi: 28 Şubat 2026 (uzatıldı).", result: "Başvuru tamamlandı", duration: "1-2 Hafta", docs: [
-        { name: "Başvuru Formu", url: "https://t3kys.com" },
+        { name: "Başvuru Formu (T3 KYS)", url: "https://t3kys.com" },
       ] },
       { id: 5, title: "Teknik Yeterlilik Formu", desc: "Başvuru sonrası teknik yeterlilik formu hazırlanır ve sisteme yüklenir. Son teslim: 24 Mart 2026. Sonuçlar: 10 Nisan 2026.", result: "Teknik yeterlilik onaylandı", duration: "3-4 Hafta", docs: [
-        { name: "Teknik Yeterlilik Formu", url: "https://t3kys.com" },
+        { name: "Teknik Yeterlilik Formu (T3 KYS)", url: "https://t3kys.com" },
       ] },
       { id: 6, title: "Kritik Tasarım Raporu (KTR)", desc: "Detaylı teknik tasarım raporu, CAD çizimleri ve simülasyonlar hazırlanır. Son teslim: 30 Nisan 2026. Sonuçlar: 22 Mayıs 2026.", result: "KTR onaylandı", duration: "4-5 Hafta", docs: [
-        { name: "KTR Raporu", url: "https://t3kys.com" },
-        { name: "Teknik Çizimler", url: "https://t3kys.com" },
+        { name: "KTR Raporu (T3 KYS)", url: "https://t3kys.com" },
+        { name: "Teknik Çizimler (T3 KYS)", url: "https://t3kys.com" },
       ] },
       { id: 7, title: "Prototip & Test Videoları", desc: "Prototip üretilir ve test edilir. Sistem tanımlama ve kanıt videoları hazırlanır. Son teslim: 14 Temmuz 2026. Finalist takımlar: 31 Temmuz 2026.", result: "Finalist olarak seçildi", duration: "8-10 Hafta", docs: [
-        { name: "Kanıt Videoları", url: "https://t3kys.com" },
-        { name: "Sistem Tanımlama", url: "https://t3kys.com" },
+        { name: "Kanıt Videoları (T3 KYS)", url: "https://t3kys.com" },
+        { name: "Sistem Tanımlama (T3 KYS)", url: "https://t3kys.com" },
       ] },
       { id: 8, title: "Final Hazırlık", desc: "Son testler, lojistik planlama (Şanlıurfa ulaşım/konaklama), yedek parça temini ve jüri sunum provası yapılır. Yarışmacılara ulaşım ve konaklama desteği sağlanır.", result: "Yarışmaya hazır", duration: "2-4 Hafta", docs: [] },
       { id: 9, title: "TEKNOFEST Şanlıurfa Final", desc: "30 Eylül – 4 Ekim 2026 tarihlerinde GAP Havalimanı'nda yarışma sahasında kurulum, jüri sunumu ve performans sergilenir. Hava gösterileri, atölyeler ve sergilerle birlikte festival deneyimi yaşanır.", result: "Yarışma tamamlandı", duration: "5 Gün", docs: [] },
@@ -185,9 +189,6 @@ function EvalBar({ criteria, accent }) {
   if (!criteria || !criteria.length) return null;
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-        Değerlendirme Kriterleri
-      </div>
       <div style={{ display: "flex", gap: 3, borderRadius: 10, overflow: "hidden", height: 34 }}>
         {criteria.map((c, i) => (
           <div key={i} style={{
@@ -284,7 +285,7 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
           <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 10, background: stBg, color: stColor, flexShrink: 0 }}>{step.duration}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: proj.accent, textTransform: "uppercase" }}>→</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: proj.accent }}>Sonuç</span>
           <span style={{ fontSize: 12, color: "#64748B" }}>{step.result}</span>
         </div>
         {isOpen && (
@@ -300,7 +301,7 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
                       <LinkIcon size={12} />{doc.name}
                     </a>
                   );
-                  return <span key={j} className="rm-doc-link" style={{ cursor: "default", opacity: 0.7 }}>📄 {doc.name}</span>;
+                  return <span key={j} className="rm-doc-link" style={{ cursor: "default", opacity: 0.6 }}>{doc.name}</span>;
                 })}
               </div>
             )}
@@ -342,11 +343,11 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
         <div style={{
           marginLeft: isMobile ? 6 : 0,
           background: proj.accent, color: "#fff",
-          padding: "9px 26px", borderRadius: 30,
-          fontWeight: 900, fontSize: 12, letterSpacing: "0.12em",
-          boxShadow: `0 4px 18px ${proj.accent}55`,
+          padding: "8px 22px", borderRadius: 8,
+          fontWeight: 800, fontSize: 11, letterSpacing: "0.12em",
+          boxShadow: `0 3px 12px ${proj.accent}40`,
           display: "inline-flex", alignItems: "center", gap: 8,
-        }}>🚦 BAŞLANGIÇ</div>
+        }}>BAŞLANGIÇ</div>
       </div>
 
       {/* ── Steps ── */}
@@ -417,11 +418,11 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
         <div style={{
           marginLeft: isMobile ? 6 : 0,
           background: "#0F172A", color: "#fff",
-          padding: "9px 26px", borderRadius: 30,
-          fontWeight: 900, fontSize: 12, letterSpacing: "0.12em",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+          padding: "8px 22px", borderRadius: 8,
+          fontWeight: 800, fontSize: 11, letterSpacing: "0.12em",
+          boxShadow: "0 3px 10px rgba(0,0,0,0.25)",
           display: "inline-flex", alignItems: "center", gap: 8,
-        }}>🏁 BİTİŞ</div>
+        }}>BİTİŞ</div>
       </div>
     </div>
   );
@@ -434,7 +435,15 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
   const [activeProject, setActiveProject] = useState("unides");
   const [expanded, setExpanded] = useState(null);
   const [view, setView] = useState("road");
-  const [statuses, setStatuses] = useState({});
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [areasOpen, setAreasOpen] = useState(false);
+  const STORAGE_KEY = "roadmaps_statuses_" + (currentUser && currentUser.uid ? currentUser.uid : "guest");
+  const [statuses, setStatuses] = useState(function() {
+    try { var s = localStorage.getItem(STORAGE_KEY); return s ? JSON.parse(s) : {}; } catch(e) { return {}; }
+  });
+  React.useEffect(function() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(statuses)); } catch(e) {}
+  }, [statuses, STORAGE_KEY]);
 
   const proj = PROJECTS[activeProject];
   const steps = proj.steps.map((s, i) => ({
@@ -450,6 +459,15 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
     const cur = statuses[key] || steps[idx]._status;
     const next = order[(order.indexOf(cur) + 1) % order.length];
     setStatuses((p) => ({ ...p, [key]: next }));
+  };
+
+  const resetProgress = function() {
+    var keys = Object.keys(statuses).filter(function(k) { return k.startsWith(activeProject + "-"); });
+    setStatuses(function(prev) {
+      var next = Object.assign({}, prev);
+      keys.forEach(function(k) { delete next[k]; });
+      return next;
+    });
   };
 
   /* ── Section Divider ── */
@@ -516,22 +534,37 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
 
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "32px 24px" }}>
 
-        {/* ── Project Tabs ── */}
+        {/* ── Program Tabs ── */}
         <div style={{ display: "flex", gap: 8, marginBottom: 28, flexWrap: "wrap" }}>
           {Object.entries(PROJECTS).map(([key, p]) => {
             const act = activeProject === key;
             return (
-              <button key={key} onClick={() => { setActiveProject(key); setExpanded(null); setView("road"); }} style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "10px 18px", borderRadius: 14,
-                border: "none", cursor: "pointer",
-                background: act ? p.accentSoft : "#fff",
-                boxShadow: act ? `0 0 0 2px ${p.accent}50, 0 2px 8px ${p.accent}15` : "0 0 0 1px #E2E8F0",
-                transition: "all 0.2s", minWidth: "fit-content",
-              }}>
-                <ProjectLogo p={p} size={32} />
+              <button
+                key={key}
+                onClick={() => { setActiveProject(key); setExpanded(null); setView("road"); setAreasOpen(false); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "10px 16px 10px 12px", borderRadius: 12,
+                  background: "#fff", cursor: "pointer",
+                  border: act ? `2px solid ${p.accent}` : "1px solid #E2E8F0",
+                  boxShadow: act ? `0 2px 10px ${p.accent}20` : "0 1px 2px rgba(0,0,0,0.04)",
+                  transition: "all 0.18s",
+                }}
+              >
+                {/* Letter badge */}
+                <div style={{
+                  width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                  background: act ? p.accent : p.accent + "18",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 12, fontWeight: 900,
+                  color: act ? "#fff" : p.accent,
+                  letterSpacing: "-0.02em", fontFamily: "monospace",
+                }}>
+                  {p.abbr}
+                </div>
                 <div style={{ textAlign: "left" }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: act ? p.accent : "#475569" }}>{p.name}</div>
-                  <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 500 }}>{p.badge}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: act ? "#1E293B" : "#64748B", lineHeight: 1.2 }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 500, marginTop: 2 }}>{p.badge}</div>
                 </div>
               </button>
             );
@@ -540,36 +573,60 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
 
         {/* ── Program Info Card ── */}
         <div style={{
-          background: proj.accentSoft,
-          border: `1px solid ${proj.accent}20`,
-          borderRadius: 18,
+          background: "#fff",
+          border: "1px solid #E8ECF0",
+          borderRadius: 16,
           overflow: "hidden",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
         }}>
-          {/* Card header stripe */}
+          {/* Header — solid accent color */}
           <div style={{
-            background: `linear-gradient(135deg, ${proj.accent} 0%, ${proj.accent}CC 100%)`,
-            padding: "16px 24px",
+            background: proj.accent,
+            padding: "18px 24px",
             display: "flex", alignItems: "center", gap: 16,
           }}>
-            <ProjectLogo p={proj} size={44} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.75)", textTransform: "uppercase", letterSpacing: "0.1em" }}>{proj.badge}</div>
-              <div style={{ fontSize: 17, fontWeight: 900, color: "#fff", lineHeight: 1.3, marginTop: 2 }}>{proj.subtitle}</div>
+            {/* Letter mark */}
+            <div style={{
+              width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+              background: "rgba(255,255,255,0.18)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 15, fontWeight: 900, color: "#fff",
+              letterSpacing: "-0.02em", fontFamily: "monospace",
+            }}>
+              {proj.abbr}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                {proj.badge}
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", lineHeight: 1.35, marginTop: 3 }}>
+                {proj.subtitle}
+              </div>
             </div>
             {proj.badgeDesc && (
-              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)", background: "rgba(255,255,255,0.15)", padding: "6px 14px", borderRadius: 20, flexShrink: 0, backdropFilter: "blur(4px)" }}>
+              <div style={{
+                fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.95)",
+                background: "rgba(255,255,255,0.15)", padding: "6px 14px",
+                borderRadius: 20, flexShrink: 0, whiteSpace: "nowrap",
+              }}>
                 {proj.badgeDesc}
               </div>
             )}
           </div>
-          {/* Card body */}
-          <div style={{ padding: "18px 24px" }}>
+          {/* Body */}
+          <div style={{ padding: "18px 24px", background: proj.accentSoft }}>
             <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.8, margin: 0 }}>{proj.info}</p>
             {proj.links && proj.links.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
                 {proj.links.map((link, i) => (
                   <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
-                    className="rm-ext-link" style={{ color: proj.accent }}>
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      fontSize: 13, fontWeight: 600, color: proj.accent,
+                      textDecoration: "none", padding: "6px 14px", borderRadius: 8,
+                      background: "#fff", border: "1px solid " + proj.accent + "30",
+                      transition: "all 0.18s",
+                    }}>
                     <LinkIcon size={13} color={proj.accent} />
                     {link.label}
                   </a>
@@ -584,14 +641,25 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
           <>
             <SectionDivider label="Desteklenen Alanlar" />
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {proj.areas.map((a, i) => (
-                <span key={i} style={{
+              {(areasOpen ? proj.areas : proj.areas.slice(0, 6)).map(function(a, i) {
+                return (
+                  <span key={i} style={{
+                    fontSize: 12, padding: "5px 13px", borderRadius: 20,
+                    background: "#fff", color: proj.accent, fontWeight: 600,
+                    border: "1px solid " + proj.accent + "25",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                  }}>{a}</span>
+                );
+              })}
+              {proj.areas.length > 6 && (
+                <button onClick={function() { setAreasOpen(function(p) { return !p; }); }} style={{
                   fontSize: 12, padding: "5px 13px", borderRadius: 20,
-                  background: "#fff", color: proj.accent, fontWeight: 600,
-                  border: `1px solid ${proj.accent}25`,
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                }}>{a}</span>
-              ))}
+                  background: proj.accentSoft, color: proj.accent, fontWeight: 700,
+                  border: "1px solid " + proj.accent + "30", cursor: "pointer",
+                }}>
+                  {areasOpen ? "Daha az" : "+" + (proj.areas.length - 6) + " daha"}
+                </button>
+              )}
             </div>
           </>
         )}
@@ -606,41 +674,99 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
 
         {/* ── Progress Stats ── */}
         <SectionDivider label="İlerleme" />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 6 }}>
-          <div style={{
-            background: "#fff", border: `1px solid ${proj.accent}15`, borderRadius: 16, padding: "16px 18px",
-            display: "flex", alignItems: "center", gap: 14,
-            boxShadow: `0 2px 8px ${proj.accent}08`,
-          }}>
-            <ProgressArc pct={pct} color={proj.accent} />
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tamamlanan</div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: "#0F172A" }}>{pct}%</div>
+        {/* Single progress bar */}
+        <div style={{
+          background: "#fff", border: "1px solid #E8ECF0", borderRadius: 12,
+          padding: "14px 18px", marginBottom: 4,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>
+                {completed} / {steps.length} adım tamamlandı
+              </span>
+              {steps.find(function(s) { return s._status === "in-progress"; }) && (
+                <span style={{
+                  fontSize: 11, fontWeight: 600, color: proj.accent,
+                  background: proj.accentSoft, padding: "3px 10px", borderRadius: 20,
+                  border: "1px solid " + proj.accent + "20",
+                }}>
+                  {steps.find(function(s) { return s._status === "in-progress"; }).title} devam ediyor
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 18, fontWeight: 900, color: proj.accent, fontFamily: "monospace" }}>{pct}%</span>
+              {Object.keys(statuses).some(function(k) { return k.startsWith(activeProject + "-"); }) && (
+                <button onClick={resetProgress} style={{
+                  fontSize: 11, fontWeight: 600, color: "#94A3B8",
+                  background: "none", border: "1px solid #E2E8F0",
+                  borderRadius: 8, padding: "3px 10px", cursor: "pointer",
+                }}>Sıfırla</button>
+              )}
             </div>
           </div>
-          <div style={{ background: "#fff", border: `1px solid ${proj.accent}15`, borderRadius: 16, padding: "16px 18px", boxShadow: `0 2px 8px ${proj.accent}08`, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Adımlar</div>
-            <div style={{ marginTop: 8 }}>
-              <span style={{ fontSize: 26, fontWeight: 900, color: "#16A34A" }}>{completed}</span>
-              <span style={{ fontSize: 18, color: "#CBD5E1", fontWeight: 700 }}> / {steps.length}</span>
-            </div>
+          <div style={{ height: 8, background: "#F1F5F9", borderRadius: 8, overflow: "hidden" }}>
+            <div style={{
+              height: "100%", width: pct + "%",
+              background: "linear-gradient(to right, " + proj.accent + ", " + proj.accentMid + ")",
+              borderRadius: 8, transition: "width 0.6s ease",
+            }} />
           </div>
-          <div style={{ background: "#fff", border: `1px solid ${proj.accent}15`, borderRadius: 16, padding: "16px 18px", boxShadow: `0 2px 8px ${proj.accent}08`, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Aktif Adım</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: proj.accent, marginTop: 8, lineHeight: 1.4 }}>
-              {steps.find((s) => s._status === "in-progress")?.title || "—"}
+        </div>
+
+        {/* ── How to use guide ── */}
+        <div style={{ marginBottom: 14 }}>
+          <button
+            onClick={function() { setGuideOpen(function(p) { return !p; }); }}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "10px 16px", borderRadius: 10,
+              background: "#F8FAFC", border: "1px solid #E2E8F0",
+              fontSize: 12, fontWeight: 600, color: "#475569",
+              cursor: "pointer",
+            }}
+          >
+            <span>Nasıl kullanılır?</span>
+            <span style={{ fontSize: 11, color: "#94A3B8", transform: guideOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
+          </button>
+          {guideOpen && (
+            <div style={{
+              marginTop: 1, padding: "14px 16px",
+              background: "#F8FAFC", border: "1px solid #E2E8F0",
+              borderTop: "none", borderRadius: "0 0 10px 10px",
+            }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+                {[
+                  { num: "1", text: "Yol haritasındaki numaralı dairelere tıklayarak durumu değiştirin: Bekliyor → Devam Ediyor → Tamamlandı." },
+                  { num: "2", text: "İlerlemeniz otomatik olarak tarayıcınıza kaydedilir. Sayfayı kapatsanız bile nerede kaldığınız korunur." },
+                  { num: "3", text: "Bir adıma tıklayarak ayrıntıları ve belge bağlantılarını görün. Belge adına tıklayarak ilgili portala gidin." },
+                  { num: "4", text: "Üstteki program sekmelerinden ÜNİDES, 2209-A/B ve TEKNOFEST yol haritaları arasında geçiş yapın." },
+                ].map(function(tip, ti) {
+                  return (
+                    <div key={ti} style={{ display: "flex", gap: 10 }}>
+                      <div style={{
+                        width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                        background: proj.accent + "15", display: "flex",
+                        alignItems: "center", justifyContent: "center",
+                        fontSize: 11, fontWeight: 800, color: proj.accent,
+                      }}>{tip.num}</div>
+                      <p style={{ fontSize: 12, color: "#64748B", lineHeight: 1.6, margin: 0 }}>{tip.text}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* ── View Toggle ── */}
         <SectionDivider label="Yol Haritası" />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{ fontSize: 12, color: "#B0B8C4" }}>
-            💡 Numaraya tıklayarak durumu değiştirebilirsiniz
+            Numaraya tıklayarak durumunuzu güncelleyin
           </div>
           <div style={{ display: "flex", gap: 4, background: "#F1F5F9", borderRadius: 10, padding: 4 }}>
-            {[{ k: "road", l: "🛣 Yol" }, { k: "steps", l: "Adımlar" }, { k: "gantt", l: "Gantt" }].map((v) => (
+            {[{ k: "road", l: "Yol" }, { k: "steps", l: "Adımlar" }, { k: "gantt", l: "Gantt" }].map((v) => (
               <button key={v.k} onClick={() => setView(v.k)} style={{
                 padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer",
                 background: view === v.k ? "#fff" : "transparent",
@@ -724,7 +850,7 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
                     {/* Result preview */}
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
                       <span style={{ fontSize: 12, fontWeight: 800, color: proj.accent, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                        Sonuç →
+                        Sonuç
                       </span>
                       <span style={{ fontSize: 14, color: "#475569", fontWeight: 600 }}>{s.result}</span>
                     </div>
@@ -776,7 +902,12 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
           display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <ProjectLogo p={proj} size={18} />
+            <div style={{
+              width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+              background: proj.accent + "25",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 9, fontWeight: 900, color: proj.accent, fontFamily: "monospace",
+            }}>{proj.abbr}</div>
             <span style={{ fontSize: 12, color: "#CBD5E1", fontWeight: 500 }}>{proj.name} · Yol Haritası</span>
           </div>
           <div style={{ display: "flex", gap: 14 }}>
