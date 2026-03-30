@@ -2,6 +2,7 @@ const { useState, useEffect, useMemo } = React;
 
 const PROJECTS = {
   unides: {
+    abbr: "ÜN",
     name: "ÜNİDES",
     subtitle: "Üniversite Öğrenci Toplulukları İş Birliği ve Destek Programı",
     accent: "#E8590C", accentSoft: "#FFF7ED", accentMid: "#FDBA74",
@@ -37,6 +38,7 @@ const PROJECTS = {
     ],
   },
   tubitak2209a: {
+    abbr: "2A",
     name: "2209-A",
     subtitle: "Üniversite Öğrencileri Araştırma Projeleri Destekleme Programı",
     accent: "#059669", accentSoft: "#ECFDF5", accentMid: "#6EE7B7",
@@ -78,6 +80,7 @@ const PROJECTS = {
     ],
   },
   tubitak2209b: {
+    abbr: "2B",
     name: "2209-B",
     subtitle: "Üniversite Öğrencileri Sanayiye Yönelik Araştırma Projeleri Desteği",
     accent: "#0369A1", accentSoft: "#F0F9FF", accentMid: "#7DD3FC",
@@ -116,6 +119,7 @@ const PROJECTS = {
     ],
   },
   teknofest: {
+    abbr: "TE",
     name: "TEKNOFEST",
     subtitle: "2026 · Şanlıurfa GAP Havalimanı · 30 Eylül – 4 Ekim",
     accent: "#7C3AED", accentSoft: "#F5F3FF", accentMid: "#C4B5FD",
@@ -185,9 +189,6 @@ function EvalBar({ criteria, accent }) {
   if (!criteria || !criteria.length) return null;
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-        Değerlendirme Kriterleri
-      </div>
       <div style={{ display: "flex", gap: 3, borderRadius: 10, overflow: "hidden", height: 34 }}>
         {criteria.map((c, i) => (
           <div key={i} style={{
@@ -284,7 +285,7 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
           <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 10, background: stBg, color: stColor, flexShrink: 0 }}>{step.duration}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: proj.accent, textTransform: "uppercase" }}>→</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: proj.accent }}>Sonuç</span>
           <span style={{ fontSize: 12, color: "#64748B" }}>{step.result}</span>
         </div>
         {isOpen && (
@@ -300,7 +301,7 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
                       <LinkIcon size={12} />{doc.name}
                     </a>
                   );
-                  return <span key={j} className="rm-doc-link" style={{ cursor: "default", opacity: 0.7 }}>📄 {doc.name}</span>;
+                  return <span key={j} className="rm-doc-link" style={{ cursor: "default", opacity: 0.6 }}>{doc.name}</span>;
                 })}
               </div>
             )}
@@ -342,9 +343,9 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
         <div style={{
           marginLeft: isMobile ? 6 : 0,
           background: proj.accent, color: "#fff",
-          padding: "9px 26px", borderRadius: 30,
-          fontWeight: 900, fontSize: 12, letterSpacing: "0.12em",
-          boxShadow: `0 4px 18px ${proj.accent}55`,
+          padding: "8px 22px", borderRadius: 8,
+          fontWeight: 800, fontSize: 11, letterSpacing: "0.12em",
+          boxShadow: `0 3px 12px ${proj.accent}40`,
           display: "inline-flex", alignItems: "center", gap: 8,
         }}>BAŞLANGIÇ</div>
       </div>
@@ -417,9 +418,9 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
         <div style={{
           marginLeft: isMobile ? 6 : 0,
           background: "#0F172A", color: "#fff",
-          padding: "9px 26px", borderRadius: 30,
-          fontWeight: 900, fontSize: 12, letterSpacing: "0.12em",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+          padding: "8px 22px", borderRadius: 8,
+          fontWeight: 800, fontSize: 11, letterSpacing: "0.12em",
+          boxShadow: "0 3px 10px rgba(0,0,0,0.25)",
           display: "inline-flex", alignItems: "center", gap: 8,
         }}>BİTİŞ</div>
       </div>
@@ -533,22 +534,37 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
 
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "32px 24px" }}>
 
-        {/* ── Project Tabs ── */}
+        {/* ── Program Tabs ── */}
         <div style={{ display: "flex", gap: 8, marginBottom: 28, flexWrap: "wrap" }}>
           {Object.entries(PROJECTS).map(([key, p]) => {
             const act = activeProject === key;
             return (
-              <button key={key} onClick={() => { setActiveProject(key); setExpanded(null); setView("road"); }} style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "10px 18px", borderRadius: 14,
-                border: "none", cursor: "pointer",
-                background: act ? p.accentSoft : "#fff",
-                boxShadow: act ? `0 0 0 2px ${p.accent}50, 0 2px 8px ${p.accent}15` : "0 0 0 1px #E2E8F0",
-                transition: "all 0.2s", minWidth: "fit-content",
-              }}>
-                <ProjectLogo p={p} size={32} />
+              <button
+                key={key}
+                onClick={() => { setActiveProject(key); setExpanded(null); setView("road"); setAreasOpen(false); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "10px 16px 10px 12px", borderRadius: 12,
+                  background: "#fff", cursor: "pointer",
+                  border: act ? `2px solid ${p.accent}` : "1px solid #E2E8F0",
+                  boxShadow: act ? `0 2px 10px ${p.accent}20` : "0 1px 2px rgba(0,0,0,0.04)",
+                  transition: "all 0.18s",
+                }}
+              >
+                {/* Letter badge */}
+                <div style={{
+                  width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                  background: act ? p.accent : p.accent + "18",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 12, fontWeight: 900,
+                  color: act ? "#fff" : p.accent,
+                  letterSpacing: "-0.02em", fontFamily: "monospace",
+                }}>
+                  {p.abbr}
+                </div>
                 <div style={{ textAlign: "left" }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: act ? p.accent : "#475569" }}>{p.name}</div>
-                  <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 500 }}>{p.badge}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: act ? "#1E293B" : "#64748B", lineHeight: 1.2 }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 500, marginTop: 2 }}>{p.badge}</div>
                 </div>
               </button>
             );
@@ -557,36 +573,60 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
 
         {/* ── Program Info Card ── */}
         <div style={{
-          background: proj.accentSoft,
-          border: `1px solid ${proj.accent}20`,
-          borderRadius: 18,
+          background: "#fff",
+          border: "1px solid #E8ECF0",
+          borderRadius: 16,
           overflow: "hidden",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
         }}>
-          {/* Card header stripe */}
+          {/* Header — solid accent color */}
           <div style={{
-            background: `linear-gradient(135deg, ${proj.accent} 0%, ${proj.accent}CC 100%)`,
-            padding: "16px 24px",
+            background: proj.accent,
+            padding: "18px 24px",
             display: "flex", alignItems: "center", gap: 16,
           }}>
-            <ProjectLogo p={proj} size={44} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.75)", textTransform: "uppercase", letterSpacing: "0.1em" }}>{proj.badge}</div>
-              <div style={{ fontSize: 17, fontWeight: 900, color: "#fff", lineHeight: 1.3, marginTop: 2 }}>{proj.subtitle}</div>
+            {/* Letter mark */}
+            <div style={{
+              width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+              background: "rgba(255,255,255,0.18)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 15, fontWeight: 900, color: "#fff",
+              letterSpacing: "-0.02em", fontFamily: "monospace",
+            }}>
+              {proj.abbr}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                {proj.badge}
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", lineHeight: 1.35, marginTop: 3 }}>
+                {proj.subtitle}
+              </div>
             </div>
             {proj.badgeDesc && (
-              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)", background: "rgba(255,255,255,0.15)", padding: "6px 14px", borderRadius: 20, flexShrink: 0, backdropFilter: "blur(4px)" }}>
+              <div style={{
+                fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.95)",
+                background: "rgba(255,255,255,0.15)", padding: "6px 14px",
+                borderRadius: 20, flexShrink: 0, whiteSpace: "nowrap",
+              }}>
                 {proj.badgeDesc}
               </div>
             )}
           </div>
-          {/* Card body */}
-          <div style={{ padding: "18px 24px" }}>
+          {/* Body */}
+          <div style={{ padding: "18px 24px", background: proj.accentSoft }}>
             <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.8, margin: 0 }}>{proj.info}</p>
             {proj.links && proj.links.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
                 {proj.links.map((link, i) => (
                   <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
-                    className="rm-ext-link" style={{ color: proj.accent }}>
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      fontSize: 13, fontWeight: 600, color: proj.accent,
+                      textDecoration: "none", padding: "6px 14px", borderRadius: 8,
+                      background: "#fff", border: "1px solid " + proj.accent + "30",
+                      transition: "all 0.18s",
+                    }}>
                     <LinkIcon size={13} color={proj.accent} />
                     {link.label}
                   </a>
@@ -636,9 +676,8 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
         <SectionDivider label="İlerleme" />
         {/* Single progress bar */}
         <div style={{
-          background: "#fff", border: "1px solid #F1F5F9", borderRadius: 14,
-          padding: "16px 20px", marginBottom: 6,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+          background: "#fff", border: "1px solid #E8ECF0", borderRadius: 12,
+          padding: "14px 18px", marginBottom: 4,
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -811,7 +850,7 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
                     {/* Result preview */}
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
                       <span style={{ fontSize: 12, fontWeight: 800, color: proj.accent, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                        Sonuç →
+                        Sonuç
                       </span>
                       <span style={{ fontSize: 14, color: "#475569", fontWeight: 600 }}>{s.result}</span>
                     </div>
@@ -863,7 +902,12 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
           display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <ProjectLogo p={proj} size={18} />
+            <div style={{
+              width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+              background: proj.accent + "25",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 9, fontWeight: 900, color: proj.accent, fontFamily: "monospace",
+            }}>{proj.abbr}</div>
             <span style={{ fontSize: 12, color: "#CBD5E1", fontWeight: 500 }}>{proj.name} · Yol Haritası</span>
           </div>
           <div style={{ display: "flex", gap: 14 }}>
