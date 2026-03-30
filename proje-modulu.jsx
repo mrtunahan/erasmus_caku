@@ -858,7 +858,10 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     setProjects([]);
     loadAllProjects();
     ProjDB.fetchCourses(activeCategory, activeDepartment).then(function (data) {
-      setCourses(data);
+      var filtered = isProfessor && userName
+        ? data.filter(function (c) { return c.professor && c.professor.trim().toLowerCase() === userName.trim().toLowerCase(); })
+        : data;
+      setCourses(filtered);
       setLoading(false);
     }).catch(function (err) {
       console.error("Ders listesi yüklenemedi:", err);
