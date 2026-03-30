@@ -957,6 +957,32 @@ const Icons = {
       <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
     </svg>
   ),
+  layers: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+    </svg>
+  ),
+  document: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+    </svg>
+  ),
+  fileText: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+  ),
+  listCheck: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/>
+      <polyline points="3 6 4 7 6 5"/><polyline points="3 12 4 13 6 11"/><polyline points="3 18 4 19 6 17"/>
+    </svg>
+  ),
+  barChart: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/>
+    </svg>
+  ),
 };
 
 // ── Skor Badge ──
@@ -1524,6 +1550,7 @@ var EXEMPTION_INITIAL_STATE = {
   gradeEquivFile: "", loadingGradeEquiv: false, gradeEquivText: "",
   // Birleşik öğrenci ders listesi
   studentCourses: [],
+  contentMap: {}, // ÇAKÜ kodu → yüklenen içerik metni
   // Eşleştirme
   matches: [], matching: false,
   // UI
@@ -1546,6 +1573,7 @@ function exemptionReducer(state, action) {
       return Object.assign({}, state, {
         contentFiles: action.files,
         contentFilesStatus: action.statuses,
+        contentMap: action.contentMap,
         loadingContentFiles: false,
         studentCourses: action.enrichedCourses,
       });
@@ -1599,7 +1627,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
     contentFiles, loadingContentFiles, contentFilesStatus,
     petitionFile, loadingPetition, petitionRows,
     gradeEquivFile, loadingGradeEquiv, gradeEquivText,
-    studentCourses,
+    studentCourses, contentMap,
     matches, matching,
     msg, detailMatch,
   } = state;
@@ -1623,34 +1651,45 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
     return _convertGrade(inputGrade);
   }
 
-  // Alan 1: Ders İçerikleri (çoklu PDF) — dosya adı = ders kodu
+  // Alan 2: Ders İçerikleri (çoklu PDF) — dosya adı = ÇAKÜ ders kodu (örn: MTH129.pdf)
+  // Öğrenci kendi dersinin içeriğini ÇAKÜ'de muaf olmak istediği dersin kodu ile adlandırır.
+  // Böylece MAT123 → MTH129 eşleştirmesinde, MTH129.pdf içeriği doğrudan MTH129 ile karşılaştırılır.
   const handleContentFiles = async function (files) {
     dispatch({ type: "SET_LOADING", key: "loadingContentFiles", value: true });
     dispatch({ type: "SET_MSG", payload: null });
     var statuses = [];
     var codePattern = /^([A-ZÇĞIŞÖÜ]{2,5}\*?\d{3,4})$/;
+    var newContentMap = {};
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
       var codeFromName = f.name.replace(/\.[^.]+$/, "").trim().toUpperCase().replace(/\s/g, "");
       var codeWarning = !codePattern.test(codeFromName);
+      // ÇAKÜ kataloğunda bu kod var mı?
+      var inCatalog = courseIndex.has(codeFromName);
       try {
         var result = await extractFromFile(f);
         var text = result.type === "table"
           ? result.data.map(function(s) { return s.rows.map(function(r) { return r.join(" "); }).join("\n"); }).join("\n")
           : result.data;
-        statuses.push({ name: f.name, code: codeFromName, codeWarning: codeWarning, text: text, ok: true });
+        newContentMap[codeFromName] = text;
+        statuses.push({ name: f.name, code: codeFromName, codeWarning: codeWarning, inCatalog: inCatalog, text: text, ok: true });
       } catch (err) {
-        statuses.push({ name: f.name, code: codeFromName, codeWarning: codeWarning, text: "", ok: false, error: err.message });
+        statuses.push({ name: f.name, code: codeFromName, codeWarning: codeWarning, inCatalog: inCatalog, text: "", ok: false, error: err.message });
       }
     }
-    // Mevcut studentCourses'u içerik metinleriyle zenginleştir
+    // studentCourses'u zenginleştir: _cakuCode ile ÇAKÜ kodu eşleşen satıra içerik ata
     var enriched = studentCourses.map(function (c) {
-      var upper = c.code.replace(/[\s*]/g, "").toUpperCase();
-      var found = statuses.find(function (s) { return s.code === upper && s.ok; });
-      return found ? Object.assign({}, c, { weeklyContent: found.text }) : c;
+      var cakuKey = (c._cakuCode || c.code).replace(/[\s*]/g, "").toUpperCase();
+      var txt = newContentMap[cakuKey];
+      return txt ? Object.assign({}, c, { weeklyContent: txt }) : c;
     });
-    dispatch({ type: "SET_CONTENT_FILES", files: files, statuses: statuses, enrichedCourses: enriched });
-    dispatch({ type: "SET_MSG", payload: { text: statuses.filter(function(s) { return s.ok; }).length + "/" + files.length + " dosya başarıyla okundu.", type: "success" } });
+    dispatch({ type: "SET_CONTENT_FILES", files: files, statuses: statuses, contentMap: newContentMap, enrichedCourses: enriched });
+    var okCount = statuses.filter(function(s) { return s.ok; }).length;
+    var catalogCount = statuses.filter(function(s) { return s.ok && s.inCatalog; }).length;
+    dispatch({ type: "SET_MSG", payload: {
+      text: okCount + "/" + files.length + " dosya okundu, " + catalogCount + " tanesi ÇAKÜ kataloğunda eşleşti.",
+      type: okCount > 0 ? "success" : "error",
+    }});
   };
 
   // Alan 2: Dilekçe (tek PDF/Word) — ÇAKÜ kodlarını çıkar + satır eşleştirme
@@ -1853,163 +1892,383 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
 
       {/* ═══ ADIM 2: Belge Yükleme ═══ */}
       {step === 1 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-          {/* ── Alan 1: Dilekçe ── */}
-          <SectionCard
-            title="Dilekçe"
-            subtitle="Muaf olunmak istenen derslerin listelendiği belge (PDF veya Word)"
-            icon={<Icons.file />}
-          >
-            <FileDropZone
-              label="Dilekçeyi Buraya Sürükleyin veya Tıklayın"
-              description="PDF veya Word formatında dilekçe. Belgeden ÇAKÜ ders kodları otomatik çıkarılır."
-              accept=".pdf,.docx,.doc"
-              onFile={handlePetitionFile}
-              fileName={petitionFile}
-              loading={loadingPetition}
-            />
-
-            {/* Ders Eşleştirme Tablosu */}
-            {petitionRows.length > 0 && (
-              <div style={{ marginTop: 18 }}>
-                <div style={{
-                  fontSize: 12, fontWeight: 700, color: DS.navy,
-                  marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em",
-                  display: "flex", alignItems: "center", gap: 6,
-                }}>
-                  <Icons.check />
-                  Ders Eşleştirme Tablosu — {petitionRows.length} kayıt
-                </div>
-                <div className="responsive-table-wrap" style={{ maxHeight: 240, overflowY: "auto", border: "1px solid " + DS.border, borderRadius: DS.radiusSm }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 520 }}>
-                    <thead>
-                      <tr style={{ background: DS.bg, position: "sticky", top: 0 }}>
-                        <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>Karşı Kurum Kodu</th>
-                        <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>ÇAKÜ Kodu</th>
-                        <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>ÇAKÜ Ders Adı</th>
-                        <th style={{ padding: "8px 10px", textAlign: "center", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>AKTS</th>
-                        <th style={{ padding: "8px 10px", textAlign: "center", borderBottom: "2px solid " + DS.border, fontWeight: 700, color: DS.navy }}>Durum</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {petitionRows.map(function (r, i) {
-                        return (
-                          <tr key={i} style={{ borderBottom: "1px solid " + DS.borderLight }}>
-                            <td style={{ padding: "6px 10px", fontWeight: 600, color: DS.textSecondary, fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>{r.sourceCode || "—"}</td>
-                            <td style={{ padding: "6px 10px", fontWeight: 600, color: DS.accent, fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>{r.cakuCode}</td>
-                            <td style={{ padding: "6px 10px", color: DS.text }}>{r.target ? r.target.name : <span style={{ color: DS.textMuted, fontStyle: "italic" }}>Bulunamadı</span>}</td>
-                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600 }}>{r.target ? r.target.akts : "—"}</td>
-                            <td style={{ padding: "6px 10px", textAlign: "center" }}>
-                              {r.target
-                                ? <span style={{ color: DS.green, fontSize: 11, fontWeight: 700 }}>✓ Eşleşti</span>
-                                : <span style={{ color: DS.amber, fontSize: 11, fontWeight: 700 }}>? Bulunamadı</span>}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </SectionCard>
-
-          {/* ── Alan 2: Ders İçerikleri ── */}
-          <SectionCard
-            title="Ders İçerikleri"
-            subtitle="Muaf olunmak istenen derslerin haftalık içeriklerini gösteren PDF dosyaları"
-            icon={<Icons.file />}
-          >
+          {/* ── Rehber Kartı ── */}
+          <div style={{
+            borderRadius: DS.radius,
+            border: "1px solid " + DS.border,
+            background: DS.bgCard,
+            overflow: "hidden",
+            boxShadow: DS.shadow,
+          }}>
+            {/* Başlık */}
             <div style={{
-              padding: "10px 14px", borderRadius: DS.radiusSm,
-              background: DS.amberLight, border: "1px solid " + DS.amber + "44",
-              display: "flex", alignItems: "flex-start", gap: 8,
-              marginBottom: 14, fontSize: 12, color: DS.amber, lineHeight: 1.5,
+              padding: "14px 20px",
+              background: DS.navy,
+              display: "flex", alignItems: "center", gap: 10,
             }}>
-              <Icons.info />
-              <span>Her PDF dosyasının adı, ilgili ders kodunu içermelidir. Örn: <strong>CSE301.pdf</strong>, <strong>BM401.pdf</strong></span>
+              <div style={{ color: "rgba(255,255,255,0.9)", display: "flex" }}><Icons.listCheck /></div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Belge Yükleme Rehberi</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 1 }}>Hangi belgelerin nasıl hazırlanması gerektiğini inceleyin</div>
+              </div>
             </div>
-            <MultiFileDropZone
-              label="Ders İçerik PDF Dosyalarını Sürükleyin veya Seçin"
-              description="Birden fazla PDF dosyası seçebilirsiniz. Her dosya adı ders koduna karşılık gelmelidir."
-              accept=".pdf,.docx,.doc"
-              onFiles={handleContentFiles}
-              files={contentFiles}
-              loading={loadingContentFiles}
-              maxFiles={25}
-            />
-
-            {/* İçerik durumu */}
-            {contentFilesStatus.length > 0 && (
-              <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
-                {contentFilesStatus.map(function (s, i) {
-                  return (
-                    <div key={i} style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      padding: "8px 12px", borderRadius: DS.radiusSm,
-                      background: s.ok ? DS.greenBg : DS.redLight,
-                      border: "1px solid " + (s.ok ? DS.green + "44" : DS.red + "44"),
-                      fontSize: 12,
-                    }}>
-                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: s.ok ? DS.green : DS.red, minWidth: 80 }}>{s.code}</span>
-                      <span style={{ color: DS.textSecondary, flex: 1 }}>{s.name}</span>
-                      {s.codeWarning && (
-                        <span style={{ color: DS.amber, fontSize: 11 }}>⚠ Kod formatı kontrol edilsin</span>
-                      )}
-                      {!s.ok && <span style={{ color: DS.red, fontSize: 11 }}>✕ {s.error}</span>}
-                      {s.ok && <span style={{ color: DS.green, fontSize: 11 }}>✓ Okundu</span>}
+            {/* Adımlar */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)" }}>
+              {[
+                {
+                  num: "01",
+                  title: "Dilekçe",
+                  required: true,
+                  lines: [
+                    "Karşı kurumda aldığınız dersler ile ÇAKÜ'de muaf olmak istediğiniz derslerin listelendiği belge.",
+                    "Sistem belgeden ÇAKÜ ders kodlarını otomatik olarak okur ve eşleştirme tablosunu oluşturur.",
+                  ],
+                  example: null,
+                },
+                {
+                  num: "02",
+                  title: "Ders İçerikleri",
+                  required: false,
+                  lines: [
+                    "Muaf olmak istediğiniz her ÇAKÜ dersi için, o dersin haftalık içerik PDF'ini yükleyin.",
+                    "Dosyayı muaf olmak istediğiniz ÇAKÜ ders kodu ile adlandırın.",
+                  ],
+                  example: "MTH129 için muafiyet istiyorsanız dosyayı  MTH129.pdf  olarak kaydedin.",
+                },
+                {
+                  num: "03",
+                  title: "Not Karşılıkları",
+                  required: false,
+                  lines: [
+                    "Karşı kurumun not sistemini gösteren belge (harf notu → puan aralığı).",
+                    "Not dönüşüm tablosu eşleştirme kalitesini artırır.",
+                  ],
+                  example: null,
+                },
+              ].map(function (step, i) {
+                var isLast = i === 2;
+                return (
+                  <div key={i} style={{
+                    padding: "18px 20px",
+                    borderRight: isLast ? "none" : "1px solid " + DS.borderLight,
+                    borderTop: "1px solid " + DS.borderLight,
+                    position: "relative",
+                  }}>
+                    {/* Numara */}
+                    <div style={{
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      width: 28, height: 28, borderRadius: 8,
+                      background: DS.navy + "12",
+                      fontSize: 11, fontWeight: 800, color: DS.navy,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      marginBottom: 10,
+                    }}>{step.num}</div>
+                    {/* Başlık + zorunluluk */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: DS.text }}>{step.title}</span>
+                      {step.required
+                        ? <span style={{ fontSize: 10, fontWeight: 700, color: DS.red, background: DS.redLight, padding: "2px 7px", borderRadius: 20 }}>Zorunlu</span>
+                        : <span style={{ fontSize: 10, fontWeight: 600, color: DS.textMuted, background: DS.borderLight, padding: "2px 7px", borderRadius: 20 }}>Önerilen</span>
+                      }
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </SectionCard>
+                    {/* Açıklama */}
+                    {step.lines.map(function (l, j) {
+                      return <p key={j} style={{ fontSize: 12, color: DS.textSecondary, lineHeight: 1.6, margin: "0 0 4px 0" }}>{l}</p>;
+                    })}
+                    {/* Örnek */}
+                    {step.example && (
+                      <div style={{
+                        marginTop: 10, padding: "8px 12px", borderRadius: DS.radiusSm,
+                        background: DS.accentLight, border: "1px solid " + DS.accent + "30",
+                        fontSize: 11, color: DS.navy, lineHeight: 1.5,
+                      }}>
+                        {step.example.split(/  (.+?)  /).map(function (part, k) {
+                          return k % 2 === 0
+                            ? <span key={k}>{part}</span>
+                            : <code key={k} style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, background: DS.accent + "20", padding: "1px 5px", borderRadius: 4 }}>{part}</code>;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
-          {/* ── Alan 3: Not Karşılıkları ── */}
-          <SectionCard
-            title="Not Karşılıkları"
-            subtitle="Karşı kurumun not sistemini ÇAKÜ notlarına dönüştürmek için not karşılıkları belgesi"
-            icon={<Icons.file />}
-          >
-            <FileDropZone
-              label="Not Karşılıkları Belgesini Yükleyin"
-              description="Karşı kurumun harf notlarını veya puan aralıklarını içeren PDF. NLP eşleştirme aşamasında kullanılır."
-              accept=".pdf,.docx,.doc"
-              onFile={handleGradeEquivFile}
-              fileName={gradeEquivFile}
-              loading={loadingGradeEquiv}
-            />
-            {gradeEquivText && (
-              <div style={{
-                marginTop: 12, padding: "8px 12px", borderRadius: DS.radiusSm,
-                background: DS.bg, border: "1px solid " + DS.border,
-                fontSize: 11, color: DS.textSecondary, maxHeight: 100,
-                overflowY: "auto", whiteSpace: "pre-wrap", lineHeight: 1.6,
-                fontFamily: "'JetBrains Mono', monospace",
+          {/* ── Yükleme Alanları ── */}
+          {[
+            {
+              num: "01",
+              title: "Dilekçe",
+              subtitle: "Muafiyet talebine esas dilekçe belgesi",
+              required: true,
+              accentColor: DS.navy,
+              content: (
+                <>
+                  <FileDropZone
+                    label="Dilekçeyi buraya sürükleyin veya tıklayarak seçin"
+                    description="PDF veya Word formatı desteklenir. Sistem belgeden ÇAKÜ ders kodlarını otomatik çıkarır."
+                    accept=".pdf,.docx,.doc"
+                    onFile={handlePetitionFile}
+                    fileName={petitionFile}
+                    loading={loadingPetition}
+                  />
+                  {petitionRows.length > 0 && (
+                    <div style={{ marginTop: 16 }}>
+                      <div style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        marginBottom: 8,
+                      }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: DS.text }}>
+                          Ders Eşleştirme Tablosu
+                        </span>
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, color: DS.green,
+                          background: DS.greenLight, padding: "2px 10px", borderRadius: 20,
+                        }}>{petitionRows.filter(function(r) { return r.target; }).length} / {petitionRows.length} eşleşti</span>
+                      </div>
+                      <div className="responsive-table-wrap" style={{ maxHeight: 220, overflowY: "auto", border: "1px solid " + DS.border, borderRadius: DS.radiusSm }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 480 }}>
+                          <thead>
+                            <tr style={{ background: DS.bg, position: "sticky", top: 0 }}>
+                              <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid " + DS.border, fontWeight: 600, color: DS.textSecondary, fontSize: 11 }}>Karşı Kurum Kodu</th>
+                              <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid " + DS.border, fontWeight: 600, color: DS.textSecondary, fontSize: 11 }}>ÇAKÜ Kodu</th>
+                              <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid " + DS.border, fontWeight: 600, color: DS.textSecondary, fontSize: 11 }}>ÇAKÜ Ders Adı</th>
+                              <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: "1px solid " + DS.border, fontWeight: 600, color: DS.textSecondary, fontSize: 11 }}>AKTS</th>
+                              <th style={{ padding: "8px 12px", textAlign: "center", borderBottom: "1px solid " + DS.border, fontWeight: 600, color: DS.textSecondary, fontSize: 11 }}>Durum</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {petitionRows.map(function (r, i) {
+                              return (
+                                <tr key={i} style={{ borderBottom: "1px solid " + DS.borderLight }}>
+                                  <td style={{ padding: "7px 12px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color: DS.textSecondary }}>{r.sourceCode || "—"}</td>
+                                  <td style={{ padding: "7px 12px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: DS.navy }}>{r.cakuCode}</td>
+                                  <td style={{ padding: "7px 12px", fontSize: 12, color: DS.text }}>{r.target ? r.target.name : <span style={{ color: DS.textMuted, fontStyle: "italic" }}>Katalogda bulunamadı</span>}</td>
+                                  <td style={{ padding: "7px 12px", textAlign: "center", fontSize: 12, fontWeight: 600 }}>{r.target ? r.target.akts : "—"}</td>
+                                  <td style={{ padding: "7px 12px", textAlign: "center" }}>
+                                    {r.target
+                                      ? <span style={{ fontSize: 11, fontWeight: 600, color: DS.green, background: DS.greenLight, padding: "2px 8px", borderRadius: 20 }}>Eşleşti</span>
+                                      : <span style={{ fontSize: 11, fontWeight: 600, color: DS.amber, background: DS.amberLight, padding: "2px 8px", borderRadius: 20 }}>Bulunamadı</span>}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ),
+            },
+            {
+              num: "02",
+              title: "Ders İçerikleri",
+              subtitle: "Her dosyayı ilgili ÇAKÜ ders kodu ile adlandırın",
+              required: false,
+              accentColor: DS.accent,
+              content: (
+                <>
+                  {/* Adlandırma kuralı */}
+                  <div style={{
+                    display: "grid", gridTemplateColumns: "1fr 1fr",
+                    gap: 10, marginBottom: 14,
+                  }}>
+                    <div style={{
+                      padding: "12px 14px", borderRadius: DS.radiusSm,
+                      background: DS.accentLight, border: "1px solid " + DS.accent + "25",
+                    }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: DS.accent, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Doğru</div>
+                      <div style={{ fontSize: 11, color: DS.navy, lineHeight: 1.6 }}>
+                        MTH129 için muafiyet talep ediyorsanız:<br/>
+                        <code style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, background: DS.accent + "15", padding: "2px 6px", borderRadius: 4, fontSize: 12 }}>MTH129.pdf</code>
+                      </div>
+                    </div>
+                    <div style={{
+                      padding: "12px 14px", borderRadius: DS.radiusSm,
+                      background: DS.redLight, border: "1px solid " + DS.red + "25",
+                    }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: DS.red, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Yanlış</div>
+                      <div style={{ fontSize: 11, color: DS.text, lineHeight: 1.6 }}>
+                        Karşı kurumun ders kodunu yazmayın:<br/>
+                        <code style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, background: DS.red + "15", padding: "2px 6px", borderRadius: 4, fontSize: 12, textDecoration: "line-through" }}>MAT123.pdf</code>
+                      </div>
+                    </div>
+                  </div>
+                  <MultiFileDropZone
+                    label="Ders içerik dosyalarını buraya sürükleyin veya tıklayın"
+                    description="PDF ve Word desteklenir. Birden fazla dosya seçilebilir (maks. 25)."
+                    accept=".pdf,.docx,.doc"
+                    onFiles={handleContentFiles}
+                    files={contentFiles}
+                    loading={loadingContentFiles}
+                    maxFiles={25}
+                  />
+                  {contentFilesStatus.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
+                        {contentFilesStatus.map(function (s, i) {
+                          var statusColor = !s.ok ? DS.red : s.inCatalog ? DS.green : DS.amber;
+                          var statusBg = !s.ok ? DS.redLight : s.inCatalog ? DS.greenBg : DS.amberLight;
+                          var statusLabel = !s.ok ? "Okunamadı" : s.inCatalog ? "Katalogda bulundu" : "Katalogda yok";
+                          return (
+                            <div key={i} style={{
+                              padding: "10px 12px", borderRadius: DS.radiusSm,
+                              background: statusBg,
+                              border: "1px solid " + statusColor + "40",
+                            }}>
+                              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 13, color: statusColor, marginBottom: 3 }}>{s.code}</div>
+                              <div style={{ fontSize: 10, color: DS.textSecondary, marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: statusColor }}>{statusLabel}</div>
+                              {s.codeWarning && <div style={{ fontSize: 10, color: DS.amber, marginTop: 2 }}>Kod formatı kontrol edin</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ),
+            },
+            {
+              num: "03",
+              title: "Not Karşılık Tablosu",
+              subtitle: "Karşı kurumun not sistemi (opsiyonel)",
+              required: false,
+              accentColor: DS.green,
+              content: (
+                <>
+                  <FileDropZone
+                    label="Not karşılık belgesini buraya sürükleyin veya tıklayın"
+                    description="Karşı kurumun harf notu veya puan aralığını içeren PDF. Not dönüşüm kalitesini artırır."
+                    accept=".pdf,.docx,.doc"
+                    onFile={handleGradeEquivFile}
+                    fileName={gradeEquivFile}
+                    loading={loadingGradeEquiv}
+                  />
+                  {gradeEquivText && (
+                    <div style={{
+                      marginTop: 12, padding: "10px 14px", borderRadius: DS.radiusSm,
+                      background: DS.greenBg, border: "1px solid " + DS.green + "30",
+                      fontSize: 11, color: DS.textSecondary, maxHeight: 90,
+                      overflowY: "auto", whiteSpace: "pre-wrap", lineHeight: 1.6,
+                      fontFamily: "'JetBrains Mono', monospace",
+                    }}>
+                      {gradeEquivText.substring(0, 400)}{gradeEquivText.length > 400 ? "\n..." : ""}
+                    </div>
+                  )}
+                </>
+              ),
+            },
+          ].map(function (card, ci) {
+            return (
+              <div key={ci} style={{
+                borderRadius: DS.radius,
+                border: "1px solid " + DS.border,
+                background: DS.bgCard,
+                overflow: "hidden",
+                boxShadow: DS.shadow,
               }}>
-                {gradeEquivText.substring(0, 500)}{gradeEquivText.length > 500 ? "..." : ""}
+                {/* Kart başlığı */}
+                <div style={{
+                  padding: "14px 20px",
+                  borderBottom: "1px solid " + DS.borderLight,
+                  display: "flex", alignItems: "center", gap: 14,
+                }}>
+                  {/* Numara */}
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+                    background: card.accentColor + "12",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 11, fontWeight: 800, color: card.accentColor,
+                    fontFamily: "'JetBrains Mono', monospace",
+                  }}>{card.num}</div>
+                  {/* Başlık */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: DS.text }}>{card.title}</span>
+                      {card.required
+                        ? <span style={{ fontSize: 10, fontWeight: 700, color: DS.red, background: DS.redLight, padding: "2px 8px", borderRadius: 20 }}>Zorunlu</span>
+                        : <span style={{ fontSize: 10, fontWeight: 600, color: DS.textMuted, background: DS.borderLight, padding: "2px 8px", borderRadius: 20 }}>Önerilen</span>
+                      }
+                    </div>
+                    <div style={{ fontSize: 12, color: DS.textSecondary, marginTop: 2 }}>{card.subtitle}</div>
+                  </div>
+                </div>
+                {/* İçerik */}
+                <div style={{ padding: "16px 20px" }}>
+                  {card.content}
+                </div>
               </div>
-            )}
-          </SectionCard>
+            );
+          })}
 
-          {/* ── Devam Butonları ── */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 8 }}>
-            <Button onClick={function() { dispatch({ type: "SET_STEP", payload: 0 }); }} variant="ghost">← Geri</Button>
+          {/* ── Alt Aksiyon Barı ── */}
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "14px 20px",
+            borderRadius: DS.radius,
+            border: "1px solid " + DS.border,
+            background: DS.bgCard,
+            boxShadow: DS.shadow,
+          }}>
+            <button
+              onClick={function() { dispatch({ type: "SET_STEP", payload: 0 }); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "9px 16px", borderRadius: DS.radiusSm,
+                border: "1px solid " + DS.border, background: "transparent",
+                fontSize: 13, fontWeight: 600, color: DS.textSecondary,
+                cursor: "pointer",
+              }}
+            >
+              ← Geri
+            </button>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               {courseIndex.size === 0 && (
-                <div style={{ display: "flex", alignItems: "center", fontSize: 12, color: DS.amber, gap: 4 }}>
-                  <Icons.info /> Ayarlar'dan ÇAKÜ derslerini yükleyin
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  fontSize: 12, color: DS.amber,
+                  padding: "6px 12px", borderRadius: DS.radiusSm,
+                  background: DS.amberLight, border: "1px solid " + DS.amber + "40",
+                }}>
+                  <Icons.info />
+                  Ayarlar'dan önce ÇAKÜ ders kataloğunu yükleyin
                 </div>
               )}
-              <Button
+              <button
                 onClick={runAutoMatch}
                 disabled={!step2Valid || courseIndex.size === 0 || matching}
-                variant="navy"
-                icon={matching ? null : <Icons.sparkle />}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "9px 20px", borderRadius: DS.radiusSm,
+                  border: "none",
+                  background: (!step2Valid || courseIndex.size === 0 || matching) ? DS.borderLight : DS.navy,
+                  color: (!step2Valid || courseIndex.size === 0 || matching) ? DS.textMuted : "#fff",
+                  fontSize: 13, fontWeight: 700, cursor: (!step2Valid || courseIndex.size === 0 || matching) ? "not-allowed" : "pointer",
+                  transition: "background 0.2s",
+                }}
               >
-                {matching ? "Analiz yapılıyor..." : "NLP Eşleştirme Başlat"}
-              </Button>
+                {matching ? (
+                  <>
+                    <div style={{
+                      width: 14, height: 14, borderRadius: "50%",
+                      border: "2px solid rgba(255,255,255,0.3)",
+                      borderTopColor: "#fff",
+                      animation: "spin 0.8s linear infinite",
+                    }} />
+                    Analiz yapılıyor...
+                  </>
+                ) : (
+                  <>
+                    <Icons.barChart />
+                    NLP Eşleştirme Başlat
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
