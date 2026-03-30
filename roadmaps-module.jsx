@@ -250,13 +250,182 @@ function LinkIcon({ size = 14, color = "currentColor" }) {
   );
 }
 
+/* ─── Road View ─── */
+function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+
+  const StepCard = ({ step, i, isOpen }) => {
+    const done = step._status === "completed";
+    const active = step._status === "in-progress";
+    const stBg = done ? "#DCFCE7" : active ? "#FEF3C7" : "#F1F5F9";
+    const stColor = done ? "#16A34A" : active ? "#D97706" : "#94A3B8";
+    return (
+      <div
+        onClick={() => setExpanded(isOpen ? null : i)}
+        style={{
+          background: isOpen ? proj.accentSoft : "#fff",
+          border: `1.5px solid ${isOpen ? proj.accent + "35" : "#F1F5F9"}`,
+          borderRadius: 14, padding: "12px 16px", cursor: "pointer",
+          width: "100%", maxWidth: isMobile ? "100%" : 290,
+          boxShadow: isOpen ? `0 4px 18px ${proj.accent}18` : "0 1px 4px rgba(0,0,0,0.05)",
+          transition: "all 0.2s",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#1E293B", lineHeight: 1.4 }}>{step.title}</span>
+          <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 10, background: stBg, color: stColor, flexShrink: 0 }}>{step.duration}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: proj.accent, textTransform: "uppercase" }}>→</span>
+          <span style={{ fontSize: 12, color: "#64748B" }}>{step.result}</span>
+        </div>
+        {isOpen && (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${proj.accent}18` }}>
+            <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.8, margin: 0 }}>{step.desc}</p>
+            {step.docs && step.docs.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                {step.docs.map((d, j) => {
+                  const doc = typeof d === "string" ? { name: d, url: null } : d;
+                  if (doc.url) return (
+                    <a key={j} href={doc.url} target="_blank" rel="noopener noreferrer"
+                      className="rm-doc-link" onClick={e => e.stopPropagation()}>
+                      <LinkIcon size={12} />{doc.name}
+                    </a>
+                  );
+                  return <span key={j} className="rm-doc-link" style={{ cursor: "default", opacity: 0.7 }}>📄 {doc.name}</span>;
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ position: "relative", paddingBottom: 24, userSelect: "none" }}>
+
+      {/* ── Asphalt Road Strip ── */}
+      <div style={{
+        position: "absolute",
+        left: isMobile ? 28 : "50%",
+        transform: isMobile ? "none" : "translateX(-50%)",
+        width: 54,
+        top: 0, bottom: 0,
+        background: "linear-gradient(to right, #2D3748 0%, #374151 40%, #374151 60%, #2D3748 100%)",
+        zIndex: 0,
+        borderRadius: 4,
+      }}>
+        {/* Left white edge */}
+        <div style={{ position: "absolute", left: 5, top: 0, bottom: 0, width: 3, background: "rgba(255,255,255,0.65)", borderRadius: 2 }} />
+        {/* Right white edge */}
+        <div style={{ position: "absolute", right: 5, top: 0, bottom: 0, width: 3, background: "rgba(255,255,255,0.65)", borderRadius: 2 }} />
+        {/* Center dashed yellow line */}
+        <div style={{
+          position: "absolute", left: "50%", transform: "translateX(-50%)",
+          width: 4, top: 0, bottom: 0,
+          background: "repeating-linear-gradient(to bottom, #FCD34D 0px, #FCD34D 14px, transparent 14px, transparent 28px)",
+          borderRadius: 2,
+        }} />
+      </div>
+
+      {/* ── START marker ── */}
+      <div style={{ display: "flex", justifyContent: isMobile ? "flex-start" : "center", paddingLeft: isMobile ? 0 : 0, marginBottom: 32, position: "relative", zIndex: 2 }}>
+        <div style={{
+          marginLeft: isMobile ? 6 : 0,
+          background: proj.accent, color: "#fff",
+          padding: "9px 26px", borderRadius: 30,
+          fontWeight: 900, fontSize: 12, letterSpacing: "0.12em",
+          boxShadow: `0 4px 18px ${proj.accent}55`,
+          display: "inline-flex", alignItems: "center", gap: 8,
+        }}>🚦 BAŞLANGIÇ</div>
+      </div>
+
+      {/* ── Steps ── */}
+      {steps.map((step, i) => {
+        const isLeft = !isMobile && i % 2 === 0;
+        const isOpen = expanded === i;
+        const done = step._status === "completed";
+        const active = step._status === "in-progress";
+
+        return (
+          <div key={i} style={{ display: "flex", alignItems: "center", marginBottom: 40, position: "relative", zIndex: 1,
+            flexDirection: isMobile ? "row" : "row",
+          }}>
+
+            {/* Left card OR connector placeholder */}
+            {!isMobile && (
+              <div style={{ flex: 1, display: "flex", justifyContent: "flex-end", alignItems: "center", paddingRight: 14 }}>
+                {isLeft ? (
+                  <StepCard step={step} i={i} isOpen={isOpen} />
+                ) : (
+                  /* dotted connector for empty left side */
+                  <div style={{ height: 2, width: 32, background: `repeating-linear-gradient(to right, ${proj.accentMid} 0, ${proj.accentMid} 5px, transparent 5px, transparent 10px)` }} />
+                )}
+              </div>
+            )}
+
+            {/* Road node (circle on the road) */}
+            <div style={{
+              width: isMobile ? 56 : 54, flexShrink: 0, display: "flex", justifyContent: "center", zIndex: 2,
+            }}>
+              <div
+                onClick={e => { e.stopPropagation(); cycleStatus(i); }}
+                title="Durumu değiştir"
+                style={{
+                  width: 44, height: 44, borderRadius: "50%",
+                  background: done ? proj.accent : active ? "#fff" : "#64748B",
+                  border: `3.5px solid ${done ? "rgba(255,255,255,0.85)" : active ? proj.accent : "rgba(255,255,255,0.5)"}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer",
+                  boxShadow: done
+                    ? `0 0 0 5px ${proj.accent}30, 0 4px 14px rgba(0,0,0,0.3)`
+                    : active
+                      ? `0 0 0 5px ${proj.accent}25, 0 4px 14px rgba(0,0,0,0.25)`
+                      : "0 2px 8px rgba(0,0,0,0.35)",
+                  fontWeight: 800, fontSize: done ? 17 : 14,
+                  color: done ? "#fff" : active ? proj.accent : "rgba(255,255,255,0.8)",
+                  transition: "all 0.25s",
+                }}
+              >
+                {done ? "✓" : step.id}
+              </div>
+            </div>
+
+            {/* Right card OR connector placeholder */}
+            <div style={{ flex: 1, paddingLeft: 14 }}>
+              {(!isMobile && !isLeft) || isMobile ? (
+                <StepCard step={step} i={i} isOpen={isOpen} />
+              ) : (
+                <div style={{ height: 2, width: 32, background: `repeating-linear-gradient(to right, ${proj.accentMid} 0, ${proj.accentMid} 5px, transparent 5px, transparent 10px)` }} />
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* ── FINISH marker ── */}
+      <div style={{ display: "flex", justifyContent: isMobile ? "flex-start" : "center", marginTop: 8, position: "relative", zIndex: 2 }}>
+        <div style={{
+          marginLeft: isMobile ? 6 : 0,
+          background: "#0F172A", color: "#fff",
+          padding: "9px 26px", borderRadius: 30,
+          fontWeight: 900, fontSize: 12, letterSpacing: "0.12em",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+          display: "inline-flex", alignItems: "center", gap: 8,
+        }}>🏁 BİTİŞ</div>
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════
    Main Component
    ═══════════════════════════════════════════════════════════ */
 export default function RoadmapsModule({ currentUser, activeDepartment, departmentInfo } = {}) {
   const [activeProject, setActiveProject] = useState("unides");
   const [expanded, setExpanded] = useState(null);
-  const [view, setView] = useState("steps");
+  const [view, setView] = useState("road");
   const [statuses, setStatuses] = useState({});
 
   const proj = PROJECTS[activeProject];
@@ -401,7 +570,7 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0F172A" }}>Yol Haritası</h2>
           <div style={{ display: "flex", gap: 4, background: "#F1F5F9", borderRadius: 10, padding: 4 }}>
-            {[{ k: "steps", l: "Adımlar" }, { k: "gantt", l: "Gantt" }].map((v) => (
+            {[{ k: "road", l: "🛣 Yol" }, { k: "steps", l: "Adımlar" }, { k: "gantt", l: "Gantt" }].map((v) => (
               <button key={v.k} onClick={() => setView(v.k)} style={{
                 padding: "7px 16px", borderRadius: 8, border: "none", cursor: "pointer",
                 background: view === v.k ? "#fff" : "transparent",
@@ -417,8 +586,12 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
           💡 Numaraya tıklayarak durumu değiştirebilirsiniz
         </div>
 
-        {/* ── Steps / Gantt ── */}
-        {view === "steps" ? (
+        {/* ── Road / Steps / Gantt ── */}
+        {view === "road" ? (
+          <div style={{ background: "#fff", border: "1px solid #F1F5F9", borderRadius: 16, padding: "24px 20px" }}>
+            <RoadView steps={steps} proj={proj} cycleStatus={cycleStatus} expanded={expanded} setExpanded={setExpanded} />
+          </div>
+        ) : view === "steps" ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             {steps.map((s, i) => {
               const isOpen = expanded === i;
