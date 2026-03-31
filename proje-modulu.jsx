@@ -922,12 +922,12 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
-  // ── Üyelik kontrolü: Bir kişi zaten bir projede mi? ──
-  var findMemberExistingProject = function (memberName) {
-    if (!memberName || !memberName.trim()) return null;
+  // ── Üyelik kontrolü: Bir kişi aynı derste zaten bir projede mi? ──
+  var findMemberExistingProjectInCourse = function (memberName) {
+    if (!memberName || !memberName.trim() || !selectedCourse) return null;
     var nameLower = memberName.trim().toLowerCase();
-    for (var i = 0; i < allProjects.length; i++) {
-      var p = allProjects[i];
+    for (var i = 0; i < projects.length; i++) {
+      var p = projects[i];
       if (p.members && p.members.some(function (m) { return m.trim().toLowerCase() === nameLower; })) {
         return p;
       }
@@ -935,10 +935,10 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     return null;
   };
 
-  // ── Kullanıcı zaten bir proje grubunda mı? ──
+  // ── Kullanıcı seçili derste zaten bir proje grubunda mı? ──
   var userExistingProject = useMemo(function () {
-    return findMemberExistingProject(userName);
-  }, [allProjects, userName]);
+    return findMemberExistingProjectInCourse(userName);
+  }, [projects, userName, selectedCourse]);
 
   // ── Proje Onayla / Reddet ──
   var handleApproveProject = async function (projectId) {
@@ -990,13 +990,13 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // ── Proje Oluştur ──
   var handleCreateProject = async function (data) {
     if (!selectedCourse) return;
-    // Her ogrenci yalniz 1 proje grubunda yer alabilir
+    // Her öğrenci aynı derste yalnız 1 proje grubunda yer alabilir
     var newMembers = (data.members || []).map(function (m) { return m.trim().toLowerCase(); });
     for (var i = 0; i < projects.length; i++) {
       var existingMembers = (projects[i].members || []).map(function (m) { return m.trim().toLowerCase(); });
       for (var j = 0; j < newMembers.length; j++) {
         if (newMembers[j] && existingMembers.indexOf(newMembers[j]) >= 0) {
-          alert('"' + data.members[j] + '" zaten "' + projects[i].name + '" projesinde yer aliyor. Her ogrenci yalniz 1 proje grubunda yer alabilir!');
+          alert('"' + data.members[j] + '" bu derste zaten "' + projects[i].name + '" projesinde yer alıyor. Aynı derste birden fazla proje grubunda yer alamazsınız!');
           return;
         }
       }
@@ -1013,39 +1013,37 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         }
       }
 
-      // Kontrol: Oluşturan kişi zaten bir projede mi?
-      var freshAll = await ProjDB.fetchAllProjects();
-      setAllProjects(freshAll);
-
-      var creatorExisting = null;
+      // Kontrol: Oluşturan kişi aynı derste zaten bir projede mi?
+      var freshCourseProjects = await ProjDB.fetchProjects(selectedCourse.id);
       var creatorNameLower = userName.trim().toLowerCase();
-      for (var i = 0; i < freshAll.length; i++) {
-        var p = freshAll[i];
+      var creatorExisting = null;
+      for (var i = 0; i < freshCourseProjects.length; i++) {
+        var p = freshCourseProjects[i];
         if (p.members && p.members.some(function (m) { return m.trim().toLowerCase() === creatorNameLower; })) {
           creatorExisting = p;
           break;
         }
       }
       if (creatorExisting) {
-        alert("Zaten bir proje grubundasınız: \"" + creatorExisting.name + "\" (" + (creatorExisting.courseName || "") + "). Her öğrenci yalnızca bir proje grubunda yer alabilir.");
+        alert("Bu derste zaten bir proje grubundasınız: \"" + creatorExisting.name + "\". Aynı derste birden fazla proje grubunda yer alamazsınız.");
         return;
       }
 
-      // Kontrol: Eklenen diğer üyeler zaten bir projede mi?
+      // Kontrol: Eklenen diğer üyeler aynı derste zaten bir projede mi?
       for (var j = 0; j < data.members.length; j++) {
         var mName = data.members[j];
         if (mName.trim().toLowerCase() === creatorNameLower) continue;
         var memberExisting = null;
         var mNameLower = mName.trim().toLowerCase();
-        for (var k = 0; k < freshAll.length; k++) {
-          var pp = freshAll[k];
+        for (var k = 0; k < freshCourseProjects.length; k++) {
+          var pp = freshCourseProjects[k];
           if (pp.members && pp.members.some(function (m) { return m.trim().toLowerCase() === mNameLower; })) {
             memberExisting = pp;
             break;
           }
         }
         if (memberExisting) {
-          alert("\"" + mName + "\" adlı kişi zaten \"" + memberExisting.name + "\" (" + (memberExisting.courseName || "") + ") projesinde yer alıyor. Her öğrenci yalnızca bir proje grubunda yer alabilir.");
+          alert("\"" + mName + "\" adlı kişi bu derste zaten \"" + memberExisting.name + "\" projesinde yer alıyor. Aynı derste birden fazla proje grubunda yer alamazsınız.");
           return;
         }
       }
@@ -1312,7 +1310,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               ) : !canManage && userExistingProject ? (
                 <div style={{ background: "rgba(234,88,12,0.2)", color: "white", border: "1px solid rgba(234,88,12,0.4)", borderRadius: 10, padding: "10px 20px", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
                   <PrjIcon path={PRJ_ICONS.info} size={16} color="#fbbf24" />
-                  <span>Zaten bir proje grubundasınız: <strong>{userExistingProject.name}</strong></span>
+                  <span>Bu derste zaten bir proje grubundasınız: <strong>{userExistingProject.name}</strong></span>
                 </div>
               ) : (
                 <button onClick={function () { setShowCreateModal(true); }}
