@@ -182,7 +182,7 @@ const Sidebar = ({
     if (isAdmin || isDeptManager) return DEPARTMENT_MODULES;
     if (isProfessor) return DEPARTMENT_MODULES.filter(m => ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler"].includes(m.id));
     // Öğrenci
-    return DEPARTMENT_MODULES.filter(m => ["erasmus", "projeler", "formlar"].includes(m.id));
+    return DEPARTMENT_MODULES.filter(m => ["erasmus", "projeler", "formlar", "staj"].includes(m.id));
   };
 
   const visibleModules = getVisibleModules();
