@@ -1158,11 +1158,15 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
 // ══════════════════════════════════════════════════════════════
 function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [stajRecords, setStajRecords] = useState([]);
+  const [allApplications, setAllApplications] = useState([]);
+  const [allUploads, setAllUploads] = useState({});
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState("list"); // list, add
+  const [view, setView] = useState("list");
+  const [selectedApp, setSelectedApp] = useState(null);
+  const [editingApp, setEditingApp] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
     const isStudent = currentUser?.role === "student" || (!["admin", "bolum_yetkilisi", "professor"].includes(currentUser?.role));
-    return isStudent ? "basvuru" : "roadmap";
+    return isStudent ? "basvuru" : "kayitlar";
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -1173,49 +1177,103 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const isStudent = currentUser?.role === "student" || (!isAdmin && !isDeptManager && currentUser?.role !== "professor");
   const canManage = isAdmin || isDeptManager;
 
-  // Staj kayıtlarını yükle
-  useEffect(() => {
-    const loadRecords = async () => {
-      setLoading(true);
-      try {
-        const db = window.apiFirestore;
-        if (db) {
-          let query = db.collection("internships");
-          if (activeDepartment) {
-            query = query.where("departmentId", "==", activeDepartment);
-          }
-          const snapshot = await query.get();
-          const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setStajRecords(records);
-        }
-      } catch (e) {
-        console.error("Staj kayıtları yüklenirken hata:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadRecords();
-  }, [activeDepartment]);
+  // Staj kayıtlarını ve başvuruları yükle
+  const loadAllData = async () => {
+    setLoading(true);
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
 
-  const filteredRecords = useMemo(() => {
-    return stajRecords.filter(r => {
+      // Eski internships koleksiyonunu yükle
+      let query = db.collection("internships");
+      if (activeDepartment) query = query.where("departmentId", "==", activeDepartment);
+      const snapshot = await query.get();
+      setStajRecords(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+      // Admin/yönetici ise öğrenci başvurularını ve belgelerini yükle
+      if (canManage) {
+        let appQuery = db.collection("internship_applications");
+        if (activeDepartment) appQuery = appQuery.where("departmentId", "==", activeDepartment);
+        const appSnap = await appQuery.get();
+        setAllApplications(appSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+        // Tüm yüklenen belgeleri getir
+        const uploadsSnap = await db.collection("internship_uploads").get();
+        const uploadsMap = {};
+        uploadsSnap.docs.forEach(doc => { uploadsMap[doc.id] = doc.data(); });
+        setAllUploads(uploadsMap);
+      }
+    } catch (e) {
+      console.error("Staj kayıtları yüklenirken hata:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadAllData(); }, [activeDepartment]);
+
+  const filteredApplications = useMemo(() => {
+    return allApplications.filter(r => {
       if (filterStatus !== "all" && r.status !== filterStatus) return false;
       if (searchTerm) {
         const s = searchTerm.toLowerCase();
-        return (r.studentName || "").toLowerCase().includes(s) ||
-               (r.studentNumber || "").toLowerCase().includes(s) ||
-               (r.companyName || "").toLowerCase().includes(s);
+        return (r.adSoyad || "").toLowerCase().includes(s) ||
+               (r.ogrenciNo || "").toLowerCase().includes(s) ||
+               (r.stajYeriAdi || "").toLowerCase().includes(s);
       }
       return true;
     });
-  }, [stajRecords, filterStatus, searchTerm]);
+  }, [allApplications, filterStatus, searchTerm]);
 
   const stats = useMemo(() => ({
-    total: stajRecords.length,
-    beklemede: stajRecords.filter(r => r.status === "beklemede").length,
-    devam: stajRecords.filter(r => r.status === "devam").length,
-    tamamlandi: stajRecords.filter(r => r.status === "tamamlandi").length,
-  }), [stajRecords]);
+    total: allApplications.length,
+    beklemede: allApplications.filter(r => r.status === "beklemede").length,
+    devam: allApplications.filter(r => r.status === "devam").length,
+    tamamlandi: allApplications.filter(r => r.status === "tamamlandi").length,
+    reddedildi: allApplications.filter(r => r.status === "reddedildi").length,
+  }), [allApplications]);
+
+  // Admin: Başvuru durumu güncelle
+  const handleStatusChange = async (appId, newStatus) => {
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
+      await db.collection("internship_applications").doc(appId).set({
+        status: newStatus,
+        statusUpdatedBy: currentUser?.name || currentUser?.identifier || "",
+        statusUpdatedAt: new Date().toISOString(),
+      }, { merge: true });
+      setAllApplications(prev => prev.map(a => a.id === appId ? { ...a, status: newStatus, statusUpdatedBy: currentUser?.name || "", statusUpdatedAt: new Date().toISOString() } : a));
+      setSelectedApp(prev => prev && prev.id === appId ? { ...prev, status: newStatus } : prev);
+    } catch (e) {
+      alert("Durum güncellenirken hata: " + e.message);
+    }
+  };
+
+  // Admin: Başvuru sil
+  const handleDeleteApp = async (appId) => {
+    if (!confirm("Bu staj başvurusunu silmek istediğinizden emin misiniz?")) return;
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
+      await db.collection("internship_applications").doc(appId).delete();
+      setAllApplications(prev => prev.filter(a => a.id !== appId));
+      setSelectedApp(null);
+    } catch (e) {
+      alert("Silme hatası: " + e.message);
+    }
+  };
+
+  // Admin: Belge indirme
+  const handleDownloadFile = (studentId, belgeId) => {
+    const upload = allUploads[studentId]?.[belgeId];
+    if (!upload?.serverPath) {
+      alert("Bu belge için indirilebilir dosya bulunamadı.");
+      return;
+    }
+    const url = `${window.API_BASE || ""}/api/files/download/${upload.serverPath}`;
+    window.open(url, "_blank");
+  };
 
   if (loading) {
     return (
@@ -1290,23 +1348,186 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           {/* ── Admin/Yönetici Görünümü ── */}
           {canManage && (
             <>
-              {/* Yeni Kayıt Butonu */}
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-                <button onClick={() => setView(view === "add" ? "list" : "add")} style={{
-                  padding: "10px 20px", borderRadius: 8, border: "none",
-                  background: view === "add" ? "#6B7280" : STAJ.primary,
-                  color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: 8,
-                }}>
-                  <StajIcon path={view === "add" ? "M6 18L18 6M6 6l12 12" : "M12 5v14M5 12h14"} size={16} />
-                  {view === "add" ? "İptal" : "Yeni Staj Kaydı"}
-                </button>
-              </div>
+              {/* Detay Modalı */}
+              {selectedApp && (
+                <div style={{
+                  position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                  background: "rgba(0,0,0,0.5)", zIndex: 9999,
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+                }} onClick={() => setSelectedApp(null)}>
+                  <div style={{
+                    background: "white", borderRadius: 16, width: "100%", maxWidth: 800,
+                    maxHeight: "90vh", overflow: "auto", padding: responsive.val(16, 24, 28),
+                  }} onClick={e => e.stopPropagation()}>
+                    {/* Modal Header */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+                      <div>
+                        <h3 style={{ fontSize: 18, fontWeight: 700, color: STAJ.navy, margin: 0 }}>
+                          {selectedApp.adSoyad} - Staj Başvurusu
+                        </h3>
+                        <p style={{ fontSize: 13, color: STAJ.textMuted, margin: "4px 0 0" }}>
+                          {selectedApp.ogrenciNo} | {selectedApp.createdAt ? new Date(selectedApp.createdAt).toLocaleDateString("tr-TR") : ""}
+                        </p>
+                      </div>
+                      <button onClick={() => setSelectedApp(null)} style={{
+                        background: "none", border: "none", cursor: "pointer", padding: 4,
+                      }}>
+                        <StajIcon path="M6 18L18 6M6 6l12 12" size={20} color="#6B7280" />
+                      </button>
+                    </div>
+
+                    {/* Durum & Onay */}
+                    <div style={{
+                      background: "#F9FAFB", borderRadius: 10, padding: 16, marginBottom: 20,
+                      border: "1px solid #E5E7EB",
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: STAJ.navy, marginBottom: 10 }}>Başvuru Durumu & Onay</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                        {Object.entries(STAJ_STATUS).map(([key, val]) => (
+                          <button key={key} onClick={() => handleStatusChange(selectedApp.id, key)} style={{
+                            padding: "8px 16px", borderRadius: 8, border: `2px solid ${selectedApp.status === key ? val.color : "#E5E7EB"}`,
+                            background: selectedApp.status === key ? val.bg : "white",
+                            color: selectedApp.status === key ? val.color : STAJ.textMuted,
+                            fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
+                          }}>
+                            {val.label}
+                          </button>
+                        ))}
+                      </div>
+                      {selectedApp.statusUpdatedBy && (
+                        <p style={{ fontSize: 11, color: STAJ.textMuted, margin: "8px 0 0" }}>
+                          Son güncelleme: {selectedApp.statusUpdatedBy} - {selectedApp.statusUpdatedAt ? new Date(selectedApp.statusUpdatedAt).toLocaleString("tr-TR") : ""}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Başvuru Detayları */}
+                    {(() => {
+                      const sections = [
+                        { title: "Öğrenci Kimlik Bilgileri", fields: [
+                          ["Adı ve Soyadı", selectedApp.adSoyad], ["Öğrenci No", selectedApp.ogrenciNo],
+                          ["Bölüm/Program", selectedApp.bolumProgrami], ["E-posta", selectedApp.eposta],
+                          ["Telefon", selectedApp.telefonNo], ["Eğitim Dönemi", selectedApp.egitimDonemi],
+                          ["İkametgah Adresi", selectedApp.ikametgahAdresi],
+                        ]},
+                        { title: "Staj Yapılacak Yer", fields: [
+                          ["Adı/Unvanı", selectedApp.stajYeriAdi], ["Adresi", selectedApp.stajYeriAdresi],
+                          ["Telefon", selectedApp.stajYeriTelefon], ["Faks", selectedApp.stajYeriFaks],
+                          ["E-posta", selectedApp.stajYeriEposta],
+                        ]},
+                        { title: "İşveren/Yetkili", fields: [
+                          ["Adı ve Soyadı", selectedApp.isverenAdSoyad], ["Görev/Ünvan", selectedApp.isverenGorevUnvan],
+                          ["E-posta", selectedApp.isverenEposta], ["Tarih", selectedApp.isverenTarih],
+                        ]},
+                        { title: "Staj Bilgileri", fields: [
+                          ["Başlama Tarihi", selectedApp.stajBaslamaTarihi], ["Bitiş Tarihi", selectedApp.stajBitisTarihi],
+                          ["Süre (Gün)", selectedApp.stajSuresiGun],
+                        ]},
+                        { title: "Nüfus Kayıt Bilgileri", fields: [
+                          ["Soyadı", selectedApp.nufusSoyad], ["Adı", selectedApp.nufusAd],
+                          ["Baba Adı", selectedApp.babaAdi], ["Ana Adı", selectedApp.anaAdi],
+                          ["Doğum Yeri", selectedApp.dogumYeri], ["Doğum Tarihi", selectedApp.dogumTarihi],
+                          ["T.C. Kimlik No", selectedApp.tcKimlikNo], ["N.Cüzdan Seri No", selectedApp.nufusCuzdanSeriNo],
+                          ["SSK No", selectedApp.sskNo], ["Nüfusa Kay. İl", selectedApp.nufusIl],
+                          ["İlçe", selectedApp.nufusIlce], ["Mahalle-Köy", selectedApp.nufusMahalleKoy],
+                          ["Cilt No", selectedApp.ciltNo], ["Aile Sıra No", selectedApp.aileSiraNo],
+                          ["Sıra No", selectedApp.siraNo], ["Nüfus Dairesi", selectedApp.nufusDairesi],
+                          ["Veriliş Nedeni", selectedApp.verilisNedeni], ["Veriliş Tarihi", selectedApp.verilisTarihi],
+                        ]},
+                        { title: "Sağlık Güvencesi", fields: [
+                          ["Sağlık Güvencesi", selectedApp.saglikGuvencesi === "kendisi" ? "Kendisi" : selectedApp.saglikGuvencesi === "annesi_babasi" ? "Annesi/Babası" : selectedApp.saglikGuvencesi === "yesil_kart" ? "Yeşil Kart" : selectedApp.saglikGuvencesi === "universite" ? "Çankırı Karatekin Üniversitesi" : (selectedApp.saglikGuvencesi || "—")],
+                        ]},
+                      ];
+                      return sections.map((sec, si) => (
+                        <div key={si} style={{ marginBottom: 16 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: STAJ.navy, marginBottom: 8, paddingBottom: 4, borderBottom: `2px solid ${STAJ.primary}20` }}>{sec.title}</div>
+                          <div style={{ display: "grid", gridTemplateColumns: responsive.val("1fr", "1fr 1fr", "1fr 1fr 1fr"), gap: "6px 16px" }}>
+                            {sec.fields.map(([label, value], fi) => (
+                              <div key={fi} style={{ fontSize: 12, padding: "4px 0" }}>
+                                <span style={{ color: STAJ.textMuted, fontWeight: 500 }}>{label}: </span>
+                                <span style={{ color: STAJ.text, fontWeight: 600 }}>{value || "—"}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+
+                    {/* Yüklenen Belgeler */}
+                    {(() => {
+                      const studentUploads = allUploads[selectedApp.ogrenciNo] || {};
+                      const BELGE_LABELS = {
+                        basvuru_belgeleri: "Başvuru Belgeleri",
+                        staj_defteri: "Staj Defteri",
+                        ek2_belgesi: "Ek-2 Belgesi",
+                        staj_teslim_belgesi: "Staj Teslim Belgesi",
+                        turnitin_raporu: "Turnitin Raporu",
+                      };
+                      const uploadEntries = Object.entries(BELGE_LABELS);
+                      const hasAnyUpload = uploadEntries.some(([key]) => studentUploads[key]);
+
+                      return (
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: STAJ.navy, marginBottom: 8, paddingBottom: 4, borderBottom: `2px solid ${STAJ.primary}20` }}>Yüklenen Belgeler</div>
+                          {!hasAnyUpload ? (
+                            <p style={{ fontSize: 12, color: STAJ.textMuted, fontStyle: "italic" }}>Henüz belge yüklenmemiş.</p>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              {uploadEntries.map(([key, label]) => {
+                                const upload = studentUploads[key];
+                                if (!upload) return null;
+                                return (
+                                  <div key={key} style={{
+                                    display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+                                    borderRadius: 8, background: STAJ.greenLight, border: "1px solid #A7F3D0",
+                                  }}>
+                                    <StajIcon path="M5 13l4 4L19 7" size={14} color={STAJ.green} />
+                                    <div style={{ flex: 1 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: STAJ.navy }}>{label}</div>
+                                      <div style={{ fontSize: 11, color: STAJ.textMuted }}>
+                                        {upload.fileName} ({(upload.fileSize / 1024).toFixed(0)} KB) — {new Date(upload.uploadedAt).toLocaleDateString("tr-TR")}
+                                      </div>
+                                    </div>
+                                    <button onClick={() => handleDownloadFile(selectedApp.ogrenciNo, key)} style={{
+                                      padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB",
+                                      background: "white", color: STAJ.primary, fontSize: 11, fontWeight: 600,
+                                      cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                    }}>
+                                      <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" size={13} />
+                                      İndir
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Modal Footer */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20, paddingTop: 16, borderTop: "1px solid #E5E7EB" }}>
+                      <button onClick={() => handleDeleteApp(selectedApp.id)} style={{
+                        padding: "10px 18px", borderRadius: 8, border: "1px solid #FCA5A5",
+                        background: "#FEF2F2", color: STAJ.red, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                        display: "flex", alignItems: "center", gap: 6,
+                      }}>
+                        <StajIcon path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" size={14} />
+                        Sil
+                      </button>
+                      <button onClick={() => setSelectedApp(null)} style={{
+                        padding: "10px 20px", borderRadius: 8, border: "1px solid #D1D5DB",
+                        background: "white", color: STAJ.textMuted, fontSize: 13, cursor: "pointer",
+                      }}>Kapat</button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Stats */}
               <div style={{
                 display: "grid",
-                gridTemplateColumns: responsive.val("1fr 1fr", "repeat(4, 1fr)", "repeat(4, 1fr)"),
+                gridTemplateColumns: responsive.val("1fr 1fr", "repeat(5, 1fr)", "repeat(5, 1fr)"),
                 gap: responsive.val(8, 12, 16),
                 marginBottom: 24,
               }}>
@@ -1315,6 +1536,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   { label: "Beklemede", value: stats.beklemede, color: "#EAB308", bg: "#FEF9C3" },
                   { label: "Devam Eden", value: stats.devam, color: "#3B82F6", bg: "#DBEAFE" },
                   { label: "Tamamlanan", value: stats.tamamlandi, color: "#059669", bg: "#D1FAE5" },
+                  { label: "Reddedilen", value: stats.reddedildi, color: "#DC2626", bg: "#FEE2E2" },
                 ].map((s, i) => (
                   <div key={i} style={{
                     background: "white", borderRadius: 12, padding: responsive.val(12, 16, 20),
@@ -1326,60 +1548,6 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 ))}
               </div>
 
-              {/* Add Form */}
-              {view === "add" && (
-                <div style={{
-                  background: "white", borderRadius: 12, padding: responsive.val(16, 20, 24),
-                  border: "1px solid #E5E7EB", marginBottom: 24,
-                }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 600, color: STAJ.navy, marginBottom: 16 }}>
-                    Yeni Staj Kaydı
-                  </h3>
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: responsive.val("1fr", "1fr 1fr", "1fr 1fr 1fr"),
-                    gap: 16,
-                  }}>
-                    <div>
-                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Öğrenci No</label>
-                      <input placeholder="Öğrenci numarası" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Öğrenci Adı</label>
-                      <input placeholder="Ad Soyad" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Staj Türü</label>
-                      <select style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", background: "white" }}>
-                        {STAJ_TYPES.map(t => <option key={t.id} value={t.id}>{t.label} ({t.duration})</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Kurum/Firma Adı</label>
-                      <input placeholder="Staj yapılacak yer" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Başlangıç Tarihi</label>
-                      <input type="date" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Bitiş Tarihi</label>
-                      <input type="date" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                    <button onClick={() => setView("list")} style={{
-                      padding: "10px 20px", borderRadius: 8, border: "1px solid #D1D5DB",
-                      background: "white", color: STAJ.textMuted, fontSize: 13, cursor: "pointer",
-                    }}>İptal</button>
-                    <button style={{
-                      padding: "10px 20px", borderRadius: 8, border: "none",
-                      background: STAJ.primary, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                    }}>Kaydet</button>
-                  </div>
-                </div>
-              )}
-
               {/* Search & Filter */}
               <div style={{
                 display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16,
@@ -1389,7 +1557,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   <input
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    placeholder="Öğrenci adı, numara veya firma ara..."
+                    placeholder="Öğrenci adı, numara veya staj yeri ara..."
                     style={{
                       width: "100%", padding: "10px 14px", borderRadius: 8,
                       border: "1px solid #D1D5DB", fontSize: 13, outline: "none",
@@ -1411,8 +1579,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 </select>
               </div>
 
-              {/* Records */}
-              {filteredRecords.length === 0 ? (
+              {/* Başvuru Listesi */}
+              {filteredApplications.length === 0 ? (
                 <div style={{
                   background: "white", borderRadius: 12, padding: 40,
                   border: "1px solid #E5E7EB", textAlign: "center",
@@ -1420,32 +1588,49 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   <StajIcon path="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" size={48} color="#D1D5DB" />
                   <p style={{ color: STAJ.textMuted, fontSize: 14, marginTop: 16 }}>
                     {searchTerm || filterStatus !== "all"
-                      ? "Arama kriterlerine uygun staj kaydı bulunamadı."
-                      : "Henüz staj kaydı bulunmuyor."}
+                      ? "Arama kriterlerine uygun staj başvurusu bulunamadı."
+                      : "Henüz öğrenci staj başvurusu bulunmuyor."}
                   </p>
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {filteredRecords.map(record => {
-                    const status = STAJ_STATUS[record.status] || STAJ_STATUS.beklemede;
+                  {filteredApplications.map(app => {
+                    const status = STAJ_STATUS[app.status] || STAJ_STATUS.beklemede;
+                    const studentUploads = allUploads[app.ogrenciNo] || {};
+                    const uploadCount = Object.keys(studentUploads).filter(k => k !== "sgk_onay").length;
                     return (
-                      <div key={record.id} style={{
+                      <div key={app.id} onClick={() => setSelectedApp(app)} style={{
                         background: "white", borderRadius: 10, padding: responsive.val(12, 16, 16),
-                        border: "1px solid #E5E7EB",
+                        border: "1px solid #E5E7EB", cursor: "pointer",
                         display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12,
-                      }}>
+                        transition: "box-shadow 0.2s",
+                      }} onMouseEnter={e => e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)"}
+                         onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}>
                         <div style={{ flex: 1, minWidth: 160 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: STAJ.text }}>{record.studentName}</div>
-                          <div style={{ fontSize: 12, color: STAJ.textMuted }}>{record.studentNumber}</div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: STAJ.text }}>{app.adSoyad}</div>
+                          <div style={{ fontSize: 12, color: STAJ.textMuted }}>{app.ogrenciNo}</div>
                         </div>
                         <div style={{ flex: 1, minWidth: 140 }}>
-                          <div style={{ fontSize: 13, color: STAJ.text }}>{record.companyName || "—"}</div>
-                          <div style={{ fontSize: 11, color: STAJ.textMuted }}>{record.stajType === "staj2" ? "Staj II" : "Staj I"}</div>
+                          <div style={{ fontSize: 13, color: STAJ.text }}>{app.stajYeriAdi || "—"}</div>
+                          <div style={{ fontSize: 11, color: STAJ.textMuted }}>
+                            {app.stajBaslamaTarihi || "—"} — {app.stajBitisTarihi || "—"}
+                          </div>
                         </div>
-                        <span style={{
-                          padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                          color: status.color, background: status.bg,
-                        }}>{status.label}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {uploadCount > 0 && (
+                            <span style={{
+                              padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 600,
+                              background: STAJ.primaryPale, color: STAJ.primary,
+                            }}>
+                              {uploadCount} belge
+                            </span>
+                          )}
+                          <span style={{
+                            padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                            color: status.color, background: status.bg,
+                          }}>{status.label}</span>
+                          <StajIcon path="M9 5l7 7-7 7" size={16} color="#9CA3AF" />
+                        </div>
                       </div>
                     );
                   })}
