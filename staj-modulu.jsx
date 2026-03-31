@@ -491,10 +491,114 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
     loadApplications();
   }, [currentUser]);
 
+  // Zorunlu alanlar listesi
+  const REQUIRED_FIELDS = {
+    // Kimlik Bilgileri
+    adSoyad: "Adı ve Soyadı",
+    ogrenciNo: "Öğrenci No",
+    bolumProgrami: "Bölümü/Programı",
+    eposta: "E-posta Adresi",
+    telefonNo: "Telefon No",
+    egitimDonemi: "Eğitim Dönemi",
+    ikametgahAdresi: "İkametgah Adresi",
+    // Staj Yeri
+    stajYeriAdi: "Staj Yeri Adı/Unvanı",
+    stajYeriAdresi: "Staj Yeri Adresi",
+    stajYeriTelefon: "Staj Yeri Telefon No",
+    stajYeriEposta: "Staj Yeri E-posta",
+    // İşveren
+    isverenAdSoyad: "İşveren Adı ve Soyadı",
+    isverenGorevUnvan: "İşveren Görev ve Ünvanı",
+    isverenEposta: "İşveren E-posta",
+    isverenTarih: "İşveren Tarih",
+    // Staj
+    stajBaslamaTarihi: "Staj Başlama Tarihi",
+    stajBitisTarihi: "Staj Bitiş Tarihi",
+    stajSuresiGun: "Staj Süresi (Gün)",
+    // Nüfus
+    nufusSoyad: "Nüfus Soyadı",
+    nufusAd: "Nüfus Adı",
+    babaAdi: "Baba Adı",
+    anaAdi: "Ana Adı",
+    dogumYeri: "Doğum Yeri",
+    dogumTarihi: "Doğum Tarihi",
+    tcKimlikNo: "T.C. Kimlik No",
+    nufusCuzdanSeriNo: "N.Cüzdan Seri No",
+    nufusIl: "Nüfusa Kay. Olduğu İl",
+  };
+
+  // Sadece harf ve boşluk içermeli alanlar (rakam girilememeli)
+  const TEXT_ONLY_FIELDS = ["adSoyad", "isverenAdSoyad", "nufusSoyad", "nufusAd", "babaAdi", "anaAdi", "dogumYeri", "nufusIl", "nufusIlce", "nufusMahalleKoy", "isverenGorevUnvan"];
+  // Sadece rakam içermeli alanlar
+  const NUMERIC_ONLY_FIELDS = ["ogrenciNo", "tcKimlikNo", "stajSuresiGun"];
+  // Telefon alanları (rakam, boşluk, +, - içerebilir)
+  const PHONE_FIELDS = ["telefonNo", "stajYeriTelefon", "stajYeriFaks"];
+  // E-posta alanları
+  const EMAIL_FIELDS = ["eposta", "stajYeriEposta", "isverenEposta"];
+
+  const isRequired = (key) => key in REQUIRED_FIELDS;
+
   const handleSave = async () => {
     // Zorunlu alan kontrolü
-    if (!form.adSoyad || !form.ogrenciNo || !form.stajYeriAdi || !form.stajBaslamaTarihi || !form.stajBitisTarihi) {
-      setSavedMsg("Lütfen zorunlu alanları doldurun (Ad Soyad, Öğrenci No, Staj Yeri, Tarihler).");
+    const missingFields = Object.entries(REQUIRED_FIELDS)
+      .filter(([key]) => !form[key] || !String(form[key]).trim())
+      .map(([, label]) => label);
+
+    if (missingFields.length > 0) {
+      setSavedMsg("Lütfen zorunlu alanları doldurun: " + missingFields.slice(0, 5).join(", ") + (missingFields.length > 5 ? ` ve ${missingFields.length - 5} alan daha...` : ""));
+      setTimeout(() => setSavedMsg(""), 6000);
+      return;
+    }
+
+    // Tip kontrolleri
+    const onlyLetters = /^[a-zA-ZçÇğĞıİöÖşŞüÜ\s.]+$/;
+    for (const field of TEXT_ONLY_FIELDS) {
+      if (form[field] && !onlyLetters.test(form[field].trim())) {
+        setSavedMsg(`"${REQUIRED_FIELDS[field] || field}" alanına sadece harf girilmelidir.`);
+        setTimeout(() => setSavedMsg(""), 4000);
+        return;
+      }
+    }
+
+    const onlyDigits = /^\d+$/;
+    for (const field of NUMERIC_ONLY_FIELDS) {
+      if (form[field] && !onlyDigits.test(form[field].trim())) {
+        setSavedMsg(`"${REQUIRED_FIELDS[field] || field}" alanına sadece rakam girilmelidir.`);
+        setTimeout(() => setSavedMsg(""), 4000);
+        return;
+      }
+    }
+
+    // TC Kimlik No 11 haneli olmalı
+    if (form.tcKimlikNo && form.tcKimlikNo.trim().length !== 11) {
+      setSavedMsg("T.C. Kimlik No 11 haneli olmalıdır.");
+      setTimeout(() => setSavedMsg(""), 4000);
+      return;
+    }
+
+    // Telefon alanları kontrolü
+    const phonePattern = /^[\d\s+\-()]+$/;
+    for (const field of PHONE_FIELDS) {
+      if (form[field] && form[field].trim() && !phonePattern.test(form[field].trim())) {
+        setSavedMsg(`"${REQUIRED_FIELDS[field] || field}" alanına geçerli bir telefon numarası giriniz.`);
+        setTimeout(() => setSavedMsg(""), 4000);
+        return;
+      }
+    }
+
+    // E-posta formatı kontrolü
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    for (const field of EMAIL_FIELDS) {
+      if (form[field] && form[field].trim() && !emailPattern.test(form[field].trim())) {
+        setSavedMsg(`"${REQUIRED_FIELDS[field] || field}" alanına geçerli bir e-posta adresi giriniz.`);
+        setTimeout(() => setSavedMsg(""), 4000);
+        return;
+      }
+    }
+
+    // Staj bitiş tarihi başlama tarihinden sonra olmalı
+    if (form.stajBaslamaTarihi && form.stajBitisTarihi && form.stajBitisTarihi <= form.stajBaslamaTarihi) {
+      setSavedMsg("Staj bitiş tarihi, başlama tarihinden sonra olmalıdır.");
       setTimeout(() => setSavedMsg(""), 4000);
       return;
     }
@@ -551,6 +655,7 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
     boxSizing: "border-box",
   };
   const labelStyle = { display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 5 };
+  const reqMark = React.createElement("span", { style: { color: STAJ.red, marginLeft: 2 } }, "*");
   const sectionStyle = {
     background: "white", borderRadius: 12, padding: responsive.val(14, 18, 22),
     border: "1px solid #E5E7EB", marginBottom: 16,
@@ -668,13 +773,13 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
       <div style={sectionStyle}>
         <div style={sectionTitleStyle}>ÖĞRENCİNİN KİMLİK BİLGİLERİ <span style={{ fontSize: 11, fontWeight: 400, color: STAJ.textMuted }}>(Tüm alanları eksiksiz doldurunuz)</span></div>
         <div style={gridStyle(3)}>
-          <div><label style={labelStyle}>Adı ve Soyadı *</label><input value={form.adSoyad} onChange={e => set("adSoyad", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Öğrenci No *</label><input value={form.ogrenciNo} onChange={e => set("ogrenciNo", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Bölümü/Programı</label><input value={form.bolumProgrami} onChange={e => set("bolumProgrami", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>E-posta Adresi</label><input type="email" value={form.eposta} onChange={e => set("eposta", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Telefon No</label><input value={form.telefonNo} onChange={e => set("telefonNo", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Eğitim Dönemi</label><input value={form.egitimDonemi} onChange={e => set("egitimDonemi", e.target.value)} placeholder="Örn: 2024-2025 Bahar" style={inputStyle} /></div>
-          <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><label style={labelStyle}>İkametgah Adresi</label><input value={form.ikametgahAdresi} onChange={e => set("ikametgahAdresi", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Adı ve Soyadı {reqMark}</label><input value={form.adSoyad} onChange={e => set("adSoyad", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Öğrenci No {reqMark}</label><input value={form.ogrenciNo} onChange={e => set("ogrenciNo", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Bölümü/Programı {reqMark}</label><input value={form.bolumProgrami} onChange={e => set("bolumProgrami", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>E-posta Adresi {reqMark}</label><input type="email" value={form.eposta} onChange={e => set("eposta", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Telefon No {reqMark}</label><input value={form.telefonNo} onChange={e => set("telefonNo", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Eğitim Dönemi {reqMark}</label><input value={form.egitimDonemi} onChange={e => set("egitimDonemi", e.target.value)} placeholder="Örn: 2024-2025 Bahar" style={inputStyle} /></div>
+          <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><label style={labelStyle}>İkametgah Adresi {reqMark}</label><input value={form.ikametgahAdresi} onChange={e => set("ikametgahAdresi", e.target.value)} style={inputStyle} /></div>
         </div>
       </div>
 
@@ -682,11 +787,11 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
       <div style={sectionStyle}>
         <div style={sectionTitleStyle}>STAJ YAPILACAK YERİN BİLGİLERİ</div>
         <div style={gridStyle(3)}>
-          <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><label style={labelStyle}>Adı / Unvanı *</label><input value={form.stajYeriAdi} onChange={e => set("stajYeriAdi", e.target.value)} style={inputStyle} /></div>
-          <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><label style={labelStyle}>Adresi</label><input value={form.stajYeriAdresi} onChange={e => set("stajYeriAdresi", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Telefon No</label><input value={form.stajYeriTelefon} onChange={e => set("stajYeriTelefon", e.target.value)} style={inputStyle} /></div>
+          <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><label style={labelStyle}>Adı / Unvanı {reqMark}</label><input value={form.stajYeriAdi} onChange={e => set("stajYeriAdi", e.target.value)} style={inputStyle} /></div>
+          <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><label style={labelStyle}>Adresi {reqMark}</label><input value={form.stajYeriAdresi} onChange={e => set("stajYeriAdresi", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Telefon No {reqMark}</label><input value={form.stajYeriTelefon} onChange={e => set("stajYeriTelefon", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>Faks No</label><input value={form.stajYeriFaks} onChange={e => set("stajYeriFaks", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>E-posta Adresi</label><input type="email" value={form.stajYeriEposta} onChange={e => set("stajYeriEposta", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>E-posta Adresi {reqMark}</label><input type="email" value={form.stajYeriEposta} onChange={e => set("stajYeriEposta", e.target.value)} style={inputStyle} /></div>
         </div>
       </div>
 
@@ -694,10 +799,10 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
       <div style={sectionStyle}>
         <div style={sectionTitleStyle}>İŞVERENİN / YETKİLİNİN BİLGİLERİ</div>
         <div style={gridStyle(2)}>
-          <div><label style={labelStyle}>Adı ve Soyadı</label><input value={form.isverenAdSoyad} onChange={e => set("isverenAdSoyad", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Görev ve Ünvanı</label><input value={form.isverenGorevUnvan} onChange={e => set("isverenGorevUnvan", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>E-posta Adresi</label><input type="email" value={form.isverenEposta} onChange={e => set("isverenEposta", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Tarih</label><input type="date" value={form.isverenTarih} onChange={e => set("isverenTarih", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Adı ve Soyadı {reqMark}</label><input value={form.isverenAdSoyad} onChange={e => set("isverenAdSoyad", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Görev ve Ünvanı {reqMark}</label><input value={form.isverenGorevUnvan} onChange={e => set("isverenGorevUnvan", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>E-posta Adresi {reqMark}</label><input type="email" value={form.isverenEposta} onChange={e => set("isverenEposta", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Tarih {reqMark}</label><input type="date" value={form.isverenTarih} onChange={e => set("isverenTarih", e.target.value)} style={inputStyle} /></div>
         </div>
         <div style={{
           marginTop: 14, padding: "12px 16px", borderRadius: 8, background: "#F0FDFA",
@@ -711,9 +816,9 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
       <div style={sectionStyle}>
         <div style={sectionTitleStyle}>STAJIN BİLGİLERİ</div>
         <div style={gridStyle(3)}>
-          <div><label style={labelStyle}>Başlama Tarihi *</label><input type="date" value={form.stajBaslamaTarihi} onChange={e => set("stajBaslamaTarihi", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Bitiş Tarihi *</label><input type="date" value={form.stajBitisTarihi} onChange={e => set("stajBitisTarihi", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Süresi (Gün)</label><input value={form.stajSuresiGun} onChange={e => set("stajSuresiGun", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Başlama Tarihi {reqMark}</label><input type="date" value={form.stajBaslamaTarihi} onChange={e => set("stajBaslamaTarihi", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Bitiş Tarihi {reqMark}</label><input type="date" value={form.stajBitisTarihi} onChange={e => set("stajBitisTarihi", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Süresi (Gün) {reqMark}</label><input value={form.stajSuresiGun} readOnly style={{ ...inputStyle, background: "#F3F4F6" }} /></div>
         </div>
       </div>
 
@@ -726,16 +831,16 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
           </div>
         </div>
         <div style={gridStyle(3)}>
-          <div><label style={labelStyle}>Soyadı</label><input value={form.nufusSoyad} onChange={e => set("nufusSoyad", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Adı</label><input value={form.nufusAd} onChange={e => set("nufusAd", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Baba Adı</label><input value={form.babaAdi} onChange={e => set("babaAdi", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Ana Adı</label><input value={form.anaAdi} onChange={e => set("anaAdi", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Doğum Yeri</label><input value={form.dogumYeri} onChange={e => set("dogumYeri", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Doğum Tarihi</label><input type="date" value={form.dogumTarihi} onChange={e => set("dogumTarihi", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>T.C. Kimlik No</label><input value={form.tcKimlikNo} onChange={e => set("tcKimlikNo", e.target.value)} maxLength={11} style={inputStyle} /></div>
-          <div><label style={labelStyle}>N.Cüzdan Seri No</label><input value={form.nufusCuzdanSeriNo} onChange={e => set("nufusCuzdanSeriNo", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Soyadı {reqMark}</label><input value={form.nufusSoyad} onChange={e => set("nufusSoyad", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Adı {reqMark}</label><input value={form.nufusAd} onChange={e => set("nufusAd", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Baba Adı {reqMark}</label><input value={form.babaAdi} onChange={e => set("babaAdi", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Ana Adı {reqMark}</label><input value={form.anaAdi} onChange={e => set("anaAdi", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Doğum Yeri {reqMark}</label><input value={form.dogumYeri} onChange={e => set("dogumYeri", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Doğum Tarihi {reqMark}</label><input type="date" value={form.dogumTarihi} onChange={e => set("dogumTarihi", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>T.C. Kimlik No {reqMark}</label><input value={form.tcKimlikNo} onChange={e => { const v = e.target.value.replace(/\D/g, ""); set("tcKimlikNo", v); }} maxLength={11} placeholder="11 haneli" style={inputStyle} /></div>
+          <div><label style={labelStyle}>N.Cüzdan Seri No {reqMark}</label><input value={form.nufusCuzdanSeriNo} onChange={e => set("nufusCuzdanSeriNo", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>SSK No</label><input value={form.sskNo} onChange={e => set("sskNo", e.target.value)} placeholder="Tercih" style={inputStyle} /></div>
-          <div><label style={labelStyle}>Nüfusa Kay. Olduğu İl</label><input value={form.nufusIl} onChange={e => set("nufusIl", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Nüfusa Kay. Olduğu İl {reqMark}</label><input value={form.nufusIl} onChange={e => set("nufusIl", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>İlçe</label><input value={form.nufusIlce} onChange={e => set("nufusIlce", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>Mahalle-Köy</label><input value={form.nufusMahalleKoy} onChange={e => set("nufusMahalleKoy", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>Cilt No</label><input value={form.ciltNo} onChange={e => set("ciltNo", e.target.value)} style={inputStyle} /></div>
