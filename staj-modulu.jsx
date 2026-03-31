@@ -54,7 +54,7 @@ const STAJ_ROADMAP_STEPS = [
     title: "Staj Yeri Araştırması",
     duration: "2-4 Hafta",
     result: "Uygun staj yeri belirlendi",
-    desc: "Bölümünüze uygun firmaları ve kurumları araştırın. Kariyer merkezinden destek alabilir, önceki öğrencilerin staj yaptığı yerleri inceleyebilirsiniz. En az 3 alternatif belirleyin.",
+    desc: "Bölümünüze uygun firmaları ve kurumları araştırın. Kariyer merkezinden destek alabilir, önceki öğrencilerin staj yaptığı yerleri inceleyebilirsiniz.",
   },
   {
     id: 2,
@@ -62,48 +62,67 @@ const STAJ_ROADMAP_STEPS = [
     duration: "1-2 Hafta",
     result: "Firma kabul yazısı alındı",
     desc: "Belirlediğiniz firma/kuruma başvurunuzu yapın. CV ve niyet mektubunuzu hazırlayın. Kabul aldığınızda firmadan resmi kabul yazısı isteyin.",
+    links: [
+      { label: "Zorunlu Staj Formu", module: "formlar", highlight: "zorunlu_staj_formu" },
+      { label: "Staj Başvuru Formu (Ek-1)", module: "formlar", highlight: "ek1" },
+      { label: "Kimlik Fotokopisi", note: "Kimlik fotokopinizi hazırlayın" },
+    ],
+    extraNote: "Firma staj için dilekçe talep ederse Ek-3 formunu kullanın.",
+    extraLink: { label: "Ek-3 Formu", module: "formlar", highlight: "ek3" },
   },
   {
     id: 3,
-    title: "Evrak Hazırlığı",
+    title: "Belge Yükleme",
     duration: "1 Hafta",
-    result: "Tüm belgeler hazır",
-    desc: "Staj başvuru formu, SGK giriş bildirgesi, iş güvenliği taahhütnamesi ve staj kabul formunu hazırlayın. Bölüm sekreterliğinden gerekli belgeleri temin edin.",
+    result: "Başvuru belgeleri sisteme yüklendi",
+    desc: "Artık hazırsın! Sistem üzerinden başvuru belgelerini yükleyebilirsin. Staj Kayıtları sekmesine giderek başvuru belgelerini yükleyeceğin alana erişebilirsin.",
+    links: [
+      { label: "Staj Kayıtlarına Git", module: "staj", tab: "kayitlar" },
+    ],
   },
   {
     id: 4,
     title: "Komisyon Onayı",
     duration: "1 Hafta",
     result: "Staj komisyonu onayı alındı",
-    desc: "Hazırladığınız evrakları staj komisyonuna teslim edin. Komisyon staj yerinizin uygunluğunu değerlendirecektir. Onay sonucunu takip edin.",
+    desc: "Komisyon staj yerinizin uygunluğunu değerlendirecektir. Onay sonucunu takip edin.",
   },
   {
     id: 5,
     title: "SGK İşlemleri",
     duration: "3-5 Gün",
     result: "SGK kaydı tamamlandı",
-    desc: "Üniversite tarafından SGK giriş bildirgeniz yapılacaktır. İş kazası ve meslek hastalığı sigortası kapsamında tescil işleminizi kontrol edin.",
+    desc: "Bu adımda Ergün ÇINAR'ın onayı ile bir sonraki adıma geçebilirsiniz. Ergün ÇINAR, Staj Kayıtları alanında kendisine tanımlanan alanda onay verecektir. Onay alındıktan sonra SGK giriş bildirgeniz üniversite tarafından yapılacaktır.",
+    approver: "Ergün ÇINAR",
   },
   {
     id: 6,
     title: "Staj Dönemi",
     duration: "20 İş Günü",
     result: "Staj defteri günlük tutuldu",
-    desc: "Staj süresince her gün staj defterinizi doldurun. Yaptığınız işleri detaylı açıklayın, sorumlu mühendisinize onaylatın. Devamsızlık yapmamaya özen gösterin.",
+    desc: "Formlar modülündeki Staj Defterini kullanarak staj sürecinizi kayıt altına alın. Her sayfası imza ya da kaşelenmiş şekilde hazırlanmalıdır. Devamsızlık yapmamaya özen gösterin.",
+    links: [
+      { label: "Staj Defteri", module: "formlar", highlight: "staj_defteri" },
+    ],
   },
   {
     id: 7,
-    title: "Staj Raporu Yazımı",
+    title: "Staj Teslim & Belge Yükleme",
     duration: "1-2 Hafta",
-    result: "Rapor teslime hazır",
-    desc: "Staj sürecinde edindiğiniz deneyimleri, öğrendiklerinizi ve yaptığınız projeleri içeren staj raporunuzu yazın. Bölüm formatına uygun hazırlayın.",
+    result: "Tüm belgeler sisteme yüklendi",
+    desc: "Staj Kayıtlarında ilgili alana staj defterinizi yükleyebilirsiniz. İmzalı ve mühürlü Ek-2 belgesini sisteme yükleyebilirsiniz (Ek-2'ye Formlar modülünden erişebilirsiniz). Staj Teslim Belgesini (Formlar modülünde mevcut) sisteme yükleyebilirsiniz. Turnitin benzerlik raporunu sisteme yükleyebilirsiniz. Not: Turnitin raporu yüklenirken sadece rapor yüklenecektir, staj defterini bu alana tekrar yüklemenize gerek yoktur.",
+    links: [
+      { label: "Ek-2 Formu", module: "formlar", highlight: "ek2" },
+      { label: "Staj Teslim Belgesi", module: "formlar", highlight: "staj_teslim" },
+      { label: "Staj Kayıtlarına Git", module: "staj", tab: "kayitlar" },
+    ],
   },
   {
     id: 8,
     title: "Değerlendirme & Sonuç",
     duration: "2-4 Hafta",
     result: "Staj notu belirlendi",
-    desc: "Staj defteriniz, raporunuz ve firma değerlendirme formunuz staj komisyonu tarafından incelenecektir. Eksik varsa tamamlamanız istenebilir. Sonucu ÖBS'den takip edin.",
+    desc: "Sonuç değerlendirme aşaması. Staj defteriniz, belgeleriniz ve firma değerlendirme formunuz staj komisyonu tarafından incelenecektir. Onay sürecini buradan takip edebilirsiniz.",
   },
 ];
 
@@ -168,6 +187,68 @@ function StajRoadmap() {
         {isOpen && (
           <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${STAJ.accent}18` }}>
             <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.8, margin: 0 }}>{step.desc}</p>
+
+            {/* Onay Yetkisi */}
+            {step.approver && (
+              <div style={{
+                marginTop: 10, padding: "8px 12px", borderRadius: 8,
+                background: "#FEF3C7", border: "1px solid #FCD34D",
+                fontSize: 12, color: "#92400E", fontWeight: 500,
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <StajIcon path="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" size={14} color="#92400E" />
+                Onay Yetkilisi: <strong>{step.approver}</strong>
+              </div>
+            )}
+
+            {/* Gerekli Belgeler / Linkler */}
+            {step.links && step.links.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: STAJ.accent, marginBottom: 6 }}>Gerekli Belgeler:</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {step.links.map((link, li) => (
+                    <div key={li}
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (link.module) window.location.hash = "#" + link.module;
+                      }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        padding: "6px 10px", borderRadius: 6,
+                        background: link.module ? "#ECFEFF" : "#F9FAFB",
+                        border: `1px solid ${link.module ? STAJ.accent + "30" : "#E5E7EB"}`,
+                        cursor: link.module ? "pointer" : "default",
+                        fontSize: 12, color: link.module ? STAJ.accent : "#64748B",
+                        fontWeight: 500,
+                      }}
+                    >
+                      <StajIcon path={link.module ? "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" : "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"} size={13} />
+                      {link.label}
+                      {link.note && <span style={{ fontWeight: 400, color: "#94A3B8" }}> — {link.note}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Ek Not */}
+            {step.extraNote && (
+              <div style={{
+                marginTop: 8, padding: "7px 10px", borderRadius: 6,
+                background: "#FFF7ED", border: "1px solid #FDBA7440",
+                fontSize: 12, color: "#9A3412", fontWeight: 500,
+              }}>
+                {step.extraNote}
+                {step.extraLink && (
+                  <span
+                    onClick={e => { e.stopPropagation(); if (step.extraLink.module) window.location.hash = "#" + step.extraLink.module; }}
+                    style={{ marginLeft: 6, color: STAJ.accent, textDecoration: "underline", cursor: "pointer", fontWeight: 600 }}
+                  >
+                    {step.extraLink.label}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
