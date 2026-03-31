@@ -34,6 +34,7 @@ const ALLOWED_COLLECTIONS = [
   "forms",
   "internships",
   "internship_applications",
+  "internship_uploads",
   "commissions",
   "yaz_okulu_students",
   "yaz_okulu_records",
