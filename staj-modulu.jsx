@@ -54,7 +54,7 @@ const STAJ_ROADMAP_STEPS = [
     title: "Staj Yeri Araştırması",
     duration: "2-4 Hafta",
     result: "Uygun staj yeri belirlendi",
-    desc: "Bölümünüze uygun firmaları ve kurumları araştırın. Kariyer merkezinden destek alabilir, önceki öğrencilerin staj yaptığı yerleri inceleyebilirsiniz. En az 3 alternatif belirleyin.",
+    desc: "Bölümünüze uygun firmaları ve kurumları araştırın. Kariyer merkezinden destek alabilir, önceki öğrencilerin staj yaptığı yerleri inceleyebilirsiniz.",
   },
   {
     id: 2,
@@ -62,55 +62,74 @@ const STAJ_ROADMAP_STEPS = [
     duration: "1-2 Hafta",
     result: "Firma kabul yazısı alındı",
     desc: "Belirlediğiniz firma/kuruma başvurunuzu yapın. CV ve niyet mektubunuzu hazırlayın. Kabul aldığınızda firmadan resmi kabul yazısı isteyin.",
+    links: [
+      { label: "Zorunlu Staj Formu", module: "formlar", highlight: "zorunlu_staj_formu" },
+      { label: "Staj Başvuru Formu (Ek-1)", module: "formlar", highlight: "ek1" },
+      { label: "Kimlik Fotokopisi", note: "Kimlik fotokopinizi hazırlayın" },
+    ],
+    extraNote: "Firma staj için dilekçe talep ederse Ek-3 formunu kullanın.",
+    extraLink: { label: "Ek-3 Formu", module: "formlar", highlight: "ek3" },
   },
   {
     id: 3,
-    title: "Evrak Hazırlığı",
+    title: "Belge Yükleme",
     duration: "1 Hafta",
-    result: "Tüm belgeler hazır",
-    desc: "Staj başvuru formu, SGK giriş bildirgesi, iş güvenliği taahhütnamesi ve staj kabul formunu hazırlayın. Bölüm sekreterliğinden gerekli belgeleri temin edin.",
+    result: "Başvuru belgeleri sisteme yüklendi",
+    desc: "Artık hazırsın! Sistem üzerinden başvuru belgelerini yükleyebilirsin. Staj Kayıtları sekmesine giderek başvuru belgelerini yükleyeceğin alana erişebilirsin.",
+    links: [
+      { label: "Staj Kayıtlarına Git", tab: "kayitlar" },
+    ],
   },
   {
     id: 4,
     title: "Komisyon Onayı",
     duration: "1 Hafta",
     result: "Staj komisyonu onayı alındı",
-    desc: "Hazırladığınız evrakları staj komisyonuna teslim edin. Komisyon staj yerinizin uygunluğunu değerlendirecektir. Onay sonucunu takip edin.",
+    desc: "Komisyon staj yerinizin uygunluğunu değerlendirecektir. Onay sonucunu takip edin.",
   },
   {
     id: 5,
     title: "SGK İşlemleri",
     duration: "3-5 Gün",
     result: "SGK kaydı tamamlandı",
-    desc: "Üniversite tarafından SGK giriş bildirgeniz yapılacaktır. İş kazası ve meslek hastalığı sigortası kapsamında tescil işleminizi kontrol edin.",
+    desc: "Bu adımda Ergün ÇINAR'ın onayı ile bir sonraki adıma geçebilirsiniz. Ergün ÇINAR, Staj Kayıtları alanında kendisine tanımlanan alanda onay verecektir. Onay alındıktan sonra SGK giriş bildirgeniz üniversite tarafından yapılacaktır.",
+    approver: "Ergün ÇINAR",
   },
   {
     id: 6,
     title: "Staj Dönemi",
     duration: "20 İş Günü",
     result: "Staj defteri günlük tutuldu",
-    desc: "Staj süresince her gün staj defterinizi doldurun. Yaptığınız işleri detaylı açıklayın, sorumlu mühendisinize onaylatın. Devamsızlık yapmamaya özen gösterin.",
+    desc: "Formlar modülündeki Staj Defterini kullanarak staj sürecinizi kayıt altına alın. Her sayfası imza ya da kaşelenmiş şekilde hazırlanmalıdır. Devamsızlık yapmamaya özen gösterin.",
+    links: [
+      { label: "Staj Defteri", module: "formlar", highlight: "staj_defteri" },
+    ],
   },
   {
     id: 7,
-    title: "Staj Raporu Yazımı",
+    title: "Staj Teslim & Belge Yükleme",
     duration: "1-2 Hafta",
-    result: "Rapor teslime hazır",
-    desc: "Staj sürecinde edindiğiniz deneyimleri, öğrendiklerinizi ve yaptığınız projeleri içeren staj raporunuzu yazın. Bölüm formatına uygun hazırlayın.",
+    result: "Tüm belgeler sisteme yüklendi",
+    desc: "Staj Kayıtlarında ilgili alana staj defterinizi yükleyebilirsiniz. İmzalı ve mühürlü Ek-2 belgesini sisteme yükleyebilirsiniz (Ek-2'ye Formlar modülünden erişebilirsiniz). Staj Teslim Belgesini (Formlar modülünde mevcut) sisteme yükleyebilirsiniz. Turnitin benzerlik raporunu sisteme yükleyebilirsiniz. Not: Turnitin raporu yüklenirken sadece rapor yüklenecektir, staj defterini bu alana tekrar yüklemenize gerek yoktur.",
+    links: [
+      { label: "Ek-2 Formu", module: "formlar", highlight: "ek2" },
+      { label: "Staj Teslim Belgesi", module: "formlar", highlight: "staj_teslim" },
+      { label: "Staj Kayıtlarına Git", tab: "kayitlar" },
+    ],
   },
   {
     id: 8,
     title: "Değerlendirme & Sonuç",
     duration: "2-4 Hafta",
     result: "Staj notu belirlendi",
-    desc: "Staj defteriniz, raporunuz ve firma değerlendirme formunuz staj komisyonu tarafından incelenecektir. Eksik varsa tamamlamanız istenebilir. Sonucu ÖBS'den takip edin.",
+    desc: "Sonuç değerlendirme aşaması. Staj defteriniz, belgeleriniz ve firma değerlendirme formunuz staj komisyonu tarafından incelenecektir. Onay sürecini buradan takip edebilirsiniz.",
   },
 ];
 
 // ══════════════════════════════════════════════════════════════
 // Staj Yol Haritası Bileşeni
 // ══════════════════════════════════════════════════════════════
-function StajRoadmap() {
+function StajRoadmap({ onTabChange }) {
   const responsive = window.useResponsive();
   const isMobile = responsive.val(true, false, false);
   const [expanded, setExpanded] = useState(null);
@@ -168,6 +187,72 @@ function StajRoadmap() {
         {isOpen && (
           <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${STAJ.accent}18` }}>
             <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.8, margin: 0 }}>{step.desc}</p>
+
+            {/* Onay Yetkisi */}
+            {step.approver && (
+              <div style={{
+                marginTop: 10, padding: "8px 12px", borderRadius: 8,
+                background: "#FEF3C7", border: "1px solid #FCD34D",
+                fontSize: 12, color: "#92400E", fontWeight: 500,
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <StajIcon path="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" size={14} color="#92400E" />
+                Onay Yetkilisi: <strong>{step.approver}</strong>
+              </div>
+            )}
+
+            {/* Gerekli Belgeler / Linkler */}
+            {step.links && step.links.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: STAJ.accent, marginBottom: 6 }}>Gerekli Belgeler:</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {step.links.map((link, li) => (
+                    <div key={li}
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (link.tab && onTabChange) {
+                          onTabChange(link.tab);
+                        } else if (link.module) {
+                          window.location.hash = "#" + link.module;
+                        }
+                      }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        padding: "6px 10px", borderRadius: 6,
+                        background: (link.module || link.tab) ? "#ECFEFF" : "#F9FAFB",
+                        border: `1px solid ${(link.module || link.tab) ? STAJ.accent + "30" : "#E5E7EB"}`,
+                        cursor: (link.module || link.tab) ? "pointer" : "default",
+                        fontSize: 12, color: (link.module || link.tab) ? STAJ.accent : "#64748B",
+                        fontWeight: 500,
+                      }}
+                    >
+                      <StajIcon path={(link.module || link.tab) ? "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" : "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"} size={13} />
+                      {link.label}
+                      {link.note && <span style={{ fontWeight: 400, color: "#94A3B8" }}> — {link.note}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Ek Not */}
+            {step.extraNote && (
+              <div style={{
+                marginTop: 8, padding: "7px 10px", borderRadius: 6,
+                background: "#FFF7ED", border: "1px solid #FDBA7440",
+                fontSize: 12, color: "#9A3412", fontWeight: 500,
+              }}>
+                {step.extraNote}
+                {step.extraLink && (
+                  <span
+                    onClick={e => { e.stopPropagation(); if (step.extraLink.module) window.location.hash = "#" + step.extraLink.module; }}
+                    style={{ marginLeft: 6, color: STAJ.accent, textDecoration: "underline", cursor: "pointer", fontWeight: 600 }}
+                  >
+                    {step.extraLink.label}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -708,6 +793,262 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// Staj Belge Yükleme (Öğrenci - Staj Kayıtları Sekmesi)
+// ══════════════════════════════════════════════════════════════
+function StajBelgeYukleme({ currentUser, activeDepartment }) {
+  const responsive = window.useResponsive();
+  const isMobile = responsive.val(true, true, false);
+  const [uploads, setUploads] = useState({});
+  const [uploading, setUploading] = useState(null);
+  const [msg, setMsg] = useState("");
+
+  const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
+
+  // Yüklenen belgeleri yükle
+  useEffect(() => {
+    const loadUploads = async () => {
+      try {
+        const db = window.apiFirestore;
+        if (!db || !studentId) return;
+        const doc = await db.collection("internship_uploads").doc(studentId).get();
+        if (doc.exists) setUploads(doc.data() || {});
+      } catch (e) {
+        console.error("Belgeler yüklenirken hata:", e);
+      }
+    };
+    loadUploads();
+  }, [studentId]);
+
+  const BELGE_ALANLARI = [
+    {
+      id: "basvuru_belgeleri",
+      title: "Başvuru Belgeleri",
+      desc: "Zorunlu staj formu, Staj başvuru formu (Ek-1), Kimlik fotokopisi",
+      icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+      step: 3,
+    },
+    {
+      id: "staj_defteri",
+      title: "Staj Defteri",
+      desc: "Her sayfası imzalı veya kaşelenmiş staj defteri",
+      icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
+      step: 7,
+    },
+    {
+      id: "ek2_belgesi",
+      title: "Ek-2 Belgesi (İmzalı/Mühürlü)",
+      desc: "İmzalı ve mühürlü Ek-2 belgesini yükleyin. Ek-2'ye Formlar modülünden erişebilirsiniz.",
+      icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
+      step: 7,
+      formLink: true,
+    },
+    {
+      id: "staj_teslim_belgesi",
+      title: "Staj Teslim Belgesi",
+      desc: "Staj teslim belgesini yükleyin. Formlar modülünden erişebilirsiniz.",
+      icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+      step: 7,
+      formLink: true,
+    },
+    {
+      id: "turnitin_raporu",
+      title: "Turnitin Benzerlik Raporu",
+      desc: "Sadece Turnitin benzerlik raporunu yükleyin. Staj defterini bu alana tekrar yüklemenize gerek yoktur.",
+      icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+      step: 7,
+    },
+  ];
+
+  const handleFileUpload = async (belgeId, file) => {
+    if (!file) return;
+    setUploading(belgeId);
+    try {
+      const db = window.apiFirestore;
+      if (!db) throw new Error("Veritabanı bağlantısı yok");
+
+      // Dosya bilgisini kaydet
+      const fileData = {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        uploadedAt: new Date().toISOString(),
+        status: "yuklendi",
+      };
+
+      // Dosyayı sunucuya yükle
+      if (window.API_BASE) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("folder", `staj_belgeler/${studentId}`);
+        try {
+          const resp = await fetch(`${window.API_BASE}/api/files/upload`, {
+            method: "POST",
+            body: formData,
+          });
+          if (resp.ok) {
+            const result = await resp.json();
+            fileData.serverPath = result.path || result.filename;
+          }
+        } catch (uploadErr) {
+          console.warn("Dosya sunucuya yüklenemedi, sadece kayıt tutulacak:", uploadErr);
+        }
+      }
+
+      const newUploads = { ...uploads, [belgeId]: fileData };
+      await db.collection("internship_uploads").doc(studentId).set(newUploads, { merge: true });
+      setUploads(newUploads);
+      setMsg("Belge başarıyla yüklendi!");
+      setTimeout(() => setMsg(""), 3000);
+    } catch (e) {
+      console.error("Yükleme hatası:", e);
+      setMsg("Yükleme sırasında hata oluştu: " + e.message);
+      setTimeout(() => setMsg(""), 4000);
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const sectionStyle = {
+    background: "white", borderRadius: 12,
+    border: "1px solid #E5E7EB", overflow: "hidden",
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 600, color: STAJ.navy, margin: 0 }}>
+          Staj Belge Yükleme
+        </h3>
+        <p style={{ fontSize: 13, color: STAJ.textMuted, marginTop: 4 }}>
+          Staj sürecinizle ilgili belgeleri aşağıdaki alanlara yükleyebilirsiniz.
+        </p>
+      </div>
+
+      {msg && (
+        <div style={{
+          padding: "10px 16px", borderRadius: 8, marginBottom: 16,
+          background: msg.includes("hata") ? STAJ.redLight : STAJ.greenLight,
+          color: msg.includes("hata") ? STAJ.red : STAJ.green,
+          fontSize: 13, fontWeight: 500,
+        }}>{msg}</div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {BELGE_ALANLARI.map(belge => {
+          const uploaded = uploads[belge.id];
+          const isUploading = uploading === belge.id;
+          return (
+            <div key={belge.id} style={sectionStyle}>
+              <div style={{
+                padding: "16px 18px",
+                display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap",
+              }}>
+                {/* Icon */}
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                  background: uploaded ? STAJ.greenLight : STAJ.primaryPale,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <StajIcon path={uploaded ? "M5 13l4 4L19 7" : belge.icon} size={20}
+                    color={uploaded ? STAJ.green : STAJ.primary} />
+                </div>
+
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: STAJ.navy }}>{belge.title}</span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 10,
+                      background: uploaded ? STAJ.greenLight : "#FEF9C3",
+                      color: uploaded ? STAJ.green : "#92400E",
+                    }}>{uploaded ? "Yüklendi" : `Adım ${belge.step}`}</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: STAJ.textMuted, margin: "4px 0 0", lineHeight: 1.5 }}>{belge.desc}</p>
+
+                  {/* Yüklenen dosya bilgisi */}
+                  {uploaded && (
+                    <div style={{
+                      marginTop: 8, padding: "6px 10px", borderRadius: 6,
+                      background: "#F9FAFB", border: "1px solid #F3F4F6",
+                      fontSize: 12, color: STAJ.text,
+                      display: "flex", alignItems: "center", gap: 6,
+                    }}>
+                      <StajIcon path="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" size={13} color="#6B7280" />
+                      <span style={{ fontWeight: 500 }}>{uploaded.fileName}</span>
+                      <span style={{ color: STAJ.textMuted }}>
+                        ({(uploaded.fileSize / 1024).toFixed(0)} KB) — {new Date(uploaded.uploadedAt).toLocaleDateString("tr-TR")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload / Link Buttons */}
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+                  {belge.formLink && (
+                    <button onClick={() => window.location.hash = "#formlar"} style={{
+                      padding: "8px 14px", borderRadius: 8, border: "1px solid #D1D5DB",
+                      background: "white", color: STAJ.primary, fontSize: 12, fontWeight: 500,
+                      cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
+                    }}>
+                      <StajIcon path="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" size={13} />
+                      Formlar
+                    </button>
+                  )}
+                  <label style={{
+                    padding: "8px 14px", borderRadius: 8, border: "none",
+                    background: isUploading ? "#9CA3AF" : (uploaded ? STAJ.green : STAJ.primary),
+                    color: "white", fontSize: 12, fontWeight: 600,
+                    cursor: isUploading ? "not-allowed" : "pointer",
+                    display: "flex", alignItems: "center", gap: 5,
+                  }}>
+                    <StajIcon path={uploaded ? "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" : "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"} size={13} />
+                    {isUploading ? "Yükleniyor..." : (uploaded ? "Değiştir" : "Yükle")}
+                    <input
+                      type="file"
+                      style={{ display: "none" }}
+                      disabled={isUploading}
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      onChange={e => {
+                        if (e.target.files?.[0]) handleFileUpload(belge.id, e.target.files[0]);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Onay Durumu */}
+      <div style={{
+        ...sectionStyle, marginTop: 20, padding: "16px 18px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <StajIcon path="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" size={20} color="#EAB308" />
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: STAJ.navy }}>Onay Durumu</div>
+            <p style={{ fontSize: 12, color: STAJ.textMuted, margin: "2px 0 0" }}>
+              Belgeleriniz yüklendikten sonra Ergün ÇINAR tarafından değerlendirilecektir.
+              Onay sürecini buradan takip edebilirsiniz.
+            </p>
+          </div>
+        </div>
+        <div style={{
+          marginTop: 10, padding: "8px 12px", borderRadius: 8,
+          background: uploads.sgk_onay === "onaylandi" ? STAJ.greenLight : "#FEF9C3",
+          color: uploads.sgk_onay === "onaylandi" ? STAJ.green : "#92400E",
+          fontSize: 13, fontWeight: 500,
+        }}>
+          {uploads.sgk_onay === "onaylandi" ? "SGK işlemleri onaylandı" : "Onay bekleniyor..."}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // Ana Staj Modülü
 // ══════════════════════════════════════════════════════════════
 function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
@@ -785,7 +1126,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const TABS = [
     ...(isStudent ? [{ id: "basvuru", label: "Staj Başvurusu", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" }] : []),
     { id: "roadmap", label: "Yol Haritası", icon: "M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" },
-    ...(canManage ? [{ id: "kayitlar", label: "Staj Kayıtları", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" }] : []),
+    { id: "kayitlar", label: "Staj Kayıtları", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
   ];
 
   return (
@@ -831,173 +1172,181 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       )}
 
       {/* ════ Yol Haritası Sekmesi ════ */}
-      {activeTab === "roadmap" && <StajRoadmap />}
+      {activeTab === "roadmap" && <StajRoadmap onTabChange={setActiveTab} />}
 
       {/* ════ Staj Kayıtları Sekmesi ════ */}
       {activeTab === "kayitlar" && (
         <>
-          {/* Yeni Kayıt Butonu */}
-          {canManage && (
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-              <button onClick={() => setView(view === "add" ? "list" : "add")} style={{
-                padding: "10px 20px", borderRadius: 8, border: "none",
-                background: view === "add" ? "#6B7280" : STAJ.primary,
-                color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 8,
-              }}>
-                <StajIcon path={view === "add" ? "M6 18L18 6M6 6l12 12" : "M12 5v14M5 12h14"} size={16} />
-                {view === "add" ? "İptal" : "Yeni Staj Kaydı"}
-              </button>
-            </div>
+          {/* ── Öğrenci Belge Yükleme Görünümü ── */}
+          {isStudent && (
+            <StajBelgeYukleme currentUser={currentUser} activeDepartment={activeDepartment} />
           )}
 
-          {/* Stats */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: responsive.val("1fr 1fr", "repeat(4, 1fr)", "repeat(4, 1fr)"),
-            gap: responsive.val(8, 12, 16),
-            marginBottom: 24,
-          }}>
-            {[
-              { label: "Toplam", value: stats.total, color: STAJ.primary, bg: STAJ.primaryPale },
-              { label: "Beklemede", value: stats.beklemede, color: "#EAB308", bg: "#FEF9C3" },
-              { label: "Devam Eden", value: stats.devam, color: "#3B82F6", bg: "#DBEAFE" },
-              { label: "Tamamlanan", value: stats.tamamlandi, color: "#059669", bg: "#D1FAE5" },
-            ].map((s, i) => (
-              <div key={i} style={{
-                background: "white", borderRadius: 12, padding: responsive.val(12, 16, 20),
-                border: "1px solid #E5E7EB", textAlign: "center",
-              }}>
-                <div style={{ fontSize: responsive.val(22, 28, 32), fontWeight: 700, color: s.color }}>{s.value}</div>
-                <div style={{ fontSize: 12, color: STAJ.textMuted, marginTop: 4 }}>{s.label}</div>
+          {/* ── Admin/Yönetici Görünümü ── */}
+          {canManage && (
+            <>
+              {/* Yeni Kayıt Butonu */}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+                <button onClick={() => setView(view === "add" ? "list" : "add")} style={{
+                  padding: "10px 20px", borderRadius: 8, border: "none",
+                  background: view === "add" ? "#6B7280" : STAJ.primary,
+                  color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 8,
+                }}>
+                  <StajIcon path={view === "add" ? "M6 18L18 6M6 6l12 12" : "M12 5v14M5 12h14"} size={16} />
+                  {view === "add" ? "İptal" : "Yeni Staj Kaydı"}
+                </button>
               </div>
-            ))}
-          </div>
 
-          {/* Add Form */}
-          {view === "add" && canManage && (
-            <div style={{
-              background: "white", borderRadius: 12, padding: responsive.val(16, 20, 24),
-              border: "1px solid #E5E7EB", marginBottom: 24,
-            }}>
-              <h3 style={{ fontSize: 16, fontWeight: 600, color: STAJ.navy, marginBottom: 16 }}>
-                Yeni Staj Kaydı
-              </h3>
+              {/* Stats */}
               <div style={{
                 display: "grid",
-                gridTemplateColumns: responsive.val("1fr", "1fr 1fr", "1fr 1fr 1fr"),
-                gap: 16,
+                gridTemplateColumns: responsive.val("1fr 1fr", "repeat(4, 1fr)", "repeat(4, 1fr)"),
+                gap: responsive.val(8, 12, 16),
+                marginBottom: 24,
               }}>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Öğrenci No</label>
-                  <input placeholder="Öğrenci numarası" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Öğrenci Adı</label>
-                  <input placeholder="Ad Soyad" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Staj Türü</label>
-                  <select style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", background: "white" }}>
-                    {STAJ_TYPES.map(t => <option key={t.id} value={t.id}>{t.label} ({t.duration})</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Kurum/Firma Adı</label>
-                  <input placeholder="Staj yapılacak yer" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Başlangıç Tarihi</label>
-                  <input type="date" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Bitiş Tarihi</label>
-                  <input type="date" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
-                </div>
-              </div>
-              <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                <button onClick={() => setView("list")} style={{
-                  padding: "10px 20px", borderRadius: 8, border: "1px solid #D1D5DB",
-                  background: "white", color: STAJ.textMuted, fontSize: 13, cursor: "pointer",
-                }}>İptal</button>
-                <button style={{
-                  padding: "10px 20px", borderRadius: 8, border: "none",
-                  background: STAJ.primary, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                }}>Kaydet</button>
-              </div>
-            </div>
-          )}
-
-          {/* Search & Filter */}
-          <div style={{
-            display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16,
-            alignItems: "center",
-          }}>
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <input
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                placeholder="Öğrenci adı, numara veya firma ara..."
-                style={{
-                  width: "100%", padding: "10px 14px", borderRadius: 8,
-                  border: "1px solid #D1D5DB", fontSize: 13, outline: "none",
-                }}
-              />
-            </div>
-            <select
-              value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value)}
-              style={{
-                padding: "10px 14px", borderRadius: 8, border: "1px solid #D1D5DB",
-                fontSize: 13, outline: "none", background: "white", cursor: "pointer",
-              }}
-            >
-              <option value="all">Tüm Durumlar</option>
-              {Object.entries(STAJ_STATUS).map(([k, v]) => (
-                <option key={k} value={k}>{v.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Records */}
-          {filteredRecords.length === 0 ? (
-            <div style={{
-              background: "white", borderRadius: 12, padding: 40,
-              border: "1px solid #E5E7EB", textAlign: "center",
-            }}>
-              <StajIcon path="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" size={48} color="#D1D5DB" />
-              <p style={{ color: STAJ.textMuted, fontSize: 14, marginTop: 16 }}>
-                {searchTerm || filterStatus !== "all"
-                  ? "Arama kriterlerine uygun staj kaydı bulunamadı."
-                  : "Henüz staj kaydı bulunmuyor."}
-              </p>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {filteredRecords.map(record => {
-                const status = STAJ_STATUS[record.status] || STAJ_STATUS.beklemede;
-                return (
-                  <div key={record.id} style={{
-                    background: "white", borderRadius: 10, padding: responsive.val(12, 16, 16),
-                    border: "1px solid #E5E7EB",
-                    display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12,
+                {[
+                  { label: "Toplam", value: stats.total, color: STAJ.primary, bg: STAJ.primaryPale },
+                  { label: "Beklemede", value: stats.beklemede, color: "#EAB308", bg: "#FEF9C3" },
+                  { label: "Devam Eden", value: stats.devam, color: "#3B82F6", bg: "#DBEAFE" },
+                  { label: "Tamamlanan", value: stats.tamamlandi, color: "#059669", bg: "#D1FAE5" },
+                ].map((s, i) => (
+                  <div key={i} style={{
+                    background: "white", borderRadius: 12, padding: responsive.val(12, 16, 20),
+                    border: "1px solid #E5E7EB", textAlign: "center",
                   }}>
-                    <div style={{ flex: 1, minWidth: 160 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: STAJ.text }}>{record.studentName}</div>
-                      <div style={{ fontSize: 12, color: STAJ.textMuted }}>{record.studentNumber}</div>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 140 }}>
-                      <div style={{ fontSize: 13, color: STAJ.text }}>{record.companyName || "—"}</div>
-                      <div style={{ fontSize: 11, color: STAJ.textMuted }}>{record.stajType === "staj2" ? "Staj II" : "Staj I"}</div>
-                    </div>
-                    <span style={{
-                      padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                      color: status.color, background: status.bg,
-                    }}>{status.label}</span>
+                    <div style={{ fontSize: responsive.val(22, 28, 32), fontWeight: 700, color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: 12, color: STAJ.textMuted, marginTop: 4 }}>{s.label}</div>
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+
+              {/* Add Form */}
+              {view === "add" && (
+                <div style={{
+                  background: "white", borderRadius: 12, padding: responsive.val(16, 20, 24),
+                  border: "1px solid #E5E7EB", marginBottom: 24,
+                }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 600, color: STAJ.navy, marginBottom: 16 }}>
+                    Yeni Staj Kaydı
+                  </h3>
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: responsive.val("1fr", "1fr 1fr", "1fr 1fr 1fr"),
+                    gap: 16,
+                  }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Öğrenci No</label>
+                      <input placeholder="Öğrenci numarası" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Öğrenci Adı</label>
+                      <input placeholder="Ad Soyad" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Staj Türü</label>
+                      <select style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", background: "white" }}>
+                        {STAJ_TYPES.map(t => <option key={t.id} value={t.id}>{t.label} ({t.duration})</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Kurum/Firma Adı</label>
+                      <input placeholder="Staj yapılacak yer" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Başlangıç Tarihi</label>
+                      <input type="date" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>Bitiş Tarihi</label>
+                      <input type="date" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }} />
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end", gap: 12 }}>
+                    <button onClick={() => setView("list")} style={{
+                      padding: "10px 20px", borderRadius: 8, border: "1px solid #D1D5DB",
+                      background: "white", color: STAJ.textMuted, fontSize: 13, cursor: "pointer",
+                    }}>İptal</button>
+                    <button style={{
+                      padding: "10px 20px", borderRadius: 8, border: "none",
+                      background: STAJ.primary, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                    }}>Kaydet</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Search & Filter */}
+              <div style={{
+                display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16,
+                alignItems: "center",
+              }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <input
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    placeholder="Öğrenci adı, numara veya firma ara..."
+                    style={{
+                      width: "100%", padding: "10px 14px", borderRadius: 8,
+                      border: "1px solid #D1D5DB", fontSize: 13, outline: "none",
+                    }}
+                  />
+                </div>
+                <select
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                  style={{
+                    padding: "10px 14px", borderRadius: 8, border: "1px solid #D1D5DB",
+                    fontSize: 13, outline: "none", background: "white", cursor: "pointer",
+                  }}
+                >
+                  <option value="all">Tüm Durumlar</option>
+                  {Object.entries(STAJ_STATUS).map(([k, v]) => (
+                    <option key={k} value={k}>{v.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Records */}
+              {filteredRecords.length === 0 ? (
+                <div style={{
+                  background: "white", borderRadius: 12, padding: 40,
+                  border: "1px solid #E5E7EB", textAlign: "center",
+                }}>
+                  <StajIcon path="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" size={48} color="#D1D5DB" />
+                  <p style={{ color: STAJ.textMuted, fontSize: 14, marginTop: 16 }}>
+                    {searchTerm || filterStatus !== "all"
+                      ? "Arama kriterlerine uygun staj kaydı bulunamadı."
+                      : "Henüz staj kaydı bulunmuyor."}
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {filteredRecords.map(record => {
+                    const status = STAJ_STATUS[record.status] || STAJ_STATUS.beklemede;
+                    return (
+                      <div key={record.id} style={{
+                        background: "white", borderRadius: 10, padding: responsive.val(12, 16, 16),
+                        border: "1px solid #E5E7EB",
+                        display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12,
+                      }}>
+                        <div style={{ flex: 1, minWidth: 160 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: STAJ.text }}>{record.studentName}</div>
+                          <div style={{ fontSize: 12, color: STAJ.textMuted }}>{record.studentNumber}</div>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 140 }}>
+                          <div style={{ fontSize: 13, color: STAJ.text }}>{record.companyName || "—"}</div>
+                          <div style={{ fontSize: 11, color: STAJ.textMuted }}>{record.stajType === "staj2" ? "Staj II" : "Staj I"}</div>
+                        </div>
+                        <span style={{
+                          padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                          color: status.color, background: status.bg,
+                        }}>{status.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </>
       )}
