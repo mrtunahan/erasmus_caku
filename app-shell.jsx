@@ -552,7 +552,7 @@ function AppShell() {
         ? ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler"]
         : isAdmin
           ? DEPARTMENT_MODULES.map(m => m.id)
-          : ["erasmus", "projeler", "formlar"]; // student
+          : ["erasmus", "projeler", "formlar", "staj"]; // student
 
     const allowedCommon = COMMON_MODULES.map(m => m.id);
     const allowedAdmin = isAdmin ? ADMIN_MODULES.map(m => m.id) : [];
@@ -638,6 +638,7 @@ function AppShell() {
         kullanici: window.KullaniciYonetimiApp,
         staj: window.StajModuluApp,
         dersprogrami: window.DersProgramiApp,
+        komisyonlar: window.KomisyonlarModuluApp,
       };
       const FallbackComponent = fallback[route];
       if (FallbackComponent) return React.createElement(FallbackComponent, {
