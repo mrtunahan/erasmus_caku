@@ -204,15 +204,19 @@ var ProjDB = {
 function exportProjectsXLSX(projects, courseName) {
   // Basit XML-based XLSX (Office Open XML SpreadsheetML)
   var statusLabels = { pending: "Onay Bekliyor", approved: "Onaylandı", rejected: "Reddedildi" };
-  var rows = [["#", "Proje Adı", "Proje Özeti", "Üye 1", "Üye 2", "Üye 3", "Durum", "Oluşturan", "Tarih"]];
+  // Dinamik üye sayısı: tüm projeler arasındaki max üye sayısını bul
+  var maxMembers = 3;
+  projects.forEach(function (p) { if (p.members && p.members.length > maxMembers) maxMembers = p.members.length; });
+  var header = ["#", "Proje Adı", "Proje Özeti"];
+  for (var mi = 0; mi < maxMembers; mi++) header.push("Üye " + (mi + 1));
+  header.push("Durum", "Oluşturan", "Tarih");
+  var rows = [header];
   projects.forEach(function (p, i) {
     var members = p.members || [];
-    rows.push([
-      i + 1, p.name || "", p.summary || "",
-      members[0] || "", members[1] || "", members[2] || "",
-      statusLabels[p.status] || "Onaylandı",
-      p.createdByName || "", prjFormatDate(p.createdAt),
-    ]);
+    var row = [i + 1, p.name || "", p.summary || ""];
+    for (var mj = 0; mj < maxMembers; mj++) row.push(members[mj] || "");
+    row.push(statusLabels[p.status] || "Onaylandı", p.createdByName || "", prjFormatDate(p.createdAt));
+    rows.push(row);
   });
 
   var sheetData = "";
@@ -678,22 +682,27 @@ function ProjectCard({ project, userId, userName, isAdmin, onDelete, onApprove, 
 // ══════════════════════════════════════════════════════════════
 // PROJE OLUŞTURMA MODALI
 // ══════════════════════════════════════════════════════════════
-function CreateProjectModal({ onClose, onCreate, currentUserName }) {
+function CreateProjectModal({ onClose, onCreate, currentUserName, minGroupSize, maxGroupSize }) {
   var _s = useState, _e = React.useEffect;
+  var minSize = minGroupSize || 2;
+  var maxSize = maxGroupSize || 3;
   var ns = _s(""), name = ns[0], setName = ns[1];
   var ss = _s(""), summary = ss[0], setSummary = ss[1];
-  var ms = _s([currentUserName, ""]), members = ms[0], setMembers = ms[1];
+  // Başlangıçta minSize kadar üye slotu oluştur (ilki currentUser)
+  var initialMembers = [currentUserName];
+  for (var _i = 1; _i < minSize; _i++) initialMembers.push("");
+  var ms = _s(initialMembers), members = ms[0], setMembers = ms[1];
 
-  var addMember = function () { if (members.length >= 3) return; setMembers(function (p) { return p.concat([""]); }); };
-  var removeMember = function (idx) { if (members.length <= 2 || idx === 0) return; setMembers(function (p) { return p.filter(function (_, i) { return i !== idx; }); }); };
+  var addMember = function () { if (members.length >= maxSize) return; setMembers(function (p) { return p.concat([""]); }); };
+  var removeMember = function (idx) { if (members.length <= minSize || idx === 0) return; setMembers(function (p) { return p.filter(function (_, i) { return i !== idx; }); }); };
   var updateMember = function (idx, v) { setMembers(function (p) { return p.map(function (m, i) { return i === idx ? v : m; }); }); };
 
   var handleSubmit = function () {
     if (!name.trim()) { alert("Proje adı zorunludur!"); return; }
     if (!summary.trim()) { alert("Proje özeti zorunludur!"); return; }
     var valid = members.filter(function (m) { return m.trim(); });
-    if (valid.length < 2) { alert("En az 2 kişi olmalıdır!"); return; }
-    if (valid.length > 3) { alert("En fazla 3 kişi olabilir!"); return; }
+    if (valid.length < minSize) { alert("En az " + minSize + " kişi olmalıdır!"); return; }
+    if (valid.length > maxSize) { alert("En fazla " + maxSize + " kişi olabilir!"); return; }
     var unique = []; valid.forEach(function (m) { if (unique.indexOf(m.trim().toLowerCase()) < 0) unique.push(m.trim().toLowerCase()); });
     if (unique.length !== valid.length) { alert("Aynı isimde birden fazla üye ekleyemezsiniz!"); return; }
     onCreate({ name: name.trim(), summary: summary.trim(), members: valid.map(function (m) { return m.trim(); }) });
@@ -707,7 +716,7 @@ function CreateProjectModal({ onClose, onCreate, currentUserName }) {
         </h3>
         <div style={{ background: PRJ.primaryPale, borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "flex-start", gap: 10, border: "1px solid " + PRJ.primary + "30" }}>
           <PrjIcon path={PRJ_ICONS.info} size={18} color={PRJ.primary} />
-          <p style={{ fontSize: 13, color: PRJ.primary, margin: 0, lineHeight: 1.5 }}>Proje grupları 2 veya 3 kişiden oluşabilir. İlk üye olarak siz otomatik eklenirsiniz.</p>
+          <p style={{ fontSize: 13, color: PRJ.primary, margin: 0, lineHeight: 1.5 }}>Proje grupları {minSize === maxSize ? minSize + " kişiden" : minSize + " ile " + maxSize + " kişi arasından"} oluşabilir. İlk üye olarak siz otomatik eklenirsiniz.</p>
         </div>
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>Proje Adı *</label>
@@ -720,7 +729,7 @@ function CreateProjectModal({ onClose, onCreate, currentUserName }) {
             style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, resize: "vertical", outline: "none", fontFamily: "'Source Sans 3', sans-serif" }} />
         </div>
         <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>Grup Üyeleri * (2-3 kişi)</label>
+          <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>Grup Üyeleri * ({minSize === maxSize ? minSize + " kişi" : minSize + "-" + maxSize + " kişi"})</label>
           {members.map(function (member, idx) {
             return (
               <div key={idx} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
@@ -728,7 +737,7 @@ function CreateProjectModal({ onClose, onCreate, currentUserName }) {
                 <input type="text" value={member} onChange={function (e) { updateMember(idx, e.target.value); }} placeholder={idx === 0 ? "Sizin adınız" : (idx + 1) + ". üye adı"} disabled={idx === 0}
                   style={{ flex: 1, padding: "8px 12px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif", background: idx === 0 ? "#f9fafb" : "white", color: idx === 0 ? PRJ.textMuted : PRJ.text }} />
                 {idx === 0 && <span style={{ fontSize: 10, color: PRJ.primary, fontWeight: 600, whiteSpace: "nowrap" }}>(Siz)</span>}
-                {idx > 0 && members.length > 2 && (
+                {idx > 0 && members.length > minSize && (
                   <button onClick={function () { removeMember(idx); }} style={{ background: PRJ.redLight, color: PRJ.red, border: "none", borderRadius: 6, padding: "0 10px", cursor: "pointer", height: 34, display: "flex", alignItems: "center" }}>
                     <PrjIcon path={PRJ_ICONS.x} size={14} />
                   </button>
@@ -736,7 +745,7 @@ function CreateProjectModal({ onClose, onCreate, currentUserName }) {
               </div>
             );
           })}
-          {members.length < 3 && (
+          {members.length < maxSize && (
             <button onClick={addMember} style={{ background: PRJ.primaryPale, color: PRJ.primary, border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
               <PrjIcon path={PRJ_ICONS.plus} size={14} /> Üye Ekle
             </button>
@@ -762,10 +771,17 @@ function AddCourseModal({ onClose, onAdd, editCourse, categoryLabel }) {
   var ps = useState(editCourse ? (editCourse.professor || "") : ""), prof = ps[0], setProf = ps[1];
   var ds = useState(editCourse ? (editCourse.deadline || "") : ""), deadline = ds[0], setDeadline = ds[1];
   var pds = useState(editCourse ? (editCourse.projectPeriod || "") : ""), projectPeriod = pds[0], setProjectPeriod = pds[1];
+  var mns = useState(editCourse ? (editCourse.minGroupSize || 2) : 2), minGroupSize = mns[0], setMinGroupSize = mns[1];
+  var mxs = useState(editCourse ? (editCourse.maxGroupSize || 3) : 3), maxGroupSize = mxs[0], setMaxGroupSize = mxs[1];
 
   var handleSubmit = function () {
     if (!code.trim() || !name.trim()) { alert("Ders kodu ve adı zorunludur!"); return; }
-    onAdd({ code: code.trim(), name: name.trim(), professor: prof.trim(), deadline: deadline || null, projectPeriod: projectPeriod.trim() || null });
+    var minG = parseInt(minGroupSize) || 2;
+    var maxG = parseInt(maxGroupSize) || 3;
+    if (minG < 1) { alert("Minimum grup boyutu en az 1 olmalıdır!"); return; }
+    if (maxG < minG) { alert("Maksimum grup boyutu, minimum grup boyutundan küçük olamaz!"); return; }
+    if (maxG > 10) { alert("Maksimum grup boyutu 10'u geçemez!"); return; }
+    onAdd({ code: code.trim(), name: name.trim(), professor: prof.trim(), deadline: deadline || null, projectPeriod: projectPeriod.trim() || null, minGroupSize: minG, maxGroupSize: maxG });
   };
 
   return (
@@ -794,6 +810,27 @@ function AddCourseModal({ onClose, onAdd, editCourse, categoryLabel }) {
           <input type="text" value={projectPeriod} onChange={function (e) { setProjectPeriod(e.target.value); }} placeholder="2025-2026 Güz / 2025-2026 Bahar"
             style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif" }} />
         </div>
+        <div style={{ marginBottom: 14, display: "flex", gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <PrjIcon path={PRJ_ICONS.users} size={14} color={PRJ.primary} /> Min Grup Boyutu
+              </span>
+            </label>
+            <input type="number" min="1" max="10" value={minGroupSize} onChange={function (e) { setMinGroupSize(e.target.value); }}
+              style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif" }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <PrjIcon path={PRJ_ICONS.users} size={14} color={PRJ.primary} /> Max Grup Boyutu
+              </span>
+            </label>
+            <input type="number" min="1" max="10" value={maxGroupSize} onChange={function (e) { setMaxGroupSize(e.target.value); }}
+              style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif" }} />
+          </div>
+        </div>
+        <p style={{ fontSize: 11, color: PRJ.textMuted, marginTop: -8, marginBottom: 14 }}>Öğrenciler bu aralıkta grup oluşturabilir. (Varsayılan: 2-3 kişi)</p>
         <div style={{ marginBottom: 20 }}>
           <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>
             <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1227,6 +1264,12 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         <PrjIcon path={PRJ_ICONS.user} size={13} /> {course.professor}
                       </div>
                     )}
+                    {(course.minGroupSize || course.maxGroupSize) && (
+                      <div style={{ fontSize: 12, color: PRJ.primary, display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                        <PrjIcon path={PRJ_ICONS.users} size={12} color={PRJ.primary} />
+                        Grup: {course.minGroupSize || 2}-{course.maxGroupSize || 3} kişi
+                      </div>
+                    )}
                     {course.deadline && (function () {
                       var now = new Date(); now.setHours(0,0,0,0);
                       var dl = new Date(course.deadline + "T23:59:59");
@@ -1273,6 +1316,14 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 <p style={{ color: "rgba(255,255,255,0.7)", marginTop: 4, fontSize: 14 }}>{selectedCourse.professor}</p>
               )}
               <div style={{ display: "flex", gap: 10, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>
+                <span style={{
+                  background: "rgba(255,255,255,0.15)",
+                  color: "white", padding: "3px 10px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+                  display: "flex", alignItems: "center", gap: 4,
+                }}>
+                  <PrjIcon path={PRJ_ICONS.users} size={12} color="rgba(255,255,255,0.7)" />
+                  Grup: {selectedCourse.minGroupSize || 2}-{selectedCourse.maxGroupSize || 3} kişi
+                </span>
                 {selectedCourse.deadline && (
                   <span style={{
                     background: isDeadlinePassed ? "rgba(220,38,38,0.3)" : "rgba(255,255,255,0.15)",
@@ -1458,6 +1509,8 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           onClose={function () { setShowCreateModal(false); }}
           onCreate={handleCreateProject}
           currentUserName={userName}
+          minGroupSize={selectedCourse ? selectedCourse.minGroupSize : undefined}
+          maxGroupSize={selectedCourse ? selectedCourse.maxGroupSize : undefined}
         />
       )}
     </div>
