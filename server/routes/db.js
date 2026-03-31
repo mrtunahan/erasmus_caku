@@ -69,6 +69,8 @@ const READABLE_COLLECTIONS = [
   "yaz_okulu_records",
   "yaz_okulu_settings",
   "internships",
+  "internship_applications",
+  "internship_uploads",
   "passwords",
 ];
 
