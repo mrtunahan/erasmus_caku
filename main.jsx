@@ -27,6 +27,7 @@ window.__lazyModules = {
   dersprogrami:  { loader: () => import('./ders-programi.jsx'),             component: 'DersProgramiApp' },
   akademisyen:   { loader: () => import('./akademisyen-modulu.jsx'),        component: 'AkademisyenModuluApp' },
   roadmaps:      { loader: () => import('./roadmaps-module.jsx'),           component: 'RoadmapsModuleApp' },
+  komisyonlar:   { loader: () => import('./komisyonlar-modulu.jsx'),       component: 'KomisyonlarModuluApp' },
 };
 
 // ── Phase 3: App Shell (routing & navigation) ──
