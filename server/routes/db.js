@@ -236,9 +236,11 @@ router.get("/:collection", async (req, res) => {
 
       const fsOp = firestoreOps[op];
       if (fsOp) {
-        // Tip dönüşümü: string → uygun tip
+        // Tip dönüşümü: s: prefix → string olarak koru, yoksa otomatik dönüştür
         let convertedValue = value;
-        if (value === "true") convertedValue = true;
+        if (value.startsWith("s:")) {
+          convertedValue = value.slice(2); // string olarak koru
+        } else if (value === "true") convertedValue = true;
         else if (value === "false") convertedValue = false;
         else if (value !== "" && !isNaN(value)) convertedValue = Number(value);
         query = query.where(field, fsOp, convertedValue);
