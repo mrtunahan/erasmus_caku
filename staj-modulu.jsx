@@ -1302,6 +1302,25 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Başvuru durumu güncelle
   const handleStatusChange = async (appId, newStatus) => {
+    // Tamamlandı onayı vermeden önce belge kontrolü
+    if (newStatus === "tamamlandi") {
+      const app = allApplications.find(a => a.id === appId);
+      const ogrNo = app?.ogrenciNo || selectedApp?.ogrenciNo;
+      const uploads = allUploads[ogrNo] || {};
+      const requiredDocs = ["basvuru_belgeleri", "staj_defteri", "ek2_belgesi", "staj_teslim_belgesi", "turnitin_raporu"];
+      const missing = requiredDocs.filter(d => !uploads[d]);
+      if (missing.length > 0) {
+        const docLabels = {
+          basvuru_belgeleri: "Başvuru Belgeleri",
+          staj_defteri: "Staj Defteri",
+          ek2_belgesi: "EK-2 Belgesi",
+          staj_teslim_belgesi: "Staj Teslim Belgesi",
+          turnitin_raporu: "Turnitin Raporu"
+        };
+        alert("Tamamlandı onayı verilemez. Eksik belgeler:\n- " + missing.map(d => docLabels[d] || d).join("\n- "));
+        return;
+      }
+    }
     try {
       const db = window.apiFirestore;
       if (!db) return;
@@ -1319,6 +1338,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Başvuru sil
   const handleDeleteApp = async (appId) => {
+    const app = allApplications.find(a => a.id === appId);
+    if (app && app.status !== "beklemede") {
+      alert("Yalnızca 'Beklemede' durumundaki başvurular silinebilir. Bu başvurunun durumu: " + (app.status === "devam" ? "Devam Ediyor" : app.status === "tamamlandi" ? "Tamamlandı" : app.status === "reddedildi" ? "Reddedildi" : app.status));
+      return;
+    }
     if (!confirm("Bu staj başvurusunu silmek istediğinizden emin misiniz?")) return;
     try {
       const db = window.apiFirestore;
