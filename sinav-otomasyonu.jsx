@@ -2066,6 +2066,45 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
           // Hata olursa flag SET ETME - sonraki yüklemede tekrar dener
         }
       }
+
+      // ── Sınav tarihi UTC kayma düzeltmesi: tüm sınav tarihlerini +1 gün ileri taşı ──
+      const dateMigrationKey = "exam_date_utc_fix_v1";
+      if (!localStorage.getItem(dateMigrationKey)) {
+        try {
+          const db = window.apiFirestore;
+          if (db) {
+            const examsSnap = await db.collection("sinav_programi").get();
+            const fixOps = [];
+            examsSnap.docs.forEach(doc => {
+              const data = doc.data();
+              if (data.date && /^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
+                const [y, m, d] = data.date.split("-").map(Number);
+                const dateObj = new Date(y, m - 1, d);
+                dateObj.setDate(dateObj.getDate() + 1);
+                const newDate = formatDateISO(dateObj);
+                if (newDate !== data.date) {
+                  fixOps.push({
+                    collection: "sinav_programi",
+                    type: "update",
+                    docId: doc.id,
+                    data: { date: newDate },
+                  });
+                }
+              }
+            });
+            if (fixOps.length > 0) {
+              for (let i = 0; i < fixOps.length; i += 400) {
+                await FirestoreWrite.batch(fixOps.slice(i, i + 400));
+              }
+              console.log(`Date migration: ${fixOps.length} sınav tarihi +1 gün düzeltildi.`);
+              if (selectedDeptId) loadData();
+            }
+          }
+          localStorage.setItem(dateMigrationKey, "true");
+        } catch (e) {
+          console.error("Date migration error:", e);
+        }
+      }
     };
     init();
   }, []);
