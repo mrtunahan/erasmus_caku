@@ -610,15 +610,18 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
       const data = {
         ...form,
         departmentId: activeDepartment,
-        status: "beklemede",
+        status: editingId ? form.status : "beklemede",
         updatedAt: new Date().toISOString(),
       };
+
+      console.log("Staj başvurusu kaydediliyor:", { departmentId: data.departmentId, ogrenciNo: data.ogrenciNo, editingId });
 
       if (editingId) {
         await db.collection("internship_applications").doc(editingId).set(data, { merge: true });
       } else {
         data.createdAt = new Date().toISOString();
-        await db.collection("internship_applications").add(data);
+        const result = await db.collection("internship_applications").add(data);
+        console.log("Başvuru kaydedildi, ID:", result?.id);
       }
 
       setSavedMsg(editingId ? "Başvuru güncellendi!" : "Başvuru kaydedildi!");
@@ -803,12 +806,6 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
           <div><label style={labelStyle}>Görev ve Ünvanı {reqMark}</label><input value={form.isverenGorevUnvan} onChange={e => set("isverenGorevUnvan", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>E-posta Adresi {reqMark}</label><input type="email" value={form.isverenEposta} onChange={e => set("isverenEposta", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>Tarih {reqMark}</label><input type="date" value={form.isverenTarih} onChange={e => set("isverenTarih", e.target.value)} style={inputStyle} /></div>
-        </div>
-        <div style={{
-          marginTop: 14, padding: "12px 16px", borderRadius: 8, background: "#F0FDFA",
-          border: "1px dashed #0891B240", fontSize: 13, color: STAJ.navy, fontWeight: 500,
-        }}>
-          Kurumumuzda/İşletmemizde Staj Yapması Uygundur. <span style={{ color: STAJ.textMuted, fontWeight: 400 }}>(İmza/Kaşe staj yeri tarafından doldurulacaktır)</span>
         </div>
       </div>
 
@@ -1192,10 +1189,21 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
       // Admin/yönetici ise öğrenci başvurularını ve belgelerini yükle
       if (canManage) {
+        // Önce departmentId filtresiyle dene
         let appQuery = db.collection("internship_applications");
         if (activeDepartment) appQuery = appQuery.where("departmentId", "==", activeDepartment);
-        const appSnap = await appQuery.get();
-        setAllApplications(appSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        let appSnap = await appQuery.get();
+        let apps = appSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Eğer filtreyle sonuç yoksa filtresiz dene (departmentId eşleşmeme durumu)
+        if (apps.length === 0 && activeDepartment) {
+          console.warn("departmentId filtresiyle başvuru bulunamadı, filtresiz deneniyor...");
+          const allSnap = await db.collection("internship_applications").get();
+          apps = allSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          console.log("Toplam başvuru:", apps.length, "departmentId değerleri:", apps.map(a => a.departmentId));
+        }
+
+        setAllApplications(apps);
 
         // Tüm yüklenen belgeleri getir
         const uploadsSnap = await db.collection("internship_uploads").get();
