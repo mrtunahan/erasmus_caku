@@ -605,7 +605,10 @@ function createApiCollection(collectionName) {
     async get() {
       const params = {};
       if (this._filters.length > 0) {
-        params.where = this._filters.map(f => `${f.field}:eq:${f.value}`);
+        params.where = this._filters.map(f => {
+          var prefix = typeof f.value === 'string' ? 's:' : '';
+          return `${f.field}:eq:${prefix}${f.value}`;
+        });
       }
       if (this._orderField) params.orderBy = `${this._orderField}:${this._orderDir || 'asc'}`;
       if (this._limitVal > 0) params.limit = this._limitVal;
