@@ -401,7 +401,7 @@ function StajRoadmap({ onTabChange }) {
 // ══════════════════════════════════════════════════════════════
 // Staj Başvuru Formu (Öğrenci)
 // ══════════════════════════════════════════════════════════════
-function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
+function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajPeriods = [] }) {
   const responsive = window.useResponsive();
   const isMobile = responsive.val(true, true, false);
   const [saving, setSaving] = useState(false);
@@ -430,7 +430,9 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
     isverenGorevUnvan: "",
     isverenEposta: "",
     isverenTarih: "",
-    // Stajın Bilgileri
+    // Staj Etabı
+    stajEtapId: "",
+    stajEtapLabel: "",
     stajBaslamaTarihi: "",
     stajBitisTarihi: "",
     stajSuresiGun: "",
@@ -461,15 +463,25 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
 
   const set = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
 
-  // Staj süresini otomatik hesapla
-  useEffect(() => {
-    if (form.stajBaslamaTarihi && form.stajBitisTarihi) {
-      const start = new Date(form.stajBaslamaTarihi);
-      const end = new Date(form.stajBitisTarihi);
+  // Etap seçildiğinde tarihleri otomatik doldur
+  const handleEtapSelect = (etapId) => {
+    const period = stajPeriods.find(p => p.id === etapId);
+    if (period) {
+      const start = new Date(period.baslangic);
+      const end = new Date(period.bitis);
       const diff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-      if (diff > 0) set("stajSuresiGun", String(diff));
+      setForm(prev => ({
+        ...prev,
+        stajEtapId: etapId,
+        stajEtapLabel: period.label,
+        stajBaslamaTarihi: period.baslangic,
+        stajBitisTarihi: period.bitis,
+        stajSuresiGun: String(diff > 0 ? diff : 0),
+      }));
+    } else {
+      setForm(prev => ({ ...prev, stajEtapId: "", stajEtapLabel: "", stajBaslamaTarihi: "", stajBitisTarihi: "", stajSuresiGun: "" }));
     }
-  }, [form.stajBaslamaTarihi, form.stajBitisTarihi]);
+  };
 
   // Öğrencinin mevcut başvurularını yükle
   useEffect(() => {
@@ -511,10 +523,8 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
     isverenGorevUnvan: "İşveren Görev ve Ünvanı",
     isverenEposta: "İşveren E-posta",
     isverenTarih: "İşveren Tarih",
-    // Staj
-    stajBaslamaTarihi: "Staj Başlama Tarihi",
-    stajBitisTarihi: "Staj Bitiş Tarihi",
-    stajSuresiGun: "Staj Süresi (Gün)",
+    // Staj Etabı
+    stajEtapId: "Staj Etabı",
     // Nüfus
     nufusSoyad: "Nüfus Soyadı",
     nufusAd: "Nüfus Adı",
@@ -530,7 +540,7 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
   // Sadece harf ve boşluk içermeli alanlar (rakam girilememeli)
   const TEXT_ONLY_FIELDS = ["adSoyad", "isverenAdSoyad", "nufusSoyad", "nufusAd", "babaAdi", "anaAdi", "dogumYeri", "nufusIl", "nufusIlce", "nufusMahalleKoy", "isverenGorevUnvan"];
   // Sadece rakam içermeli alanlar
-  const NUMERIC_ONLY_FIELDS = ["ogrenciNo", "tcKimlikNo", "stajSuresiGun"];
+  const NUMERIC_ONLY_FIELDS = ["ogrenciNo", "tcKimlikNo"];
   // Telefon alanları (rakam, boşluk, +, - içerebilir)
   const PHONE_FIELDS = ["telefonNo", "stajYeriTelefon", "stajYeriFaks"];
   // E-posta alanları
@@ -596,12 +606,6 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
       }
     }
 
-    // Staj bitiş tarihi başlama tarihinden sonra olmalı
-    if (form.stajBaslamaTarihi && form.stajBitisTarihi && form.stajBitisTarihi <= form.stajBaslamaTarihi) {
-      setSavedMsg("Staj bitiş tarihi, başlama tarihinden sonra olmalıdır.");
-      setTimeout(() => setSavedMsg(""), 4000);
-      return;
-    }
     setSaving(true);
     try {
       const db = window.apiFirestore;
@@ -715,30 +719,40 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
             </p>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {myApplications.map(app => {
               const status = STAJ_STATUS[app.status] || STAJ_STATUS.beklemede;
+              const isRejected = app.status === "reddedildi";
+              const statusSteps = ["beklemede", "devam", "tamamlandi"];
+              const currentIdx = statusSteps.indexOf(app.status);
+              const progressPct = isRejected ? 0 : ((currentIdx + 1) / statusSteps.length) * 100;
+              const progressColor = isRejected ? STAJ.red : currentIdx === 2 ? STAJ.green : currentIdx === 1 ? "#3B82F6" : "#EAB308";
+
               return (
                 <div key={app.id} style={{
-                  ...sectionStyle, marginBottom: 0, padding: responsive.val(12, 16, 16),
-                  display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12,
+                  ...sectionStyle, marginBottom: 0, padding: responsive.val(14, 18, 18),
                   cursor: "pointer",
                 }} onClick={() => handleEdit(app)}>
-                  <div style={{ flex: 1, minWidth: 160 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: STAJ.text }}>{app.stajYeriAdi || "—"}</div>
-                    <div style={{ fontSize: 12, color: STAJ.textMuted }}>{app.stajYeriAdresi || ""}</div>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 140 }}>
-                    <div style={{ fontSize: 13, color: STAJ.text }}>
-                      {app.stajBaslamaTarihi || "—"} — {app.stajBitisTarihi || "—"}
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                    <div style={{ flex: 1, minWidth: 160 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: STAJ.text }}>{app.stajYeriAdi || "—"}</div>
+                      <div style={{ fontSize: 12, color: STAJ.textMuted }}>{app.stajEtapLabel || (app.stajBaslamaTarihi ? `${app.stajBaslamaTarihi} — ${app.stajBitisTarihi}` : "")}</div>
                     </div>
-                    <div style={{ fontSize: 11, color: STAJ.textMuted }}>{app.stajSuresiGun ? `${app.stajSuresiGun} gün` : ""}</div>
+                    <span style={{
+                      padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                      color: status.color, background: status.bg,
+                    }}>{status.label}</span>
+                    <StajIcon path="M9 5l7 7-7 7" size={16} color="#9CA3AF" />
                   </div>
-                  <span style={{
-                    padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                    color: status.color, background: status.bg,
-                  }}>{status.label}</span>
-                  <StajIcon path="M9 5l7 7-7 7" size={16} color="#9CA3AF" />
+                  {/* Mini progress bar */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#E5E7EB", overflow: "hidden" }}>
+                      <div style={{ width: `${progressPct}%`, height: "100%", borderRadius: 3, background: progressColor, transition: "width 0.4s, background 0.3s" }} />
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: progressColor, flexShrink: 0 }}>
+                      {isRejected ? "Reddedildi" : currentIdx === 2 ? "Tamamlandı" : currentIdx === 1 ? "Devam Ediyor" : "Beklemede"}
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -809,14 +823,49 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo }) {
         </div>
       </div>
 
-      {/* 4. STAJIN BİLGİLERİ */}
+      {/* 4. STAJ ETABI SEÇİMİ */}
       <div style={sectionStyle}>
-        <div style={sectionTitleStyle}>STAJIN BİLGİLERİ</div>
-        <div style={gridStyle(3)}>
-          <div><label style={labelStyle}>Başlama Tarihi {reqMark}</label><input type="date" value={form.stajBaslamaTarihi} onChange={e => set("stajBaslamaTarihi", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Bitiş Tarihi {reqMark}</label><input type="date" value={form.stajBitisTarihi} onChange={e => set("stajBitisTarihi", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Süresi (Gün) {reqMark}</label><input value={form.stajSuresiGun} readOnly style={{ ...inputStyle, background: "#F3F4F6" }} /></div>
-        </div>
+        <div style={sectionTitleStyle}>STAJ ETABI {reqMark}</div>
+        {stajPeriods.length === 0 ? (
+          <div style={{ padding: "16px 20px", borderRadius: 8, background: "#FEF9C3", border: "1px solid #FCD34D", fontSize: 13, color: "#92400E" }}>
+            Henüz staj etabı tanımlanmamış. Lütfen bölüm yetkilinize veya staj komisyonuna başvurun.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {stajPeriods.map(period => {
+              const isSelected = form.stajEtapId === period.id;
+              const start = new Date(period.baslangic);
+              const end = new Date(period.bitis);
+              const diff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+              return (
+                <div key={period.id} onClick={() => handleEtapSelect(period.id)} style={{
+                  padding: "12px 16px", borderRadius: 10, cursor: "pointer",
+                  border: `2px solid ${isSelected ? STAJ.primary : "#E5E7EB"}`,
+                  background: isSelected ? STAJ.primaryPale : "white",
+                  transition: "all 0.2s",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{
+                      width: 20, height: 20, borderRadius: "50%",
+                      border: `2px solid ${isSelected ? STAJ.primary : "#D1D5DB"}`,
+                      background: isSelected ? STAJ.primary : "white",
+                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    }}>
+                      {isSelected && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "white" }} />}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: isSelected ? STAJ.primary : STAJ.navy }}>{period.label}</div>
+                      <div style={{ fontSize: 12, color: STAJ.textMuted, marginTop: 2 }}>
+                        {period.baslangic} — {period.bitis} ({diff} gün)
+                        {period.aciklama && <span> | {period.aciklama}</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* 5. NÜFUS KAYIT ve SİGORTA BİLGİLERİ */}
@@ -1157,10 +1206,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [stajRecords, setStajRecords] = useState([]);
   const [allApplications, setAllApplications] = useState([]);
   const [allUploads, setAllUploads] = useState({});
+  const [stajPeriods, setStajPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("list");
   const [selectedApp, setSelectedApp] = useState(null);
   const [editingApp, setEditingApp] = useState(null);
+  const [showPeriodForm, setShowPeriodForm] = useState(false);
+  const [editingPeriod, setEditingPeriod] = useState(null);
+  const [periodForm, setPeriodForm] = useState({ label: "", baslangic: "", bitis: "", aciklama: "" });
   const [activeTab, setActiveTab] = useState(() => {
     const isStudent = currentUser?.role === "student" || (!["admin", "bolum_yetkilisi", "professor"].includes(currentUser?.role));
     return isStudent ? "basvuru" : "kayitlar";
@@ -1180,6 +1233,12 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     try {
       const db = window.apiFirestore;
       if (!db) return;
+
+      // Staj etaplarını yükle
+      let periodQuery = db.collection("internship_periods");
+      if (activeDepartment) periodQuery = periodQuery.where("departmentId", "==", activeDepartment);
+      const periodSnap = await periodQuery.get();
+      setStajPeriods(periodSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
       // Eski internships koleksiyonunu yükle
       let query = db.collection("internships");
@@ -1272,6 +1331,44 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
+  // Admin: Staj etabı kaydet
+  const handleSavePeriod = async () => {
+    if (!periodForm.label || !periodForm.baslangic || !periodForm.bitis) {
+      alert("Etap adı, başlangıç ve bitiş tarihi zorunludur.");
+      return;
+    }
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
+      const data = { ...periodForm, departmentId: activeDepartment, updatedAt: new Date().toISOString() };
+      if (editingPeriod) {
+        await db.collection("internship_periods").doc(editingPeriod).set(data, { merge: true });
+      } else {
+        data.createdAt = new Date().toISOString();
+        await db.collection("internship_periods").add(data);
+      }
+      setShowPeriodForm(false);
+      setEditingPeriod(null);
+      setPeriodForm({ label: "", baslangic: "", bitis: "", aciklama: "" });
+      loadAllData();
+    } catch (e) {
+      alert("Etap kaydedilemedi: " + e.message);
+    }
+  };
+
+  // Admin: Staj etabı sil
+  const handleDeletePeriod = async (periodId) => {
+    if (!confirm("Bu staj etabını silmek istediğinizden emin misiniz?")) return;
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
+      await db.collection("internship_periods").doc(periodId).delete();
+      loadAllData();
+    } catch (e) {
+      alert("Silme hatası: " + e.message);
+    }
+  };
+
   // Admin: Belge indirme
   const handleDownloadFile = (studentId, belgeId) => {
     const upload = allUploads[studentId]?.[belgeId];
@@ -1296,6 +1393,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const TABS = [
     ...(isStudent ? [{ id: "basvuru", label: "Staj Başvurusu", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" }] : []),
+    ...(canManage ? [{ id: "etaplar", label: "Staj Etapları", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" }] : []),
     { id: "roadmap", label: "Yol Haritası", icon: "M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" },
     { id: "kayitlar", label: "Staj Kayıtları", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
   ];
@@ -1339,7 +1437,115 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
       {/* ════ Staj Başvurusu Sekmesi (Öğrenci) ════ */}
       {activeTab === "basvuru" && (
-        <StajBasvuruFormu currentUser={currentUser} activeDepartment={activeDepartment} departmentInfo={departmentInfo} />
+        <StajBasvuruFormu currentUser={currentUser} activeDepartment={activeDepartment} departmentInfo={departmentInfo} stajPeriods={stajPeriods} />
+      )}
+
+      {/* ════ Staj Etapları Sekmesi (Admin/Komisyon) ════ */}
+      {activeTab === "etaplar" && canManage && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: STAJ.navy, margin: 0 }}>Staj Etapları</h3>
+              <p style={{ fontSize: 12, color: STAJ.textMuted, margin: "4px 0 0" }}>Öğrenciler yalnızca tanımlanan etaplardan birini seçerek staj başvurusu yapabilir.</p>
+            </div>
+            <button onClick={() => { setPeriodForm({ label: "", baslangic: "", bitis: "", aciklama: "" }); setEditingPeriod(null); setShowPeriodForm(true); }} style={{
+              padding: "10px 20px", borderRadius: 8, border: "none",
+              background: STAJ.primary, color: "white", fontSize: 13, fontWeight: 600,
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+            }}>
+              <StajIcon path="M12 5v14M5 12h14" size={16} />
+              Yeni Etap Tanımla
+            </button>
+          </div>
+
+          {/* Etap Formu */}
+          {showPeriodForm && (
+            <div style={{
+              background: "white", borderRadius: 12, padding: responsive.val(16, 20, 24),
+              border: "1px solid #E5E7EB", marginBottom: 20,
+            }}>
+              <h4 style={{ fontSize: 14, fontWeight: 600, color: STAJ.navy, marginBottom: 14 }}>
+                {editingPeriod ? "Etabı Düzenle" : "Yeni Staj Etabı"}
+              </h4>
+              <div style={{ display: "grid", gridTemplateColumns: responsive.val("1fr", "1fr 1fr", "1fr 1fr 1fr"), gap: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 5 }}>Etap Adı *</label>
+                  <input value={periodForm.label} onChange={e => setPeriodForm(p => ({ ...p, label: e.target.value }))}
+                    placeholder="Örn: 2025 Yaz Dönemi Staj I" style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 5 }}>Başlangıç Tarihi *</label>
+                  <input type="date" value={periodForm.baslangic} onChange={e => setPeriodForm(p => ({ ...p, baslangic: e.target.value }))}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 5 }}>Bitiş Tarihi *</label>
+                  <input type="date" value={periodForm.bitis} onChange={e => setPeriodForm(p => ({ ...p, bitis: e.target.value }))}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 5 }}>Açıklama</label>
+                  <input value={periodForm.aciklama} onChange={e => setPeriodForm(p => ({ ...p, aciklama: e.target.value }))}
+                    placeholder="Opsiyonel açıklama" style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                </div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+                <button onClick={() => { setShowPeriodForm(false); setEditingPeriod(null); }} style={{
+                  padding: "9px 18px", borderRadius: 8, border: "1px solid #D1D5DB", background: "white", color: STAJ.textMuted, fontSize: 13, cursor: "pointer",
+                }}>İptal</button>
+                <button onClick={handleSavePeriod} style={{
+                  padding: "9px 18px", borderRadius: 8, border: "none", background: STAJ.primary, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                }}>Kaydet</button>
+              </div>
+            </div>
+          )}
+
+          {/* Etap Listesi */}
+          {stajPeriods.length === 0 ? (
+            <div style={{ background: "white", borderRadius: 12, padding: 40, border: "1px solid #E5E7EB", textAlign: "center" }}>
+              <StajIcon path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={48} color="#D1D5DB" />
+              <p style={{ color: STAJ.textMuted, fontSize: 14, marginTop: 16 }}>Henüz staj etabı tanımlanmamış. Öğrencilerin başvuru yapabilmesi için en az bir etap tanımlayın.</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {stajPeriods.map(period => {
+                const now = new Date().toISOString().split("T")[0];
+                const isActive = period.baslangic <= now && period.bitis >= now;
+                const isPast = period.bitis < now;
+                return (
+                  <div key={period.id} style={{
+                    background: "white", borderRadius: 10, padding: 16,
+                    border: `1px solid ${isActive ? STAJ.primary + "40" : "#E5E7EB"}`,
+                    display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12,
+                  }}>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: STAJ.navy }}>{period.label}</span>
+                        <span style={{
+                          fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 10,
+                          background: isActive ? STAJ.greenLight : isPast ? "#F3F4F6" : "#DBEAFE",
+                          color: isActive ? STAJ.green : isPast ? STAJ.textMuted : "#3B82F6",
+                        }}>{isActive ? "Aktif" : isPast ? "Geçmiş" : "Yaklaşan"}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: STAJ.textMuted, marginTop: 4 }}>
+                        {period.baslangic} — {period.bitis}
+                        {period.aciklama && <span> | {period.aciklama}</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => { setPeriodForm({ label: period.label, baslangic: period.baslangic, bitis: period.bitis, aciklama: period.aciklama || "" }); setEditingPeriod(period.id); setShowPeriodForm(true); }} style={{
+                        padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "white", color: STAJ.primary, fontSize: 12, cursor: "pointer",
+                      }}>Düzenle</button>
+                      <button onClick={() => handleDeletePeriod(period.id)} style={{
+                        padding: "6px 12px", borderRadius: 6, border: "1px solid #FCA5A5", background: "#FEF2F2", color: STAJ.red, fontSize: 12, cursor: "pointer",
+                      }}>Sil</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ════ Yol Haritası Sekmesi ════ */}
@@ -1384,30 +1590,145 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       </button>
                     </div>
 
-                    {/* Durum & Onay */}
-                    <div style={{
-                      background: "#F9FAFB", borderRadius: 10, padding: 16, marginBottom: 20,
-                      border: "1px solid #E5E7EB",
-                    }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: STAJ.navy, marginBottom: 10 }}>Başvuru Durumu & Onay</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                        {Object.entries(STAJ_STATUS).map(([key, val]) => (
-                          <button key={key} onClick={() => handleStatusChange(selectedApp.id, key)} style={{
-                            padding: "8px 16px", borderRadius: 8, border: `2px solid ${selectedApp.status === key ? val.color : "#E5E7EB"}`,
-                            background: selectedApp.status === key ? val.bg : "white",
-                            color: selectedApp.status === key ? val.color : STAJ.textMuted,
-                            fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
-                          }}>
-                            {val.label}
-                          </button>
-                        ))}
-                      </div>
-                      {selectedApp.statusUpdatedBy && (
-                        <p style={{ fontSize: 11, color: STAJ.textMuted, margin: "8px 0 0" }}>
-                          Son güncelleme: {selectedApp.statusUpdatedBy} - {selectedApp.statusUpdatedAt ? new Date(selectedApp.statusUpdatedAt).toLocaleString("tr-TR") : ""}
-                        </p>
-                      )}
-                    </div>
+                    {/* Durum & Onay - Progress Bar */}
+                    {(() => {
+                      const STATUS_STEPS = [
+                        { key: "beklemede", label: "Başvuru Alındı", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+                        { key: "devam", label: "Onaylandı / Devam Ediyor", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
+                        { key: "tamamlandi", label: "Tamamlandı", icon: "M5 13l4 4L19 7" },
+                      ];
+                      const statusOrder = ["beklemede", "devam", "tamamlandi"];
+                      const currentIdx = statusOrder.indexOf(selectedApp.status);
+                      const isRejected = selectedApp.status === "reddedildi";
+
+                      return (
+                        <div style={{
+                          background: "#F9FAFB", borderRadius: 12, padding: 20, marginBottom: 20,
+                          border: "1px solid #E5E7EB",
+                        }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: STAJ.navy, marginBottom: 16 }}>Başvuru Durumu</div>
+
+                          {/* Progress Bar */}
+                          {isRejected ? (
+                            <div style={{
+                              padding: "12px 16px", borderRadius: 8, background: STAJ.redLight,
+                              border: "1px solid #FCA5A5", display: "flex", alignItems: "center", gap: 10,
+                            }}>
+                              <StajIcon path="M6 18L18 6M6 6l12 12" size={18} color={STAJ.red} />
+                              <div>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: STAJ.red }}>Başvuru Reddedildi</div>
+                                {selectedApp.statusUpdatedBy && (
+                                  <div style={{ fontSize: 11, color: "#DC2626AA", marginTop: 2 }}>
+                                    {selectedApp.statusUpdatedBy} — {selectedApp.statusUpdatedAt ? new Date(selectedApp.statusUpdatedAt).toLocaleString("tr-TR") : ""}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              {/* Step indicators */}
+                              <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+                                {STATUS_STEPS.map((step, i) => {
+                                  const isDone = currentIdx >= i;
+                                  const isCurrent = currentIdx === i;
+                                  return React.createElement(React.Fragment, { key: step.key },
+                                    i > 0 && React.createElement("div", {
+                                      style: {
+                                        flex: 1, height: 4, borderRadius: 2,
+                                        background: currentIdx >= i ? STAJ.primary : "#E5E7EB",
+                                        transition: "background 0.3s",
+                                      }
+                                    }),
+                                    React.createElement("div", {
+                                      style: {
+                                        width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                                        background: isDone ? STAJ.primary : "white",
+                                        border: `2px solid ${isDone ? STAJ.primary : "#D1D5DB"}`,
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        transition: "all 0.3s",
+                                        boxShadow: isCurrent ? `0 0 0 4px ${STAJ.primary}20` : "none",
+                                      }
+                                    },
+                                      React.createElement(StajIcon, {
+                                        path: step.icon, size: 16,
+                                        color: isDone ? "white" : "#D1D5DB",
+                                      })
+                                    )
+                                  );
+                                })}
+                              </div>
+
+                              {/* Step labels */}
+                              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                {STATUS_STEPS.map((step, i) => (
+                                  <div key={step.key} style={{
+                                    textAlign: i === 0 ? "left" : i === STATUS_STEPS.length - 1 ? "right" : "center",
+                                    flex: 1, fontSize: 11, fontWeight: currentIdx === i ? 700 : 500,
+                                    color: currentIdx >= i ? STAJ.primary : STAJ.textMuted,
+                                  }}>
+                                    {step.label}
+                                  </div>
+                                ))}
+                              </div>
+
+                              {selectedApp.statusUpdatedBy && (
+                                <p style={{ fontSize: 11, color: STAJ.textMuted, margin: "10px 0 0", textAlign: "center" }}>
+                                  Son güncelleme: {selectedApp.statusUpdatedBy} — {selectedApp.statusUpdatedAt ? new Date(selectedApp.statusUpdatedAt).toLocaleString("tr-TR") : ""}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Onay / Reddet Butonları */}
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16, paddingTop: 14, borderTop: "1px solid #E5E7EB" }}>
+                            {selectedApp.status === "beklemede" && (
+                              <>
+                                <button onClick={() => handleStatusChange(selectedApp.id, "devam")} style={{
+                                  flex: 1, padding: "10px 20px", borderRadius: 8, border: "none",
+                                  background: STAJ.green, color: "white", fontSize: 13, fontWeight: 600,
+                                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                                }}>
+                                  <StajIcon path="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" size={16} />
+                                  Onayla
+                                </button>
+                                <button onClick={() => handleStatusChange(selectedApp.id, "reddedildi")} style={{
+                                  padding: "10px 20px", borderRadius: 8, border: "1px solid #FCA5A5",
+                                  background: "#FEF2F2", color: STAJ.red, fontSize: 13, fontWeight: 600,
+                                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                                }}>
+                                  <StajIcon path="M6 18L18 6M6 6l12 12" size={16} />
+                                  Reddet
+                                </button>
+                              </>
+                            )}
+                            {selectedApp.status === "devam" && (
+                              <button onClick={() => handleStatusChange(selectedApp.id, "tamamlandi")} style={{
+                                flex: 1, padding: "10px 20px", borderRadius: 8, border: "none",
+                                background: STAJ.green, color: "white", fontSize: 13, fontWeight: 600,
+                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                              }}>
+                                <StajIcon path="M5 13l4 4L19 7" size={16} />
+                                Stajı Tamamla
+                              </button>
+                            )}
+                            {selectedApp.status === "tamamlandi" && (
+                              <div style={{ padding: "10px 16px", borderRadius: 8, background: STAJ.greenLight, color: STAJ.green, fontSize: 13, fontWeight: 600, flex: 1, textAlign: "center" }}>
+                                Staj başarıyla tamamlanmıştır.
+                              </div>
+                            )}
+                            {selectedApp.status === "reddedildi" && (
+                              <button onClick={() => handleStatusChange(selectedApp.id, "beklemede")} style={{
+                                flex: 1, padding: "10px 20px", borderRadius: 8, border: "1px solid #D1D5DB",
+                                background: "white", color: STAJ.navy, fontSize: 13, fontWeight: 600,
+                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                              }}>
+                                Yeniden Değerlendir
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Başvuru Detayları */}
                     {(() => {
@@ -1427,7 +1748,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           ["Adı ve Soyadı", selectedApp.isverenAdSoyad], ["Görev/Ünvan", selectedApp.isverenGorevUnvan],
                           ["E-posta", selectedApp.isverenEposta], ["Tarih", selectedApp.isverenTarih],
                         ]},
-                        { title: "Staj Bilgileri", fields: [
+                        { title: "Staj Etabı / Bilgileri", fields: [
+                          ["Staj Etabı", selectedApp.stajEtapLabel || "—"],
                           ["Başlama Tarihi", selectedApp.stajBaslamaTarihi], ["Bitiş Tarihi", selectedApp.stajBitisTarihi],
                           ["Süre (Gün)", selectedApp.stajSuresiGun],
                         ]},
