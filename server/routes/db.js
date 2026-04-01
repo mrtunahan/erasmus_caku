@@ -36,6 +36,7 @@ const ALLOWED_COLLECTIONS = [
   "internship_applications",
   "internship_uploads",
   "internship_periods",
+  "internship_roadmap",
   "commissions",
   "yaz_okulu_students",
   "yaz_okulu_records",
@@ -73,6 +74,7 @@ const READABLE_COLLECTIONS = [
   "internship_applications",
   "internship_uploads",
   "internship_periods",
+  "internship_roadmap",
   "passwords",
 ];
 

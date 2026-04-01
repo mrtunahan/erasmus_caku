@@ -129,31 +129,136 @@ const STAJ_ROADMAP_STEPS = [
 // ══════════════════════════════════════════════════════════════
 // Staj Yol Haritası Bileşeni
 // ══════════════════════════════════════════════════════════════
-function StajRoadmap({ onTabChange }) {
+function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
   const responsive = window.useResponsive();
   const isMobile = responsive.val(true, false, false);
   const [expanded, setExpanded] = useState(null);
-  const [statuses, setStatuses] = useState(() => {
-    try {
-      const saved = localStorage.getItem("staj_roadmap_statuses");
-      return saved ? JSON.parse(saved) : {};
-    } catch { return {}; }
-  });
+  const [myApplication, setMyApplication] = useState(null);
+  const [roadmapData, setRoadmapData] = useState({});
+  const [loadingRoadmap, setLoadingRoadmap] = useState(true);
+  const [uploads, setUploads] = useState({});
+  const [actionMsg, setActionMsg] = useState("");
 
+  const isStudent = currentUser?.role === "student" || (!["admin", "bolum_yetkilisi", "professor"].includes(currentUser?.role));
+  const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
+
+  // Öğrencinin onaylanmış başvurusunu ve roadmap verilerini yükle
   useEffect(() => {
-    try { localStorage.setItem("staj_roadmap_statuses", JSON.stringify(statuses)); } catch {}
-  }, [statuses]);
+    const loadData = async () => {
+      setLoadingRoadmap(true);
+      try {
+        const db = window.apiFirestore;
+        if (!db || !studentId) { setLoadingRoadmap(false); return; }
 
-  const cycleStatus = (idx) => {
-    const order = ["upcoming", "in-progress", "completed"];
-    const cur = statuses[idx] || "upcoming";
-    const next = order[(order.indexOf(cur) + 1) % order.length];
-    setStatuses(p => ({ ...p, [idx]: next }));
+        // Öğrencinin başvurularını yükle
+        const appSnap = await db.collection("internship_applications")
+          .where("ogrenciNo", "==", studentId)
+          .get();
+        const apps = appSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Onaylanmış (devam) veya tamamlanmış başvuruyu bul, yoksa beklemede olanı al
+        const activeApp = apps.find(a => a.status === "devam") || apps.find(a => a.status === "tamamlandi") || apps.find(a => a.status === "beklemede") || null;
+        setMyApplication(activeApp);
+
+        // Roadmap verilerini yükle
+        if (activeApp) {
+          const roadmapDoc = await db.collection("internship_roadmap").doc(activeApp.id).get();
+          if (roadmapDoc.exists) {
+            setRoadmapData(roadmapDoc.data() || {});
+          }
+        }
+
+        // Yüklenen belgeleri yükle
+        const uploadDoc = await db.collection("internship_uploads").doc(studentId).get();
+        if (uploadDoc.exists) setUploads(uploadDoc.data() || {});
+      } catch (e) {
+        console.error("Roadmap verileri yüklenirken hata:", e);
+      } finally {
+        setLoadingRoadmap(false);
+      }
+    };
+    if (isStudent) loadData();
+  }, [studentId, isStudent]);
+
+  // Adım durumunu belirle
+  const getStepStatus = (stepIdx) => {
+    if (!myApplication) return "locked";
+    if (myApplication.status === "beklemede") return stepIdx === 0 ? "waiting_approval" : "locked";
+    if (myApplication.status === "reddedildi") return "locked";
+
+    const stepData = roadmapData?.steps?.[stepIdx];
+    if (stepData?.status === "completed") return "completed";
+    if (stepData?.status === "pending_approval") return "pending_approval";
+
+    // İlk adım her zaman current (onay sonrası)
+    if (stepIdx === 0 && !stepData?.status) return "current";
+
+    // Önceki adım tamamlandı mı?
+    if (stepIdx > 0) {
+      const prevStep = roadmapData?.steps?.[stepIdx - 1];
+      if (prevStep?.status === "completed") return "current";
+    }
+
+    return "locked";
+  };
+
+  // Adım için gerekli belgelerin yüklenip yüklenmediğini kontrol et
+  const getRequiredDocsForStep = (stepId) => {
+    if (stepId === 2) return ["zorunlu_staj_formu", "staj_basvuru_formu_ek1", "kimlik_fotokopisi"]; // Adım 2 (idx=1) → Başvuru & Kabul → belge gerektirir
+    if (stepId === 3) return ["zorunlu_staj_formu", "staj_basvuru_formu_ek1", "kimlik_fotokopisi"]; // Adım 3 (idx=2) → Belge Yükleme
+    if (stepId === 7) return ["staj_defteri", "ek2_belgesi", "staj_teslim_belgesi", "turnitin_raporu"]; // Adım 7 → Staj Teslim
+    return [];
+  };
+
+  const areRequiredDocsUploaded = (stepId) => {
+    const required = getRequiredDocsForStep(stepId);
+    if (required.length === 0) return true;
+    return required.every(docId => uploads[docId]);
+  };
+
+  // Öğrenci adımı tamamla (onay beklet)
+  const handleCompleteStep = async (stepIdx) => {
+    if (!myApplication) return;
+    const stepId = STAJ_ROADMAP_STEPS[stepIdx].id;
+
+    // Belge kontrolü
+    if (!areRequiredDocsUploaded(stepId)) {
+      setActionMsg("Bu adımı tamamlamak için gerekli belgeleri yüklemeniz gerekmektedir.");
+      setTimeout(() => setActionMsg(""), 4000);
+      return;
+    }
+
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
+
+      const newRoadmapData = {
+        ...roadmapData,
+        steps: {
+          ...roadmapData.steps,
+          [stepIdx]: {
+            status: "pending_approval",
+            completedByStudent: studentId,
+            completedAt: new Date().toISOString(),
+          },
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      await db.collection("internship_roadmap").doc(myApplication.id).set(newRoadmapData, { merge: true });
+      setRoadmapData(newRoadmapData);
+      setActionMsg("Adım tamamlandı! Yetkili onayı bekleniyor...");
+      setTimeout(() => setActionMsg(""), 3000);
+    } catch (e) {
+      console.error("Adım güncelleme hatası:", e);
+      setActionMsg("Hata oluştu: " + e.message);
+      setTimeout(() => setActionMsg(""), 4000);
+    }
   };
 
   const steps = STAJ_ROADMAP_STEPS.map((s, i) => ({
     ...s,
-    _status: statuses[i] || "upcoming",
+    _status: getStepStatus(i),
+    _stepData: roadmapData?.steps?.[i] || null,
   }));
 
   const completedCount = steps.filter(s => s._status === "completed").length;
@@ -161,24 +266,30 @@ function StajRoadmap({ onTabChange }) {
   // ── Step Card ──
   const StepCard = ({ step, i, isOpen }) => {
     const done = step._status === "completed";
-    const active = step._status === "in-progress";
-    const stBg = done ? "#DCFCE7" : active ? "#FEF3C7" : "#F1F5F9";
-    const stColor = done ? "#16A34A" : active ? "#D97706" : "#94A3B8";
+    const active = step._status === "current";
+    const pending = step._status === "pending_approval";
+    const waiting = step._status === "waiting_approval";
+    const locked = step._status === "locked";
+
+    const stBg = done ? "#DCFCE7" : pending ? "#DBEAFE" : active ? "#FEF3C7" : waiting ? "#FEF9C3" : "#F1F5F9";
+    const stColor = done ? "#16A34A" : pending ? "#3B82F6" : active ? "#D97706" : waiting ? "#EAB308" : "#94A3B8";
+    const stLabel = done ? "Tamamlandı" : pending ? "Onay Bekleniyor" : active ? "Aktif" : waiting ? "Kayıt Onayı Bekleniyor" : "Kilitli";
     return (
       <div
         onClick={() => setExpanded(isOpen ? null : i)}
         style={{
-          background: isOpen ? STAJ.accentSoft : "#fff",
-          border: `1.5px solid ${isOpen ? STAJ.accent + "35" : "#F1F5F9"}`,
+          background: isOpen ? STAJ.accentSoft : locked ? "#FAFAFA" : "#fff",
+          border: `1.5px solid ${isOpen ? STAJ.accent + "35" : locked ? "#F1F5F9" : "#F1F5F9"}`,
           borderRadius: 14, padding: "12px 16px", cursor: "pointer",
           width: "100%", maxWidth: isMobile ? "100%" : 290,
           boxShadow: isOpen ? `0 4px 18px ${STAJ.accent}18` : "0 1px 4px rgba(0,0,0,0.05)",
           transition: "all 0.2s",
+          opacity: locked ? 0.6 : 1,
         }}
       >
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: "#1E293B", lineHeight: 1.4 }}>{step.title}</span>
-          <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 10, background: stBg, color: stColor, flexShrink: 0 }}>{step.duration}</span>
+          <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 10, background: stBg, color: stColor, flexShrink: 0 }}>{stLabel}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: STAJ.accent }}>→</span>
@@ -198,6 +309,30 @@ function StajRoadmap({ onTabChange }) {
               }}>
                 <StajIcon path="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" size={14} color="#92400E" />
                 Onay Yetkilisi: <strong>{step.approver}</strong>
+              </div>
+            )}
+
+            {/* Adım onay bilgisi */}
+            {step._stepData?.approvedBy && (
+              <div style={{
+                marginTop: 8, padding: "6px 10px", borderRadius: 6,
+                background: STAJ.greenLight, border: "1px solid #A7F3D0",
+                fontSize: 11, color: STAJ.green, fontWeight: 500,
+              }}>
+                Onaylayan: {step._stepData.approvedBy} — {step._stepData.approvedAt ? new Date(step._stepData.approvedAt).toLocaleString("tr-TR") : ""}
+              </div>
+            )}
+
+            {/* Onay bekliyor bilgisi */}
+            {pending && (
+              <div style={{
+                marginTop: 8, padding: "8px 12px", borderRadius: 6,
+                background: "#DBEAFE", border: "1px solid #93C5FD",
+                fontSize: 12, color: "#1E40AF", fontWeight: 500,
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <StajIcon path="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" size={14} color="#1E40AF" />
+                Yetkili onayı bekleniyor...
               </div>
             )}
 
@@ -253,11 +388,40 @@ function StajRoadmap({ onTabChange }) {
                 )}
               </div>
             )}
+
+            {/* Adımı Tamamla butonu (Öğrenci - aktif adım için) */}
+            {isStudent && active && !pending && !done && (
+              <button
+                onClick={e => { e.stopPropagation(); handleCompleteStep(i); }}
+                style={{
+                  marginTop: 12, padding: "10px 18px", borderRadius: 8, border: "none",
+                  background: areRequiredDocsUploaded(step.id) ? STAJ.primary : "#9CA3AF",
+                  color: "white", fontSize: 13, fontWeight: 600, width: "100%",
+                  cursor: areRequiredDocsUploaded(step.id) ? "pointer" : "not-allowed",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                }}
+                disabled={!areRequiredDocsUploaded(step.id)}
+              >
+                <StajIcon path="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" size={16} />
+                {areRequiredDocsUploaded(step.id) ? "Adımı Tamamla (Onaya Gönder)" : "Önce gerekli belgeleri yükleyin"}
+              </button>
+            )}
           </div>
         )}
       </div>
     );
   };
+
+  if (loadingRoadmap) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ width: 30, height: 30, border: "3px solid #E5E1D8", borderTopColor: STAJ.primary, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
+          <p style={{ color: "#666", fontSize: 13 }}>Yol haritası yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -272,7 +436,7 @@ function StajRoadmap({ onTabChange }) {
           <div style={{ height: 1, width: 40, background: `linear-gradient(to left, transparent, ${STAJ.accent}60)` }} />
         </div>
         <p style={{ fontSize: 13, color: STAJ.textMuted, margin: 0 }}>
-          Numaraya tıklayarak durumunuzu güncelleyin
+          {isStudent ? "Adıma tıklayarak detayları görün, aktif adımı tamamlayarak onaya gönderin" : "Numaraya tıklayarak detayları görün"}
         </p>
         {/* İlerleme */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10 }}>
@@ -281,7 +445,37 @@ function StajRoadmap({ onTabChange }) {
           </div>
           <span style={{ fontSize: 11, fontWeight: 600, color: STAJ.textMuted }}>{completedCount}/{steps.length}</span>
         </div>
+
+        {/* Başvuru durumu bilgisi */}
+        {isStudent && !myApplication && (
+          <div style={{
+            marginTop: 12, padding: "10px 16px", borderRadius: 8,
+            background: "#FEF9C3", border: "1px solid #FCD34D",
+            fontSize: 12, color: "#92400E", fontWeight: 500,
+          }}>
+            Yol haritasını kullanabilmek için önce staj başvurusu yapmanız gerekmektedir.
+          </div>
+        )}
+        {isStudent && myApplication?.status === "beklemede" && (
+          <div style={{
+            marginTop: 12, padding: "10px 16px", borderRadius: 8,
+            background: "#FEF9C3", border: "1px solid #FCD34D",
+            fontSize: 12, color: "#92400E", fontWeight: 500,
+          }}>
+            Staj kaydınız alınmıştır. Yetkili onayı bekleniyor... Onay sonrası süreç başlayacaktır.
+          </div>
+        )}
       </div>
+
+      {/* Bilgilendirme mesajı */}
+      {actionMsg && (
+        <div style={{
+          padding: "10px 16px", borderRadius: 8, marginBottom: 16, textAlign: "center",
+          background: actionMsg.includes("Hata") || actionMsg.includes("gerekli") ? STAJ.redLight : actionMsg.includes("bekleniyor") ? "#DBEAFE" : STAJ.greenLight,
+          color: actionMsg.includes("Hata") || actionMsg.includes("gerekli") ? STAJ.red : actionMsg.includes("bekleniyor") ? "#1E40AF" : STAJ.green,
+          fontSize: 13, fontWeight: 500,
+        }}>{actionMsg}</div>
+      )}
 
       {/* Yol Haritası */}
       <div style={{ position: "relative", paddingBottom: 20 }}>
@@ -344,31 +538,44 @@ function StajRoadmap({ onTabChange }) {
               )}
 
               {/* Yol üzerindeki numara dairesi */}
-              <div style={{
-                width: isMobile ? 56 : 54, flexShrink: 0, display: "flex", justifyContent: "center", zIndex: 2,
-              }}>
-                <div
-                  onClick={e => { e.stopPropagation(); cycleStatus(i); }}
-                  title="Durumu değiştir"
-                  style={{
-                    width: 44, height: 44, borderRadius: "50%",
-                    background: done ? STAJ.accent : active ? "#fff" : "#64748B",
-                    border: `3.5px solid ${done ? "rgba(255,255,255,0.85)" : active ? STAJ.accent : "rgba(255,255,255,0.5)"}`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    cursor: "pointer",
-                    boxShadow: done
-                      ? `0 0 0 5px ${STAJ.accent}30, 0 4px 14px rgba(0,0,0,0.3)`
-                      : active
-                        ? `0 0 0 5px ${STAJ.accent}25, 0 4px 14px rgba(0,0,0,0.25)`
-                        : "0 2px 8px rgba(0,0,0,0.35)",
-                    fontWeight: 800, fontSize: done ? 17 : 14,
-                    color: done ? "#fff" : active ? STAJ.accent : "rgba(255,255,255,0.8)",
-                    transition: "all 0.25s",
-                  }}
-                >
-                  {done ? "✓" : step.id}
-                </div>
-              </div>
+              {(() => {
+                const pending = step._status === "pending_approval";
+                const waiting = step._status === "waiting_approval";
+                const locked = step._status === "locked";
+                const circleBg = done ? STAJ.accent : pending ? "#3B82F6" : active ? "#fff" : waiting ? "#EAB308" : "#64748B";
+                const circleBorder = done ? "rgba(255,255,255,0.85)" : pending ? "rgba(255,255,255,0.85)" : active ? STAJ.accent : waiting ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.5)";
+                const circleColor = done ? "#fff" : pending ? "#fff" : active ? STAJ.accent : waiting ? "#fff" : "rgba(255,255,255,0.8)";
+                return (
+                  <div style={{
+                    width: isMobile ? 56 : 54, flexShrink: 0, display: "flex", justifyContent: "center", zIndex: 2,
+                  }}>
+                    <div
+                      onClick={e => { e.stopPropagation(); setExpanded(isOpen ? null : i); }}
+                      title={done ? "Tamamlandı" : pending ? "Onay bekleniyor" : active ? "Aktif adım" : locked ? "Kilitli" : ""}
+                      style={{
+                        width: 44, height: 44, borderRadius: "50%",
+                        background: circleBg,
+                        border: `3.5px solid ${circleBorder}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: locked ? "default" : "pointer",
+                        boxShadow: done
+                          ? `0 0 0 5px ${STAJ.accent}30, 0 4px 14px rgba(0,0,0,0.3)`
+                          : active
+                            ? `0 0 0 5px ${STAJ.accent}25, 0 4px 14px rgba(0,0,0,0.25)`
+                            : pending
+                              ? `0 0 0 5px #3B82F630, 0 4px 14px rgba(0,0,0,0.25)`
+                              : "0 2px 8px rgba(0,0,0,0.35)",
+                        fontWeight: 800, fontSize: done ? 17 : 14,
+                        color: circleColor,
+                        transition: "all 0.25s",
+                        opacity: locked ? 0.5 : 1,
+                      }}
+                    >
+                      {done ? "✓" : pending ? "⏳" : step.id}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Sağ taraf */}
               <div style={{ flex: 1, paddingLeft: 14 }}>
@@ -460,6 +667,7 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
   };
 
   const [form, setForm] = useState(emptyForm);
+  const [appRoadmaps, setAppRoadmaps] = useState({});
 
   const set = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
 
@@ -483,7 +691,7 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
     }
   };
 
-  // Öğrencinin mevcut başvurularını yükle
+  // Öğrencinin mevcut başvurularını ve roadmap verilerini yükle
   useEffect(() => {
     const loadApplications = async () => {
       try {
@@ -496,6 +704,16 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
           .get();
         const apps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setMyApplications(apps);
+
+        // Her başvuru için roadmap verilerini yükle
+        const roadmaps = {};
+        for (const app of apps) {
+          try {
+            const roadmapDoc = await db.collection("internship_roadmap").doc(app.id).get();
+            if (roadmapDoc.exists) roadmaps[app.id] = roadmapDoc.data();
+          } catch {}
+        }
+        setAppRoadmaps(roadmaps);
       } catch (e) {
         console.error("Başvurular yüklenirken hata:", e);
       }
@@ -637,7 +855,17 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
       const snapshot = await db.collection("internship_applications")
         .where("ogrenciNo", "==", studentId)
         .get();
-      setMyApplications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const reloadedApps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMyApplications(reloadedApps);
+      // Reload roadmaps
+      const roadmaps = {};
+      for (const a of reloadedApps) {
+        try {
+          const rdoc = await db.collection("internship_roadmap").doc(a.id).get();
+          if (rdoc.exists) roadmaps[a.id] = rdoc.data();
+        } catch {}
+      }
+      setAppRoadmaps(roadmaps);
       setTimeout(() => setSavedMsg(""), 3000);
     } catch (e) {
       console.error("Kayıt hatası:", e);
@@ -723,10 +951,34 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
             {myApplications.map(app => {
               const status = STAJ_STATUS[app.status] || STAJ_STATUS.beklemede;
               const isRejected = app.status === "reddedildi";
-              const statusSteps = ["beklemede", "devam", "tamamlandi"];
-              const currentIdx = statusSteps.indexOf(app.status);
-              const progressPct = isRejected ? 0 : ((currentIdx + 1) / statusSteps.length) * 100;
-              const progressColor = isRejected ? STAJ.red : currentIdx === 2 ? STAJ.green : currentIdx === 1 ? "#3B82F6" : "#EAB308";
+              const roadmap = appRoadmaps[app.id] || {};
+              const roadmapSteps = roadmap.steps || {};
+              const completedSteps = Object.values(roadmapSteps).filter(s => s.status === "completed").length;
+              const pendingSteps = Object.values(roadmapSteps).filter(s => s.status === "pending_approval").length;
+              const totalSteps = 8;
+
+              // Progress: beklemede=0, onay sonrası roadmap ilerlemesine göre
+              let progressPct = 0;
+              let progressColor = "#EAB308";
+              let progressLabel = "Beklemede";
+
+              if (isRejected) {
+                progressPct = 0;
+                progressColor = STAJ.red;
+                progressLabel = "Reddedildi";
+              } else if (app.status === "tamamlandi") {
+                progressPct = 100;
+                progressColor = STAJ.green;
+                progressLabel = "Tamamlandı";
+              } else if (app.status === "devam") {
+                progressPct = Math.max(5, (completedSteps / totalSteps) * 100);
+                progressColor = completedSteps === totalSteps ? STAJ.green : "#3B82F6";
+                progressLabel = pendingSteps > 0 ? `${completedSteps}/${totalSteps} (Onay bekleniyor)` : `${completedSteps}/${totalSteps} adım`;
+              } else {
+                progressPct = 2;
+                progressColor = "#EAB308";
+                progressLabel = "Kayıt onayı bekleniyor";
+              }
 
               return (
                 <div key={app.id} style={{
@@ -744,13 +996,13 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
                     }}>{status.label}</span>
                     <StajIcon path="M9 5l7 7-7 7" size={16} color="#9CA3AF" />
                   </div>
-                  {/* Mini progress bar */}
+                  {/* Mini progress bar - 8 adım bazlı */}
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#E5E7EB", overflow: "hidden" }}>
                       <div style={{ width: `${progressPct}%`, height: "100%", borderRadius: 3, background: progressColor, transition: "width 0.4s, background 0.3s" }} />
                     </div>
                     <span style={{ fontSize: 10, fontWeight: 600, color: progressColor, flexShrink: 0 }}>
-                      {isRejected ? "Reddedildi" : currentIdx === 2 ? "Tamamlandı" : currentIdx === 1 ? "Devam Ediyor" : "Beklemede"}
+                      {progressLabel}
                     </span>
                   </div>
                 </div>
@@ -952,17 +1204,29 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   const [uploads, setUploads] = useState({});
   const [uploading, setUploading] = useState(null);
   const [msg, setMsg] = useState("");
+  const [changeRequests, setChangeRequests] = useState({});
 
   const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
 
-  // Yüklenen belgeleri yükle
+  // Yüklenen belgeleri ve değişiklik taleplerini yükle
   useEffect(() => {
     const loadUploads = async () => {
       try {
         const db = window.apiFirestore;
         if (!db || !studentId) return;
         const doc = await db.collection("internship_uploads").doc(studentId).get();
-        if (doc.exists) setUploads(doc.data() || {});
+        if (doc.exists) {
+          const data = doc.data() || {};
+          setUploads(data);
+          // Değişiklik taleplerini ayıkla
+          const requests = {};
+          Object.keys(data).forEach(key => {
+            if (data[key]?.changeRequest) {
+              requests[key] = data[key].changeRequest;
+            }
+          });
+          setChangeRequests(requests);
+        }
       } catch (e) {
         console.error("Belgeler yüklenirken hata:", e);
       }
@@ -972,10 +1236,26 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
 
   const BELGE_ALANLARI = [
     {
-      id: "basvuru_belgeleri",
-      title: "Başvuru Belgeleri",
-      desc: "Zorunlu staj formu, Staj başvuru formu (Ek-1), Kimlik fotokopisi",
+      id: "zorunlu_staj_formu",
+      title: "Zorunlu Staj Formu",
+      desc: "Zorunlu staj formunu indirip doldurduktan sonra bu alana yükleyiniz.",
       icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+      step: 3,
+      formLink: true,
+    },
+    {
+      id: "staj_basvuru_formu_ek1",
+      title: "Staj Başvuru Formu (Ek-1)",
+      desc: "Staj başvuru formunu (Ek-1) indirip doldurduktan sonra bu alana yükleyiniz.",
+      icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+      step: 3,
+      formLink: true,
+    },
+    {
+      id: "kimlik_fotokopisi",
+      title: "Kimlik Fotokopisi",
+      desc: "Kimlik fotokopinizi tarayıp bu alana yükleyiniz.",
+      icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0",
       step: 3,
     },
     {
@@ -1010,8 +1290,58 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     },
   ];
 
+  // Belge değişiklik talebi gönder
+  const handleRequestChange = async (belgeId) => {
+    try {
+      const db = window.apiFirestore;
+      if (!db) throw new Error("Veritabanı bağlantısı yok");
+
+      const existingData = uploads[belgeId] || {};
+      const updatedData = {
+        ...existingData,
+        changeRequest: {
+          status: "pending",
+          requestedAt: new Date().toISOString(),
+          requestedBy: studentId,
+        },
+      };
+
+      await db.collection("internship_uploads").doc(studentId).set(
+        { [belgeId]: updatedData },
+        { merge: true }
+      );
+
+      setUploads(prev => ({ ...prev, [belgeId]: updatedData }));
+      setChangeRequests(prev => ({ ...prev, [belgeId]: updatedData.changeRequest }));
+      setMsg("Belge değişiklik talebi gönderildi. Yetkili onayı bekleniyor...");
+      setTimeout(() => setMsg(""), 4000);
+    } catch (e) {
+      console.error("Değişiklik talebi hatası:", e);
+      setMsg("Hata oluştu: " + e.message);
+      setTimeout(() => setMsg(""), 4000);
+    }
+  };
+
+  // Belge yüklenebilir mi kontrol et
+  const canUploadDocument = (belgeId) => {
+    const uploaded = uploads[belgeId];
+    if (!uploaded || !uploaded.fileName) return true; // Henüz yüklenmemiş, yüklenebilir
+    // Zaten yüklenmişse, değişiklik izni olmalı
+    const changeReq = uploaded.changeRequest;
+    if (changeReq?.status === "approved") return true;
+    return false;
+  };
+
   const handleFileUpload = async (belgeId, file) => {
     if (!file) return;
+
+    // Yüklenmiş belge değişiklik kontrolü
+    if (!canUploadDocument(belgeId)) {
+      setMsg("Bu belgeyi değiştirmek için önce yetkili izni almanız gerekmektedir.");
+      setTimeout(() => setMsg(""), 4000);
+      return;
+    }
+
     setUploading(belgeId);
     try {
       const db = window.apiFirestore;
@@ -1048,6 +1378,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       const newUploads = { ...uploads, [belgeId]: fileData };
       await db.collection("internship_uploads").doc(studentId).set(newUploads, { merge: true });
       setUploads(newUploads);
+      setChangeRequests(prev => { const p = { ...prev }; delete p[belgeId]; return p; });
       setMsg("Belge başarıyla yüklendi!");
       setTimeout(() => setMsg(""), 3000);
     } catch (e) {
@@ -1134,7 +1465,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                 </div>
 
                 {/* Upload / Link Buttons */}
-                <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0, flexWrap: "wrap" }}>
                   {belge.formLink && (
                     <button onClick={() => window.location.hash = "#formlar"} style={{
                       padding: "8px 14px", borderRadius: 8, border: "1px solid #D1D5DB",
@@ -1145,26 +1476,55 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                       Formlar
                     </button>
                   )}
-                  <label style={{
-                    padding: "8px 14px", borderRadius: 8, border: "none",
-                    background: isUploading ? "#9CA3AF" : (uploaded ? STAJ.green : STAJ.primary),
-                    color: "white", fontSize: 12, fontWeight: 600,
-                    cursor: isUploading ? "not-allowed" : "pointer",
-                    display: "flex", alignItems: "center", gap: 5,
-                  }}>
-                    <StajIcon path={uploaded ? "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" : "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"} size={13} />
-                    {isUploading ? "Yükleniyor..." : (uploaded ? "Değiştir" : "Yükle")}
-                    <input
-                      type="file"
-                      style={{ display: "none" }}
-                      disabled={isUploading}
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                      onChange={e => {
-                        if (e.target.files?.[0]) handleFileUpload(belge.id, e.target.files[0]);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
+
+                  {/* Belge yüklenmişse ve değişiklik talebi yoksa → Değişiklik İste butonu */}
+                  {uploaded && uploaded.fileName && !canUploadDocument(belge.id) && !uploaded.changeRequest && (
+                    <button onClick={() => handleRequestChange(belge.id)} style={{
+                      padding: "8px 14px", borderRadius: 8, border: "1px solid #FDBA74",
+                      background: "#FFF7ED", color: "#EA580C", fontSize: 12, fontWeight: 600,
+                      cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
+                    }}>
+                      <StajIcon path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" size={13} />
+                      Değişiklik İste
+                    </button>
+                  )}
+
+                  {/* Değişiklik talebi onay bekliyorsa */}
+                  {uploaded?.changeRequest?.status === "pending" && (
+                    <span style={{
+                      padding: "8px 14px", borderRadius: 8,
+                      background: "#DBEAFE", color: "#1E40AF",
+                      fontSize: 11, fontWeight: 600,
+                      display: "flex", alignItems: "center", gap: 5,
+                    }}>
+                      <StajIcon path="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" size={13} />
+                      Değişiklik onayı bekleniyor
+                    </span>
+                  )}
+
+                  {/* Değişiklik onaylanmışsa veya henüz yüklenmemişse → Yükle butonu */}
+                  {canUploadDocument(belge.id) && (
+                    <label style={{
+                      padding: "8px 14px", borderRadius: 8, border: "none",
+                      background: isUploading ? "#9CA3AF" : (uploaded?.fileName ? "#EA580C" : STAJ.primary),
+                      color: "white", fontSize: 12, fontWeight: 600,
+                      cursor: isUploading ? "not-allowed" : "pointer",
+                      display: "flex", alignItems: "center", gap: 5,
+                    }}>
+                      <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" size={13} />
+                      {isUploading ? "Yükleniyor..." : (uploaded?.fileName ? "Belgeyi Değiştir" : "Yükle")}
+                      <input
+                        type="file"
+                        style={{ display: "none" }}
+                        disabled={isUploading}
+                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        onChange={e => {
+                          if (e.target.files?.[0]) handleFileUpload(belge.id, e.target.files[0]);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
                 </div>
               </div>
             </div>
@@ -1307,11 +1667,13 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       const app = allApplications.find(a => a.id === appId);
       const ogrNo = app?.ogrenciNo || selectedApp?.ogrenciNo;
       const uploads = allUploads[ogrNo] || {};
-      const requiredDocs = ["basvuru_belgeleri", "staj_defteri", "ek2_belgesi", "staj_teslim_belgesi", "turnitin_raporu"];
+      const requiredDocs = ["zorunlu_staj_formu", "staj_basvuru_formu_ek1", "kimlik_fotokopisi", "staj_defteri", "ek2_belgesi", "staj_teslim_belgesi", "turnitin_raporu"];
       const missing = requiredDocs.filter(d => !uploads[d]);
       if (missing.length > 0) {
         const docLabels = {
-          basvuru_belgeleri: "Başvuru Belgeleri",
+          zorunlu_staj_formu: "Zorunlu Staj Formu",
+          staj_basvuru_formu_ek1: "Staj Başvuru Formu (Ek-1)",
+          kimlik_fotokopisi: "Kimlik Fotokopisi",
           staj_defteri: "Staj Defteri",
           ek2_belgesi: "EK-2 Belgesi",
           staj_teslim_belgesi: "Staj Teslim Belgesi",
@@ -1403,6 +1765,144 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     const url = `${window.API_BASE || ""}/api/files/download/${upload.serverPath}`;
     window.open(url, "_blank");
   };
+
+  // Admin: Yol haritası adım onayı
+  const handleApproveStep = async (appId, stepIdx) => {
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
+
+      const roadmapDoc = await db.collection("internship_roadmap").doc(appId).get();
+      const existingData = roadmapDoc.exists ? roadmapDoc.data() : {};
+
+      const newData = {
+        ...existingData,
+        steps: {
+          ...existingData.steps,
+          [stepIdx]: {
+            ...(existingData.steps?.[stepIdx] || {}),
+            status: "completed",
+            approvedBy: currentUser?.name || currentUser?.identifier || "",
+            approvedAt: new Date().toISOString(),
+          },
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      await db.collection("internship_roadmap").doc(appId).set(newData, { merge: true });
+      alert(`Adım ${stepIdx + 1} onaylandı.`);
+      // Refresh data
+      loadAllData();
+    } catch (e) {
+      alert("Adım onay hatası: " + e.message);
+    }
+  };
+
+  // Admin: Yol haritası adım reddi
+  const handleRejectStep = async (appId, stepIdx) => {
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
+
+      const roadmapDoc = await db.collection("internship_roadmap").doc(appId).get();
+      const existingData = roadmapDoc.exists ? roadmapDoc.data() : {};
+
+      const newData = {
+        ...existingData,
+        steps: {
+          ...existingData.steps,
+          [stepIdx]: {
+            status: "rejected",
+            rejectedBy: currentUser?.name || currentUser?.identifier || "",
+            rejectedAt: new Date().toISOString(),
+          },
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      await db.collection("internship_roadmap").doc(appId).set(newData, { merge: true });
+      alert(`Adım ${stepIdx + 1} reddedildi. Öğrenci adımı tekrar tamamlayabilir.`);
+      loadAllData();
+    } catch (e) {
+      alert("Adım red hatası: " + e.message);
+    }
+  };
+
+  // Admin: Belge değişiklik talebini onayla
+  const handleApproveDocChange = async (ogrenciNo, belgeId) => {
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
+
+      await db.collection("internship_uploads").doc(ogrenciNo).set({
+        [belgeId]: {
+          ...allUploads[ogrenciNo]?.[belgeId],
+          changeRequest: {
+            status: "approved",
+            approvedBy: currentUser?.name || currentUser?.identifier || "",
+            approvedAt: new Date().toISOString(),
+          },
+        },
+      }, { merge: true });
+
+      // Refresh uploads
+      const uploadsSnap = await db.collection("internship_uploads").get();
+      const uploadsMap = {};
+      uploadsSnap.docs.forEach(doc => { uploadsMap[doc.id] = doc.data(); });
+      setAllUploads(uploadsMap);
+
+      alert("Belge değişiklik talebi onaylandı. Öğrenci belgeyi yeniden yükleyebilir.");
+    } catch (e) {
+      alert("Belge değişiklik onay hatası: " + e.message);
+    }
+  };
+
+  // Admin: Belge değişiklik talebini reddet
+  const handleRejectDocChange = async (ogrenciNo, belgeId) => {
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
+
+      await db.collection("internship_uploads").doc(ogrenciNo).set({
+        [belgeId]: {
+          ...allUploads[ogrenciNo]?.[belgeId],
+          changeRequest: {
+            status: "rejected",
+            rejectedBy: currentUser?.name || currentUser?.identifier || "",
+            rejectedAt: new Date().toISOString(),
+          },
+        },
+      }, { merge: true });
+
+      const uploadsSnap = await db.collection("internship_uploads").get();
+      const uploadsMap = {};
+      uploadsSnap.docs.forEach(doc => { uploadsMap[doc.id] = doc.data(); });
+      setAllUploads(uploadsMap);
+
+      alert("Belge değişiklik talebi reddedildi.");
+    } catch (e) {
+      alert("Belge değişiklik red hatası: " + e.message);
+    }
+  };
+
+  // Tüm roadmap verilerini yükle (admin için)
+  const [allRoadmaps, setAllRoadmaps] = useState({});
+  useEffect(() => {
+    const loadRoadmaps = async () => {
+      if (!canManage) return;
+      try {
+        const db = window.apiFirestore;
+        if (!db) return;
+        const snap = await db.collection("internship_roadmap").get();
+        const map = {};
+        snap.docs.forEach(doc => { map[doc.id] = doc.data(); });
+        setAllRoadmaps(map);
+      } catch (e) {
+        console.error("Roadmap verileri yüklenirken hata:", e);
+      }
+    };
+    loadRoadmaps();
+  }, [canManage, allApplications]);
 
   if (loading) {
     return (
@@ -1573,7 +2073,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       )}
 
       {/* ════ Yol Haritası Sekmesi ════ */}
-      {activeTab === "roadmap" && <StajRoadmap onTabChange={setActiveTab} />}
+      {activeTab === "roadmap" && <StajRoadmap onTabChange={setActiveTab} currentUser={currentUser} activeDepartment={activeDepartment} />}
 
       {/* ════ Staj Kayıtları Sekmesi ════ */}
       {activeTab === "kayitlar" && (
@@ -1811,7 +2311,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     {(() => {
                       const studentUploads = allUploads[selectedApp.ogrenciNo] || {};
                       const BELGE_LABELS = {
-                        basvuru_belgeleri: "Başvuru Belgeleri",
+                        zorunlu_staj_formu: "Zorunlu Staj Formu",
+                        staj_basvuru_formu_ek1: "Staj Başvuru Formu (Ek-1)",
+                        kimlik_fotokopisi: "Kimlik Fotokopisi",
                         staj_defteri: "Staj Defteri",
                         ek2_belgesi: "Ek-2 Belgesi",
                         staj_teslim_belgesi: "Staj Teslim Belgesi",
@@ -1829,27 +2331,141 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                               {uploadEntries.map(([key, label]) => {
                                 const upload = studentUploads[key];
-                                if (!upload) return null;
+                                if (!upload || !upload.fileName) return null;
+                                const hasChangeReq = upload.changeRequest?.status === "pending";
                                 return (
                                   <div key={key} style={{
                                     display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
-                                    borderRadius: 8, background: STAJ.greenLight, border: "1px solid #A7F3D0",
+                                    borderRadius: 8,
+                                    background: hasChangeReq ? "#FEF9C3" : STAJ.greenLight,
+                                    border: `1px solid ${hasChangeReq ? "#FCD34D" : "#A7F3D0"}`,
+                                    flexWrap: "wrap",
                                   }}>
-                                    <StajIcon path="M5 13l4 4L19 7" size={14} color={STAJ.green} />
-                                    <div style={{ flex: 1 }}>
+                                    <StajIcon path={hasChangeReq ? "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" : "M5 13l4 4L19 7"} size={14} color={hasChangeReq ? "#EAB308" : STAJ.green} />
+                                    <div style={{ flex: 1, minWidth: 150 }}>
                                       <div style={{ fontSize: 13, fontWeight: 600, color: STAJ.navy }}>{label}</div>
                                       <div style={{ fontSize: 11, color: STAJ.textMuted }}>
                                         {upload.fileName} ({(upload.fileSize / 1024).toFixed(0)} KB) — {new Date(upload.uploadedAt).toLocaleDateString("tr-TR")}
                                       </div>
+                                      {hasChangeReq && (
+                                        <div style={{ fontSize: 11, color: "#92400E", fontWeight: 600, marginTop: 2 }}>
+                                          Belge değişiklik talebi mevcut
+                                        </div>
+                                      )}
                                     </div>
-                                    <button onClick={() => handleDownloadFile(selectedApp.ogrenciNo, key)} style={{
-                                      padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB",
-                                      background: "white", color: STAJ.primary, fontSize: 11, fontWeight: 600,
-                                      cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                      <button onClick={() => handleDownloadFile(selectedApp.ogrenciNo, key)} style={{
+                                        padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB",
+                                        background: "white", color: STAJ.primary, fontSize: 11, fontWeight: 600,
+                                        cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                      }}>
+                                        <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" size={13} />
+                                        İndir
+                                      </button>
+                                      {hasChangeReq && (
+                                        <>
+                                          <button onClick={() => handleApproveDocChange(selectedApp.ogrenciNo, key)} style={{
+                                            padding: "6px 12px", borderRadius: 6, border: "none",
+                                            background: STAJ.green, color: "white", fontSize: 11, fontWeight: 600,
+                                            cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                          }}>
+                                            <StajIcon path="M5 13l4 4L19 7" size={12} />
+                                            Değişikliğe İzin Ver
+                                          </button>
+                                          <button onClick={() => handleRejectDocChange(selectedApp.ogrenciNo, key)} style={{
+                                            padding: "6px 12px", borderRadius: 6, border: "1px solid #FCA5A5",
+                                            background: "#FEF2F2", color: STAJ.red, fontSize: 11, fontWeight: 600,
+                                            cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                          }}>
+                                            <StajIcon path="M6 18L18 6M6 6l12 12" size={12} />
+                                            Reddet
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Yol Haritası Adım Onayları */}
+                    {(() => {
+                      const appRoadmap = allRoadmaps[selectedApp.id] || {};
+                      const appSteps = appRoadmap.steps || {};
+                      const hasPendingSteps = Object.values(appSteps).some(s => s.status === "pending_approval");
+
+                      return (
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: STAJ.navy, marginBottom: 8, paddingBottom: 4, borderBottom: `2px solid ${STAJ.primary}20` }}>
+                            Yol Haritası Adımları
+                          </div>
+                          {Object.keys(appSteps).length === 0 ? (
+                            <p style={{ fontSize: 12, color: STAJ.textMuted, fontStyle: "italic" }}>Öğrenci henüz yol haritasında ilerleme kaydetmemiş.</p>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              {STAJ_ROADMAP_STEPS.map((step, idx) => {
+                                const stepData = appSteps[idx];
+                                if (!stepData) return null;
+                                const isPending = stepData.status === "pending_approval";
+                                const isCompleted = stepData.status === "completed";
+                                const isRejected = stepData.status === "rejected";
+                                return (
+                                  <div key={idx} style={{
+                                    display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
+                                    borderRadius: 8, flexWrap: "wrap",
+                                    background: isPending ? "#DBEAFE" : isCompleted ? STAJ.greenLight : isRejected ? STAJ.redLight : "#F9FAFB",
+                                    border: `1px solid ${isPending ? "#93C5FD" : isCompleted ? "#A7F3D0" : isRejected ? "#FCA5A5" : "#E5E7EB"}`,
+                                  }}>
+                                    <div style={{
+                                      width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                                      background: isCompleted ? STAJ.green : isPending ? "#3B82F6" : isRejected ? STAJ.red : "#9CA3AF",
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      color: "white", fontSize: 12, fontWeight: 700,
                                     }}>
-                                      <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" size={13} />
-                                      İndir
-                                    </button>
+                                      {isCompleted ? "✓" : step.id}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 150 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: STAJ.navy }}>{step.title}</div>
+                                      <div style={{ fontSize: 11, color: STAJ.textMuted }}>
+                                        {isCompleted && stepData.approvedBy && `Onaylayan: ${stepData.approvedBy} — ${stepData.approvedAt ? new Date(stepData.approvedAt).toLocaleString("tr-TR") : ""}`}
+                                        {isPending && `Öğrenci tamamladı — ${stepData.completedAt ? new Date(stepData.completedAt).toLocaleString("tr-TR") : ""}`}
+                                        {isRejected && `Reddeden: ${stepData.rejectedBy || ""} — ${stepData.rejectedAt ? new Date(stepData.rejectedAt).toLocaleString("tr-TR") : ""}`}
+                                      </div>
+                                    </div>
+                                    {isPending && (
+                                      <div style={{ display: "flex", gap: 6 }}>
+                                        <button onClick={() => handleApproveStep(selectedApp.id, idx)} style={{
+                                          padding: "7px 14px", borderRadius: 6, border: "none",
+                                          background: STAJ.green, color: "white", fontSize: 12, fontWeight: 600,
+                                          cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
+                                        }}>
+                                          <StajIcon path="M5 13l4 4L19 7" size={13} />
+                                          Onayla
+                                        </button>
+                                        <button onClick={() => handleRejectStep(selectedApp.id, idx)} style={{
+                                          padding: "7px 14px", borderRadius: 6, border: "1px solid #FCA5A5",
+                                          background: "#FEF2F2", color: STAJ.red, fontSize: 12, fontWeight: 600,
+                                          cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
+                                        }}>
+                                          <StajIcon path="M6 18L18 6M6 6l12 12" size={13} />
+                                          Reddet
+                                        </button>
+                                      </div>
+                                    )}
+                                    {isCompleted && (
+                                      <span style={{ padding: "4px 10px", borderRadius: 6, background: STAJ.greenLight, color: STAJ.green, fontSize: 11, fontWeight: 600 }}>
+                                        Onaylandı
+                                      </span>
+                                    )}
+                                    {isRejected && (
+                                      <span style={{ padding: "4px 10px", borderRadius: 6, background: STAJ.redLight, color: STAJ.red, fontSize: 11, fontWeight: 600 }}>
+                                        Reddedildi
+                                      </span>
+                                    )}
                                   </div>
                                 );
                               })}
