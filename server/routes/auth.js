@@ -124,8 +124,20 @@ router.post("/student", async (req, res) => {
         const bcryptHash = await hashPassword(password);
         await setPasswordDoc("student_passwords", { [trimmedId]: bcryptHash }, true);
       }
-      const token = generateToken({ role: "student", identifier: trimmedId });
-      return res.json({ success: true, token });
+      // Öğrencinin departmentId bilgisini al
+      let departmentId = "bilgisayar";
+      try {
+        const db = await getDbSafe();
+        const studentsSnap = await db.collection("students").where("studentNumber", "==", trimmedId).limit(1).get();
+        if (!studentsSnap.empty) {
+          const studentData = studentsSnap.docs[0].data();
+          if (studentData.departmentId) departmentId = studentData.departmentId;
+        }
+      } catch (e) {
+        console.warn("Student departmentId lookup error:", e.message);
+      }
+      const token = generateToken({ role: "student", identifier: trimmedId, departmentId });
+      return res.json({ success: true, token, departmentId });
     } else {
       recordAttempt(rateLimitKey);
       return res.json({ success: false, error: "Giriş bilgileri hatalı!" });
