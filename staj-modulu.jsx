@@ -1532,29 +1532,6 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
         })}
       </div>
 
-      {/* Onay Durumu */}
-      <div style={{
-        ...sectionStyle, marginTop: 20, padding: "16px 18px",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <StajIcon path="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" size={20} color="#EAB308" />
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: STAJ.navy }}>Onay Durumu</div>
-            <p style={{ fontSize: 12, color: STAJ.textMuted, margin: "2px 0 0" }}>
-              Belgeleriniz yüklendikten sonra Ergün ÇINAR tarafından değerlendirilecektir.
-              Onay sürecini buradan takip edebilirsiniz.
-            </p>
-          </div>
-        </div>
-        <div style={{
-          marginTop: 10, padding: "8px 12px", borderRadius: 8,
-          background: uploads.sgk_onay === "onaylandi" ? STAJ.greenLight : "#FEF9C3",
-          color: uploads.sgk_onay === "onaylandi" ? STAJ.green : "#92400E",
-          fontSize: 13, fontWeight: 500,
-        }}>
-          {uploads.sgk_onay === "onaylandi" ? "SGK işlemleri onaylandı" : "Onay bekleniyor..."}
-        </div>
-      </div>
     </div>
   );
 }
@@ -1574,18 +1551,52 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [showPeriodForm, setShowPeriodForm] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState(null);
   const [periodForm, setPeriodForm] = useState({ label: "", baslangic: "", bitis: "", aciklama: "" });
-  const [activeTab, setActiveTab] = useState(() => {
-    const isStudent = currentUser?.role === "student" || (!["admin", "bolum_yetkilisi", "professor"].includes(currentUser?.role));
-    return isStudent ? "basvuru" : "kayitlar";
-  });
+  const [activeTab, setActiveTab] = useState("kayitlar");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [stajCommissionMembers, setStajCommissionMembers] = useState([]);
+  const [isCommissionMember, setIsCommissionMember] = useState(false);
   const responsive = window.useResponsive();
 
   const isAdmin = currentUser?.role === "admin";
   const isDeptManager = currentUser?.role === "bolum_yetkilisi";
-  const isStudent = currentUser?.role === "student" || (!isAdmin && !isDeptManager && currentUser?.role !== "professor");
-  const canManage = isAdmin || isDeptManager;
+  const isProfessor = currentUser?.role === "professor";
+
+  // Staj komisyonu üyelerini yükle
+  useEffect(() => {
+    const loadCommission = async () => {
+      try {
+        const db = window.apiFirestore;
+        if (!db) return;
+        const snapshot = await db.collection("commissions").get();
+        const comms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // "staj" kelimesi geçen komisyonu bul
+        const stajComm = comms.find(c => (c.name || "").toLowerCase().includes("staj"));
+        if (stajComm && stajComm.members) {
+          setStajCommissionMembers(stajComm.members);
+          // Mevcut kullanıcı komisyon üyesi mi kontrol et
+          const userName = currentUser?.name || currentUser?.identifier || "";
+          const isMember = stajComm.members.some(m =>
+            m.name && userName && m.name.toLowerCase().trim() === userName.toLowerCase().trim()
+          );
+          setIsCommissionMember(isMember);
+        }
+      } catch (e) {
+        console.error("Komisyon bilgileri yüklenirken hata:", e);
+      }
+    };
+    loadCommission();
+  }, [currentUser]);
+
+  // Tam erişim: admin, bölüm yetkilisi, fakülte yetkilisi (admin), staj komisyon üyeleri
+  const canManage = isAdmin || isDeptManager || isCommissionMember;
+  const isStudent = !canManage && !isProfessor;
+
+  // Varsayılan sekmeyi ayarla
+  useEffect(() => {
+    if (isStudent) setActiveTab("basvuru");
+    else setActiveTab("kayitlar");
+  }, [isStudent, isCommissionMember]);
 
   // Staj kayıtlarını ve başvuruları yükle
   const loadAllData = async () => {
@@ -1637,7 +1648,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
-  useEffect(() => { loadAllData(); }, [activeDepartment]);
+  useEffect(() => { loadAllData(); }, [activeDepartment, isCommissionMember]);
 
   const filteredApplications = useMemo(() => {
     return allApplications.filter(r => {
@@ -1768,6 +1779,18 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Yol haritası adım onayı
   const handleApproveStep = async (appId, stepIdx) => {
+    // Adım 5 (index 4) sadece Ergün ÇINAR onaylayabilir
+    if (stepIdx === 4) {
+      const userName = (currentUser?.name || currentUser?.identifier || "").toLowerCase().trim();
+      const isErgun = userName.includes("ergün") && userName.includes("çınar") ||
+                       userName.includes("ergun") && userName.includes("cinar") ||
+                       userName.includes("ergün çınar") || userName.includes("ergun cinar");
+      if (!isErgun) {
+        alert("Bu adım (SGK İşlemleri) yalnızca Ergün ÇINAR tarafından onaylanabilir.");
+        return;
+      }
+    }
+
     try {
       const db = window.apiFirestore;
       if (!db) return;

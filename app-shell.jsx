@@ -180,7 +180,7 @@ const Sidebar = ({
   // Öğrenciler ve profesörler için erişilebilir modüller
   const getVisibleModules = () => {
     if (isAdmin || isDeptManager) return DEPARTMENT_MODULES;
-    if (isProfessor) return DEPARTMENT_MODULES.filter(m => ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler"].includes(m.id));
+    if (isProfessor) return DEPARTMENT_MODULES.filter(m => ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj"].includes(m.id));
     // Öğrenci
     return DEPARTMENT_MODULES.filter(m => ["erasmus", "projeler", "formlar", "staj"].includes(m.id));
   };
@@ -549,7 +549,7 @@ function AppShell() {
     const allowedDeptModules = isDeptManager
       ? DEPARTMENT_MODULES.map(m => m.id)
       : isProfessor
-        ? ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler"]
+        ? ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj"]
         : isAdmin
           ? DEPARTMENT_MODULES.map(m => m.id)
           : ["erasmus", "projeler", "formlar", "staj"]; // student
