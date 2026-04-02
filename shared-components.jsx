@@ -1472,6 +1472,7 @@ const LoginModal = ({ onLogin }) => {
   const [lastName, setLastName] = useState("");
   const [pendingUser, setPendingUser] = useState(null);
   const [pendingStudentNumber, setPendingStudentNumber] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("");
   const [profSearch, setProfSearch] = useState("");
   const [profDropdownOpen, setProfDropdownOpen] = useState(false);
 
@@ -1567,6 +1568,7 @@ const LoginModal = ({ onLogin }) => {
     setError("");
     if (!firstName.trim()) { setError("Ad alanı zorunludur!"); return; }
     if (!lastName.trim()) { setError("Soyad alanı zorunludur!"); return; }
+    if (!selectedDepartment) { setError("Bölüm seçimi zorunludur!"); return; }
     if (!newPassword.trim()) { setError("Şifre boş olamaz!"); return; }
     if (newPassword.length < 6) { setError("Şifre en az 6 karakter olmalıdır!"); return; }
     if (newPassword !== confirmPassword) { setError("Şifreler uyuşmuyor!"); return; }
@@ -1582,17 +1584,20 @@ const LoginModal = ({ onLogin }) => {
       }
 
       // Öğrenciyi veritabanına kaydet
+      const deptObj = DEPARTMENTS.find(d => d.id === selectedDepartment);
       const studentData = {
         studentNumber: pendingStudentNumber,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        departmentId: selectedDepartment,
+        departmentName: deptObj?.name || "",
         erasmusAccess: false,
       };
       await FirebaseDB.addStudent(studentData);
       // Şifreyi kaydet
       await FirebaseDB.updatePassword(pendingStudentNumber, newPassword);
       // Kullanıcı rolünü kaydet
-      const user = { role: "student", name: `${firstName.trim()} ${lastName.trim()}`, studentNumber: pendingStudentNumber, erasmusAccess: false };
+      const user = { role: "student", name: `${firstName.trim()} ${lastName.trim()}`, studentNumber: pendingStudentNumber, departmentId: selectedDepartment, departmentName: deptObj?.name || "", erasmusAccess: false };
 
       try {
         const currentUser = FirebaseAuth.currentUser();
@@ -1621,6 +1626,7 @@ const LoginModal = ({ onLogin }) => {
     setConfirmPassword("");
     setFirstName("");
     setLastName("");
+    setSelectedDepartment("");
     setStudentStep("number");
     setStudentInfo(null);
     setError("");
@@ -1645,7 +1651,7 @@ const LoginModal = ({ onLogin }) => {
         const hasPassword = await FirebaseDB.checkStudentHasPassword(trimmedId);
         if (!hasPassword) {
           // Şifre yok: şifre belirleme ekranına
-          const user = { role: "student", name: `${student.firstName} ${student.lastName}`, studentNumber: trimmedId, erasmusAccess: student.erasmusAccess === true };
+          const user = { role: "student", name: `${student.firstName} ${student.lastName}`, studentNumber: trimmedId, departmentId: student.departmentId || "bilgisayar", departmentName: student.departmentName || "Bilgisayar Mühendisliği", erasmusAccess: student.erasmusAccess === true };
           setPendingUser(user);
           setSetupPasswordMode(true);
         } else {
@@ -1680,7 +1686,7 @@ const LoginModal = ({ onLogin }) => {
     setLoading(true);
     try {
       const trimmedId = identifier.trim();
-      const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId, erasmusAccess: studentInfo.erasmusAccess === true };
+      const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId, departmentId: studentInfo.departmentId || "bilgisayar", departmentName: studentInfo.departmentName || "Bilgisayar Mühendisliği", erasmusAccess: studentInfo.erasmusAccess === true };
 
       // Sunucu tarafında şifre doğrulama
       const loginResult = await FirebaseDB.verifyStudentLogin(trimmedId, password);
@@ -2029,6 +2035,26 @@ const LoginModal = ({ onLogin }) => {
                   <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Soyadınız"
                     style={{ width: "100%", padding: "12px 16px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
                     onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Bölüm</label>
+                <div style={{ position: "relative" }}>
+                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.2)", pointerEvents: "none" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></svg>
+                  </div>
+                  <select value={selectedDepartment} onChange={e => setSelectedDepartment(e.target.value)}
+                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: selectedDepartment ? "white" : "rgba(255,255,255,0.4)", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", appearance: "none", cursor: "pointer" }}
+                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }}>
+                    <option value="" disabled>Bölümünüzü seçin</option>
+                    {DEPARTMENTS.map(d => (
+                      <option key={d.id} value={d.id} style={{ background: "#1a1408", color: "white" }}>{d.name}</option>
+                    ))}
+                  </select>
+                  <div style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.2)", pointerEvents: "none" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                  </div>
                 </div>
               </div>
 

@@ -172,8 +172,8 @@ const Sidebar = ({
   const isProfessor = currentUser?.role === "professor";
   const isStudent = !isAdmin && !isDeptManager && !isProfessor;
 
-  // Bölüm yetkilisi sadece kendi bölümünü görebilir
-  const availableDepts = isDeptManager
+  // Bölüm yetkilisi ve öğrenci sadece kendi bölümünü görebilir
+  const availableDepts = (isDeptManager || isStudent)
     ? DEPARTMENTS.filter(d => d.id === currentUser?.departmentId)
     : DEPARTMENTS;
 
@@ -484,8 +484,8 @@ function AppShell() {
 
   // Bölüm değiştiğinde kaydet (bölüm yetkilisi kendi bölümünden çıkamaz)
   const handleDepartmentChange = useCallback((deptId) => {
-    if (currentUser?.role === "bolum_yetkilisi" && deptId !== currentUser?.departmentId) {
-      return; // Bölüm yetkilisi sadece kendi bölümünü görebilir
+    if ((currentUser?.role === "bolum_yetkilisi" || currentUser?.role === "student") && deptId !== currentUser?.departmentId) {
+      return; // Bölüm yetkilisi ve öğrenci sadece kendi bölümünü görebilir
     }
     setActiveDepartment(deptId);
     localStorage.setItem("caku_active_department", deptId);
