@@ -1368,7 +1368,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
           });
           if (resp.ok) {
             const result = await resp.json();
-            fileData.serverPath = result.path || result.filename;
+            fileData.serverPath = result.fileName || result.downloadURL || result.path || result.filename;
           }
         } catch (uploadErr) {
           console.warn("Dosya sunucuya yüklenemedi, sadece kayıt tutulacak:", uploadErr);
@@ -1775,11 +1775,23 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Admin: Belge indirme
   const handleDownloadFile = (studentId, belgeId) => {
     const upload = allUploads[studentId]?.[belgeId];
-    if (!upload?.serverPath) {
+    if (!upload) {
       alert("Bu belge için indirilebilir dosya bulunamadı.");
       return;
     }
-    const url = `${window.API_BASE || ""}/api/files/download/${upload.serverPath}`;
+    // serverPath: "staj_belgeler/studentId/filename" veya downloadURL: "/api/files/download/..."
+    let url;
+    if (upload.serverPath) {
+      const sp = upload.serverPath;
+      if (sp.startsWith("/api/")) {
+        url = `${window.API_BASE || ""}${sp}`;
+      } else {
+        url = `${window.API_BASE || ""}/api/files/download/${sp}`;
+      }
+    } else {
+      alert("Bu belge için indirilebilir dosya bulunamadı.");
+      return;
+    }
     window.open(url, "_blank");
   };
 
@@ -2254,16 +2266,25 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                 </button>
                               </>
                             )}
-                            {selectedApp.status === "devam" && (
-                              <button onClick={() => handleStatusChange(selectedApp.id, "tamamlandi")} style={{
-                                flex: 1, padding: "10px 20px", borderRadius: 8, border: "none",
-                                background: STAJ.green, color: "white", fontSize: 13, fontWeight: 600,
-                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                              }}>
-                                <StajIcon path="M5 13l4 4L19 7" size={16} />
-                                Stajı Tamamla
-                              </button>
-                            )}
+                            {selectedApp.status === "devam" && (() => {
+                              const appRoadmap = allRoadmaps[selectedApp.id] || {};
+                              const appSteps = appRoadmap.steps || {};
+                              const allStepsCompleted = STAJ_ROADMAP_STEPS.every((_, idx) => appSteps[idx]?.status === "completed");
+                              return allStepsCompleted ? (
+                                <button onClick={() => handleStatusChange(selectedApp.id, "tamamlandi")} style={{
+                                  flex: 1, padding: "10px 20px", borderRadius: 8, border: "none",
+                                  background: STAJ.green, color: "white", fontSize: 13, fontWeight: 600,
+                                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                                }}>
+                                  <StajIcon path="M5 13l4 4L19 7" size={16} />
+                                  Stajı Tamamla
+                                </button>
+                              ) : (
+                                <div style={{ padding: "10px 16px", borderRadius: 8, background: "#DBEAFE", color: "#1E40AF", fontSize: 13, fontWeight: 500, flex: 1, textAlign: "center" }}>
+                                  Staj devam ediyor — Yol haritasında tüm adımlar tamamlanmalıdır ({Object.values(appSteps).filter(s => s.status === "completed").length}/{STAJ_ROADMAP_STEPS.length})
+                                </div>
+                              );
+                            })()}
                             {selectedApp.status === "tamamlandi" && (
                               <div style={{ padding: "10px 16px", borderRadius: 8, background: STAJ.greenLight, color: STAJ.green, fontSize: 13, fontWeight: 600, flex: 1, textAlign: "center" }}>
                                 Staj başarıyla tamamlanmıştır.
@@ -2596,7 +2617,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   {filteredApplications.map(app => {
                     const status = STAJ_STATUS[app.status] || STAJ_STATUS.beklemede;
                     const studentUploads = allUploads[app.ogrenciNo] || {};
-                    const uploadCount = Object.keys(studentUploads).filter(k => k !== "sgk_onay").length;
+                    const VALID_DOC_KEYS = ["zorunlu_staj_formu", "staj_basvuru_formu_ek1", "kimlik_fotokopisi", "staj_defteri", "ek2_belgesi", "staj_teslim_belgesi", "turnitin_raporu"];
+                    const uploadCount = Object.keys(studentUploads).filter(k => VALID_DOC_KEYS.includes(k) && studentUploads[k]?.fileName).length;
                     return (
                       <div key={app.id} onClick={() => setSelectedApp(app)} style={{
                         background: "white", borderRadius: 10, padding: responsive.val(12, 16, 16),

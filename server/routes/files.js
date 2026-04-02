@@ -56,10 +56,16 @@ router.post("/upload", upload.single("file"), (req, res) => {
   });
 });
 
-// GET /api/files/download/:folder/:filename - Dosya indirme
-router.get("/download/:folder/:filename", (req, res) => {
-  const { folder, filename } = req.params;
-  const filePath = path.join(UPLOAD_DIR, folder, filename);
+// GET /api/files/download/* - Dosya indirme (nested folder desteği)
+router.get("/download/*", (req, res) => {
+  const relativePath = req.params[0];
+  const filePath = path.join(UPLOAD_DIR, relativePath);
+
+  // Path traversal koruması
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(path.resolve(UPLOAD_DIR))) {
+    return res.status(403).json({ error: "Geçersiz dosya yolu." });
+  }
 
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: "Dosya bulunamadı." });
