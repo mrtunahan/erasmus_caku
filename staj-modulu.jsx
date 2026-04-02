@@ -1712,15 +1712,21 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Admin: Başvuru sil
   const handleDeleteApp = async (appId) => {
     const app = allApplications.find(a => a.id === appId);
-    if (app && app.status !== "beklemede") {
+    // Fakülte yetkilisi (admin) her durumda silebilir, diğerleri sadece beklemede olanı silebilir
+    if (!isAdmin && app && app.status !== "beklemede") {
       alert("Yalnızca 'Beklemede' durumundaki başvurular silinebilir. Bu başvurunun durumu: " + (app.status === "devam" ? "Devam Ediyor" : app.status === "tamamlandi" ? "Tamamlandı" : app.status === "reddedildi" ? "Reddedildi" : app.status));
       return;
     }
-    if (!confirm("Bu staj başvurusunu silmek istediğinizden emin misiniz?")) return;
+    const confirmMsg = isAdmin && app && app.status !== "beklemede"
+      ? `Bu staj başvurusu "${STAJ_STATUS[app.status]?.label || app.status}" durumundadır. Silmek istediğinizden emin misiniz?`
+      : "Bu staj başvurusunu silmek istediğinizden emin misiniz?";
+    if (!confirm(confirmMsg)) return;
     try {
       const db = window.apiFirestore;
       if (!db) return;
       await db.collection("internship_applications").doc(appId).delete();
+      // İlişkili roadmap verisini de sil
+      try { await db.collection("internship_roadmap").doc(appId).delete(); } catch {}
       setAllApplications(prev => prev.filter(a => a.id !== appId));
       setSelectedApp(null);
     } catch (e) {
