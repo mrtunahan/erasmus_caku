@@ -1209,20 +1209,23 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   const [uploading, setUploading] = useState(null);
   const [msg, setMsg] = useState("");
   const [changeRequests, setChangeRequests] = useState({});
+  const [roadmapData, setRoadmapData] = useState(null);
+  const [myApplication, setMyApplication] = useState(null);
 
   const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
 
-  // Yüklenen belgeleri ve değişiklik taleplerini yükle
+  // Yüklenen belgeleri, değişiklik taleplerini ve roadmap durumunu yükle
   useEffect(() => {
-    const loadUploads = async () => {
+    const loadData = async () => {
       try {
         const db = window.apiFirestore;
         if (!db || !studentId) return;
+
+        // Belgeleri yükle
         const doc = await db.collection("internship_uploads").doc(studentId).get();
         if (doc.exists) {
           const data = doc.data() || {};
           setUploads(data);
-          // Değişiklik taleplerini ayıkla
           const requests = {};
           Object.keys(data).forEach(key => {
             if (data[key]?.changeRequest) {
@@ -1231,12 +1234,27 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
           });
           setChangeRequests(requests);
         }
+
+        // Öğrencinin staj başvurusunu ve roadmap durumunu yükle
+        const appsSnap = await db.collection("internship_applications")
+          .where("studentNumber", "==", studentId)
+          .where("departmentId", "==", activeDepartment)
+          .get();
+        if (!appsSnap.empty) {
+          const app = { id: appsSnap.docs[0].id, ...appsSnap.docs[0].data() };
+          setMyApplication(app);
+          // Roadmap verisini yükle
+          const rmDoc = await db.collection("internship_roadmap").doc(app.id).get();
+          if (rmDoc.exists) {
+            setRoadmapData(rmDoc.data());
+          }
+        }
       } catch (e) {
         console.error("Belgeler yüklenirken hata:", e);
       }
     };
-    loadUploads();
-  }, [studentId]);
+    loadData();
+  }, [studentId, activeDepartment]);
 
   const BELGE_ALANLARI = [
     {
@@ -1326,11 +1344,22 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     }
   };
 
+  // Belgenin ait olduğu roadmap adımının onaya gönderilip gönderilmediğini kontrol et
+  const isStepSubmitted = (belgeId) => {
+    const belge = BELGE_ALANLARI.find(b => b.id === belgeId);
+    if (!belge || !belge.step) return false;
+    const stepIdx = belge.step - 1; // 0-based index
+    const stepStatus = roadmapData?.steps?.[stepIdx]?.status;
+    return stepStatus === "pending_approval" || stepStatus === "completed";
+  };
+
   // Belge yüklenebilir mi kontrol et
   const canUploadDocument = (belgeId) => {
     const uploaded = uploads[belgeId];
     if (!uploaded || !uploaded.fileName) return true; // Henüz yüklenmemiş, yüklenebilir
-    // Zaten yüklenmişse, değişiklik izni olmalı
+    // Adım henüz onaya gönderilmemişse, öğrenci serbestçe değiştirebilir
+    if (!isStepSubmitted(belgeId)) return true;
+    // Adım onaya gönderildiyse, değişiklik izni olmalı
     const changeReq = uploaded.changeRequest;
     if (changeReq?.status === "approved") return true;
     return false;
@@ -1481,8 +1510,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                     </button>
                   )}
 
-                  {/* Belge yüklenmişse ve değişiklik talebi yoksa → Değişiklik İste butonu */}
-                  {uploaded && uploaded.fileName && !canUploadDocument(belge.id) && !uploaded.changeRequest && (
+                  {/* Belge yüklenmişse, adım onaya gönderilmişse ve değişiklik talebi yoksa → Değişiklik İste butonu */}
+                  {uploaded && uploaded.fileName && isStepSubmitted(belge.id) && !canUploadDocument(belge.id) && !uploaded.changeRequest && (
                     <button onClick={() => handleRequestChange(belge.id)} style={{
                       padding: "8px 14px", borderRadius: 8, border: "1px solid #FDBA74",
                       background: "#FFF7ED", color: "#EA580C", fontSize: 12, fontWeight: 600,
@@ -1566,6 +1595,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const isDeptManager = currentUser?.role === "bolum_yetkilisi";
   const isProfessor = currentUser?.role === "professor";
 
+  // Ergün ÇINAR kontrolü - SGK İşlemleri (Adım 5) onay yetkisi
+  const isErgunCinar = useMemo(() => {
+    const userName = (currentUser?.name || currentUser?.identifier || "").toLowerCase().trim();
+    return (userName.includes("ergün") && userName.includes("çınar")) ||
+           (userName.includes("ergun") && userName.includes("cinar")) ||
+           userName.includes("ergün çınar") || userName.includes("ergun cinar");
+  }, [currentUser]);
+
   // Staj komisyonu üyelerini yükle
   useEffect(() => {
     const loadCommission = async () => {
@@ -1592,8 +1629,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     loadCommission();
   }, [currentUser]);
 
-  // Tam erişim: admin, bölüm yetkilisi, fakülte yetkilisi (admin), staj komisyon üyeleri
-  const canManage = isAdmin || isDeptManager || isCommissionMember;
+  // Tam erişim: admin, bölüm yetkilisi, fakülte yetkilisi (admin), staj komisyon üyeleri, Ergün ÇINAR (SGK onayı)
+  const canManage = isAdmin || isDeptManager || isCommissionMember || isErgunCinar;
   const isStudent = !canManage && !isProfessor;
 
   // Varsayılan sekmeyi ayarla
@@ -1802,15 +1839,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Admin: Yol haritası adım onayı
   const handleApproveStep = async (appId, stepIdx) => {
     // Adım 5 (index 4) sadece Ergün ÇINAR onaylayabilir
-    if (stepIdx === 4) {
-      const userName = (currentUser?.name || currentUser?.identifier || "").toLowerCase().trim();
-      const isErgun = userName.includes("ergün") && userName.includes("çınar") ||
-                       userName.includes("ergun") && userName.includes("cinar") ||
-                       userName.includes("ergün çınar") || userName.includes("ergun cinar");
-      if (!isErgun) {
-        alert("Bu adım (SGK İşlemleri) yalnızca Ergün ÇINAR tarafından onaylanabilir.");
-        return;
-      }
+    if (stepIdx === 4 && !isErgunCinar) {
+      alert("Bu adım (SGK İşlemleri) yalnızca Ergün ÇINAR tarafından onaylanabilir.");
+      return;
     }
 
     try {
