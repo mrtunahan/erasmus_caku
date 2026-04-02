@@ -435,7 +435,7 @@ const convertGrade = (inputGrade, system = "auto") => {
 };
 
 // ── API Functions ──
-// ── Auth çağrıları MongoDB API'ye yönlendirilir ──
+// ── Auth çağrıları sunucu API'ye yönlendirilir ──
 const AUTH_API_ROUTES = {
   verifyStudentLogin: { method: 'POST', path: '/api/auth/student' },
   verifyAdminLogin: { method: 'POST', path: '/api/auth/admin' },
@@ -484,7 +484,7 @@ const CloudFunctions = {
 };
 window.CloudFunctions = CloudFunctions;
 
-// ── Veritabanı yazma yardımcısı (MongoDB API üzerinden) ──
+// ── Veritabanı yazma yardımcısı (Firestore API üzerinden) ──
 const FirestoreWrite = {
   async _apiCall(operations) {
     const token = localStorage.getItem('caku_auth_token');
@@ -530,7 +530,7 @@ const FirestoreWrite = {
 };
 window.FirestoreWrite = FirestoreWrite;
 
-// ── MongoDB API okuma yardımcısı ──
+// ── Firestore API okuma yardımcısı ──
 async function apiRead(collection, params = {}) {
   const url = new URL(`/api/db/${collection}`, window.location.origin);
   if (params.where) {
@@ -569,7 +569,7 @@ async function apiReadDoc(collection, docId) {
 window.apiRead = apiRead;
 window.apiReadDoc = apiReadDoc;
 
-// Firestore uyumluluk katmanı: db.collection("x").where().get() API'sini MongoDB API'ye yönlendirir
+// Firestore uyumluluk katmanı: db.collection("x").where().get() API'sini Express API'ye yönlendirir
 // Tüm modüller window.firebase.firestore() yerine bunu kullanabilir
 function createApiCollection(collectionName) {
   return {

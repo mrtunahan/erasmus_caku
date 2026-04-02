@@ -335,7 +335,7 @@ function slotSpan(durationMinutes) {
   return Math.ceil(durationMinutes / 30);
 }
 
-// ── API Read helpers (MongoDB üzerinden) ──
+// ── API Read helpers (Firestore üzerinden) ──
 // Firestore ref'leri yerine apiRead kullanan yardımcılar
 // Eski ref-tabanlı çağrılar için uyumluluk katmanı
 function apiQueryHelper(collection) {
