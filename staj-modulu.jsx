@@ -176,7 +176,11 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
         setLoadingRoadmap(false);
       }
     };
-    if (isStudent) loadData();
+    if (isStudent) {
+      loadData();
+    } else {
+      setLoadingRoadmap(false);
+    }
   }, [studentId, isStudent]);
 
   // Adım durumunu belirle
