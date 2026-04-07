@@ -1501,8 +1501,10 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   // Öğrenci belge görüntüleme/indirme
   const getStudentFileUrl = (belgeId) => {
     const uploaded = uploads[belgeId];
-    if (!uploaded || !uploaded.serverPath) return null;
-    const sp = uploaded.serverPath;
+    if (!uploaded) return null;
+    const sp = uploaded.serverPath || uploaded.downloadURL || uploaded.path || uploaded.url || "";
+    if (!sp) return null;
+    if (sp.startsWith("http")) return sp;
     if (sp.startsWith("/api/")) return `${window.API_BASE || ""}${sp}`;
     return `${window.API_BASE || ""}/api/files/download/${sp}`;
   };
@@ -2200,8 +2202,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Admin: Belge indirme
   const getFileUrl = (studentId, belgeId) => {
     const upload = allUploads[studentId]?.[belgeId];
-    if (!upload || !upload.serverPath) return null;
-    const sp = upload.serverPath;
+    if (!upload) return null;
+    const sp = upload.serverPath || upload.downloadURL || upload.path || upload.url || "";
+    if (!sp) return null;
+    if (sp.startsWith("http")) return sp;
     if (sp.startsWith("/api/")) return `${window.API_BASE || ""}${sp}`;
     return `${window.API_BASE || ""}/api/files/download/${sp}`;
   };
