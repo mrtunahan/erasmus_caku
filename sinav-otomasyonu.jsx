@@ -1733,8 +1733,8 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
         const snap = await dRef.get();
         const HARD_DEPTS = window.DEPARTMENTS || [];
         let depts = snap.docs.map(d => {
-          const dept = { id: d.id, firestoreId: d.id, ...d.data() };
-          // Firestore doc ID'sini hardcoded DEPARTMENTS ID'sine eşleştir
+          const dept = { id: d.id, docId: d.id, ...d.data() };
+          // Veritabanı doc ID'sini hardcoded DEPARTMENTS ID'sine eşleştir
           // Tüm veriler (dersler, sınavlar vb.) hardcoded ID ile kaydedildiği için
           // bu eşleştirme kritik önem taşır
           const matched = HARD_DEPTS.find(hd => hd.name === dept.name);
@@ -1752,7 +1752,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
             const fixedName = cleaned.join(" ");
             if (fixedName !== dept.name) {
               dept.name = fixedName;
-              FirestoreWrite.update("departments", dept.firestoreId, { name: fixedName }).catch(() => {});
+              FirestoreWrite.update("departments", dept.docId, { name: fixedName }).catch(() => {});
               // İsim düzeltildikten sonra tekrar eşleştir
               const matched = HARD_DEPTS.find(hd => hd.name === fixedName);
               if (matched) dept.id = matched.id;
@@ -1948,8 +1948,8 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
           const HARD_DEPTS = window.DEPARTMENTS || [];
           const validDeptIds = new Set(HARD_DEPTS.map(d => d.id));
 
-          // 1. Firestore doc ID → hardcoded ID eşleştirmesi
-          const idMap = {}; // firestoreAutoId → hardcodedId
+          // 1. Veritabanı doc ID → hardcoded ID eşleştirmesi
+          const idMap = {}; // dbDocId → hardcodedId
           const dRef = getDepartmentsRef();
           if (dRef) {
             const dSnap = await dRef.get();
@@ -2348,7 +2348,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
   // ── Department CRUD handlers ──
   const handleDeptSave = async (existingDept, formData) => {
     if (existingDept) {
-      await FirestoreWrite.update("departments", existingDept.firestoreId || existingDept.id, formData);
+      await FirestoreWrite.update("departments", existingDept.docId || existingDept.id, formData);
     } else {
       await FirestoreWrite.add("departments", { ...formData, createdAt: new Date().toISOString() });
     }
@@ -2358,7 +2358,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const handleDeptDelete = async (dept) => {
     if (!confirm(`"${dept.name}" bölümünü silmek istediğinize emin misiniz? Bu bölüme ait tüm veriler silinmez ama bölüm bağlantısı kaldırılır.`)) return;
-    await FirestoreWrite.remove("departments", dept.firestoreId || dept.id);
+    await FirestoreWrite.remove("departments", dept.docId || dept.id);
     if (selectedDeptId === dept.id) setSelectedDeptId(null);
     await loadDepartments();
   };

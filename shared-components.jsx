@@ -571,8 +571,8 @@ async function apiReadDoc(collection, docId) {
 window.apiRead = apiRead;
 window.apiReadDoc = apiReadDoc;
 
-// Firestore uyumluluk katmanı: db.collection("x").where().get() API'sini Express API'ye yönlendirir
-// Tüm modüller window.firebase.firestore() yerine bunu kullanabilir
+// Uyumluluk katmanı: db.collection("x").where().get() API'sini Express API'ye yönlendirir
+// Tüm modüller window.apiFirestore üzerinden veritabanına erişir
 function createApiCollection(collectionName) {
   return {
     _collection: collectionName,
@@ -921,7 +921,7 @@ const FirebaseDB = {
     } catch (error) {
       // Disable trip history sync on permission errors to avoid flooding console
       if (error.code === 'permission-denied') {
-        console.warn('Trip history sync disabled: Firestore rules need to be deployed. Run: firebase deploy --only firestore:rules');
+        console.warn('Trip history sync disabled: veritabanı izin hatası.');
         FirebaseDB._tripHistoryDisabled = true;
       } else {
         console.error('Error syncing to trip history:', error);
