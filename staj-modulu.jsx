@@ -1774,22 +1774,28 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                             ({(uploaded.fileSize / 1024).toFixed(0)} KB) — {new Date(uploaded.uploadedAt).toLocaleDateString("tr-TR")}
                           </span>
                           <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
-                            <button onClick={() => handleStudentPreview(belge.id)} style={{
-                              padding: "3px 8px", borderRadius: 5, border: "1px solid #93C5FD",
-                              background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 600,
-                              cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
-                            }}>
-                              <StajIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" size={11} />
-                              Görüntüle
-                            </button>
-                            <button onClick={() => handleStudentDownload(belge.id)} style={{
-                              padding: "3px 8px", borderRadius: 5, border: "1px solid #D1D5DB",
-                              background: "white", color: "#6B7280", fontSize: 10, fontWeight: 600,
-                              cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
-                            }}>
-                              <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" size={11} />
-                              İndir
-                            </button>
+                            {getStudentFileUrl(belge.id) ? (
+                              <>
+                                <button onClick={() => handleStudentPreview(belge.id)} style={{
+                                  padding: "3px 8px", borderRadius: 5, border: "1px solid #93C5FD",
+                                  background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 600,
+                                  cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
+                                }}>
+                                  <StajIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" size={11} />
+                                  Görüntüle
+                                </button>
+                                <button onClick={() => handleStudentDownload(belge.id)} style={{
+                                  padding: "3px 8px", borderRadius: 5, border: "1px solid #D1D5DB",
+                                  background: "white", color: "#6B7280", fontSize: 10, fontWeight: 600,
+                                  cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
+                                }}>
+                                  <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" size={11} />
+                                  İndir
+                                </button>
+                              </>
+                            ) : (
+                              <span style={{ fontSize: 9, color: "#EF4444", fontWeight: 500 }}>Tekrar yükleyin</span>
+                            )}
                           </div>
                         </div>
                       )}
@@ -3370,23 +3376,31 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                         </div>
                                       )}
                                     </div>
-                                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                      <button onClick={() => handlePreviewFile(selectedApp.ogrenciNo, key)} style={{
-                                        padding: "6px 12px", borderRadius: 6, border: "1px solid #93C5FD",
-                                        background: "#EFF6FF", color: "#2563EB", fontSize: 11, fontWeight: 600,
-                                        cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
-                                      }}>
-                                        <StajIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" size={13} />
-                                        Görüntüle
-                                      </button>
-                                      <button onClick={() => handleDownloadFile(selectedApp.ogrenciNo, key)} style={{
-                                        padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB",
-                                        background: "white", color: STAJ.primary, fontSize: 11, fontWeight: 600,
-                                        cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
-                                      }}>
-                                        <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" size={13} />
-                                        İndir
-                                      </button>
+                                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                                      {getFileUrl(selectedApp.ogrenciNo, key) ? (
+                                        <>
+                                          <button onClick={() => handlePreviewFile(selectedApp.ogrenciNo, key)} style={{
+                                            padding: "6px 12px", borderRadius: 6, border: "1px solid #93C5FD",
+                                            background: "#EFF6FF", color: "#2563EB", fontSize: 11, fontWeight: 600,
+                                            cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                          }}>
+                                            <StajIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" size={13} />
+                                            Görüntüle
+                                          </button>
+                                          <button onClick={() => handleDownloadFile(selectedApp.ogrenciNo, key)} style={{
+                                            padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB",
+                                            background: "white", color: STAJ.primary, fontSize: 11, fontWeight: 600,
+                                            cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                          }}>
+                                            <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" size={13} />
+                                            İndir
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <span style={{ fontSize: 10, color: "#EF4444", fontWeight: 500 }}>
+                                          Dosya sunucuda mevcut degil - tekrar yuklemesi gerekiyor
+                                        </span>
+                                      )}
                                       {hasChangeReq && (
                                         <>
                                           <button onClick={() => handleApproveDocChange(selectedApp.ogrenciNo, key)} style={{
