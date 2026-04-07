@@ -1,26 +1,23 @@
-const admin = require("firebase-admin");
-const path = require("path");
+const { MongoClient } = require("mongodb");
 
+const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017";
+const MONGO_DB = process.env.MONGO_DB || "erasmus_caku";
+
+let client = null;
 let db = null;
 
 async function connect() {
   if (db) return db;
 
   try {
-    const serviceAccount = require(path.join(__dirname, "../../scripts/serviceAccountKey.json"));
-
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-      });
-    }
-
-    db = admin.firestore();
-    console.log("Firebase Firestore bağlantısı kuruldu.");
+    client = new MongoClient(MONGO_URI);
+    await client.connect();
+    db = client.db(MONGO_DB);
+    console.log(`MongoDB bağlantısı kuruldu (db: ${MONGO_DB}).`);
     return db;
   } catch (err) {
-    console.error("Firebase başlatılamadı:", err.message);
-    throw new Error("Firebase'e bağlanılamadı: " + err.message);
+    console.error("MongoDB başlatılamadı:", err.message);
+    throw new Error("MongoDB'ye bağlanılamadı: " + err.message);
   }
 }
 
@@ -41,8 +38,12 @@ async function getDbSafe() {
 }
 
 async function disconnect() {
-  // Firestore bağlantı yönetimini otomatik yapar, no-op
-  console.log("Firestore bağlantısı kapatıldı (no-op).");
+  if (client) {
+    await client.close();
+    client = null;
+    db = null;
+    console.log("MongoDB bağlantısı kapatıldı.");
+  }
 }
 
 module.exports = { connect, getDb, getDbSafe, disconnect };

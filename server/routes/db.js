@@ -1,5 +1,5 @@
 const express = require("express");
-const admin = require("firebase-admin");
+const { ObjectId } = require("mongodb");
 const { getDbSafe } = require("../config/database");
 
 const router = express.Router();
@@ -57,26 +57,18 @@ const ALLOWED_COLLECTIONS = [
 // Okuma izni verilen koleksiyonlar (write + read-only)
 const READABLE_COLLECTIONS = [
   ...ALLOWED_COLLECTIONS,
-  "exams",
-  "exam_results",
-  "exam_periods",
-  "course_groups",
-  "course_group_posts",
-  "trip_history",
-  "surveys",
-  "events",
-  "resources",
-  "forms",
-  "yaz_okulu_students",
-  "yaz_okulu_records",
-  "yaz_okulu_settings",
-  "internships",
-  "internship_applications",
-  "internship_uploads",
-  "internship_periods",
-  "internship_roadmap",
   "passwords",
 ];
+
+// Rastgele ID üret (Firestore uyumlu 20 karakter)
+function generateId() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let id = "";
+  for (let i = 0; i < 20; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}
 
 // Timestamp alanlarını temizle ve sunucu timestamp'i ekle
 function addTimestamps(data, isNew) {
@@ -85,7 +77,7 @@ function addTimestamps(data, isNew) {
   for (const [key, value] of Object.entries(data || {})) {
     // Client-side FieldValue.serverTimestamp() serialize edilemez, atla
     if (value && typeof value === "object" && value._methodName) continue;
-    // __increment:N → Firestore FieldValue.increment
+    // __increment:N → MongoDB $inc
     if (typeof value === "string" && value.startsWith("__increment:")) {
       var incVal = parseInt(value.split(":")[1], 10);
       increments[key] = isNaN(incVal) ? 1 : incVal;
@@ -98,54 +90,68 @@ function addTimestamps(data, isNew) {
   return { cleaned, increments };
 }
 
-// addTimestamps sonucunu Firestore update verisine çevir
-function buildUpdateData(data, isNew) {
-  const { cleaned, increments } = addTimestamps(data, isNew);
-  // Increment alanlarını FieldValue.increment ile ekle
-  for (const [key, val] of Object.entries(increments)) {
-    cleaned[key] = admin.firestore.FieldValue.increment(val);
-  }
-  return cleaned;
-}
-
-// Koleksiyon referansı al (subcollection destekli)
-function getCollection(db, op) {
-  // Firestore'da subcollection yok (düz koleksiyon olarak saklıyoruz)
+// Koleksiyon adı al (subcollection destekli)
+function getCollectionName(op) {
   if (op.parentDocId && op.subCollection) {
-    return db.collection(`${op.collection}_${op.subCollection}`);
+    return `${op.collection}_${op.subCollection}`;
   }
-  return db.collection(op.collection);
+  return op.collection;
 }
 
 // Tek işlem yap
 async function executeSingleOp(db, op) {
-  const col = getCollection(db, op);
+  const colName = getCollectionName(op);
+  const col = db.collection(colName);
 
   switch (op.type) {
     case "add": {
+      const newId = generateId();
       const { cleaned } = addTimestamps(op.data, true);
-      const docRef = await col.add(cleaned);
-      return { success: true, id: docRef.id };
+      cleaned._id = newId;
+      await col.insertOne(cleaned);
+      return { success: true, id: newId };
     }
     case "set": {
-      const { cleaned } = addTimestamps(op.data, true);
+      const { cleaned, increments } = addTimestamps(op.data, true);
       if (op.merge) {
-        await col.doc(op.docId).set(cleaned, { merge: true });
+        // merge: true → $set + $inc (upsert)
+        const updateOps = { $set: cleaned };
+        if (Object.keys(increments).length > 0) {
+          updateOps.$inc = increments;
+        }
+        // createdAt sadece insert'te eklensin, update'te ezilmesin
+        updateOps.$setOnInsert = { createdAt: new Date() };
+        delete cleaned.createdAt;
+        await col.updateOne(
+          { _id: op.docId },
+          updateOps,
+          { upsert: true }
+        );
       } else {
-        await col.doc(op.docId).set(cleaned);
+        // merge: false → dokümanı tamamen değiştir (upsert)
+        cleaned._id = op.docId;
+        await col.replaceOne(
+          { _id: op.docId },
+          cleaned,
+          { upsert: true }
+        );
       }
       return { success: true };
     }
     case "update": {
-      const updateData = buildUpdateData(op.data, false);
-      await col.doc(op.docId).update(updateData);
+      const { cleaned, increments } = addTimestamps(op.data, false);
+      const updateOps = { $set: cleaned };
+      if (Object.keys(increments).length > 0) {
+        updateOps.$inc = increments;
+      }
+      await col.updateOne({ _id: op.docId }, updateOps);
       return { success: true };
     }
     case "delete": {
-      console.warn(`[DELETE] koleksiyon: ${op.collection}, docId: ${op.docId}, zaman: ${new Date().toISOString()}`);
-      await col.doc(op.docId).delete();
-      console.warn(`[DELETE] sonuç: belge silindi (${op.collection}/${op.docId})`);
-      return { success: true, deleted: 1 };
+      console.warn(`[DELETE] koleksiyon: ${colName}, docId: ${op.docId}, zaman: ${new Date().toISOString()}`);
+      const result = await col.deleteOne({ _id: op.docId });
+      console.warn(`[DELETE] sonuç: ${result.deletedCount} belge silindi (${colName}/${op.docId})`);
+      return { success: true, deleted: result.deletedCount };
     }
     default:
       throw new Error(`Geçersiz işlem tipi: ${op.type}`);
@@ -167,7 +173,7 @@ router.post("/write", async (req, res) => {
     }
   }
 
-  // KORUMA: Tek istekte 20'den fazla silme işlemi engelle (toplu veri kaybını önler)
+  // KORUMA: Tek istekte 20'den fazla silme işlemi engelle
   const deleteCount = operations.filter(op => op.type === "delete").length;
   if (deleteCount > 20) {
     console.error(`BLOCKED: ${deleteCount} silme işlemi engellendi (max 20)`);
@@ -192,7 +198,7 @@ router.post("/write", async (req, res) => {
 
     return res.json({ success: true, ids: addedIds });
   } catch (error) {
-    console.error("firestoreWrite error:", error);
+    console.error("dbWrite error:", error);
     return res.status(500).json({ error: "Yazma hatası: " + error.message });
   }
 });
@@ -213,20 +219,21 @@ router.get("/:collection", async (req, res) => {
 
   try {
     const db = await getDbSafe();
-    let query = db.collection(collection);
+    const col = db.collection(collection);
 
-    // Firestore where filtresi oluştur
+    // MongoDB filtre oluştur
+    const filter = {};
     const whereParams = req.query.where
       ? (Array.isArray(req.query.where) ? req.query.where : [req.query.where])
       : [];
 
-    const firestoreOps = {
-      eq: "==",
-      ne: "!=",
-      gt: ">",
-      gte: ">=",
-      lt: "<",
-      lte: "<=",
+    const mongoOps = {
+      eq: "$eq",
+      ne: "$ne",
+      gt: "$gt",
+      gte: "$gte",
+      lt: "$lt",
+      lte: "$lte",
     };
 
     for (const w of whereParams) {
@@ -236,37 +243,47 @@ router.get("/:collection", async (req, res) => {
       const op = parts[1];
       const value = parts.slice(2).join(":");
 
-      const fsOp = firestoreOps[op];
-      if (fsOp) {
-        // Tip dönüşümü: s: prefix → string olarak koru, yoksa otomatik dönüştür
-        let convertedValue = value;
-        if (value.startsWith("s:")) {
-          convertedValue = value.slice(2); // string olarak koru
-        } else if (value === "true") convertedValue = true;
-        else if (value === "false") convertedValue = false;
-        else if (value !== "" && !isNaN(value)) convertedValue = Number(value);
-        query = query.where(field, fsOp, convertedValue);
+      const mongoOp = mongoOps[op];
+      if (!mongoOp) continue;
+
+      // Tip dönüşümü: s: prefix → string olarak koru
+      let convertedValue = value;
+      if (value.startsWith("s:")) {
+        convertedValue = value.slice(2);
+      } else if (value === "true") convertedValue = true;
+      else if (value === "false") convertedValue = false;
+      else if (value !== "" && !isNaN(value)) convertedValue = Number(value);
+
+      if (op === "eq") {
+        filter[field] = convertedValue;
+      } else {
+        filter[field] = filter[field] || {};
+        filter[field][mongoOp] = convertedValue;
       }
     }
+
+    // Sorgu oluştur
+    let cursor = col.find(filter);
 
     // Sort
     if (req.query.orderBy) {
       const [field, dir] = req.query.orderBy.split(":");
-      query = query.orderBy(field, dir === "desc" ? "desc" : "asc");
+      cursor = cursor.sort({ [field]: dir === "desc" ? -1 : 1 });
     }
 
     // Limit
     const limit = req.query.limit ? parseInt(req.query.limit, 10) : 0;
     if (limit > 0) {
-      query = query.limit(limit);
+      cursor = cursor.limit(limit);
     }
 
-    const snapshot = await query.get();
+    const docs = await cursor.toArray();
 
-    const result = snapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id,
-    }));
+    // _id → id dönüşümü (frontend uyumluluğu)
+    const result = docs.map(doc => {
+      const { _id, ...rest } = doc;
+      return { ...rest, id: _id };
+    });
 
     return res.json(result);
   } catch (error) {
@@ -285,14 +302,14 @@ router.get("/:collection/:docId", async (req, res) => {
 
   try {
     const db = await getDbSafe();
-    const docRef = db.collection(collection).doc(docId);
-    const doc = await docRef.get();
+    const doc = await db.collection(collection).findOne({ _id: docId });
 
-    if (!doc.exists) {
+    if (!doc) {
       return res.json({ exists: false, data: null });
     }
 
-    return res.json({ exists: true, data: doc.data(), id: doc.id });
+    const { _id, ...data } = doc;
+    return res.json({ exists: true, data, id: _id });
   } catch (error) {
     console.error(`Read ${collection}/${docId} error:`, error);
     return res.status(500).json({ error: "Okuma hatası: " + error.message });

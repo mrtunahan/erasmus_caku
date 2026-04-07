@@ -4,11 +4,15 @@
  * Kullanım:
  *   1. scripts/serviceAccountKey.json dosyasının mevcut olduğundan emin olun
  *   2. MongoDB'nin localhost:27017'de çalıştığından emin olun
- *   3. cd server && npm install mongodb (eğer yoksa)
- *   4. node ../scripts/firebase-to-mongodb.js
+ *   3. cd server && npm install
+ *   4. node ../scripts/firebase-to-mongodb.js [--mode=merge|replace|dry-run]
  *
- * Bu script Firebase Firestore'daki tüm koleksiyonları okuyup
- * yerel MongoDB'ye aktarır.
+ * Modlar:
+ *   merge   (varsayılan) - Firebase verileri ile lokaldeki MongoDB verileri birleştirilir.
+ *             Aynı _id'ye sahip dokümanlar: Firebase verisi ile güncellenir (upsert).
+ *             Sadece lokal'de olan dokümanlar korunur. Sıfır veri kaybı.
+ *   replace - Koleksiyonları tamamen Firebase verileri ile değiştirir (eski davranış).
+ *   dry-run - Hiçbir yazma yapmaz, sadece ne yapılacağını raporlar.
  */
 
 const admin = require("firebase-admin");
@@ -19,6 +23,16 @@ const path = require("path");
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017";
 const MONGO_DB = process.env.MONGO_DB || "erasmus_caku";
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, "serviceAccountKey.json");
+
+// Mod kontrolü
+const args = process.argv.slice(2);
+const modeArg = args.find(a => a.startsWith("--mode="));
+const MODE = modeArg ? modeArg.split("=")[1] : "merge";
+
+if (!["merge", "replace", "dry-run"].includes(MODE)) {
+  console.error("Geçersiz mod: " + MODE + ". Kullanılabilir: merge, replace, dry-run");
+  process.exit(1);
+}
 
 // Aktarılacak koleksiyonlar
 const COLLECTIONS = [
@@ -75,6 +89,7 @@ const COLLECTIONS = [
   "yaz_okulu_students",
   "yaz_okulu_records",
   "yaz_okulu_settings",
+  "internships",
 ];
 
 // ── Firebase Timestamp → JS Date dönüşümü ──
@@ -109,74 +124,138 @@ function convertFirestoreTypes(obj) {
 async function migrate() {
   console.log("═══════════════════════════════════════════════");
   console.log("  Firebase Firestore → MongoDB Migration");
+  console.log("  Mod: " + MODE.toUpperCase());
   console.log("═══════════════════════════════════════════════\n");
 
   // 1. Firebase bağlantısı
-  console.log("🔗 Firebase'e bağlanılıyor...");
+  console.log("Firebase'e bağlanılıyor...");
   const serviceAccount = require(SERVICE_ACCOUNT_PATH);
   if (!admin.apps.length) {
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
   }
   const firestore = admin.firestore();
-  console.log("✓ Firebase bağlantısı kuruldu.\n");
+  console.log("Firebase bağlantısı kuruldu.\n");
 
   // 2. MongoDB bağlantısı
-  console.log("🔗 MongoDB'ye bağlanılıyor...");
+  console.log("MongoDB'ye bağlanılıyor...");
   const mongo = new MongoClient(MONGO_URI);
   await mongo.connect();
   const mongodb = mongo.db(MONGO_DB);
-  console.log(`✓ MongoDB bağlantısı kuruldu (db: ${MONGO_DB}).\n`);
+  console.log("MongoDB bağlantısı kuruldu (db: " + MONGO_DB + ").\n");
 
   // 3. Koleksiyonları aktar
   let totalDocs = 0;
+  let totalInserted = 0;
+  let totalUpdated = 0;
+  let totalSkipped = 0;
   let totalCollections = 0;
   const summary = [];
 
   for (const collName of COLLECTIONS) {
-    process.stdout.write(`📦 ${collName}... `);
+    process.stdout.write("[" + collName + "] ");
     try {
       const snapshot = await firestore.collection(collName).get();
 
       if (snapshot.empty) {
-        console.log("(boş, atlandı)");
-        summary.push({ collection: collName, count: 0, status: "boş" });
+        console.log("(Firebase'de boş, atlandı)");
+        summary.push({ collection: collName, firebase: 0, inserted: 0, updated: 0, status: "boş" });
         continue;
       }
 
-      const docs = [];
+      const firebaseDocs = [];
       snapshot.forEach((doc) => {
         const data = convertFirestoreTypes(doc.data());
-        docs.push({
-          _id: doc.id, // Firestore doc ID → MongoDB _id
+        firebaseDocs.push({
+          _id: doc.id,
           ...data,
         });
       });
 
-      // Mevcut koleksiyonu temizle (idempotent migration)
-      await mongodb.collection(collName).deleteMany({});
-      // Ekle
-      await mongodb.collection(collName).insertMany(docs);
+      if (MODE === "dry-run") {
+        // Sadece rapor
+        const mongoCount = await mongodb.collection(collName).countDocuments();
+        console.log("Firebase: " + firebaseDocs.length + " belge, MongoDB: " + mongoCount + " belge (dry-run)");
+        summary.push({ collection: collName, firebase: firebaseDocs.length, mongoExisting: mongoCount, inserted: 0, updated: 0, status: "dry-run" });
+        totalDocs += firebaseDocs.length;
+        totalCollections++;
+        continue;
+      }
 
-      console.log(`${docs.length} belge aktarıldı ✓`);
-      summary.push({ collection: collName, count: docs.length, status: "OK" });
-      totalDocs += docs.length;
+      if (MODE === "replace") {
+        // Eski davranış: sil ve yeniden yaz
+        await mongodb.collection(collName).deleteMany({});
+        await mongodb.collection(collName).insertMany(firebaseDocs);
+        console.log(firebaseDocs.length + " belge aktarıldı (replace)");
+        summary.push({ collection: collName, firebase: firebaseDocs.length, inserted: firebaseDocs.length, updated: 0, status: "OK" });
+        totalDocs += firebaseDocs.length;
+        totalInserted += firebaseDocs.length;
+        totalCollections++;
+        continue;
+      }
+
+      // MODE === "merge" (varsayılan)
+      let inserted = 0;
+      let updated = 0;
+      const bulkOps = firebaseDocs.map((doc) => ({
+        replaceOne: {
+          filter: { _id: doc._id },
+          replacement: doc,
+          upsert: true,
+        },
+      }));
+
+      if (bulkOps.length > 0) {
+        const result = await mongodb.collection(collName).bulkWrite(bulkOps, { ordered: false });
+        inserted = result.upsertedCount || 0;
+        updated = result.modifiedCount || 0;
+      }
+
+      // Sadece lokal'de olan doküman sayısını kontrol et
+      const mongoTotal = await mongodb.collection(collName).countDocuments();
+      const localOnly = mongoTotal - firebaseDocs.length;
+
+      console.log(
+        "Firebase: " + firebaseDocs.length +
+        " | yeni: " + inserted +
+        " | güncellenen: " + updated +
+        (localOnly > 0 ? " | sadece lokal: " + localOnly : "") +
+        " (merge)"
+      );
+      summary.push({
+        collection: collName,
+        firebase: firebaseDocs.length,
+        inserted,
+        updated,
+        localOnly: localOnly > 0 ? localOnly : 0,
+        status: "OK",
+      });
+      totalDocs += firebaseDocs.length;
+      totalInserted += inserted;
+      totalUpdated += updated;
       totalCollections++;
     } catch (err) {
-      console.log(`HATA: ${err.message}`);
-      summary.push({ collection: collName, count: 0, status: `HATA: ${err.message}` });
+      console.log("HATA: " + err.message);
+      summary.push({ collection: collName, firebase: 0, inserted: 0, updated: 0, status: "HATA: " + err.message });
     }
   }
 
   // 4. Özet
   console.log("\n═══════════════════════════════════════════════");
-  console.log("  Migration Özeti");
+  console.log("  Migration Özeti (" + MODE.toUpperCase() + ")");
   console.log("═══════════════════════════════════════════════");
-  console.log(`  Toplam koleksiyon: ${totalCollections}`);
-  console.log(`  Toplam belge:      ${totalDocs}`);
+  console.log("  Toplam koleksiyon: " + totalCollections);
+  console.log("  Firebase belge:    " + totalDocs);
+  if (MODE !== "dry-run") {
+    console.log("  Yeni eklenen:      " + totalInserted);
+    console.log("  Güncellenen:       " + totalUpdated);
+  }
   console.log("───────────────────────────────────────────────");
   summary.forEach(s => {
-    const icon = s.status === "OK" ? "✓" : s.status === "boş" ? "○" : "✗";
-    console.log(`  ${icon} ${s.collection.padEnd(35)} ${String(s.count).padStart(5)} belge  ${s.status}`);
+    const icon = s.status === "OK" ? "+" : s.status === "boş" ? "o" : s.status === "dry-run" ? "~" : "x";
+    const detail = MODE === "dry-run"
+      ? "Firebase:" + s.firebase + " MongoDB:" + (s.mongoExisting || 0)
+      : "yeni:" + s.inserted + " guncellenen:" + s.updated + (s.localOnly ? " lokal:" + s.localOnly : "");
+    console.log("  [" + icon + "] " + s.collection.padEnd(35) + " " + detail + "  " + s.status);
   });
   console.log("═══════════════════════════════════════════════\n");
 
@@ -187,6 +266,6 @@ async function migrate() {
 }
 
 migrate().catch((err) => {
-  console.error("\n❌ Migration hatası:", err);
+  console.error("\nMigration hatası:", err);
   process.exit(1);
 });
