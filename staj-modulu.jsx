@@ -231,59 +231,6 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
   const isStudent = currentUser?.role === "student" || (!["admin", "bolum_yetkilisi", "professor"].includes(currentUser?.role));
   const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
 
-  // ── Öğrenci bildirimleri ──
-  const [studentNotifs, setStudentNotifs] = useState([]);
-  const [showStudentNotifs, setShowStudentNotifs] = useState(false);
-  const studentUserId = currentUser?.name || currentUser?.identifier || "";
-
-  useEffect(() => {
-    if (!isStudent || !studentId) return;
-    const loadNotifs = async () => {
-      try {
-        const db = window.apiFirestore;
-        if (!db) return;
-        const snap = await db.collection("internship_notifications")
-          .where("targetStudentNo", "==", studentId)
-          .get();
-        const list = snap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-        setStudentNotifs(list);
-      } catch (e) { console.error("Öğrenci bildirimleri yüklenemedi:", e); }
-    };
-    loadNotifs();
-  }, [isStudent, studentId]);
-
-  const studentUnread = studentNotifs.filter(n => !n.readBy?.includes(studentUserId)).length;
-
-  const handleStudentMarkRead = async (notifId) => {
-    try {
-      const db = window.apiFirestore;
-      if (!db) return;
-      const notif = studentNotifs.find(n => n.id === notifId);
-      if (!notif || notif.readBy?.includes(studentUserId)) return;
-      const newReadBy = [...(notif.readBy || []), studentUserId];
-      await db.collection("internship_notifications").doc(notifId).set({ readBy: newReadBy }, { merge: true });
-      setStudentNotifs(prev => prev.map(n => n.id === notifId ? { ...n, readBy: newReadBy } : n));
-    } catch (e) { console.error("Bildirim okundu hatası:", e); }
-  };
-
-  const handleStudentMarkAllRead = async () => {
-    try {
-      const db = window.apiFirestore;
-      if (!db) return;
-      const unread = studentNotifs.filter(n => !n.readBy?.includes(studentUserId));
-      await Promise.all(unread.map(n =>
-        db.collection("internship_notifications").doc(n.id).set(
-          { readBy: [...(n.readBy || []), studentUserId] }, { merge: true }
-        )
-      ));
-      setStudentNotifs(prev => prev.map(n => ({
-        ...n, readBy: n.readBy?.includes(studentUserId) ? n.readBy : [...(n.readBy || []), studentUserId],
-      })));
-    } catch (e) { console.error("Tümünü okundu hatası:", e); }
-  };
-
   // Öğrencinin onaylanmış başvurusunu ve roadmap verilerini yükle
   useEffect(() => {
     const loadData = async () => {
@@ -625,149 +572,12 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
       border: "1px solid #E5E7EB", position: "relative",
     }}>
 
-      {/* Bildirim overlay */}
-      {showStudentNotifs && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 9990 }}
-          onClick={() => setShowStudentNotifs(false)} />
-      )}
-
       {/* Başlık */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginBottom: 8, position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginBottom: 8 }}>
           <div style={{ height: 1, width: 40, background: `linear-gradient(to right, transparent, ${STAJ.accent}60)` }} />
           <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.15em", color: STAJ.accent }}>YOL HARİTASI</span>
           <div style={{ height: 1, width: 40, background: `linear-gradient(to left, transparent, ${STAJ.accent}60)` }} />
-
-          {/* Öğrenci zil ikonu */}
-          {isStudent && (
-            <div style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)" }}>
-              <button
-                onClick={() => setShowStudentNotifs(v => !v)}
-                style={{
-                  width: 36, height: 36, borderRadius: 9,
-                  border: `1.5px solid ${studentUnread > 0 ? STAJ.accent : "#E5E7EB"}`,
-                  background: studentUnread > 0 ? STAJ.accentSoft : "white",
-                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                  position: "relative", transition: "all 0.2s",
-                }}
-              >
-                <StajIcon
-                  path="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                  size={16} color={studentUnread > 0 ? STAJ.accent : STAJ.textMuted}
-                />
-                {studentUnread > 0 && (
-                  <span style={{
-                    position: "absolute", top: -4, right: -4,
-                    minWidth: 16, height: 16, borderRadius: 8,
-                    background: "#EF4444", color: "white",
-                    fontSize: 9, fontWeight: 700,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    padding: "0 3px", border: "2px solid white",
-                  }}>{studentUnread > 9 ? "9+" : studentUnread}</span>
-                )}
-              </button>
-
-              {/* Öğrenci bildirim dropdown */}
-              {showStudentNotifs && (
-                <div
-                  style={{
-                    position: "absolute", top: 44, right: 0, zIndex: 9999,
-                    width: 320, background: "white", borderRadius: 14,
-                    border: "1px solid #E5E7EB",
-                    boxShadow: "0 8px 32px rgba(0,0,0,0.12)", overflow: "hidden",
-                  }}
-                  onClick={e => e.stopPropagation()}
-                >
-                  <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "12px 14px", borderBottom: "1px solid #F3F4F6", background: "#FAFAFA",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: STAJ.navy }}>Bildirimler</span>
-                      {studentUnread > 0 && (
-                        <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: STAJ.accentSoft, color: STAJ.accent }}>
-                          {studentUnread} yeni
-                        </span>
-                      )}
-                    </div>
-                    {studentUnread > 0 && (
-                      <button onClick={handleStudentMarkAllRead}
-                        style={{ fontSize: 11, color: STAJ.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
-                        Tümünü okundu
-                      </button>
-                    )}
-                  </div>
-
-                  <div style={{ maxHeight: 360, overflowY: "auto" }}>
-                    {studentNotifs.length === 0 ? (
-                      <div style={{ padding: "28px 14px", textAlign: "center" }}>
-                        <StajIcon path="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" size={28} color="#D1D5DB" />
-                        <p style={{ fontSize: 12, color: STAJ.textMuted, marginTop: 8 }}>Henüz bildirim yok</p>
-                      </div>
-                    ) : (
-                      studentNotifs.map(notif => {
-                        const isRead = notif.readBy?.includes(studentUserId);
-                        const isApproved = notif.type === "step_approved";
-                        const isRejected = notif.type === "step_rejected";
-                        const iconColor = isApproved ? STAJ.green : isRejected ? STAJ.red : STAJ.accent;
-                        const iconPath = isApproved
-                          ? "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                          : isRejected
-                            ? "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-                            : "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z";
-                        const timeAgo = (() => {
-                          const diff = Date.now() - new Date(notif.createdAt).getTime();
-                          const m = Math.floor(diff / 60000);
-                          if (m < 1) return "Az önce";
-                          if (m < 60) return `${m} dk önce`;
-                          const h = Math.floor(m / 60);
-                          if (h < 24) return `${h} sa önce`;
-                          return `${Math.floor(h / 24)} gün önce`;
-                        })();
-                        return (
-                          <div key={notif.id} style={{
-                            display: "flex", gap: 10, padding: "11px 14px",
-                            borderBottom: "1px solid #F9FAFB",
-                            background: isRead ? "white" : (isApproved ? "#F0FDF4" : isRejected ? "#FEF2F2" : "#F0F9FF"),
-                          }}>
-                            <div style={{ flexShrink: 0, paddingTop: 2 }}>
-                              <StajIcon path={iconPath} size={16} color={iconColor} />
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 12, fontWeight: isRead ? 400 : 600, color: STAJ.navy, lineHeight: 1.4 }}>
-                                {isApproved
-                                  ? <><b>{notif.stepTitle}</b> adımınız <span style={{ color: STAJ.green }}>{notif.approvedBy}</span> tarafından onaylanmıştır</>
-                                  : isRejected
-                                    ? <><b>{notif.stepTitle}</b> adımınız <span style={{ color: STAJ.red }}>{notif.rejectedBy}</span> tarafından reddedilmiştir</>
-                                    : <><span style={{ color: iconColor }}>Bildirim</span>{" — "}{notif.stepTitle}</>
-                                }
-                              </div>
-                              <div style={{ fontSize: 11, color: STAJ.textMuted, marginTop: 2 }}>
-                                {notif.stajEtapLabel || ""}
-                              </div>
-                              <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>{timeAgo}</div>
-                            </div>
-                            {!isRead && (
-                              <button onClick={() => handleStudentMarkRead(notif.id)}
-                                style={{
-                                  flexShrink: 0, alignSelf: "center",
-                                  padding: "3px 9px", borderRadius: 6,
-                                  border: `1px solid ${iconColor}30`,
-                                  background: isApproved ? "#F0FDF4" : isRejected ? "#FEF2F2" : STAJ.accentSoft,
-                                  color: iconColor, fontSize: 10, fontWeight: 600, cursor: "pointer",
-                                }}>
-                                Okundu
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         <p style={{ fontSize: 13, color: STAJ.textMuted, margin: 0, textAlign: "center" }}>
@@ -2119,6 +1929,59 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Tam erişim: admin, bölüm yetkilisi, fakülte yetkilisi (admin), staj komisyon üyeleri, Ergün ÇINAR (SGK onayı)
   const canManage = isAdmin || isDeptManager || isCommissionMember || isErgunCinar;
   const isStudent = !canManage && !isProfessor;
+  const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
+
+  // ── Öğrenci bildirimleri ──
+  const [studentNotifs, setStudentNotifs] = useState([]);
+  const [showStudentNotifs, setShowStudentNotifs] = useState(false);
+
+  useEffect(() => {
+    if (!isStudent || !studentId) return;
+    const loadNotifs = async () => {
+      try {
+        const db = window.apiFirestore;
+        if (!db) return;
+        const snap = await db.collection("internship_notifications")
+          .where("targetStudentNo", "==", studentId)
+          .get();
+        const list = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+        setStudentNotifs(list);
+      } catch (e) { console.error("Öğrenci bildirimleri yüklenemedi:", e); }
+    };
+    loadNotifs();
+  }, [isStudent, studentId]);
+
+  const studentUnread = studentNotifs.filter(n => !n.readBy?.includes(studentId)).length;
+
+  const handleStudentMarkRead = async (notifId) => {
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
+      const notif = studentNotifs.find(n => n.id === notifId);
+      if (!notif || notif.readBy?.includes(studentId)) return;
+      const newReadBy = [...(notif.readBy || []), studentId];
+      await db.collection("internship_notifications").doc(notifId).set({ readBy: newReadBy }, { merge: true });
+      setStudentNotifs(prev => prev.map(n => n.id === notifId ? { ...n, readBy: newReadBy } : n));
+    } catch (e) { console.error("Bildirim okundu hatası:", e); }
+  };
+
+  const handleStudentMarkAllRead = async () => {
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
+      const unread = studentNotifs.filter(n => !n.readBy?.includes(studentId));
+      await Promise.all(unread.map(n =>
+        db.collection("internship_notifications").doc(n.id).set(
+          { readBy: [...(n.readBy || []), studentId] }, { merge: true }
+        )
+      ));
+      setStudentNotifs(prev => prev.map(n => ({
+        ...n, readBy: n.readBy?.includes(studentId) ? n.readBy : [...(n.readBy || []), studentId],
+      })));
+    } catch (e) { console.error("Tümünü okundu hatası:", e); }
+  };
 
   // Varsayılan sekmeyi ayarla
   useEffect(() => {
@@ -2892,6 +2755,142 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                   whiteSpace: "nowrap",
                                 }}
                               >
+                                Okundu
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Öğrenci Bildirim Zili */}
+          {isStudent && (
+            <div style={{ position: "relative" }}>
+              {showStudentNotifs && (
+                <div style={{ position: "fixed", inset: 0, zIndex: 9990 }}
+                  onClick={() => setShowStudentNotifs(false)} />
+              )}
+              <button
+                onClick={() => setShowStudentNotifs(v => !v)}
+                style={{
+                  width: 40, height: 40, borderRadius: 10,
+                  border: `1.5px solid ${studentUnread > 0 ? STAJ.primary : "#E5E7EB"}`,
+                  background: studentUnread > 0 ? STAJ.primaryPale : "white",
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  position: "relative", transition: "all 0.2s",
+                }}
+                title="Bildirimler"
+              >
+                <StajIcon
+                  path="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                  size={18}
+                  color={studentUnread > 0 ? STAJ.primary : STAJ.textMuted}
+                />
+                {studentUnread > 0 && (
+                  <span style={{
+                    position: "absolute", top: -5, right: -5,
+                    minWidth: 18, height: 18, borderRadius: 9,
+                    background: "#EF4444", color: "white",
+                    fontSize: 10, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: "0 4px", border: "2px solid white",
+                  }}>
+                    {studentUnread > 9 ? "9+" : studentUnread}
+                  </span>
+                )}
+              </button>
+
+              {showStudentNotifs && (
+                <div style={{
+                  position: "absolute", top: 48, right: 0, zIndex: 9999,
+                  width: 340, background: "white", borderRadius: 14,
+                  border: "1px solid #E5E7EB",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.12)", overflow: "hidden",
+                }} onClick={e => e.stopPropagation()}>
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "14px 16px", borderBottom: "1px solid #F3F4F6", background: "#FAFAFA",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: STAJ.navy }}>Bildirimler</span>
+                      {studentUnread > 0 && (
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 10, background: STAJ.primaryPale, color: STAJ.primary }}>
+                          {studentUnread} yeni
+                        </span>
+                      )}
+                    </div>
+                    {studentUnread > 0 && (
+                      <button onClick={handleStudentMarkAllRead}
+                        style={{ fontSize: 12, color: STAJ.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+                        Tümünü okundu
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                    {studentNotifs.length === 0 ? (
+                      <div style={{ padding: "32px 16px", textAlign: "center" }}>
+                        <StajIcon path="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" size={32} color="#D1D5DB" />
+                        <p style={{ fontSize: 13, color: STAJ.textMuted, marginTop: 10 }}>Henüz bildirim yok</p>
+                      </div>
+                    ) : (
+                      studentNotifs.map(notif => {
+                        const isRead = notif.readBy?.includes(studentId);
+                        const isApproved = notif.type === "step_approved";
+                        const isRejected = notif.type === "step_rejected";
+                        const iconColor = isApproved ? STAJ.green : isRejected ? "#EF4444" : STAJ.primary;
+                        const bgUnread = isApproved ? "#F0FDF4" : isRejected ? "#FEF2F2" : "#F0F9FF";
+                        const iconPath = isApproved
+                          ? "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                          : isRejected
+                            ? "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            : "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z";
+                        const timeAgo = (() => {
+                          const diff = Date.now() - new Date(notif.createdAt).getTime();
+                          const m = Math.floor(diff / 60000);
+                          if (m < 1) return "Az önce";
+                          if (m < 60) return `${m} dk önce`;
+                          const h = Math.floor(m / 60);
+                          if (h < 24) return `${h} sa önce`;
+                          return `${Math.floor(h / 24)} gün önce`;
+                        })();
+                        return (
+                          <div key={notif.id} style={{
+                            display: "flex", gap: 12, padding: "12px 16px",
+                            borderBottom: "1px solid #F9FAFB",
+                            background: isRead ? "white" : bgUnread,
+                          }}>
+                            <div style={{ flexShrink: 0, paddingTop: 2 }}>
+                              <StajIcon path={iconPath} size={16} color={iconColor} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: isRead ? 400 : 600, color: STAJ.navy, lineHeight: 1.4 }}>
+                                {isApproved
+                                  ? <><b>{notif.stepTitle}</b> adımınız <span style={{ color: STAJ.green }}>{notif.approvedBy}</span> tarafından onaylanmıştır</>
+                                  : isRejected
+                                    ? <><b>{notif.stepTitle}</b> adımınız <span style={{ color: "#EF4444" }}>{notif.rejectedBy}</span> tarafından reddedilmiştir</>
+                                    : <><span style={{ color: iconColor }}>Bildirim</span>{" — "}{notif.stepTitle}</>
+                                }
+                              </div>
+                              <div style={{ fontSize: 11, color: STAJ.textMuted, marginTop: 2 }}>
+                                {notif.stajEtapLabel || ""}
+                              </div>
+                              <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{timeAgo}</div>
+                            </div>
+                            {!isRead && (
+                              <button onClick={() => handleStudentMarkRead(notif.id)}
+                                style={{
+                                  flexShrink: 0, alignSelf: "center",
+                                  padding: "4px 10px", borderRadius: 6,
+                                  border: `1px solid ${iconColor}30`,
+                                  background: bgUnread, color: iconColor,
+                                  fontSize: 11, fontWeight: 600, cursor: "pointer",
+                                  whiteSpace: "nowrap",
+                                }}>
                                 Okundu
                               </button>
                             )}
