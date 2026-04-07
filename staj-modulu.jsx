@@ -1527,6 +1527,9 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     if (!myApplication) return false;
     const uploaded = uploads[belgeId];
     if (!uploaded || !uploaded.fileName) return true; // Henüz yüklenmemiş, yüklenebilir
+    // Dosya sunucuda yoksa (serverPath/downloadURL/path yok), serbestçe yüklenebilir
+    const hasFile = uploaded.serverPath || uploaded.downloadURL || uploaded.path || uploaded.url;
+    if (!hasFile) return true;
     // Adım henüz onaya gönderilmemişse, öğrenci serbestçe değiştirebilir
     if (!isStepSubmitted(belgeId)) return true;
     // Adım onaya gönderildiyse, değişiklik izni olmalı
