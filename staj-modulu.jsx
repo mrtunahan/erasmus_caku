@@ -735,13 +735,15 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 12, fontWeight: isRead ? 400 : 600, color: STAJ.navy, lineHeight: 1.4 }}>
-                                <span style={{ color: iconColor }}>
-                                  {isApproved ? "Onaylandı" : isRejected ? "Reddedildi" : "Bildirim"}
-                                </span>
-                                {" — "}{notif.stepTitle}
+                                {isApproved
+                                  ? <><b>{notif.stepTitle}</b> adımınız <span style={{ color: STAJ.green }}>{notif.approvedBy}</span> tarafından onaylanmıştır</>
+                                  : isRejected
+                                    ? <><b>{notif.stepTitle}</b> adımınız <span style={{ color: STAJ.red }}>{notif.rejectedBy}</span> tarafından reddedilmiştir</>
+                                    : <><span style={{ color: iconColor }}>Bildirim</span>{" — "}{notif.stepTitle}</>
+                                }
                               </div>
                               <div style={{ fontSize: 11, color: STAJ.textMuted, marginTop: 2 }}>
-                                {isApproved ? `Onaylayan: ${notif.approvedBy}` : isRejected ? `Reddeden: ${notif.rejectedBy}` : ""}
+                                {notif.stajEtapLabel || ""}
                               </div>
                               <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>{timeAgo}</div>
                             </div>
@@ -2350,6 +2352,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       // Öğrenciye onay bildirimi gönder
       try {
         const app = allApplications.find(a => a.id === appId);
+        const approverName = currentUser?.name || currentUser?.identifier || "";
         if (app?.ogrenciNo) {
           await db.collection("internship_notifications").add({
             type: "step_approved",
@@ -2358,16 +2361,30 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             appId,
             stepIdx,
             stepTitle: STAJ_ROADMAP_STEPS[stepIdx].title,
-            approvedBy: currentUser?.name || currentUser?.identifier || "",
+            approvedBy: approverName,
             stajEtapLabel: app.stajEtapLabel || "",
             createdAt: new Date().toISOString(),
             readBy: [],
+          });
+          // Komisyon üyelerine onay bildirimi gönder
+          await db.collection("internship_notifications").add({
+            type: "step_approved_commission",
+            departmentId: activeDepartment || app.departmentId || "",
+            appId,
+            stepIdx,
+            stepTitle: STAJ_ROADMAP_STEPS[stepIdx].title,
+            approvedBy: approverName,
+            studentName: app.adSoyad || "",
+            studentNo: app.ogrenciNo,
+            stajEtapLabel: app.stajEtapLabel || "",
+            createdAt: new Date().toISOString(),
+            readBy: [approverName],
           });
         }
       } catch (notifErr) { console.warn("Bildirim oluşturulamadı:", notifErr); }
 
       alert(`Adım ${stepIdx + 1} onaylandı.`);
-      loadAllData();
+      loadAllData(); loadNotifications();
     } catch (e) {
       alert("Adım onay hatası: " + e.message);
     }
@@ -2400,6 +2417,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       // Öğrenciye red bildirimi gönder
       try {
         const app = allApplications.find(a => a.id === appId);
+        const rejecterName = currentUser?.name || currentUser?.identifier || "";
         if (app?.ogrenciNo) {
           await db.collection("internship_notifications").add({
             type: "step_rejected",
@@ -2408,16 +2426,30 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             appId,
             stepIdx,
             stepTitle: STAJ_ROADMAP_STEPS[stepIdx].title,
-            rejectedBy: currentUser?.name || currentUser?.identifier || "",
+            rejectedBy: rejecterName,
             stajEtapLabel: app.stajEtapLabel || "",
             createdAt: new Date().toISOString(),
             readBy: [],
+          });
+          // Komisyon üyelerine red bildirimi gönder
+          await db.collection("internship_notifications").add({
+            type: "step_rejected_commission",
+            departmentId: activeDepartment || app.departmentId || "",
+            appId,
+            stepIdx,
+            stepTitle: STAJ_ROADMAP_STEPS[stepIdx].title,
+            rejectedBy: rejecterName,
+            studentName: app.adSoyad || "",
+            studentNo: app.ogrenciNo,
+            stajEtapLabel: app.stajEtapLabel || "",
+            createdAt: new Date().toISOString(),
+            readBy: [rejecterName],
           });
         }
       } catch (notifErr) { console.warn("Bildirim oluşturulamadı:", notifErr); }
 
       alert(`Adım ${stepIdx + 1} reddedildi. Öğrenci adımı tekrar tamamlayabilir.`);
-      loadAllData();
+      loadAllData(); loadNotifications();
     } catch (e) {
       alert("Adım red hatası: " + e.message);
     }
@@ -2768,28 +2800,46 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           if (h < 24) return `${h} sa önce`;
                           return `${Math.floor(h / 24)} gün önce`;
                         })();
+                        const isApprovedNotif = notif.type === "step_approved_commission";
+                        const isRejectedNotif = notif.type === "step_rejected_commission";
+                        const isSubmittedNotif = notif.type === "step_submitted";
+                        const dotColor = isApprovedNotif ? STAJ.green : isRejectedNotif ? "#EF4444" : STAJ.primary;
+                        const bgUnread = isApprovedNotif ? "#F0FDF4" : isRejectedNotif ? "#FEF2F2" : "#F0F9FF";
                         return (
                           <div key={notif.id} style={{
                             display: "flex", gap: 12, padding: "12px 16px",
                             borderBottom: "1px solid #F9FAFB",
-                            background: isRead ? "white" : "#F0F9FF",
+                            background: isRead ? "white" : bgUnread,
                             transition: "background 0.2s",
                           }}>
                             {/* Renk dot */}
                             <div style={{ flexShrink: 0, paddingTop: 3 }}>
                               <div style={{
                                 width: 8, height: 8, borderRadius: "50%",
-                                background: isRead ? "#D1D5DB" : STAJ.primary,
+                                background: isRead ? "#D1D5DB" : dotColor,
                                 marginTop: 4,
                               }} />
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 13, fontWeight: isRead ? 400 : 600, color: STAJ.navy, lineHeight: 1.4 }}>
-                                <span style={{ color: STAJ.primary }}>{notif.studentName}</span> — {notif.stepTitle}
+                                {isSubmittedNotif && (
+                                  <><span style={{ color: STAJ.primary }}>{notif.studentName || notif.studentNo}</span>{" "}<b>{notif.stepTitle}</b> adımını onaya gönderdi</>
+                                )}
+                                {isApprovedNotif && (
+                                  <><b>{notif.stepTitle}</b> adımı <span style={{ color: STAJ.green }}>{notif.approvedBy}</span> tarafından onaylandı</>
+                                )}
+                                {isRejectedNotif && (
+                                  <><b>{notif.stepTitle}</b> adımı <span style={{ color: "#EF4444" }}>{notif.rejectedBy}</span> tarafından reddedildi</>
+                                )}
+                                {!isSubmittedNotif && !isApprovedNotif && !isRejectedNotif && (
+                                  <><span style={{ color: STAJ.primary }}>{notif.studentName}</span> — {notif.stepTitle}</>
+                                )}
                               </div>
                               <div style={{ fontSize: 11, color: STAJ.textMuted, marginTop: 3 }}>
-                                Adım onaya gönderildi
-                                {notif.stajEtapLabel && <span> · {notif.stajEtapLabel}</span>}
+                                {isSubmittedNotif && notif.studentNo && <span>{notif.studentNo} · </span>}
+                                {isApprovedNotif && notif.studentName && <span>{notif.studentName} ({notif.studentNo}) · </span>}
+                                {isRejectedNotif && notif.studentName && <span>{notif.studentName} ({notif.studentNo}) · </span>}
+                                {notif.stajEtapLabel && <span>{notif.stajEtapLabel}</span>}
                               </div>
                               <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{timeAgo}</div>
                             </div>
