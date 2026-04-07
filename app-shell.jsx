@@ -9,6 +9,7 @@ const { useState, useEffect, useCallback, useRef } = React;
 const C = window.C;
 const sharedStyles = window.sharedStyles;
 const LoginModal = window.LoginModal;
+const ChangePasswordModal = window.ChangePasswordModal;
 const FACULTY = window.FACULTY;
 const DEPARTMENTS = window.DEPARTMENTS;
 const DEPARTMENT_MODULES = window.DEPARTMENT_MODULES;
@@ -134,8 +135,8 @@ const TopHeader = ({ currentUser, onLogout, isMobile, onToggleSidebar, sidebarOp
             <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>
               {currentUser?.role === "admin" ? "Fakülte Yöneticisi"
                 : currentUser?.role === "professor" ? "Akademisyen"
-                : currentUser?.role === "bolum_yetkilisi" ? "Bölüm Yetkilisi"
-                : `Öğrenci`}
+                  : currentUser?.role === "bolum_yetkilisi" ? "Bölüm Yetkilisi"
+                    : `Öğrenci`}
             </div>
           </div>
         )}
@@ -165,12 +166,22 @@ const TopHeader = ({ currentUser, onLogout, isMobile, onToggleSidebar, sidebarOp
 const Sidebar = ({
   activeDepartment, onDepartmentChange,
   currentRoute, onNavigate,
-  currentUser, isMobile, isOpen, onClose,
+  currentUser, isMobile, isOpen, onClose, onRequestChangePassword,
 }) => {
   const isAdmin = currentUser?.role === "admin";
   const isDeptManager = currentUser?.role === "bolum_yetkilisi";
   const isProfessor = currentUser?.role === "professor";
   const isStudent = !isAdmin && !isDeptManager && !isProfessor;
+
+  const isErgunCinar = currentUser && currentUser.name && (
+    currentUser.name.toLowerCase().includes("ergün") ||
+    currentUser.name.toLowerCase().includes("ergun")
+  ) && (
+      currentUser.name.toLowerCase().includes("çinar") ||
+      currentUser.name.toLowerCase().includes("çınar") ||
+      currentUser.name.toLowerCase().includes("cinar") ||
+      currentUser.name.toLowerCase().includes("cınar")
+    );
 
   // Bölüm yetkilisi ve öğrenci sadece kendi bölümünü görebilir
   const availableDepts = (isDeptManager || isStudent)
@@ -179,6 +190,7 @@ const Sidebar = ({
 
   // Öğrenciler ve profesörler için erişilebilir modüller
   const getVisibleModules = () => {
+    if (isErgunCinar) return DEPARTMENT_MODULES.filter(m => m.id === "staj");
     if (isAdmin || isDeptManager) return DEPARTMENT_MODULES;
     if (isProfessor) return DEPARTMENT_MODULES.filter(m => ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj"].includes(m.id));
     // Öğrenci
@@ -277,41 +289,44 @@ const Sidebar = ({
       <div style={{ margin: "4px 16px", borderTop: "1px solid #E5E7EB" }} />
 
       {/* Common Modules */}
-      <div style={{ padding: "4px 12px" }}>
-        <div style={{
-          fontSize: 10, fontWeight: 700, color: "#9CA3AF",
-          textTransform: "uppercase", letterSpacing: "0.1em",
-          padding: "8px 4px 4px",
-        }}>Ortak</div>
-        {COMMON_MODULES.map(mod => {
-          const isActive = currentRoute === mod.id;
-          return (
-            <button
-              key={mod.id}
-              onClick={() => { onNavigate(mod.id); if (isMobile) onClose(); }}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 12px", marginBottom: 2, borderRadius: 8,
-                border: "none", cursor: "pointer",
-                background: isActive ? "#3B82F615" : "transparent",
-                color: isActive ? "#3B82F6" : "#4B5563",
-                fontSize: 13, fontWeight: isActive ? 600 : 400,
-                fontFamily: "'Inter', sans-serif",
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
-              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#F3F4F6"; }}
-              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? "#3B82F615" : "transparent"; }}
-            >
-              <NavIcon path={mod.icon} size={18} />
-              {mod.label}
-            </button>
-          );
-        })}
-      </div>
+      {!isErgunCinar && (
+        <div style={{ padding: "4px 12px" }}>
+          <div style={{
+            fontSize: 10, fontWeight: 700, color: "#9CA3AF",
+            textTransform: "uppercase", letterSpacing: "0.1em",
+            padding: "8px 4px 4px",
+          }}>Ortak</div>
+          {COMMON_MODULES.map(mod => {
+            const isActive = currentRoute === mod.id;
+            return (
+              <button
+                key={mod.id}
+                onClick={() => { onNavigate(mod.id); if (isMobile) onClose(); }}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", marginBottom: 2, borderRadius: 8,
+                  border: "none", cursor: "pointer",
+                  background: isActive ? "#3B82F615" : "transparent",
+                  color: isActive ? "#3B82F6" : "#4B5563",
+                  fontSize: 13, fontWeight: isActive ? 600 : 400,
+                  fontFamily: "'Inter', sans-serif",
+                  transition: "all 0.15s",
+                  textAlign: "left",
+                }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#F3F4F6"; }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? "#3B82F615" : "transparent"; }}
+              >
+                <NavIcon path={mod.icon} size={18} />
+                {mod.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Admin Modules */}
-      {isAdmin && (
+      {/* Admin + Bölüm Yetkilisi: Yönetim Modülleri (komisyonlar) */}
+      {/* Admin + Bölüm Yetkilisi: Yönetim Modülleri (komisyonlar) */}
+      {!isErgunCinar && (isAdmin || isDeptManager) && (
         <>
           <div style={{ margin: "4px 16px", borderTop: "1px solid #E5E7EB" }} />
           <div style={{ padding: "4px 12px 16px" }}>
@@ -349,10 +364,30 @@ const Sidebar = ({
         </>
       )}
 
+      {/* Şifre Değiştir butonu (tüm roller) — sidebar altı */}
+      <div style={{ marginTop: "auto", padding: "8px 12px 16px" }}>
+        <button
+          onClick={() => { if (onRequestChangePassword) onRequestChangePassword(); if (isMobile) onClose(); }}
+          style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 10,
+            padding: "10px 12px", borderRadius: 8, border: "1px solid #E5E7EB",
+            background: "white", color: "#6366F1", fontSize: 13, fontWeight: 500,
+            fontFamily: "'Inter', sans-serif", cursor: "pointer", transition: "all 0.15s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "#EEF2FF"; e.currentTarget.style.borderColor = "#C7D2FE"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "white"; e.currentTarget.style.borderColor = "#E5E7EB"; }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+          </svg>
+          Şifre Değiştir
+        </button>
+      </div>
+
       {/* Mobile: User info at bottom */}
       {isMobile && (
         <div style={{
-          marginTop: "auto", padding: "16px",
+          padding: "12px 16px",
           borderTop: "1px solid #E5E7EB", background: "#F3F4F6",
         }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#1F2937" }}>
@@ -361,8 +396,8 @@ const Sidebar = ({
           <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>
             {currentUser?.role === "admin" ? "Admin"
               : currentUser?.role === "professor" ? "Akademisyen"
-              : currentUser?.role === "bolum_yetkilisi" ? "Bölüm Yetkilisi"
-              : `Öğrenci (${currentUser?.studentNumber || ""})`}
+                : currentUser?.role === "bolum_yetkilisi" ? "Bölüm Yetkilisi"
+                  : `Öğrenci (${currentUser?.studentNumber || ""})`}
           </div>
         </div>
       )}
@@ -384,7 +419,8 @@ const Sidebar = ({
           boxShadow: "4px 0 24px rgba(0,0,0,0.15)",
           animation: "slideInLeft 0.2s ease-out",
         }}>
-          <style dangerouslySetInnerHTML={{ __html: `
+          <style dangerouslySetInnerHTML={{
+            __html: `
             @keyframes slideInLeft {
               from { transform: translateX(-100%); opacity: 0; }
               to { transform: translateX(0); opacity: 1; }
@@ -419,6 +455,7 @@ function AppShell() {
   const [currentUser, setCurrentUser] = useState(null);
   const [activeDepartment, setActiveDepartment] = useState("bilgisayar");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth <= 768;
 
@@ -555,7 +592,7 @@ function AppShell() {
           : ["erasmus", "projeler", "formlar", "staj"]; // student
 
     const allowedCommon = COMMON_MODULES.map(m => m.id);
-    const allowedAdmin = isAdmin ? ADMIN_MODULES.map(m => m.id) : [];
+    const allowedAdmin = (isAdmin || isDeptManager) ? ADMIN_MODULES.map(m => m.id) : [];
     const allAllowed = [...allowedDeptModules, ...allowedCommon, ...allowedAdmin];
 
     if (!allAllowed.includes(route)) {
@@ -662,7 +699,8 @@ function AppShell() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#F3F4F6", display: "flex", flexDirection: "column" }}>
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         ${sharedStyles.global}
         @keyframes spin { to { transform: rotate(360deg) } }
         /* Sidebar scrollbar */
@@ -691,6 +729,7 @@ function AppShell() {
           isMobile={isMobile}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          onRequestChangePassword={() => setShowChangePassword(true)}
         />
 
         <main style={{
@@ -704,6 +743,13 @@ function AppShell() {
           </div>
         </main>
       </div>
+
+      {showChangePassword && currentUser && (
+        <ChangePasswordModal
+          currentUser={currentUser}
+          onClose={() => setShowChangePassword(false)}
+        />
+      )}
     </div>
   );
 }

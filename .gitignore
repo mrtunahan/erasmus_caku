@@ -5,3 +5,7 @@ server/node_modules/
 server/uploads/
 scripts/serviceAccountKey.json
 functions/node_modules/
+.DS_Store
+server/tmp_*
+.DS_Store
+server/tmp_*

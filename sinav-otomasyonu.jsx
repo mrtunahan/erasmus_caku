@@ -2423,21 +2423,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {isAdmin && (
-              <GhostBtn onClick={() => setShowDeptModal(true)} style={{ color: "#7C3AED", borderColor: "#7C3AED" }}>
-                Bölüm Yönetimi
-              </GhostBtn>
-            )}
-            {canManage && selectedDeptId && (
-              <GhostBtn onClick={() => setShowClassroomModal(true)} style={{ color: "#0891B2", borderColor: "#0891B2" }}>
-                Sınıflar
-              </GhostBtn>
-            )}
-            {canManage && selectedDeptId && (
-              <GhostBtn onClick={() => setShowSupervisorModal(true)} style={{ color: "#D97706", borderColor: "#D97706" }}>
-                Gözetmenler
-              </GhostBtn>
-            )}
+
             {isAdmin && courses.length === 0 && selectedDeptId && selectedDept?.name?.toLowerCase().includes("bilgisayar") && (
               <Btn onClick={seedData} style={{ background: "#059669" }}>
                 Örnek Verileri Yükle (Bilgisayar Müh.)
@@ -2448,9 +2434,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
                 Verileri Güncelle
               </GhostBtn>
             )}
-            {canManage && (
-              <GhostBtn onClick={() => setShowCourseModal(true)}>Ders Yönetimi</GhostBtn>
-            )}
+
             {canManage && (
               <GhostBtn onClick={() => { setEditingPeriod(null); setShowPeriodModal(true); }}>
                 + Yeni Dönem
@@ -2459,38 +2443,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
           </div>
         </div>
 
-        {/* Department Selector (Admin and Professor) */}
-        {(isAdmin || isProfessor) && departments.length > 0 && (
-          <Card style={{ marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "#7C3AED" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: "middle", marginRight: 6 }}>
-                  <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-                Bölüm:
-              </span>
-              {departments.map(d => (
-                <button
-                  key={d.id}
-                  onClick={() => { setSelectedDeptId(d.id); setActivePeriodId(null); }}
-                  style={{
-                    padding: "6px 16px",
-                    border: `2px solid ${d.id === selectedDeptId ? "#7C3AED" : C.border}`,
-                    background: d.id === selectedDeptId ? "#EDE9FE" : "white",
-                    color: d.id === selectedDeptId ? "#7C3AED" : "#666",
-                    borderRadius: 8,
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: d.id === selectedDeptId ? 600 : 400,
-                  }}
-                >
-                  {d.name}
-                  {d.managerName && <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 6 }}>({d.managerName})</span>}
-                </button>
-              ))}
-            </div>
-          </Card>
-        )}
+
 
         {/* Department Manager Info */}
         {isDeptManager && (
@@ -2851,42 +2804,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
           />
         )}
 
-        {showCourseModal && (
-          <CourseManagementModal
-            courses={courses.map(turkishifyCourse)}
-            professors={professors}
-            onSave={handleCourseSave}
-            onDelete={handleDeleteCourse}
-            onClose={() => setShowCourseModal(false)}
-          />
-        )}
 
-        {showDeptModal && (
-          <DepartmentManagementModal
-            departments={departments}
-            onSave={handleDeptSave}
-            onDelete={handleDeptDelete}
-            onClose={() => setShowDeptModal(false)}
-          />
-        )}
-
-        {showClassroomModal && (
-          <ClassroomManagementModal
-            classrooms={deptClassrooms}
-            onSave={handleClassroomSave}
-            onDelete={handleClassroomDelete}
-            onClose={() => setShowClassroomModal(false)}
-          />
-        )}
-
-        {showSupervisorModal && (
-          <SupervisorManagementModal
-            supervisors={deptSupervisors}
-            onSave={handleSupervisorSave}
-            onDelete={handleSupervisorDelete}
-            onClose={() => setShowSupervisorModal(false)}
-          />
-        )}
       </div>
     </div>
   );

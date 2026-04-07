@@ -1,7 +1,7 @@
+require("dotenv").config({ path: require("path").join(__dirname, "../.env") });
 const { MongoClient } = require("mongodb");
 
-const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017";
-const MONGO_DB = process.env.MONGO_DB || "erasmus_caku";
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/erasmus_caku";
 
 let client = null;
 let db = null;
@@ -10,10 +10,14 @@ async function connect() {
   if (db) return db;
 
   try {
-    client = new MongoClient(MONGO_URI);
+    client = new MongoClient(MONGODB_URI);
     await client.connect();
-    db = client.db(MONGO_DB);
-    console.log(`MongoDB bağlantısı kuruldu (db: ${MONGO_DB}).`);
+
+    // Veritabanı adını URI'den çıkar (son / sonrası, ? öncesi)
+    const dbName = MONGODB_URI.split("/").pop().split("?")[0] || "erasmus_caku";
+    db = client.db(dbName);
+
+    console.log(`MongoDB bağlantısı kuruldu: ${MONGODB_URI}`);
     return db;
   } catch (err) {
     console.error("MongoDB başlatılamadı:", err.message);

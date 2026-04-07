@@ -209,13 +209,14 @@ function exportProjectsXLSX(projects, courseName) {
   projects.forEach(function (p) { if (p.members && p.members.length > maxMembers) maxMembers = p.members.length; });
   var header = ["#", "Proje Adı", "Proje Özeti"];
   for (var mi = 0; mi < maxMembers; mi++) header.push("Üye " + (mi + 1));
-  header.push("Durum", "Oluşturan", "Tarih");
+  header.push("Planlanan Tarih");
   var rows = [header];
   projects.forEach(function (p, i) {
     var members = p.members || [];
     var row = [i + 1, p.name || "", p.summary || ""];
     for (var mj = 0; mj < maxMembers; mj++) row.push(members[mj] || "");
-    row.push(statusLabels[p.status] || "Onaylandı", p.createdByName || "", prjFormatDate(p.createdAt));
+    var sched = p.scheduleDate ? (p.scheduleDate + " " + (p.scheduleTime || "")) : "Planlanmadı";
+    row.push(sched);
     rows.push(row);
   });
 
@@ -315,8 +316,9 @@ function exportProjectsWord(projects, courseName) {
   var tableRows = "";
   projects.forEach(function (p, i) {
     var members = (p.members || []).join(", ");
+    var sched = p.scheduleDate ? (p.scheduleDate + " " + (p.scheduleTime || "")) : "Planlanmadı";
     tableRows += "<tr><td>" + (i + 1) + "</td><td>" + (p.name || "") + "</td><td>" + (p.summary || "") +
-      "</td><td>" + members + "</td><td>" + (wordStatusLabels[p.status] || "Onaylandı") + "</td><td>" + (p.createdByName || "") + "</td><td>" + prjFormatDate(p.createdAt) + "</td></tr>";
+      "</td><td>" + members + "</td><td>" + sched + "</td></tr>";
   });
 
   var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">' +
@@ -333,7 +335,7 @@ function exportProjectsWord(projects, courseName) {
     '<div class="info"><b>Ders:</b> ' + (courseName || "Tüm Dersler") + ' &nbsp;&nbsp;|&nbsp;&nbsp; <b>Toplam Grup:</b> ' + projects.length +
     ' &nbsp;&nbsp;|&nbsp;&nbsp; <b>Toplam Katılımcı:</b> ' + projects.reduce(function (s, p) { return s + (p.members ? p.members.length : 0); }, 0) +
     ' &nbsp;&nbsp;|&nbsp;&nbsp; <b>Tarih:</b> ' + new Date().toLocaleDateString("tr-TR") + '</div>' +
-    '<table><thead><tr><th>#</th><th>Proje Adı</th><th>Proje Özeti</th><th>Üyeler</th><th>Durum</th><th>Oluşturan</th><th>Tarih</th></tr></thead><tbody>' +
+    '<table><thead><tr><th>#</th><th>Proje Adı</th><th>Proje Özeti</th><th>Üyeler</th><th>Planlanan Tarih</th></tr></thead><tbody>' +
     tableRows + '</tbody></table></body></html>';
 
   var blob = new Blob([html], { type: "application/msword" });
@@ -463,6 +465,13 @@ function ProjectCard({ project, userId, userName, isAdmin, onDelete, onApprove, 
               <PrjIcon path={PRJ_ICONS.clock} size={13} color="#9ca3af" />
               {prjFormatDate(project.createdAt)}
             </div>
+
+            {project.scheduleDate && project.scheduleTime && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: PRJ.primary, fontWeight: 600, background: PRJ.primaryPale, padding: "3px 10px", borderRadius: 8, border: "1px solid " + PRJ.primary + "30" }}>
+                <PrjIcon path={PRJ_ICONS.calendar} size={13} color={PRJ.primary} />
+                Sunum: {new Date(project.scheduleDate).toLocaleDateString("tr-TR", { day: "numeric", month: "long" })} - {project.scheduleTime}
+              </div>
+            )}
 
             {/* Member avatar stack */}
             <div style={{ display: "flex", alignItems: "center" }}>
@@ -851,6 +860,97 @@ function AddCourseModal({ onClose, onAdd, editCourse, categoryLabel }) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// TOPLU PROJE PLANLAMA MODALI
+// ══════════════════════════════════════════════════════════════
+function BulkScheduleModal({ onClose, onDistribute, projectCount }) {
+  var _s = useState;
+  var ss = _s([{ date: "", time: "14:00 - 15:00", capacity: 5 }]), sessions = ss[0], setSessions = ss[1];
+
+  var addSession = function () { setSessions(function(p){ return p.concat([{ date: "", time: "14:00 - 15:00", capacity: 5 }]); }); };
+  var updateSession = function (idx, field, val) {
+    setSessions(function(p){
+      var n = p.slice();
+      n[idx] = Object.assign({}, n[idx], { [field]: val });
+      return n;
+    });
+  };
+  var removeSession = function (idx) {
+    setSessions(function(p){ return p.filter(function(_, i){ return i !== idx; }); });
+  };
+
+  var totalCapacity = sessions.reduce(function(acc, s){ return acc + (parseInt(s.capacity)||0); }, 0);
+
+  var handleSubmit = function () {
+    var valid = sessions.filter(function(s){ return s.date && s.time && s.capacity > 0; });
+    if (valid.length === 0) { alert("Lütfen en az bir geçerli oturum ekleyin."); return; }
+    if (totalCapacity < projectCount) {
+      if (!confirm("Oturum toplam kapasitesi ("+totalCapacity+") onaylı/bekleyen proje sayısından ("+projectCount+") az. Yine de devam edilsin mi? (Açıkta kalan projeler planlanmayacak.)")) {
+        return;
+      }
+    }
+    onDistribute(valid);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
+      <div style={{ background: "white", borderRadius: 16, padding: window.innerWidth <= 480 ? 16 : 28, width: "min(600px, calc(100vw - 32px))", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }} onClick={function (e) { e.stopPropagation(); }}>
+        <h3 style={{ fontSize: 20, fontWeight: 700, color: PRJ.navy, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+          <PrjIcon path={PRJ_ICONS.calendar} size={22} color={PRJ.primary} /> Toplu Proje Planlama
+        </h3>
+        <p style={{ fontSize: 13, color: PRJ.textMuted, marginBottom: 20, lineHeight: 1.5 }}>
+          Bekleyen/Onaylanmış <b>{projectCount} adet proje</b> için sunum ve değerlendirme tarihleri atayın. Oturumları açtıktan sonra "Dağıt ve Kaydet" butonuna bastığınızda seçili projeler belirtilen oturumlara dağıtılacaktır. (Not: Tamamen rastgele değil, sırayla atanır.)
+        </p>
+
+        <div style={{ marginBottom: 16 }}>
+          {sessions.map(function(s, idx){
+            return (
+              <div key={idx} style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "flex-end", padding: "12px", background: PRJ.bg, borderRadius: 12, border: "1px solid " + PRJ.border, flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 120px" }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: PRJ.textMuted, display: "block", marginBottom: 4 }}>Tarih</label>
+                  <input type="date" value={s.date} onChange={function(e){ updateSession(idx, "date", e.target.value); }} 
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid " + PRJ.border, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
+                </div>
+                <div style={{ flex: "1 1 120px" }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: PRJ.textMuted, display: "block", marginBottom: 4 }}>Saat Aralığı</label>
+                  <input type="text" placeholder="Örn: 14:00 - 15:00" value={s.time} onChange={function(e){ updateSession(idx, "time", e.target.value); }} 
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid " + PRJ.border, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
+                </div>
+                <div style={{ flex: "1 1 70px" }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: PRJ.textMuted, display: "block", marginBottom: 4 }}>Kapasite</label>
+                  <input type="number" min="1" value={s.capacity} onChange={function(e){ updateSession(idx, "capacity", parseInt(e.target.value)); }} 
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid " + PRJ.border, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
+                </div>
+                {sessions.length > 1 && (
+                  <button onClick={function(){ removeSession(idx); }} style={{ background: "transparent", color: PRJ.red, border: "none", cursor: "pointer", padding: 8, marginBottom: 2, flexShrink: 0 }}>
+                    <PrjIcon path={PRJ_ICONS.trash} size={16} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+          <button onClick={addSession} style={{ background: PRJ.primaryPale, color: PRJ.primary, border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+            <PrjIcon path={PRJ_ICONS.plus} size={14} /> Yeni Oturum Ekle
+          </button>
+          <div style={{ fontSize: 13, fontWeight: 600, color: totalCapacity < projectCount ? PRJ.orange : PRJ.green, background: totalCapacity < projectCount ? PRJ.orangeLight : PRJ.greenLight, padding: "6px 12px", borderRadius: 8 }}>
+            Toplam Kapasite: {totalCapacity} / {projectCount}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "10px 20px", border: "1px solid " + PRJ.border, background: "white", borderRadius: 8, cursor: "pointer", fontSize: 14, color: PRJ.textMuted }}>İptal</button>
+          <button onClick={handleSubmit} style={{ padding: "10px 24px", border: "none", background: "linear-gradient(135deg, #059669, #10b981)", color: "white", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+            <PrjIcon path={PRJ_ICONS.check} size={16} color="white" /> Dağıt ve Kaydet
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // ANA MODÜL
 // ══════════════════════════════════════════════════════════════
 // ── Proje Kategorileri ──
@@ -868,6 +968,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var vs = _s(null), selectedCourse = vs[0], setSelectedCourse = vs[1]; // null = ders listesi, object = ders detayı
   var sms = _s(false), showCreateModal = sms[0], setShowCreateModal = sms[1];
   var scm = _s(false), showCourseModal = scm[0], setShowCourseModal = scm[1];
+  var sbms = _s(false), showBulkScheduleModal = sbms[0], setShowBulkScheduleModal = sbms[1];
   var sq = _s(""), searchQuery = sq[0], setSearchQuery = sq[1];
   var ecv = _s(null), editingCourse = ecv[0], setEditingCourse = ecv[1]; // ders düzenleme
   var [activeCategory, setActiveCategory] = useState("bolum"); // bolum, universite, tubitak
@@ -996,6 +1097,61 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       setAllProjects(function (prev) { return prev.map(function (p) { return p.id === projectId ? Object.assign({}, p, { status: "rejected" }) : p; }); });
     } catch (e) {
       alert("Proje reddedilemedi: " + e.message);
+    }
+  };
+
+  // ── Toplu Proje Planlama Dağıtımı ──
+  var handleDistributeSchedule = async function (sessions) {
+    var targets = projects.filter(function(p) { return !p.status || p.status === "approved" || p.status === "pending"; });
+    if(targets.length === 0) { alert("Dağıtım yapılacak onaylı veya bekleyen proje yok."); return; }
+
+    try {
+      setLoading(true);
+      var assignedCount = 0;
+      var sessionIndex = 0;
+      var currentSessionCount = 0;
+      
+      var parseMinutes = function(t) { var a = t.split(":"); return parseInt(a[0]) * 60 + parseInt(a[1]); };
+      var fmt = function(m) { var h = Math.floor(m/60), mn = m%60; return (h<10?"0"+h:""+h)+":"+(mn<10?"0"+mn:""+mn); };
+
+      for(var i=0; i<targets.length; i++) {
+        var p = targets[i];
+        if (sessionIndex >= sessions.length) break;
+        var s = sessions[sessionIndex];
+
+        // Oturum süresini kapasiteye bölerek bireysel slot hesapla
+        var slotTime = s.time;
+        var timeParts = s.time.replace(/\s/g, "").split("-");
+        if (timeParts.length === 2 && timeParts[0].indexOf(":") !== -1 && timeParts[1].indexOf(":") !== -1) {
+          var sesStart = parseMinutes(timeParts[0]);
+          var sesEnd   = parseMinutes(timeParts[1]);
+          var cap      = Math.max(parseInt(s.capacity) || 1, 1);
+          var slotMins = Math.floor((sesEnd - sesStart) / cap);
+          var slotS    = sesStart + currentSessionCount * slotMins;
+          slotTime     = fmt(slotS) + " - " + fmt(slotS + slotMins);
+        }
+
+        await ProjDB.updateProject(p.id, { scheduleDate: s.date, scheduleTime: slotTime }, activeCategory);
+        
+        assignedCount++;
+        currentSessionCount++;
+        if (currentSessionCount >= s.capacity) {
+          sessionIndex++;
+          currentSessionCount = 0;
+        }
+      }
+      
+      if(selectedCourse) {
+        var data = await ProjDB.fetchProjects(selectedCourse.id, activeCategory);
+        setProjects(data);
+        setAllProjects(data);
+      }
+      setShowBulkScheduleModal(false);
+      setLoading(false);
+      alert(assignedCount + " proje başarıyla planlandı. " + (targets.length - assignedCount > 0 ? (targets.length - assignedCount) + " proje kapasite yetersizliğinden açıkta kaldı." : "Tüm onaylı/bekleyen projeler kapandı."));
+    } catch(e) {
+      setLoading(false);
+      alert("Planlama sırasında hata oluştu: " + e.message);
     }
   };
 
@@ -1343,6 +1499,12 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {canManage && projects.length > 0 && (
                 <>
+                  {isDeadlinePassed && (
+                    <button onClick={function () { setShowBulkScheduleModal(true); }}
+                      style={{ background: "linear-gradient(135deg, #7c3aed, #9333ea)", color: "white", border: "none", borderRadius: 10, padding: "10px 18px", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, boxShadow: "0 4px 10px rgba(124, 58, 237, 0.3)" }}>
+                      <PrjIcon path={PRJ_ICONS.calendar} size={16} color="white" /> Projeleri Planla
+                    </button>
+                  )}
                   <button onClick={function () { exportProjectsXLSX(projects, selectedCourse.code + "_" + selectedCourse.name); }}
                     style={{ background: "#059669", color: "white", border: "none", borderRadius: 10, padding: "10px 18px", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
                     <PrjIcon path={PRJ_ICONS.download} size={16} color="white" /> XLSX
@@ -1509,6 +1671,14 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           currentUserName={userName}
           minGroupSize={selectedCourse ? selectedCourse.minGroupSize : undefined}
           maxGroupSize={selectedCourse ? selectedCourse.maxGroupSize : undefined}
+        />
+      )}
+
+      {showBulkScheduleModal && (
+        <BulkScheduleModal 
+          onClose={function() { setShowBulkScheduleModal(false); }}
+          onDistribute={handleDistributeSchedule}
+          projectCount={projects.filter(function(p){ return !p.status || p.status === "approved" || p.status === "pending"; }).length}
         />
       )}
     </div>

@@ -260,7 +260,7 @@ function LinkIcon({ size = 14, color = "currentColor" }) {
 }
 
 /* ─── Road View ─── */
-function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
+function RoadView({ steps, proj, cycleStatus, expanded, setExpanded, notes, saveNote, activeProject }) {
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
 
   const StepCard = ({ step, i, isOpen }) => {
@@ -268,43 +268,67 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
     const active = step._status === "in-progress";
     const stBg = done ? "#DCFCE7" : active ? "#FEF3C7" : "#F1F5F9";
     const stColor = done ? "#16A34A" : active ? "#D97706" : "#94A3B8";
+    const noteText = notes[`${activeProject}-${i}`] || "";
+
     return (
       <div
         onClick={() => setExpanded(isOpen ? null : i)}
         style={{
-          background: isOpen ? proj.accentSoft : "#fff",
-          border: `1.5px solid ${isOpen ? proj.accent + "35" : "#F1F5F9"}`,
-          borderRadius: 14, padding: "12px 16px", cursor: "pointer",
-          width: "100%", maxWidth: isMobile ? "100%" : 290,
-          boxShadow: isOpen ? `0 4px 18px ${proj.accent}18` : "0 1px 4px rgba(0,0,0,0.05)",
-          transition: "all 0.2s",
+          background: isOpen ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.7)",
+          backdropFilter: "blur(12px)",
+          border: `1px solid ${isOpen ? proj.accent + "50" : "rgba(255,255,255,0.4)"}`,
+          borderRadius: 16, padding: "16px", cursor: "pointer",
+          width: "100%", maxWidth: isMobile ? "100%" : 320,
+          boxShadow: isOpen ? `0 8px 30px ${proj.accent}15` : "0 4px 12px rgba(0,0,0,0.04)",
+          transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+          transform: isOpen ? "scale(1.02)" : "scale(1)",
         }}
       >
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: "#1E293B", lineHeight: 1.4 }}>{step.title}</span>
           <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 10, background: stBg, color: stColor, flexShrink: 0 }}>{step.duration}</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: proj.accent }}>Sonuç</span>
-          <span style={{ fontSize: 12, color: "#64748B" }}>{step.result}</span>
+          <span style={{ fontSize: 12, color: "#64748B", fontWeight: 500 }}>{step.result}</span>
         </div>
         {isOpen && (
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${proj.accent}18` }}>
-            <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.8, margin: 0 }}>{step.desc}</p>
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${proj.accent}18` }}>
+            <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.6, margin: 0 }}>{step.desc}</p>
             {step.docs && step.docs.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
                 {step.docs.map((d, j) => {
                   const doc = typeof d === "string" ? { name: d, url: null } : d;
                   if (doc.url) return (
                     <a key={j} href={doc.url} target="_blank" rel="noopener noreferrer"
-                      className="rm-doc-link" onClick={e => e.stopPropagation()}>
-                      <LinkIcon size={12} />{doc.name}
+                      className="rm-doc-link" onClick={e => e.stopPropagation()}
+                      style={{ borderColor: proj.accent + "30", color: proj.accent }}>
+                      <LinkIcon size={12} color={proj.accent} />{doc.name}
                     </a>
                   );
                   return <span key={j} className="rm-doc-link" style={{ cursor: "default", opacity: 0.6 }}>{doc.name}</span>;
                 })}
               </div>
             )}
+            
+            {/* Kişisel Not Alanı */}
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px dashed #CBD5E1" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6 }}>KİŞİSEL NOT / TARİH</div>
+              <textarea
+                placeholder="Bu adımla ilgili notlarınızı veya deadline'ı yazın..."
+                value={noteText}
+                onChange={(e) => saveNote(i, e.target.value)}
+                onClick={e => e.stopPropagation()}
+                style={{
+                  width: "100%", padding: "10px 12px", border: "1px solid #E2E8F0", borderRadius: 8,
+                  fontSize: 13, background: "rgba(255,255,255,0.8)", minHeight: 60,
+                  resize: "vertical", outline: "none", boxShadow: "inset 0 1px 3px rgba(0,0,0,0.03)",
+                  color: "#1E293B", transition: "border-color 0.2s"
+                }}
+                onFocus={e => e.target.style.borderColor = proj.accent}
+                onBlur={e => e.target.style.borderColor = "#E2E8F0"}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -314,27 +338,23 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
   return (
     <div style={{ position: "relative", paddingBottom: 24, userSelect: "none" }}>
 
-      {/* ── Asphalt Road Strip ── */}
+      {/* ── Modern Vertical Timeline Strip ── */}
       <div style={{
         position: "absolute",
-        left: isMobile ? 28 : "50%",
+        left: isMobile ? 32 : "50%",
         transform: isMobile ? "none" : "translateX(-50%)",
-        width: 54,
+        width: 4,
         top: 0, bottom: 0,
-        background: "linear-gradient(to right, #2D3748 0%, #374151 40%, #374151 60%, #2D3748 100%)",
+        background: `linear-gradient(to bottom, transparent 0%, #E2E8F0 5%, ${proj.accentMid} 50%, #E2E8F0 95%, transparent 100%)`,
         zIndex: 0,
         borderRadius: 4,
       }}>
-        {/* Left white edge */}
-        <div style={{ position: "absolute", left: 5, top: 0, bottom: 0, width: 3, background: "rgba(255,255,255,0.65)", borderRadius: 2 }} />
-        {/* Right white edge */}
-        <div style={{ position: "absolute", right: 5, top: 0, bottom: 0, width: 3, background: "rgba(255,255,255,0.65)", borderRadius: 2 }} />
-        {/* Center dashed yellow line */}
+        {/* Active Pulse Segment */}
         <div style={{
-          position: "absolute", left: "50%", transform: "translateX(-50%)",
-          width: 4, top: 0, bottom: 0,
-          background: "repeating-linear-gradient(to bottom, #FCD34D 0px, #FCD34D 14px, transparent 14px, transparent 28px)",
-          borderRadius: 2,
+           position: "absolute", left: -2, top: "15%", height: "20%", width: 8,
+           background: `linear-gradient(to bottom, transparent, ${proj.accent}, transparent)`,
+           borderRadius: 4, opacity: 0.8,
+           boxShadow: `0 0 15px ${proj.accent}`,
         }} />
       </div>
 
@@ -374,27 +394,28 @@ function RoadView({ steps, proj, cycleStatus, expanded, setExpanded }) {
               </div>
             )}
 
-            {/* Road node (circle on the road) */}
+            {/* Road node (glowing circle) */}
             <div style={{
-              width: isMobile ? 56 : 54, flexShrink: 0, display: "flex", justifyContent: "center", zIndex: 2,
+              width: isMobile ? 64 : 64, flexShrink: 0, display: "flex", justifyContent: "center", zIndex: 2,
             }}>
               <div
                 onClick={e => { e.stopPropagation(); cycleStatus(i); }}
                 title="Durumu değiştir"
                 style={{
-                  width: 44, height: 44, borderRadius: "50%",
-                  background: done ? proj.accent : active ? "#fff" : "#64748B",
-                  border: `3.5px solid ${done ? "rgba(255,255,255,0.85)" : active ? proj.accent : "rgba(255,255,255,0.5)"}`,
+                  width: 46, height: 46, borderRadius: "50%",
+                  background: done ? proj.accent : active ? "#fff" : "#F8FAFC",
+                  border: `3px solid ${done ? "rgba(255,255,255,0.85)" : active ? proj.accent : "#CBD5E1"}`,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   cursor: "pointer",
                   boxShadow: done
-                    ? `0 0 0 5px ${proj.accent}30, 0 4px 14px rgba(0,0,0,0.3)`
+                    ? `0 0 0 6px ${proj.accent}30, 0 4px 14px rgba(0,0,0,0.2)`
                     : active
-                      ? `0 0 0 5px ${proj.accent}25, 0 4px 14px rgba(0,0,0,0.25)`
-                      : "0 2px 8px rgba(0,0,0,0.35)",
-                  fontWeight: 800, fontSize: done ? 17 : 14,
-                  color: done ? "#fff" : active ? proj.accent : "rgba(255,255,255,0.8)",
-                  transition: "all 0.25s",
+                      ? `0 0 0 6px ${proj.accent}25, 0 4px 20px ${proj.accent}40`
+                      : "0 2px 8px rgba(0,0,0,0.05)",
+                  fontWeight: 800, fontSize: done ? 18 : 15,
+                  color: done ? "#fff" : active ? proj.accent : "#94A3B8",
+                  transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                  transform: active ? "scale(1.1)" : "scale(1)",
                 }}
               >
                 {done ? "✓" : step.id}
@@ -437,6 +458,13 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
   const [view, setView] = useState("road");
   const [guideOpen, setGuideOpen] = useState(false);
   const [areasOpen, setAreasOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(typeof window !== "undefined" && window.innerWidth < 640);
+  
+  React.useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const STORAGE_KEY = "roadmaps_statuses_" + (currentUser && currentUser.uid ? currentUser.uid : "guest");
   const [statuses, setStatuses] = useState(function() {
     try { var s = localStorage.getItem(STORAGE_KEY); return s ? JSON.parse(s) : {}; } catch(e) { return {}; }
@@ -444,6 +472,20 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
   React.useEffect(function() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(statuses)); } catch(e) {}
   }, [statuses, STORAGE_KEY]);
+
+  // Yeni Not Ekleme State'i
+  const NOTES_KEY = "roadmaps_notes_" + (currentUser && currentUser.uid ? currentUser.uid : "guest");
+  const [notes, setNotes] = useState(function() {
+    try { var n = localStorage.getItem(NOTES_KEY); return n ? JSON.parse(n) : {}; } catch(e) { return {}; }
+  });
+  React.useEffect(function() {
+    try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); } catch(e) {}
+  }, [notes, NOTES_KEY]);
+
+  const saveNote = (idx, text) => {
+    const key = `${activeProject}-${idx}`;
+    setNotes(prev => ({ ...prev, [key]: text }));
+  };
 
   const proj = PROJECTS[activeProject];
   const steps = proj.steps.map((s, i) => ({
@@ -532,256 +574,104 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
         .rm-ext-link:hover { opacity: 1; transform: translateY(-1px); }
       `}</style>
 
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "32px 24px" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 24px" }}>
 
-        {/* ── Program Tabs ── */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 28, flexWrap: "wrap" }}>
-          {Object.entries(PROJECTS).map(([key, p]) => {
-            const act = activeProject === key;
-            return (
-              <button
-                key={key}
-                onClick={() => { setActiveProject(key); setExpanded(null); setView("road"); setAreasOpen(false); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "10px 16px 10px 12px", borderRadius: 12,
-                  background: "#fff", cursor: "pointer",
-                  border: act ? `2px solid ${p.accent}` : "1px solid #E2E8F0",
-                  boxShadow: act ? `0 2px 10px ${p.accent}20` : "0 1px 2px rgba(0,0,0,0.04)",
-                  transition: "all 0.18s",
-                }}
-              >
-                {/* Letter badge */}
-                <div style={{
-                  width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-                  background: act ? p.accent : p.accent + "18",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 12, fontWeight: 900,
-                  color: act ? "#fff" : p.accent,
-                  letterSpacing: "-0.02em", fontFamily: "monospace",
-                }}>
-                  {p.abbr}
-                </div>
-                <div style={{ textAlign: "left" }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: act ? "#1E293B" : "#64748B", lineHeight: 1.2 }}>{p.name}</div>
-                  <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 500, marginTop: 2 }}>{p.badge}</div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* ── Program Info Card ── */}
+        {/* ── Premium Unified Header ── */}
         <div style={{
           background: "#fff",
-          border: "1px solid #E8ECF0",
-          borderRadius: 16,
-          overflow: "hidden",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+          borderRadius: 24, padding: "32px", marginBottom: 32,
+          boxShadow: "0 10px 40px rgba(0, 0, 0, 0.04)", border: "1px solid #E2E8F0"
         }}>
-          {/* Header — solid accent color */}
-          <div style={{
-            background: proj.accent,
-            padding: "18px 24px",
-            display: "flex", alignItems: "center", gap: 16,
-          }}>
-            {/* Letter mark */}
-            <div style={{
-              width: 42, height: 42, borderRadius: 10, flexShrink: 0,
-              background: "rgba(255,255,255,0.18)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 15, fontWeight: 900, color: "#fff",
-              letterSpacing: "-0.02em", fontFamily: "monospace",
-            }}>
-              {proj.abbr}
+          {/* Top Row: Title & Tabs */}
+          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", gap: 20, marginBottom: 32 }}>
+            <div>
+              <h1 style={{ fontSize: 24, fontWeight: 800, color: "#1E293B", letterSpacing: "-0.02em", margin: 0 }}>Kariyer ve Proje Yol Haritaları 🚀</h1>
+              <p style={{ fontSize: 14, color: "#64748B", marginTop: 6, margin: 0 }}>Adım adım başvuru rehberi ve kişisel not defteriniz.</p>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                {proj.badge}
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", lineHeight: 1.35, marginTop: 3 }}>
-                {proj.subtitle}
-              </div>
-            </div>
-            {proj.badgeDesc && (
-              <div style={{
-                fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.95)",
-                background: "rgba(255,255,255,0.15)", padding: "6px 14px",
-                borderRadius: 20, flexShrink: 0, whiteSpace: "nowrap",
-              }}>
-                {proj.badgeDesc}
-              </div>
-            )}
-          </div>
-          {/* Body */}
-          <div style={{ padding: "18px 24px", background: proj.accentSoft }}>
-            <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.8, margin: 0 }}>{proj.info}</p>
-            {proj.links && proj.links.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-                {proj.links.map((link, i) => (
-                  <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      fontSize: 13, fontWeight: 600, color: proj.accent,
-                      textDecoration: "none", padding: "6px 14px", borderRadius: 8,
-                      background: "#fff", border: "1px solid " + proj.accent + "30",
-                      transition: "all 0.18s",
-                    }}>
-                    <LinkIcon size={13} color={proj.accent} />
-                    {link.label}
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Areas ── */}
-        {proj.areas && proj.areas.length > 0 && (
-          <>
-            <SectionDivider label="Desteklenen Alanlar" />
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {(areasOpen ? proj.areas : proj.areas.slice(0, 6)).map(function(a, i) {
+            {/* Tabs */}
+            <div style={{ display: "flex", background: "#F1F5F9", padding: 6, borderRadius: 16, gap: 4, width: isMobile ? "100%" : "auto", overflowX: "auto" }}>
+              {Object.entries(PROJECTS).map(([key, p]) => {
+                const act = activeProject === key;
                 return (
-                  <span key={i} style={{
-                    fontSize: 12, padding: "5px 13px", borderRadius: 20,
-                    background: "#fff", color: proj.accent, fontWeight: 600,
-                    border: "1px solid " + proj.accent + "25",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                  }}>{a}</span>
+                  <button
+                    key={key}
+                    onClick={() => { setActiveProject(key); setExpanded(null); setView("road"); }}
+                    style={{
+                      padding: "8px 16px", borderRadius: 12, border: "none",
+                      background: act ? "#fff" : "transparent",
+                      color: act ? p.accent : "#64748B",
+                      fontSize: 13, fontWeight: 700, cursor: "pointer",
+                      boxShadow: act ? "0 2px 8px rgba(0,0,0,0.05)" : "none",
+                      transition: "all 0.2s", whiteSpace: "nowrap"
+                    }}
+                  >
+                    {p.name}
+                  </button>
                 );
               })}
-              {proj.areas.length > 6 && (
-                <button onClick={function() { setAreasOpen(function(p) { return !p; }); }} style={{
-                  fontSize: 12, padding: "5px 13px", borderRadius: 20,
-                  background: proj.accentSoft, color: proj.accent, fontWeight: 700,
-                  border: "1px solid " + proj.accent + "30", cursor: "pointer",
-                }}>
-                  {areasOpen ? "Daha az" : "+" + (proj.areas.length - 6) + " daha"}
-                </button>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* ── Eval Criteria ── */}
-        {proj.evalCriteria && proj.evalCriteria.length > 0 && (
-          <>
-            <SectionDivider label="Değerlendirme Kriterleri" />
-            <EvalBar criteria={proj.evalCriteria} accent={proj.accent} />
-          </>
-        )}
-
-        {/* ── Progress Stats ── */}
-        <SectionDivider label="İlerleme" />
-        {/* Single progress bar */}
-        <div style={{
-          background: "#fff", border: "1px solid #E8ECF0", borderRadius: 12,
-          padding: "14px 18px", marginBottom: 4,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>
-                {completed} / {steps.length} adım tamamlandı
-              </span>
-              {steps.find(function(s) { return s._status === "in-progress"; }) && (
-                <span style={{
-                  fontSize: 11, fontWeight: 600, color: proj.accent,
-                  background: proj.accentSoft, padding: "3px 10px", borderRadius: 20,
-                  border: "1px solid " + proj.accent + "20",
-                }}>
-                  {steps.find(function(s) { return s._status === "in-progress"; }).title} devam ediyor
-                </span>
-              )}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 18, fontWeight: 900, color: proj.accent, fontFamily: "monospace" }}>{pct}%</span>
-              {Object.keys(statuses).some(function(k) { return k.startsWith(activeProject + "-"); }) && (
-                <button onClick={resetProgress} style={{
-                  fontSize: 11, fontWeight: 600, color: "#94A3B8",
-                  background: "none", border: "1px solid #E2E8F0",
-                  borderRadius: 8, padding: "3px 10px", cursor: "pointer",
-                }}>Sıfırla</button>
-              )}
             </div>
           </div>
-          <div style={{ height: 8, background: "#F1F5F9", borderRadius: 8, overflow: "hidden" }}>
-            <div style={{
-              height: "100%", width: pct + "%",
-              background: "linear-gradient(to right, " + proj.accent + ", " + proj.accentMid + ")",
-              borderRadius: 8, transition: "width 0.6s ease",
-            }} />
-          </div>
-        </div>
 
-        {/* ── How to use guide ── */}
-        <div style={{ marginBottom: 14 }}>
-          <button
-            onClick={function() { setGuideOpen(function(p) { return !p; }); }}
-            style={{
-              width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "10px 16px", borderRadius: 10,
-              background: "#F8FAFC", border: "1px solid #E2E8F0",
-              fontSize: 12, fontWeight: 600, color: "#475569",
-              cursor: "pointer",
-            }}
-          >
-            <span>Nasıl kullanılır?</span>
-            <span style={{ fontSize: 11, color: "#94A3B8", transform: guideOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
-          </button>
-          {guideOpen && (
-            <div style={{
-              marginTop: 1, padding: "14px 16px",
-              background: "#F8FAFC", border: "1px solid #E2E8F0",
-              borderTop: "none", borderRadius: "0 0 10px 10px",
-            }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-                {[
-                  { num: "1", text: "Yol haritasındaki numaralı dairelere tıklayarak durumu değiştirin: Bekliyor → Devam Ediyor → Tamamlandı." },
-                  { num: "2", text: "İlerlemeniz otomatik olarak tarayıcınıza kaydedilir. Sayfayı kapatsanız bile nerede kaldığınız korunur." },
-                  { num: "3", text: "Bir adıma tıklayarak ayrıntıları ve belge bağlantılarını görün. Belge adına tıklayarak ilgili portala gidin." },
-                  { num: "4", text: "Üstteki program sekmelerinden ÜNİDES, 2209-A/B ve TEKNOFEST yol haritaları arasında geçiş yapın." },
-                ].map(function(tip, ti) {
-                  return (
-                    <div key={ti} style={{ display: "flex", gap: 10 }}>
-                      <div style={{
-                        width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
-                        background: proj.accent + "15", display: "flex",
-                        alignItems: "center", justifyContent: "center",
-                        fontSize: 11, fontWeight: 800, color: proj.accent,
-                      }}>{tip.num}</div>
-                      <p style={{ fontSize: 12, color: "#64748B", lineHeight: 1.6, margin: 0 }}>{tip.text}</p>
-                    </div>
-                  );
-                })}
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1fr", gap: 32 }}>
+            {/* Left Column: Project Info */}
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+                 <div style={{ width: 48, height: 48, borderRadius: 14, background: proj.accentSoft, display: "flex", alignItems: "center", justifyContent: "center", color: proj.accent, fontSize: 16, fontWeight: 900 }}>{proj.abbr}</div>
+                 <div>
+                   <div style={{ fontSize: 18, fontWeight: 800, color: "#1E293B", lineHeight: 1.2 }}>{proj.subtitle}</div>
+                   <div style={{ fontSize: 12, fontWeight: 700, color: proj.accent, marginTop: 4 }}>{proj.badgeDesc || proj.badge}</div>
+                 </div>
               </div>
+              <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.7, margin: "0 0 24px 0" }}>{proj.info}</p>
+              
+              {/* Links */}
+              {proj.links && proj.links.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {proj.links.map((link, i) => (
+                    <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        fontSize: 12, fontWeight: 700, color: proj.accent,
+                        textDecoration: "none", padding: "8px 16px", borderRadius: 10,
+                        background: proj.accentSoft, transition: "all 0.2s",
+                      }}>
+                      <LinkIcon size={14} color={proj.accent} /> {link.label}
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* ── View Toggle ── */}
-        <SectionDivider label="Yol Haritası" />
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div style={{ fontSize: 12, color: "#B0B8C4" }}>
-            Numaraya tıklayarak durumunuzu güncelleyin
-          </div>
-          <div style={{ display: "flex", gap: 4, background: "#F1F5F9", borderRadius: 10, padding: 4 }}>
-            {[{ k: "road", l: "Yol" }, { k: "steps", l: "Adımlar" }, { k: "gantt", l: "Gantt" }].map((v) => (
-              <button key={v.k} onClick={() => setView(v.k)} style={{
-                padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer",
-                background: view === v.k ? "#fff" : "transparent",
-                color: view === v.k ? "#0F172A" : "#94A3B8",
-                fontSize: 12, fontWeight: 700,
-                boxShadow: view === v.k ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-              }}>{v.l}</button>
-            ))}
+            {/* Right Column: Progress & Eval */}
+            <div style={{ background: "#FAFBFC", borderRadius: 16, padding: 24, border: "1px dashed #E2E8F0", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                 <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>İlerleme Durumu</div>
+                 <div style={{ fontSize: 28, fontWeight: 900, color: proj.accent }}>{pct}%</div>
+              </div>
+              
+              <div style={{ height: 10, background: "#E2E8F0", borderRadius: 10, overflow: "hidden", marginBottom: 12 }}>
+                <div style={{ height: "100%", width: pct + "%", background: proj.accent, borderRadius: 10, transition: "width 0.6s ease" }} />
+              </div>
+              
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#64748B", fontWeight: 600, marginBottom: proj.evalCriteria?.length ? 24 : 0 }}>
+                 <span>{completed} / {steps.length} Görev</span>
+                 <button onClick={resetProgress} style={{ background: "none", border: "none", color: "#94A3B8", cursor: "pointer", fontWeight: 600, textDecoration: "underline" }}>Sıfırla</button>
+              </div>
+
+              {proj.evalCriteria && proj.evalCriteria.length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>Değerlendirme Kriterleri</div>
+                  <EvalBar criteria={proj.evalCriteria} accent={proj.accent} />
+                </>
+              )}
+            </div>
           </div>
         </div>
 
         {/* ── Road / Steps / Gantt ── */}
         {view === "road" ? (
-          <div style={{ background: "#fff", border: "1px solid #F1F5F9", borderRadius: 16, padding: "24px 20px" }}>
-            <RoadView steps={steps} proj={proj} cycleStatus={cycleStatus} expanded={expanded} setExpanded={setExpanded} />
+          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 20, padding: "32px 20px" }}>
+            <RoadView steps={steps} proj={proj} cycleStatus={cycleStatus} expanded={expanded} setExpanded={setExpanded} notes={notes} saveNote={saveNote} activeProject={activeProject} />
           </div>
         ) : view === "steps" ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>

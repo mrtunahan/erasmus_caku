@@ -19,7 +19,7 @@ const COLLECTIONS = [
   "surveys", "events", "resources", "forms", "internships",
 ];
 
-// GET /api/health - Sunucu durumu ve koleksiyon sayıları
+// GET /api/health
 router.get("/", async (req, res) => {
   try {
     const db = await getDbSafe();

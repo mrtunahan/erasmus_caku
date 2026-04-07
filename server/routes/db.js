@@ -1,6 +1,6 @@
 const express = require("express");
-const { ObjectId } = require("mongodb");
 const { getDbSafe } = require("../config/database");
+const { ObjectId } = require("mongodb");
 
 const router = express.Router();
 
@@ -54,21 +54,10 @@ const ALLOWED_COLLECTIONS = [
   "akademisyen_cache",
 ];
 
-// Okuma izni verilen koleksiyonlar (write + read-only)
 const READABLE_COLLECTIONS = [
   ...ALLOWED_COLLECTIONS,
   "passwords",
 ];
-
-// Rastgele ID üret (Firestore uyumlu 20 karakter)
-function generateId() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let id = "";
-  for (let i = 0; i < 20; i++) {
-    id += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return id;
-}
 
 // Timestamp alanlarını temizle ve sunucu timestamp'i ekle
 function addTimestamps(data, isNew) {
@@ -79,7 +68,7 @@ function addTimestamps(data, isNew) {
     if (value && typeof value === "object" && value._methodName) continue;
     // __increment:N → MongoDB $inc
     if (typeof value === "string" && value.startsWith("__increment:")) {
-      var incVal = parseInt(value.split(":")[1], 10);
+      const incVal = parseInt(value.split(":")[1], 10);
       increments[key] = isNaN(incVal) ? 1 : incVal;
       continue;
     }
@@ -90,7 +79,7 @@ function addTimestamps(data, isNew) {
   return { cleaned, increments };
 }
 
-// Koleksiyon adı al (subcollection destekli)
+// Koleksiyon adını çöz (subcollection desteği)
 function getCollectionName(op) {
   if (op.parentDocId && op.subCollection) {
     return `${op.collection}_${op.subCollection}`;
@@ -105,51 +94,62 @@ async function executeSingleOp(db, op) {
 
   switch (op.type) {
     case "add": {
-      const newId = generateId();
       const { cleaned } = addTimestamps(op.data, true);
-      cleaned._id = newId;
-      await col.insertOne(cleaned);
-      return { success: true, id: newId };
+      const result = await col.insertOne(cleaned);
+      return { success: true, id: result.insertedId.toString() };
     }
     case "set": {
-      const { cleaned, increments } = addTimestamps(op.data, true);
-      if (op.merge) {
-        // merge: true → $set + $inc (upsert)
-        const updateOps = { $set: cleaned };
-        if (Object.keys(increments).length > 0) {
-          updateOps.$inc = increments;
+      const { cleaned } = addTimestamps(op.data, true);
+      if (op.docId) {
+        // Priority: check string _id first (real docs), then _docId (legacy)
+        const buildFilter = async () => {
+          const byId = await col.findOne({ _id: op.docId });
+          if (byId) return { _id: op.docId };
+          if (op.docId.length === 24) {
+            try { const byObjId = await col.findOne({ _id: new ObjectId(op.docId) }); if (byObjId) return { _id: new ObjectId(op.docId) }; } catch(e) {}
+          }
+          // Fallback to _docId (legacy)
+          return { _docId: op.docId };
+        };
+        const filter = await buildFilter();
+        if (op.merge) {
+          await col.updateOne(filter, { $set: cleaned }, { upsert: true });
+        } else {
+          await col.replaceOne(filter, { ...cleaned, _docId: op.docId }, { upsert: true });
         }
-        // createdAt sadece insert'te eklensin, update'te ezilmesin
-        updateOps.$setOnInsert = { createdAt: new Date() };
-        delete cleaned.createdAt;
-        await col.updateOne(
-          { _id: op.docId },
-          updateOps,
-          { upsert: true }
-        );
       } else {
-        // merge: false → dokümanı tamamen değiştir (upsert)
-        cleaned._id = op.docId;
-        await col.replaceOne(
-          { _id: op.docId },
-          cleaned,
-          { upsert: true }
-        );
+        await col.insertOne(cleaned);
       }
       return { success: true };
     }
     case "update": {
       const { cleaned, increments } = addTimestamps(op.data, false);
-      const updateOps = { $set: cleaned };
+      const updateDoc = { $set: cleaned };
       if (Object.keys(increments).length > 0) {
-        updateOps.$inc = increments;
+        updateDoc.$inc = increments;
       }
-      await col.updateOne({ _id: op.docId }, updateOps);
+      // Priority: check string _id first (real docs), then ObjectId, then _docId (legacy)
+      let filter = { _docId: op.docId }; // fallback
+      const byId = await col.findOne({ _id: op.docId });
+      if (byId) {
+        filter = { _id: op.docId };
+      } else if (op.docId && op.docId.length === 24) {
+        try { const byObjId = await col.findOne({ _id: new ObjectId(op.docId) }); if (byObjId) filter = { _id: new ObjectId(op.docId) }; } catch(e) {}
+      }
+      await col.updateOne(filter, updateDoc, { upsert: true });
       return { success: true };
     }
     case "delete": {
       console.warn(`[DELETE] koleksiyon: ${colName}, docId: ${op.docId}, zaman: ${new Date().toISOString()}`);
-      const result = await col.deleteOne({ _id: op.docId });
+      // Priority: real doc by string _id first
+      let filter = { _docId: op.docId };
+      const byId = await col.findOne({ _id: op.docId });
+      if (byId) {
+        filter = { _id: op.docId };
+      } else if (op.docId && op.docId.length === 24) {
+        try { const byObjId = await col.findOne({ _id: new ObjectId(op.docId) }); if (byObjId) filter = { _id: new ObjectId(op.docId) }; } catch(e) {}
+      }
+      const result = await col.deleteOne(filter);
       console.warn(`[DELETE] sonuç: ${result.deletedCount} belge silindi (${colName}/${op.docId})`);
       return { success: true, deleted: result.deletedCount };
     }
@@ -166,15 +166,13 @@ router.post("/write", async (req, res) => {
     return res.status(400).json({ error: "operations dizisi gerekli." });
   }
 
-  // Koleksiyonları doğrula
   for (const op of operations) {
     if (!ALLOWED_COLLECTIONS.includes(op.collection)) {
       return res.status(403).json({ error: `Koleksiyon izni yok: ${op.collection}` });
     }
   }
 
-  // KORUMA: Tek istekte 20'den fazla silme işlemi engelle
-  const deleteCount = operations.filter(op => op.type === "delete").length;
+  const deleteCount = operations.filter((op) => op.type === "delete").length;
   if (deleteCount > 20) {
     console.error(`BLOCKED: ${deleteCount} silme işlemi engellendi (max 20)`);
     return res.status(403).json({ error: `Tek istekte en fazla 20 silme işlemi yapılabilir (istenen: ${deleteCount})` });
@@ -183,13 +181,11 @@ router.post("/write", async (req, res) => {
   try {
     const db = await getDbSafe();
 
-    // Tek işlem
     if (operations.length === 1) {
       const result = await executeSingleOp(db, operations[0]);
       return res.json(result);
     }
 
-    // Birden fazla işlem
     const addedIds = [];
     for (const op of operations) {
       const result = await executeSingleOp(db, op);
@@ -198,7 +194,7 @@ router.post("/write", async (req, res) => {
 
     return res.json({ success: true, ids: addedIds });
   } catch (error) {
-    console.error("dbWrite error:", error);
+    console.error("mongoWrite error:", error);
     return res.status(500).json({ error: "Yazma hatası: " + error.message });
   }
 });
@@ -221,12 +217,6 @@ router.get("/:collection", async (req, res) => {
     const db = await getDbSafe();
     const col = db.collection(collection);
 
-    // MongoDB filtre oluştur
-    const filter = {};
-    const whereParams = req.query.where
-      ? (Array.isArray(req.query.where) ? req.query.where : [req.query.where])
-      : [];
-
     const mongoOps = {
       eq: "$eq",
       ne: "$ne",
@@ -236,6 +226,13 @@ router.get("/:collection", async (req, res) => {
       lte: "$lte",
     };
 
+    const filter = {};
+    const whereParams = req.query.where
+      ? Array.isArray(req.query.where)
+        ? req.query.where
+        : [req.query.where]
+      : [];
+
     for (const w of whereParams) {
       const parts = w.split(":");
       if (parts.length < 3) continue;
@@ -244,45 +241,38 @@ router.get("/:collection", async (req, res) => {
       const value = parts.slice(2).join(":");
 
       const mongoOp = mongoOps[op];
-      if (!mongoOp) continue;
+      if (mongoOp) {
+        let convertedValue = value;
+        if (value.startsWith("s:")) {
+          convertedValue = value.slice(2);
+        } else if (value === "true") convertedValue = true;
+        else if (value === "false") convertedValue = false;
+        else if (value !== "" && !isNaN(value)) convertedValue = Number(value);
 
-      // Tip dönüşümü: s: prefix → string olarak koru
-      let convertedValue = value;
-      if (value.startsWith("s:")) {
-        convertedValue = value.slice(2);
-      } else if (value === "true") convertedValue = true;
-      else if (value === "false") convertedValue = false;
-      else if (value !== "" && !isNaN(value)) convertedValue = Number(value);
-
-      if (op === "eq") {
-        filter[field] = convertedValue;
-      } else {
-        filter[field] = filter[field] || {};
-        filter[field][mongoOp] = convertedValue;
+        filter[field] = { [mongoOp]: convertedValue };
       }
     }
 
-    // Sorgu oluştur
     let cursor = col.find(filter);
 
-    // Sort
     if (req.query.orderBy) {
       const [field, dir] = req.query.orderBy.split(":");
       cursor = cursor.sort({ [field]: dir === "desc" ? -1 : 1 });
     }
 
-    // Limit
-    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 0;
-    if (limit > 0) {
-      cursor = cursor.limit(limit);
+    const limitVal = req.query.limit ? parseInt(req.query.limit, 10) : 0;
+    if (limitVal > 0) {
+      cursor = cursor.limit(limitVal);
     }
 
     const docs = await cursor.toArray();
 
-    // _id → id dönüşümü (frontend uyumluluğu)
-    const result = docs.map(doc => {
-      const { _id, ...rest } = doc;
-      return { ...rest, id: _id };
+    const result = docs.map((doc) => {
+      const { _id, _docId, ...rest } = doc;
+      return {
+        ...rest,
+        id: _docId || _id.toString(),
+      };
     });
 
     return res.json(result);
@@ -302,14 +292,26 @@ router.get("/:collection/:docId", async (req, res) => {
 
   try {
     const db = await getDbSafe();
-    const doc = await db.collection(collection).findOne({ _id: docId });
+    const col = db.collection(collection);
+
+    // Önce _docId ile ara, sonra _id ile dene
+    let doc = await col.findOne({ _docId: docId });
+
+    if (!doc) {
+      // ObjectId olarak dene
+      try {
+        doc = await col.findOne({ _id: new ObjectId(docId) });
+      } catch (_) {
+        // ObjectId değilse geç
+      }
+    }
 
     if (!doc) {
       return res.json({ exists: false, data: null });
     }
 
-    const { _id, ...data } = doc;
-    return res.json({ exists: true, data, id: _id });
+    const { _id, _docId, ...rest } = doc;
+    return res.json({ exists: true, data: rest, id: _docId || _id.toString() });
   } catch (error) {
     console.error(`Read ${collection}/${docId} error:`, error);
     return res.status(500).json({ error: "Okuma hatası: " + error.message });

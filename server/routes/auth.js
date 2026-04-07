@@ -76,26 +76,31 @@ function clearAttempts(key) {
   loginAttempts.delete(key);
 }
 
-// Helper: passwords koleksiyonundan doküman oku
+// ── MongoDB Helpers ──
+// passwords koleksiyonu MongoDB'de { _docId: docId, ...fields } şeklinde saklanır
+
 async function getPasswordDoc(docId) {
   const db = await getDbSafe();
+  // Firestore'dan import edilen veriler _id: 'admin' (string) şeklinde geliyor
   const doc = await db.collection("passwords").findOne({ _id: docId });
-  return doc || {};
+  if (!doc) return {};
+  const { _id, _docId, _firestoreId, ...rest } = doc;
+  return rest;
 }
 
-// Helper: passwords koleksiyonuna doküman yaz
 async function setPasswordDoc(docId, data, merge = false) {
   const db = await getDbSafe();
+  const col = db.collection("passwords");
   if (merge) {
-    await db.collection("passwords").updateOne(
+    await col.updateOne(
       { _id: docId },
-      { $set: data },
+      { $set: { ...data, updatedAt: new Date() } },
       { upsert: true }
     );
   } else {
-    await db.collection("passwords").replaceOne(
+    await col.replaceOne(
       { _id: docId },
-      { _id: docId, ...data },
+      { _id: docId, ...data, updatedAt: new Date() },
       { upsert: true }
     );
   }
@@ -131,19 +136,15 @@ router.post("/student", async (req, res) => {
 
     if (isValid) {
       clearAttempts(rateLimitKey);
-      // Eski hash'i bcrypt'e migrate et
       if (!isBcryptHash(storedPassword)) {
         const bcryptHash = await hashPassword(password);
         await setPasswordDoc("student_passwords", { [trimmedId]: bcryptHash }, true);
       }
-      // Öğrencinin departmentId bilgisini al
       let departmentId = "bilgisayar";
       try {
         const db = await getDbSafe();
-        const student = await db.collection("students").findOne({ studentNumber: trimmedId });
-        if (student && student.departmentId) {
-          departmentId = student.departmentId;
-        }
+        const studentDoc = await db.collection("students").findOne({ studentNumber: trimmedId });
+        if (studentDoc && studentDoc.departmentId) departmentId = studentDoc.departmentId;
       } catch (e) {
         console.warn("Student departmentId lookup error:", e.message);
       }
@@ -281,13 +282,13 @@ router.post("/department-manager", async (req, res) => {
 
   try {
     const db = await getDbSafe();
-    const deptDoc = await db.collection("departments").findOne({ managerName: managerName });
+    const deptDoc = await db.collection("departments").findOne({ managerName });
     if (!deptDoc) {
       recordAttempt(rateLimitKey);
       return res.json({ success: false, error: "Bu isimle kayıtlı bir bölüm yetkilisi bulunamadı." });
     }
 
-    const departmentId = deptDoc._id;
+    const departmentId = deptDoc._docId || deptDoc._id.toString();
     const departmentName = deptDoc.name;
 
     const doc = await getPasswordDoc("department_manager_passwords");
@@ -391,8 +392,6 @@ router.post("/change-password", async (req, res) => {
 
 // ══════════════════════════════════════════════
 // 6. Öğrenci şifre var mı kontrol
-// POST /api/auth/student-has-password-check (CloudFunctions uyumlu)
-// GET  /api/auth/student-has-password/:studentNumber
 // ══════════════════════════════════════════════
 router.post("/student-has-password-check", async (req, res) => {
   const { studentNumber } = req.body;
@@ -413,7 +412,6 @@ router.get("/student-has-password/:studentNumber", async (req, res) => {
   if (!studentNumber) {
     return res.status(400).json({ error: "Öğrenci numarası gerekli." });
   }
-
   try {
     const doc = await getPasswordDoc("student_passwords");
     return res.json({ hasPassword: !!doc[studentNumber.trim()] });
@@ -476,8 +474,8 @@ router.post("/save-role", async (req, res) => {
   try {
     const db = await getDbSafe();
     await db.collection("users").updateOne(
-      { _id: uid },
-      { $set: { ...roleData, updatedAt: new Date() } },
+      { _docId: uid },
+      { $set: { ...roleData, _docId: uid, updatedAt: new Date() } },
       { upsert: true }
     );
     return res.json({ success: true });

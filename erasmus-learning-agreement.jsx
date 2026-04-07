@@ -733,34 +733,47 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
   const [loading, setLoading] = useState(false);
   const [filterType, setFilterType] = useState("all");
   const [expandedIdx, setExpandedIdx] = useState(null);
+  const [searchText, setSearchText] = useState("");
+  const [uniSearch, setUniSearch] = useState("");
 
   const uniList = Object.keys(universities || UNIVERSITY_CATALOGS);
+  const filteredUniList = uniSearch
+    ? uniList.filter(u => u.toLowerCase().includes(uniSearch.toLowerCase()))
+    : uniList;
 
   const loadHistory = async (uni) => {
+    if (selectedUni === uni) return;
     setSelectedUni(uni);
     setExpandedIdx(null);
+    setFilterType("all");
+    setSearchText("");
     if (!uni) { setHistory([]); return; }
     setLoading(true);
     try {
       const entries = await FirebaseDB.fetchTripHistory(uni);
       setHistory(entries);
     } catch (e) {
-      console.error('Trip history load error:', e);
+      console.error("Trip history load error:", e);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredHistory = filterType === "all" ? history : history.filter(h => h.type === filterType);
+  const filteredHistory = history.filter(h => {
+    if (filterType !== "all" && h.type !== filterType) return false;
+    if (searchText) {
+      const q = searchText.toLowerCase();
+      const homeCodes = (h.homeCourses || []).map(c => (c.code + " " + c.name).toLowerCase()).join(" ");
+      const hostCodes = (h.hostCourses || []).map(c => (c.code + " " + c.name).toLowerCase()).join(" ");
+      if (!homeCodes.includes(q) && !hostCodes.includes(q) && !(h.studentName || "").toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 
   const grouped = [];
   const seen = new Set();
   filteredHistory.forEach(entry => {
-    const key = JSON.stringify({
-      type: entry.type,
-      home: (entry.homeCourses || []).map(c => c.code).sort(),
-      host: (entry.hostCourses || []).map(c => c.code).sort(),
-    });
+    const key = JSON.stringify({ type: entry.type, home: (entry.homeCourses || []).map(c => c.code).sort(), host: (entry.hostCourses || []).map(c => c.code).sort() });
     if (!seen.has(key)) {
       seen.add(key);
       const students = filteredHistory
@@ -768,9 +781,7 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
         .map(e => ({ name: e.studentName, semester: e.semester, number: e.studentNumber }));
       const uniqueStudents = [];
       const seenStudents = new Set();
-      students.forEach(s => {
-        if (!seenStudents.has(s.number)) { seenStudents.add(s.number); uniqueStudents.push(s); }
-      });
+      students.forEach(s => { if (!seenStudents.has(s.number)) { seenStudents.add(s.number); uniqueStudents.push(s); } });
       grouped.push({ ...entry, usedBy: uniqueStudents });
     }
   });
@@ -780,225 +791,374 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
     try {
       await FirebaseDB.deleteTripHistoryEntry(entryId);
       setHistory(prev => prev.filter(h => h.id !== entryId));
-    } catch (e) {
-      alert("Silme sirasinda hata olustu.");
-    }
+    } catch (e) { alert("Silme sırasında hata oluştu."); }
   };
 
   const outgoingCount = grouped.filter(e => e.type === "outgoing").length;
   const returnCount = grouped.filter(e => e.type === "return").length;
-  const totalCourses = grouped.reduce((sum, e) => sum + (e.homeCourses || []).length + (e.hostCourses || []).length, 0);
+  const totalAkts = grouped.reduce((sum, e) => sum + (e.homeCourses || []).reduce((s, c) => s + (c.credits || 0), 0), 0);
 
+  // Full-screen overlay instead of Modal
   return (
-    <Modal open={true} onClose={onClose} title="Eşleştirme Geçmişi" width={1100}>
-      {/* Filters */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
-        <select value={selectedUni} onChange={e => loadHistory(e.target.value)}
-          style={{ padding: "10px 16px", border: `2px solid ${selectedUni ? C.navy : C.border}`, borderRadius: 10, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer", minWidth: 280, transition: "border-color 0.2s", outline: "none" }}>
-          <option value="">Üniversite Seçin...</option>
-          {uniList.map(uni => <option key={uni} value={uni}>{uni}</option>)}
-        </select>
-        {selectedUni && (
-          <div style={{ display: "flex", gap: 4, background: C.bg, borderRadius: 10, padding: 4 }}>
-            {[
-              { id: "all", label: "Tumu" },
-              { id: "outgoing", label: "Gidis" },
-              { id: "return", label: "Donus" },
-            ].map(f => (
-              <button key={f.id} onClick={() => setFilterType(f.id)}
-                style={{
-                  padding: "8px 16px", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit",
-                  background: filterType === f.id ? C.navy : "transparent",
-                  color: filterType === f.id ? "white" : C.textMuted,
-                }}>
-                {f.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9999,
+      background: "rgba(15,23,42,0.55)",
+      backdropFilter: "blur(4px)",
+      display: "flex", alignItems: "stretch", justifyContent: "flex-end",
+    }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{
+        width: "min(1100px, 100vw)",
+        height: "100vh",
+        background: "#F8FAFC",
+        display: "flex",
+        flexDirection: "column",
+        boxShadow: "-8px 0 40px rgba(0,0,0,0.18)",
+        animation: "slideInRight 0.25s cubic-bezier(0.16,1,0.3,1)",
+      }}>
+        <style>{`
+          @keyframes slideInRight { from { transform: translateX(60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+          @keyframes spin { to { transform: rotate(360deg); } }
+          .th-uni-item:hover { background: #EFF6FF !important; }
+          .th-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important; }
+        `}</style>
 
-      {/* Stats bar */}
-      {selectedUni && !loading && grouped.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
-          {[
-            { label: "Toplam Eşleştirme", value: grouped.length, color: C.navy, bg: "#EEF0F5" },
-            { label: "Gidis", value: outgoingCount, color: C.green, bg: C.greenLight },
-            { label: "Donus", value: returnCount, color: "#B8860B", bg: C.goldPale },
-          ].map((stat, i) => (
-            <div key={i} style={{ padding: "14px 16px", borderRadius: 12, background: stat.bg, textAlign: "center" }}>
-              <div style={{ fontSize: 24, fontWeight: 700, color: stat.color, fontFamily: "'Playfair Display', serif" }}>{stat.value}</div>
-              <div style={{ fontSize: 11, color: stat.color, fontWeight: 600, opacity: 0.8, textTransform: "uppercase", letterSpacing: "0.05em" }}>{stat.label}</div>
+        {/* ── Top Header ── */}
+        <div style={{
+          padding: "0 28px",
+          height: 64,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "white",
+          borderBottom: "1px solid #E2E8F0",
+          flexShrink: 0,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #1e3a5f, #2563EB)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                <rect x="9" y="3" width="6" height="4" rx="1"/>
+                <path d="M9 12h6M9 16h4"/>
+              </svg>
             </div>
-          ))}
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Eşleştirme Geçmişi</div>
+              <div style={{ fontSize: 11, color: "#94A3B8" }}>Geçmiş dönemlerdeki ders eşleştirmeleri</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B", transition: "all 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "white"; }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
-      )}
 
-      <div style={{ maxHeight: 500, overflowY: "auto", paddingRight: 4 }}>
-        {!selectedUni && (
-          <div style={{ textAlign: "center", padding: 60, color: C.textMuted }}>
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke={C.border} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16, opacity: 0.5 }}>
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-            </svg>
-            <div style={{ fontSize: 16, fontWeight: 600, color: C.navy, marginBottom: 6 }}>Üniversite Seçin</div>
-            <div style={{ fontSize: 13 }}>Geçmiş ders eşleştirmelerini görüntülemek için yukarıdaki listeden bir üniversite seçin.</div>
-          </div>
-        )}
-        {selectedUni && loading && (
-          <div style={{ textAlign: "center", padding: 60, color: C.textMuted }}>
-            <div style={{ width: 40, height: 40, border: `3px solid ${C.border}`, borderTopColor: C.navy, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
-            Yukleniyor...
-          </div>
-        )}
-        {selectedUni && !loading && grouped.length === 0 && (
-          <div style={{ textAlign: "center", padding: 50 }}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}>
-              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            <div style={{ fontSize: 15, fontWeight: 600, color: C.navy, marginBottom: 6 }}>Henuz kayit bulunamadi</div>
-            <div style={{ fontSize: 13, color: C.textMuted }}>Öğrenci eşleştirmeleri kaydedildikçe otomatik olarak buraya eklenecektir.</div>
-          </div>
-        )}
-        {selectedUni && !loading && grouped.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {grouped.map((entry, idx) => {
-              const isExpanded = expandedIdx === idx;
-              return (
-                <div key={idx}
-                  style={{
-                    border: `1px solid ${isExpanded ? (entry.type === "outgoing" ? C.green : C.gold) : C.border}`,
-                    borderRadius: 14, background: "white", overflow: "hidden",
-                    transition: "all 0.2s", boxShadow: isExpanded ? "0 4px 16px rgba(0,0,0,0.08)" : "none",
-                  }}>
-                  {/* Header - clickable */}
-                  <div onClick={() => setExpandedIdx(isExpanded ? null : idx)}
+        {/* ── Body ── */}
+        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+
+          {/* ── LEFT: University Sidebar ── */}
+          <div style={{
+            width: r.isMobile ? "100%" : 260,
+            flexShrink: 0,
+            display: r.isMobile && selectedUni ? "none" : "flex",
+            flexDirection: "column",
+            background: "white",
+            borderRight: "1px solid #E2E8F0",
+            overflow: "hidden",
+          }}>
+            <div style={{ padding: "14px 14px 8px" }}>
+              <div style={{ position: "relative" }}>
+                <svg style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)" }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input
+                  value={uniSearch}
+                  onChange={e => setUniSearch(e.target.value)}
+                  placeholder="Üniversite ara..."
+                  style={{ width: "100%", padding: "8px 10px 8px 28px", border: "1.5px solid #E2E8F0", borderRadius: 8, fontSize: 12, fontFamily: "inherit", outline: "none", boxSizing: "border-box", background: "#F8FAFC" }}
+                />
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 12, marginBottom: 4, paddingLeft: 2 }}>
+                {filteredUniList.length} üniversite
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {filteredUniList.map(uni => {
+                const isActive = selectedUni === uni;
+                return (
+                  <div key={uni} className="th-uni-item" onClick={() => loadHistory(uni)}
                     style={{
-                      padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14,
-                      background: isExpanded ? (entry.type === "outgoing" ? "rgba(0,180,80,0.03)" : "rgba(200,160,0,0.03)") : "white",
-                      transition: "background 0.2s",
-                    }}
-                    onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = C.bg; }}
-                    onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = "white"; }}>
-                    {/* Type badge */}
-                    <div style={{
-                      width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-                      background: entry.type === "outgoing" ? C.green : C.gold,
-                    }} />
-                    <span style={{
-                      padding: "3px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
-                      background: entry.type === "outgoing" ? C.greenLight : C.goldPale,
-                      color: entry.type === "outgoing" ? C.green : "#B8860B",
+                      padding: "10px 14px",
+                      cursor: "pointer",
+                      background: isActive ? "#EFF6FF" : "transparent",
+                      borderLeft: `3px solid ${isActive ? "#2563EB" : "transparent"}`,
+                      transition: "all 0.15s",
                     }}>
-                      {entry.type === "outgoing" ? "Gidis" : "Donus"}
-                    </span>
-                    {/* Summary */}
-                    <div style={{ flex: 1, fontSize: 13, color: C.navy, fontWeight: 500 }}>
-                      {(entry.homeCourses || []).length} ders eşleştirmesi
-                    </div>
-                    {/* Student count */}
-                    <div style={{ fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" />
-                      </svg>
-                      {(entry.usedBy || []).length}
-                    </div>
-                    {/* Expand icon */}
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                      style={{ transition: "transform 0.2s", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}>
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
+                    <div style={{ fontSize: 12, fontWeight: isActive ? 700 : 500, color: isActive ? "#1D4ED8" : "#374151", lineHeight: 1.4 }}>{uni}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── RIGHT: Content ── */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+
+            {/* No selection */}
+            {!selectedUni && (
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "#94A3B8" }}>
+                <div style={{ width: 80, height: 80, borderRadius: "50%", background: "#F1F5F9", border: "2px dashed #CBD5E1", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                  </svg>
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#475569" }}>Soldaki listeden bir üniversite seçin</div>
+                <div style={{ fontSize: 13 }}>Geçmiş eşleştirmeler burada görünecek</div>
+              </div>
+            )}
+
+            {/* Loading */}
+            {selectedUni && loading && (
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "#94A3B8" }}>
+                <div style={{ width: 40, height: 40, border: "3px solid #E2E8F0", borderTopColor: "#2563EB", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                <div style={{ fontSize: 13, fontWeight: 500 }}>Kayıtlar yükleniyor...</div>
+              </div>
+            )}
+
+            {/* Content */}
+            {selectedUni && !loading && (
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+                {/* Sub-header: stats + filters */}
+                <div style={{ padding: "14px 20px 0", flexShrink: 0, background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+                  {/* University name */}
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    {selectedUni}
                   </div>
 
-                  {/* Expanded content */}
-                  {isExpanded && (
-                    <div style={{ padding: "0 20px 20px", borderTop: `1px solid ${C.border}` }}>
-                      {/* Course mapping */}
-                      <div style={{ display: "grid", gridTemplateColumns: r.isMobile ? "1fr" : "1fr auto 1fr", gap: r.isMobile ? 12 : 20, padding: "20px 0", alignItems: "start" }}>
-                        <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: C.navy, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-                            <div style={{ width: 3, height: 14, borderRadius: 2, background: C.navy }} />
-                            Kendi Kurumumuz
+                  {grouped.length > 0 && (
+                    <>
+                      {/* Stats strip */}
+                      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                        {[
+                          { v: grouped.length, label: "Benzersiz Eşleştirme", color: "#1D4ED8", bg: "#EFF6FF" },
+                          { v: outgoingCount, label: "Gidiş", color: "#059669", bg: "#ECFDF5" },
+                          { v: returnCount, label: "Dönüş", color: "#D97706", bg: "#FFFBEB" },
+                          { v: totalAkts, label: "AKTS", color: "#7C3AED", bg: "#F5F3FF" },
+                        ].map((s, i) => (
+                          <div key={i} style={{ padding: "6px 12px", borderRadius: 8, background: s.bg, display: "flex", alignItems: "baseline", gap: 5 }}>
+                            <span style={{ fontSize: 18, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.v}</span>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: s.color, opacity: 0.7 }}>{s.label}</span>
                           </div>
-                          {(entry.homeCourses || []).map((c, ci) => (
-                            <div key={ci} style={{ fontSize: 13, marginBottom: 6, padding: "10px 14px", background: C.bg, borderRadius: 10, borderLeft: `3px solid ${C.navy}` }}>
-                              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 2 }}>{c.code}</div>
-                              <div style={{ fontWeight: 500, color: C.navy }}>{c.name}</div>
-                              <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{c.credits} AKTS</div>
-                            </div>
-                          ))}
-                        </div>
-                        {!r.isMobile && (
-                          <div style={{ display: "flex", alignItems: "center", paddingTop: 30 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: "50%", background: `linear-gradient(135deg, ${C.greenLight}, ${C.goldPale})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <ArrowRightIcon />
-                            </div>
-                          </div>
-                        )}
-                        <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: C.green, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-                            <div style={{ width: 3, height: 14, borderRadius: 2, background: C.green }} />
-                            Karsi Kurum
-                          </div>
-                          {(entry.hostCourses || []).map((c, ci) => (
-                            <div key={ci} style={{ fontSize: 13, marginBottom: 6, padding: "10px 14px", background: C.greenLight, borderRadius: 10, borderLeft: `3px solid ${C.green}` }}>
-                              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 2 }}>{c.code}</div>
-                              <div style={{ fontWeight: 500, color: C.green }}>{c.name}</div>
-                              <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{c.credits} AKTS</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Grades section for return type */}
-                      {entry.type === "return" && entry.hostGrades && Object.keys(entry.hostGrades).length > 0 && (
-                        <div style={{ marginBottom: 16, padding: "14px 16px", background: C.goldPale, borderRadius: 10, border: `1px solid ${C.goldLight}` }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "#B8860B", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Not Donusumleri</div>
-                          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                            {(entry.hostCourses || []).map((hc, gi) => (
-                              <div key={gi} style={{ padding: "6px 12px", background: "rgba(255,255,255,0.7)", borderRadius: 8, fontSize: 13, fontWeight: 600, color: C.navy }}>
-                                {hc.code}: <span style={{ color: C.green }}>{entry.hostGrades[gi] || "-"}</span> → <span style={{ color: C.navy }}>{entry.homeGrades?.[gi] || "Muaf"}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Students */}
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Kullanan ogrenciler:</span>
-                        {(entry.usedBy || []).map((s, si) => (
-                          <span key={si} style={{
-                            padding: "5px 12px", background: "linear-gradient(135deg, #EEF0F5, #F5F6FA)", borderRadius: 8,
-                            fontSize: 12, color: C.navy, fontWeight: 500, border: `1px solid ${C.border}`,
-                          }}>
-                            {s.name} <span style={{ color: C.textMuted, fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>({s.number})</span> <span style={{ color: C.textMuted }}>- {s.semester}</span>
-                          </span>
                         ))}
                       </div>
 
-                      {/* Delete button */}
-                      {!isReadOnly && (
-                        <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end" }}>
-                          <button onClick={() => handleDelete(entry.id)}
-                            style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "white", cursor: "pointer", color: C.accent, fontSize: 12, fontWeight: 500, display: "flex", alignItems: "center", gap: 6, transition: "all 0.2s" }}
-                            onMouseEnter={e => { e.currentTarget.style.background = "#FEE2E2"; e.currentTarget.style.borderColor = C.accent; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = "white"; e.currentTarget.style.borderColor = C.border; }}>
-                            <TrashIcon /> Kaydi Sil
-                          </button>
+                      {/* Search + filter chips */}
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", paddingBottom: 12 }}>
+                        <div style={{ flex: 1, position: "relative" }}>
+                          <svg style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                          </svg>
+                          <input value={searchText} onChange={e => setSearchText(e.target.value)} placeholder="Ders kodu veya isim ara..."
+                            style={{ width: "100%", padding: "7px 10px 7px 27px", border: "1.5px solid #E2E8F0", borderRadius: 8, fontSize: 12, fontFamily: "inherit", outline: "none", boxSizing: "border-box", background: "white" }} />
                         </div>
-                      )}
+                        <div style={{ display: "flex", gap: 4 }}>
+                          {[{ id: "all", label: "Tümü" }, { id: "outgoing", label: "🛫 Gidiş" }, { id: "return", label: "🛬 Dönüş" }].map(f => (
+                            <button key={f.id} onClick={() => setFilterType(f.id)} style={{
+                              padding: "6px 12px", borderRadius: 7,
+                              border: `1.5px solid ${filterType === f.id ? "#2563EB" : "#E2E8F0"}`,
+                              background: filterType === f.id ? "#2563EB" : "white",
+                              color: filterType === f.id ? "white" : "#64748B",
+                              fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
+                            }}>{f.label}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Match list */}
+                <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px" }}>
+                  {grouped.length === 0 ? (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10, color: "#94A3B8" }}>
+                      <div style={{ width: 60, height: 60, borderRadius: "50%", background: "#FEF9C3", border: "2px solid #FDE68A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#475569" }}>{searchText ? `"${searchText}" bulunamadı` : "Bu üniversite için kayıt yok"}</div>
+                      <div style={{ fontSize: 12 }}>Eşleştirmeler kaydedildikçe buraya eklenecek</div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {grouped.map((entry, idx) => {
+                        const isExpanded = expandedIdx === idx;
+                        const isOut = entry.type === "outgoing";
+                        const accent = isOut ? { color: "#059669", bg: "#ECFDF5", border: "#A7F3D0", light: "#D1FAE5" } : { color: "#D97706", bg: "#FFFBEB", border: "#FCD34D", light: "#FEF3C7" };
+                        const homeTotalAkts = (entry.homeCourses || []).reduce((s, c) => s + (c.credits || 0), 0);
+                        return (
+                          <div key={idx} className="th-card" style={{
+                            background: "white",
+                            border: `1.5px solid ${isExpanded ? accent.border : "#E2E8F0"}`,
+                            borderRadius: 12,
+                            overflow: "hidden",
+                            transition: "all 0.18s",
+                            boxShadow: isExpanded ? `0 4px 24px ${accent.color}14` : "0 1px 3px rgba(0,0,0,0.04)",
+                          }}>
+                            {/* Row header */}
+                            <div onClick={() => setExpandedIdx(isExpanded ? null : idx)}
+                              style={{
+                                padding: "12px 16px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 10,
+                                cursor: "pointer",
+                                background: isExpanded ? accent.bg : "white",
+                                transition: "background 0.15s",
+                              }}
+                              onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = "#F8FAFC"; }}
+                              onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = "white"; }}>
+
+                              {/* Left accent bar */}
+                              <div style={{ width: 3, height: 32, borderRadius: 2, background: accent.color, flexShrink: 0 }} />
+
+                              {/* Type + courses preview */}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: accent.color, background: accent.bg, padding: "2px 8px", borderRadius: 4, border: `1px solid ${accent.border}40` }}>
+                                    {isOut ? "🛫 Gidiş" : "🛬 Dönüş"}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: "#6B7280" }}>
+                                    {(entry.homeCourses || []).length} → {(entry.hostCourses || []).length} ders
+                                  </span>
+                                </div>
+                                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                  {(entry.homeCourses || []).map((c, ci) => (
+                                    <span key={ci} style={{ fontSize: 11, fontWeight: 600, color: "#1E40AF", background: "#EFF6FF", padding: "1px 7px", borderRadius: 4, border: "1px solid #DBEAFE" }}>
+                                      {c.code || c.name?.substring(0, 12)}
+                                    </span>
+                                  ))}
+                                  <span style={{ fontSize: 11, color: "#9CA3AF" }}>→</span>
+                                  {(entry.hostCourses || []).map((c, ci) => (
+                                    <span key={ci} style={{ fontSize: 11, fontWeight: 600, color: accent.color, background: accent.bg, padding: "1px 7px", borderRadius: 4, border: `1px solid ${accent.border}60` }}>
+                                      {c.code || c.name?.substring(0, 12)}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Right info */}
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                                <div style={{ textAlign: "right" }}>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: accent.color }}>{homeTotalAkts} AKTS</div>
+                                  <div style={{ fontSize: 10, color: "#9CA3AF" }}>{(entry.usedBy || []).length} öğrenci</div>
+                                </div>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                                  style={{ transition: "transform 0.2s", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+                                  <polyline points="6 9 12 15 18 9"/>
+                                </svg>
+                              </div>
+                            </div>
+
+                            {/* Expanded body */}
+                            {isExpanded && (
+                              <div style={{ padding: "0 16px 16px", borderTop: `1px solid ${accent.border}40` }}>
+                                <div style={{ display: "grid", gridTemplateColumns: r.isMobile ? "1fr" : "1fr 36px 1fr", gap: 10, paddingTop: 14 }}>
+                                  {/* ÇAKÜ */}
+                                  <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 7 }}>
+                                      ÇAKÜ Dersleri
+                                    </div>
+                                    {(entry.homeCourses || []).map((c, ci) => (
+                                      <div key={ci} style={{ marginBottom: 4, padding: "8px 10px", background: "#F0F9FF", borderRadius: 8, borderLeft: "3px solid #2563EB", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                        <div>
+                                          <span style={{ fontFamily: "monospace", fontSize: 10, fontWeight: 700, color: "#1D4ED8", marginRight: 6 }}>{c.code}</span>
+                                          <span style={{ fontSize: 11, color: "#1E40AF" }}>{c.name}</span>
+                                        </div>
+                                        <span style={{ fontSize: 10, fontWeight: 700, color: "#2563EB", background: "white", padding: "1px 6px", borderRadius: 4, border: "1px solid #DBEAFE", marginLeft: 8, flexShrink: 0 }}>{c.credits} AKTS</span>
+                                      </div>
+                                    ))}
+                                  </div>
+
+                                  {/* Arrow */}
+                                  {!r.isMobile && (
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 24 }}>
+                                      <div style={{ width: 30, height: 30, borderRadius: "50%", background: `linear-gradient(135deg, #EFF6FF, ${accent.bg})`, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #E2E8F0" }}>
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Host */}
+                                  <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: accent.color, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 7 }}>
+                                      Karşı Kurum Dersleri
+                                    </div>
+                                    {(entry.hostCourses || []).map((c, ci) => (
+                                      <div key={ci} style={{ marginBottom: 4, padding: "8px 10px", background: accent.bg, borderRadius: 8, borderLeft: `3px solid ${accent.color}` }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                          <div>
+                                            <span style={{ fontFamily: "monospace", fontSize: 10, fontWeight: 700, color: accent.color, marginRight: 6 }}>{c.code}</span>
+                                            <span style={{ fontSize: 11, color: accent.color }}>{c.name}</span>
+                                          </div>
+                                          <span style={{ fontSize: 10, fontWeight: 700, color: accent.color, background: "rgba(255,255,255,0.7)", padding: "1px 6px", borderRadius: 4, border: `1px solid ${accent.border}`, marginLeft: 8, flexShrink: 0 }}>{c.credits} AKTS</span>
+                                        </div>
+                                        {entry.type === "return" && (entry.hostGrades?.[ci] || entry.hostGrade) && (
+                                          <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                                            <span style={{ fontSize: 10, color: accent.color, opacity: 0.7 }}>Not:</span>
+                                            <span style={{ fontSize: 11, fontWeight: 700, color: accent.color, background: "rgba(255,255,255,0.8)", padding: "0 5px", borderRadius: 3 }}>{entry.hostGrades?.[ci] || entry.hostGrade}</span>
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={accent.color} strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                                            <span style={{ fontSize: 11, fontWeight: 700, color: "#1E40AF", background: "rgba(255,255,255,0.8)", padding: "0 5px", borderRadius: 3 }}>{entry.homeGrades?.[ci] || entry.homeGrade || "Muaf"}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Students */}
+                                {(entry.usedBy || []).length > 0 && (
+                                  <div style={{ marginTop: 10, padding: "10px 12px", background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0" }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Kullanan öğrenciler</div>
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                                      {(entry.usedBy || []).map((s, si) => (
+                                        <span key={si} style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 10px 3px 4px", background: "white", borderRadius: 16, border: "1px solid #E2E8F0", fontSize: 11, color: "#374151", fontWeight: 500 }}>
+                                          <div style={{ width: 18, height: 18, borderRadius: "50%", background: "linear-gradient(135deg, #1e3a5f, #2563EB)", color: "white", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{(s.name || "?")[0]}</div>
+                                          {s.name}
+                                          {s.semester && <span style={{ color: "#9CA3AF", fontSize: 10 }}>· {s.semester}</span>}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {!isReadOnly && (
+                                  <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                                    <button onClick={() => handleDelete(entry.id)}
+                                      style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid #FCA5A5", background: "#FEF2F2", cursor: "pointer", color: "#DC2626", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, transition: "all 0.15s" }}
+                                      onMouseEnter={e => { e.currentTarget.style.background = "#FEE2E2"; }}
+                                      onMouseLeave={e => { e.currentTarget.style.background = "#FEF2F2"; }}>
+                                      <TrashIcon /> Kaydı Sil
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
-              );
-            })}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
-    </Modal>
+    </div>
   );
 };
+
 
 // ── Student Detail Modal ──
 const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStudents = [] }) => {
@@ -1524,50 +1684,42 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
         )}
 
         {/* Actions Bar */}
-        <Card>
-          <div style={{ display: "flex", flexDirection: r.isMobile ? "column" : "row", justifyContent: "space-between", alignItems: r.isMobile ? "stretch" : "center", gap: r.val(12, 14, 16), flexWrap: "wrap" }}>
-            <div style={{ display: "flex", gap: 12, flex: 1, minWidth: r.isMobile ? 0 : 300, flexDirection: r.isMobile ? "column" : "row" }}>
-              <div style={{ flex: 1, maxWidth: r.isMobile ? "100%" : 350 }}>
-                <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Öğrenci ara (ad, numara, kurum)..." />
-              </div>
-              <select value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}
-                style={{ padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer", minWidth: r.isMobile ? 0 : 150, width: r.isMobile ? "100%" : "auto" }}>
-                {semesters.map(sem => {
-                  let displayText = sem === "all" ? "Tüm Dönemler" : sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Güz");
-                  return <option key={sem} value={sem}>{displayText}</option>;
-                })}
-              </select>
+        <div
+          onClick={() => setShowTripHistory(true)}
+          style={{
+            background: "linear-gradient(135deg, #0F2942 0%, #1D4ED8 100%)",
+            borderRadius: 16,
+            padding: "20px 28px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            cursor: "pointer",
+            boxShadow: "0 4px 24px rgba(29,78,216,0.25)",
+            transition: "all 0.2s",
+            userSelect: "none",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 8px 32px rgba(29,78,216,0.35)"; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 24px rgba(29,78,216,0.25)"; }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                <rect x="9" y="3" width="6" height="4" rx="1"/>
+                <path d="M9 12h6M9 16h4"/>
+              </svg>
             </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {/* Trip History button visible to all users */}
-              <Btn onClick={() => setShowTripHistory(true)} variant="secondary" icon={<FileTextIcon />}>Eşleştirme Geçmişi</Btn>
-              {(currentUser?.role === 'admin' || currentUser?.role === 'bolum_yetkilisi') && (
-                <>
-                  <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
-                  <Btn onClick={() => fileInputRef.current?.click()} variant="secondary" icon={<UploadIcon />}>İçe Aktar</Btn>
-                  <Btn onClick={exportAllData} variant="secondary" icon={<DownloadIcon />}>Tümünü Dışa Aktar</Btn>
-                </>
-              )}
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "white" }}>Eşleştirme Geçmişi</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>Geçmiş dönemlere ait ders eşleştirmelerini görüntüle</div>
             </div>
           </div>
-        </Card>
-
-        {/* Statistics */}
-        <div style={{ display: "grid", gridTemplateColumns: r.val("repeat(2, 1fr)", "repeat(2, 1fr)", "repeat(4, 1fr)"), gap: r.val(12, 16, 20), marginBottom: 24 }}>
-          {[
-            { label: "Erasmus Öğrenci", value: erasmusStudents.length, color: C.navy },
-            { label: "Gidiş Eşleştirmeleri", value: erasmusStudents.reduce((sum, s) => sum + (s.outgoingMatches || []).length, 0), color: C.green },
-            { label: "Dönüş Eşleştirmeleri", value: erasmusStudents.reduce((sum, s) => sum + (s.returnMatches || []).length, 0), color: C.gold },
-            { label: "Ortalama Eşleştirme", value: erasmusStudents.length > 0 ? ((erasmusStudents.reduce((sum, s) => sum + (s.outgoingMatches || []).length + (s.returnMatches || []).length, 0)) / erasmusStudents.length).toFixed(1) : 0, color: C.accent },
-          ].map((stat, i) => (
-            <Card key={i} noPadding>
-              <div style={{ padding: r.val(16, 20, 24), textAlign: "center" }}>
-                <div style={{ fontSize: r.val(12, 13, 14), color: C.textMuted, marginBottom: r.val(4, 6, 8) }}>{stat.label}</div>
-                <div style={{ fontSize: r.val(24, 30, 36), fontWeight: 700, color: stat.color, fontFamily: "'Playfair Display', serif" }}>{stat.value}</div>
-              </div>
-            </Card>
-          ))}
+          <div style={{ padding: "9px 20px", borderRadius: 10, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)", color: "white", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
+            Görüntüle
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
         </div>
+
 
         {/* Grade Conversion */}
         <Card title="Not Dönüşüm Hesaplayıcı"><GradeConverter /></Card>

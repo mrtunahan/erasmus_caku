@@ -15,6 +15,8 @@ import './shared-components.jsx';
 window.__lazyModules = {
   erasmus:       { loader: () => import('./erasmus-learning-agreement.jsx'), component: 'ErasmusLearningAgreementApp' },
   sinav:         { loader: () => import('./sinav-otomasyonu.jsx'),          component: 'SinavOtomasyonuApp' },
+  dersyonetimi:  { loader: () => import('./ders-yonetimi-modulu.jsx'),      component: 'DersYonetimiModuluApp' },
+  bolumyonetimi: { loader: () => import('./bolum-yonetimi-modulu.jsx'),     component: 'BolumYonetimiModuluApp' },
   muafiyet:      { loader: () => import('./ders-muafiyet.jsx'),             component: 'DersMuafiyetApp' },
 
   portal:        { loader: () => import('./ogrenci-portali.jsx'),           component: 'OgrenciPortaliApp' },
