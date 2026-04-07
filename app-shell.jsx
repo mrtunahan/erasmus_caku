@@ -558,12 +558,11 @@ function AppShell() {
     }
 
     // Redirect based on role
-    if (user.role === "admin") {
-      navigate("erasmus");
-    } else if (user.role === "bolum_yetkilisi") {
-      navigate("erasmus");
-    } else if (user.role === "professor") {
-      navigate("sinav");
+    const userName = (user.name || "").toLowerCase();
+    const isErgun = (userName.includes("ergün") || userName.includes("ergun")) &&
+      (userName.includes("çinar") || userName.includes("çınar") || userName.includes("cinar") || userName.includes("cınar"));
+    if (isErgun) {
+      navigate("staj");
     } else {
       navigate("portal");
     }
