@@ -1,18 +1,19 @@
 {
   "name": "erasmus-caku-server",
   "version": "1.0.0",
-  "description": "Express.js backend for Erasmus CAKU - Firebase Firestore API server",
+  "description": "Express.js backend for Erasmus CAKU - MongoDB API server",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "migrate": "node ../scripts/firebase-to-mongodb.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "express": "^4.21.1",
-    "firebase-admin": "^12.0.0",
     "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.12.0",
     "multer": "^1.4.5-lts.1"
   }
 }

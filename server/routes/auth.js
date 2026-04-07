@@ -79,14 +79,26 @@ function clearAttempts(key) {
 // Helper: passwords koleksiyonundan doküman oku
 async function getPasswordDoc(docId) {
   const db = await getDbSafe();
-  const doc = await db.collection("passwords").doc(docId).get();
-  return doc.exists ? doc.data() : {};
+  const doc = await db.collection("passwords").findOne({ _id: docId });
+  return doc || {};
 }
 
 // Helper: passwords koleksiyonuna doküman yaz
 async function setPasswordDoc(docId, data, merge = false) {
   const db = await getDbSafe();
-  await db.collection("passwords").doc(docId).set(data, { merge });
+  if (merge) {
+    await db.collection("passwords").updateOne(
+      { _id: docId },
+      { $set: data },
+      { upsert: true }
+    );
+  } else {
+    await db.collection("passwords").replaceOne(
+      { _id: docId },
+      { _id: docId, ...data },
+      { upsert: true }
+    );
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -128,10 +140,9 @@ router.post("/student", async (req, res) => {
       let departmentId = "bilgisayar";
       try {
         const db = await getDbSafe();
-        const studentsSnap = await db.collection("students").where("studentNumber", "==", trimmedId).limit(1).get();
-        if (!studentsSnap.empty) {
-          const studentData = studentsSnap.docs[0].data();
-          if (studentData.departmentId) departmentId = studentData.departmentId;
+        const student = await db.collection("students").findOne({ studentNumber: trimmedId });
+        if (student && student.departmentId) {
+          departmentId = student.departmentId;
         }
       } catch (e) {
         console.warn("Student departmentId lookup error:", e.message);
@@ -270,16 +281,14 @@ router.post("/department-manager", async (req, res) => {
 
   try {
     const db = await getDbSafe();
-    const deptSnapshot = await db.collection("departments").where("managerName", "==", managerName).get();
-    if (deptSnapshot.empty) {
+    const deptDoc = await db.collection("departments").findOne({ managerName: managerName });
+    if (!deptDoc) {
       recordAttempt(rateLimitKey);
       return res.json({ success: false, error: "Bu isimle kayıtlı bir bölüm yetkilisi bulunamadı." });
     }
 
-    const deptDoc = deptSnapshot.docs[0];
-    const deptData = deptDoc.data();
-    const departmentId = deptDoc.id;
-    const departmentName = deptData.name;
+    const departmentId = deptDoc._id;
+    const departmentName = deptDoc.name;
 
     const doc = await getPasswordDoc("department_manager_passwords");
     const storedPassword = doc[managerName];
@@ -466,9 +475,10 @@ router.post("/save-role", async (req, res) => {
 
   try {
     const db = await getDbSafe();
-    await db.collection("users").doc(uid).set(
-      { ...roleData, updatedAt: new Date() },
-      { merge: true }
+    await db.collection("users").updateOne(
+      { _id: uid },
+      { $set: { ...roleData, updatedAt: new Date() } },
+      { upsert: true }
     );
     return res.json({ success: true });
   } catch (error) {
