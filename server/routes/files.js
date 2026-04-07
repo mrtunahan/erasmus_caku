@@ -56,7 +56,7 @@ router.post("/upload", upload.single("file"), (req, res) => {
   });
 });
 
-// GET /api/files/download/* - Dosya indirme (nested folder desteği)
+// GET /api/files/download/* - Dosya indirme/görüntüleme (nested folder desteği)
 router.get("/download/*", (req, res) => {
   const relativePath = req.params[0];
   const filePath = path.join(UPLOAD_DIR, relativePath);
@@ -71,6 +71,12 @@ router.get("/download/*", (req, res) => {
     return res.status(404).json({ error: "Dosya bulunamadı." });
   }
 
+  // ?download=true ise indirmeye zorla
+  if (req.query.download === "true") {
+    return res.download(filePath);
+  }
+
+  // Varsayılan: tarayıcıda inline göster
   res.sendFile(filePath);
 });
 
