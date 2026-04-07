@@ -59,6 +59,16 @@ const READABLE_COLLECTIONS = [
   "passwords",
 ];
 
+// Rastgele 20 karakterlik ID üret
+function generateId() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let id = "";
+  for (let i = 0; i < 20; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}
+
 // Timestamp alanlarını temizle ve sunucu timestamp'i ekle
 function addTimestamps(data, isNew) {
   const cleaned = {};
