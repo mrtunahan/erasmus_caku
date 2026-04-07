@@ -1688,6 +1688,27 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     return stepStatus === "pending_approval" || stepStatus === "completed";
   };
 
+  // Öğrenci belge görüntüleme/indirme
+  const getStudentFileUrl = (belgeId) => {
+    const uploaded = uploads[belgeId];
+    if (!uploaded || !uploaded.serverPath) return null;
+    const sp = uploaded.serverPath;
+    if (sp.startsWith("/api/")) return `${window.API_BASE || ""}${sp}`;
+    return `${window.API_BASE || ""}/api/files/download/${sp}`;
+  };
+
+  const handleStudentPreview = (belgeId) => {
+    const url = getStudentFileUrl(belgeId);
+    if (!url) { return; }
+    window.open(url, "_blank");
+  };
+
+  const handleStudentDownload = (belgeId) => {
+    const url = getStudentFileUrl(belgeId);
+    if (!url) { return; }
+    window.open(url + (url.includes("?") ? "&" : "?") + "download=true", "_blank");
+  };
+
   // Belge yüklenebilir mi kontrol et
   const canUploadDocument = (belgeId) => {
     // Başvuru yoksa hiçbir belge yüklenemez
@@ -1933,13 +1954,31 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                           marginTop: 8, padding: "6px 10px", borderRadius: 6,
                           background: "#F9FAFB", border: "1px solid #F3F4F6",
                           fontSize: 12, color: STAJ.text,
-                          display: "flex", alignItems: "center", gap: 6,
+                          display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap",
                         }}>
                           <StajIcon path="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" size={13} color="#6B7280" />
                           <span style={{ fontWeight: 500 }}>{uploaded.fileName}</span>
                           <span style={{ color: STAJ.textMuted }}>
                             ({(uploaded.fileSize / 1024).toFixed(0)} KB) — {new Date(uploaded.uploadedAt).toLocaleDateString("tr-TR")}
                           </span>
+                          <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
+                            <button onClick={() => handleStudentPreview(belge.id)} style={{
+                              padding: "3px 8px", borderRadius: 5, border: "1px solid #93C5FD",
+                              background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 600,
+                              cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
+                            }}>
+                              <StajIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" size={11} />
+                              Görüntüle
+                            </button>
+                            <button onClick={() => handleStudentDownload(belge.id)} style={{
+                              padding: "3px 8px", borderRadius: 5, border: "1px solid #D1D5DB",
+                              background: "white", color: "#6B7280", fontSize: 10, fontWeight: 600,
+                              cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
+                            }}>
+                              <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" size={11} />
+                              İndir
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2296,25 +2335,23 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   };
 
   // Admin: Belge indirme
-  const handleDownloadFile = (studentId, belgeId) => {
+  const getFileUrl = (studentId, belgeId) => {
     const upload = allUploads[studentId]?.[belgeId];
-    if (!upload) {
-      alert("Bu belge için indirilebilir dosya bulunamadı.");
-      return;
-    }
-    // serverPath: "staj_belgeler/studentId/filename" veya downloadURL: "/api/files/download/..."
-    let url;
-    if (upload.serverPath) {
-      const sp = upload.serverPath;
-      if (sp.startsWith("/api/")) {
-        url = `${window.API_BASE || ""}${sp}`;
-      } else {
-        url = `${window.API_BASE || ""}/api/files/download/${sp}`;
-      }
-    } else {
-      alert("Bu belge için indirilebilir dosya bulunamadı.");
-      return;
-    }
+    if (!upload || !upload.serverPath) return null;
+    const sp = upload.serverPath;
+    if (sp.startsWith("/api/")) return `${window.API_BASE || ""}${sp}`;
+    return `${window.API_BASE || ""}/api/files/download/${sp}`;
+  };
+
+  const handleDownloadFile = (studentId, belgeId) => {
+    const url = getFileUrl(studentId, belgeId);
+    if (!url) { alert("Bu belge için indirilebilir dosya bulunamadı."); return; }
+    window.open(url + (url.includes("?") ? "&" : "?") + "download=true", "_blank");
+  };
+
+  const handlePreviewFile = (studentId, belgeId) => {
+    const url = getFileUrl(studentId, belgeId);
+    if (!url) { alert("Bu belge için görüntülenebilir dosya bulunamadı."); return; }
     window.open(url, "_blank");
   };
 
@@ -3331,6 +3368,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                       )}
                                     </div>
                                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                      <button onClick={() => handlePreviewFile(selectedApp.ogrenciNo, key)} style={{
+                                        padding: "6px 12px", borderRadius: 6, border: "1px solid #93C5FD",
+                                        background: "#EFF6FF", color: "#2563EB", fontSize: 11, fontWeight: 600,
+                                        cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                      }}>
+                                        <StajIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" size={13} />
+                                        Görüntüle
+                                      </button>
                                       <button onClick={() => handleDownloadFile(selectedApp.ogrenciNo, key)} style={{
                                         padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB",
                                         background: "white", color: STAJ.primary, fontSize: 11, fontWeight: 600,
