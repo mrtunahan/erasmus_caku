@@ -68,6 +68,14 @@ router.get("/download/*", (req, res) => {
   }
 
   if (!fs.existsSync(filePath)) {
+    // Fallback: dosya adını general/ dizininde ara (eski yüklemeler için)
+    const fileName = path.basename(relativePath);
+    const fallbackPath = path.join(UPLOAD_DIR, "general", fileName);
+    const fallbackResolved = path.resolve(fallbackPath);
+    if (fallbackResolved.startsWith(path.resolve(UPLOAD_DIR)) && fs.existsSync(fallbackPath)) {
+      if (req.query.download === "true") return res.download(fallbackPath);
+      return res.sendFile(fallbackPath);
+    }
     return res.status(404).json({ error: "Dosya bulunamadı." });
   }
 

@@ -1565,8 +1565,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       // Dosyayı sunucuya yükle
       if (window.API_BASE) {
         const formData = new FormData();
-        formData.append("file", file);
         formData.append("folder", `staj_belgeler/${studentId}`);
+        formData.append("file", file);
         try {
           const resp = await fetch(`${window.API_BASE}/api/files/upload`, {
             method: "POST",
