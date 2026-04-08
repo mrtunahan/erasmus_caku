@@ -607,8 +607,8 @@ function UploadResourceModal({ onClose, onUpload, categories }) {
   const uploadToStorage = async (file) => {
     try {
       const formData = new FormData();
-      formData.append("file", file);
       formData.append("folder", "resources");
+      formData.append("file", file);
       const response = await fetch("/api/files/upload", { method: "POST", body: formData });
       if (!response.ok) {
         console.warn("Dosya yüklenemedi - dosya bilgileri kaydedilecek");

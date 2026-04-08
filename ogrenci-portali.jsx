@@ -733,8 +733,8 @@ var PortalDB = {
   // ── Dosya Yükleme (API üzerinden) ──
   async uploadFile(file) {
     var formData = new FormData();
-    formData.append("file", file);
     formData.append("folder", "portal_files");
+    formData.append("file", file);
     var response = await fetch("/api/files/upload", { method: "POST", body: formData });
     if (!response.ok) throw new Error("Dosya yüklenemedi");
     var result = await response.json();

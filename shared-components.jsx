@@ -750,8 +750,8 @@ const FirebaseDB = {
   async uploadFormFile(file) {
     try {
       const formData = new FormData();
-      formData.append('file', file);
       formData.append('folder', 'forms');
+      formData.append('file', file);
       const response = await fetch('/api/files/upload', { method: 'POST', body: formData });
       if (!response.ok) throw new Error('Dosya yüklenemedi');
       const result = await response.json();
