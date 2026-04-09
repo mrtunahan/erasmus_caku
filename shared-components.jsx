@@ -486,6 +486,30 @@ const CloudFunctions = {
 };
 window.CloudFunctions = CloudFunctions;
 
+// ── Retry mekanizması (bağlantı koptuğunda otomatik yeniden deneme) ──
+async function fetchWithRetry(url, options = {}, maxRetries = 2) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) return response;
+      // 5xx sunucu hatası ise yeniden dene
+      if (response.status >= 500 && attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      return response;
+    } catch (err) {
+      // Ağ hatası (bağlantı kopması)
+      if (attempt < maxRetries) {
+        console.warn(`[DB] İstek başarısız (deneme ${attempt + 1}/${maxRetries + 1}):`, err.message);
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 // ── Veritabanı yazma yardımcısı (Firestore API üzerinden) ──
 const FirestoreWrite = {
   async _apiCall(operations) {
@@ -493,7 +517,7 @@ const FirestoreWrite = {
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const response = await fetch('/api/db/write', {
+    const response = await fetchWithRetry('/api/db/write', {
       method: 'POST',
       headers,
       body: JSON.stringify({ operations }),
@@ -546,7 +570,7 @@ async function apiRead(collection, params = {}) {
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const response = await fetch(url.toString(), { headers });
+  const response = await fetchWithRetry(url.toString(), { headers });
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: 'Okuma hatası' }));
     throw new Error(err.error || `HTTP ${response.status}`);
@@ -559,7 +583,7 @@ async function apiReadDoc(collection, docId) {
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const response = await fetch(`/api/db/${collection}/${encodeURIComponent(docId)}`, { headers });
+  const response = await fetchWithRetry(`/api/db/${collection}/${encodeURIComponent(docId)}`, { headers });
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: 'Okuma hatası' }));
     throw new Error(err.error || `HTTP ${response.status}`);

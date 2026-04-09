@@ -5,6 +5,7 @@ const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/erasmu
 
 let client = null;
 let db = null;
+let isConnecting = false;
 
 // Veritabanı indekslerini oluştur (varsa atlar, veri kaybı yapmaz)
 async function setupIndexes(database) {
@@ -43,30 +44,74 @@ async function setupIndexes(database) {
 }
 
 async function connect() {
-  if (db) return db;
+  // Eşzamanlı connect çağrılarını engelle
+  if (isConnecting) {
+    // Bağlantı kurulana kadar bekle
+    while (isConnecting) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+    if (db) return db;
+  }
+
+  isConnecting = true;
 
   try {
+    // Eski client varsa temizle
+    if (client) {
+      try { await client.close(); } catch (_) {}
+      client = null;
+      db = null;
+    }
+
     client = new MongoClient(MONGODB_URI, {
       maxPoolSize: 10,
       minPoolSize: 2,
       socketTimeoutMS: 30000,
       serverSelectionTimeoutMS: 5000,
+      heartbeatFrequencyMS: 10000,
+      retryWrites: true,
+      retryReads: true,
     });
+
+    // Bağlantı olaylarını dinle
+    client.on("close", () => {
+      console.warn("[MongoDB] Bağlantı kapandı, yeniden bağlanma gerekecek.");
+      db = null;
+    });
+
+    client.on("error", (err) => {
+      console.error("[MongoDB] Bağlantı hatası:", err.message);
+      db = null;
+    });
+
+    client.on("timeout", () => {
+      console.warn("[MongoDB] Bağlantı zaman aşımı.");
+      db = null;
+    });
+
+    client.on("serverHeartbeatFailed", (event) => {
+      console.warn("[MongoDB] Heartbeat başarısız:", event.failure?.message || "bilinmiyor");
+    });
+
     await client.connect();
 
     // Veritabanı adını URI'den çıkar (son / sonrası, ? öncesi)
     const dbName = MONGODB_URI.split("/").pop().split("?")[0] || "erasmus_caku";
     db = client.db(dbName);
 
-    console.log(`MongoDB bağlantısı kuruldu (db: ${dbName})`);
+    console.log(`[MongoDB] Bağlantı kuruldu (db: ${dbName})`);
 
     // İndeksleri arka planda oluştur
     setupIndexes(db);
 
     return db;
   } catch (err) {
-    console.error("MongoDB başlatılamadı:", err.message);
+    client = null;
+    db = null;
+    console.error("[MongoDB] Başlatılamadı:", err.message);
     throw new Error("MongoDB'ye bağlanılamadı: " + err.message);
+  } finally {
+    isConnecting = false;
   }
 }
 
@@ -79,10 +124,27 @@ function getDb() {
   return db;
 }
 
+let lastPingOk = 0;
+const PING_INTERVAL = 30000; // 30 saniyede bir ping at
+
 async function getDbSafe() {
-  if (!db) {
+  if (!db || !client) {
     return await connect();
   }
+
+  // Son başarılı ping 30 saniyeden eski ise bağlantıyı kontrol et
+  const now = Date.now();
+  if (now - lastPingOk > PING_INTERVAL) {
+    try {
+      await client.db("admin").command({ ping: 1 });
+      lastPingOk = now;
+    } catch (err) {
+      console.warn("[MongoDB] Ping başarısız, yeniden bağlanılıyor:", err.message);
+      db = null;
+      return await connect();
+    }
+  }
+
   return db;
 }
 
@@ -91,7 +153,7 @@ async function disconnect() {
     await client.close();
     client = null;
     db = null;
-    console.log("MongoDB bağlantısı kapatıldı.");
+    console.log("[MongoDB] Bağlantı kapatıldı.");
   }
 }
 
