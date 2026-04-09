@@ -1,8 +1,19 @@
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const { getDbSafe } = require("../config/database");
 const { ObjectId } = require("mongodb");
 
 const router = express.Router();
+
+// Rate limiting - dakikada max 120 istek
+const dbRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  message: { error: "Çok fazla istek. Lütfen biraz bekleyin." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+router.use(dbRateLimit);
 
 // İzin verilen koleksiyonlar (güvenlik sınırı)
 const ALLOWED_COLLECTIONS = [
