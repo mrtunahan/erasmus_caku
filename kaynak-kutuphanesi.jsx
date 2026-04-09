@@ -102,9 +102,9 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
       if (!db) { setLoading(false); return; }
       const snapshot = await db.collection("resources").orderBy("createdAt", "desc").get();
       const allData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-      // Bölüme ait veya henüz bölüm atanmamış kayıtları göster
+      // departmentId yoksa "bilgisayar" kabul et (eski kayıtlar)
       const filtered = activeDepartment
-        ? allData.filter(r => r.departmentId === activeDepartment || !r.departmentId)
+        ? allData.filter(r => (r.departmentId || "bilgisayar") === activeDepartment)
         : allData;
       setResources(filtered);
     } catch (e) {

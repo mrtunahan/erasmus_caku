@@ -79,7 +79,7 @@ function AnketModuluApp({ currentUser, activeDepartment }) {
       const allData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
       // Bölüme ait veya henüz bölüm atanmamış kayıtları göster
       const data = activeDepartment
-        ? allData.filter(s => s.departmentId === activeDepartment || !s.departmentId)
+        ? allData.filter(s => (s.departmentId || "bilgisayar") === activeDepartment)
         : allData;
       setSurveys(data);
     } catch (e) {

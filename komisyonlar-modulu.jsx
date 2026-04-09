@@ -61,9 +61,9 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
         if (!db) return;
         const snapshot = await db.collection("professors").get();
         const allProfs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Bölüme ait veya henüz bölüm atanmamış kayıtları göster
+        // departmentId yoksa "bilgisayar" kabul et (eski kayıtlar)
         const filtered = activeDepartment
-          ? allProfs.filter(p => p.departmentId === activeDepartment || !p.departmentId)
+          ? allProfs.filter(p => (p.departmentId || "bilgisayar") === activeDepartment)
           : allProfs;
         setProfessors(filtered);
       } catch (e) {
@@ -82,9 +82,9 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
         if (!db) return;
         const snapshot = await db.collection("commissions").get();
         const allComms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Bölüme ait veya henüz bölüm atanmamış kayıtları göster
+        // departmentId yoksa "bilgisayar" kabul et (eski kayıtlar)
         const filtered = activeDepartment
-          ? allComms.filter(c => c.departmentId === activeDepartment || !c.departmentId)
+          ? allComms.filter(c => (c.departmentId || "bilgisayar") === activeDepartment)
           : allComms;
         setCommissions(filtered);
       } catch (e) {
@@ -132,7 +132,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
       const snapshot = await db.collection("commissions").get();
       const allComms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const filtered = activeDepartment
-        ? allComms.filter(c => c.departmentId === activeDepartment || !c.departmentId)
+        ? allComms.filter(c => (c.departmentId || "bilgisayar") === activeDepartment)
         : allComms;
       setCommissions(filtered);
       resetForm();
