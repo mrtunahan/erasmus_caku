@@ -53,7 +53,7 @@ const SECTION_ICONS = {
 };
 
 // ── Akademisyen Kart Bileşeni (Zenginleştirilmiş) ──
-function AcademicianCard({ prof, onSelect, onDelete, isSelected, canManage, isAdmin }) {
+function AcademicianCard({ prof, onSelect, onDelete, onStaffTypeChange, isSelected, canManage, isAdmin }) {
   var [hovered, setHovered] = useState(false);
   var [imgError, setImgError] = useState(false);
 
@@ -174,6 +174,17 @@ function AcademicianCard({ prof, onSelect, onDelete, isSelected, canManage, isAd
               <span style={{ fontSize: 11, opacity: 0.7 }}>✉</span> {prof.email}
             </div>
           )}
+          {/* Kadro türü badge */}
+          {prof.staffType === "disaridan" && (
+            <div style={{
+              display: "inline-block", fontSize: 9, fontWeight: 700,
+              color: "#9333EA", background: "#F3E8FF",
+              padding: "2px 7px", borderRadius: 5, marginTop: 4,
+              letterSpacing: 0.3,
+            }}>
+              Dışarıdan
+            </div>
+          )}
           {prof.department && (
             <div style={{
               fontSize: 11, color: COLORS.textLight, marginTop: 3,
@@ -204,6 +215,22 @@ function AcademicianCard({ prof, onSelect, onDelete, isSelected, canManage, isAd
           }}>
             →
           </div>
+          {canManage && onStaffTypeChange && (
+            <button
+              onClick={function(e) {
+                e.stopPropagation();
+                var newType = (prof.staffType || "kadro") === "kadro" ? "disaridan" : "kadro";
+                onStaffTypeChange(prof, newType);
+              }}
+              style={{
+                background: "none", border: "1px solid " + COLORS.border, color: COLORS.textLight,
+                cursor: "pointer", fontSize: 10, padding: "3px 8px", borderRadius: 6,
+                opacity: hovered ? 1 : 0, transition: "opacity 0.2s",
+              }}
+            >
+              {(prof.staffType || "kadro") === "kadro" ? "Dışarıdan Yap" : "Kadrolu Yap"}
+            </button>
+          )}
           {canManage && onDelete && (
             <button
               onClick={function(e) { e.stopPropagation(); onDelete(prof); }}
@@ -1279,6 +1306,7 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
   var [addModal, setAddModal] = useState(false);
   var [newUsername, setNewUsername] = useState("");
   var [searchTerm, setSearchTerm] = useState("");
+  var [staffFilter, setStaffFilter] = useState("all"); // "all" | "kadro" | "disaridan"
   var [viewMode, setViewMode] = useState("list"); // "list" | "analytics"
 
   var isAdmin = currentUser && currentUser.role === "admin";
@@ -1400,8 +1428,31 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
       .catch(function(err) { alert("Hata: " + err.message); });
   };
 
+  // Kadro türünü değiştir
+  var handleStaffTypeChange = function(prof, newType) {
+    var token = localStorage.getItem("caku_auth_token");
+    var headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = "Bearer " + token;
+    fetch("/api/akademisyen/" + encodeURIComponent(prof.username) + "/staffType", {
+      method: "POST", headers: headers,
+      body: JSON.stringify({ staffType: newType }),
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.success) {
+          setProfessors(function(prev) {
+            return prev.map(function(p) {
+              return p.username === prof.username ? Object.assign({}, p, { staffType: newType }) : p;
+            });
+          });
+        }
+      })
+      .catch(function(err) { alert("Hata: " + err.message); });
+  };
+
   // Filtreleme
   var filtered = professors.filter(function(p) {
+    if (staffFilter !== "all" && (p.staffType || "kadro") !== staffFilter) return false;
     if (!searchTerm) return true;
     var term = searchTerm.toLowerCase();
     return (p.fullName || "").toLowerCase().indexOf(term) >= 0 ||
@@ -1469,14 +1520,35 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
         React.createElement(AnalyticsDashboard, { deptId: deptId, isAdmin: isAdmin })
       )}
 
-      {/* Arama - sadece liste görünümünde */}
-      {viewMode === "list" && React.createElement("div", { style: { marginBottom: 16 } },
+      {/* Arama ve Filtre - sadece liste görünümünde */}
+      {viewMode === "list" && React.createElement("div", { style: { marginBottom: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
         React.createElement(Input, {
           placeholder: "Akademisyen ara...",
           value: searchTerm,
           onChange: function(e) { setSearchTerm(e.target.value); },
-          style: { maxWidth: 400 },
-        })
+          style: { maxWidth: 400, flex: 1, minWidth: 200 },
+        }),
+        React.createElement("div", { style: { display: "flex", gap: 4 } },
+          [
+            { key: "all", label: "Tümü" },
+            { key: "kadro", label: "Kadrolu" },
+            { key: "disaridan", label: "Dışarıdan" },
+          ].map(function(f) {
+            var isActive = staffFilter === f.key;
+            return React.createElement("button", {
+              key: f.key,
+              onClick: function() { setStaffFilter(f.key); },
+              style: {
+                padding: "6px 14px", fontSize: 12, fontWeight: isActive ? 600 : 400,
+                border: "1px solid " + (isActive ? COLORS.accent : COLORS.border),
+                borderRadius: 8, cursor: "pointer",
+                background: isActive ? COLORS.accent + "12" : "white",
+                color: isActive ? COLORS.accent : COLORS.textLight,
+                transition: "all 0.15s",
+              },
+            }, f.label);
+          })
+        )
       )}
 
       {/* Loading */}
@@ -1513,6 +1585,7 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
                 prof={prof}
                 onSelect={handleSelect}
                 onDelete={handleDelete}
+                onStaffTypeChange={handleStaffTypeChange}
                 isSelected={selectedProf && selectedProf.username === prof.username}
                 canManage={canManage}
                 isAdmin={isAdmin}

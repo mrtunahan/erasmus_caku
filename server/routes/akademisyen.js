@@ -370,6 +370,7 @@ router.get("/metrics/all", async function(req, res) {
         fullName: data.fullName || "",
         department: data.department || "",
         departmentId: d.departmentId || null,
+        staffType: d.staffType || "kadro",
         stats: data.stats || {},
         publicationMetrics: data.publicationMetrics || { sci: [], uak: [], ulakbim: [], book: [], conference: [], other: [] },
         project2209Count: data.project2209Count || 0,
@@ -435,6 +436,7 @@ router.get("/", async function(req, res) {
         email: d.data ? d.data.email : "",
         department: d.data ? d.data.department : "",
         departmentId: d.departmentId || null,
+        staffType: d.staffType || "kadro",
         fetchedAt: d.fetchedAt
       };
     });
@@ -459,6 +461,27 @@ router.post("/:username/assign", async function(req, res) {
       await docRef.update({ departmentId: departmentId });
     }
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/akademisyen/:username/staffType - Kadro türünü güncelle
+router.post("/:username/staffType", async function(req, res) {
+  var username = normalizeUsername(req.params.username);
+  var staffType = req.body.staffType;
+
+  if (!staffType || !["kadro", "disaridan"].includes(staffType)) {
+    return res.status(400).json({ error: "staffType 'kadro' veya 'disaridan' olmalı" });
+  }
+
+  try {
+    var db = await getDbSafe();
+    var docRef = db.collection("akademisyen_cache").doc(username);
+    var doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Akademisyen bulunamadı" });
+    await docRef.update({ staffType: staffType });
+    res.json({ success: true, staffType: staffType });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
