@@ -5,8 +5,9 @@
 
 const { useState, useEffect, useRef, useCallback } = React;
 
-const KullaniciYonetimiApp = ({ currentUser }) => {
+const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo }) => {
   const r = useResponsive();
+  const DEPARTMENTS = window.DEPARTMENTS || [];
   const [activeSection, setActiveSection] = useState("students"); // students, professors, passwords
   const [students, setStudents] = useState([]);
   const [professors, setProfessors] = useState([]);
@@ -15,6 +16,7 @@ const KullaniciYonetimiApp = ({ currentUser }) => {
   const [editingStudent, setEditingStudent] = useState(null);
   const [editingProf, setEditingProf] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [dbDepartments, setDbDepartments] = useState([]);
 
   // Password states
   const [studentPasses, setStudentPasses] = useState({});
@@ -25,9 +27,23 @@ const KullaniciYonetimiApp = ({ currentUser }) => {
   const [defaultProfAdminPass, setDefaultProfAdminPass] = useState("");
   const [savingDefault, setSavingDefault] = useState(false);
 
+  // Bölümleri yükle (dropdown için)
+  useEffect(() => {
+    const loadDepts = async () => {
+      try {
+        const db = window.apiFirestore;
+        if (!db) return;
+        const snapshot = await db.collection("departments").get();
+        const depts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setDbDepartments(depts);
+      } catch (e) { console.error("Bölümler yüklenemedi:", e); }
+    };
+    loadDepts();
+  }, []);
+
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeDepartment]);
 
   const loadData = async () => {
     if (!FirebaseDB.isReady()) { setLoading(false); return; }
@@ -37,8 +53,24 @@ const KullaniciYonetimiApp = ({ currentUser }) => {
         FirebaseDB.fetchStudents(),
         FirebaseDB.fetchProfessors()
       ]);
-      setStudents(fetchedStudents || []);
-      setProfessors((fetchedProfs || []).sort((a, b) => a.name.localeCompare(b.name)));
+      // Bölüm filtresi: departmentId veya department adı eşleştirmesi
+      const deptInfo = DEPARTMENTS.find(d => d.id === activeDepartment);
+      const deptName = deptInfo?.name || "";
+      const filterByDept = (item) => {
+        if (!activeDepartment) return true;
+        // departmentId varsa ona göre filtrele
+        if (item.departmentId) return item.departmentId === activeDepartment;
+        // yoksa department adını normalize edip eşleştir
+        const dept = (item.department || "").toLowerCase().replace(/\s+/g, "");
+        const target = deptName.toLowerCase().replace(/\s+/g, "");
+        const shortTarget = (deptInfo?.shortName || "").toLowerCase().replace(/\s+/g, "");
+        return dept === target || dept === shortTarget || dept.includes(shortTarget);
+      };
+      setStudents((fetchedStudents || []).filter(s => {
+        const deptId = s.departmentId || "bilgisayar";
+        return deptId === activeDepartment;
+      }));
+      setProfessors((fetchedProfs || []).filter(filterByDept).sort((a, b) => (a.name || "").localeCompare(b.name || "")));
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -106,10 +138,13 @@ const KullaniciYonetimiApp = ({ currentUser }) => {
 
   // ── Professor Handlers ──
   const handleSaveProfessor = async () => {
-    if (!editingProf.name || !editingProf.department) return alert("İsim ve Bölüm zorunludur.");
+    if (!editingProf.name || !editingProf.departmentId) return alert("İsim ve Bölüm zorunludur.");
+    // departmentId'den department adını bul
+    const dept = DEPARTMENTS.find(d => d.id === editingProf.departmentId);
+    const profData = { ...editingProf, department: dept?.name || editingProf.department || "", departmentId: editingProf.departmentId };
     setSaving(true);
     try {
-      await FirebaseDB.saveProfessor(editingProf);
+      await FirebaseDB.saveProfessor(profData);
       const newProfs = await FirebaseDB.fetchProfessors();
       setProfessors((newProfs || []).sort((a, b) => a.name.localeCompare(b.name)));
       setEditingProf(null);
@@ -320,7 +355,7 @@ const KullaniciYonetimiApp = ({ currentUser }) => {
 
             <Card title="Akademisyen Listesi" noPadding>
               <div style={{ padding: "12px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end" }}>
-                <Btn onClick={() => setEditingProf({ name: "", department: "" })} icon={<PlusIcon />}>Yeni Akademisyen Ekle</Btn>
+                <Btn onClick={() => setEditingProf({ name: "", department: departmentInfo?.name || "", departmentId: activeDepartment || "" })} icon={<PlusIcon />}>Yeni Akademisyen Ekle</Btn>
               </div>
               <div className="responsive-table-wrap" style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -339,7 +374,13 @@ const KullaniciYonetimiApp = ({ currentUser }) => {
                           <Input autoFocus value={editingProf.name} onChange={e => setEditingProf({ ...editingProf, name: e.target.value })} placeholder="Örn: Dr. Ali Veli" />
                         </td>
                         <td style={{ padding: 14 }}>
-                          <Input value={editingProf.department} onChange={e => setEditingProf({ ...editingProf, department: e.target.value })} placeholder="Örn: Bilgisayar Müh." />
+                          <select value={editingProf.departmentId || ""} onChange={e => {
+                            const dept = DEPARTMENTS.find(d => d.id === e.target.value);
+                            setEditingProf({ ...editingProf, departmentId: e.target.value, department: dept?.name || "" });
+                          }} style={{ width: "100%", padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" }}>
+                            <option value="">Bölüm Seçin</option>
+                            {DEPARTMENTS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                          </select>
                         </td>
                         <td style={{ padding: 14, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
@@ -358,7 +399,13 @@ const KullaniciYonetimiApp = ({ currentUser }) => {
                             <Input value={editingProf.name} onChange={e => setEditingProf({ ...editingProf, name: e.target.value })} />
                           </td>
                           <td style={{ padding: 14 }}>
-                            <Input value={editingProf.department} onChange={e => setEditingProf({ ...editingProf, department: e.target.value })} />
+                            <select value={editingProf.departmentId || ""} onChange={e => {
+                              const dept = DEPARTMENTS.find(d => d.id === e.target.value);
+                              setEditingProf({ ...editingProf, departmentId: e.target.value, department: dept?.name || "" });
+                            }} style={{ width: "100%", padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" }}>
+                              <option value="">Bölüm Seçin</option>
+                              {DEPARTMENTS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                            </select>
                           </td>
                           <td style={{ padding: 14, textAlign: "right" }}>
                             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
@@ -370,10 +417,30 @@ const KullaniciYonetimiApp = ({ currentUser }) => {
                       ) : (
                         <tr key={prof.id || idx} style={{ borderBottom: `1px solid ${C.border}` }}>
                           <td style={{ padding: "14px 20px", fontWeight: 600, color: C.navy }}>{prof.name}</td>
-                          <td style={{ padding: "14px 20px" }}>{prof.department}</td>
+                          <td style={{ padding: "14px 20px" }}>
+                            {(() => {
+                              const dept = prof.departmentId ? DEPARTMENTS.find(d => d.id === prof.departmentId) : null;
+                              const deptColor = dept?.color || "#6b7280";
+                              return (
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 6, background: `${deptColor}12`, border: `1px solid ${deptColor}30`, fontSize: 13, fontWeight: 500, color: deptColor }}>
+                                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: deptColor }} />
+                                  {dept?.name || prof.department || "Belirtilmemiş"}
+                                </span>
+                              );
+                            })()}
+                          </td>
                           <td style={{ padding: "14px 20px", textAlign: "right" }}>
                             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              <button onClick={() => setEditingProf({ ...prof })} style={{
+                              <button onClick={() => {
+                                // departmentId yoksa department adından çıkar
+                                let deptId = prof.departmentId || "";
+                                if (!deptId && prof.department) {
+                                  const deptNorm = prof.department.toLowerCase().replace(/\s+/g, "");
+                                  const match = DEPARTMENTS.find(d => d.name.toLowerCase().replace(/\s+/g, "") === deptNorm || d.shortName.toLowerCase().replace(/\s+/g, "") === deptNorm || deptNorm.includes(d.shortName.toLowerCase().replace(/\s+/g, "")));
+                                  if (match) deptId = match.id;
+                                }
+                                setEditingProf({ ...prof, departmentId: deptId });
+                              }} style={{
                                 padding: "6px", border: `1px solid ${C.border}`, borderRadius: 6,
                                 background: "white", cursor: "pointer", color: C.blue, display: "flex"
                               }} title="Düzenle"><EditIcon /></button>
