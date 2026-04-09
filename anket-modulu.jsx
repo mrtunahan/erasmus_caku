@@ -55,7 +55,7 @@ const ANK_ICONS = {
 // ══════════════════════════════════════════════════════════════
 // ANA MODÜL
 // ══════════════════════════════════════════════════════════════
-function AnketModuluApp({ currentUser }) {
+function AnketModuluApp({ currentUser, activeDepartment }) {
   const [surveys, setSurveys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -68,7 +68,7 @@ function AnketModuluApp({ currentUser }) {
   // ── Anketleri Yükle ──
   useEffect(() => {
     loadSurveys();
-  }, []);
+  }, [activeDepartment]);
 
   const loadSurveys = async () => {
     setLoading(true);
@@ -76,7 +76,11 @@ function AnketModuluApp({ currentUser }) {
       const db = window.apiFirestore;
       if (!db) { setLoading(false); return; }
       const snapshot = await db.collection("surveys").orderBy("createdAt", "desc").get();
-      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      const allData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      // Bölüme ait veya henüz bölüm atanmamış kayıtları göster
+      const data = activeDepartment
+        ? allData.filter(s => (s.departmentId || "bilgisayar") === activeDepartment)
+        : allData;
       setSurveys(data);
     } catch (e) {
       console.error("Anketler yuklenemedi:", e);
@@ -104,6 +108,7 @@ function AnketModuluApp({ currentUser }) {
         endDate: surveyData.endDate || null,
         totalVotes: 0,
         voters: {},
+        departmentId: activeDepartment || "",
         createdBy: userId,
         createdByName: currentUser?.name || userId,
         createdAt: window.apiFieldValue.serverTimestamp(),

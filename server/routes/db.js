@@ -1,8 +1,19 @@
 const express = require("express");
-const admin = require("firebase-admin");
+const rateLimit = require("express-rate-limit");
 const { getDbSafe } = require("../config/database");
+const { ObjectId } = require("mongodb");
 
 const router = express.Router();
+
+// Rate limiting - dakikada max 120 istek
+const dbRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  message: { error: "Çok fazla istek. Lütfen biraz bekleyin." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+router.use(dbRateLimit);
 
 // İzin verilen koleksiyonlar (güvenlik sınırı)
 const ALLOWED_COLLECTIONS = [
@@ -37,6 +48,7 @@ const ALLOWED_COLLECTIONS = [
   "internship_uploads",
   "internship_periods",
   "internship_roadmap",
+  "internship_notifications",
   "commissions",
   "yaz_okulu_students",
   "yaz_okulu_records",
@@ -52,31 +64,23 @@ const ALLOWED_COLLECTIONS = [
   "tubitak2209_projects",
   "tubitak2209_courses",
   "akademisyen_cache",
+  "erasmus_universities",
 ];
 
-// Okuma izni verilen koleksiyonlar (write + read-only)
 const READABLE_COLLECTIONS = [
   ...ALLOWED_COLLECTIONS,
-  "exams",
-  "exam_results",
-  "exam_periods",
-  "course_groups",
-  "course_group_posts",
-  "trip_history",
-  "surveys",
-  "events",
-  "resources",
-  "forms",
-  "yaz_okulu_students",
-  "yaz_okulu_records",
-  "yaz_okulu_settings",
-  "internships",
-  "internship_applications",
-  "internship_uploads",
-  "internship_periods",
-  "internship_roadmap",
   "passwords",
 ];
+
+// Rastgele 20 karakterlik ID üret
+function generateId() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let id = "";
+  for (let i = 0; i < 20; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}
 
 // Timestamp alanlarını temizle ve sunucu timestamp'i ekle
 function addTimestamps(data, isNew) {
@@ -85,9 +89,9 @@ function addTimestamps(data, isNew) {
   for (const [key, value] of Object.entries(data || {})) {
     // Client-side FieldValue.serverTimestamp() serialize edilemez, atla
     if (value && typeof value === "object" && value._methodName) continue;
-    // __increment:N → Firestore FieldValue.increment
+    // __increment:N → MongoDB $inc
     if (typeof value === "string" && value.startsWith("__increment:")) {
-      var incVal = parseInt(value.split(":")[1], 10);
+      const incVal = parseInt(value.split(":")[1], 10);
       increments[key] = isNaN(incVal) ? 1 : incVal;
       continue;
     }
@@ -98,54 +102,79 @@ function addTimestamps(data, isNew) {
   return { cleaned, increments };
 }
 
-// addTimestamps sonucunu Firestore update verisine çevir
-function buildUpdateData(data, isNew) {
-  const { cleaned, increments } = addTimestamps(data, isNew);
-  // Increment alanlarını FieldValue.increment ile ekle
-  for (const [key, val] of Object.entries(increments)) {
-    cleaned[key] = admin.firestore.FieldValue.increment(val);
-  }
-  return cleaned;
-}
-
-// Koleksiyon referansı al (subcollection destekli)
-function getCollection(db, op) {
-  // Firestore'da subcollection yok (düz koleksiyon olarak saklıyoruz)
+// Koleksiyon adını çöz (subcollection desteği)
+function getCollectionName(op) {
   if (op.parentDocId && op.subCollection) {
-    return db.collection(`${op.collection}_${op.subCollection}`);
+    return `${op.collection}_${op.subCollection}`;
   }
-  return db.collection(op.collection);
+  return op.collection;
 }
 
 // Tek işlem yap
 async function executeSingleOp(db, op) {
-  const col = getCollection(db, op);
+  const colName = getCollectionName(op);
+  const col = db.collection(colName);
 
   switch (op.type) {
     case "add": {
       const { cleaned } = addTimestamps(op.data, true);
-      const docRef = await col.add(cleaned);
-      return { success: true, id: docRef.id };
+      const result = await col.insertOne(cleaned);
+      return { success: true, id: result.insertedId.toString() };
     }
     case "set": {
       const { cleaned } = addTimestamps(op.data, true);
-      if (op.merge) {
-        await col.doc(op.docId).set(cleaned, { merge: true });
+      if (op.docId) {
+        // Priority: check string _id first (real docs), then _docId (legacy)
+        const buildFilter = async () => {
+          const byId = await col.findOne({ _id: op.docId });
+          if (byId) return { _id: op.docId };
+          if (op.docId.length === 24) {
+            try { const byObjId = await col.findOne({ _id: new ObjectId(op.docId) }); if (byObjId) return { _id: new ObjectId(op.docId) }; } catch(e) {}
+          }
+          // Fallback to _docId (legacy)
+          return { _docId: op.docId };
+        };
+        const filter = await buildFilter();
+        if (op.merge) {
+          await col.updateOne(filter, { $set: cleaned }, { upsert: true });
+        } else {
+          await col.replaceOne(filter, { ...cleaned, _docId: op.docId }, { upsert: true });
+        }
       } else {
-        await col.doc(op.docId).set(cleaned);
+        await col.insertOne(cleaned);
       }
       return { success: true };
     }
     case "update": {
-      const updateData = buildUpdateData(op.data, false);
-      await col.doc(op.docId).update(updateData);
+      const { cleaned, increments } = addTimestamps(op.data, false);
+      const updateDoc = { $set: cleaned };
+      if (Object.keys(increments).length > 0) {
+        updateDoc.$inc = increments;
+      }
+      // Priority: check string _id first (real docs), then ObjectId, then _docId (legacy)
+      let filter = { _docId: op.docId }; // fallback
+      const byId = await col.findOne({ _id: op.docId });
+      if (byId) {
+        filter = { _id: op.docId };
+      } else if (op.docId && op.docId.length === 24) {
+        try { const byObjId = await col.findOne({ _id: new ObjectId(op.docId) }); if (byObjId) filter = { _id: new ObjectId(op.docId) }; } catch(e) {}
+      }
+      await col.updateOne(filter, updateDoc, { upsert: true });
       return { success: true };
     }
     case "delete": {
-      console.warn(`[DELETE] koleksiyon: ${op.collection}, docId: ${op.docId}, zaman: ${new Date().toISOString()}`);
-      await col.doc(op.docId).delete();
-      console.warn(`[DELETE] sonuç: belge silindi (${op.collection}/${op.docId})`);
-      return { success: true, deleted: 1 };
+      console.warn(`[DELETE] koleksiyon: ${colName}, docId: ${op.docId}, zaman: ${new Date().toISOString()}`);
+      // Priority: real doc by string _id first
+      let filter = { _docId: op.docId };
+      const byId = await col.findOne({ _id: op.docId });
+      if (byId) {
+        filter = { _id: op.docId };
+      } else if (op.docId && op.docId.length === 24) {
+        try { const byObjId = await col.findOne({ _id: new ObjectId(op.docId) }); if (byObjId) filter = { _id: new ObjectId(op.docId) }; } catch(e) {}
+      }
+      const result = await col.deleteOne(filter);
+      console.warn(`[DELETE] sonuç: ${result.deletedCount} belge silindi (${colName}/${op.docId})`);
+      return { success: true, deleted: result.deletedCount };
     }
     default:
       throw new Error(`Geçersiz işlem tipi: ${op.type}`);
@@ -160,15 +189,13 @@ router.post("/write", async (req, res) => {
     return res.status(400).json({ error: "operations dizisi gerekli." });
   }
 
-  // Koleksiyonları doğrula
   for (const op of operations) {
     if (!ALLOWED_COLLECTIONS.includes(op.collection)) {
       return res.status(403).json({ error: `Koleksiyon izni yok: ${op.collection}` });
     }
   }
 
-  // KORUMA: Tek istekte 20'den fazla silme işlemi engelle (toplu veri kaybını önler)
-  const deleteCount = operations.filter(op => op.type === "delete").length;
+  const deleteCount = operations.filter((op) => op.type === "delete").length;
   if (deleteCount > 20) {
     console.error(`BLOCKED: ${deleteCount} silme işlemi engellendi (max 20)`);
     return res.status(403).json({ error: `Tek istekte en fazla 20 silme işlemi yapılabilir (istenen: ${deleteCount})` });
@@ -177,13 +204,11 @@ router.post("/write", async (req, res) => {
   try {
     const db = await getDbSafe();
 
-    // Tek işlem
     if (operations.length === 1) {
       const result = await executeSingleOp(db, operations[0]);
       return res.json(result);
     }
 
-    // Birden fazla işlem
     const addedIds = [];
     for (const op of operations) {
       const result = await executeSingleOp(db, op);
@@ -192,7 +217,7 @@ router.post("/write", async (req, res) => {
 
     return res.json({ success: true, ids: addedIds });
   } catch (error) {
-    console.error("firestoreWrite error:", error);
+    console.error("mongoWrite error:", error);
     return res.status(500).json({ error: "Yazma hatası: " + error.message });
   }
 });
@@ -213,21 +238,23 @@ router.get("/:collection", async (req, res) => {
 
   try {
     const db = await getDbSafe();
-    let query = db.collection(collection);
+    const col = db.collection(collection);
 
-    // Firestore where filtresi oluştur
-    const whereParams = req.query.where
-      ? (Array.isArray(req.query.where) ? req.query.where : [req.query.where])
-      : [];
-
-    const firestoreOps = {
-      eq: "==",
-      ne: "!=",
-      gt: ">",
-      gte: ">=",
-      lt: "<",
-      lte: "<=",
+    const mongoOps = {
+      eq: "$eq",
+      ne: "$ne",
+      gt: "$gt",
+      gte: "$gte",
+      lt: "$lt",
+      lte: "$lte",
     };
+
+    const filter = {};
+    const whereParams = req.query.where
+      ? Array.isArray(req.query.where)
+        ? req.query.where
+        : [req.query.where]
+      : [];
 
     for (const w of whereParams) {
       const parts = w.split(":");
@@ -236,37 +263,40 @@ router.get("/:collection", async (req, res) => {
       const op = parts[1];
       const value = parts.slice(2).join(":");
 
-      const fsOp = firestoreOps[op];
-      if (fsOp) {
-        // Tip dönüşümü: s: prefix → string olarak koru, yoksa otomatik dönüştür
+      const mongoOp = mongoOps[op];
+      if (mongoOp) {
         let convertedValue = value;
         if (value.startsWith("s:")) {
-          convertedValue = value.slice(2); // string olarak koru
+          convertedValue = value.slice(2);
         } else if (value === "true") convertedValue = true;
         else if (value === "false") convertedValue = false;
         else if (value !== "" && !isNaN(value)) convertedValue = Number(value);
-        query = query.where(field, fsOp, convertedValue);
+
+        filter[field] = { [mongoOp]: convertedValue };
       }
     }
 
-    // Sort
+    let cursor = col.find(filter);
+
     if (req.query.orderBy) {
       const [field, dir] = req.query.orderBy.split(":");
-      query = query.orderBy(field, dir === "desc" ? "desc" : "asc");
+      cursor = cursor.sort({ [field]: dir === "desc" ? -1 : 1 });
     }
 
-    // Limit
-    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 0;
-    if (limit > 0) {
-      query = query.limit(limit);
+    const limitVal = req.query.limit ? parseInt(req.query.limit, 10) : 0;
+    if (limitVal > 0) {
+      cursor = cursor.limit(limitVal);
     }
 
-    const snapshot = await query.get();
+    const docs = await cursor.toArray();
 
-    const result = snapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id,
-    }));
+    const result = docs.map((doc) => {
+      const { _id, _docId, ...rest } = doc;
+      return {
+        ...rest,
+        id: _docId || _id.toString(),
+      };
+    });
 
     return res.json(result);
   } catch (error) {
@@ -285,14 +315,26 @@ router.get("/:collection/:docId", async (req, res) => {
 
   try {
     const db = await getDbSafe();
-    const docRef = db.collection(collection).doc(docId);
-    const doc = await docRef.get();
+    const col = db.collection(collection);
 
-    if (!doc.exists) {
+    // Önce _docId ile ara, sonra _id ile dene
+    let doc = await col.findOne({ _docId: docId });
+
+    if (!doc) {
+      // ObjectId olarak dene
+      try {
+        doc = await col.findOne({ _id: new ObjectId(docId) });
+      } catch (_) {
+        // ObjectId değilse geç
+      }
+    }
+
+    if (!doc) {
       return res.json({ exists: false, data: null });
     }
 
-    return res.json({ exists: true, data: doc.data(), id: doc.id });
+    const { _id, _docId, ...rest } = doc;
+    return res.json({ exists: true, data: rest, id: _docId || _id.toString() });
   } catch (error) {
     console.error(`Read ${collection}/${docId} error:`, error);
     return res.status(500).json({ error: "Okuma hatası: " + error.message });

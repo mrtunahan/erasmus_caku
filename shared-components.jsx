@@ -248,6 +248,8 @@ const COMMON_MODULES = [
 // Admin-only modüller
 const ADMIN_MODULES = [
   { id: "kullanici", label: "Kullanıcı Yönetimi", icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" },
+  { id: "bolumyonetimi", label: "Bölüm Yönetimi", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
+  { id: "dersyonetimi", label: "Ders Yönetimi", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
   { id: "komisyonlar", label: "Komisyonlar", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" },
 ];
 
@@ -484,6 +486,30 @@ const CloudFunctions = {
 };
 window.CloudFunctions = CloudFunctions;
 
+// ── Retry mekanizması (bağlantı koptuğunda otomatik yeniden deneme) ──
+async function fetchWithRetry(url, options = {}, maxRetries = 2) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) return response;
+      // 5xx sunucu hatası ise yeniden dene
+      if (response.status >= 500 && attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      return response;
+    } catch (err) {
+      // Ağ hatası (bağlantı kopması)
+      if (attempt < maxRetries) {
+        console.warn(`[DB] İstek başarısız (deneme ${attempt + 1}/${maxRetries + 1}):`, err.message);
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 // ── Veritabanı yazma yardımcısı (Firestore API üzerinden) ──
 const FirestoreWrite = {
   async _apiCall(operations) {
@@ -491,7 +517,7 @@ const FirestoreWrite = {
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const response = await fetch('/api/db/write', {
+    const response = await fetchWithRetry('/api/db/write', {
       method: 'POST',
       headers,
       body: JSON.stringify({ operations }),
@@ -544,7 +570,7 @@ async function apiRead(collection, params = {}) {
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const response = await fetch(url.toString(), { headers });
+  const response = await fetchWithRetry(url.toString(), { headers });
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: 'Okuma hatası' }));
     throw new Error(err.error || `HTTP ${response.status}`);
@@ -557,7 +583,7 @@ async function apiReadDoc(collection, docId) {
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const response = await fetch(`/api/db/${collection}/${encodeURIComponent(docId)}`, { headers });
+  const response = await fetchWithRetry(`/api/db/${collection}/${encodeURIComponent(docId)}`, { headers });
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: 'Okuma hatası' }));
     throw new Error(err.error || `HTTP ${response.status}`);
@@ -569,8 +595,8 @@ async function apiReadDoc(collection, docId) {
 window.apiRead = apiRead;
 window.apiReadDoc = apiReadDoc;
 
-// Firestore uyumluluk katmanı: db.collection("x").where().get() API'sini Express API'ye yönlendirir
-// Tüm modüller window.firebase.firestore() yerine bunu kullanabilir
+// Uyumluluk katmanı: db.collection("x").where().get() API'sini Express API'ye yönlendirir
+// Tüm modüller window.apiFirestore üzerinden veritabanına erişir
 function createApiCollection(collectionName) {
   return {
     _collection: collectionName,
@@ -748,8 +774,8 @@ const FirebaseDB = {
   async uploadFormFile(file) {
     try {
       const formData = new FormData();
-      formData.append('file', file);
       formData.append('folder', 'forms');
+      formData.append('file', file);
       const response = await fetch('/api/files/upload', { method: 'POST', body: formData });
       if (!response.ok) throw new Error('Dosya yüklenemedi');
       const result = await response.json();
@@ -919,7 +945,7 @@ const FirebaseDB = {
     } catch (error) {
       // Disable trip history sync on permission errors to avoid flooding console
       if (error.code === 'permission-denied') {
-        console.warn('Trip history sync disabled: Firestore rules need to be deployed. Run: firebase deploy --only firestore:rules');
+        console.warn('Trip history sync disabled: veritabanı izin hatası.');
         FirebaseDB._tripHistoryDisabled = true;
       } else {
         console.error('Error syncing to trip history:', error);
@@ -3022,6 +3048,135 @@ const GradeConverter = () => {
   );
 };
 
+// ══════════════════════════════════════════════
+// Şifre Değiştir Modal (tüm roller için)
+// ══════════════════════════════════════════════
+const ChangePasswordModal = ({ currentUser, onClose }) => {
+  const { useState } = React;
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  const eyeIcon = (show) => show
+    ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+    : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (newPassword.length < 6) { setError("Yeni şifre en az 6 karakter olmalıdır."); return; }
+    if (newPassword !== confirmPassword) { setError("Yeni şifreler uyuşmuyor."); return; }
+
+    setLoading(true);
+    try {
+      const role = currentUser.role;
+      const identifier = role === "student" ? currentUser.studentNumber
+        : role === "professor" ? currentUser.name
+        : role === "bolum_yetkilisi" ? currentUser.name
+        : null;
+
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("caku_auth_token") || ""}` },
+        body: JSON.stringify({ role, identifier, newPassword, currentPassword }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess(true);
+        setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+      } else {
+        setError(data.error || "Şifre değiştirilemedi.");
+      }
+    } catch (err) {
+      setError("Sunucu hatası: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputWrap = { position: "relative", marginBottom: 16 };
+  const inputStyle = { width: "100%", padding: "11px 42px 11px 14px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", boxSizing: "border-box", transition: "border-color 0.2s" };
+  const eyeBtn = { position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", display: "flex", alignItems: "center", padding: 4 };
+  const label = { display: "block", fontSize: 11, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 };
+
+  return (
+    <Modal open={true} onClose={onClose} title="Şifre Değiştir" width={400}>
+      {success ? (
+        <div style={{ textAlign: "center", padding: "32px 0" }}>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#D1FAE5", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#059669", marginBottom: 8 }}>Şifre başarıyla değiştirildi!</div>
+          <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 24 }}>Bir sonraki girişinizde yeni şifrenizi kullanın.</div>
+          <Btn onClick={onClose}>Kapat</Btn>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 8, padding: "10px 14px", borderRadius: 8, background: "#F3F4F6", fontSize: 13, color: "#374151" }}>
+            <span style={{ fontWeight: 600 }}>{currentUser?.name || currentUser?.studentNumber}</span>
+            <span style={{ color: "#9CA3AF", marginLeft: 8, fontSize: 11 }}>
+              {currentUser?.role === "admin" ? "Yönetici" : currentUser?.role === "professor" ? "Akademisyen" : currentUser?.role === "bolum_yetkilisi" ? "Bölüm Yetkilisi" : "Öğrenci"}
+            </span>
+          </div>
+
+          <div style={{ height: 1, background: "#E5E7EB", margin: "16px 0" }} />
+
+          {/* Mevcut şifre — admin için gerekli değil */}
+          {currentUser?.role !== "admin" && (
+            <div>
+              <label style={label}>Mevcut Şifre</label>
+              <div style={inputWrap}>
+                <input type={showCurrent ? "text" : "password"} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} placeholder="Mevcut şifreniz" style={inputStyle} onFocus={e => e.target.style.borderColor = "#6366F1"} onBlur={e => e.target.style.borderColor = "#D1D5DB"} />
+                <button type="button" style={eyeBtn} onClick={() => setShowCurrent(!showCurrent)}>{eyeIcon(showCurrent)}</button>
+              </div>
+            </div>
+          )}
+
+          <label style={label}>Yeni Şifre</label>
+          <div style={inputWrap}>
+            <input type={showNew ? "text" : "password"} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="En az 6 karakter" style={inputStyle} onFocus={e => e.target.style.borderColor = "#6366F1"} onBlur={e => e.target.style.borderColor = "#D1D5DB"} />
+            <button type="button" style={eyeBtn} onClick={() => setShowNew(!showNew)}>{eyeIcon(showNew)}</button>
+          </div>
+          {newPassword.length > 0 && (
+            <div style={{ marginTop: -10, marginBottom: 12, display: "flex", gap: 4 }}>
+              {[1,2,3].map(i => (
+                <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: newPassword.length >= i * 4 ? (newPassword.length >= 10 ? "#10B981" : "#F59E0B") : "#E5E7EB", transition: "background 0.3s" }} />
+              ))}
+              <span style={{ fontSize: 10, color: newPassword.length >= 10 ? "#10B981" : "#F59E0B", marginLeft: 6, alignSelf: "center" }}>{newPassword.length >= 10 ? "Güçlü" : "Orta"}</span>
+            </div>
+          )}
+
+          <label style={label}>Yeni Şifre (Tekrar)</label>
+          <div style={inputWrap}>
+            <input type={showConfirm ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifreyi tekrar girin" style={{ ...inputStyle, borderColor: confirmPassword && confirmPassword !== newPassword ? "#EF4444" : "#D1D5DB" }} onFocus={e => e.target.style.borderColor = "#6366F1"} onBlur={e => e.target.style.borderColor = confirmPassword && confirmPassword !== newPassword ? "#EF4444" : "#D1D5DB"} />
+            <button type="button" style={eyeBtn} onClick={() => setShowConfirm(!showConfirm)}>{eyeIcon(showConfirm)}</button>
+          </div>
+
+          {error && (
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626", fontSize: 13, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              {error}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <Btn variant="secondary" onClick={onClose} style={{ flex: 1 }}>İptal</Btn>
+            <button type="submit" disabled={loading} style={{ flex: 2, padding: "10px 16px", borderRadius: 8, border: "none", background: loading ? "#A5B4FC" : "#6366F1", color: "white", fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background 0.2s" }}>
+              {loading ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" style={{ animation: "spin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93"/></svg>Kaydediliyor...</> : "Şifreyi Değiştir"}
+            </button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  );
+};
+
 // ── Export to window ──
 window.C = C;
 window.FONTS_LINK = FONTS_LINK;
@@ -3050,3 +3205,4 @@ window.SEED_PROFESSORS = SEED_PROFESSORS;
 window.LoginModal = LoginModal;
 window.PasswordManagementModal = PasswordManagementModal;
 window.GradeConverter = GradeConverter;
+window.ChangePasswordModal = ChangePasswordModal;

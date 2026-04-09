@@ -50,24 +50,30 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
 
   const isAdmin = currentUser?.role === "admin";
+  const isDeptManager = currentUser?.role === "bolum_yetkilisi";
+  const hasFullAccess = isAdmin || isDeptManager;
 
-  // Akademisyenleri yükle
+  // Akademisyenleri yükle (bölüme göre filtreleme client-side)
   useEffect(() => {
     const loadProfessors = async () => {
       try {
         const db = window.apiFirestore;
         if (!db) return;
         const snapshot = await db.collection("professors").get();
-        const profs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setProfessors(profs);
+        const allProfs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // departmentId yoksa "bilgisayar" kabul et (eski kayıtlar)
+        const filtered = activeDepartment
+          ? allProfs.filter(p => (p.departmentId || "bilgisayar") === activeDepartment)
+          : allProfs;
+        setProfessors(filtered);
       } catch (e) {
         console.error("Akademisyenler yüklenirken hata:", e);
       }
     };
     loadProfessors();
-  }, []);
+  }, [activeDepartment]);
 
-  // Komisyonları yükle
+  // Komisyonları yükle (bölüme göre filtreleme client-side)
   useEffect(() => {
     const loadCommissions = async () => {
       setLoading(true);
@@ -75,8 +81,12 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
         const db = window.apiFirestore;
         if (!db) return;
         const snapshot = await db.collection("commissions").get();
-        const comms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setCommissions(comms);
+        const allComms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // departmentId yoksa "bilgisayar" kabul et (eski kayıtlar)
+        const filtered = activeDepartment
+          ? allComms.filter(c => (c.departmentId || "bilgisayar") === activeDepartment)
+          : allComms;
+        setCommissions(filtered);
       } catch (e) {
         console.error("Komisyonlar yüklenirken hata:", e);
       } finally {
@@ -84,7 +94,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
       }
     };
     loadCommissions();
-  }, []);
+  }, [activeDepartment]);
 
   const showMessage = (text) => {
     setMsg(text);
@@ -104,6 +114,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
         name: formName.trim(),
         description: formDesc.trim(),
         members: formMembers,
+        departmentId: activeDepartment || "",
         updatedAt: new Date().toISOString(),
       };
 
@@ -117,9 +128,13 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
         showMessage("Komisyon oluşturuldu!");
       }
 
-      // Reload
+      // Reload (client-side bölüm filtresi)
       const snapshot = await db.collection("commissions").get();
-      setCommissions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const allComms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const filtered = activeDepartment
+        ? allComms.filter(c => (c.departmentId || "bilgisayar") === activeDepartment)
+        : allComms;
+      setCommissions(filtered);
       resetForm();
     } catch (e) {
       console.error("Komisyon kayıt hatası:", e);
@@ -199,12 +214,12 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
     fontFamily: "'Inter', sans-serif", boxSizing: "border-box",
   };
 
-  if (!isAdmin) {
+  if (!hasFullAccess) {
     return (
       <div style={{ fontFamily: "'Inter', sans-serif", padding: 40, textAlign: "center" }}>
         <KomIcon path="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" size={48} color="#D1D5DB" />
         <p style={{ color: KOM.textMuted, fontSize: 14, marginTop: 16 }}>
-          Bu modüle yalnızca fakülte yöneticisi erişebilir.
+          Bu modüle yalnızca fakülte yöneticisi veya bölüm yetkilisi erişebilir.
         </p>
       </div>
     );
