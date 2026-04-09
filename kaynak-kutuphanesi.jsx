@@ -78,7 +78,7 @@ const KTB_ICONS = {
 // ══════════════════════════════════════════════════════════════
 // ANA MODÜL
 // ══════════════════════════════════════════════════════════════
-function KaynakKutuphanesiApp({ currentUser }) {
+function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -93,7 +93,7 @@ function KaynakKutuphanesiApp({ currentUser }) {
   // ── Kaynakları Yükle ──
   useEffect(() => {
     loadResources();
-  }, []);
+  }, [activeDepartment]);
 
   const loadResources = async () => {
     setLoading(true);
@@ -101,8 +101,12 @@ function KaynakKutuphanesiApp({ currentUser }) {
       const db = window.apiFirestore;
       if (!db) { setLoading(false); return; }
       const snapshot = await db.collection("resources").orderBy("createdAt", "desc").get();
-      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-      setResources(data);
+      const allData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      // Bölüme ait veya henüz bölüm atanmamış kayıtları göster
+      const filtered = activeDepartment
+        ? allData.filter(r => r.departmentId === activeDepartment || !r.departmentId)
+        : allData;
+      setResources(filtered);
     } catch (e) {
       console.error("Kaynaklar yuklenemedi:", e);
     }
@@ -128,6 +132,7 @@ function KaynakKutuphanesiApp({ currentUser }) {
 
       const docData = {
         ...resourceData,
+        departmentId: activeDepartment || "",
         downloadCount: 0,
         ratings: {},
         averageRating: 0,
