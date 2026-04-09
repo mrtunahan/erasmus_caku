@@ -64,6 +64,7 @@ const ALLOWED_COLLECTIONS = [
   "tubitak2209_projects",
   "tubitak2209_courses",
   "akademisyen_cache",
+  "erasmus_universities",
 ];
 
 const READABLE_COLLECTIONS = [

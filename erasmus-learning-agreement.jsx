@@ -316,7 +316,7 @@ const CourseMatchCard = ({ match, onDelete, onEdit, showGrade, type, readOnly = 
 };
 
 // ── Course Match Edit Modal ──
-const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
+const CourseMatchEditModal = ({ match, type, onClose, onSave, activeDepartment }) => {
   const r = useResponsive();
   const [editedMatch, setEditedMatch] = useState(JSON.parse(JSON.stringify(match)));
   const [showHomeCatalog, setShowHomeCatalog] = useState(false);
@@ -338,7 +338,7 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
     <Modal open={true} onClose={onClose} title="Ders Eşleştirmesini Düzenle" width="min(900px, 100vw - 32px)">
       {type === "return" && (
         <div style={{ padding: 16, background: "#E3F2FD", border: "2px solid #2196F3", borderRadius: 12, marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#1565C0", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>Duzenleme Ipucu</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#1565C0", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>Düzenleme İpucu</div>
           <div style={{ fontSize: 13, color: "#424242" }}>Bu eşleştirme gidiş verileriyle dolduruldu. Öğrenci farklı bir ders aldıysa aşağıdaki alanlardan düzenleyebilirsiniz.</div>
         </div>
       )}
@@ -347,14 +347,14 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
           <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12, background: "#EEF0F5", padding: "8px 12px", borderRadius: 8 }}>Kendi Kurumumuz</div>
           {editedMatch.homeCourses.map((course, i) => (
             <div key={i} style={{ padding: 16, background: C.bg, borderRadius: 8, marginBottom: 12, border: `1px solid ${C.border}` }}>
-              <FormField label="Ders Kodu"><Input value={course.code} onChange={e => updateCourse("home", i, "code", e.target.value)} placeholder="BIL201" /></FormField>
-              <FormField label="Ders Adi"><Input value={course.name} onChange={e => updateCourse("home", i, "name", e.target.value)} placeholder="Veri Yapilari" /></FormField>
+              <FormField label="Ders Kodu"><Input value={course.code} onChange={e => updateCourse("home", i, "code", e.target.value)} placeholder="BİL201" /></FormField>
+              <FormField label="Ders Adı"><Input value={course.name} onChange={e => updateCourse("home", i, "name", e.target.value)} placeholder="Veri Yapıları" /></FormField>
               <FormField label="AKTS"><Input type="number" value={course.credits} onChange={e => updateCourse("home", i, "credits", e.target.value)} /></FormField>
               <Btn onClick={() => removeCourse("home", i)} variant="danger" small><TrashIcon /> Sil</Btn>
             </div>
           ))}
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn onClick={() => setShowHomeCatalog(true)} variant="secondary" small icon={<PlusIcon />}>Katalogdan Sec</Btn>
+            <Btn onClick={() => setShowHomeCatalog(true)} variant="secondary" small icon={<PlusIcon />}>Katalogdan Seç</Btn>
             <Btn onClick={() => addCourse("home")} variant="secondary" small icon={<PlusIcon />}>Manuel Ekle</Btn>
           </div>
         </div>
@@ -364,7 +364,7 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
           {editedMatch.hostCourses.map((course, i) => (
             <div key={i} style={{ padding: 16, background: C.bg, borderRadius: 8, marginBottom: 12, border: `1px solid ${C.border}` }}>
               <FormField label="Ders Kodu"><Input value={course.code} onChange={e => updateCourse("host", i, "code", e.target.value)} placeholder="CS201" /></FormField>
-              <FormField label="Ders Adi"><Input value={course.name} onChange={e => updateCourse("host", i, "name", e.target.value)} placeholder="Data Structures" /></FormField>
+              <FormField label="Ders Adı"><Input value={course.name} onChange={e => updateCourse("host", i, "name", e.target.value)} placeholder="Data Structures" /></FormField>
               <FormField label="AKTS"><Input type="number" value={course.credits} onChange={e => updateCourse("host", i, "credits", e.target.value)} /></FormField>
               <Btn onClick={() => removeCourse("host", i)} variant="danger" small><TrashIcon /> Sil</Btn>
             </div>
@@ -388,7 +388,7 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
                       <span style={{ color: C.textMuted, fontSize: 11 }}>({course.credits} AKTS)</span>
                     </div>
                     <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                      <FormField label={`Karşı Kurumdan Alinan Not`}>
+                      <FormField label={`Karşı Kurumdan Alınan Not`}>
                         <Input value={gradeVal} onChange={e => {
                           const newGrades = { ...(editedMatch.hostGrades || {}) };
                           newGrades[idx] = e.target.value;
@@ -396,11 +396,11 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
                         }} placeholder="A, B+, 85, vb." />
                         {gradeVal && (
                           <div style={{ marginTop: 6, padding: 6, background: '#fffacd', borderRadius: 6, fontSize: 11, fontWeight: 600, color: C.navy, border: '2px solid #ffd700' }}>
-                            Donusum: <strong>{convertGrade(gradeVal)}</strong>
+                            Dönüşüm: <strong>{convertGrade(gradeVal)}</strong>
                           </div>
                         )}
                       </FormField>
-                      <FormField label={`Kendi Kurumumuzdaki Karsilik`}>
+                      <FormField label={`Kendi Kurumumuzdaki Karşılık`}>
                         <Input value={editedMatch.homeGrades?.[idx] ?? editedMatch.homeGrade ?? "Muaf"} onChange={e => {
                           const newGrades = { ...(editedMatch.homeGrades || {}) };
                           newGrades[idx] = e.target.value;
@@ -414,15 +414,15 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
             </div>
           ) : (
             <div className="responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <FormField label="Karşı Kurumdan Alinan Not">
+              <FormField label="Karşı Kurumdan Alınan Not">
                 <Input value={editedMatch.hostGrade || ""} onChange={e => setEditedMatch(prev => ({ ...prev, hostGrade: e.target.value }))} placeholder="A, B+, 85, vb." />
                 {editedMatch.hostGrade && (
                   <div style={{ marginTop: 8, padding: 8, background: '#fffacd', borderRadius: 6, fontSize: 12, fontWeight: 600, color: C.navy, border: '2px solid #ffd700' }}>
-                    Donusum: <strong>{convertGrade(editedMatch.hostGrade)}</strong>
+                    Dönüşüm: <strong>{convertGrade(editedMatch.hostGrade)}</strong>
                   </div>
                 )}
               </FormField>
-              <FormField label="Kendi Kurumumuzdaki Karsilik">
+              <FormField label="Kendi Kurumumuzdaki Karşılık">
                 <Input value={editedMatch.homeGrade || "Muaf"} onChange={e => setEditedMatch(prev => ({ ...prev, homeGrade: e.target.value }))} placeholder="Muaf, AA, BB, vb." />
               </FormField>
             </div>
@@ -430,11 +430,11 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave }) => {
         </div>
       )}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-        <Btn onClick={onClose} variant="secondary">Iptal</Btn>
+        <Btn onClick={onClose} variant="secondary">İptal</Btn>
         <Btn onClick={() => onSave(editedMatch)}>Kaydet</Btn>
       </div>
       {showHomeCatalog && (
-        <HomeInstitutionCatalogModal onClose={() => setShowHomeCatalog(false)} onSelect={(courses) => { addCoursesFromCatalog("home", courses); setShowHomeCatalog(false); }} />
+        <HomeInstitutionCatalogModal activeDepartment={activeDepartment} onClose={() => setShowHomeCatalog(false)} onSelect={(courses) => { addCoursesFromCatalog("home", courses); setShowHomeCatalog(false); }} />
       )}
     </Modal>
   );
@@ -488,7 +488,7 @@ const CourseCatalogModal = ({ university, onClose, onSelect }) => {
             <div style={{ fontSize: 14, color: C.navy, fontWeight: 600 }}>Toplam: <strong>{totalCredits}</strong> AKTS</div>
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <Btn onClick={onClose} variant="secondary">Iptal</Btn>
+            <Btn onClick={onClose} variant="secondary">İptal</Btn>
             <Btn onClick={() => selectedCourses.length > 0 && onSelect(selectedCourses)} disabled={selectedCourses.length === 0}>{selectedCourses.length} Ders Ekle</Btn>
           </div>
         </div>
@@ -632,9 +632,9 @@ const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentI
             <div style={{ fontSize: 14, color: C.navy, fontWeight: 600 }}>Toplam: <strong>{institutionMatches.length}</strong> mevcut eşleştirme</div>
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <Btn onClick={onClose} variant="secondary">Iptal</Btn>
+            <Btn onClick={onClose} variant="secondary">İptal</Btn>
             <Btn onClick={() => selectedMatches.length > 0 && onSelect(selectedMatches)} disabled={selectedMatches.length === 0}>
-              {selectedMatches.length} Eslestirme Ekle
+              {selectedMatches.length} Eşleştirme Ekle
             </Btn>
           </div>
         </div>
@@ -643,80 +643,141 @@ const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentI
   );
 };
 
-// ── Home Institution Catalog Modal ──
-const HomeInstitutionCatalogModal = ({ onClose, onSelect }) => {
+// ── Home Institution Catalog Modal (Bölüm derslerinden yükler) ──
+const HomeInstitutionCatalogModal = ({ onClose, onSelect, activeDepartment }) => {
   const r = useResponsive();
   const [selectedCourses, setSelectedCourses] = useState([]);
   const [filterYear, setFilterYear] = useState("all");
   const [filterSemester, setFilterSemester] = useState("all");
-  const [filterType, setFilterType] = useState("all");
+  const [dbCourses, setDbCourses] = useState([]);
+  const [loadingCourses, setLoadingCourses] = useState(true);
+  const [searchText, setSearchText] = useState("");
+
+  // Bölüm yönetiminden ders listesini yükle
+  useEffect(() => {
+    const loadDeptCourses = async () => {
+      setLoadingCourses(true);
+      try {
+        const db = window.apiFirestore;
+        if (!db) { setLoadingCourses(false); return; }
+        const snapshot = await db.collection("sinav_dersler").get();
+        const allCourses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Bölüme göre filtrele
+        const deptCourses = activeDepartment
+          ? allCourses.filter(c => (c.departmentId || "bilgisayar") === activeDepartment)
+          : allCourses;
+
+        // HOME_INSTITUTION_CATALOG'dan AKTS bilgisi eşleştir
+        const catalogMap = {};
+        HOME_INSTITUTION_CATALOG.courses.forEach(c => { catalogMap[c.code] = c; });
+
+        const mapped = deptCourses.map(c => ({
+          code: c.code || "",
+          name: c.name || "",
+          credits: catalogMap[c.code]?.credits || 6,
+          year: c.sinif || 0,
+          semester: c.donem === "guz" ? "Fall" : c.donem === "bahar" ? "Spring" : "Any",
+          type: (c.sinif === 5 || c.sinif === 0) ? "Seçmeli" : "Zorunlu",
+        }));
+        setDbCourses(mapped);
+      } catch (e) {
+        console.error("Bölüm dersleri yüklenemedi:", e);
+      }
+      setLoadingCourses(false);
+    };
+    loadDeptCourses();
+  }, [activeDepartment]);
 
   const toggleCourse = (course) => {
     setSelectedCourses(prev => prev.find(c => c.code === course.code) ? prev.filter(c => c.code !== course.code) : [...prev, { code: course.code, name: course.name, credits: course.credits }]);
   };
-  const filteredCourses = HOME_INSTITUTION_CATALOG.courses.filter(c => {
+
+  const filteredCourses = dbCourses.filter(c => {
     if (filterYear !== "all" && c.year !== parseInt(filterYear) && c.year !== 0) return false;
     if (filterSemester !== "all" && c.semester !== filterSemester && c.semester !== "Any") return false;
-    if (filterType !== "all" && c.type !== filterType) return false;
+    if (searchText) {
+      const q = searchText.toLowerCase();
+      if (!c.code.toLowerCase().includes(q) && !c.name.toLowerCase().includes(q)) return false;
+    }
     return true;
   });
-  const totalCredits = selectedCourses.reduce((sum, c) => sum + c.credits, 0);
 
-  const filterStyle = { padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" };
+  const totalCredits = selectedCourses.reduce((sum, c) => sum + c.credits, 0);
+  const filterStyle = { padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 13, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" };
 
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10001, padding: r.val(8, 16, 20) }}>
       <div style={{ background: C.card, borderRadius: 16, maxWidth: "min(900px, 100vw - 32px)", width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-        <div style={{ padding: r.val(16, 20, 24), borderBottom: `2px solid ${C.border}` }}>
-          <h3 style={{ margin: 0, fontSize: r.val(18, 21, 24), fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 4 }}>{HOME_INSTITUTION_CATALOG.name}</h3>
-          <p style={{ margin: 0, color: C.textMuted, fontSize: 14 }}>{HOME_INSTITUTION_CATALOG.department} - Ders Katalogu</p>
-          <div style={{ display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
+        <div style={{ padding: r.val(16, 20, 24), borderBottom: "1.5px solid #e2e8f0" }}>
+          <h3 style={{ margin: 0, fontSize: r.val(18, 21, 24), fontWeight: 700, color: C.navy, fontFamily: "'Playfair Display', serif", marginBottom: 4 }}>Bölüm Ders Kataloğu</h3>
+          <p style={{ margin: 0, color: C.textMuted, fontSize: 14 }}>Ders Yönetimi modülünden eklenen dersler</p>
+          <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ flex: 1, minWidth: 180, position: "relative" }}>
+              <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input value={searchText} onChange={e => setSearchText(e.target.value)} placeholder="Ders kodu veya adı ara..."
+                style={{ width: "100%", padding: "8px 12px 8px 32px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+            </div>
             <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={filterStyle}>
-              <option value="all">Tum Siniflar</option><option value="1">1. Sinif</option><option value="2">2. Sinif</option><option value="3">3. Sinif</option><option value="4">4. Sinif</option><option value="0">Secmeli</option>
+              <option value="all">Tüm Sınıflar</option><option value="1">1. Sınıf</option><option value="2">2. Sınıf</option><option value="3">3. Sınıf</option><option value="4">4. Sınıf</option><option value="5">Seçmeli</option>
             </select>
             <select value={filterSemester} onChange={e => setFilterSemester(e.target.value)} style={filterStyle}>
-              <option value="all">Tum Donemler</option><option value="Fall">Guz</option><option value="Spring">Bahar</option>
-            </select>
-            <select value={filterType} onChange={e => setFilterType(e.target.value)} style={filterStyle}>
-              <option value="all">Tumu</option><option value="Zorunlu">Zorunlu</option><option value="Seçmeli">Secmeli</option>
+              <option value="all">Tüm Dönemler</option><option value="Fall">Güz</option><option value="Spring">Bahar</option>
             </select>
           </div>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
-          <div style={{ display: "grid", gap: 12 }}>
-            {filteredCourses.map((course, idx) => {
-              const isSelected = selectedCourses.find(c => c.code === course.code);
-              return (
-                <div key={idx} onClick={() => toggleCourse(course)} style={{ padding: 16, border: `2px solid ${isSelected ? C.navy : C.border}`, borderRadius: 12, cursor: "pointer", background: isSelected ? "#EEF0F5" : "white", transition: "all 0.2s" }}>
-                  <div style={{ display: "flex", alignItems: "start", gap: 12 }}>
-                    <div style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${isSelected ? C.navy : C.border}`, background: isSelected ? C.navy : "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-                      {isSelected && <div style={{ color: "white", fontSize: 14, fontWeight: 700 }}>✓</div>}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: C.navy }}>{course.name}</div>
-                        <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: course.type === "Zorunlu" ? "#DBEAFE" : "#FEF3C7", color: course.type === "Zorunlu" ? "#1E40AF" : "#92400E" }}>{course.type}</span>
+        <div style={{ flex: 1, overflowY: "auto", padding: r.val(16, 20, 24) }}>
+          {loadingCourses ? (
+            <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>
+              <div style={{ width: 32, height: 32, border: "3px solid #e2e8f0", borderTopColor: "#2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
+              Dersler yükleniyor...
+            </div>
+          ) : filteredCourses.length === 0 ? (
+            <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "#475569", marginBottom: 4 }}>
+                {dbCourses.length === 0 ? "Bölüm dersi bulunamadı" : "Filtreyle eşleşen ders yok"}
+              </div>
+              <div style={{ fontSize: 13 }}>
+                {dbCourses.length === 0 ? "Ders Yönetimi modülünden ders ekleyebilirsiniz." : "Filtre kriterlerinizi değiştirin."}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 8 }}>
+              {filteredCourses.map((course, idx) => {
+                const isSelected = selectedCourses.find(c => c.code === course.code);
+                return (
+                  <div key={idx} onClick={() => toggleCourse(course)} style={{ padding: 14, border: `2px solid ${isSelected ? "#1e3a5f" : "#e2e8f0"}`, borderRadius: 10, cursor: "pointer", background: isSelected ? "#f0f4ff" : "white", transition: "all 0.15s" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${isSelected ? "#1e3a5f" : "#d1d5db"}`, background: isSelected ? "#1e3a5f" : "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {isSelected && <div style={{ color: "white", fontSize: 13, fontWeight: 700 }}>✓</div>}
                       </div>
-                      <div style={{ fontSize: 13, color: C.textMuted, display: "flex", gap: 16, flexWrap: "wrap" }}>
-                        <span>Kod: <strong>{course.code}</strong></span>
-                        <span>AKTS: <strong>{course.credits}</strong></span>
-                        {course.year > 0 && <span>Sinif: <strong>{course.year}</strong></span>}
-                        {course.semester !== "Any" && <span>Donem: <strong>{course.semester === "Fall" ? "Guz" : "Bahar"}</strong></span>}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: "#475569" }}>{course.code}</span>
+                          <span style={{ fontSize: 14, fontWeight: 500, color: "#0f172a" }}>{course.name}</span>
+                          <span style={{ padding: "2px 7px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: course.type === "Zorunlu" ? "#DBEAFE" : "#FEF3C7", color: course.type === "Zorunlu" ? "#1E40AF" : "#92400E" }}>{course.type}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3, display: "flex", gap: 12 }}>
+                          <span>{course.credits} AKTS</span>
+                          {course.year > 0 && course.year < 5 && <span>{course.year}. Sınıf</span>}
+                          {course.semester !== "Any" && <span>{course.semester === "Fall" ? "Güz" : "Bahar"}</span>}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-        <div style={{ padding: 24, borderTop: `2px solid ${C.border}`, background: C.bg }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 14, color: C.textMuted }}>Secili: <strong>{selectedCourses.length}</strong> ders</div>
+        <div style={{ padding: r.val(16, 20, 24), borderTop: "1.5px solid #e2e8f0", background: "#f8fafc" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ fontSize: 14, color: C.textMuted }}>Seçili: <strong>{selectedCourses.length}</strong> ders</div>
             <div style={{ fontSize: 14, color: C.navy, fontWeight: 600 }}>Toplam: <strong>{totalCredits}</strong> AKTS</div>
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <Btn onClick={onClose} variant="secondary">Iptal</Btn>
+            <Btn onClick={onClose} variant="secondary">İptal</Btn>
             <Btn onClick={() => selectedCourses.length > 0 && onSelect(selectedCourses)} disabled={selectedCourses.length === 0}>{selectedCourses.length} Ders Ekle</Btn>
           </div>
         </div>
@@ -1161,13 +1222,40 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
 
 
 // ── Student Detail Modal ──
-const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStudents = [] }) => {
+const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStudents = [], allUniversities = {}, onAddUniversity, activeDepartment }) => {
   const r = useResponsive();
   const [editedStudent, setEditedStudent] = useState({ ...student, outgoingMatches: student.outgoingMatches || [], returnMatches: student.returnMatches || [] });
   const [activeTab, setActiveTab] = useState("outgoing");
   const [editingMatch, setEditingMatch] = useState(null);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [showInstitutionMatches, setShowInstitutionMatches] = useState(false);
+  const [showNewUniForm, setShowNewUniForm] = useState(false);
+  const [newUniName, setNewUniName] = useState("");
+  const [newUniCountry, setNewUniCountry] = useState("");
+  const [uniSearchTerm, setUniSearchTerm] = useState("");
+  const [showUniDropdown, setShowUniDropdown] = useState(false);
+
+  const uniList = Object.keys(allUniversities);
+  const filteredUniList = uniSearchTerm
+    ? uniList.filter(u => u.toLowerCase().includes(uniSearchTerm.toLowerCase()))
+    : uniList;
+
+  const handleSelectUniversity = (uni) => {
+    updateStudent("hostInstitution", uni);
+    if (allUniversities[uni]) updateStudent("hostCountry", allUniversities[uni].country);
+    setUniSearchTerm("");
+    setShowUniDropdown(false);
+  };
+
+  const handleSaveNewUniversity = () => {
+    if (!newUniName.trim() || !newUniCountry.trim()) return;
+    if (onAddUniversity) onAddUniversity(newUniName.trim(), newUniCountry.trim());
+    updateStudent("hostInstitution", newUniName.trim());
+    updateStudent("hostCountry", newUniCountry.trim());
+    setShowNewUniForm(false);
+    setNewUniName("");
+    setNewUniCountry("");
+  };
 
   const generateSemesters = () => {
     const semesters = [];
@@ -1225,26 +1313,116 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStu
           </div>
         </div>
       )}
-      <div className="responsive-grid-4" style={{ display: "grid", gridTemplateColumns: r.val("1fr", "repeat(2, 1fr)", "repeat(3, 1fr)"), gap: r.val(12, 14, 16), marginBottom: 24, padding: r.val(12, 16, 20), background: C.goldPale, borderRadius: 10, border: `1px solid ${C.goldLight}` }}>
-        <FormField label="Öğrenci Numarası"><Input value={editedStudent.studentNumber} onChange={e => updateStudent("studentNumber", e.target.value)} disabled={readOnly} /></FormField>
-        <FormField label="Ad"><Input value={editedStudent.firstName} onChange={e => updateStudent("firstName", e.target.value)} disabled={readOnly} /></FormField>
-        <FormField label="Soyad"><Input value={editedStudent.lastName} onChange={e => updateStudent("lastName", e.target.value)} disabled={readOnly} /></FormField>
-        <FormField label="Karşı Kurum (Üniversite)">
-          <select value={editedStudent.hostInstitution} onChange={e => { updateStudent("hostInstitution", e.target.value); if (UNIVERSITY_CATALOGS[e.target.value]) updateStudent("hostCountry", UNIVERSITY_CATALOGS[e.target.value].country); }} disabled={readOnly}
-            style={{ width: "100%", padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: readOnly ? "#f5f5f5" : "white", cursor: readOnly ? "not-allowed" : "pointer" }}>
-            <option value="">Üniversite Seçin</option>
-            {Object.keys(UNIVERSITY_CATALOGS).map(uni => <option key={uni} value={uni}>{uni}</option>)}
-          </select>
-        </FormField>
-        <FormField label="Ülke"><Input value={editedStudent.hostCountry} onChange={e => updateStudent("hostCountry", e.target.value)} disabled /></FormField>
-        <FormField label="Dönem">
-          <select value={editedStudent.semester || "Fall 2025"} onChange={e => updateStudent("semester", e.target.value)} disabled={readOnly}
-            style={{ width: "100%", padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" }}>
-            {semesters.map(sem => <option key={sem} value={sem}>{sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Güz")}</option>)}
-          </select>
-        </FormField>
-        <FormField label="Karşı Kurum Fakülte Adı"><Input value={editedStudent.hostFaculty || ""} onChange={e => updateStudent("hostFaculty", e.target.value)} disabled={readOnly} placeholder="Örn: Faculty of Engineering" /></FormField>
-        <FormField label="Karşı Kurum Bölüm Adı"><Input value={editedStudent.hostDepartment || ""} onChange={e => updateStudent("hostDepartment", e.target.value)} disabled={readOnly} placeholder="Örn: Computer Engineering" /></FormField>
+      {/* ── Öğrenci Bilgileri ── */}
+      <div style={{ marginBottom: 24, padding: r.val(16, 20, 24), background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)", borderRadius: 14, border: "1px solid #e2e8f0" }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Öğrenci Bilgileri
+        </div>
+        <div className="responsive-grid-4" style={{ display: "grid", gridTemplateColumns: r.val("1fr", "repeat(2, 1fr)", "repeat(3, 1fr)"), gap: r.val(12, 14, 16) }}>
+          <FormField label="Öğrenci Numarası"><Input value={editedStudent.studentNumber} onChange={e => updateStudent("studentNumber", e.target.value)} disabled={readOnly} /></FormField>
+          <FormField label="Ad"><Input value={editedStudent.firstName} onChange={e => updateStudent("firstName", e.target.value)} disabled={readOnly} /></FormField>
+          <FormField label="Soyad"><Input value={editedStudent.lastName} onChange={e => updateStudent("lastName", e.target.value)} disabled={readOnly} /></FormField>
+        </div>
+      </div>
+
+      {/* ── Karşı Kurum Bilgileri ── */}
+      <div style={{ marginBottom: 24, padding: r.val(16, 20, 24), background: "linear-gradient(135deg, #eff6ff 0%, #e0f2fe 100%)", borderRadius: 14, border: "1px solid #bfdbfe" }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#1e40af", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1e40af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Karşı Kurum Bilgileri
+        </div>
+        <div className="responsive-grid-4" style={{ display: "grid", gridTemplateColumns: r.val("1fr", "repeat(2, 1fr)", "repeat(3, 1fr)"), gap: r.val(12, 14, 16) }}>
+          {/* Üniversite Seçimi - Aranabilir Dropdown */}
+          <div style={{ gridColumn: r.isMobile ? "1" : "1 / -1" }}>
+            <FormField label="Karşı Kurum (Üniversite)">
+              {readOnly ? (
+                <Input value={editedStudent.hostInstitution || ""} disabled />
+              ) : showNewUniForm ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ flex: 2, minWidth: 200 }}>
+                      <input value={newUniName} onChange={e => setNewUniName(e.target.value)} placeholder="Üniversite adı"
+                        style={{ width: "100%", padding: "10px 14px", border: "2px solid #3b82f6", borderRadius: 8, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 140 }}>
+                      <input value={newUniCountry} onChange={e => setNewUniCountry(e.target.value)} placeholder="Ülke"
+                        style={{ width: "100%", padding: "10px 14px", border: "2px solid #3b82f6", borderRadius: 8, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={handleSaveNewUniversity} disabled={!newUniName.trim() || !newUniCountry.trim()}
+                      style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: newUniName.trim() && newUniCountry.trim() ? "#2563eb" : "#94a3b8", color: "white", fontSize: 13, fontWeight: 600, cursor: newUniName.trim() && newUniCountry.trim() ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                      Kaydet ve Seç
+                    </button>
+                    <button onClick={() => setShowNewUniForm(false)}
+                      style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", color: "#6b7280", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                      Vazgeç
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ position: "relative" }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ flex: 1, position: "relative" }}>
+                      <input
+                        value={showUniDropdown ? uniSearchTerm : editedStudent.hostInstitution || ""}
+                        onChange={e => { setUniSearchTerm(e.target.value); setShowUniDropdown(true); }}
+                        onFocus={() => setShowUniDropdown(true)}
+                        placeholder="Üniversite arayın veya seçin..."
+                        style={{ width: "100%", padding: "10px 14px 10px 36px", border: `1.5px solid ${showUniDropdown ? "#3b82f6" : "#d1d5db"}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", transition: "border-color 0.15s" }}
+                      />
+                      <svg style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)" }} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                      </svg>
+                    </div>
+                    <button onClick={() => setShowNewUniForm(true)}
+                      style={{ padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "white", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s" }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = "#3b82f6"; e.currentTarget.style.color = "#2563eb"; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = "#d1d5db"; e.currentTarget.style.color = "#374151"; }}>
+                      <PlusIcon /> Yeni Ekle
+                    </button>
+                  </div>
+                  {showUniDropdown && (
+                    <>
+                      <div style={{ position: "fixed", inset: 0, zIndex: 999 }} onClick={() => { setShowUniDropdown(false); setUniSearchTerm(""); }} />
+                      <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, maxHeight: 240, overflowY: "auto", background: "white", border: "1.5px solid #d1d5db", borderRadius: 10, boxShadow: "0 8px 30px rgba(0,0,0,0.12)", zIndex: 1000 }}>
+                        {filteredUniList.length === 0 ? (
+                          <div style={{ padding: "16px 14px", color: "#94a3b8", fontSize: 13, textAlign: "center" }}>
+                            Sonuç bulunamadı.
+                            <button onClick={() => { setShowNewUniForm(true); setNewUniName(uniSearchTerm); setShowUniDropdown(false); }}
+                              style={{ display: "block", margin: "8px auto 0", padding: "6px 14px", borderRadius: 6, border: "1px solid #3b82f6", background: "#eff6ff", color: "#2563eb", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                              "{uniSearchTerm}" olarak yeni ekle
+                            </button>
+                          </div>
+                        ) : (
+                          filteredUniList.map(uni => (
+                            <div key={uni} onClick={() => handleSelectUniversity(uni)}
+                              style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, color: editedStudent.hostInstitution === uni ? "#2563eb" : "#374151", fontWeight: editedStudent.hostInstitution === uni ? 600 : 400, background: editedStudent.hostInstitution === uni ? "#eff6ff" : "white", borderBottom: "1px solid #f1f5f9", transition: "background 0.1s" }}
+                              onMouseEnter={e => { if (editedStudent.hostInstitution !== uni) e.currentTarget.style.background = "#f8fafc"; }}
+                              onMouseLeave={e => { if (editedStudent.hostInstitution !== uni) e.currentTarget.style.background = "white"; }}>
+                              <div>{uni}</div>
+                              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{allUniversities[uni]?.country || ""}{allUniversities[uni]?.custom ? " · Elle eklendi" : ""}</div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </FormField>
+          </div>
+          <FormField label="Ülke"><Input value={editedStudent.hostCountry || ""} onChange={e => updateStudent("hostCountry", e.target.value)} disabled={readOnly} /></FormField>
+          <FormField label="Dönem">
+            <select value={editedStudent.semester || "Fall 2025"} onChange={e => updateStudent("semester", e.target.value)} disabled={readOnly}
+              style={{ width: "100%", padding: "10px 14px", border: `1.5px solid #d1d5db`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" }}>
+              {semesters.map(sem => <option key={sem} value={sem}>{sem.startsWith("Spring") ? sem.replace("Spring", "Bahar") : sem.replace("Fall", "Güz")}</option>)}
+            </select>
+          </FormField>
+          <FormField label="Karşı Kurum Fakülte Adı"><Input value={editedStudent.hostFaculty || ""} onChange={e => updateStudent("hostFaculty", e.target.value)} disabled={readOnly} placeholder="Örn: Faculty of Engineering" /></FormField>
+          <FormField label="Karşı Kurum Bölüm Adı"><Input value={editedStudent.hostDepartment || ""} onChange={e => updateStudent("hostDepartment", e.target.value)} disabled={readOnly} placeholder="Örn: Computer Engineering" /></FormField>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -1265,13 +1443,18 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStu
       <div style={{ minHeight: 300, maxHeight: 400, overflowY: "auto", marginBottom: 20 }}>
         {activeTab === "outgoing" && (
           <>
-            {editedStudent.hostInstitution && UNIVERSITY_CATALOGS[editedStudent.hostInstitution] && (
-              <div style={{ padding: 16, background: "#E3F2FD", border: "2px solid #2196F3", borderRadius: 12, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#1565C0", marginBottom: 12 }}>{editedStudent.hostInstitution} Ders Kataloğu</div>
+            {editedStudent.hostInstitution && (
+              <div style={{ padding: 16, background: "#EFF6FF", border: "1.5px solid #93C5FD", borderRadius: 12, marginBottom: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#1e40af", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1e40af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                  {editedStudent.hostInstitution}
+                </div>
                 {!readOnly && (
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <Btn onClick={() => setShowCatalogModal(true)} variant="secondary" icon={<PlusIcon />}>Katalogdan Ders Sec ve Ekle</Btn>
-                    <Btn onClick={() => setShowInstitutionMatches("outgoing")} variant="secondary" icon={<FileTextIcon />}>Onceki Eslestirmelerden Sec</Btn>
+                    {allUniversities[editedStudent.hostInstitution]?.courses?.length > 0 && (
+                      <Btn onClick={() => setShowCatalogModal(true)} variant="secondary" icon={<PlusIcon />}>Karşı Kurum Katalogdan Seç</Btn>
+                    )}
+                    <Btn onClick={() => setShowInstitutionMatches("outgoing")} variant="secondary" icon={<FileTextIcon />}>Önceki Eşleştirmelerden Seç</Btn>
                   </div>
                 )}
               </div>
@@ -1279,20 +1462,20 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStu
             {editedStudent.outgoingMatches.map(match => (
               <CourseMatchCard key={match.id} match={match} onDelete={id => deleteMatch("outgoing", id)} onEdit={m => setEditingMatch({ type: "outgoing", match: m })} showGrade={false} type="outgoing" readOnly={readOnly} />
             ))}
-            {!readOnly && <Btn onClick={() => addMatch("outgoing")} variant="secondary" icon={<PlusIcon />}>Manuel Eslestirme Ekle</Btn>}
+            {!readOnly && <Btn onClick={() => addMatch("outgoing")} variant="secondary" icon={<PlusIcon />}>Manuel Eşleştirme Ekle</Btn>}
           </>
         )}
         {activeTab === "return" && (
           <>
             {!readOnly && editedStudent.hostInstitution && (
               <div style={{ padding: 16, background: "#E8F5E9", border: "2px solid #4CAF50", borderRadius: 12, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#2E7D32", marginBottom: 12 }}>Onceki Donus Eslestirmeleri</div>
-                <Btn onClick={() => setShowInstitutionMatches("return")} variant="secondary" icon={<FileTextIcon />}>Onceki Eslestirmelerden Sec</Btn>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#2E7D32", marginBottom: 12 }}>Önceki Dönüş Eşleştirmeleri</div>
+                <Btn onClick={() => setShowInstitutionMatches("return")} variant="secondary" icon={<FileTextIcon />}>Önceki Eşleştirmelerden Seç</Btn>
               </div>
             )}
             {!readOnly && editedStudent.outgoingMatches.length > 0 && (
               <div style={{ padding: 20, background: "#FFF9E6", border: "2px dashed #FDB022", borderRadius: 12, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 12 }}>Gidis Eslestirmelerinden Hizli Doldur</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.navy, marginBottom: 12 }}>Gidiş Eşleştirmelerinden Hızlı Doldur</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                   {editedStudent.outgoingMatches.map((outMatch, idx) => {
                     const alreadyExists = editedStudent.returnMatches.some(retMatch => JSON.stringify(retMatch.homeCourses) === JSON.stringify(outMatch.homeCourses) && JSON.stringify(retMatch.hostCourses) === JSON.stringify(outMatch.hostCourses));
@@ -1324,7 +1507,7 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStu
       </div>
 
       {editingMatch && (
-        <CourseMatchEditModal match={editingMatch.match} type={editingMatch.type} onClose={() => setEditingMatch(null)}
+        <CourseMatchEditModal match={editingMatch.match} type={editingMatch.type} activeDepartment={activeDepartment} onClose={() => setEditingMatch(null)}
           onSave={updatedMatch => { setEditedStudent(prev => ({ ...prev, [`${editingMatch.type}Matches`]: prev[`${editingMatch.type}Matches`].map(m => m.id === updatedMatch.id ? updatedMatch : m) })); setEditingMatch(null); }} />
       )}
       {showCatalogModal && (
@@ -1526,7 +1709,40 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   const [selectedSemester, setSelectedSemester] = useState("all");
   const [loading, setLoading] = useState(true);
   const [showTripHistory, setShowTripHistory] = useState(false);
+  const [customUniversities, setCustomUniversities] = useState({});
   const fileInputRef = useRef(null);
+
+  // Özel üniversiteleri yükle
+  useEffect(() => {
+    const loadCustomUnis = async () => {
+      try {
+        const db = window.apiFirestore;
+        if (!db) return;
+        const snapshot = await db.collection("erasmus_universities").get();
+        const unis = {};
+        snapshot.docs.forEach(doc => {
+          const data = doc.data();
+          if (data.name) {
+            unis[data.name] = { country: data.country || "", courses: data.courses || [], custom: true };
+          }
+        });
+        setCustomUniversities(unis);
+      } catch (e) { console.error("Özel üniversiteler yüklenemedi:", e); }
+    };
+    loadCustomUnis();
+  }, []);
+
+  // Tüm üniversiteler = sabit katalog + özel eklenenler
+  const allUniversities = { ...UNIVERSITY_CATALOGS, ...customUniversities };
+
+  const handleAddUniversity = async (name, country) => {
+    try {
+      const db = window.apiFirestore;
+      if (!db) return;
+      await db.collection("erasmus_universities").add({ name, country, courses: [], createdAt: new Date().toISOString() });
+      setCustomUniversities(prev => ({ ...prev, [name]: { country, courses: [], custom: true } }));
+    } catch (e) { console.error("Üniversite eklenemedi:", e); }
+  };
 
   useEffect(() => {
     const loadStudents = async () => {
@@ -1539,8 +1755,6 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
         const snapshot = await ref.limit(1).get();
         if (snapshot.empty) {
           for (const student of SAMPLE_STUDENTS) await FirebaseDB.addStudent({ ...student, erasmusAccess: true });
-          // Öğrenci şifreleri Cloud Functions üzerinden yönetilecek
-          // İlk girişte her öğrenci kendi şifresini belirleyecek
         }
         const allStudents = await FirebaseDB.fetchStudents();
         // Bölüm bazlı filtreleme: departmentId'si olmayan veriler bilgisayar bölümüne ait
@@ -1773,7 +1987,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
         </Card>
 
         {selectedStudent && (
-          <StudentDetailModal student={selectedStudent} onClose={() => setSelectedStudent(null)} onSave={handleSaveStudent} readOnly={!canEdit(selectedStudent)} allStudents={students} />
+          <StudentDetailModal student={selectedStudent} onClose={() => setSelectedStudent(null)} onSave={handleSaveStudent} readOnly={!canEdit(selectedStudent)} allStudents={students} allUniversities={allUniversities} onAddUniversity={handleAddUniversity} activeDepartment={activeDepartment} />
         )}
         {showTripHistory && (
           <TripHistoryModal onClose={() => setShowTripHistory(false)} universities={UNIVERSITY_CATALOGS} isReadOnly={currentUser?.role !== 'admin'} />
