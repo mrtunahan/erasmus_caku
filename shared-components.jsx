@@ -839,13 +839,19 @@ const FirebaseDB = {
   },
 
   // ── Trip History CRUD (Eşleştirme Geçmişi) ──
-  async fetchTripHistory(hostInstitution) {
+  async fetchTripHistory(hostInstitution, departmentId) {
     if (FirebaseDB._tripHistoryDisabled) return [];
     try {
       const params = {};
+      const whereArr = [];
       if (hostInstitution) {
-        params.where = `hostInstitution:eq:${hostInstitution}`;
+        whereArr.push(`hostInstitution:eq:${hostInstitution}`);
       }
+      if (departmentId) {
+        whereArr.push(`departmentId:eq:${departmentId}`);
+      }
+      if (whereArr.length === 1) params.where = whereArr[0];
+      else if (whereArr.length > 1) params.where = whereArr;
       return await apiRead('trip_history', params);
     } catch (error) {
       console.error('Error fetching trip history:', error);
@@ -909,6 +915,7 @@ const FirebaseDB = {
             studentName: `${student.firstName} ${student.lastName}`,
             studentNumber: student.studentNumber,
             semester: student.semester || '',
+            departmentId: student.departmentId || 'bilgisayar',
             createdAt: new Date().toISOString(),
           }});
           existingKeys.add(key);
@@ -933,6 +940,7 @@ const FirebaseDB = {
             studentName: `${student.firstName} ${student.lastName}`,
             studentNumber: student.studentNumber,
             semester: student.semester || '',
+            departmentId: student.departmentId || 'bilgisayar',
             createdAt: new Date().toISOString(),
           }});
           existingKeys.add(key);
