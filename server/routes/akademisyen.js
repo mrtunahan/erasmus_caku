@@ -267,7 +267,6 @@ router.get("/metrics/all", async function(req, res) {
       fullName: d.data?.fullName || "",
       department: d.data?.department || "",
       departmentId: d.departmentId || null,
-      staffType: d.staffType || "kadro",
       stats: d.data?.stats || {},
       publicationMetrics: d.data?.publicationMetrics || { sci: [], scholar: [] },
       fetchedAt: d.fetchedAt
@@ -293,7 +292,6 @@ router.get("/", async function(req, res) {
       email: d.data?.email || "",
       department: d.data?.department || "",
       departmentId: d.departmentId || null,
-      staffType: d.staffType || "kadro",
       fetchedAt: d.fetchedAt
     }));
     res.json(list);
@@ -312,25 +310,6 @@ router.post("/:username/assign", async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/akademisyen/:username/staffType - Kadro türünü güncelle
-router.post("/:username/staffType", async function(req, res) {
-  var username = normalizeUsername(req.params.username);
-  var staffType = req.body.staffType;
-
-  if (!staffType || !["kadro", "disaridan"].includes(staffType)) {
-    return res.status(400).json({ error: "staffType 'kadro' veya 'disaridan' olmalı" });
-  }
-
-  try {
-    var db = await getDbSafe();
-    var doc = await db.collection("akademisyen_cache").findOne({ _docId: username });
-    if (!doc) return res.status(404).json({ error: "Akademisyen bulunamadı" });
-    await db.collection("akademisyen_cache").updateOne({ _docId: username }, { $set: { staffType: staffType } });
-    res.json({ success: true, staffType: staffType });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 router.delete("/:username", async function(req, res) {
   var username = normalizeUsername(req.params.username);
   try {
