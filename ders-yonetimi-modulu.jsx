@@ -29,7 +29,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
   const [professors, setProfessors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingCourse, setEditingCourse] = useState(null);
-  const [form, setForm] = useState({ code: "", name: "", sinif: 1, duration: 30, professor: "", donem: "guz" });
+  const [form, setForm] = useState({ code: "", name: "", sinif: 1, duration: 30, professor: "", donem: "guz", akts: 6 });
   const [saving, setSaving] = useState(false);
   const [filterClass, setFilterClass] = useState("all");
   const [filterTerm, setFilterTerm] = useState("all");
@@ -42,23 +42,14 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const db = window.apiFirestore;
-      if (!db) throw new Error("Veritabanı API si eksik");
-
-      // Dersleri getir (dept filter if manager)
-      const coursesSnap = await db.collection("sinav_dersler").get();
-      let allCourses = coursesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      if (activeDepartment) {
-        allCourses = allCourses.filter(c => c.departmentId === activeDepartment);
-      }
+      // Dersleri getir (bölüm bazlı)
+      const whereParam = activeDepartment ? `departmentId:eq:${activeDepartment}` : undefined;
+      let allCourses = await window.apiRead('sinav_dersler', whereParam ? { where: whereParam } : {});
       setCourses(allCourses);
 
       // Akademisyenleri getir (dropdown için)
-      const profsSnap = await db.collection("professors").get();
-      let allProfs = profsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      if (!isAdmin) {
-         allProfs = allProfs.filter(p => p.departmentId === activeDepartment);
-      }
+      const profWhere = (!isAdmin && activeDepartment) ? `departmentId:eq:${activeDepartment}` : undefined;
+      let allProfs = await window.apiRead('professors', profWhere ? { where: profWhere } : {});
       setProfessors(allProfs);
     } catch (e) {
       console.error("Ders yönetimi yüklenirken hata:", e);
@@ -68,54 +59,55 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
   };
 
   useEffect(() => {
-    if (hasAccess && window.apiFirestore) {
+    if (hasAccess) {
       loadData();
     }
   }, [hasAccess, activeDepartment]);
 
   const startEdit = (c) => {
     setEditingCourse(c);
-    setForm({ 
-      code: c.code, 
-      name: c.name, 
-      sinif: c.sinif, 
-      duration: c.duration, 
-      professor: c.professor || "", 
-      donem: c.donem || "guz" 
+    setForm({
+      code: c.code,
+      name: c.name,
+      sinif: c.sinif,
+      duration: c.duration,
+      professor: c.professor || "",
+      donem: c.donem || "guz",
+      akts: c.akts || 6,
     });
   };
 
   const startNew = () => {
     setEditingCourse("new");
-    setForm({ code: "", name: "", sinif: 1, duration: 30, professor: "", donem: "guz" });
+    setForm({ code: "", name: "", sinif: 1, duration: 30, professor: "", donem: "guz", akts: 6 });
   };
 
   const handleSave = async () => {
     if (!form.code.trim() || !form.name.trim()) return alert("Ders kodu ve adı zorunludur.");
     setSaving(true);
     try {
-      const db = window.apiFirestore;
       const dataToSave = {
         code: form.code.trim(),
         name: form.name.trim(),
         sinif: parseInt(form.sinif) || 1,
         duration: parseInt(form.duration) || 30,
+        akts: parseInt(form.akts) || 6,
         professor: form.professor || "",
         donem: form.donem,
         departmentId: activeDepartment || "bilgisayar",
-        updatedAt: window.firebase?.firestore?.FieldValue?.serverTimestamp() || new Date()
+        updatedAt: new Date().toISOString(),
       };
 
       if (editingCourse === "new") {
-        dataToSave.studentCount = 0; // default for new course
+        dataToSave.studentCount = 0;
         dataToSave.createdAt = dataToSave.updatedAt;
-        await db.collection("sinav_dersler").add(dataToSave);
+        await FirestoreWrite.add('sinav_dersler', dataToSave);
       } else {
-        await db.collection("sinav_dersler").doc(editingCourse.id).set(dataToSave, { merge: true });
+        await FirestoreWrite.set('sinav_dersler', editingCourse.id, dataToSave, true);
       }
 
       setEditingCourse(null);
-      await loadData(); // Reload table
+      await loadData();
     } catch (e) {
       console.error(e);
       alert("Ders kaydedilemedi: " + e.message);
@@ -127,8 +119,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
   const handleDelete = async (c) => {
     if (!confirm(`${c.code} kodlu ${c.name} dersini silmek istediğinize emin misiniz?`)) return;
     try {
-      const db = window.apiFirestore;
-      await db.collection("sinav_dersler").doc(c.id).delete();
+      await FirestoreWrite.remove('sinav_dersler', c.id);
       setCourses(courses.filter(course => course.id !== c.id));
     } catch (e) {
       console.error(e);
@@ -218,6 +209,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                   <th style={{ padding: "12px 16px", textAlign: "left", borderBottom: `2px solid ${C.border}`, color:"#374151" }}>Ders Adı</th>
                   <th style={{ padding: "12px 16px", textAlign: "center", borderBottom: `2px solid ${C.border}`, color:"#374151" }}>Sınıf</th>
                   <th style={{ padding: "12px 16px", textAlign: "center", borderBottom: `2px solid ${C.border}`, color:"#374151" }}>Dönem</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center", borderBottom: `2px solid ${C.border}`, color:"#374151" }}>AKTS</th>
                   <th style={{ padding: "12px 16px", textAlign: "center", borderBottom: `2px solid ${C.border}`, color:"#374151" }}>Süre</th>
                   <th style={{ padding: "12px 16px", textAlign: "left", borderBottom: `2px solid ${C.border}`, color:"#374151" }}>Akademisyen</th>
                   <th style={{ padding: "12px 16px", textAlign: "center", borderBottom: `2px solid ${C.border}`, color:"#374151" }}>İşlem</th>
@@ -236,6 +228,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                         {c.donem === "bahar" ? "Bahar" : "Güz"}
                       </Badge>
                     </td>
+                    <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 600 }}>{c.akts || 6}</td>
                     <td style={{ padding: "12px 16px", textAlign: "center" }}>{c.duration} dk</td>
                     <td style={{ padding: "12px 16px", fontSize: 12 }}>{c.professor || <span style={{color:"#9CA3AF"}}>Bilinmiyor</span>}</td>
                     <td style={{ padding: "12px 16px", textAlign: "center" }}>
@@ -248,7 +241,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                 ))}
                 {filteredCourses.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#6B7280" }}>Aradığınız kritere uygun ders bulunamadı.</td>
+                    <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#6B7280" }}>Aradığınız kritere uygun ders bulunamadı.</td>
                   </tr>
                 )}
               </tbody>
@@ -281,6 +274,11 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                   <option value="bahar">Bahar</option>
                 </Select>
               </FormField> 
+              <FormField label="AKTS">
+                <Select value={form.akts} onChange={e => setForm({ ...form, akts: parseInt(e.target.value) })}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(a => <option key={a} value={a}>{a} AKTS</option>)}
+                </Select>
+              </FormField>
               <FormField label="Sınav Süresi (dk)">
                 <Select value={form.duration} onChange={e => setForm({ ...form, duration: parseInt(e.target.value) })}>
                   {[30, 45, 60, 75, 90, 105, 120, 150].map(d => <option key={d} value={d}>{d} dk</option>)}

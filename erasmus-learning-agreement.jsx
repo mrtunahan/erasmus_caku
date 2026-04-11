@@ -653,28 +653,22 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect, activeDepartment }) =>
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [searchText, setSearchText] = useState("");
 
-  // Bölüm yönetiminden ders listesini yükle
+  // Bölüm yönetiminden ders listesini yükle (MongoDB API)
   useEffect(() => {
     const loadDeptCourses = async () => {
       setLoadingCourses(true);
       try {
-        const db = window.apiFirestore;
-        if (!db) { setLoadingCourses(false); return; }
-        const snapshot = await db.collection("sinav_dersler").get();
-        const allCourses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Bölüme göre filtrele
-        const deptCourses = activeDepartment
-          ? allCourses.filter(c => (c.departmentId || "bilgisayar") === activeDepartment)
-          : allCourses;
+        const whereParam = activeDepartment ? `departmentId:eq:${activeDepartment}` : undefined;
+        const deptCourses = await window.apiRead('sinav_dersler', whereParam ? { where: whereParam } : {});
 
-        // HOME_INSTITUTION_CATALOG'dan AKTS bilgisi eşleştir
+        // Hardcoded katalogdan fallback AKTS (eski veriler için)
         const catalogMap = {};
         HOME_INSTITUTION_CATALOG.courses.forEach(c => { catalogMap[c.code] = c; });
 
         const mapped = deptCourses.map(c => ({
           code: c.code || "",
           name: c.name || "",
-          credits: catalogMap[c.code]?.credits || 6,
+          credits: c.akts || catalogMap[c.code]?.credits || 6,
           year: c.sinif || 0,
           semester: c.donem === "guz" ? "Fall" : c.donem === "bahar" ? "Spring" : "Any",
           type: (c.sinif === 5 || c.sinif === 0) ? "Seçmeli" : "Zorunlu",
