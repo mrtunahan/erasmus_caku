@@ -620,7 +620,9 @@ var PortalDB = {
       deleteCount++;
     });
     ops.push({ collection: "portal_posts", type: "delete", docId: String(commentId), parentDocId: String(postId), subCollection: "comments" });
-    await window.FirestoreWrite.batch(ops);
+    for (var i = 0; i < ops.length; i += 20) {
+      await window.FirestoreWrite.batch(ops.slice(i, i + 20));
+    }
     // Yorum sayısını azalt
     var postRef = this.postsRef();
     if (postRef) {
@@ -780,7 +782,9 @@ var PortalDB = {
     var ops = snapshot.docs.map(function (doc) {
       return { collection: "portal_notifications", type: "update", docId: doc.id, parentDocId: String(userId), subCollection: "items", data: { read: true } };
     });
-    await window.FirestoreWrite.batch(ops);
+    for (var i = 0; i < ops.length; i += 20) {
+      await window.FirestoreWrite.batch(ops.slice(i, i + 20));
+    }
   },
 
   // ── Kullanıcı Profilleri ──

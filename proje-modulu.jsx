@@ -80,10 +80,6 @@ function prjFormatDate(ts) {
 
 // ── DB Helpers ──
 var ProjDB = {
-  db: function () {
-    return window.apiFirestore;
-  },
-
   // Kategori bazlı collection adı
   _col: function (category) {
     var cat = PROJECT_CATEGORIES.find(function (c) { return c.id === category; });
@@ -93,10 +89,8 @@ var ProjDB = {
   // Ders listesi (kategori ve bölüm bazlı)
   async fetchCourses(category, departmentId) {
     try {
-      var db = this.db();
       var col = this._col(category);
-      var snap = await db.collection(col).get();
-      var docs = snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+      var docs = await window.apiRead(col);
       // Bölüm bazlı filtreleme: departmentId olmayan veriler bilgisayar bölümüne ait
       if (departmentId) {
         docs = docs.filter(function (d) {
@@ -147,12 +141,10 @@ var ProjDB = {
   // Projeler
   async fetchProjects(courseId, category) {
     try {
-      var db = this.db();
       var col = this._projCol(category);
-      var query = db.collection(col);
-      if (courseId) query = query.where("courseId", "==", courseId);
-      var snap = await query.get();
-      var docs = snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+      var params = {};
+      if (courseId) params.where = "courseId:eq:s:" + courseId;
+      var docs = await window.apiRead(col, params);
       docs.sort(function (a, b) {
         var ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
         var tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
@@ -166,10 +158,8 @@ var ProjDB = {
   },
   // Tüm projeleri getir (üyelik kontrolü için)
   async fetchAllProjects(category) {
-    var db = this.db(); if (!db) return [];
     var col = this._projCol(category);
-    var snap = await db.collection(col).get();
-    return snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+    return await window.apiRead(col);
   },
   async createProject(data, category) {
     try {

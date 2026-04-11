@@ -98,11 +98,7 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
   const loadResources = async () => {
     setLoading(true);
     try {
-      const db = window.apiFirestore;
-      if (!db) { setLoading(false); return; }
-      const snapshot = await db.collection("resources").orderBy("createdAt", "desc").get();
-      const allData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-      // departmentId yoksa "bilgisayar" kabul et (eski kayıtlar)
+      const allData = await window.apiRead("resources", { orderBy: "createdAt:desc" });
       const filtered = activeDepartment
         ? allData.filter(r => (r.departmentId || "bilgisayar") === activeDepartment)
         : allData;
@@ -116,9 +112,6 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
   // ── Kaynak Ekle ──
   const handleUploadResource = async (resourceData) => {
     try {
-      const db = window.apiFirestore;
-      if (!db) throw new Error("API bağlantısı yok!");
-
       // Yinelenen dosya kontrolü
       const isDuplicate = resources.some(r =>
         r.fileName === resourceData.fileName &&
@@ -139,11 +132,11 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
         ratingCount: 0,
         uploadedBy: userId,
         uploadedByName: currentUser?.name || userId,
-        createdAt: window.apiFieldValue.serverTimestamp(),
+        createdAt: new Date().toISOString(),
       };
 
-      const docRef = await db.collection("resources").add(docData);
-      setResources(prev => [{ ...docData, id: docRef.id }, ...prev]);
+      const result = await window.FirestoreWrite.add("resources", docData);
+      setResources(prev => [{ ...docData, id: result?.id || String(Date.now()) }, ...prev]);
       setShowUploadModal(false);
     } catch (e) {
       console.error("Kaynak eklenemedi:", e);
@@ -154,10 +147,9 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
   // ── İndirme Sayacı (sadece giriş yapmış kullanıcılar için) ──
   const handleDownload = async (resource) => {
     try {
-      const db = window.apiFirestore;
-      if (!db || !currentUser || resource.id.startsWith("sample_")) return;
+      if (!currentUser || resource.id.startsWith("sample_")) return;
 
-      await db.collection("resources").doc(resource.id).update({
+      await window.FirestoreWrite.update("resources", resource.id, {
         downloadCount: window.apiFieldValue.increment(1),
       });
 
@@ -177,9 +169,6 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
   // ── Değerlendirme ──
   const handleRate = async (resourceId, rating) => {
     try {
-      const db = window.apiFirestore;
-      if (!db) throw new Error("API bağlantısı yok!");
-
       const resource = resources.find(r => r.id === resourceId);
       if (!resource) return;
 
@@ -187,7 +176,7 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
       const ratingValues = Object.values(updatedRatings);
       const averageRating = ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length;
 
-      await db.collection("resources").doc(resourceId).update({
+      await window.FirestoreWrite.update("resources", resourceId, {
         ratings: updatedRatings,
         averageRating: Math.round(averageRating * 10) / 10,
         ratingCount: ratingValues.length,
@@ -208,9 +197,7 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
   const handleDeleteResource = async (resourceId) => {
     if (!confirm("Bu kaynağı silmek istediğinize emin misiniz?")) return;
     try {
-      const db = window.apiFirestore;
-      if (!db) throw new Error("API bağlantısı yok!");
-      await db.collection("resources").doc(resourceId).delete();
+      await window.FirestoreWrite.remove("resources", resourceId);
       setResources(prev => prev.filter(r => r.id !== resourceId));
       if (selectedResource?.id === resourceId) setSelectedResource(null);
     } catch (e) {
