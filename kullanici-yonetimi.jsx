@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════════
 // Kullanıcı Yönetimi Modülü
-// Öğrenci, Akademisyen ve Şifre Yönetimi (Sadece Admin)
+// Öğrenci, Akademisyen ve Şifre Yönetimi (Admin ve Bölüm Yetkilisi)
 // ══════════════════════════════════════════════════════════════
 
 const { useState, useEffect, useRef, useCallback } = React;
@@ -8,6 +8,8 @@ const { useState, useEffect, useRef, useCallback } = React;
 const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo }) => {
   const r = useResponsive();
   const DEPARTMENTS = window.DEPARTMENTS || [];
+  const isAdmin = currentUser?.role === 'admin';
+  const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
   const [activeSection, setActiveSection] = useState("students"); // students, professors, passwords
   const [students, setStudents] = useState([]);
   const [professors, setProfessors] = useState([]);
@@ -202,7 +204,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     }
   };
 
-  if (currentUser?.role !== 'admin') {
+  if (!isAdmin && !isDeptManager) {
     return (
       <div className="portal-bg">
         <div className="portal-wrap">
@@ -470,7 +472,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
               {[
                 { id: "student", label: "Öğrenciler" },
                 { id: "professor", label: "Akademisyenler" },
-                { id: "admin", label: "Admin" },
+                ...(isAdmin ? [{ id: "admin", label: "Admin" }] : []),
               ].map(tab => (
                 <Btn key={tab.id}
                   variant={passwordTab === tab.id ? "primary" : "secondary"}
@@ -553,7 +555,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                 </table>
               )}
 
-              {passwordTab === "admin" && (
+              {passwordTab === "admin" && isAdmin && (
                 <div style={{ padding: 20 }}>
                   <div style={{ textAlign: 'center', marginBottom: 32 }}>
                     <div style={{ marginBottom: 16, fontWeight: 600, color: C.navy }}>Admin Giriş Şifresi</div>
