@@ -772,9 +772,12 @@ function CreateProjectModal({ onClose, onCreate, currentUserName, minGroupSize, 
 }
 
 // ══════════════════════════════════════════════════════════════
-// DERS EKLEME MODALI (Admin)
+// DERS EKLEME MODALI (Admin / Akademisyen)
+// availableCourses: sinav_dersler'den yüklenmiş bölüm dersleri
+// isProfessor: true ise sadece kendi dersleri listelenir
+// currentUserName: akademisyen filtresi için
 // ══════════════════════════════════════════════════════════════
-function AddCourseModal({ onClose, onAdd, editCourse, categoryLabel }) {
+function AddCourseModal({ onClose, onAdd, editCourse, categoryLabel, availableCourses, isProfessor, currentUserName }) {
   var cs = useState(editCourse ? editCourse.code : ""), code = cs[0], setCode = cs[1];
   var ns = useState(editCourse ? editCourse.name : ""), name = ns[0], setName = ns[1];
   var ps = useState(editCourse ? (editCourse.professor || "") : ""), prof = ps[0], setProf = ps[1];
@@ -782,6 +785,33 @@ function AddCourseModal({ onClose, onAdd, editCourse, categoryLabel }) {
   var pds = useState(editCourse ? (editCourse.projectPeriod || "") : ""), projectPeriod = pds[0], setProjectPeriod = pds[1];
   var mns = useState(editCourse ? (editCourse.minGroupSize || 2) : 2), minGroupSize = mns[0], setMinGroupSize = mns[1];
   var mxs = useState(editCourse ? (editCourse.maxGroupSize || 3) : 3), maxGroupSize = mxs[0], setMaxGroupSize = mxs[1];
+  var scs = useState(""), selectedCourseId = scs[0], setSelectedCourseId = scs[1];
+
+  // Akademisyense sadece kendisine ait dersleri filtrele, admin/bölüm yetkilisiyse hepsini göster
+  var norm = function (s) { return (s || "").toString().trim().toLowerCase(); };
+  var myCourses = (availableCourses || []).filter(function (c) {
+    if (!isProfessor) return true;
+    return norm(c.professor) === norm(currentUserName);
+  });
+  // Aynı ders kodu birden fazla kayıtta varsa tekilleştir
+  var seen = {};
+  var uniqueCourses = [];
+  myCourses.forEach(function (c) {
+    var key = (c.code || "") + "|" + (c.professor || "");
+    if (!seen[key]) { seen[key] = true; uniqueCourses.push(c); }
+  });
+
+  var onCourseSelect = function (e) {
+    var id = e.target.value;
+    setSelectedCourseId(id);
+    if (!id) return;
+    var c = uniqueCourses.find(function (x) { return x.id === id; });
+    if (c) {
+      setCode(c.code || "");
+      setName(c.name || "");
+      setProf(c.professor || "");
+    }
+  };
 
   var handleSubmit = function () {
     if (!code.trim() || !name.trim()) { alert("Ders kodu ve adı zorunludur!"); return; }
@@ -799,20 +829,52 @@ function AddCourseModal({ onClose, onAdd, editCourse, categoryLabel }) {
         <h3 style={{ fontSize: 18, fontWeight: 700, color: PRJ.text, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
           <PrjIcon path={PRJ_ICONS.book} size={20} color={PRJ.primary} /> {editCourse ? "Düzenle" : (categoryLabel ? categoryLabel + " - Yeni Proje Alanı Ekle" : "Yeni Ders Ekle")}
         </h3>
+
+        {/* Ders Seçimi (Ders Yönetimi'nden) — yalnızca yeni eklerken ve dersler yüklüyse */}
+        {!editCourse && uniqueCourses.length > 0 && (
+          <div style={{ marginBottom: 16, padding: 14, background: "#F0F7FF", border: "1px solid #BFDBFE", borderRadius: 10 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 8, color: PRJ.primary }}>
+              {isProfessor ? "Derslerinizden Seçin" : "Ders Yönetimi'nden Seç"}
+            </label>
+            <select value={selectedCourseId} onChange={onCourseSelect}
+              style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif", background: "white", cursor: "pointer" }}>
+              <option value="">— Ders seçin —</option>
+              {uniqueCourses.map(function (c) {
+                var label = (c.code || "") + " — " + (c.name || "");
+                if (c.professor) label += " (" + c.professor + ")";
+                return <option key={c.id} value={c.id}>{label}</option>;
+              })}
+            </select>
+            <p style={{ fontSize: 11, color: PRJ.textMuted, margin: "8px 0 0 0" }}>
+              {isProfessor
+                ? "Sadece size tanımlanmış dersler listelenir. Bir ders seçtiğinizde kod, ad ve hoca bilgisi otomatik doldurulur."
+                : "Bölümünüze tanımlı dersleri seçip alanları otomatik doldurabilirsiniz."}
+            </p>
+          </div>
+        )}
+        {!editCourse && isProfessor && uniqueCourses.length === 0 && (
+          <div style={{ marginBottom: 16, padding: 12, background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 10, fontSize: 12, color: "#92400E" }}>
+            Size tanımlı ders bulunamadı. Ders Yönetimi alanından bölüm yetkilisinin dersleri tanımlaması gerekir.
+          </div>
+        )}
+
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>Ders Kodu *</label>
           <input type="text" value={code} onChange={function (e) { setCode(e.target.value); }} placeholder="BIL401"
-            style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif" }} />
+            readOnly={isProfessor && !!selectedCourseId}
+            style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif", background: (isProfessor && !!selectedCourseId) ? "#F3F4F6" : "white" }} />
         </div>
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>Ders Adı *</label>
           <input type="text" value={name} onChange={function (e) { setName(e.target.value); }} placeholder="Bilgisayar Projesi I"
-            style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif" }} />
+            readOnly={isProfessor && !!selectedCourseId}
+            style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif", background: (isProfessor && !!selectedCourseId) ? "#F3F4F6" : "white" }} />
         </div>
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>Dersin Hocası</label>
           <input type="text" value={prof} onChange={function (e) { setProf(e.target.value); }} placeholder="Dr. Öğr. Üyesi ..."
-            style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif" }} />
+            readOnly={isProfessor && !!selectedCourseId}
+            style={{ width: "100%", padding: "10px 14px", border: "1px solid " + PRJ.border, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "'Source Sans 3', sans-serif", background: (isProfessor && !!selectedCourseId) ? "#F3F4F6" : "white" }} />
         </div>
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: PRJ.text }}>Proje Dönemi</label>
@@ -971,6 +1033,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var sbms = _s(false), showBulkScheduleModal = sbms[0], setShowBulkScheduleModal = sbms[1];
   var sq = _s(""), searchQuery = sq[0], setSearchQuery = sq[1];
   var ecv = _s(null), editingCourse = ecv[0], setEditingCourse = ecv[1]; // ders düzenleme
+  var dcs = _s([]), deptCourses = dcs[0], setDeptCourses = dcs[1]; // sinav_dersler'den yüklenen bölüm dersleri
   var [activeCategory, setActiveCategory] = useState("bolum"); // bolum, universite, tubitak
 
   var aps = _s([]), allProjects = aps[0], setAllProjects = aps[1];
@@ -981,6 +1044,16 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var isDeptManager = currentUser && currentUser.role === "bolum_yetkilisi";
   var isProfessor = currentUser && currentUser.role === "professor";
   var canManage = isAdmin || isDeptManager || isProfessor;
+
+  // ── Bölüm derslerini yükle (sinav_dersler koleksiyonundan) ──
+  useEffect(function () {
+    if (!activeDepartment || !window.apiFirestore) return;
+    window.apiFirestore.collection("sinav_dersler").get().then(function (snap) {
+      var all = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+      var filtered = all.filter(function (c) { return c.departmentId === activeDepartment; });
+      setDeptCourses(filtered);
+    }).catch(function (err) { console.error("Bölüm dersleri yüklenemedi:", err); });
+  }, [activeDepartment]);
 
   // ── Tüm projeleri yükle (üyelik kontrolü için) ──
   var loadAllProjects = useCallback(function () {
@@ -1441,7 +1514,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             </div>
           )}
         </div>
-        {showCourseModal && <AddCourseModal onClose={function () { setShowCourseModal(false); setEditingCourse(null); }} onAdd={handleAddCourse} editCourse={editingCourse} categoryLabel={activeCat.label} />}
+        {showCourseModal && <AddCourseModal onClose={function () { setShowCourseModal(false); setEditingCourse(null); }} onAdd={handleAddCourse} editCourse={editingCourse} categoryLabel={activeCat.label} availableCourses={deptCourses} isProfessor={isProfessor} currentUserName={userName} />}
       </div>
     );
   }
