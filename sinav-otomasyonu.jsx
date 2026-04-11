@@ -1982,11 +1982,14 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
               }
             });
 
-            // Mükerrer kontrol
+            // Mükerrer kontrol (aynı bölüm + aynı kod + aynı ad = gerçek mükerrer)
             const courseGroups = {};
             allCourses.forEach(c => {
-              const key = (c.code || "").trim();
-              if (!key) return;
+              const code = (c.code || "").trim();
+              const name = (c.name || "").trim();
+              const dept = c.departmentId || "";
+              if (!code) return;
+              const key = `${dept}__${code}__${name}`;
               if (!courseGroups[key]) courseGroups[key] = [];
               courseGroups[key].push(c);
             });
