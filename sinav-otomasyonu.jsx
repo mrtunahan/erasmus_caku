@@ -66,8 +66,7 @@ const DEPT_CLASSROOMS = [
 
 const DEPT_SUPERVISORS = [
   "Arş. Gör. A. Tunahan KORKMAZ",
-  "Arş. Gör. Öznur Şifa AKÇAM",
-  "Arş. Gör. İrem Nur ECEMİŞ ÖZDEMİR",
+  "Arş. Gör. Öznur Ş. AKÇAM",
 ];
 
 const ALL_FACULTY_CLASSROOMS = [
