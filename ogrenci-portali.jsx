@@ -4877,6 +4877,21 @@ function OgrenciPortaliApp({ currentUser }) {
         });
       }
     });
+    // Bölüm öğrencilerine "Benim Sayfam" bildirimi (yalnızca onaylanmış/otomatik onaylı gönderiler için)
+    try {
+      if (isModOrAdmin && window.StudentNotifier) {
+        var deptId = currentUser && currentUser.departmentId ? currentUser.departmentId : null;
+        var excludeNumber = currentUser && currentUser.studentNumber ? currentUser.studentNumber : null;
+        window.StudentNotifier.notifyDepartmentStudents(deptId, {
+          type: "portal_post",
+          title: "Öğrenci portalında yeni duyuru",
+          message: (currentUser && currentUser.name ? currentUser.name : "Bir kullanıcı") +
+            ": \"" + (postData.title || "Yeni gönderi") + "\"",
+          link: "portal",
+          postId: saved.id,
+        }, excludeNumber);
+      }
+    } catch (ne) { console.warn("Portal bildirimi gönderilemedi:", ne); }
   };
 
   // Reaksiyon

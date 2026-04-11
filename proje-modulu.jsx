@@ -1110,6 +1110,21 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       } else {
         var ref = await ProjDB.addCourse(courseData, activeCategory);
         setCourses(function (prev) { return prev.concat([Object.assign({}, courseData, { id: ref.id })]); });
+        // Bu dersi almış öğrencilere bildirim yolla (yalnızca yeni proje grubu oluştururken)
+        try {
+          if (window.StudentNotifier) {
+            var catLabel = activeCat && activeCat.label ? activeCat.label : "Proje";
+            window.StudentNotifier.notifyCourseStudents(activeDepartment, data.code, {
+              type: "project_group",
+              title: catLabel + " grubu açıldı",
+              message: (data.code || "") + " - " + (data.name || "") +
+                " dersine " + (data.professor ? ("(" + data.professor + ") ") : "") +
+                "yeni bir proje grubu oluşturuldu.",
+              link: "projeler",
+              courseCode: data.code || null,
+            });
+          }
+        } catch (ne) { console.warn("Bildirim gönderilemedi:", ne); }
       }
       setShowCourseModal(false);
     } catch (e) {
