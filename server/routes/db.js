@@ -40,7 +40,6 @@ const ALLOWED_COLLECTIONS = [
   "exam_results",
   "exam_periods",
   "resources",
-  "surveys",
   "forms",
   "internships",
   "internship_applications",
@@ -49,9 +48,6 @@ const ALLOWED_COLLECTIONS = [
   "internship_roadmap",
   "internship_notifications",
   "commissions",
-  "yaz_okulu_students",
-  "yaz_okulu_records",
-  "yaz_okulu_settings",
   "portal_posts_comments",
   "portal_notifications_items",
   "trip_history",
@@ -198,6 +194,12 @@ router.post("/write", async (req, res) => {
   if (deleteCount > 20) {
     console.error(`BLOCKED: ${deleteCount} silme işlemi engellendi (max 20)`);
     return res.status(403).json({ error: `Tek istekte en fazla 20 silme işlemi yapılabilir (istenen: ${deleteCount})` });
+  }
+
+  const updateCount = operations.filter((op) => op.type === "update" || op.type === "set").length;
+  if (updateCount > 50) {
+    console.error(`BLOCKED: ${updateCount} güncelleme işlemi engellendi (max 50)`);
+    return res.status(403).json({ error: `Tek istekte en fazla 50 güncelleme işlemi yapılabilir (istenen: ${updateCount})` });
   }
 
   try {

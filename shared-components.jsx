@@ -462,6 +462,7 @@ const CloudFunctions = {
     const response = await fetch(route.path, {
       method: route.method,
       headers,
+      credentials: 'include',
       body: JSON.stringify(data),
     });
 
@@ -520,6 +521,7 @@ const FirestoreWrite = {
     const response = await fetchWithRetry('/api/db/write', {
       method: 'POST',
       headers,
+      credentials: 'include',
       body: JSON.stringify({ operations }),
     });
 
@@ -570,7 +572,7 @@ async function apiRead(collection, params = {}) {
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const response = await fetchWithRetry(url.toString(), { headers });
+  const response = await fetchWithRetry(url.toString(), { headers, credentials: 'include' });
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: 'Okuma hatası' }));
     throw new Error(err.error || `HTTP ${response.status}`);
@@ -583,7 +585,7 @@ async function apiReadDoc(collection, docId) {
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const response = await fetchWithRetry(`/api/db/${collection}/${encodeURIComponent(docId)}`, { headers });
+  const response = await fetchWithRetry(`/api/db/${collection}/${encodeURIComponent(docId)}`, { headers, credentials: 'include' });
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: 'Okuma hatası' }));
     throw new Error(err.error || `HTTP ${response.status}`);
@@ -1222,8 +1224,9 @@ const FirebaseDB = {
 
 // ── Authentication Helper (JWT tabanlı) ──
 const FirebaseAuth = {
-  // Çıkış yap
+  // Çıkış yap (httpOnly cookie + localStorage temizle)
   async signOut() {
+    try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
     localStorage.removeItem('caku_auth_token');
     localStorage.removeItem('caku_current_user');
   },

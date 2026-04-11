@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
 const { connect, disconnect } = require("./config/database");
 const healthRoutes = require("./routes/health");
 const authRoutes = require("./routes/auth");
@@ -11,8 +12,9 @@ const PORT = process.env.PORT || 3001;
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "10mb" }));
+app.use(cookieParser());
 
 // Routes
 app.use("/api/health", healthRoutes);

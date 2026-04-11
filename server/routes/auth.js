@@ -2,7 +2,7 @@ const express = require("express");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const { getDbSafe } = require("../config/database");
-const { generateToken, requireAuth } = require("../middleware/auth");
+const { generateToken, requireAuth, setTokenCookie, clearTokenCookie } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -149,6 +149,7 @@ router.post("/student", async (req, res) => {
         console.warn("Student departmentId lookup error:", e.message);
       }
       const token = generateToken({ role: "student", identifier: trimmedId, departmentId });
+      setTokenCookie(res, token);
       return res.json({ success: true, token, departmentId });
     } else {
       recordAttempt(rateLimitKey);
@@ -191,6 +192,7 @@ router.post("/admin", async (req, res) => {
         await setPasswordDoc("admin", { password: bcryptHash, updatedAt: new Date() });
       }
       const token = generateToken({ role: "admin" });
+      setTokenCookie(res, token);
       return res.json({ success: true, token });
     } else {
       recordAttempt(rateLimitKey);
@@ -237,6 +239,7 @@ router.post("/professor", async (req, res) => {
         const bcryptHash = await hashPassword(password);
         await setPasswordDoc("professor_passwords", { [professorName]: bcryptHash }, true);
         const token = generateToken({ role: "professor", identifier: professorName });
+        setTokenCookie(res, token);
         return res.json({ success: true, token });
       } else {
         recordAttempt(rateLimitKey);
@@ -253,6 +256,7 @@ router.post("/professor", async (req, res) => {
         await setPasswordDoc("professor_passwords", { [professorName]: bcryptHash }, true);
       }
       const token = generateToken({ role: "professor", identifier: professorName });
+      setTokenCookie(res, token);
       return res.json({ success: true, token });
     } else {
       recordAttempt(rateLimitKey);
@@ -309,6 +313,7 @@ router.post("/department-manager", async (req, res) => {
         const bcryptHash = await hashPassword(password);
         await setPasswordDoc("department_manager_passwords", { [managerName]: bcryptHash }, true);
         const token = generateToken({ role: "bolum_yetkilisi", identifier: managerName, departmentId, departmentName });
+        setTokenCookie(res, token);
         return res.json({ success: true, token, departmentId, departmentName });
       } else {
         recordAttempt(rateLimitKey);
@@ -325,6 +330,7 @@ router.post("/department-manager", async (req, res) => {
         await setPasswordDoc("department_manager_passwords", { [managerName]: bcryptHash }, true);
       }
       const token = generateToken({ role: "bolum_yetkilisi", identifier: managerName, departmentId, departmentName });
+      setTokenCookie(res, token);
       return res.json({ success: true, token, departmentId, departmentName });
     } else {
       recordAttempt(rateLimitKey);
@@ -337,7 +343,16 @@ router.post("/department-manager", async (req, res) => {
 });
 
 // ══════════════════════════════════════════════
-// 5. Şifre Değiştirme
+// 5. Logout (httpOnly cookie temizleme)
+// POST /api/auth/logout
+// ══════════════════════════════════════════════
+router.post("/logout", (req, res) => {
+  clearTokenCookie(res);
+  return res.json({ success: true });
+});
+
+// ══════════════════════════════════════════════
+// 6. Şifre Değiştirme
 // POST /api/auth/change-password
 // ══════════════════════════════════════════════
 router.post("/change-password", async (req, res) => {
