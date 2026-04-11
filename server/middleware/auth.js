@@ -13,15 +13,47 @@ function verifyToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
 
-// Express middleware: Authorization header'dan token doğrulama
-function requireAuth(req, res, next) {
-  const authHeader = req.headers.authorization;
+// httpOnly cookie ayarları
+function getTokenCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 24 * 60 * 60 * 1000, // 24 saat
+    path: "/",
+  };
+}
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Yetkilendirme token'ı gerekli." });
+// Token'ı httpOnly cookie olarak set et
+function setTokenCookie(res, token) {
+  res.cookie("caku_auth", token, getTokenCookieOptions());
+}
+
+// Token cookie'sini temizle
+function clearTokenCookie(res) {
+  res.clearCookie("caku_auth", { path: "/" });
+}
+
+// Express middleware: önce httpOnly cookie, yoksa Authorization header
+function requireAuth(req, res, next) {
+  let token = null;
+
+  // 1. httpOnly cookie'den oku (güvenli yol)
+  if (req.cookies && req.cookies.caku_auth) {
+    token = req.cookies.caku_auth;
   }
 
-  const token = authHeader.split(" ")[1];
+  // 2. Fallback: Authorization header (geriye dönük uyumluluk)
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+  }
+
+  if (!token) {
+    return res.status(401).json({ error: "Yetkilendirme token'ı gerekli." });
+  }
 
   try {
     const decoded = verifyToken(token);
@@ -35,4 +67,4 @@ function requireAuth(req, res, next) {
   }
 }
 
-module.exports = { generateToken, verifyToken, requireAuth, JWT_SECRET };
+module.exports = { generateToken, verifyToken, requireAuth, setTokenCookie, clearTokenCookie, JWT_SECRET };

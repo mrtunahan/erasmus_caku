@@ -200,28 +200,18 @@ const SEED_COURSES = [
   { code: "MAT242", name: "Diferansiyel Denklemler", sinif: 2, duration: 30, professor: "Prof. Dr. İlyas İNCİ", donem: "guz" },
   { code: "BLM201", name: "Nesneye Yönelik Programlama", sinif: 2, duration: 30, professor: "Doç. Dr. Selim BÜYÜKOĞLU", donem: "guz" },
   { code: "IST235", name: "Olasılık ve İstatistik", sinif: 2, duration: 30, professor: "Dr. Uğur BİNZAT", donem: "guz" },
-  { code: "BIL231", name: "İngilizce I", sinif: 2, duration: 30, professor: "Dr. Alime YILMAZ", donem: "guz" },
-  { code: "BIL201", name: "Algoritma ve Veri Yapıları I", sinif: 2, duration: 30, professor: "", donem: "guz" },
-  { code: "BIL203", name: "Nesnesel Tasarım ve Programlama", sinif: 2, duration: 30, professor: "", donem: "guz" },
-  { code: "BIL205", name: "Sayısal Sistem Tasarımı", sinif: 2, duration: 30, professor: "", donem: "guz" },
-  { code: "BIL231", name: "Bilgisayar Mühendisliğinde Mesleki İngilizce", sinif: 2, duration: 30, professor: "", donem: "guz" },
-  { code: "MAT221", name: "Doğrusal Cebir", sinif: 2, duration: 30, professor: "", donem: "guz" },
+  { code: "BIL231", name: "Bilgisayar Mühendisliğinde Mesleki İngilizce", sinif: 2, duration: 30, professor: "Dr. Alime YILMAZ", donem: "guz" },
   // — Bahar (4. Dönem) —
-  { code: "BIL222", name: "Diferansiyel Denklemler", sinif: 2, duration: 30, professor: "", donem: "bahar" },
-  { code: "BIL232", name: "Mühendislik Ekonomisi", sinif: 2, duration: 30, professor: "", donem: "bahar" },
   { code: "BIL202", name: "Algoritma ve Veri Yapıları II", sinif: 2, duration: 30, professor: "", donem: "bahar" },
   { code: "BIL206", name: "Elektrik ve Elektronik Devrelerinin Temelleri", sinif: 2, duration: 30, professor: "", donem: "bahar" },
   { code: "BIL212", name: "Olasılık Teorisi ve İstatistik", sinif: 2, duration: 30, professor: "", donem: "bahar" },
 
   // ═══ 3. Sınıf ═══
   // — Güz (5. Dönem) —
+  { code: "BIL301", name: "Mikroişlemciler", sinif: 3, duration: 30, professor: "Dr. Selim SÜRÜCÜ", donem: "guz" },
+  { code: "BIL303", name: "Veritabanı Sistemleri", sinif: 3, duration: 30, professor: "", donem: "guz" },
   { code: "BIL305", name: "Bilgisayar Ağları", sinif: 3, duration: 30, professor: "Dr. Mehmet Akif ALPER", donem: "guz" },
   { code: "BIL307", name: "Yazılım Mühendisliği", sinif: 3, duration: 30, professor: "Dr. Öğr. Üyesi Osman GÜLER", donem: "guz" },
-  { code: "BIL301", name: "Mikroişlemciler", sinif: 3, duration: 30, professor: "Dr. Selim SÜRÜCÜ", donem: "guz" },
-  { code: "BIL301", name: "Programlama Dilleri", sinif: 3, duration: 30, professor: "", donem: "guz" },
-  { code: "BIL303", name: "Veritabanı Sistemleri", sinif: 3, duration: 30, professor: "", donem: "guz" },
-  { code: "BIL305", name: "İşletim Sistemleri", sinif: 3, duration: 30, professor: "", donem: "guz" },
-  { code: "BIL307", name: "Mikroişlemciler", sinif: 3, duration: 30, professor: "", donem: "guz" },
   // — Bahar (6. Dönem) —
   { code: "BIL308", name: "Bilgisayar Mimarisi ve Organizasyonu", sinif: 3, duration: 30, professor: "", donem: "bahar" },
   { code: "BIL312", name: "Web Tasarımı ve Programlama", sinif: 3, duration: 30, professor: "", donem: "bahar" },
@@ -236,8 +226,6 @@ const SEED_COURSES = [
   { code: "BIL473", name: "Bilgi Güvenliği", sinif: 4, duration: 30, professor: "Dr. Mehmet Akif ALPER", donem: "guz" },
   { code: "BIL432", name: "Görüntü İşleme", sinif: 4, duration: 30, professor: "Dr. Öğr. Üyesi Seda ŞAHİN", donem: "guz" },
   { code: "BIL466", name: "Girişimcilik", sinif: 4, duration: 30, professor: "Dr. Öğr. Üyesi Osman GÜLER", donem: "guz" },
-  { code: "BIL401", name: "Bilgisayar Ağları", sinif: 4, duration: 30, professor: "", donem: "guz" },
-  { code: "BIL403", name: "Yazılım Mühendisliği İlkeleri", sinif: 4, duration: 30, professor: "", donem: "guz" },
   // — Bahar (8. Dönem) —
   { code: "BIL482", name: "Yönetim Bilişim Sistemleri", sinif: 4, duration: 30, professor: "", donem: "bahar" },
   { code: "BIL494", name: "Bitirme Projesi", sinif: 4, duration: 30, professor: "", donem: "bahar" },

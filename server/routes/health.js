@@ -15,8 +15,7 @@ const COLLECTIONS = [
   "portal_profiles", "portal_follows", "portal_reports",
   "muafiyet_settings", "muafiyet_records",
   "projects", "project_courses",
-  "yaz_okulu_students", "yaz_okulu_records", "yaz_okulu_settings",
-  "surveys", "events", "resources", "forms", "internships",
+  "events", "resources", "forms", "internships",
 ];
 
 // GET /api/health

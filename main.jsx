@@ -23,7 +23,6 @@ window.__lazyModules = {
   projeler:      { loader: () => import('./proje-modulu.jsx'),              component: 'ProjeModuluApp' },
   formlar:       { loader: () => import('./formlar-modulu.jsx'),            component: 'FormlarModuluApp' },
   kullanici:     { loader: () => import('./kullanici-yonetimi.jsx'),        component: 'KullaniciYonetimiApp' },
-  anket:         { loader: () => import('./anket-modulu.jsx'),              component: 'AnketModuluApp' },
   kaynaklar:     { loader: () => import('./kaynak-kutuphanesi.jsx'),        component: 'KaynakKutuphanesiApp' },
   staj:          { loader: () => import('./staj-modulu.jsx'),               component: 'StajModuluApp' },
   dersprogrami:  { loader: () => import('./ders-programi.jsx'),             component: 'DersProgramiApp' },
