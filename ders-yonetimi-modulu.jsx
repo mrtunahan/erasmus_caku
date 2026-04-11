@@ -130,7 +130,8 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
   const filteredCourses = useMemo(() => {
     return courses.filter(c => {
       if (filterClass !== "all" && c.sinif.toString() !== filterClass) return false;
-      if (filterTerm !== "all" && c.donem !== filterTerm) return false;
+      if (filterTerm === "none" && c.donem && (c.donem === "guz" || c.donem === "bahar")) return false;
+      if (filterTerm !== "all" && filterTerm !== "none" && c.donem !== filterTerm) return false;
       if (search && !c.code.toLowerCase().includes(search.toLowerCase()) && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     }).sort((a,b) => {
@@ -172,6 +173,12 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
           <div style={{ fontSize: 13, color: "#6B7280", fontWeight: 600 }}>Bahar Dönemi</div>
           <div style={{ fontSize: 28, fontWeight: 700, color: "#1B5E20" }}>{courses.filter(c => c.donem === "bahar").length}</div>
         </div>
+        {courses.filter(c => !c.donem || (c.donem !== "guz" && c.donem !== "bahar")).length > 0 && (
+          <div style={{ background: "#FFF7ED", padding: 16, borderRadius: 12, border: "1px solid #FED7AA", display: "flex",flexDirection:"column", gap:8}}>
+            <div style={{ fontSize: 13, color: "#C2410C", fontWeight: 600 }}>Dönem Belirtilmemiş</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: "#EA580C" }}>{courses.filter(c => !c.donem || (c.donem !== "guz" && c.donem !== "bahar")).length}</div>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -194,10 +201,11 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
               <option value="4">4. Sınıf</option>
               <option value="5">Seçmeli</option>
             </Select>
-            <Select value={filterTerm} onChange={e => setFilterTerm(e.target.value)} style={{ width: 140 }}>
+            <Select value={filterTerm} onChange={e => setFilterTerm(e.target.value)} style={{ width: 160 }}>
               <option value="all">Tüm Dönemler</option>
               <option value="guz">Güz</option>
               <option value="bahar">Bahar</option>
+              <option value="none">Belirtilmemiş</option>
             </Select>
           </div>
 
@@ -224,8 +232,12 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                     <td style={{ padding: "12px 16px", fontWeight: 500 }}>{c.name}</td>
                     <td style={{ padding: "12px 16px", textAlign: "center" }}>{c.sinif === 5 ? "Seçmeli" : `${c.sinif}. Sınıf`}</td>
                     <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                      <Badge style={{ background: c.donem === "bahar" ? "#C8E6C9" : "#BBDEFB", color: c.donem === "bahar" ? "#1B5E20" : "#0D47A1", fontSize: 11 }}>
-                        {c.donem === "bahar" ? "Bahar" : "Güz"}
+                      <Badge style={{
+                        background: c.donem === "bahar" ? "#C8E6C9" : c.donem === "guz" ? "#BBDEFB" : "#FEE2E2",
+                        color: c.donem === "bahar" ? "#1B5E20" : c.donem === "guz" ? "#0D47A1" : "#DC2626",
+                        fontSize: 11
+                      }}>
+                        {c.donem === "bahar" ? "Bahar" : c.donem === "guz" ? "Güz" : "—"}
                       </Badge>
                     </td>
                     <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 600 }}>{c.akts || 6}</td>
