@@ -108,11 +108,11 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
       };
 
       if (editingId) {
-        await window.FirestoreWrite.set("commissions", editingId, data, true);
+        await window.DBWrite.set("commissions", editingId, data, true);
         showMessage("Komisyon güncellendi!");
       } else {
         data.createdAt = new Date().toISOString();
-        const result = await window.FirestoreWrite.add("commissions", data);
+        const result = await window.DBWrite.add("commissions", data);
         data.id = result?.id || String(Date.now());
         showMessage("Komisyon oluşturuldu!");
       }
@@ -133,7 +133,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
   const handleDelete = async (commId) => {
     if (!confirm("Bu komisyonu silmek istediğinize emin misiniz?")) return;
     try {
-      await window.FirestoreWrite.remove("commissions", commId);
+      await window.DBWrite.remove("commissions", commId);
       setCommissions(prev => prev.filter(c => c.id !== commId));
       if (selectedCommission?.id === commId) setSelectedCommission(null);
       showMessage("Komisyon silindi.");

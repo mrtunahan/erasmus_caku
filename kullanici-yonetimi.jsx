@@ -43,12 +43,12 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   }, [activeDepartment]);
 
   const loadData = async () => {
-    if (!FirebaseDB.isReady()) { setLoading(false); return; }
+    if (!DB.isReady()) { setLoading(false); return; }
     try {
       setLoading(true);
       const [fetchedStudents, fetchedProfs] = await Promise.all([
-        FirebaseDB.fetchStudents(),
-        FirebaseDB.fetchProfessors()
+        DB.fetchStudents(),
+        DB.fetchProfessors()
       ]);
       // Bölüm filtresi: departmentId veya department adı eşleştirmesi
       const deptInfo = DEPARTMENTS.find(d => d.id === activeDepartment);
@@ -96,10 +96,10 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     setSaving(true);
     try {
       if (students.find(s => s.id === student.id)) {
-        await FirebaseDB.updateStudent(student.id, student);
+        await DB.updateStudent(student.id, student);
         setStudents(prev => prev.map(s => s.id === student.id ? student : s));
       } else {
-        await FirebaseDB.addStudent(student);
+        await DB.addStudent(student);
         setStudents(prev => [...prev, student]);
       }
       setEditingStudent(null);
@@ -115,7 +115,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   const handleDeleteStudent = async (id) => {
     if (!confirm("Bu öğrenciyi silmek istediğinizden emin misiniz?")) return;
     try {
-      await FirebaseDB.deleteStudent(id);
+      await DB.deleteStudent(id);
       setStudents(prev => prev.filter(s => s.id !== id));
     } catch (error) {
       console.error('Delete error:', error);
@@ -125,7 +125,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   const handleToggleErasmusAccess = async (student) => {
     try {
       const newAccess = !student.erasmusAccess;
-      await FirebaseDB.updateStudent(student.id, { ...student, erasmusAccess: newAccess });
+      await DB.updateStudent(student.id, { ...student, erasmusAccess: newAccess });
       setStudents(prev => prev.map(s => s.id === student.id ? { ...s, erasmusAccess: newAccess } : s));
     } catch (error) {
       console.error('Erasmus erişim güncelleme hatası:', error);
@@ -141,8 +141,8 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     const profData = { ...editingProf, department: dept?.name || editingProf.department || "", departmentId: editingProf.departmentId };
     setSaving(true);
     try {
-      await FirebaseDB.saveProfessor(profData);
-      const newProfs = await FirebaseDB.fetchProfessors();
+      await DB.saveProfessor(profData);
+      const newProfs = await DB.fetchProfessors();
       setProfessors((newProfs || []).sort((a, b) => a.name.localeCompare(b.name)));
       setEditingProf(null);
     } catch (e) {
@@ -156,8 +156,8 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     if (!confirm(`${name} isimli akademisyeni silmek istediğinize emin misiniz?`)) return;
     setSaving(true);
     try {
-      await FirebaseDB.deleteProfessor(id);
-      const newProfs = await FirebaseDB.fetchProfessors();
+      await DB.deleteProfessor(id);
+      const newProfs = await DB.fetchProfessors();
       setProfessors((newProfs || []).sort((a, b) => a.name.localeCompare(b.name)));
     } catch (e) {
       alert("Hata: " + e.message);
@@ -173,18 +173,18 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
       if (passwordTab === "student") {
         for (const [studentNo, pass] of Object.entries(studentPasses)) {
           if (pass && pass !== '••••••') {
-            await FirebaseDB.changePassword('student', studentNo, pass);
+            await DB.changePassword('student', studentNo, pass);
           }
         }
       } else if (passwordTab === "professor") {
         for (const [name, pass] of Object.entries(professorPasses)) {
           if (pass && pass !== '••••••') {
-            await FirebaseDB.changePassword('professor', name, pass);
+            await DB.changePassword('professor', name, pass);
           }
         }
       } else if (passwordTab === "admin") {
         if (adminPass && adminPass.length >= 6) {
-          await FirebaseDB.changePassword('admin', null, adminPass);
+          await DB.changePassword('admin', null, adminPass);
         }
       }
       alert('Şifreler kaydedildi!');
@@ -575,7 +575,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                         if (defaultProfPass.length < 6) return alert('Şifre en az 6 karakter olmalıdır.');
                         setSavingDefault(true);
                         try {
-                          const result = await FirebaseDB.setDefaultProfessorPassword(defaultProfAdminPass, defaultProfPass);
+                          const result = await DB.setDefaultProfessorPassword(defaultProfAdminPass, defaultProfPass);
                           if (result.success) {
                             alert('Varsayılan akademisyen şifresi güncellendi!');
                             setDefaultProfPass('');

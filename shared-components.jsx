@@ -511,8 +511,8 @@ async function fetchWithRetry(url, options = {}, maxRetries = 2) {
   }
 }
 
-// ── Veritabanı yazma yardımcısı (Firestore API üzerinden) ──
-const FirestoreWrite = {
+// ── Veritabanı yazma yardımcısı (MongoDB API üzerinden) ──
+const DBWrite = {
   async _apiCall(operations) {
     const token = localStorage.getItem('caku_auth_token');
     const headers = { 'Content-Type': 'application/json' };
@@ -556,9 +556,9 @@ const FirestoreWrite = {
     return this._apiCall(operations);
   }
 };
-window.FirestoreWrite = FirestoreWrite;
+window.DBWrite = DBWrite;
 
-// ── Firestore API okuma yardımcısı ──
+// ── MongoDB API okuma yardımcısı ──
 async function apiRead(collection, params = {}) {
   const url = new URL(`/api/db/${collection}`, window.location.origin);
   if (params.where) {
@@ -597,121 +597,10 @@ async function apiReadDoc(collection, docId) {
 window.apiRead = apiRead;
 window.apiReadDoc = apiReadDoc;
 
-// Uyumluluk katmanı: db.collection("x").where().get() API'sini Express API'ye yönlendirir
-// Tüm modüller window.apiFirestore üzerinden veritabanına erişir
-function createApiCollection(collectionName) {
-  return {
-    _collection: collectionName,
-    _filters: [],
-    _orderField: null,
-    _orderDir: null,
-    _limitVal: 0,
-    where(field, op, value) {
-      const clone = createApiCollection(this._collection);
-      clone._filters = [...this._filters, { field, value }];
-      clone._orderField = this._orderField;
-      clone._orderDir = this._orderDir;
-      clone._limitVal = this._limitVal;
-      return clone;
-    },
-    orderBy(field, dir) {
-      const clone = createApiCollection(this._collection);
-      clone._filters = [...this._filters];
-      clone._orderField = field;
-      clone._orderDir = dir || 'asc';
-      clone._limitVal = this._limitVal;
-      return clone;
-    },
-    limit(n) {
-      const clone = createApiCollection(this._collection);
-      clone._filters = [...this._filters];
-      clone._orderField = this._orderField;
-      clone._orderDir = this._orderDir;
-      clone._limitVal = n;
-      return clone;
-    },
-    async get() {
-      const params = {};
-      if (this._filters.length > 0) {
-        params.where = this._filters.map(f => {
-          var prefix = typeof f.value === 'string' ? 's:' : '';
-          return `${f.field}:eq:${prefix}${f.value}`;
-        });
-      }
-      if (this._orderField) params.orderBy = `${this._orderField}:${this._orderDir || 'asc'}`;
-      if (this._limitVal > 0) params.limit = this._limitVal;
-      const docs = await apiRead(this._collection, params);
-      return {
-        empty: docs.length === 0,
-        size: docs.length,
-        docs: docs.map(d => ({
-          id: d.id,
-          data: () => d,
-          exists: true,
-        })),
-      };
-    },
-    onSnapshot(callback, errorCallback) {
-      // onSnapshot → polling ile simüle et
-      let active = true;
-      const poll = async () => {
-        try {
-          const result = await this.get();
-          if (active) callback(result);
-        } catch (err) {
-          if (active && errorCallback) errorCallback(err);
-        }
-      };
-      poll();
-      const interval = setInterval(poll, 15000);
-      return () => { active = false; clearInterval(interval); };
-    },
-    doc(docId) {
-      const col = this._collection;
-      return {
-        async get() {
-          const result = await apiReadDoc(col, docId);
-          return {
-            exists: result.exists,
-            id: result.id || docId,
-            data: () => result.data,
-          };
-        },
-        collection(subCol) {
-          return createApiCollection(`${col}_${subCol}`);
-        },
-        async update(data) {
-          await FirestoreWrite.update(col, String(docId), data);
-        },
-        async set(data, options) {
-          await FirestoreWrite.set(col, String(docId), data, options?.merge || false);
-        },
-        async delete() {
-          await FirestoreWrite.remove(col, String(docId));
-        },
-      };
-    },
-    async add(data) {
-      const result = await FirestoreWrite.add(this._collection, data);
-      return { id: result?.id || String(Date.now()) };
-    },
-  };
-}
+// NOT: Eski uyumluluk katmanı kaldırıldı.
+// Tüm modüller artık doğrudan apiRead, apiReadDoc ve DBWrite kullanır.
 
-// Global Firestore uyumluluk nesnesi
-window.apiFirestore = {
-  collection: (name) => createApiCollection(name),
-};
-// FieldValue uyumluluğu
-window.apiFieldValue = {
-  serverTimestamp: () => new Date().toISOString(),
-  increment: (n) => `__increment:${n}`,
-};
-
-const FirebaseDB = {
-  // Firestore uyumluluk katmanını döndür
-  db: () => window.apiFirestore,
-
+const DB = {
   isReady: () => true,
 
   // Bağlantı kontrolü - API health check
@@ -729,24 +618,6 @@ const FirebaseDB = {
     }
   },
 
-  // Koleksiyon referansları (geriye uyumluluk - diğer modüller için)
-  studentsRef: () => FirebaseDB.db()?.collection('students'),
-  usersRef: () => FirebaseDB.db()?.collection('users'),
-  examsRef: () => FirebaseDB.db()?.collection('exams'),
-  examResultsRef: () => FirebaseDB.db()?.collection('exam_results'),
-  examPeriodsRef: () => FirebaseDB.db()?.collection('exam_periods'),
-  professorsRef: () => FirebaseDB.db()?.collection('professors'),
-  courseGroupsRef: () => FirebaseDB.db()?.collection('course_groups'),
-  courseGroupPostsRef: () => FirebaseDB.db()?.collection('course_group_posts'),
-  surveysRef: () => FirebaseDB.db()?.collection('surveys'),
-  eventsRef: () => FirebaseDB.db()?.collection('events'),
-  resourcesRef: () => FirebaseDB.db()?.collection('resources'),
-  formsRef: () => FirebaseDB.db()?.collection('forms'),
-  tripHistoryRef: () => FirebaseDB.db()?.collection('trip_history'),
-
-  // Storage artık /api/files üzerinden çalışıyor
-  storage: () => null,
-
   // ── Forms CRUD ──
   async fetchForms() {
     try {
@@ -758,7 +629,7 @@ const FirebaseDB = {
   },
   async addForm(formData) {
     try {
-      const result = await FirestoreWrite.add('forms', formData);
+      const result = await DBWrite.add('forms', formData);
       return { ...formData, id: result?.id || String(Date.now()) };
     } catch (error) {
       console.error('Error adding form:', error);
@@ -767,7 +638,7 @@ const FirebaseDB = {
   },
   async deleteForm(formId) {
     try {
-      await FirestoreWrite.remove('forms', String(formId));
+      await DBWrite.remove('forms', String(formId));
     } catch (error) {
       console.error('Error deleting form:', error);
       throw error;
@@ -813,7 +684,7 @@ const FirebaseDB = {
   async addStudent(student) {
     try {
       const { id: _id, ...data } = student;
-      const result = await FirestoreWrite.add('students', data);
+      const result = await DBWrite.add('students', data);
       return { ...student, id: result.id };
     } catch (error) {
       console.error('Error adding student:', error);
@@ -823,7 +694,7 @@ const FirebaseDB = {
   async updateStudent(id, student) {
     try {
       const { id: _id, ...data } = student;
-      await FirestoreWrite.update('students', String(id), data);
+      await DBWrite.update('students', String(id), data);
       return student;
     } catch (error) {
       console.error('Error updating student:', error);
@@ -832,7 +703,7 @@ const FirebaseDB = {
   },
   async deleteStudent(id) {
     try {
-      await FirestoreWrite.remove('students', String(id));
+      await DBWrite.remove('students', String(id));
       return true;
     } catch (error) {
       console.error('Error deleting student:', error);
@@ -842,7 +713,7 @@ const FirebaseDB = {
 
   // ── Trip History CRUD (Eşleştirme Geçmişi) ──
   async fetchTripHistory(hostInstitution, departmentId) {
-    if (FirebaseDB._tripHistoryDisabled) return [];
+    if (DB._tripHistoryDisabled) return [];
     try {
       const params = {};
       const whereArr = [];
@@ -862,7 +733,7 @@ const FirebaseDB = {
   },
   async saveTripHistoryEntry(entry) {
     try {
-      const result = await FirestoreWrite.add('trip_history', entry);
+      const result = await DBWrite.add('trip_history', entry);
       return { ...entry, id: result?.id || String(Date.now()) };
     } catch (error) {
       console.error('Error saving trip history entry:', error);
@@ -871,7 +742,7 @@ const FirebaseDB = {
   },
   async deleteTripHistoryEntry(id) {
     try {
-      await FirestoreWrite.remove('trip_history', String(id));
+      await DBWrite.remove('trip_history', String(id));
       return true;
     } catch (error) {
       console.error('Error deleting trip history entry:', error);
@@ -882,7 +753,7 @@ const FirebaseDB = {
 
   async syncStudentToTripHistory(student) {
     // Skip if previously disabled due to permission errors
-    if (FirebaseDB._tripHistoryDisabled) return;
+    if (DB._tripHistoryDisabled) return;
     try {
       if (!student.hostInstitution) return;
 
@@ -950,13 +821,13 @@ const FirebaseDB = {
       });
 
       if (ops.length > 0) {
-        await FirestoreWrite.batch(ops);
+        await DBWrite.batch(ops);
       }
     } catch (error) {
       // Disable trip history sync on permission errors to avoid flooding console
       if (error.code === 'permission-denied') {
         console.warn('Trip history sync disabled: veritabanı izin hatası.');
-        FirebaseDB._tripHistoryDisabled = true;
+        DB._tripHistoryDisabled = true;
       } else {
         console.error('Error syncing to trip history:', error);
       }
@@ -1050,10 +921,10 @@ const FirebaseDB = {
 
   // Geriye uyumluluk (eski fonksiyon isimleri)
   async updatePassword(studentNumber, newPassword) {
-    return await FirebaseDB.changePassword('student', studentNumber, newPassword);
+    return await DB.changePassword('student', studentNumber, newPassword);
   },
   async saveAdminPassword(password) {
-    return await FirebaseDB.changePassword('admin', null, password);
+    return await DB.changePassword('admin', null, password);
   },
   async saveProfessorPasswords(passwords) {
     // Toplu profesör şifre güncelleme - her biri için Cloud Function çağır
@@ -1061,7 +932,7 @@ const FirebaseDB = {
     for (const [name, pass] of Object.entries(passwords)) {
       if (pass) {
         try {
-          await FirebaseDB.changePassword('professor', name, pass);
+          await DB.changePassword('professor', name, pass);
         } catch (e) {
           errors.push(name + ': ' + e.message);
         }
@@ -1089,7 +960,7 @@ const FirebaseDB = {
   async addExam(exam) {
     try {
       const { id: _id, ...data } = exam;
-      const result = await FirestoreWrite.add('exams', data);
+      const result = await DBWrite.add('exams', data);
       return { ...exam, id: result?.id || String(Date.now()) };
     } catch (error) {
       console.error('Error adding exam:', error);
@@ -1099,7 +970,7 @@ const FirebaseDB = {
   async updateExam(id, exam) {
     try {
       const { id: _id, ...data } = exam;
-      await FirestoreWrite.update('exams', String(id), data);
+      await DBWrite.update('exams', String(id), data);
       return exam;
     } catch (error) {
       console.error('Error updating exam:', error);
@@ -1108,7 +979,7 @@ const FirebaseDB = {
   },
   async deleteExam(id) {
     try {
-      await FirestoreWrite.remove('exams', String(id));
+      await DBWrite.remove('exams', String(id));
       return true;
     } catch (error) {
       console.error('Error deleting exam:', error);
@@ -1126,7 +997,7 @@ const FirebaseDB = {
   async addExamResult(result) {
     try {
       const { id: _id, ...data } = result;
-      const res = await FirestoreWrite.add('exam_results', data);
+      const res = await DBWrite.add('exam_results', data);
       return { ...result, id: res?.id || String(Date.now()) };
     } catch (error) {
       console.error('Error adding exam result:', error);
@@ -1136,7 +1007,7 @@ const FirebaseDB = {
   async updateExamResult(id, result) {
     try {
       const { id: _id, ...data } = result;
-      await FirestoreWrite.update('exam_results', String(id), data);
+      await DBWrite.update('exam_results', String(id), data);
       return result;
     } catch (error) {
       console.error('Error updating exam result:', error);
@@ -1145,7 +1016,7 @@ const FirebaseDB = {
   },
   async deleteExamResult(id) {
     try {
-      await FirestoreWrite.remove('exam_results', String(id));
+      await DBWrite.remove('exam_results', String(id));
       return true;
     } catch (error) {
       console.error('Error deleting exam result:', error);
@@ -1166,10 +1037,10 @@ const FirebaseDB = {
     try {
       const { id: _id, ...data } = period;
       if (_id) {
-        await FirestoreWrite.update('exam_periods', String(_id), data);
+        await DBWrite.update('exam_periods', String(_id), data);
         return period;
       } else {
-        const result = await FirestoreWrite.add('exam_periods', data);
+        const result = await DBWrite.add('exam_periods', data);
         return { ...period, id: result?.id || String(Date.now()) };
       }
     } catch (error) {
@@ -1179,7 +1050,7 @@ const FirebaseDB = {
   },
   async deleteExamPeriod(id) {
     try {
-      await FirestoreWrite.remove('exam_periods', String(id));
+      await DBWrite.remove('exam_periods', String(id));
       return true;
     } catch (error) {
       console.error('Error deleting exam period:', error);
@@ -1200,10 +1071,10 @@ const FirebaseDB = {
     try {
       const { id: _id, ...data } = prof;
       if (_id) {
-        await FirestoreWrite.update("professors", String(_id), data);
+        await DBWrite.update("professors", String(_id), data);
         return prof;
       } else {
-        const result = await FirestoreWrite.add("professors", data);
+        const result = await DBWrite.add("professors", data);
         return { ...prof, id: result?.id || String(Date.now()) };
       }
     } catch (error) {
@@ -1213,7 +1084,7 @@ const FirebaseDB = {
   },
   async deleteProfessor(id) {
     try {
-      await FirestoreWrite.remove("professors", String(id));
+      await DBWrite.remove("professors", String(id));
       return true;
     } catch (error) {
       console.error('Error deleting professor:', error);
@@ -1223,7 +1094,7 @@ const FirebaseDB = {
 };
 
 // ── Authentication Helper (JWT tabanlı) ──
-const FirebaseAuth = {
+const Auth = {
   // Çıkış yap (httpOnly cookie + localStorage temizle)
   async signOut() {
     try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
@@ -1524,7 +1395,7 @@ const LoginModal = ({ onLogin }) => {
   useEffect(() => {
     const loadProfessors = async () => {
       try {
-        const profs = await FirebaseDB.fetchProfessors();
+        const profs = await DB.fetchProfessors();
         // Unvanları soyarak soyadı + ilk ad bazında tekilleştir
         const titles = ["Dr. Öğr. Üyesi", "Dr. Öğr. Gör.", "Öğr. Gör. Dr.", "Arş. Gör. Dr.", "Prof. Dr.", "Prof Dr.", "Doç. Dr.", "Öğr. Gör.", "Arş. Gör.", "Dr."];
         const stripTitle = (name) => {
@@ -1567,7 +1438,7 @@ const LoginModal = ({ onLogin }) => {
     loadProfessors();
   }, []);
 
-  // Mevcut öğrenci/profesör/admin: şifre değiştirme + Firebase Auth hesabı oluşturma
+  // Mevcut öğrenci/profesör/admin: şifre değiştirme + Auth hesabı oluşturma
   const handleSetupPassword = async (e) => {
     e.preventDefault();
     setError("");
@@ -1578,13 +1449,13 @@ const LoginModal = ({ onLogin }) => {
     try {
       // Şifreyi Cloud Functions ile sunucu tarafında kaydet
       const identifier = pendingUser.role === "student" ? pendingUser.studentNumber : pendingUser.name;
-      await FirebaseDB.changePassword(pendingUser.role, identifier, newPassword);
+      await DB.changePassword(pendingUser.role, identifier, newPassword);
 
       // Kullanıcı rolünü kaydet
       try {
-        const user = FirebaseAuth.currentUser();
+        const user = Auth.currentUser();
         if (user) {
-          await FirebaseAuth.saveUserRole(user.uid, pendingUser);
+          await Auth.saveUserRole(user.uid, pendingUser);
         }
       } catch (e) {
         console.warn("Rol kaydetme hatası:", e.message);
@@ -1599,7 +1470,7 @@ const LoginModal = ({ onLogin }) => {
     }
   };
 
-  // Yeni öğrenci: kayıt ol + Firebase Auth hesabı oluştur
+  // Yeni öğrenci: kayıt ol + Auth hesabı oluştur
   const handleRegister = async (e) => {
     e.preventDefault();
     setError("");
@@ -1612,7 +1483,7 @@ const LoginModal = ({ onLogin }) => {
     setLoading(true);
     try {
       // Mükerrer kayıt kontrolü
-      const existingStudents = await FirebaseDB.fetchStudents();
+      const existingStudents = await DB.fetchStudents();
       const alreadyExists = existingStudents.find(s => s.studentNumber === pendingStudentNumber);
       if (alreadyExists) {
         setError("Bu öğrenci numarası ile daha önce kayıt olunmuş!");
@@ -1630,16 +1501,16 @@ const LoginModal = ({ onLogin }) => {
         departmentName: deptObj?.name || "",
         erasmusAccess: false,
       };
-      await FirebaseDB.addStudent(studentData);
+      await DB.addStudent(studentData);
       // Şifreyi kaydet
-      await FirebaseDB.updatePassword(pendingStudentNumber, newPassword);
+      await DB.updatePassword(pendingStudentNumber, newPassword);
       // Kullanıcı rolünü kaydet
       const user = { role: "student", name: `${firstName.trim()} ${lastName.trim()}`, studentNumber: pendingStudentNumber, departmentId: selectedDepartment, departmentName: deptObj?.name || "", erasmusAccess: false };
 
       try {
-        const currentUser = FirebaseAuth.currentUser();
+        const currentUser = Auth.currentUser();
         if (currentUser) {
-          await FirebaseAuth.saveUserRole(currentUser.uid, user);
+          await Auth.saveUserRole(currentUser.uid, user);
         }
       } catch (e) {
         console.warn("Rol kaydetme hatası:", e.message);
@@ -1681,11 +1552,11 @@ const LoginModal = ({ onLogin }) => {
     if (!/^\d{9}$/.test(trimmedId)) { setError("Öğrenci numarası 9 haneli olmalıdır!"); return; }
     setLoading(true);
     try {
-      const students = await FirebaseDB.fetchStudents();
+      const students = await DB.fetchStudents();
       const student = students.find(s => s.studentNumber === trimmedId);
       if (student) {
         // Mevcut öğrenci: şifre var mı kontrol et (Cloud Functions üzerinden)
-        const hasPassword = await FirebaseDB.checkStudentHasPassword(trimmedId);
+        const hasPassword = await DB.checkStudentHasPassword(trimmedId);
         if (!hasPassword) {
           // Şifre yok: şifre belirleme ekranına
           const user = { role: "student", name: `${student.firstName} ${student.lastName}`, studentNumber: trimmedId, departmentId: student.departmentId || "bilgisayar", departmentName: student.departmentName || "Bilgisayar Mühendisliği", erasmusAccess: student.erasmusAccess === true };
@@ -1726,7 +1597,7 @@ const LoginModal = ({ onLogin }) => {
       const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId, departmentId: studentInfo.departmentId || "bilgisayar", departmentName: studentInfo.departmentName || "Bilgisayar Mühendisliği", erasmusAccess: studentInfo.erasmusAccess === true };
 
       // Sunucu tarafında şifre doğrulama
-      const loginResult = await FirebaseDB.verifyStudentLogin(trimmedId, password);
+      const loginResult = await DB.verifyStudentLogin(trimmedId, password);
 
       if (loginResult.success) {
         if (password.length < 6) {
@@ -1737,9 +1608,9 @@ const LoginModal = ({ onLogin }) => {
         }
         // Kullanıcı rolünü kaydet
         try {
-          const currentUser = FirebaseAuth.currentUser();
+          const currentUser = Auth.currentUser();
           if (currentUser) {
-            await FirebaseAuth.saveUserRole(currentUser.uid, user);
+            await Auth.saveUserRole(currentUser.uid, user);
           }
         } catch (e) {
           console.warn("Rol kaydetme hatası:", e.message);
@@ -1773,7 +1644,7 @@ const LoginModal = ({ onLogin }) => {
       if (activeTab === "admin") {
         const adminUser = { role: "admin", name: "A. Tunahan KORKMAZ", studentNumber: null, departmentId: "bilgisayar", departmentName: "Bilgisayar Mühendisliği" };
 
-        const adminResult = await FirebaseDB.verifyAdminLogin(password);
+        const adminResult = await DB.verifyAdminLogin(password);
 
         if (!adminResult.success && adminResult.error?.includes('belirlenmemiş')) {
           setError("Admin şifresi henüz belirlenmemiş.");
@@ -1789,8 +1660,8 @@ const LoginModal = ({ onLogin }) => {
             return;
           }
           try {
-            const currentUser = FirebaseAuth.currentUser();
-            if (currentUser) await FirebaseAuth.saveUserRole(currentUser.uid, adminUser);
+            const currentUser = Auth.currentUser();
+            if (currentUser) await Auth.saveUserRole(currentUser.uid, adminUser);
           } catch (e) { console.warn("Rol kaydetme hatası:", e.message); }
           onLogin(adminUser);
         } else {
@@ -1801,10 +1672,10 @@ const LoginModal = ({ onLogin }) => {
         if (!identifier.trim()) { setError("Yetkili adı gerekli!"); setLoading(false); return; }
         const user = { role: "bolum_yetkilisi", name: identifier, studentNumber: null };
 
-        const deptResult = await FirebaseDB.verifyDepartmentManagerLogin(identifier, password);
+        const deptResult = await DB.verifyDepartmentManagerLogin(identifier, password);
 
         if (deptResult.success) {
-          // Firebase doc ID ile hardcoded DEPARTMENTS ID'sini eşleştir
+          // Veritabanı doc ID ile hardcoded DEPARTMENTS ID'sini eşleştir
           // Tüm veriler hardcoded ID ile kaydedildiği için bu eşleşme kritik
           const matchedDept = DEPARTMENTS.find(d => d.name === deptResult.departmentName);
           user.departmentId = matchedDept ? matchedDept.id : deptResult.departmentId;
@@ -1817,7 +1688,7 @@ const LoginModal = ({ onLogin }) => {
         if (!identifier.trim()) { setError("Akademisyen seçimi gerekli!"); setLoading(false); return; }
         const user = { role: "professor", name: identifier, studentNumber: null };
 
-        const profResult = await FirebaseDB.verifyProfessorLogin(identifier, password);
+        const profResult = await DB.verifyProfessorLogin(identifier, password);
 
         if (profResult.needsSetup) {
           setPendingUser(user);
@@ -1834,8 +1705,8 @@ const LoginModal = ({ onLogin }) => {
             return;
           }
           try {
-            const currentUser = FirebaseAuth.currentUser();
-            if (currentUser) await FirebaseAuth.saveUserRole(currentUser.uid, user);
+            const currentUser = Auth.currentUser();
+            if (currentUser) await Auth.saveUserRole(currentUser.uid, user);
           } catch (e) { console.warn("Rol kaydetme hatası:", e.message);
           }
           onLogin(user);
@@ -2485,7 +2356,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
 
   const loadData = async () => {
     try {
-      const profs = await FirebaseDB.fetchProfessors();
+      const profs = await DB.fetchProfessors();
       setProfessorList((profs || []).sort((a, b) => a.name.localeCompare(b.name)));
     } catch (error) {
       console.error('Error loading data:', error);
@@ -2501,18 +2372,18 @@ const PasswordManagementModal = ({ students, onClose }) => {
         // Her değiştirilmiş öğrenci şifresini Cloud Functions ile kaydet
         for (const [studentNo, pass] of Object.entries(studentPasses)) {
           if (pass && pass !== '••••••') {
-            await FirebaseDB.changePassword('student', studentNo, pass);
+            await DB.changePassword('student', studentNo, pass);
           }
         }
       } else if (activeTab === "professor") {
         for (const [name, pass] of Object.entries(professorPasses)) {
           if (pass && pass !== '••••••') {
-            await FirebaseDB.changePassword('professor', name, pass);
+            await DB.changePassword('professor', name, pass);
           }
         }
       } else if (activeTab === "admin") {
         if (adminPass && adminPass.length >= 6) {
-          await FirebaseDB.changePassword('admin', null, adminPass);
+          await DB.changePassword('admin', null, adminPass);
         }
       }
       alert('Şifreler kaydedildi!');
@@ -2531,8 +2402,8 @@ const PasswordManagementModal = ({ students, onClose }) => {
     if (!confirm(`${name} isimli akademisyeni silmek istediğinize emin misiniz?`)) return;
     setSaving(true);
     try {
-      await FirebaseDB.deleteProfessor(id);
-      const newProfs = await FirebaseDB.fetchProfessors();
+      await DB.deleteProfessor(id);
+      const newProfs = await DB.fetchProfessors();
       setProfessorList(newProfs);
     } catch (e) {
       alert("Hata: " + e.message);
@@ -2545,8 +2416,8 @@ const PasswordManagementModal = ({ students, onClose }) => {
     if (!editingProf.name || !editingProf.department) return alert("İsim ve Bölüm zorunludur.");
     setSaving(true);
     try {
-      await FirebaseDB.saveProfessor(editingProf);
-      const newProfs = await FirebaseDB.fetchProfessors();
+      await DB.saveProfessor(editingProf);
+      const newProfs = await DB.fetchProfessors();
       setProfessorList(newProfs);
       setEditingProf(null);
     } catch (e) {
@@ -3195,8 +3066,8 @@ window.sharedStyles = sharedStyles;
 window.HOME_INSTITUTION_CATALOG = HOME_INSTITUTION_CATALOG;
 window.GRADE_CONVERSION = GRADE_CONVERSION;
 window.convertGrade = convertGrade;
-window.FirebaseDB = FirebaseDB;
-window.FirebaseAuth = FirebaseAuth;
+window.DB = DB;
+window.Auth = Auth;
 window.PasswordSecurity = PasswordSecurity;
 window.UploadIcon = UploadIcon;
 window.DownloadIcon = DownloadIcon;

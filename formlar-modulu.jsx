@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════════
 // ÇAKÜ Formlar Modülü
-// Firebase Firestore üzerinden form yönetimi
+// MongoDB üzerinden form yönetimi
 // Kategoriler: Öğrenci İşleri, Bölüm, Üniversite
 // ══════════════════════════════════════════════════════════════
 
@@ -254,10 +254,10 @@ const FormEkleModal = ({ onClose, onEkle }) => {
     setHata("");
 
     try {
-      const FirebaseDB = window.FirebaseDB;
-      if (!FirebaseDB) throw new Error("Firebase bağlantısı yok");
+      const DB = window.DB;
+      if (!DB) throw new Error("Veritabanı bağlantısı yok");
 
-      const { downloadURL, fileName } = await FirebaseDB.uploadFormFile(dosya);
+      const { downloadURL, fileName } = await DB.uploadFormFile(dosya);
 
       const formData = {
         baslik: baslik.trim(),
@@ -269,7 +269,7 @@ const FormEkleModal = ({ onClose, onEkle }) => {
         storagePath: fileName,
       };
 
-      const saved = await FirebaseDB.addForm(formData);
+      const saved = await DB.addForm(formData);
       onEkle(saved);
       onClose();
     } catch (err) {
@@ -494,9 +494,9 @@ function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const formlariYukle = useCallback(async () => {
     setYukleniyor(true);
     try {
-      const FirebaseDB = window.FirebaseDB;
-      if (!FirebaseDB) { setYukleniyor(false); return; }
-      const data = await FirebaseDB.fetchForms();
+      const DB = window.DB;
+      if (!DB) { setYukleniyor(false); return; }
+      const data = await DB.fetchForms();
       // Bölüm bazlı filtreleme: departmentId'si olmayan veriler bilgisayar bölümüne ait
       const filtered = (data || []).filter(f => {
         const deptId = f.departmentId || "bilgisayar";
@@ -515,11 +515,11 @@ function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Form sil
   const formSil = useCallback(async (form) => {
     try {
-      const FirebaseDB = window.FirebaseDB;
-      if (!FirebaseDB) return;
-      await FirebaseDB.deleteForm(form.id);
+      const DB = window.DB;
+      if (!DB) return;
+      await DB.deleteForm(form.id);
       if (form.storagePath) {
-        await FirebaseDB.deleteFormFile(form.storagePath);
+        await DB.deleteFormFile(form.storagePath);
       }
       setFormlar(prev => prev.filter(f => f.id !== form.id));
     } catch (err) {
