@@ -6,7 +6,7 @@
 
 const { useState, useEffect, useMemo, useCallback } = React;
 
-const BS_FirebaseDB = window.FirebaseDB;
+const BS_FirebaseDB = window.DB;
 const BS_Notifier = window.StudentNotifier;
 
 const BS_SINIF_COLORS = {
@@ -70,9 +70,8 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       // Seçim yalnızca ilk kez yapılır; bir kez kaydedildiyse tekrar düzenlenemez
       setEditMode(myIds.length === 0);
 
-      const db = window.apiFirestore;
-      const snap = await db.collection("sinav_dersler").get();
-      const all = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+      const allRaw = await window.apiRead("sinav_dersler");
+      const all = Array.isArray(allRaw) ? allRaw : [];
       const mine = all.filter(c => c.departmentId === studentDeptId);
       setAllCourses(mine);
     } catch (e) {
