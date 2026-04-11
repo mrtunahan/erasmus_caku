@@ -418,12 +418,8 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         return;
       }
       try {
-        const db = window.apiFirestore;
-        if (!db) return;
-
         // Dersler (sinav_dersler) - sadece aktif bölüm + mükerrer filtreleme
-        const coursesSnap = await db.collection("sinav_dersler").where("departmentId", "==", activeDepartment).get();
-        const rawCourses = coursesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const rawCourses = await window.apiRead('sinav_dersler', { where: `departmentId:eq:${activeDepartment}` });
         // Mükerrer kayıtları filtrele (aynı code olan derslerden en iyisini tut)
         const courseMap = {};
         rawCourses.forEach(c => {
@@ -441,8 +437,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         setCourses(courseList);
 
         // Akademisyenler (professors) - sadece aktif bölüm + mükerrer filtreleme
-        const profsSnap = await db.collection("professors").where("departmentId", "==", activeDepartment).get();
-        const rawProfs = profsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const rawProfs = await window.apiRead('professors', { where: `departmentId:eq:${activeDepartment}` });
         const profMap = {};
         rawProfs.forEach(p => {
           const key = (p.name || "").trim();
@@ -454,8 +449,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         setProfessors(profList);
 
         // Derslikler (department_classrooms) - sadece aktif bölüm
-        const roomsSnap = await db.collection("department_classrooms").where("departmentId", "==", activeDepartment).get();
-        const roomList = roomsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const roomList = await window.apiRead('department_classrooms', { where: `departmentId:eq:${activeDepartment}` });
         roomList.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
         setClassrooms(roomList);
       } catch (e) {
@@ -478,15 +472,10 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     const loadSchedule = async () => {
       setLoading(true);
       try {
-        const db = window.apiFirestore;
-        if (db && activeDepartment) {
+        if (activeDepartment) {
           const docId = `${activeDepartment}_${semester}_${year}`;
-          const doc = await db.collection("course_schedules").doc(docId).get();
-          if (doc.exists) {
-            setScheduleData(doc.data().slots || {});
-          } else {
-            setScheduleData({});
-          }
+          const result = await window.apiReadDoc('course_schedules', docId);
+          setScheduleData(result.exists ? (result.data?.slots || {}) : {});
         } else {
           setScheduleData({});
         }
@@ -587,14 +576,12 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
   const loadDeptAllYears = useCallback(async () => {
     if (!activeDepartment) { setDeptAllYearsSlots([]); return []; }
     try {
-      const db = window.apiFirestore;
-      if (!db) return [];
       const result = [];
       for (const yr of ["1", "2", "3", "4"]) {
         const docId = `${activeDepartment}_${semester}_${yr}`;
-        const doc = await db.collection("course_schedules").doc(docId).get();
-        if (doc.exists && doc.data().slots && Object.keys(doc.data().slots).length > 0) {
-          result.push({ year: yr, slots: doc.data().slots });
+        const doc = await window.apiReadDoc('course_schedules', docId);
+        if (doc.exists && doc.data?.slots && Object.keys(doc.data.slots).length > 0) {
+          result.push({ year: yr, slots: doc.data.slots });
         }
       }
       setDeptAllYearsSlots(result);
@@ -609,23 +596,21 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
   const loadAllFacultySchedules = useCallback(async () => {
     setLoadingFaculty(true);
     try {
-      const db = window.apiFirestore;
-      if (!db) return [];
-      const deptsSnap = await db.collection("departments").get();
-      const depts = deptsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const depts = await window.apiRead('departments');
       const schedules = [];
       for (const dept of depts) {
+        const deptId = dept.id || dept._id;
         // Aktif bölümü hariç tut (kendi bölümümüz zaten deptAllYearsSlots'ta)
-        if (dept.id === activeDepartment) continue;
+        if (deptId === activeDepartment) continue;
         for (const yr of ["1", "2", "3", "4"]) {
-          const docId = `${dept.id}_${semester}_${yr}`;
-          const doc = await db.collection("course_schedules").doc(docId).get();
-          if (doc.exists && doc.data().slots && Object.keys(doc.data().slots).length > 0) {
+          const docId = `${deptId}_${semester}_${yr}`;
+          const doc = await window.apiReadDoc('course_schedules', docId);
+          if (doc.exists && doc.data?.slots && Object.keys(doc.data.slots).length > 0) {
             schedules.push({
-              deptId: dept.id,
-              deptName: dept.name || dept.id,
+              deptId: deptId,
+              deptName: dept.name || deptId,
               year: yr,
-              slots: doc.data().slots,
+              slots: doc.data.slots,
             });
           }
         }
@@ -683,6 +668,20 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     return { slotCount, uniqueCourses, uniqueProfs };
   }, [scheduleData]);
 
+  // Bugünün günü (sütun vurgulama)
+  const todayName = useMemo(() => {
+    const dayMap = { 1: "Pazartesi", 2: "Salı", 3: "Çarşamba", 4: "Perşembe", 5: "Cuma" };
+    return dayMap[new Date().getDay()] || "";
+  }, []);
+
+  // Renk efsanesi
+  const courseColorList = useMemo(() => {
+    return Object.entries(courseColors).map(([code, color]) => {
+      const slot = Object.values(scheduleData).find(s => s.courseCode === code);
+      return { code, color, name: slot?.courseName || code };
+    });
+  }, [courseColors, scheduleData]);
+
   if (loading) {
     return (
       <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
@@ -696,147 +695,147 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif" }}>
+      {/* Edit mode banner */}
+      {editMode && (
+        <div style={{
+          background: "linear-gradient(135deg, #059669, #10B981)", borderRadius: 10,
+          padding: "10px 16px", marginBottom: 16, display: "flex", alignItems: "center",
+          justifyContent: "space-between", gap: 12,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "white" }}>
+            <DPIcon path="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" size={16} color="white" />
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Düzenleme Modu</span>
+            <span style={{ fontSize: 12, opacity: 0.85 }}>— Boş hücrelere tıklayarak ders ekleyin, X ile silin</span>
+          </div>
+          <button onClick={() => setEditMode(false)} style={{
+            padding: "5px 14px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.4)",
+            background: "rgba(255,255,255,0.15)", color: "white", fontSize: 12, fontWeight: 600,
+            cursor: "pointer",
+          }}>Kapat</button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{
         display: "flex", flexWrap: "wrap", alignItems: "center",
-        justifyContent: "space-between", gap: 12, marginBottom: 20,
+        justifyContent: "space-between", gap: 12, marginBottom: 16,
       }}>
-        <div>
-          <h1 style={{ fontSize: responsive.val(20, 24, 28), fontWeight: 700, color: DP.navy, margin: 0 }}>
-            Ders Programı
-          </h1>
-          <p style={{ fontSize: 13, color: DP.textMuted, marginTop: 4 }}>
-            {departmentInfo?.name || "Bölüm"} - Haftalık ders programı
-          </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg, #7C3AED, #A78BFA)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <DPIcon path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={20} color="white" />
+          </div>
+          <div>
+            <h1 style={{ fontSize: responsive.val(18, 22, 26), fontWeight: 700, color: DP.navy, margin: 0, lineHeight: 1.2 }}>
+              Ders Programı
+            </h1>
+            <p style={{ fontSize: 12, color: DP.textMuted, margin: 0 }}>
+              {departmentInfo?.name || "Bölüm"} — {semester === "guz" ? "Güz" : "Bahar"} — {year}. Sınıf
+            </p>
+          </div>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          {/* Çakışma uyarı butonu */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
           {conflicts.length > 0 && (
             <button onClick={() => setShowConflicts(!showConflicts)} style={{
-              padding: "8px 14px", borderRadius: 8, border: "1px solid #FCA5A5",
+              padding: "7px 12px", borderRadius: 8, border: "1px solid #FCA5A5",
               background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 600,
-              cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
             }}>
-              <DPIcon path="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" size={14} color="#DC2626" />
+              <DPIcon path="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" size={13} color="#DC2626" />
               {conflicts.length} Çakışma
             </button>
           )}
-          {/* Fakülte birleşik görünüm — herkese açık */}
           <button onClick={async () => {
             const deptData = await loadDeptAllYears();
             const facData = await loadAllFacultySchedules();
-            // Kendi bölümümüz + diğer bölümler birleştir
             const ownDeptSlots = (deptData || []).map(s => ({
-              deptId: activeDepartment,
-              deptName: departmentInfo?.name || "Bölüm",
-              year: s.year,
-              slots: s.slots,
+              deptId: activeDepartment, deptName: departmentInfo?.name || "Bölüm",
+              year: s.year, slots: s.slots,
             }));
             const combined = [...ownDeptSlots, ...(facData || [])];
-            if (combined.length > 0) {
-              setAllSchedules(combined);
-              setShowFacultyView(true);
-            } else {
-              alert("Fakülte genelinde bu dönem için ders programı bulunamadı.");
-            }
+            if (combined.length > 0) { setAllSchedules(combined); setShowFacultyView(true); }
+            else { alert("Fakülte genelinde bu dönem için ders programı bulunamadı."); }
           }} disabled={loadingFaculty} style={{
-            padding: "8px 14px", borderRadius: 8, border: "1px solid #C4B5FD",
+            padding: "7px 12px", borderRadius: 8, border: "1px solid #C4B5FD",
             background: "#EDE9FE", color: DP.primary, fontSize: 12, fontWeight: 600,
-            cursor: loadingFaculty ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 6,
+            cursor: loadingFaculty ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 5,
             opacity: loadingFaculty ? 0.6 : 1,
           }}>
-            <DPIcon path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" size={14} color={DP.primary} />
+            <DPIcon path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" size={13} color={DP.primary} />
             {loadingFaculty ? "Yükleniyor..." : "Fakülte Programı"}
           </button>
-          {/* Bölüm bazlı dışa aktarma (tüm sınıflar birleşik) */}
           {(isAdmin || isDeptManager) && deptAllYearsSlots.length > 0 && (
             <button onClick={() => exportDeptSchedule(deptAllYearsSlots, departmentInfo?.name || "Bölüm", semester)} style={{
-              padding: "8px 14px", borderRadius: 8, border: "1px solid #6EE7B7",
+              padding: "7px 12px", borderRadius: 8, border: "1px solid #6EE7B7",
               background: "#ECFDF5", color: "#059669", fontSize: 12, fontWeight: 600,
-              cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
             }}>
-              <DPIcon path="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" size={14} color="#059669" />
+              <DPIcon path="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" size={13} color="#059669" />
               Bölüm Çıktısı
             </button>
           )}
-          {canManage && activeDepartment && (
-            <button onClick={() => setEditMode(!editMode)} style={{
-              padding: "8px 16px", borderRadius: 8,
-              border: editMode ? "none" : "1px solid #D1D5DB",
-              background: editMode ? DP.green : "white",
-              color: editMode ? "white" : DP.textMuted,
-              fontSize: 13, fontWeight: 500, cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 6,
+          {canManage && activeDepartment && !editMode && (
+            <button onClick={() => setEditMode(true)} style={{
+              padding: "7px 14px", borderRadius: 8, border: "1px solid #D1D5DB",
+              background: "white", color: DP.textMuted, fontSize: 12, fontWeight: 500,
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
             }}>
-              <DPIcon path={editMode ? "M5 13l4 4L19 7" : "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"} size={14} />
-              {editMode ? "Düzenleme Modu Aktif" : "Düzenle"}
+              <DPIcon path="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" size={13} />
+              Düzenle
             </button>
           )}
         </div>
       </div>
 
-      {/* Stats + Filters */}
+      {/* Controls strip: Semester + Year + Stats */}
       <div style={{
-        display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 20,
-        alignItems: "stretch",
+        background: "white", borderRadius: 10, border: "1px solid #E5E7EB",
+        padding: responsive.val(10, 12, 14), marginBottom: 16,
+        display: "flex", flexWrap: "wrap", gap: responsive.val(10, 16, 20), alignItems: "center",
       }}>
-        {/* Stats */}
-        <div style={{
-          display: "flex", gap: 8, flex: "0 0 auto",
-        }}>
-          {[
-            { label: "Ders Saati", value: stats.slotCount, color: DP.primary },
-            { label: "Ders", value: stats.uniqueCourses, color: "#3B82F6" },
-            { label: "Hoca", value: stats.uniqueProfs, color: "#059669" },
-          ].map((s, i) => (
-            <div key={i} style={{
-              background: "white", borderRadius: 8, padding: "8px 16px",
-              border: "1px solid #E5E7EB", textAlign: "center", minWidth: 70,
-            }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: DP.textMuted }}>{s.label}</div>
-            </div>
+        {/* Semester toggle */}
+        <div style={{ display: "flex", background: "#F3F4F6", borderRadius: 8, padding: 2 }}>
+          {[{ id: "guz", label: "Güz" }, { id: "bahar", label: "Bahar" }].map(s => (
+            <button key={s.id} onClick={() => setSemester(s.id)} style={{
+              padding: "6px 16px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+              border: "none", cursor: "pointer", transition: "all 0.15s",
+              background: semester === s.id ? DP.primary : "transparent",
+              color: semester === s.id ? "white" : DP.textMuted,
+              boxShadow: semester === s.id ? "0 1px 3px rgba(124,58,237,0.3)" : "none",
+            }}>{s.label}</button>
           ))}
         </div>
 
-        {/* Filters */}
-        <div style={{
-          display: "flex", flexWrap: "wrap", gap: 12, flex: 1,
-          background: "white", padding: responsive.val(10, 12, 12),
-          borderRadius: 8, border: "1px solid #E5E7EB", alignItems: "center",
-        }}>
-          <div>
-            <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: DP.textMuted, marginBottom: 2 }}>Dönem</label>
-            <div style={{ display: "flex", gap: 2 }}>
-              {[{ id: "guz", label: "Güz" }, { id: "bahar", label: "Bahar" }].map(s => (
-                <button key={s.id} onClick={() => setSemester(s.id)} style={{
-                  padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
-                  border: "1px solid #D1D5DB", cursor: "pointer",
-                  background: semester === s.id ? DP.primary : "white",
-                  color: semester === s.id ? "white" : DP.text,
-                }}>{s.label}</button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: DP.textMuted, marginBottom: 2 }}>Sınıf</label>
-            <div style={{ display: "flex", gap: 2 }}>
-              {["1", "2", "3", "4"].map(y => (
-                <button key={y} onClick={() => setYear(y)} style={{
-                  padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
-                  border: "1px solid #D1D5DB", cursor: "pointer",
-                  background: year === y ? DP.primary : "white",
-                  color: year === y ? "white" : DP.text,
-                }}>{y}. Sınıf</button>
-              ))}
-            </div>
-          </div>
-          {courses.length > 0 && (
-            <div style={{ fontSize: 11, color: DP.textMuted, marginLeft: "auto" }}>
-              Sınav Otomasyonundan: <strong>{courses.length}</strong> ders, <strong>{professors.length}</strong> hoca, <strong>{classrooms.length}</strong> derslik
-            </div>
-          )}
+        {/* Year pills */}
+        <div style={{ display: "flex", background: "#F3F4F6", borderRadius: 8, padding: 2 }}>
+          {["1", "2", "3", "4"].map(y => (
+            <button key={y} onClick={() => setYear(y)} style={{
+              padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+              border: "none", cursor: "pointer", transition: "all 0.15s",
+              background: year === y ? DP.navy : "transparent",
+              color: year === y ? "white" : DP.textMuted,
+              boxShadow: year === y ? "0 1px 3px rgba(27,42,74,0.3)" : "none",
+            }}>{y}. Sınıf</button>
+          ))}
         </div>
+
+        {/* Divider */}
+        <div style={{ width: 1, height: 24, background: "#E5E7EB", display: responsive.val("none", "block", "block") }} />
+
+        {/* Inline stats */}
+        <div style={{ display: "flex", gap: 16, fontSize: 12, color: DP.textMuted }}>
+          <span><strong style={{ color: DP.primary, fontSize: 15 }}>{stats.slotCount}</strong> saat</span>
+          <span><strong style={{ color: "#3B82F6", fontSize: 15 }}>{stats.uniqueCourses}</strong> ders</span>
+          <span><strong style={{ color: "#059669", fontSize: 15 }}>{stats.uniqueProfs}</strong> hoca</span>
+        </div>
+
+        {courses.length > 0 && (
+          <div style={{ fontSize: 11, color: "#9CA3AF", marginLeft: "auto" }}>
+            Havuz: {courses.length} ders, {professors.length} hoca, {classrooms.length} derslik
+          </div>
+        )}
       </div>
 
       {/* Professor bilgilendirme */}
@@ -851,7 +850,6 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         </div>
       )}
 
-      {/* Info banner when no department selected */}
       {!activeDepartment && (
         <div style={{
           background: "#EDE9FE", border: "1px solid #C4B5FD", borderRadius: 10,
@@ -864,7 +862,6 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         </div>
       )}
 
-      {/* Info banner when no courses */}
       {activeDepartment && courses.length === 0 && (
         <div style={{
           background: "#FEF3C7", border: "1px solid #F59E0B", borderRadius: 10,
@@ -892,52 +889,60 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
               }).filter(Boolean);
 
               if (daySlots.length === 0 && !editMode) return null;
+              const isToday = day === todayName;
 
               return (
                 <div key={day} style={{ marginBottom: 16 }}>
                   <div style={{
-                    fontSize: 14, fontWeight: 700, color: DP.navy,
-                    padding: "8px 0", borderBottom: "2px solid " + DP.primary,
-                    marginBottom: 8,
-                  }}>{day}</div>
+                    fontSize: 14, fontWeight: 700, color: isToday ? DP.primary : DP.navy,
+                    padding: "8px 0", borderBottom: `2px solid ${isToday ? DP.primary : "#E5E7EB"}`,
+                    marginBottom: 8, display: "flex", alignItems: "center", gap: 6,
+                  }}>
+                    {day}
+                    {isToday && <span style={{ fontSize: 10, fontWeight: 500, background: DP.primaryPale, color: DP.primary, padding: "2px 8px", borderRadius: 10 }}>Bugün</span>}
+                  </div>
                   {daySlots.map((slot, i) => (
                     <div key={i} style={{
-                      padding: "8px 12px", marginBottom: 4, borderRadius: 8,
-                      background: `${courseColors[slot.courseCode] || "#6B7280"}15`,
-                      borderLeft: `3px solid ${courseColors[slot.courseCode] || "#6B7280"}`,
+                      padding: "10px 12px", marginBottom: 6, borderRadius: 10,
+                      background: `${courseColors[slot.courseCode] || "#6B7280"}10`,
+                      borderLeft: `4px solid ${courseColors[slot.courseCode] || "#6B7280"}`,
                       display: "flex", alignItems: "center", justifyContent: "space-between",
                     }}>
-                      <div>
-                        <div style={{ fontSize: 11, color: DP.textMuted }}>{slot.hour}</div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: DP.text }}>{slot.courseCode} - {slot.courseName}</div>
-                        {slot.instructor && <div style={{ fontSize: 11, color: DP.textMuted }}>{slot.instructor}</div>}
-                        {slot.classroom && <div style={{ fontSize: 11, color: DP.textMuted }}>Derslik: {slot.classroom}</div>}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: "white", background: courseColors[slot.courseCode] || "#6B7280", padding: "1px 6px", borderRadius: 4 }}>{slot.hour}</span>
+                          {slot.classroom && <span style={{ fontSize: 10, fontWeight: 600, color: DP.primary, background: DP.primaryPale, padding: "1px 6px", borderRadius: 4 }}>{slot.classroom}</span>}
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: DP.text }}>{slot.courseCode} — {slot.courseName}</div>
+                        {slot.instructor && <div style={{ fontSize: 11, color: DP.textMuted, marginTop: 1 }}>{slot.instructor}</div>}
                       </div>
                       {editMode && (
                         <button onClick={() => handleRemoveSlot(slot.key)} style={{
-                          background: "none", border: "none", cursor: "pointer", padding: 4, color: "#EF4444",
+                          background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6,
+                          cursor: "pointer", padding: "4px 6px", marginLeft: 8,
                         }}>
-                          <DPIcon path="M18 6L6 18M6 6l12 12" size={16} color="#EF4444" />
+                          <DPIcon path="M18 6L6 18M6 6l12 12" size={14} color="#EF4444" />
                         </button>
                       )}
                     </div>
                   ))}
                   {editMode && (
                     <button onClick={() => { setSelectedSlot({ day, hourIndex: 0, hour: HOURS[0] }); setAddSlotWarnings([]); setShowAddModal(true); }} style={{
-                      width: "100%", padding: 8, border: "1px dashed #D1D5DB", borderRadius: 8,
-                      background: "transparent", cursor: "pointer", fontSize: 12, color: DP.textMuted,
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 4,
+                      width: "100%", padding: 10, border: "2px dashed #C4B5FD", borderRadius: 10,
+                      background: DP.primaryPale + "60", cursor: "pointer", fontSize: 12, color: DP.primary, fontWeight: 500,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 4,
                     }}>
-                      <DPIcon path="M12 5v14M5 12h14" size={14} color="#D1D5DB" /> Ders Ekle
+                      <DPIcon path="M12 5v14M5 12h14" size={14} color={DP.primary} /> Ders Ekle
                     </button>
                   )}
                 </div>
               );
             })}
             {Object.keys(scheduleData).length === 0 && !editMode && (
-              <div style={{ textAlign: "center", padding: 40, color: DP.textMuted }}>
+              <div style={{ textAlign: "center", padding: 48, color: DP.textMuted }}>
                 <DPIcon path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={48} color="#D1D5DB" />
-                <p style={{ marginTop: 12 }}>Bu dönem için ders programı henüz oluşturulmamış.</p>
+                <p style={{ marginTop: 12, fontSize: 14, fontWeight: 500 }}>Bu dönem için ders programı henüz oluşturulmamış.</p>
+                {canManage && <p style={{ fontSize: 12, color: "#9CA3AF", marginTop: 4 }}>Düzenle butonuna tıklayarak program oluşturmaya başlayın.</p>}
               </div>
             )}
           </div>
@@ -947,30 +952,40 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
             <thead>
               <tr>
                 <th style={{
-                  padding: "12px 8px", fontSize: 12, fontWeight: 700,
-                  color: DP.textMuted, textAlign: "center", background: "#F9FAFB",
-                  borderBottom: "2px solid #E5E7EB", width: 90,
+                  padding: "10px 8px", fontSize: 11, fontWeight: 700,
+                  color: "white", textAlign: "center", background: DP.navy,
+                  borderBottom: "2px solid #E5E7EB", width: 85,
                 }}>Saat</th>
-                {DAYS.map(day => (
-                  <th key={day} style={{
-                    padding: "12px 8px", fontSize: 13, fontWeight: 700,
-                    color: DP.navy, textAlign: "center", background: "#F9FAFB",
-                    borderBottom: "2px solid #E5E7EB",
-                  }}>{day}</th>
-                ))}
+                {DAYS.map(day => {
+                  const isToday = day === todayName;
+                  return (
+                    <th key={day} style={{
+                      padding: "10px 8px", fontSize: 12, fontWeight: 700,
+                      color: "white", textAlign: "center",
+                      background: isToday ? DP.primary : DP.navy,
+                      borderBottom: "2px solid #E5E7EB",
+                      position: "relative",
+                    }}>
+                      {day}
+                      {isToday && <div style={{ position: "absolute", bottom: 0, left: "20%", right: "20%", height: 3, background: "#F59E0B", borderRadius: "3px 3px 0 0" }} />}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {HOURS.map((hour, hi) => (
                 <tr key={hi}>
                   <td style={{
-                    padding: "8px 6px", fontSize: 11, fontWeight: 500,
+                    padding: "6px 6px", fontSize: 10, fontWeight: 600,
                     color: DP.textMuted, textAlign: "center",
                     borderBottom: "1px solid #F3F4F6", background: "#FAFAFA",
+                    whiteSpace: "nowrap",
                   }}>{hour}</td>
                   {DAYS.map(day => {
                     const key = `${day}_${hi}`;
                     const slot = scheduleData[key];
+                    const isToday = day === todayName;
                     return (
                       <td
                         key={day}
@@ -984,38 +999,42 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                           }
                         }}
                         style={{
-                          padding: 4, borderBottom: "1px solid #F3F4F6",
+                          padding: 3, borderBottom: "1px solid #F3F4F6",
                           cursor: editMode && !slot ? "pointer" : "default",
-                          background: editMode && !slot ? "#FAFBFF" : "transparent",
+                          background: editMode && !slot ? (isToday ? "#EDE9FE" : "#F5F3FF") : (isToday ? "#FAFAFE" : (hi % 2 === 0 ? "transparent" : "#FCFCFD")),
                           transition: "background 0.15s",
+                          borderLeft: isToday ? "1px solid #EDE9FE" : "none",
+                          borderRight: isToday ? "1px solid #EDE9FE" : "none",
                         }}
                       >
                         {slot ? (
                           <div style={{
-                            padding: "6px 8px", borderRadius: 6,
-                            background: `${courseColors[slot.courseCode] || "#6B7280"}15`,
+                            padding: "5px 7px", borderRadius: 6,
+                            background: `${courseColors[slot.courseCode] || "#6B7280"}12`,
                             borderLeft: `3px solid ${courseColors[slot.courseCode] || "#6B7280"}`,
-                            minHeight: 40, position: "relative",
+                            minHeight: 44, position: "relative",
                           }}>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: DP.text }}>{slot.courseCode}</div>
-                            <div style={{ fontSize: 11, color: DP.textMuted, lineHeight: 1.2 }}>{slot.courseName}</div>
-                            {slot.instructor && <div style={{ fontSize: 10, color: DP.textMuted, marginTop: 2 }}>{slot.instructor}</div>}
-                            {slot.classroom && <div style={{ fontSize: 10, color: DP.primary, fontWeight: 500 }}>{slot.classroom}</div>}
+                            <div style={{ fontSize: 11, fontWeight: 700, color: courseColors[slot.courseCode] || DP.text, letterSpacing: 0.3 }}>{slot.courseCode}</div>
+                            <div style={{ fontSize: 10, color: DP.text, lineHeight: 1.3, marginTop: 1 }}>{slot.courseName}</div>
+                            {slot.instructor && <div style={{ fontSize: 9, color: DP.textMuted, marginTop: 2 }}>{slot.instructor}</div>}
+                            {slot.classroom && <div style={{ fontSize: 9, color: DP.primary, fontWeight: 600, marginTop: 1 }}>{slot.classroom}</div>}
                             {editMode && (
                               <button onClick={(e) => { e.stopPropagation(); handleRemoveSlot(key); }} style={{
                                 position: "absolute", top: 2, right: 2,
-                                background: "none", border: "none", cursor: "pointer", padding: 2,
+                                background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 4,
+                                cursor: "pointer", padding: "1px 3px", opacity: 0.8,
                               }}>
-                                <DPIcon path="M18 6L6 18M6 6l12 12" size={12} color="#EF4444" />
+                                <DPIcon path="M18 6L6 18M6 6l12 12" size={10} color="#EF4444" />
                               </button>
                             )}
                           </div>
                         ) : editMode ? (
                           <div style={{
-                            minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center",
-                            borderRadius: 6, border: "1px dashed #D1D5DB",
+                            minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center",
+                            borderRadius: 6, border: "2px dashed #D1D5DB", background: "#FAFAFA",
+                            transition: "border-color 0.15s, background 0.15s",
                           }}>
-                            <DPIcon path="M12 5v14M5 12h14" size={14} color="#D1D5DB" />
+                            <DPIcon path="M12 5v14M5 12h14" size={14} color="#C4B5FD" />
                           </div>
                         ) : null}
                       </td>
@@ -1027,6 +1046,22 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
           </table>
         )}
       </div>
+
+      {/* Color legend */}
+      {courseColorList.length > 0 && (
+        <div style={{
+          display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10,
+          padding: "8px 12px", background: "#F9FAFB", borderRadius: 8, border: "1px solid #F3F4F6",
+        }}>
+          <span style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600, marginRight: 4, lineHeight: "20px" }}>DERSLER:</span>
+          {courseColorList.map(c => (
+            <span key={c.code} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: DP.text }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: c.color, display: "inline-block" }} />
+              {c.code}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Add Slot Modal */}
       {showAddModal && selectedSlot && (
