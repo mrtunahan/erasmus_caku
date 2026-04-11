@@ -13,8 +13,7 @@ const Select = window.Select;
 const FormField = window.FormField;
 const Btn = window.Btn;
 const Badge = window.Badge;
-const FirestoreRead = window.FirestoreRead || {};
-const FirestoreWrite = window.FirestoreWrite || {};
+const DBWrite = window.DBWrite || {};
 
 const SINIF_COLORS = {
   1: { bg: "#B2EBF2", text: "#006064", label: "1. Sınıf" },
@@ -101,9 +100,9 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
       if (editingCourse === "new") {
         dataToSave.studentCount = 0;
         dataToSave.createdAt = dataToSave.updatedAt;
-        await FirestoreWrite.add('sinav_dersler', dataToSave);
+        await DBWrite.add('sinav_dersler', dataToSave);
       } else {
-        await FirestoreWrite.set('sinav_dersler', editingCourse.id, dataToSave, true);
+        await DBWrite.set('sinav_dersler', editingCourse.id, dataToSave, true);
       }
 
       setEditingCourse(null);
@@ -119,7 +118,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
   const handleDelete = async (c) => {
     if (!confirm(`${c.code} kodlu ${c.name} dersini silmek istediğinize emin misiniz?`)) return;
     try {
-      await FirestoreWrite.remove('sinav_dersler', c.id);
+      await DBWrite.remove('sinav_dersler', c.id);
       setCourses(courses.filter(course => course.id !== c.id));
     } catch (e) {
       console.error(e);

@@ -81,10 +81,10 @@ function clearAttempts(key) {
 
 async function getPasswordDoc(docId) {
   const db = await getDbSafe();
-  // Firestore'dan import edilen veriler _id: 'admin' (string) şeklinde geliyor
+  // Import edilen veriler _id: 'admin' (string) şeklinde geliyor
   const doc = await db.collection("passwords").findOne({ _id: docId });
   if (!doc) return {};
-  const { _id, _docId, _firestoreId, ...rest } = doc;
+  const { _id, _docId, ...rest } = doc;
   return rest;
 }
 

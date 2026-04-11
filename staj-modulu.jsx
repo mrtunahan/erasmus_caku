@@ -329,11 +329,11 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
         updatedAt: new Date().toISOString(),
       };
 
-      await window.FirestoreWrite.set("internship_roadmap", myApplication.id, newRoadmapData, true);
+      await window.DBWrite.set("internship_roadmap", myApplication.id, newRoadmapData, true);
 
       // Komisyon üyelerine bildirim oluştur
       try {
-        await window.FirestoreWrite.add("internship_notifications", {
+        await window.DBWrite.add("internship_notifications", {
           type: "step_submitted",
           departmentId: activeDepartment || myApplication.departmentId || "",
           appId: myApplication.id,
@@ -969,10 +969,10 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
       console.log("Staj başvurusu kaydediliyor:", { departmentId: data.departmentId, ogrenciNo: data.ogrenciNo, editingId });
 
       if (editingId) {
-        await window.FirestoreWrite.set("internship_applications", editingId, data, true);
+        await window.DBWrite.set("internship_applications", editingId, data, true);
       } else {
         data.createdAt = new Date().toISOString();
-        const result = await window.FirestoreWrite.add("internship_applications", data);
+        const result = await window.DBWrite.add("internship_applications", data);
         console.log("Başvuru kaydedildi, ID:", result?.id);
       }
 
@@ -1448,7 +1448,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
         },
       };
 
-      await window.FirestoreWrite.set("internship_uploads", studentId, { [belgeId]: updatedData }, true);
+      await window.DBWrite.set("internship_uploads", studentId, { [belgeId]: updatedData }, true);
 
       setUploads(prev => ({ ...prev, [belgeId]: updatedData }));
       setChangeRequests(prev => ({ ...prev, [belgeId]: updatedData.changeRequest }));
@@ -1551,7 +1551,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       }
 
       const newUploads = { ...uploads, [belgeId]: fileData };
-      await window.FirestoreWrite.set("internship_uploads", studentId, newUploads, true);
+      await window.DBWrite.set("internship_uploads", studentId, newUploads, true);
       setUploads(newUploads);
       setChangeRequests(prev => { const p = { ...prev }; delete p[belgeId]; return p; });
       setMsg("Belge başarıyla yüklendi!");
@@ -1931,7 +1931,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       const notif = studentNotifs.find(n => n.id === notifId);
       if (!notif || notif.readBy?.includes(studentId)) return;
       const newReadBy = [...(notif.readBy || []), studentId];
-      await window.FirestoreWrite.set("internship_notifications", notifId, { readBy: newReadBy }, true);
+      await window.DBWrite.set("internship_notifications", notifId, { readBy: newReadBy }, true);
       setStudentNotifs(prev => prev.map(n => n.id === notifId ? { ...n, readBy: newReadBy } : n));
     } catch (e) { console.error("Bildirim okundu hatası:", e); }
   };
@@ -1940,7 +1940,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     try {
       const unread = studentNotifs.filter(n => !n.readBy?.includes(studentId));
       for (const n of unread) {
-        await window.FirestoreWrite.set("internship_notifications", n.id, { readBy: [...(n.readBy || []), studentId] }, true);
+        await window.DBWrite.set("internship_notifications", n.id, { readBy: [...(n.readBy || []), studentId] }, true);
       }
       setStudentNotifs(prev => prev.map(n => ({
         ...n, readBy: n.readBy?.includes(studentId) ? n.readBy : [...(n.readBy || []), studentId],
@@ -2049,7 +2049,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       }
     }
     try {
-      await window.FirestoreWrite.set("internship_applications", appId, {
+      await window.DBWrite.set("internship_applications", appId, {
         status: newStatus,
         statusUpdatedBy: currentUser?.name || currentUser?.identifier || "",
         statusUpdatedAt: new Date().toISOString(),
@@ -2074,9 +2074,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       : "Bu staj başvurusunu silmek istediğinizden emin misiniz?";
     if (!confirm(confirmMsg)) return;
     try {
-      await window.FirestoreWrite.remove("internship_applications", appId);
+      await window.DBWrite.remove("internship_applications", appId);
       // İlişkili roadmap verisini de sil
-      try { await window.FirestoreWrite.remove("internship_roadmap", appId); } catch {}
+      try { await window.DBWrite.remove("internship_roadmap", appId); } catch {}
       setAllApplications(prev => prev.filter(a => a.id !== appId));
       setSelectedApp(null);
     } catch (e) {
@@ -2095,18 +2095,18 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       const data = { ...periodForm, departmentId: activeDepartment, updatedAt: new Date().toISOString() };
       let savedId = editingPeriod;
       if (editingPeriod) {
-        await window.FirestoreWrite.set("internship_periods", editingPeriod, data, true);
+        await window.DBWrite.set("internship_periods", editingPeriod, data, true);
       } else {
         data.createdAt = new Date().toISOString();
         data.isActive = true;
-        const result = await window.FirestoreWrite.add("internship_periods", data);
+        const result = await window.DBWrite.add("internship_periods", data);
         savedId = result?.id || String(Date.now());
       }
 
       // Yeni etap ise bölümdeki tüm kullanıcılara bildirim gönder
       if (isNew) {
         try {
-          await window.FirestoreWrite.add("internship_notifications", {
+          await window.DBWrite.add("internship_notifications", {
             type: "new_period",
             departmentId: activeDepartment || "",
             periodId: savedId,
@@ -2139,7 +2139,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const handleDeletePeriod = async (periodId) => {
     if (!confirm("Bu staj etabını silmek istediğinizden emin misiniz?")) return;
     try {
-      await window.FirestoreWrite.remove("internship_periods", periodId);
+      await window.DBWrite.remove("internship_periods", periodId);
       loadAllData();
     } catch (e) {
       alert("Silme hatası: " + e.message);
@@ -2195,14 +2195,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         updatedAt: new Date().toISOString(),
       };
 
-      await window.FirestoreWrite.set("internship_roadmap", appId, newData, true);
+      await window.DBWrite.set("internship_roadmap", appId, newData, true);
 
       // Öğrenciye onay bildirimi gönder
       try {
         const app = allApplications.find(a => a.id === appId);
         const approverName = currentUser?.name || currentUser?.identifier || "";
         if (app?.ogrenciNo) {
-          await window.FirestoreWrite.add("internship_notifications", {
+          await window.DBWrite.add("internship_notifications", {
             type: "step_approved",
             targetStudentNo: app.ogrenciNo,
             departmentId: activeDepartment || app.departmentId || "",
@@ -2215,7 +2215,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             readBy: [],
           });
           // Komisyon üyelerine onay bildirimi gönder
-          await window.FirestoreWrite.add("internship_notifications", {
+          await window.DBWrite.add("internship_notifications", {
             type: "step_approved_commission",
             departmentId: activeDepartment || app.departmentId || "",
             appId,
@@ -2257,14 +2257,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         updatedAt: new Date().toISOString(),
       };
 
-      await window.FirestoreWrite.set("internship_roadmap", appId, newData, true);
+      await window.DBWrite.set("internship_roadmap", appId, newData, true);
 
       // Öğrenciye red bildirimi gönder
       try {
         const app = allApplications.find(a => a.id === appId);
         const rejecterName = currentUser?.name || currentUser?.identifier || "";
         if (app?.ogrenciNo) {
-          await window.FirestoreWrite.add("internship_notifications", {
+          await window.DBWrite.add("internship_notifications", {
             type: "step_rejected",
             targetStudentNo: app.ogrenciNo,
             departmentId: activeDepartment || app.departmentId || "",
@@ -2277,7 +2277,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             readBy: [],
           });
           // Komisyon üyelerine red bildirimi gönder
-          await window.FirestoreWrite.add("internship_notifications", {
+          await window.DBWrite.add("internship_notifications", {
             type: "step_rejected_commission",
             departmentId: activeDepartment || app.departmentId || "",
             appId,
@@ -2303,7 +2303,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Admin: Belge değişiklik talebini onayla
   const handleApproveDocChange = async (ogrenciNo, belgeId) => {
     try {
-      await window.FirestoreWrite.set("internship_uploads", ogrenciNo, {
+      await window.DBWrite.set("internship_uploads", ogrenciNo, {
         [belgeId]: {
           ...allUploads[ogrenciNo]?.[belgeId],
           changeRequest: {
@@ -2329,7 +2329,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Admin: Belge değişiklik talebini reddet
   const handleRejectDocChange = async (ogrenciNo, belgeId) => {
     try {
-      await window.FirestoreWrite.set("internship_uploads", ogrenciNo, {
+      await window.DBWrite.set("internship_uploads", ogrenciNo, {
         [belgeId]: {
           ...allUploads[ogrenciNo]?.[belgeId],
           changeRequest: {
@@ -2460,7 +2460,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       const notif = notifications.find(n => n.id === notifId);
       if (!notif || notif.readBy?.includes(userId)) return;
       const newReadBy = [...(notif.readBy || []), userId];
-      await window.FirestoreWrite.set("internship_notifications", notifId, { readBy: newReadBy }, true);
+      await window.DBWrite.set("internship_notifications", notifId, { readBy: newReadBy }, true);
       setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, readBy: newReadBy } : n));
     } catch (e) { console.error("Bildirim okundu hatası:", e); }
   };
@@ -2469,7 +2469,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     try {
       const unread = notifications.filter(n => !n.readBy?.includes(userId));
       for (const n of unread) {
-        await window.FirestoreWrite.set("internship_notifications", n.id, { readBy: [...(n.readBy || []), userId] }, true);
+        await window.DBWrite.set("internship_notifications", n.id, { readBy: [...(n.readBy || []), userId] }, true);
       }
       setNotifications(prev => prev.map(n => ({
         ...n, readBy: n.readBy?.includes(userId) ? n.readBy : [...(n.readBy || []), userId],

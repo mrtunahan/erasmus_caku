@@ -11,7 +11,7 @@ const Modal = window.Modal;
 const Input = window.Input;
 const FormField = window.FormField;
 const Btn = window.Btn;
-const FirestoreWrite = window.FirestoreWrite || {};
+const DBWrite = window.DBWrite || {};
 
 function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   const isAdmin = currentUser?.role === "admin";
@@ -76,9 +76,9 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     try {
       const data = { name: form.name.trim(), managerName: form.managerName.trim() };
       if (editingItem === "new") {
-        await FirestoreWrite.add("departments", data);
+        await DBWrite.add("departments", data);
       } else {
-        await FirestoreWrite.set("departments", editingItem.id, data, true);
+        await DBWrite.set("departments", editingItem.id, data, true);
       }
       setEditingItem(null);
       loadData();
@@ -87,7 +87,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   };
   const handleDeptDelete = async (d) => {
     if (!confirm(`${d.name} silinecek, emin misiniz?`)) return;
-    await FirestoreWrite.remove("departments", d.id);
+    await DBWrite.remove("departments", d.id);
     setDepartments(departments.filter(x => x.id !== d.id));
   };
 
@@ -100,9 +100,9 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     try {
       const data = { name: form.name.trim(), capacity: parseInt(form.capacity) || 0, departmentId: activeDepartment };
       if (editingItem === "new") {
-        await FirestoreWrite.add("department_classrooms", data);
+        await DBWrite.add("department_classrooms", data);
       } else {
-        await FirestoreWrite.set("department_classrooms", editingItem.id, data, true);
+        await DBWrite.set("department_classrooms", editingItem.id, data, true);
       }
       setEditingItem(null);
       loadData();
@@ -111,7 +111,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   };
   const handleClassDelete = async (c) => {
     if (!confirm(`${c.name} silinecek, emin misiniz?`)) return;
-    await FirestoreWrite.remove("department_classrooms", c.id);
+    await DBWrite.remove("department_classrooms", c.id);
     setClassrooms(classrooms.filter(x => x.id !== c.id));
   };
 
@@ -135,11 +135,11 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
           const prof = professors.find(p => p.id === form.selectedProfId);
           if (prof) {
             const roles = [...new Set([...(prof.roles || []), "gozetmen"])];
-            await FirestoreWrite.update("professors", prof.id, { roles });
+            await DBWrite.update("professors", prof.id, { roles });
           }
         } else if (form.newName.trim()) {
           // Yeni profesör oluştur ve gozetmen rolü ver
-          await FirestoreWrite.add("professors", {
+          await DBWrite.add("professors", {
             name: form.newName.trim(),
             departmentId: activeDepartment,
             isExternal: false,
@@ -153,7 +153,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         }
       } else {
         // Düzenleme — isim güncelle
-        await FirestoreWrite.update("professors", editingItem.id, { name: form.name.trim() });
+        await DBWrite.update("professors", editingItem.id, { name: form.name.trim() });
       }
       setEditingItem(null);
       await loadData();
@@ -165,7 +165,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     if (!confirm(`${s.name} gözetmenlikten çıkarılacak. Akademisyen kaydı silinmez. Emin misiniz?`)) return;
     try {
       const roles = (s.roles || []).filter(r => r !== "gozetmen");
-      await FirestoreWrite.update("professors", s.id, { roles });
+      await DBWrite.update("professors", s.id, { roles });
       await loadData();
     } catch(e) { alert("Hata: " + e.message); }
   };

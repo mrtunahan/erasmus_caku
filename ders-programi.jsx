@@ -499,7 +499,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     }
     try {
       const docId = `${activeDepartment}_${semester}_${year}`;
-      await window.FirestoreWrite.set("course_schedules", docId, {
+      await window.DBWrite.set("course_schedules", docId, {
         slots: newData,
         departmentId: activeDepartment,
         semester,

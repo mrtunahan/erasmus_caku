@@ -439,17 +439,10 @@ function useViewTracker(postId, currentUser) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// FIREBASE CRUD
+// MONGODB CRUD
 // ══════════════════════════════════════════════════════════════
 
 var PortalDB = {
-  postsRef: function () {
-    return window.apiFirestore.collection("portal_posts");
-  },
-  commentsRef: function (postId) {
-    return window.apiFirestore.collection("portal_posts").doc(String(postId)).collection("comments");
-  },
-
   // Gönderiler
   async createPost(post, isModOrAdmin) {
     var status = isModOrAdmin ? "approved" : "pending";
@@ -464,12 +457,12 @@ var PortalDB = {
       pinned: false,
       status: status,
     });
-    var result = await window.FirestoreWrite.add("portal_posts", data);
+    var result = await window.DBWrite.add("portal_posts", data);
     return Object.assign({}, post, { id: result.id, status: status });
   },
 
   async approvePost(postId, reviewerName) {
-    await window.FirestoreWrite.update("portal_posts", String(postId), {
+    await window.DBWrite.update("portal_posts", String(postId), {
       status: "approved",
       reviewedBy: reviewerName,
       reviewedAt: new Date().toISOString(),
@@ -477,7 +470,7 @@ var PortalDB = {
   },
 
   async rejectPost(postId, reviewerName, reason) {
-    await window.FirestoreWrite.update("portal_posts", String(postId), {
+    await window.DBWrite.update("portal_posts", String(postId), {
       status: "rejected",
       reviewedBy: reviewerName,
       reviewedAt: new Date().toISOString(),
@@ -486,13 +479,9 @@ var PortalDB = {
   },
 
   async fetchPosts(category, limit) {
-    var ref = this.postsRef();
-    if (!ref) return [];
-    var query = limit ? ref.limit(limit) : ref;
-    var snapshot = await query.get();
-    var results = snapshot.docs.map(function (doc) {
-      return Object.assign({}, doc.data(), { id: doc.id });
-    });
+    var params = {};
+    if (limit) params.limit = limit;
+    var results = await window.apiRead("portal_posts", params);
     results.sort(function (a, b) {
       var ta = a.createdAt ? (a.createdAt._seconds ? a.createdAt._seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
       var tb = b.createdAt ? (b.createdAt._seconds ? b.createdAt._seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
@@ -505,20 +494,17 @@ var PortalDB = {
   },
 
   async updatePost(id, data) {
-    await window.FirestoreWrite.update("portal_posts", String(id), data);
+    await window.DBWrite.update("portal_posts", String(id), data);
   },
 
   async deletePost(id) {
-    await window.FirestoreWrite.remove("portal_posts", String(id));
+    await window.DBWrite.remove("portal_posts", String(id));
   },
 
   async toggleReaction(postId, reactionType, userId) {
-    var ref = this.postsRef();
-    if (!ref) return;
-    var docRef = ref.doc(String(postId));
-    var doc = await docRef.get();
-    if (!doc.exists) return;
-    var data = doc.data();
+    var result = await window.apiReadDoc("portal_posts", String(postId));
+    if (!result.exists) return;
+    var data = result.data;
     var reactions = data.reactions || {};
     var reactionList = reactions[reactionType] || [];
     var idx = reactionList.indexOf(userId);
@@ -528,18 +514,15 @@ var PortalDB = {
       reactionList.push(userId);
     }
     reactions[reactionType] = reactionList;
-    await window.FirestoreWrite.update("portal_posts", String(postId), { reactions: reactions });
+    await window.DBWrite.update("portal_posts", String(postId), { reactions: reactions });
     return reactions;
   },
 
   // Yukarı/Aşağı Oy (Stack Overflow modeli)
   async toggleVote(postId, voteType, userId) {
-    var ref = this.postsRef();
-    if (!ref) return;
-    var docRef = ref.doc(String(postId));
-    var doc = await docRef.get();
-    if (!doc.exists) return;
-    var data = doc.data();
+    var result = await window.apiReadDoc("portal_posts", String(postId));
+    if (!result.exists) return;
+    var data = result.data;
     var upvotes = data.upvotes || [];
     var downvotes = data.downvotes || [];
     var upIdx = upvotes.indexOf(userId);
@@ -566,7 +549,7 @@ var PortalDB = {
     }
 
     var voteScore = upvotes.length - downvotes.length;
-    await window.FirestoreWrite.update("portal_posts", String(postId), { upvotes: upvotes, downvotes: downvotes, voteScore: voteScore });
+    await window.DBWrite.update("portal_posts", String(postId), { upvotes: upvotes, downvotes: downvotes, voteScore: voteScore });
     return { upvotes: upvotes, downvotes: downvotes, voteScore: voteScore };
   },
 
@@ -576,26 +559,18 @@ var PortalDB = {
       createdAt: new Date().toISOString(),
       likes: [],
     });
-    var result = await window.FirestoreWrite.add("portal_posts", commentData, String(postId), "comments");
+    var result = await window.DBWrite.add("portal_posts", commentData, String(postId), "comments");
     // Yorum sayısını güncelle
-    var postRef = this.postsRef();
-    if (postRef) {
-      var postDoc = await postRef.doc(String(postId)).get();
-      if (postDoc.exists) {
-        var currentCount = (postDoc.data().commentCount || 0) + 1;
-        await window.FirestoreWrite.update("portal_posts", String(postId), { commentCount: currentCount });
-      }
+    var postResult = await window.apiReadDoc("portal_posts", String(postId));
+    if (postResult.exists) {
+      var currentCount = (postResult.data.commentCount || 0) + 1;
+      await window.DBWrite.update("portal_posts", String(postId), { commentCount: currentCount });
     }
     return Object.assign({}, comment, { id: result.id });
   },
 
   async fetchComments(postId) {
-    var ref = this.commentsRef(postId);
-    if (!ref) return [];
-    var snapshot = await ref.get();
-    var results = snapshot.docs.map(function (doc) {
-      return Object.assign({}, doc.data(), { id: doc.id });
-    });
+    var results = await window.apiRead("portal_posts_comments");
     results.sort(function (a, b) {
       var ta = a.createdAt ? (a.createdAt._seconds ? a.createdAt._seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
       var tb = b.createdAt ? (b.createdAt._seconds ? b.createdAt._seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
@@ -605,23 +580,21 @@ var PortalDB = {
   },
 
   async updateComment(postId, commentId, data) {
-    await window.FirestoreWrite.update("portal_posts", String(commentId), data, String(postId), "comments");
+    await window.DBWrite.update("portal_posts", String(commentId), data, String(postId), "comments");
   },
 
   async deleteComment(postId, commentId) {
-    var ref = this.commentsRef(postId);
-    if (!ref) throw new Error("Firebase bağlantısı yok");
     // Alt yorumları da sil
-    var children = await ref.where("parentId", "==", commentId).get();
+    var allComments = await window.apiRead("portal_posts_comments", { where: "parentId:eq:s:" + String(commentId) });
     var deleteCount = 1;
     var ops = [];
-    children.docs.forEach(function (doc) {
+    allComments.forEach(function (doc) {
       ops.push({ collection: "portal_posts", type: "delete", docId: doc.id, parentDocId: String(postId), subCollection: "comments" });
       deleteCount++;
     });
     ops.push({ collection: "portal_posts", type: "delete", docId: String(commentId), parentDocId: String(postId), subCollection: "comments" });
     for (var i = 0; i < ops.length; i += 20) {
-      await window.FirestoreWrite.batch(ops.slice(i, i + 20));
+      await window.DBWrite.batch(ops.slice(i, i + 20));
     }
     // Yorum sayısını azalt
     var postRef = this.postsRef();
@@ -629,19 +602,16 @@ var PortalDB = {
       var postDoc = await postRef.doc(String(postId)).get();
       if (postDoc.exists) {
         var currentCount = Math.max(0, (postDoc.data().commentCount || 0) - deleteCount);
-        await window.FirestoreWrite.update("portal_posts", String(postId), { commentCount: currentCount });
+        await window.DBWrite.update("portal_posts", String(postId), { commentCount: currentCount });
       }
     }
     return deleteCount;
   },
 
   async toggleCommentLike(postId, commentId, userId) {
-    var ref = this.commentsRef(postId);
-    if (!ref) return [];
-    var docRef = ref.doc(String(commentId));
-    var doc = await docRef.get();
-    if (!doc.exists) return [];
-    var data = doc.data();
+    var result = await window.apiReadDoc("portal_posts_comments", String(commentId));
+    if (!result.exists) return [];
+    var data = result.data;
     var likes = data.likes || [];
     var idx = likes.indexOf(userId);
     if (idx >= 0) {
@@ -649,30 +619,25 @@ var PortalDB = {
     } else {
       likes.push(userId);
     }
-    await window.FirestoreWrite.update("portal_posts", String(commentId), { likes: likes }, String(postId), "comments");
+    await window.DBWrite.update("portal_posts", String(commentId), { likes: likes }, String(postId), "comments");
     return likes;
   },
 
   // En iyi cevap işaretleme
   async markBestAnswer(postId, commentId) {
-    var ref = this.postsRef();
-    if (!ref) return null;
-    var doc = await ref.doc(String(postId)).get();
-    if (!doc.exists) return null;
-    var data = doc.data();
+    var result = await window.apiReadDoc("portal_posts", String(postId));
+    if (!result.exists) return null;
+    var data = result.data;
     var newBestAnswer = data.bestAnswerId === commentId ? null : commentId;
-    await window.FirestoreWrite.update("portal_posts", String(postId), { bestAnswerId: newBestAnswer });
+    await window.DBWrite.update("portal_posts", String(postId), { bestAnswerId: newBestAnswer });
     return newBestAnswer;
   },
 
   // Anket oyu
   async votePoll(postId, optionIndex, userId) {
-    var ref = this.postsRef();
-    if (!ref) return;
-    var docRef = ref.doc(String(postId));
-    var doc = await docRef.get();
-    if (!doc.exists) return;
-    var data = doc.data();
+    var result = await window.apiReadDoc("portal_posts", String(postId));
+    if (!result.exists) return;
+    var data = result.data;
     var pollVotes = data.pollVotes || {};
     // Önceki oyu kaldır
     Object.keys(pollVotes).forEach(function (key) {
@@ -685,36 +650,25 @@ var PortalDB = {
     var key = String(optionIndex);
     if (!pollVotes[key]) pollVotes[key] = [];
     pollVotes[key].push(userId);
-    await window.FirestoreWrite.update("portal_posts", String(postId), { pollVotes: pollVotes });
+    await window.DBWrite.update("portal_posts", String(postId), { pollVotes: pollVotes });
     return pollVotes;
   },
 
   // Görüntülenme artır
   async incrementViews(postId) {
-    var ref = this.postsRef();
-    if (!ref) return;
-    var doc = await ref.doc(String(postId)).get();
-    if (!doc.exists) return;
-    var currentViews = (doc.data().views || 0) + 1;
-    await window.FirestoreWrite.update("portal_posts", String(postId), { views: currentViews });
+    var result = await window.apiReadDoc("portal_posts", String(postId));
+    if (!result.exists) return;
+    var currentViews = (result.data.views || 0) + 1;
+    await window.DBWrite.update("portal_posts", String(postId), { views: currentViews });
   },
 
   // ── Moderatör Yönetimi ──
-  moderatorsRef: function () {
-    return window.apiFirestore.collection("portal_moderators");
-  },
-
   async getModerators() {
-    var ref = this.moderatorsRef();
-    if (!ref) return [];
-    var snapshot = await ref.get();
-    return snapshot.docs.map(function (doc) {
-      return Object.assign({}, doc.data(), { id: doc.id });
-    });
+    return await window.apiRead("portal_moderators");
   },
 
   async addModerator(userId, userName) {
-    await window.FirestoreWrite.set("portal_moderators", String(userId), {
+    await window.DBWrite.set("portal_moderators", String(userId), {
       userId: userId,
       userName: userName,
       assignedAt: new Date().toISOString(),
@@ -722,14 +676,12 @@ var PortalDB = {
   },
 
   async removeModerator(userId) {
-    await window.FirestoreWrite.remove("portal_moderators", String(userId));
+    await window.DBWrite.remove("portal_moderators", String(userId));
   },
 
   async isModerator(userId) {
-    var ref = this.moderatorsRef();
-    if (!ref) return false;
-    var doc = await ref.doc(String(userId)).get();
-    return doc.exists;
+    var result = await window.apiReadDoc("portal_moderators", String(userId));
+    return result.exists;
   },
 
   // ── Dosya Yükleme (API üzerinden) ──
@@ -744,24 +696,17 @@ var PortalDB = {
   },
 
   // ── Bildirimler ──
-  notificationsRef: function (userId) {
-    return window.apiFirestore.collection("portal_notifications").doc(String(userId)).collection("items");
-  },
-
   async addNotification(targetUserId, notification) {
-    await window.FirestoreWrite.add("portal_notifications", Object.assign({}, notification, {
+    await window.DBWrite.add("portal_notifications", Object.assign({}, notification, {
       createdAt: new Date().toISOString(),
       read: false,
     }), String(targetUserId), "items");
   },
 
   async fetchNotifications(userId, limit) {
-    var ref = this.notificationsRef(userId);
-    if (!ref) return [];
-    var snapshot = await ref.limit(limit || 20).get();
-    var results = snapshot.docs.map(function (doc) {
-      return Object.assign({}, doc.data(), { id: doc.id });
-    });
+    var params = {};
+    if (limit) params.limit = limit;
+    var results = await window.apiRead("portal_notifications_items", params);
     results.sort(function (a, b) {
       var ta = a.createdAt ? (a.createdAt._seconds ? a.createdAt._seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
       var tb = b.createdAt ? (b.createdAt._seconds ? b.createdAt._seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
@@ -771,60 +716,43 @@ var PortalDB = {
   },
 
   async markNotificationRead(userId, notifId) {
-    await window.FirestoreWrite.update("portal_notifications", String(notifId), { read: true }, String(userId), "items");
+    await window.DBWrite.update("portal_notifications", String(notifId), { read: true }, String(userId), "items");
   },
 
   async markAllNotificationsRead(userId) {
-    var ref = this.notificationsRef(userId);
-    if (!ref) return;
-    var snapshot = await ref.where("read", "==", false).get();
-    if (snapshot.empty) return;
-    var ops = snapshot.docs.map(function (doc) {
+    var allNotifs = await window.apiRead("portal_notifications_items", { where: "read:eq:false" });
+    if (allNotifs.length === 0) return;
+    var ops = allNotifs.map(function (doc) {
       return { collection: "portal_notifications", type: "update", docId: doc.id, parentDocId: String(userId), subCollection: "items", data: { read: true } };
     });
     for (var i = 0; i < ops.length; i += 20) {
-      await window.FirestoreWrite.batch(ops.slice(i, i + 20));
+      await window.DBWrite.batch(ops.slice(i, i + 20));
     }
   },
 
   // ── Kullanıcı Profilleri ──
-  profilesRef: function () {
-    return window.apiFirestore.collection("portal_profiles");
-  },
-
   async getProfile(userId) {
-    var ref = this.profilesRef();
-    if (!ref) return null;
-    var doc = await ref.doc(String(userId)).get();
-    return doc.exists ? doc.data() : null;
+    var result = await window.apiReadDoc("portal_profiles", String(userId));
+    return result.exists ? result.data : null;
   },
 
   async updateProfile(userId, data) {
-    await window.FirestoreWrite.set("portal_profiles", String(userId), Object.assign({}, data, {
+    await window.DBWrite.set("portal_profiles", String(userId), Object.assign({}, data, {
       updatedAt: new Date().toISOString(),
     }), true);
   },
 
   // ── Takip Sistemi ──
-  followsRef: function () {
-    return window.apiFirestore.collection("portal_follows");
-  },
-
   async getFollows(userId) {
-    var ref = this.followsRef();
-    if (!ref) return { users: [], tags: [] };
-    var doc = await ref.doc(String(userId)).get();
-    if (!doc.exists) return { users: [], tags: [] };
-    var data = doc.data();
+    var result = await window.apiReadDoc("portal_follows", String(userId));
+    if (!result.exists) return { users: [], tags: [] };
+    var data = result.data;
     return { users: data.users || [], tags: data.tags || [] };
   },
 
   async toggleFollowUser(currentUserId, targetUserId) {
-    var ref = this.followsRef();
-    if (!ref) return;
-    var docRef = ref.doc(String(currentUserId));
-    var doc = await docRef.get();
-    var data = doc.exists ? doc.data() : {};
+    var result = await window.apiReadDoc("portal_follows", String(currentUserId));
+    var data = result.exists ? result.data : {};
     var users = data.users || [];
     var idx = users.indexOf(targetUserId);
     if (idx >= 0) {
@@ -832,16 +760,13 @@ var PortalDB = {
     } else {
       users.push(targetUserId);
     }
-    await window.FirestoreWrite.set("portal_follows", String(currentUserId), Object.assign({}, data, { users: users }), true);
+    await window.DBWrite.set("portal_follows", String(currentUserId), Object.assign({}, data, { users: users }), true);
     return users;
   },
 
   async toggleFollowTag(currentUserId, tag) {
-    var ref = this.followsRef();
-    if (!ref) return;
-    var docRef = ref.doc(String(currentUserId));
-    var doc = await docRef.get();
-    var data = doc.exists ? doc.data() : {};
+    var result = await window.apiReadDoc("portal_follows", String(currentUserId));
+    var data = result.exists ? result.data : {};
     var tags = data.tags || [];
     var idx = tags.indexOf(tag);
     if (idx >= 0) {
@@ -849,18 +774,15 @@ var PortalDB = {
     } else {
       tags.push(tag);
     }
-    await window.FirestoreWrite.set("portal_follows", String(currentUserId), Object.assign({}, data, { tags: tags }), true);
+    await window.DBWrite.set("portal_follows", String(currentUserId), Object.assign({}, data, { tags: tags }), true);
     return tags;
   },
 
   // ── Kullanıcı Listesi (Bahsetme için) ──
   async fetchAllUsers() {
-    var ref = this.postsRef();
-    if (!ref) return [];
-    var snapshot = await ref.limit(200).get();
+    var posts = await window.apiRead("portal_posts", { limit: 200 });
     var usersMap = {};
-    snapshot.docs.forEach(function (doc) {
-      var data = doc.data();
+    posts.forEach(function (data) {
       if (data.authorId && data.authorName) {
         usersMap[data.authorId] = data.authorName;
       }
@@ -873,7 +795,7 @@ var PortalDB = {
   // ── Tüm Kayıtlı Öğrenciler (Moderatör atama için) ──
   async fetchAllStudents() {
     try {
-      var students = await window.FirebaseDB.fetchStudents();
+      var students = await window.DB.fetchStudents();
       return (students || []).map(function (s) {
         return {
           id: "student_" + s.studentNumber,
@@ -888,12 +810,8 @@ var PortalDB = {
   },
 
   // ── Raporlama ──
-  reportsRef: function () {
-    return window.apiFirestore.collection("portal_reports");
-  },
-
   async reportPost(postId, reportData) {
-    await window.FirestoreWrite.add("portal_reports", Object.assign({}, reportData, {
+    await window.DBWrite.add("portal_reports", Object.assign({}, reportData, {
       postId: postId,
       createdAt: new Date().toISOString(),
       status: "pending",
@@ -901,12 +819,7 @@ var PortalDB = {
   },
 
   async fetchReports() {
-    var ref = this.reportsRef();
-    if (!ref) return [];
-    var snapshot = await ref.get();
-    var results = snapshot.docs.map(function (doc) {
-      return Object.assign({}, doc.data(), { id: doc.id });
-    });
+    var results = await window.apiRead("portal_reports");
     results.sort(function (a, b) {
       var ta = a.createdAt ? (a.createdAt._seconds ? a.createdAt._seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
       var tb = b.createdAt ? (b.createdAt._seconds ? b.createdAt._seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
@@ -916,7 +829,7 @@ var PortalDB = {
   },
 
   async resolveReport(reportId) {
-    await window.FirestoreWrite.update("portal_reports", String(reportId), { status: "resolved" });
+    await window.DBWrite.update("portal_reports", String(reportId), { status: "resolved" });
   },
 };
 
@@ -1311,7 +1224,7 @@ const CommentItem = ({ comment, postId, currentUser, onUpdate, onRemove, onReply
     try {
       var updateData = {
         text: comment.contentFormat === "html" ? editContent : editContent.trim(),
-        editedAt: window.apiFieldValue.serverTimestamp(),
+        editedAt: new Date().toISOString(),
       };
       if (comment.contentFormat === "html") updateData.contentFormat = "html";
       await PortalDB.updateComment(postId, comment.id, updateData);
@@ -4959,7 +4872,7 @@ function OgrenciPortaliApp({ currentUser }) {
   const handleEdit = async function (postId, updates) {
     try {
       await PortalDB.updatePost(postId, Object.assign({}, updates, {
-        editedAt: window.apiFieldValue.serverTimestamp(),
+        editedAt: new Date().toISOString(),
       }));
       setPosts(function (prev) {
         return prev.map(function (p) {

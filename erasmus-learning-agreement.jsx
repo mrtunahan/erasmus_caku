@@ -16,7 +16,7 @@ const Modal = window.Modal;
 const Badge = window.Badge;
 const HOME_INSTITUTION_CATALOG = window.HOME_INSTITUTION_CATALOG;
 const convertGrade = window.convertGrade;
-const FirebaseDB = window.FirebaseDB;
+const DB = window.DB;
 const UploadIcon = window.UploadIcon;
 const DownloadIcon = window.DownloadIcon;
 const PlusIcon = window.PlusIcon;
@@ -504,9 +504,9 @@ const InstitutionMatchesModal = ({ hostInstitution, allStudents, currentStudentI
   const [tripHistory, setTripHistory] = useState([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
 
-  // Load trip history from Firebase on mount
+  // Load trip history from DB on mount
   useEffect(() => {
-    FirebaseDB.fetchTripHistory(hostInstitution).then(entries => {
+    DB.fetchTripHistory(hostInstitution).then(entries => {
       setTripHistory(entries);
       setHistoryLoaded(true);
     }).catch(() => setHistoryLoaded(true));
@@ -805,7 +805,7 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false, activeDep
     if (!uni) { setHistory([]); return; }
     setLoading(true);
     try {
-      const entries = await FirebaseDB.fetchTripHistory(uni, activeDepartment);
+      const entries = await DB.fetchTripHistory(uni, activeDepartment);
       setHistory(entries);
     } catch (e) {
       console.error("Trip history load error:", e);
@@ -844,7 +844,7 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false, activeDep
   const handleDelete = async (entryId) => {
     if (!confirm("Bu geçmiş kaydını silmek istediğinizden emin misiniz?")) return;
     try {
-      await FirebaseDB.deleteTripHistoryEntry(entryId);
+      await DB.deleteTripHistoryEntry(entryId);
       setHistory(prev => prev.filter(h => h.id !== entryId));
     } catch (e) { alert("Silme sırasında hata oluştu."); }
   };
@@ -1728,24 +1728,24 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
 
   const handleAddUniversity = async (name, country) => {
     try {
-      await window.FirestoreWrite.add("erasmus_universities", { name, country, courses: [], createdAt: new Date().toISOString() });
+      await window.DBWrite.add("erasmus_universities", { name, country, courses: [], createdAt: new Date().toISOString() });
       setCustomUniversities(prev => ({ ...prev, [name]: { country, courses: [], custom: true } }));
     } catch (e) { console.error("Üniversite eklenemedi:", e); }
   };
 
   useEffect(() => {
     const loadStudents = async () => {
-      if (!FirebaseDB.isReady()) { setLoading(false); return; }
+      if (!DB.isReady()) { setLoading(false); return; }
       try {
         setLoading(true);
         // Initialize database if needed
-        const ref = FirebaseDB.studentsRef();
+        const ref = DB.studentsRef();
         if (!ref) { setLoading(false); return; }
         const snapshot = await ref.limit(1).get();
         if (snapshot.empty) {
-          for (const student of SAMPLE_STUDENTS) await FirebaseDB.addStudent({ ...student, erasmusAccess: true });
+          for (const student of SAMPLE_STUDENTS) await DB.addStudent({ ...student, erasmusAccess: true });
         }
-        const allStudents = await FirebaseDB.fetchStudents();
+        const allStudents = await DB.fetchStudents();
         // Bölüm bazlı filtreleme: departmentId'si olmayan veriler bilgisayar bölümüne ait
         const fetchedStudents = allStudents.filter(s => {
           const deptId = s.departmentId || "bilgisayar";
@@ -1755,7 +1755,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
         // Mevcut öğrencilerin eşleştirmelerini geçmişe kaydet (ilk seferde)
         fetchedStudents.forEach(s => {
           if ((s.outgoingMatches?.length > 0 || s.returnMatches?.length > 0) && s.hostInstitution) {
-            FirebaseDB.syncStudentToTripHistory(s).catch(() => {});
+            DB.syncStudentToTripHistory(s).catch(() => {});
           }
         });
       } catch (error) {
@@ -1797,14 +1797,14 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
     try {
       const originalStudent = students.find(s => s.id === updatedStudent.id);
       const studentNumberChanged = originalStudent && originalStudent.studentNumber !== updatedStudent.studentNumber;
-      await FirebaseDB.updateStudent(updatedStudent.id, updatedStudent);
+      await DB.updateStudent(updatedStudent.id, updatedStudent);
       if (studentNumberChanged) {
         // Öğrenci numarası değişti - yeni numara için şifre sıfırlanacak
         // Öğrenci bir sonraki girişte yeni şifre belirleyecek
         console.log('Öğrenci numarası değişti:', originalStudent.studentNumber, '->', updatedStudent.studentNumber);
       }
       // Otomatik olarak eşleştirme geçmişine kaydet
-      FirebaseDB.syncStudentToTripHistory(updatedStudent).catch(err =>
+      DB.syncStudentToTripHistory(updatedStudent).catch(err =>
         console.error('Trip history sync error:', err)
       );
       setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
@@ -1825,7 +1825,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   const handleToggleErasmusAccess = async (student) => {
     try {
       const newAccess = !student.erasmusAccess;
-      await FirebaseDB.updateStudent(student.id, { ...student, erasmusAccess: newAccess });
+      await DB.updateStudent(student.id, { ...student, erasmusAccess: newAccess });
       setStudents(prev => prev.map(s => s.id === student.id ? { ...s, erasmusAccess: newAccess } : s));
     } catch (error) {
       console.error('Erasmus erişim güncelleme hatası:', error);
@@ -1836,7 +1836,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   const handleDeleteStudent = async (id) => {
     if (confirm("Bu öğrenciyi silmek istediğinizden emin misiniz?")) {
       try {
-        await FirebaseDB.deleteStudent(id);
+        await DB.deleteStudent(id);
         setStudents(prev => prev.filter(s => s.id !== id));
       } catch (error) {
         console.error('Delete error:', error);

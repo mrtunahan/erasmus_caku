@@ -108,7 +108,7 @@ var ProjDB = {
   async addCourse(data, category) {
     try {
       var col = this._col(category);
-      var result = await window.FirestoreWrite.add(col, Object.assign({}, data, {
+      var result = await window.DBWrite.add(col, Object.assign({}, data, {
         createdAt: new Date().toISOString(),
       }));
       return result;
@@ -119,12 +119,12 @@ var ProjDB = {
   },
   async updateCourse(id, data, category) {
     var col = this._col(category);
-    await window.FirestoreWrite.update(col, String(id), data);
+    await window.DBWrite.update(col, String(id), data);
   },
   async deleteCourse(id, category) {
     try {
       var col = this._col(category);
-      await window.FirestoreWrite.remove(col, id);
+      await window.DBWrite.remove(col, id);
     } catch (e) {
       console.error("Ders silinemedi:", e);
       throw e;
@@ -164,7 +164,7 @@ var ProjDB = {
   async createProject(data, category) {
     try {
       var col = this._projCol(category);
-      var result = await window.FirestoreWrite.add(col, Object.assign({}, data, {
+      var result = await window.DBWrite.add(col, Object.assign({}, data, {
         createdAt: new Date().toISOString(),
       }));
       return result;
@@ -175,12 +175,12 @@ var ProjDB = {
   },
   async updateProject(id, data, category) {
     var col = this._projCol(category);
-    await window.FirestoreWrite.update(col, String(id), data);
+    await window.DBWrite.update(col, String(id), data);
   },
   async deleteProject(id, category) {
     try {
       var col = this._projCol(category);
-      await window.FirestoreWrite.remove(col, id);
+      await window.DBWrite.remove(col, id);
     } catch (e) {
       console.error("Proje silinemedi:", e);
       throw e;

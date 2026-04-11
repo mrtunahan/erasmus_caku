@@ -759,7 +759,7 @@ function exportCourseContentsJSON(courses, department) {
 
 var MuafiyetDB = {
   async saveCourseContents(contents) {
-    await window.FirestoreWrite.set("muafiyet_settings", "course_contents", { courses: contents, updatedAt: new Date().toISOString() });
+    await window.DBWrite.set("muafiyet_settings", "course_contents", { courses: contents, updatedAt: new Date().toISOString() });
   },
   async fetchCourseContents() {
     try {
@@ -768,7 +768,7 @@ var MuafiyetDB = {
     } catch (e) { return []; }
   },
   async saveGradingSystem(system) {
-    await window.FirestoreWrite.set("muafiyet_settings", "grading_system", { grades: system, updatedAt: new Date().toISOString() });
+    await window.DBWrite.set("muafiyet_settings", "grading_system", { grades: system, updatedAt: new Date().toISOString() });
   },
   async fetchGradingSystem() {
     try {
@@ -778,8 +778,8 @@ var MuafiyetDB = {
   },
   async saveRecord(record) {
     var id = record.id; var data = Object.assign({}, record); delete data.id;
-    if (id) { await window.FirestoreWrite.update("muafiyet_records", String(id), Object.assign({}, data, { updatedAt: new Date().toISOString() })); return record; }
-    else { var result = await window.FirestoreWrite.add("muafiyet_records", Object.assign({}, data, { createdAt: new Date().toISOString() })); return Object.assign({}, record, { id: result.id }); }
+    if (id) { await window.DBWrite.update("muafiyet_records", String(id), Object.assign({}, data, { updatedAt: new Date().toISOString() })); return record; }
+    else { var result = await window.DBWrite.add("muafiyet_records", Object.assign({}, data, { createdAt: new Date().toISOString() })); return Object.assign({}, record, { id: result.id }); }
   },
   async fetchRecords() {
     try {
@@ -788,7 +788,7 @@ var MuafiyetDB = {
     } catch (e) { return []; }
   },
   async deleteRecord(id) {
-    await window.FirestoreWrite.remove("muafiyet_records", String(id));
+    await window.DBWrite.remove("muafiyet_records", String(id));
   },
 
   // Admin insan onayı: tek bir match'in kararını günceller
@@ -807,7 +807,7 @@ var MuafiyetDB = {
     var pendingLeft = matches.filter(function(m) {
       return m.tier === "review" && !m.adminDecision;
     }).length;
-    await window.FirestoreWrite.update("muafiyet_records", String(recordId), {
+    await window.DBWrite.update("muafiyet_records", String(recordId), {
       matches: matches,
       pendingReviewCount: pendingLeft,
       updatedAt: new Date().toISOString(),
@@ -1423,7 +1423,7 @@ const SettingsPanel = ({ courseContents, setCourseContents, gradingSystem, setGr
     try {
       if (courseContents.length > 0) await MuafiyetDB.saveCourseContents(courseContents);
       if (gradingSystem && gradingSystem.length > 0) await MuafiyetDB.saveGradingSystem(gradingSystem);
-      setMsg({ text: "Ayarlar Firebase'e kaydedildi.", type: "success" });
+      setMsg({ text: "Ayarlar veritabanına kaydedildi.", type: "success" });
     } catch (err) { setMsg({ text: "Kaydetme hatası: " + err.message, type: "error" }); }
     setSaving(false);
   };

@@ -90,7 +90,7 @@ function assignClassroom(studentCount) {
 function assignClassroomFromList(rooms, studentCount) {
   if (!rooms || rooms.length === 0) return "TBD";
   if (!studentCount || studentCount <= 0) return rooms[0].name;
-  // capacity değerlerini sayıya çevir (Firestore string döndürebilir)
+  // capacity değerlerini sayıya çevir (DB string döndürebilir)
   const getCap = (r) => Number(r.capacity) || 0;
   // 1) Tek salon yeterli mi? (best-fit: kapasitesi yeten en küçük salon)
   const validRooms = rooms.filter(r => getCap(r) > 0);
@@ -319,8 +319,8 @@ function slotSpan(durationMinutes) {
   return Math.ceil(durationMinutes / 30);
 }
 
-// ── API Read helpers (Firestore üzerinden) ──
-// Firestore ref'leri yerine apiRead kullanan yardımcılar
+// ── API Read helpers (MongoDB üzerinden) ──
+// apiRead kullanan yardımcılar
 // Eski ref-tabanlı çağrılar için uyumluluk katmanı
 function apiQueryHelper(collection) {
   return {
@@ -410,9 +410,9 @@ const PeriodConfigModal = ({ period, onSave, onClose, departmentId }) => {
         departmentId: departmentId || null,
       };
       if (period?.id) {
-        await FirestoreWrite.update("sinav_donemler", period.id, data);
+        await DBWrite.update("sinav_donemler", period.id, data);
       } else {
-        await FirestoreWrite.add("sinav_donemler", data);
+        await DBWrite.add("sinav_donemler", data);
       }
       onSave();
     } catch (e) {
@@ -1629,11 +1629,11 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     return assignSupervisorsFromList(supervisorNames, exams, assignClassroomDynamic);
   }, [deptSupervisors, assignClassroomDynamic]);
 
-  // ── Seed data to Firebase ──
+  // ── Seed data to DB ──
   const seedData = async () => {
     const cRef = getCoursesRef();
     const pRef = getProfessorsRef();
-    if (!cRef || !pRef) { alert("Firebase bağlantısı yok!"); return; }
+    if (!cRef || !pRef) { alert("Veritabanı bağlantısı yok!"); return; }
     if (!selectedDeptId) { alert("Lütfen önce bir bölüm seçin!"); return; }
     try {
       // Sadece seçili bölümün derslerini kontrol et ve sil
@@ -1642,7 +1642,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
         if (!confirm("Bu bölümde zaten dersler var. Üzerine yazılsın mı?")) return;
         const delOps1 = existingCourses.docs.map(doc => ({ collection: "sinav_dersler", type: "delete", docId: doc.id }));
         for (let i = 0; i < delOps1.length; i += 20) {
-          await FirestoreWrite.batch(delOps1.slice(i, i + 20));
+          await DBWrite.batch(delOps1.slice(i, i + 20));
         }
       }
       // Sadece seçili bölümün profesörlerini sil
@@ -1651,14 +1651,14 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
       if (deptProfs.length > 0) {
         const delOps2 = deptProfs.map(doc => ({ collection: "professors", type: "delete", docId: doc.id }));
         for (let i = 0; i < delOps2.length; i += 20) {
-          await FirestoreWrite.batch(delOps2.slice(i, i + 20));
+          await DBWrite.batch(delOps2.slice(i, i + 20));
         }
       }
       for (const prof of SEED_PROFESSORS) {
-        await FirestoreWrite.add("professors", { ...prof, departmentId: selectedDeptId, createdAt: new Date().toISOString() });
+        await DBWrite.add("professors", { ...prof, departmentId: selectedDeptId, createdAt: new Date().toISOString() });
       }
       for (const course of SEED_COURSES) {
-        await FirestoreWrite.add("sinav_dersler", { ...course, studentCount: 0, departmentId: selectedDeptId, createdAt: new Date().toISOString() });
+        await DBWrite.add("sinav_dersler", { ...course, studentCount: 0, departmentId: selectedDeptId, createdAt: new Date().toISOString() });
       }
       alert("Veriler başarıyla yüklendi!");
       loadData();
@@ -1674,7 +1674,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     setLoading(true);
     try {
       const cRef = getCoursesRef();
-      if (!cRef) throw new Error("Firebase hazır değil");
+      if (!cRef) throw new Error("Veritabanı hazır değil");
       // Sadece seçili bölümün derslerini al
       const snap = await cRef.where("departmentId", "==", selectedDeptId).get();
       const existing = snap.docs.map(d => ({ fireId: d.id, ...d.data() }));
@@ -1700,7 +1700,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
 
       if (added > 0 || updated > 0) {
         for (let i = 0; i < ops.length; i += 20) {
-          await FirestoreWrite.batch(ops.slice(i, i + 20));
+          await DBWrite.batch(ops.slice(i, i + 20));
         }
         alert(`İşlem tamamlandı: ${added} ders eklendi, ${updated} ders güncellendi.`);
         loadData();
@@ -1742,7 +1742,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
             const fixedName = cleaned.join(" ");
             if (fixedName !== dept.name) {
               dept.name = fixedName;
-              FirestoreWrite.update("departments", dept.docId, { name: fixedName }).catch(() => {});
+              DBWrite.update("departments", dept.docId, { name: fixedName }).catch(() => {});
               // İsim düzeltildikten sonra tekrar eşleştir
               const matched = HARD_DEPTS.find(hd => hd.name === fixedName);
               if (matched) dept.id = matched.id;
@@ -1815,7 +1815,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
-  // ── Load data from Firebase (department-scoped) ──
+  // ── Load data from DB (department-scoped) ──
   const loadData = async () => {
     setLoading(true);
     try {
@@ -2068,7 +2068,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
 
           if (updateOps.length > 0) {
             for (let i = 0; i < updateOps.length; i += BATCH_LIMIT) {
-              await FirestoreWrite.batch(updateOps.slice(i, i + BATCH_LIMIT));
+              await DBWrite.batch(updateOps.slice(i, i + BATCH_LIMIT));
             }
             console.log(`Migration: ${updateOps.length} kayıt normalize edildi.`);
             needsMigration = true;
@@ -2076,7 +2076,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
 
           if (deleteOps.length > 0) {
             for (let i = 0; i < deleteOps.length; i += BATCH_LIMIT) {
-              await FirestoreWrite.batch(deleteOps.slice(i, i + BATCH_LIMIT));
+              await DBWrite.batch(deleteOps.slice(i, i + BATCH_LIMIT));
             }
             console.log(`Migration: ${deleteOps.length} mükerrer kayıt silindi.`);
             needsMigration = true;
@@ -2192,7 +2192,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     };
 
     try {
-      const result = await FirestoreWrite.add("sinav_programi", examData);
+      const result = await DBWrite.add("sinav_programi", examData);
       setPlacedExams(prev => [...prev, { id: result.id, ...examData }]);
     } catch (e) {
       console.error("Drop save error:", e);
@@ -2208,7 +2208,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     }
     try {
       const { id, ...data } = updatedExam;
-      await FirestoreWrite.update("sinav_programi", id, data);
+      await DBWrite.update("sinav_programi", id, data);
       setPlacedExams(prev => prev.map(e => e.id === id ? updatedExam : e));
     } catch (e) {
       console.error("Update error:", e);
@@ -2223,7 +2223,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
       return;
     }
     try {
-      await FirestoreWrite.remove("sinav_programi", exam.id);
+      await DBWrite.remove("sinav_programi", exam.id);
       setPlacedExams(prev => prev.filter(e => e.id !== exam.id));
     } catch (e) {
       console.error("Remove error:", e);
@@ -2261,7 +2261,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
       const ops = linkedExams.map(e => ({ collection: "sinav_programi", type: "delete", docId: e.id }));
       duplicateIds.forEach(id => ops.push({ collection: "sinav_dersler", type: "delete", docId: id }));
       for (let i = 0; i < ops.length; i += 20) {
-        await FirestoreWrite.batch(ops.slice(i, i + 20));
+        await DBWrite.batch(ops.slice(i, i + 20));
       }
       if (linkedExams.length > 0) {
         setPlacedExams(prev => prev.filter(e => !duplicateIds.includes(e.courseId)));
@@ -2278,7 +2278,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
   const handleCourseSave = async (existingCourse, formData) => {
     try {
       if (existingCourse) {
-        await FirestoreWrite.update("sinav_dersler", existingCourse.id, formData);
+        await DBWrite.update("sinav_dersler", existingCourse.id, formData);
       } else {
         // Aynı code+name+departmentId zaten varsa ekleme (duplicate önleme)
         const cRef = getCoursesRef();
@@ -2294,7 +2294,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
             }
           }
         }
-        await FirestoreWrite.add("sinav_dersler", { ...formData, donem: formData.donem || "guz", studentCount: 0, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() });
+        await DBWrite.add("sinav_dersler", { ...formData, donem: formData.donem || "guz", studentCount: 0, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() });
       }
       // Akademisyen adı girilmişse ve professors koleksiyonunda yoksa otomatik ekle
       if (formData.professor && formData.professor.trim()) {
@@ -2303,7 +2303,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
         if (pRef) {
           const existCheck = await pRef.where("name", "==", profName).limit(1).get();
           if (existCheck.empty) {
-            await FirestoreWrite.add("professors", {
+            await DBWrite.add("professors", {
               name: profName,
               department: selectedDept?.name || "",
               departmentId: selectedDeptId || null,
@@ -2336,7 +2336,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
         snap.docs.forEach(doc => ops.push({ collection: "sinav_programi", type: "delete", docId: doc.id }));
       }
       for (let i = 0; i < ops.length; i += 20) {
-        await FirestoreWrite.batch(ops.slice(i, i + 20));
+        await DBWrite.batch(ops.slice(i, i + 20));
       }
       if (activePeriodId === periodId) setActivePeriodId(null);
       loadData();
@@ -2350,11 +2350,11 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     if (!confirm("Bu dönemdeki tüm sınav yerleşimlerini sıfırlamak istediğinize emin misiniz?")) return;
     try {
       const ref = getExamsRef();
-      if (!ref) { alert("Firebase bağlantısı yok!"); return; }
+      if (!ref) { alert("Veritabanı bağlantısı yok!"); return; }
       const snap = await ref.where("periodId", "==", activePeriodId).get();
       const ops = snap.docs.map(doc => ({ collection: "sinav_programi", type: "delete", docId: doc.id }));
       for (let i = 0; i < ops.length; i += 20) {
-        await FirestoreWrite.batch(ops.slice(i, i + 20));
+        await DBWrite.batch(ops.slice(i, i + 20));
       }
       setPlacedExams(prev => prev.filter(e => e.periodId !== activePeriodId));
     } catch (e) {
@@ -2365,9 +2365,9 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
   // ── Department CRUD handlers ──
   const handleDeptSave = async (existingDept, formData) => {
     if (existingDept) {
-      await FirestoreWrite.update("departments", existingDept.docId || existingDept.id, formData);
+      await DBWrite.update("departments", existingDept.docId || existingDept.id, formData);
     } else {
-      await FirestoreWrite.add("departments", { ...formData, createdAt: new Date().toISOString() });
+      await DBWrite.add("departments", { ...formData, createdAt: new Date().toISOString() });
     }
     await loadDepartments();
     loadData();
@@ -2375,7 +2375,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const handleDeptDelete = async (dept) => {
     if (!confirm(`"${dept.name}" bölümünü silmek istediğinize emin misiniz? Bu bölüme ait tüm veriler silinmez ama bölüm bağlantısı kaldırılır.`)) return;
-    await FirestoreWrite.remove("departments", dept.docId || dept.id);
+    await DBWrite.remove("departments", dept.docId || dept.id);
     if (selectedDeptId === dept.id) setSelectedDeptId(null);
     await loadDepartments();
   };
@@ -2383,16 +2383,16 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
   // ── Department Classroom CRUD handlers ──
   const handleClassroomSave = async (existingRoom, formData) => {
     if (existingRoom) {
-      await FirestoreWrite.update("department_classrooms", existingRoom.id, formData);
+      await DBWrite.update("department_classrooms", existingRoom.id, formData);
     } else {
-      await FirestoreWrite.add("department_classrooms", { ...formData, departmentId: selectedDeptId, createdAt: new Date().toISOString() });
+      await DBWrite.add("department_classrooms", { ...formData, departmentId: selectedDeptId, createdAt: new Date().toISOString() });
     }
     await loadDeptResources(selectedDeptId);
   };
 
   const handleClassroomDelete = async (room) => {
     if (!confirm(`"${room.name}" sınıfını silmek istiyor musunuz?`)) return;
-    await FirestoreWrite.remove("department_classrooms", room.id);
+    await DBWrite.remove("department_classrooms", room.id);
     await loadDeptResources(selectedDeptId);
   };
 
@@ -2400,11 +2400,11 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
   const handleSupervisorSave = async (existingSup, formData) => {
     if (existingSup) {
       // Düzenleme — professors koleksiyonunda güncelle
-      await FirestoreWrite.update("professors", existingSup.id, formData);
+      await DBWrite.update("professors", existingSup.id, formData);
     } else {
       // Yeni gözetmen — professors'a roles:["gozetmen"] ile ekle
       const roles = ["gozetmen"];
-      await FirestoreWrite.add("professors", { ...formData, roles, departmentId: selectedDeptId, isExternal: false, createdAt: new Date().toISOString() });
+      await DBWrite.add("professors", { ...formData, roles, departmentId: selectedDeptId, isExternal: false, createdAt: new Date().toISOString() });
     }
     await loadDeptResources(selectedDeptId);
   };
@@ -2413,7 +2413,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     if (!confirm(`"${sup.name}" gözetmenlikten çıkarılacak mı?`)) return;
     // Profesörü silme — sadece gozetmen rolünü kaldır
     const roles = (sup.roles || []).filter(r => r !== "gozetmen");
-    await FirestoreWrite.update("professors", sup.id, { roles });
+    await DBWrite.update("professors", sup.id, { roles });
     await loadDeptResources(selectedDeptId);
   };
 

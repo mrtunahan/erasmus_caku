@@ -463,7 +463,7 @@ function AppShell() {
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth <= 768;
 
-  // Restore session from localStorage + Firebase Auth state
+  // Restore session from localStorage + JWT auth state
   useEffect(() => {
     try {
       const saved = localStorage.getItem("caku_current_user");
@@ -573,7 +573,7 @@ function AppShell() {
   };
 
   const handleLogout = async () => {
-    await FirebaseAuth.signOut();
+    await Auth.signOut();
     setCurrentUser(null);
     navigate("portal");
   };
