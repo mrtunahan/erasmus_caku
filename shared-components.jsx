@@ -237,6 +237,7 @@ const DEPARTMENT_MODULES = [
 
   { id: "formlar", label: "Formlar", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
   { id: "akademisyen", label: "Akademisyenler", icon: "M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" },
+  { id: "benim", label: "Benim Sayfam", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
 ];
 
 // Ortak modüller (tüm bölümler için)
@@ -3184,6 +3185,114 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
     </Modal>
   );
 };
+
+// ══════════════════════════════════════════════════════════════
+// Student Notifier — "Benim Sayfam" bildirim sistemi
+// student_notifications koleksiyonuna düşer, Benim Sayfam dinler
+// ══════════════════════════════════════════════════════════════
+const StudentNotifier = {
+  async _fetchStudents() {
+    try {
+      return await FirebaseDB.fetchStudents();
+    } catch (e) {
+      console.warn("StudentNotifier: öğrenciler alınamadı", e);
+      return [];
+    }
+  },
+  async _fetchCoursesByCode(departmentId, code) {
+    try {
+      var snap = await window.apiFirestore.collection("sinav_dersler").get();
+      var all = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+      var normalized = (code || "").toString().trim().toLowerCase();
+      return all.filter(function (c) {
+        if (!normalized) return false;
+        if (departmentId && c.departmentId !== departmentId) return false;
+        return (c.code || "").toString().trim().toLowerCase() === normalized;
+      });
+    } catch (e) {
+      console.warn("StudentNotifier: dersler alınamadı", e);
+      return [];
+    }
+  },
+  async _addNotification(studentNumber, payload) {
+    try {
+      var data = Object.assign({
+        studentNumber: String(studentNumber),
+        read: false,
+        createdAt: new Date().toISOString(),
+      }, payload);
+      await FirestoreWrite.add("student_notifications", data);
+    } catch (e) {
+      console.warn("StudentNotifier: bildirim eklenemedi", studentNumber, e);
+    }
+  },
+  async fetchForStudent(studentNumber, limitN) {
+    try {
+      var items = await apiRead("student_notifications", {
+        where: "studentNumber:eq:s:" + String(studentNumber),
+      });
+      items.sort(function (a, b) {
+        var ta = new Date(a.createdAt || 0).getTime();
+        var tb = new Date(b.createdAt || 0).getTime();
+        return tb - ta;
+      });
+      if (limitN) return items.slice(0, limitN);
+      return items;
+    } catch (e) {
+      console.warn("StudentNotifier: liste alınamadı", e);
+      return [];
+    }
+  },
+  async markRead(id) {
+    try { await FirestoreWrite.update("student_notifications", String(id), { read: true }); }
+    catch (e) { console.warn("StudentNotifier: okundu yapılamadı", e); }
+  },
+  async markAllRead(studentNumber) {
+    try {
+      var items = await this.fetchForStudent(studentNumber);
+      var ops = items.filter(function (n) { return !n.read; }).map(function (n) {
+        return FirestoreWrite.update("student_notifications", String(n.id), { read: true });
+      });
+      await Promise.all(ops);
+    } catch (e) { console.warn("StudentNotifier: toplu okundu hatası", e); }
+  },
+  // Bir dersle ilgili proje grubu oluştuğunda o dersi almış öğrencilere bildirim yolla
+  async notifyCourseStudents(departmentId, courseCode, payload) {
+    try {
+      var courses = await this._fetchCoursesByCode(departmentId, courseCode);
+      if (courses.length === 0) return;
+      var courseIds = courses.map(function (c) { return c.id; });
+      var students = await this._fetchStudents();
+      var targets = students.filter(function (s) {
+        if (!Array.isArray(s.myCourseIds) || s.myCourseIds.length === 0) return false;
+        if (departmentId && s.departmentId !== departmentId) return false;
+        return s.myCourseIds.some(function (id) { return courseIds.indexOf(id) !== -1; });
+      });
+      await Promise.all(targets.map(function (s) {
+        return StudentNotifier._addNotification(s.studentNumber, payload);
+      }));
+    } catch (e) {
+      console.warn("StudentNotifier: ders bildirimi gönderilemedi", e);
+    }
+  },
+  // Portal duyurusunda bölüm öğrencilerinin tümüne bildirim yolla
+  async notifyDepartmentStudents(departmentId, payload, excludeStudentNumber) {
+    try {
+      var students = await this._fetchStudents();
+      var targets = students.filter(function (s) {
+        if (departmentId && s.departmentId !== departmentId) return false;
+        if (excludeStudentNumber && String(s.studentNumber) === String(excludeStudentNumber)) return false;
+        return true;
+      });
+      await Promise.all(targets.map(function (s) {
+        return StudentNotifier._addNotification(s.studentNumber, payload);
+      }));
+    } catch (e) {
+      console.warn("StudentNotifier: bölüm bildirimi gönderilemedi", e);
+    }
+  },
+};
+window.StudentNotifier = StudentNotifier;
 
 // ── Export to window ──
 window.C = C;

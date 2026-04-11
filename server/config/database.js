@@ -36,6 +36,9 @@ async function setupIndexes(database) {
     await database.collection("sinav_dersler").createIndex({ departmentId: 1 }, { background: true });
     await database.collection("sinav_programi").createIndex({ departmentId: 1 }, { background: true });
 
+    // Öğrenci bildirimleri (Benim Sayfam)
+    await database.collection("student_notifications").createIndex({ studentNumber: 1, createdAt: -1 }, { background: true });
+
     console.log("Veritabanı indeksleri hazır.");
   } catch (err) {
     // Index zaten varsa hata vermez, başka bir hata varsa logla

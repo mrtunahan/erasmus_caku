@@ -167,6 +167,7 @@ const Sidebar = ({
   activeDepartment, onDepartmentChange,
   currentRoute, onNavigate,
   currentUser, isMobile, isOpen, onClose, onRequestChangePassword,
+  studentLocked = false,
 }) => {
   const isAdmin = currentUser?.role === "admin";
   const isDeptManager = currentUser?.role === "bolum_yetkilisi";
@@ -192,10 +193,12 @@ const Sidebar = ({
   const getVisibleModules = () => {
     if (isErgunCinar) return DEPARTMENT_MODULES.filter(m => m.id === "staj");
     // Akademisyenler modülü sadece bölüm akademisyenlerine (professor) görünür
-    if (isAdmin || isDeptManager) return DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen");
+    // Benim Sayfam yalnızca öğrenciye gösterilir
+    if (isAdmin || isDeptManager) return DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen" && m.id !== "benim");
     if (isProfessor) return DEPARTMENT_MODULES.filter(m => ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj"].includes(m.id));
-    // Öğrenci
-    return DEPARTMENT_MODULES.filter(m => ["erasmus", "projeler", "formlar", "staj"].includes(m.id));
+    // Öğrenci: ders seçimi yapılana kadar yalnızca "Benim Sayfam" görünür
+    if (studentLocked) return DEPARTMENT_MODULES.filter(m => m.id === "benim");
+    return DEPARTMENT_MODULES.filter(m => ["benim", "erasmus", "projeler", "formlar", "staj"].includes(m.id));
   };
 
   const visibleModules = getVisibleModules();
@@ -290,7 +293,7 @@ const Sidebar = ({
       <div style={{ margin: "4px 16px", borderTop: "1px solid #E5E7EB" }} />
 
       {/* Common Modules */}
-      {!isErgunCinar && (
+      {!isErgunCinar && !studentLocked && (
         <div style={{ padding: "4px 12px" }}>
           <div style={{
             fontSize: 10, fontWeight: 700, color: "#9CA3AF",
@@ -579,18 +582,61 @@ function AppShell() {
   const [loadedModules, setLoadedModules] = useState({});
   const [moduleLoading, setModuleLoading] = useState(false);
 
+  // Öğrenci ders seçimi durumu: seçim yapmadıysa "benim" dışındaki modüllere erişemez
+  const [studentCoursesChecked, setStudentCoursesChecked] = useState(false);
+  const [studentHasCourses, setStudentHasCourses] = useState(true); // varsayılan: engelleme
+
+  useEffect(() => {
+    // Öğrenci dışı rollerde veya kullanıcı yoksa kontrol yok
+    if (!currentUser || currentUser.role !== "student") {
+      setStudentCoursesChecked(true);
+      setStudentHasCourses(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const students = await window.FirebaseDB.fetchStudents();
+        const me = students.find(s => s.studentNumber === currentUser.studentNumber);
+        const hasCourses = Array.isArray(me?.myCourseIds) && me.myCourseIds.length > 0;
+        if (!cancelled) {
+          setStudentHasCourses(hasCourses);
+          setStudentCoursesChecked(true);
+        }
+      } catch (e) {
+        // Hata durumunda engellemeyelim
+        if (!cancelled) {
+          setStudentHasCourses(true);
+          setStudentCoursesChecked(true);
+        }
+      }
+    })();
+    // Benim Sayfam'da kaydet dendikten sonra yenilemek için global kanca
+    window.__onStudentCoursesSelected = () => {
+      if (!cancelled) setStudentHasCourses(true);
+    };
+    return () => { cancelled = true; delete window.__onStudentCoursesSelected; };
+  }, [currentUser?.studentNumber, currentUser?.role]);
+
   // Routing Protection
   useEffect(() => {
     if (!currentUser) return;
+    if (currentUser.role === "student" && !studentCoursesChecked) return;
+
+    // Öğrenci ders seçimi yapmadıysa sadece "benim" rotası açık
+    if (currentUser.role === "student" && !studentHasCourses) {
+      if (route !== "benim") navigate("benim");
+      return;
+    }
 
     // Akademisyenler modülü yalnızca professor rolüne açıktır
     const allowedDeptModules = isDeptManager
-      ? DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen").map(m => m.id)
+      ? DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen" && m.id !== "benim").map(m => m.id)
       : isProfessor
         ? ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj"]
         : isAdmin
-          ? DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen").map(m => m.id)
-          : ["erasmus", "projeler", "formlar", "staj"]; // student
+          ? DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen" && m.id !== "benim").map(m => m.id)
+          : ["benim", "erasmus", "projeler", "formlar", "staj"]; // student
 
     const allowedCommon = COMMON_MODULES.map(m => m.id);
     const allowedAdmin = (isAdmin || isDeptManager) ? ADMIN_MODULES.map(m => m.id) : [];
@@ -601,7 +647,7 @@ function AppShell() {
       else if (isProfessor) navigate("sinav");
       else navigate("portal");
     }
-  }, [route, currentUser, isAdmin, isProfessor, isDeptManager, navigate]);
+  }, [route, currentUser, isAdmin, isProfessor, isDeptManager, navigate, studentCoursesChecked, studentHasCourses]);
 
   // Lazy load module
   useEffect(() => {
@@ -677,6 +723,7 @@ function AppShell() {
         staj: window.StajModuluApp,
         dersprogrami: window.DersProgramiApp,
         komisyonlar: window.KomisyonlarModuluApp,
+        benim: window.BenimSayfamApp,
       };
       const FallbackComponent = fallback[route];
       if (FallbackComponent) return React.createElement(FallbackComponent, {
@@ -731,6 +778,7 @@ function AppShell() {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           onRequestChangePassword={() => setShowChangePassword(true)}
+          studentLocked={currentUser?.role === "student" && !studentHasCourses}
         />
 
         <main style={{
