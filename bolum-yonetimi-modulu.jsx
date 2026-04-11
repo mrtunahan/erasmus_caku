@@ -1,9 +1,10 @@
 // ══════════════════════════════════════════════════════════════
 // ÇAKÜ Bölüm Yönetimi Modülü
 // Bölümler, Sınıf/Salonlar ve Gözetmenlerin tanımlandığı ortak alan
+// Gözetmenler artık professors koleksiyonunda roles:["gozetmen"] ile yönetilir
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect } = React;
+const { useState, useEffect, useMemo } = React;
 
 const C = window.C;
 const Modal = window.Modal;
@@ -18,35 +19,42 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   const hasAccess = isAdmin || isDeptManager;
 
   const [activeTab, setActiveTab] = useState(isAdmin ? "departments" : "classrooms");
-  
+
   const [departments, setDepartments] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
-  const [supervisors, setSupervisors] = useState([]);
+  const [professors, setProfessors] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [editingItem, setEditingItem] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
 
-  // Veri yükleme
+  // Gözetmenler = professors koleksiyonunda roles'ında "gozetmen" olanlar
+  const supervisors = useMemo(() => {
+    return professors.filter(p => (p.roles || []).includes("gozetmen"));
+  }, [professors]);
+
+  // Gözetmen olmayan profesörler (gözetmen eklerken seçim listesi)
+  const nonSupervisorProfs = useMemo(() => {
+    return professors.filter(p => !(p.roles || []).includes("gozetmen"));
+  }, [professors]);
+
+  // Veri yükleme — direkt MongoDB API
   const loadData = async () => {
     setLoading(true);
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
-
       if (isAdmin) {
-        const dSnap = await db.collection("departments").get();
-        setDepartments(dSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const depts = await window.apiRead("departments", {});
+        setDepartments(depts.map(d => ({ id: d.id, ...d })));
       }
 
       // Derslikler (bölüm bazlı)
-      const cSnap = await window.apiRead("department_classrooms", { where: [`departmentId:eq:${activeDepartment}`] });
-      setClassrooms(cSnap.map(d => ({ id: d.id, ...d })));
+      const cls = await window.apiRead("department_classrooms", { where: `departmentId:eq:${activeDepartment}` });
+      setClassrooms(cls.map(d => ({ id: d.id, ...d })));
 
-      // Gözetmenler (bölüm bazlı)
-      const sSnap = await window.apiRead("department_supervisors", { where: [`departmentId:eq:${activeDepartment}`] });
-      setSupervisors(sSnap.map(d => ({ id: d.id, ...d })));
+      // Profesörler (bölüm bazlı) — gözetmenler bunlardan filtrelenir
+      const profs = await window.apiRead("professors", { where: `departmentId:eq:${activeDepartment}` });
+      setProfessors(profs.map(d => ({ id: d.id, ...d })));
 
     } catch (e) {
       console.error(e);
@@ -56,7 +64,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   };
 
   useEffect(() => {
-    if (hasAccess && window.apiFirestore) loadData();
+    if (hasAccess) loadData();
   }, [hasAccess, activeDepartment]);
 
 
@@ -68,9 +76,9 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     try {
       const data = { name: form.name.trim(), managerName: form.managerName.trim() };
       if (editingItem === "new") {
-        await window.apiFirestore.collection("departments").add(data);
+        await FirestoreWrite.add("departments", data);
       } else {
-        await window.apiFirestore.collection("departments").doc(editingItem.id).set(data, { merge: true });
+        await FirestoreWrite.set("departments", editingItem.id, data, true);
       }
       setEditingItem(null);
       loadData();
@@ -79,7 +87,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   };
   const handleDeptDelete = async (d) => {
     if (!confirm(`${d.name} silinecek, emin misiniz?`)) return;
-    await window.apiFirestore.collection("departments").doc(d.id).delete();
+    await FirestoreWrite.remove("departments", d.id);
     setDepartments(departments.filter(x => x.id !== d.id));
   };
 
@@ -92,9 +100,9 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     try {
       const data = { name: form.name.trim(), capacity: parseInt(form.capacity) || 0, departmentId: activeDepartment };
       if (editingItem === "new") {
-        await window.apiFirestore.collection("department_classrooms").add(data);
+        await FirestoreWrite.add("department_classrooms", data);
       } else {
-        await window.apiFirestore.collection("department_classrooms").doc(editingItem.id).set(data, { merge: true });
+        await FirestoreWrite.set("department_classrooms", editingItem.id, data, true);
       }
       setEditingItem(null);
       loadData();
@@ -103,32 +111,63 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   };
   const handleClassDelete = async (c) => {
     if (!confirm(`${c.name} silinecek, emin misiniz?`)) return;
-    await window.apiFirestore.collection("department_classrooms").doc(c.id).delete();
+    await FirestoreWrite.remove("department_classrooms", c.id);
     setClassrooms(classrooms.filter(x => x.id !== c.id));
   };
 
 
-  // ── Gözetmen Yönetimi ──
-  const startSupEdit = (s) => { setEditingItem(s || "new"); setForm({ name: s?.name || "" }); };
+  // ── Gözetmen Yönetimi (professors koleksiyonu üzerinden) ──
+  const startSupAdd = () => {
+    setEditingItem("new_sup");
+    setForm({ selectedProfId: "", newName: "" });
+  };
+  const startSupEdit = (s) => {
+    setEditingItem(s);
+    setForm({ name: s.name });
+  };
+
   const handleSupSave = async () => {
-    if (!form.name.trim()) return alert("Gözetmen adı gerekli");
     setSaving(true);
     try {
-      const data = { name: form.name.trim(), departmentId: activeDepartment };
-      if (editingItem === "new") {
-        await window.apiFirestore.collection("department_supervisors").add(data);
+      if (editingItem === "new_sup") {
+        if (form.selectedProfId) {
+          // Mevcut profesöre gozetmen rolü ekle
+          const prof = professors.find(p => p.id === form.selectedProfId);
+          if (prof) {
+            const roles = [...new Set([...(prof.roles || []), "gozetmen"])];
+            await FirestoreWrite.update("professors", prof.id, { roles });
+          }
+        } else if (form.newName.trim()) {
+          // Yeni profesör oluştur ve gozetmen rolü ver
+          await FirestoreWrite.add("professors", {
+            name: form.newName.trim(),
+            departmentId: activeDepartment,
+            isExternal: false,
+            roles: ["gozetmen"],
+            createdAt: new Date().toISOString(),
+          });
+        } else {
+          alert("Bir akademisyen seçin veya yeni isim girin");
+          setSaving(false);
+          return;
+        }
       } else {
-        await window.apiFirestore.collection("department_supervisors").doc(editingItem.id).set(data, { merge: true });
+        // Düzenleme — isim güncelle
+        await FirestoreWrite.update("professors", editingItem.id, { name: form.name.trim() });
       }
       setEditingItem(null);
-      loadData();
+      await loadData();
     } catch(e) { alert("Hata: " + e.message); }
     setSaving(false);
   };
-  const handleSupDelete = async (s) => {
-    if (!confirm(`${s.name} silinecek, emin misiniz?`)) return;
-    await window.apiFirestore.collection("department_supervisors").doc(s.id).delete();
-    setSupervisors(supervisors.filter(x => x.id !== s.id));
+
+  const handleSupRemoveRole = async (s) => {
+    if (!confirm(`${s.name} gözetmenlikten çıkarılacak. Akademisyen kaydı silinmez. Emin misiniz?`)) return;
+    try {
+      const roles = (s.roles || []).filter(r => r !== "gozetmen");
+      await FirestoreWrite.update("professors", s.id, { roles });
+      await loadData();
+    } catch(e) { alert("Hata: " + e.message); }
   };
 
 
@@ -157,16 +196,16 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
       {/* Tabs */}
       <div style={{ display: "flex", gap: 16, borderBottom: "1px solid #E5E7EB", marginBottom: 24 }}>
         {isAdmin && (
-          <button 
+          <button
             onClick={() => setActiveTab("departments")}
             style={{ padding: "12px 16px", background: "none", border: "none", borderBottom: activeTab === "departments" ? `2px solid ${C.blue}` : "2px solid transparent", color: activeTab === "departments" ? C.blue : "#6B7280", fontWeight: activeTab === "departments" ? 600 : 500, cursor: "pointer", fontSize: 14 }}
           >Fakülte Bölümleri</button>
         )}
-        <button 
+        <button
           onClick={() => setActiveTab("classrooms")}
           style={{ padding: "12px 16px", background: "none", border: "none", borderBottom: activeTab === "classrooms" ? `2px solid ${C.blue}` : "2px solid transparent", color: activeTab === "classrooms" ? C.blue : "#6B7280", fontWeight: activeTab === "classrooms" ? 600 : 500, cursor: "pointer", fontSize: 14 }}
         >Sınıf/Salon Tanımları</button>
-        <button 
+        <button
           onClick={() => setActiveTab("supervisors")}
           style={{ padding: "12px 16px", background: "none", border: "none", borderBottom: activeTab === "supervisors" ? `2px solid ${C.blue}` : "2px solid transparent", color: activeTab === "supervisors" ? C.blue : "#6B7280", fontWeight: activeTab === "supervisors" ? 600 : 500, cursor: "pointer", fontSize: 14 }}
         >Gözetmen Akademisyenler</button>
@@ -177,7 +216,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
       ) : (
         <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" }}>
           <div style={{ overflowX: "auto" }}>
-            
+
             {/* DEPARTMENTS TAB (ADMIN) */}
             {activeTab === "departments" && isAdmin && (
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -242,13 +281,13 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
               </table>
             )}
 
-            {/* SUPERVISORS TAB */}
+            {/* SUPERVISORS TAB — professors koleksiyonundan roles:gozetmen */}
             {activeTab === "supervisors" && (
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead style={{ background: "#F9FAFB" }}>
                   <tr>
                     <th style={{ padding: "12px 16px", textAlign: "left", color:"#374151" }}>Gözetmen Akademisyen</th>
-                    <th style={{ padding: "12px 16px", textAlign: "center", color:"#374151", width: 120 }}>İşlem</th>
+                    <th style={{ padding: "12px 16px", textAlign: "center", color:"#374151", width: 150 }}>İşlem</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -258,14 +297,17 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                       <td style={{ padding: "12px 16px", textAlign: "center" }}>
                         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
                           <GhostBtn onClick={() => startSupEdit(s)}>Düzenle</GhostBtn>
-                          <GhostBtn onClick={() => handleSupDelete(s)} style={{color: "#DC2626"}}>Sil</GhostBtn>
+                          <GhostBtn onClick={() => handleSupRemoveRole(s)} style={{color: "#DC2626"}}>Çıkar</GhostBtn>
                         </div>
                       </td>
                     </tr>
                   ))}
+                  {supervisors.length === 0 && (
+                    <tr><td colSpan={2} style={{ padding: 24, textAlign: "center", color: "#9CA3AF" }}>Henüz gözetmen atanmamış</td></tr>
+                  )}
                   <tr>
-                    <td colSpan={2} style={{ padding: "12px 16px", textAlign: "right", background:"#F9FAFB" }}>
-                      <Btn onClick={() => startSupEdit()}>+ Yeni Gözetmen Ekle</Btn>
+                    <td colSpan={2} style={{ padding: "12px 16px", background:"#F9FAFB" }}>
+                      <Btn onClick={startSupAdd}>+ Yeni Gözetmen Ekle</Btn>
                     </td>
                   </tr>
                 </tbody>
@@ -276,7 +318,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         </div>
       )}
 
-      {/* Ortak Modal Gösterimi */}
+      {/* Bölüm Modal */}
       {editingItem && activeTab === "departments" && (
         <Modal open={true} title={editingItem === "new" ? "Yeni Bölüm" : "Bölüm Düzenle"} onClose={() => setEditingItem(null)} width={400}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -287,6 +329,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         </Modal>
       )}
 
+      {/* Sınıf/Salon Modal */}
       {editingItem && activeTab === "classrooms" && (
         <Modal open={true} title={editingItem === "new" ? "Yeni Sınıf/Salon" : "Sınıf/Salon Düzenle"} onClose={() => setEditingItem(null)} width={400}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -297,8 +340,48 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         </Modal>
       )}
 
-      {editingItem && activeTab === "supervisors" && (
-        <Modal open={true} title={editingItem === "new" ? "Yeni Gözetmen" : "Gözetmen Düzenle"} onClose={() => setEditingItem(null)} width={400}>
+      {/* Gözetmen Ekleme Modal — mevcut profesörden seç veya yeni ekle */}
+      {editingItem === "new_sup" && activeTab === "supervisors" && (
+        <Modal open={true} title="Gözetmen Ekle" onClose={() => setEditingItem(null)} width={450}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>Mevcut bir akademisyeni gözetmen olarak atayabilir veya yeni bir isim girebilirsiniz.</p>
+
+            {nonSupervisorProfs.length > 0 && (
+              <FormField label="Mevcut Akademisyenden Seç">
+                <select
+                  value={form.selectedProfId}
+                  onChange={e => setForm({...form, selectedProfId: e.target.value, newName: ""})}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13 }}
+                >
+                  <option value="">— Seçim yapın —</option>
+                  {nonSupervisorProfs.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </FormField>
+            )}
+
+            <div style={{ textAlign: "center", fontSize: 12, color: "#9CA3AF" }}>veya</div>
+
+            <FormField label="Yeni Akademisyen Adı (Unvan+Ad+Soyad)">
+              <Input
+                value={form.newName}
+                onChange={e => setForm({...form, newName: e.target.value, selectedProfId: ""})}
+                placeholder="Örn: Arş. Gör. Ali YILMAZ"
+              />
+            </FormField>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <GhostBtn onClick={() => setEditingItem(null)} style={{color:"#6B7280"}}>İptal</GhostBtn>
+              <Btn onClick={handleSupSave} disabled={saving}>{saving ? "Kaydediliyor..." : "Gözetmen Ata"}</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Gözetmen Düzenleme Modal */}
+      {editingItem && editingItem !== "new" && editingItem !== "new_sup" && activeTab === "supervisors" && (
+        <Modal open={true} title="Gözetmen Düzenle" onClose={() => setEditingItem(null)} width={400}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <FormField label="Gözetmen Adı (Unvan+Ad+Soyad)"><Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></FormField>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><GhostBtn onClick={() => setEditingItem(null)} style={{color:"#6B7280"}}>İptal</GhostBtn><Btn onClick={handleSupSave} disabled={saving}>Kaydet</Btn></div>

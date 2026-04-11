@@ -64,10 +64,7 @@ const DEPT_CLASSROOMS = [
   { name: "M11103", capacity: 58 },
 ];
 
-const DEPT_SUPERVISORS = [
-  "Arş. Gör. A. Tunahan KORKMAZ",
-  "Arş. Gör. Öznur Ş. AKÇAM",
-];
+const DEPT_SUPERVISORS = [];  // Artık kullanılmıyor — gözetmenler professors koleksiyonundan roles:["gozetmen"] ile okunur
 
 const ALL_FACULTY_CLASSROOMS = [
   { name: "M10Z04", capacity: 25 },
@@ -392,7 +389,7 @@ function getProfessorsRef() { return apiQueryHelper("professors"); }
 function getPeriodsRef() { return apiQueryHelper("sinav_donemler"); }
 function getDepartmentsRef() { return apiQueryHelper("departments"); }
 function getDeptClassroomsRef() { return apiQueryHelper("department_classrooms"); }
-function getDeptSupervisorsRef() { return apiQueryHelper("department_supervisors"); }
+// getDeptSupervisorsRef kaldırıldı — gözetmenler artık professors koleksiyonundan roles ile filtrelenir
 
 // ══════════════════════════════════════════════════════════════
 // Period Config Modal
@@ -1813,14 +1810,17 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     if (!deptId) return;
     try {
       const crRef = getDeptClassroomsRef();
-      const srRef = getDeptSupervisorsRef();
       if (crRef) {
         const snap = await crRef.where("departmentId", "==", deptId).get();
         setDeptClassrooms(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.capacity || 0) - (b.capacity || 0)));
       }
-      if (srRef) {
-        const snap = await srRef.where("departmentId", "==", deptId).get();
-        setDeptSupervisors(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name)));
+      // Gözetmenler: professors koleksiyonundan roles filtreyle
+      const pRef = getProfessorsRef();
+      if (pRef) {
+        const snap = await pRef.where("departmentId", "==", deptId).get();
+        const allProfs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const sups = allProfs.filter(p => (p.roles || []).includes("gozetmen"));
+        setDeptSupervisors(sups.sort((a, b) => (a.name || "").localeCompare(b.name || "")));
       }
     } catch (e) {
       console.error("Load dept resources error:", e);
@@ -1883,18 +1883,15 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
         }
       } else queries.push(Promise.resolve(null));
 
-      // Dept resources queries (classrooms + supervisors)
+      // Dept resources queries (classrooms only — supervisors come from professors)
       if (selectedDeptId) {
         const crRef = getDeptClassroomsRef();
-        const srRef = getDeptSupervisorsRef();
         queries.push(crRef ? crRef.where("departmentId", "==", selectedDeptId).get() : Promise.resolve(null));
-        queries.push(srRef ? srRef.where("departmentId", "==", selectedDeptId).get() : Promise.resolve(null));
       } else {
-        queries.push(Promise.resolve(null));
         queries.push(Promise.resolve(null));
       }
 
-      const [coursesSnap, profsSnap, periodsSnap, examsSnap, classroomsSnap, supervisorsSnap] = await Promise.all(queries);
+      const [coursesSnap, profsSnap, periodsSnap, examsSnap, classroomsSnap] = await Promise.all(queries);
 
       // Set courses (aynı code + aynı name olanları filtrele, farklı şubeler korunsun)
       const rawCourses = coursesSnap ? coursesSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
@@ -1934,7 +1931,9 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
 
       // Set dept resources
       setDeptClassrooms(classroomsSnap ? classroomsSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.capacity || 0) - (b.capacity || 0)) : []);
-      setDeptSupervisors(supervisorsSnap ? supervisorsSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr")) : []);
+      // Gözetmenler: professors'tan roles ile filtrele
+      const allProfsForSup = profsSnap ? profsSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+      setDeptSupervisors(allProfsForSup.filter(p => (p.roles || []).includes("gozetmen")).sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr")));
     } catch (e) {
       console.error("Load error:", e);
     }
@@ -2059,7 +2058,6 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
             { ref: getPeriodsRef(), col: "sinav_donemler" },
             { ref: getExamsRef(), col: "sinav_programi" },
             { ref: getDeptClassroomsRef(), col: "department_classrooms" },
-            { ref: getDeptSupervisorsRef(), col: "department_supervisors" },
           ];
           for (const { ref, col } of otherCollections) {
             if (!ref) continue;
@@ -2409,19 +2407,24 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     await loadDeptResources(selectedDeptId);
   };
 
-  // ── Department Supervisor CRUD handlers ──
+  // ── Department Supervisor CRUD handlers (professors koleksiyonu üzerinden) ──
   const handleSupervisorSave = async (existingSup, formData) => {
     if (existingSup) {
-      await FirestoreWrite.update("department_supervisors", existingSup.id, formData);
+      // Düzenleme — professors koleksiyonunda güncelle
+      await FirestoreWrite.update("professors", existingSup.id, formData);
     } else {
-      await FirestoreWrite.add("department_supervisors", { ...formData, departmentId: selectedDeptId, createdAt: new Date().toISOString() });
+      // Yeni gözetmen — professors'a roles:["gozetmen"] ile ekle
+      const roles = ["gozetmen"];
+      await FirestoreWrite.add("professors", { ...formData, roles, departmentId: selectedDeptId, isExternal: false, createdAt: new Date().toISOString() });
     }
     await loadDeptResources(selectedDeptId);
   };
 
   const handleSupervisorDelete = async (sup) => {
-    if (!confirm(`"${sup.name}" gözetmenini silmek istiyor musunuz?`)) return;
-    await FirestoreWrite.remove("department_supervisors", sup.id);
+    if (!confirm(`"${sup.name}" gözetmenlikten çıkarılacak mı?`)) return;
+    // Profesörü silme — sadece gozetmen rolünü kaldır
+    const roles = (sup.roles || []).filter(r => r !== "gozetmen");
+    await FirestoreWrite.update("professors", sup.id, { roles });
     await loadDeptResources(selectedDeptId);
   };
 
