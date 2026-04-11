@@ -35,7 +35,6 @@ const ALLOWED_COLLECTIONS = [
   "project_courses",
   "departments",
   "department_classrooms",
-  "department_supervisors",
   "course_schedules",
   "exams",
   "exam_results",
