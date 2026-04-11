@@ -10,6 +10,10 @@ const akademisyenRoutes = require("./routes/akademisyen");
 const PORT = process.env.PORT || 3001;
 const app = express();
 
+// Reverse proxy (nginx) arkasında çalıştığı için gerçek client IP'yi al
+// express-rate-limit'in X-Forwarded-For header'ını doğru okuması için şart
+app.set("trust proxy", 1);
+
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
