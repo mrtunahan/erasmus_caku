@@ -144,18 +144,12 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     // departmentId'den department adını bul
     const dept = DEPARTMENTS.find(d => d.id === editingProf.departmentId);
     const profData = { ...editingProf, department: dept?.name || editingProf.department || "", departmentId: editingProf.departmentId };
-    // Bölüm değişimini tespit et (kullanıcıya bilgilendirici mesaj göstermek için)
-    const originalDeptId = editingProf.id ? (professors.find(p => p.id === editingProf.id)?.departmentId || "bilgisayar") : null;
-    const isMovingAway = originalDeptId && originalDeptId !== editingProf.departmentId && activeDepartment && originalDeptId === activeDepartment;
     setSaving(true);
     try {
       await FirebaseDB.saveProfessor(profData);
+      const newProfs = await FirebaseDB.fetchProfessors();
+      setProfessors((newProfs || []).sort((a, b) => a.name.localeCompare(b.name)));
       setEditingProf(null);
-      // Filtreyi yeniden uygula (bölüm değişmişse profesör bu listeden çıkar)
-      await loadData();
-      if (isMovingAway) {
-        alert(`${editingProf.name} artık ${dept?.name || editingProf.departmentId} bölümüne atandı. Bu bölüm listesinden kaldırıldı, fakülte genelinde yeni bölümünde görünür.`);
-      }
     } catch (e) {
       alert("Hata: " + e.message);
     } finally {
@@ -168,7 +162,8 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     setSaving(true);
     try {
       await FirebaseDB.deleteProfessor(id);
-      await loadData();
+      const newProfs = await FirebaseDB.fetchProfessors();
+      setProfessors((newProfs || []).sort((a, b) => a.name.localeCompare(b.name)));
     } catch (e) {
       alert("Hata: " + e.message);
     } finally {
