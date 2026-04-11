@@ -11,7 +11,9 @@ let isConnecting = false;
 async function setupIndexes(database) {
   try {
     // Öğrenci girişi ve sorguları
-    await database.collection("students").createIndex({ studentNumber: 1 }, { unique: true, background: true });
+    // NOT: unique değil — mükerrer studentNumber kayıtları olduğu için.
+    // Temizleme scripti çalıştırıldıktan sonra unique'e alınabilir.
+    await database.collection("students").createIndex({ studentNumber: 1 }, { background: true });
     await database.collection("students").createIndex({ departmentId: 1 }, { background: true });
 
     // Bölüm yetkilisi girişi
