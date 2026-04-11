@@ -191,7 +191,8 @@ const Sidebar = ({
   // Öğrenciler ve profesörler için erişilebilir modüller
   const getVisibleModules = () => {
     if (isErgunCinar) return DEPARTMENT_MODULES.filter(m => m.id === "staj");
-    if (isAdmin || isDeptManager) return DEPARTMENT_MODULES;
+    // Akademisyenler modülü sadece bölüm akademisyenlerine (professor) görünür
+    if (isAdmin || isDeptManager) return DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen");
     if (isProfessor) return DEPARTMENT_MODULES.filter(m => ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj"].includes(m.id));
     // Öğrenci
     return DEPARTMENT_MODULES.filter(m => ["erasmus", "projeler", "formlar", "staj"].includes(m.id));
@@ -582,12 +583,13 @@ function AppShell() {
   useEffect(() => {
     if (!currentUser) return;
 
+    // Akademisyenler modülü yalnızca professor rolüne açıktır
     const allowedDeptModules = isDeptManager
-      ? DEPARTMENT_MODULES.map(m => m.id)
+      ? DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen").map(m => m.id)
       : isProfessor
         ? ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj"]
         : isAdmin
-          ? DEPARTMENT_MODULES.map(m => m.id)
+          ? DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen").map(m => m.id)
           : ["erasmus", "projeler", "formlar", "staj"]; // student
 
     const allowedCommon = COMMON_MODULES.map(m => m.id);
