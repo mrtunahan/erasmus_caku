@@ -1657,14 +1657,18 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
       if (!existingCourses.empty) {
         if (!confirm("Bu bölümde zaten dersler var. Üzerine yazılsın mı?")) return;
         const delOps1 = existingCourses.docs.map(doc => ({ collection: "sinav_dersler", type: "delete", docId: doc.id }));
-        if (delOps1.length > 0) await FirestoreWrite.batch(delOps1);
+        for (let i = 0; i < delOps1.length; i += 20) {
+          await FirestoreWrite.batch(delOps1.slice(i, i + 20));
+        }
       }
       // Sadece seçili bölümün profesörlerini sil
       const existingProfs = await pRef.where("departmentId", "==", selectedDeptId).get();
       const deptProfs = existingProfs.docs;
       if (deptProfs.length > 0) {
         const delOps2 = deptProfs.map(doc => ({ collection: "professors", type: "delete", docId: doc.id }));
-        await FirestoreWrite.batch(delOps2);
+        for (let i = 0; i < delOps2.length; i += 20) {
+          await FirestoreWrite.batch(delOps2.slice(i, i + 20));
+        }
       }
       for (const prof of SEED_PROFESSORS) {
         await FirestoreWrite.add("professors", { ...prof, departmentId: selectedDeptId, createdAt: new Date().toISOString() });
@@ -1711,7 +1715,9 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
       }
 
       if (added > 0 || updated > 0) {
-        await FirestoreWrite.batch(ops);
+        for (let i = 0; i < ops.length; i += 20) {
+          await FirestoreWrite.batch(ops.slice(i, i + 20));
+        }
         alert(`İşlem tamamlandı: ${added} ders eklendi, ${updated} ders güncellendi.`);
         loadData();
       } else {
@@ -1942,8 +1948,10 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
       const depts = await loadDepartments();
 
       // ── Veri-bazlı migration: departmentId normalize + mükerrer silme ──
-      // localStorage flag yerine veriyi kontrol ederek gerektiğinde çalışır
-      if (depts.length > 0) {
+      // Sadece bir kez çalışır (tarayıcı başına), her sayfa yüklemesinde çalışmaz
+      const MIGRATION_VERSION = "v4_dept_code_name";
+      const migrationDone = localStorage.getItem("sinav_migration_" + MIGRATION_VERSION);
+      if (depts.length > 0 && !migrationDone) {
         try {
           const HARD_DEPTS = window.DEPARTMENTS || [];
           const validDeptIds = new Set(HARD_DEPTS.map(d => d.id));
@@ -2025,8 +2033,10 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
 
             const profGroups = {};
             allProfs.forEach(p => {
-              const key = (p.name || "").trim();
-              if (!key) return;
+              const name = (p.name || "").trim();
+              const dept = p.departmentId || "";
+              if (!name) return;
+              const key = `${dept}__${name}`;
               if (!profGroups[key]) profGroups[key] = [];
               profGroups[key].push(p);
             });
@@ -2061,17 +2071,20 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
           }
 
           // Sadece düzeltme gerekiyorsa yazma işlemi yap
+          // Server limiti: tek batch'te max 20 silme, güvenli chunk boyutu
+          const BATCH_LIMIT = 20;
+
           if (updateOps.length > 0) {
-            for (let i = 0; i < updateOps.length; i += 400) {
-              await FirestoreWrite.batch(updateOps.slice(i, i + 400));
+            for (let i = 0; i < updateOps.length; i += BATCH_LIMIT) {
+              await FirestoreWrite.batch(updateOps.slice(i, i + BATCH_LIMIT));
             }
             console.log(`Migration: ${updateOps.length} kayıt normalize edildi.`);
             needsMigration = true;
           }
 
           if (deleteOps.length > 0) {
-            for (let i = 0; i < deleteOps.length; i += 400) {
-              await FirestoreWrite.batch(deleteOps.slice(i, i + 400));
+            for (let i = 0; i < deleteOps.length; i += BATCH_LIMIT) {
+              await FirestoreWrite.batch(deleteOps.slice(i, i + BATCH_LIMIT));
             }
             console.log(`Migration: ${deleteOps.length} mükerrer kayıt silindi.`);
             needsMigration = true;
@@ -2079,8 +2092,11 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
 
           // Veri değiştiyse yeniden yükle
           if (needsMigration && selectedDeptId) loadData();
+          // Migration tamamlandı — bir daha çalıştırma
+          localStorage.setItem("sinav_migration_" + MIGRATION_VERSION, "done");
         } catch (e) {
           console.error("Migration error:", e);
+          // Hata durumunda flag set etme — bir sonraki yüklemede tekrar denesin
         }
       }
 
@@ -2252,7 +2268,9 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
       // Batch delete: all duplicate courses + their linked exams
       const ops = linkedExams.map(e => ({ collection: "sinav_programi", type: "delete", docId: e.id }));
       duplicateIds.forEach(id => ops.push({ collection: "sinav_dersler", type: "delete", docId: id }));
-      await FirestoreWrite.batch(ops);
+      for (let i = 0; i < ops.length; i += 20) {
+        await FirestoreWrite.batch(ops.slice(i, i + 20));
+      }
       if (linkedExams.length > 0) {
         setPlacedExams(prev => prev.filter(e => !duplicateIds.includes(e.courseId)));
       }
@@ -2325,7 +2343,9 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
         const snap = await exRef.where("periodId", "==", periodId).get();
         snap.docs.forEach(doc => ops.push({ collection: "sinav_programi", type: "delete", docId: doc.id }));
       }
-      await FirestoreWrite.batch(ops);
+      for (let i = 0; i < ops.length; i += 20) {
+        await FirestoreWrite.batch(ops.slice(i, i + 20));
+      }
       if (activePeriodId === periodId) setActivePeriodId(null);
       loadData();
     } catch (e) {
@@ -2341,7 +2361,9 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
       if (!ref) { alert("Firebase bağlantısı yok!"); return; }
       const snap = await ref.where("periodId", "==", activePeriodId).get();
       const ops = snap.docs.map(doc => ({ collection: "sinav_programi", type: "delete", docId: doc.id }));
-      if (ops.length > 0) await FirestoreWrite.batch(ops);
+      for (let i = 0; i < ops.length; i += 20) {
+        await FirestoreWrite.batch(ops.slice(i, i + 20));
+      }
       setPlacedExams(prev => prev.filter(e => e.periodId !== activePeriodId));
     } catch (e) {
       alert("Sıfırlama hatası: " + e.message);
