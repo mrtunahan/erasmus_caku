@@ -67,7 +67,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       setStudentRecord(me);
       const myIds = Array.isArray(me.myCourseIds) ? me.myCourseIds : [];
       setSelectedIds(myIds);
-      // Daha önce seçim yapmadıysa otomatik düzenleme moduna gir
+      // Seçim yalnızca ilk kez yapılır; bir kez kaydedildiyse tekrar düzenlenemez
       setEditMode(myIds.length === 0);
 
       const db = window.apiFirestore;
@@ -134,6 +134,12 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     if (!studentRecord) return;
     if (selectedIds.length === 0) {
       alert("En az bir ders seçmelisiniz.");
+      return;
+    }
+    if (!confirm(
+      "Seçimleriniz kaydedildikten sonra bir daha değiştirilemez.\n\n" +
+      selectedIds.length + " ders seçtiniz. Kaydetmek istediğinize emin misiniz?"
+    )) {
       return;
     }
     setSaving(true);
@@ -239,23 +245,15 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           </div>
         </div>
 
-        {!hasSelected ? (
-          <div style={{
-            background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E",
-            padding: "14px 18px", borderRadius: 10, marginBottom: 16, fontSize: 14,
-          }}>
-            <strong>Ders seçimi yapmanız gerekiyor.</strong> Bölümünüze ait derslerden aldığınız
-            dersleri seçip kaydedin. Seçim tamamlanmadan diğer modüllere erişemezsiniz.
-          </div>
-        ) : (
-          <div style={{
-            background: "#EEF2FF", border: "1px solid #C7D2FE", color: "#3730A3",
-            padding: "14px 18px", borderRadius: 10, marginBottom: 16, fontSize: 14,
-          }}>
-            Seçimlerinizi güncelliyorsunuz. Değişiklikleri kaydetmeden ayrılırsanız
-            eski seçimleriniz korunur.
-          </div>
-        )}
+        <div style={{
+          background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E",
+          padding: "14px 18px", borderRadius: 10, marginBottom: 16, fontSize: 14,
+        }}>
+          <strong>Ders seçimi yapmanız gerekiyor.</strong> Bölümünüze ait derslerden
+          aldığınız dersleri seçip kaydedin. Seçim tamamlanmadan diğer modüllere
+          erişemezsiniz. <strong>Kaydettikten sonra seçimleriniz kilitlenir ve
+          bir daha değiştirilemez.</strong>
+        </div>
 
         <div style={{
           background: "white", border: "1px solid #E5E7EB", borderRadius: 12,
@@ -382,39 +380,19 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           <div style={{ fontSize: 13, color: "#6B7280" }}>
             <strong style={{ color: "#1F2937" }}>{selectedIds.length}</strong> ders seçtiniz
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {hasSelected && (
-              <button
-                onClick={() => {
-                  // Orijinal seçime geri dön
-                  setSelectedIds(Array.isArray(studentRecord?.myCourseIds) ? studentRecord.myCourseIds : []);
-                  setEditMode(false);
-                }}
-                disabled={saving}
-                style={{
-                  padding: "10px 18px", borderRadius: 8,
-                  background: "white", color: "#4B5563",
-                  border: "1px solid #D1D5DB", fontWeight: 600, fontSize: 14,
-                  cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit",
-                }}
-              >
-                İptal
-              </button>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={saving || selectedIds.length === 0}
-              style={{
-                padding: "10px 22px", borderRadius: 8,
-                background: saving || selectedIds.length === 0 ? "#9CA3AF" : "#1B2A4A",
-                color: "white", border: "none", fontWeight: 600, fontSize: 14,
-                cursor: saving || selectedIds.length === 0 ? "not-allowed" : "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              {saving ? "Kaydediliyor…" : hasSelected ? "Güncelle" : "Kaydet ve Devam Et"}
-            </button>
-          </div>
+          <button
+            onClick={handleSave}
+            disabled={saving || selectedIds.length === 0}
+            style={{
+              padding: "10px 22px", borderRadius: 8,
+              background: saving || selectedIds.length === 0 ? "#9CA3AF" : "#1B2A4A",
+              color: "white", border: "none", fontWeight: 600, fontSize: 14,
+              cursor: saving || selectedIds.length === 0 ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {saving ? "Kaydediliyor…" : "Kaydet ve Kilitle"}
+          </button>
         </div>
       </div>
     );
@@ -429,30 +407,26 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         background: "linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)",
         padding: "24px 28px", borderRadius: 14, color: "white", marginBottom: 20,
         boxShadow: "0 6px 20px rgba(27,42,74,0.15)",
-        display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12,
       }}>
-        <div>
-          <div style={{ fontSize: 12, opacity: 0.75, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            Benim Sayfam
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 700, marginTop: 4 }}>
-            {studentRecord?.firstName} {studentRecord?.lastName}
-          </div>
-          <div style={{ fontSize: 13, opacity: 0.85, marginTop: 6 }}>
-            {studentRecord?.studentNumber} · {deptName}
-          </div>
+        <div style={{ fontSize: 12, opacity: 0.75, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          Benim Sayfam
         </div>
-        <button
-          onClick={() => setEditMode(true)}
-          style={{
-            background: "rgba(255,255,255,0.15)", color: "white",
-            border: "1px solid rgba(255,255,255,0.35)", padding: "10px 18px",
-            borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
-            fontFamily: "inherit", backdropFilter: "blur(4px)",
-          }}
-        >
-          Dersleri Düzenle
-        </button>
+        <div style={{ fontSize: 26, fontWeight: 700, marginTop: 4 }}>
+          {studentRecord?.firstName} {studentRecord?.lastName}
+        </div>
+        <div style={{ fontSize: 13, opacity: 0.85, marginTop: 6 }}>
+          {studentRecord?.studentNumber} · {deptName}
+        </div>
+        <div style={{
+          marginTop: 12, padding: "8px 14px", borderRadius: 8,
+          background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
+          fontSize: 12, color: "rgba(255,255,255,0.9)", display: "inline-flex", alignItems: "center", gap: 8,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+          </svg>
+          Ders seçiminiz kilitlendi. Değişiklik için bölüm yetkilisi ile iletişime geçin.
+        </div>
       </div>
 
       {/* Bildirimler */}
