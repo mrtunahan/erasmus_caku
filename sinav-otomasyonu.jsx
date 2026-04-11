@@ -1949,7 +1949,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
 
       // ── Veri-bazlı migration: departmentId normalize + mükerrer silme ──
       // Sadece bir kez çalışır (tarayıcı başına), her sayfa yüklemesinde çalışmaz
-      const MIGRATION_VERSION = "v4_dept_code_name";
+      const MIGRATION_VERSION = "v5_donem_fix";
       const migrationDone = localStorage.getItem("sinav_migration_" + MIGRATION_VERSION);
       if (depts.length > 0 && !migrationDone) {
         try {
@@ -1987,6 +1987,12 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
                 updateOps.push({ collection: "sinav_dersler", type: "update", docId: c.docId, data: { departmentId: "bilgisayar" } });
               } else if (idMap[did]) {
                 updateOps.push({ collection: "sinav_dersler", type: "update", docId: c.docId, data: { departmentId: idMap[did] } });
+              }
+              // donem eksik olan derslere SEED_COURSES'tan veya sınıf bazlı varsayılan ata
+              if (!c.donem || (c.donem !== "guz" && c.donem !== "bahar")) {
+                const seedMatch = SEED_COURSES.find(s => s.code === c.code && s.name === c.name);
+                const donem = seedMatch ? seedMatch.donem : ((c.sinif || 1) % 2 === 1 ? "guz" : "bahar");
+                updateOps.push({ collection: "sinav_dersler", type: "update", docId: c.docId, data: { donem } });
               }
             });
 
@@ -2302,7 +2308,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
             }
           }
         }
-        await FirestoreWrite.add("sinav_dersler", { ...formData, studentCount: 0, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() });
+        await FirestoreWrite.add("sinav_dersler", { ...formData, donem: formData.donem || "guz", studentCount: 0, departmentId: selectedDeptId || null, createdAt: new Date().toISOString() });
       }
       // Akademisyen adı girilmişse ve professors koleksiyonunda yoksa otomatik ekle
       if (formData.professor && formData.professor.trim()) {
