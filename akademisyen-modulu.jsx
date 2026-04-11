@@ -1431,7 +1431,6 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
                 prof={prof}
                 onSelect={handleSelect}
                 onDelete={handleDelete}
-                onStaffTypeChange={handleStaffTypeChange}
                 isSelected={selectedProf && selectedProf.username === prof.username}
                 canManage={canManage}
                 isAdmin={isAdmin}
