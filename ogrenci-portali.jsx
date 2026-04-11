@@ -597,13 +597,10 @@ var PortalDB = {
       await window.DBWrite.batch(ops.slice(i, i + 20));
     }
     // Yorum sayısını azalt
-    var postRef = this.postsRef();
-    if (postRef) {
-      var postDoc = await postRef.doc(String(postId)).get();
-      if (postDoc.exists) {
-        var currentCount = Math.max(0, (postDoc.data().commentCount || 0) - deleteCount);
-        await window.DBWrite.update("portal_posts", String(postId), { commentCount: currentCount });
-      }
+    var postResult = await window.apiReadDoc("portal_posts", String(postId));
+    if (postResult.exists) {
+      var currentCount = Math.max(0, ((postResult.data.commentCount || 0) - deleteCount));
+      await window.DBWrite.update("portal_posts", String(postId), { commentCount: currentCount });
     }
     return deleteCount;
   },
@@ -3416,11 +3413,11 @@ const LeaderboardPanel = ({ posts, allUsers, currentUser }) => {
 
   // Profil verilerini yükle (bölüm filtresi için)
   useEffect(function () {
-    var ref = PortalDB.profilesRef();
-    if (!ref) return;
-    ref.get().then(function (snap) {
+    window.apiRead("portal_profiles").then(function (results) {
       var data = {};
-      snap.forEach(function (doc) { data[doc.id] = doc.data(); });
+      if (Array.isArray(results)) {
+        results.forEach(function (doc) { data[doc.id] = doc; });
+      }
       setProfiles(data);
     }).catch(function () {});
   }, []);
@@ -4728,27 +4725,26 @@ function OgrenciPortaliApp({ currentUser }) {
     showToast(wasBookmarked ? "Yer iminden kaldırıldı" : "Yer imine eklendi");
   };
 
-  // Gerçek zamanlı dinleme (onSnapshot) - tüm postları çek, filtrelemeyi client-side yap
+  // Tüm postları çek, filtrelemeyi client-side yap
   var [allPosts, setAllPosts] = useState([]);
   useEffect(function () {
-    var ref = PortalDB.postsRef();
-    if (!ref) { setLoading(false); return; }
-    var unsubscribe = ref.limit(200).onSnapshot(function (snapshot) {
-      var fetched = snapshot.docs.map(function (doc) {
-        return Object.assign({}, doc.data(), { id: doc.id });
-      });
-      fetched.sort(function (a, b) {
-        var ta = a.createdAt ? (a.createdAt._seconds ? a.createdAt._seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
-        var tb = b.createdAt ? (b.createdAt._seconds ? b.createdAt._seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
-        return tb - ta;
-      });
-      setAllPosts(fetched);
-      setLoading(false);
-    }, function (err) {
-      console.error("Gönderiler yüklenemedi:", err);
-      setLoading(false);
-    });
-    return function () { unsubscribe(); };
+    async function fetchPosts() {
+      try {
+        var fetched = await window.apiRead("portal_posts", { _limit: 200 });
+        if (!Array.isArray(fetched)) fetched = [];
+        fetched.sort(function (a, b) {
+          var ta = a.createdAt ? (a.createdAt._seconds ? a.createdAt._seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
+          var tb = b.createdAt ? (b.createdAt._seconds ? b.createdAt._seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
+          return tb - ta;
+        });
+        setAllPosts(fetched);
+      } catch (err) {
+        console.error("Gönderiler yüklenemedi:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchPosts();
   }, []);
 
   // Kategori filtreleme client-side
