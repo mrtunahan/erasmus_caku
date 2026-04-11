@@ -758,27 +758,23 @@ function exportCourseContentsJSON(courses, department) {
 // ══════════════════════════════════════════════════════════════
 
 var MuafiyetDB = {
-  settingsRef: function () {
-    return window.apiFirestore.collection("muafiyet_settings");
-  },
-  recordsRef: function () {
-    return window.apiFirestore.collection("muafiyet_records");
-  },
   async saveCourseContents(contents) {
     await window.FirestoreWrite.set("muafiyet_settings", "course_contents", { courses: contents, updatedAt: new Date().toISOString() });
   },
   async fetchCourseContents() {
-    var ref = this.settingsRef(); if (!ref) return [];
-    var doc = await ref.doc("course_contents").get();
-    return doc.exists ? (doc.data().courses || []) : [];
+    try {
+      var result = await window.apiReadDoc("muafiyet_settings", "course_contents");
+      return result.exists ? (result.data.courses || []) : [];
+    } catch (e) { return []; }
   },
   async saveGradingSystem(system) {
     await window.FirestoreWrite.set("muafiyet_settings", "grading_system", { grades: system, updatedAt: new Date().toISOString() });
   },
   async fetchGradingSystem() {
-    var ref = this.settingsRef(); if (!ref) return null;
-    var doc = await ref.doc("grading_system").get();
-    return doc.exists ? (doc.data().grades || null) : null;
+    try {
+      var result = await window.apiReadDoc("muafiyet_settings", "grading_system");
+      return result.exists ? (result.data.grades || null) : null;
+    } catch (e) { return null; }
   },
   async saveRecord(record) {
     var id = record.id; var data = Object.assign({}, record); delete data.id;
@@ -786,9 +782,10 @@ var MuafiyetDB = {
     else { var result = await window.FirestoreWrite.add("muafiyet_records", Object.assign({}, data, { createdAt: new Date().toISOString() })); return Object.assign({}, record, { id: result.id }); }
   },
   async fetchRecords() {
-    var ref = this.recordsRef(); if (!ref) return [];
-    var snapshot = await ref.orderBy("createdAt", "desc").get();
-    return snapshot.docs.map(function (doc) { return Object.assign({}, doc.data(), { id: doc.id }); });
+    try {
+      var docs = await window.apiRead("muafiyet_records", { orderBy: "createdAt:desc" });
+      return docs;
+    } catch (e) { return []; }
   },
   async deleteRecord(id) {
     await window.FirestoreWrite.remove("muafiyet_records", String(id));
@@ -797,11 +794,9 @@ var MuafiyetDB = {
   // Admin insan onayı: tek bir match'in kararını günceller
   // decision: "confirmed" (muaf) | "rejected" (red)
   async updateMatchDecision(recordId, matchIndex, decision, adminNote) {
-    var ref = this.recordsRef();
-    if (!ref) throw new Error("Firestore bağlantısı yok");
-    var doc = await ref.doc(String(recordId)).get();
-    if (!doc.exists) throw new Error("Kayıt bulunamadı");
-    var data = doc.data();
+    var result = await window.apiReadDoc("muafiyet_records", String(recordId));
+    if (!result.exists) throw new Error("Kayıt bulunamadı");
+    var data = result.data;
     var matches = (data.matches || []).slice();
     if (!matches[matchIndex]) throw new Error("Eşleşme bulunamadı");
     matches[matchIndex] = Object.assign({}, matches[matchIndex], {

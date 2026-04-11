@@ -1710,14 +1710,11 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   useEffect(() => {
     const loadCustomUnis = async () => {
       try {
-        const db = window.apiFirestore;
-        if (!db) return;
-        const snapshot = await db.collection("erasmus_universities").get();
+        const docs = await window.apiRead("erasmus_universities");
         const unis = {};
-        snapshot.docs.forEach(doc => {
-          const data = doc.data();
-          if (data.name) {
-            unis[data.name] = { country: data.country || "", courses: data.courses || [], custom: true };
+        docs.forEach(doc => {
+          if (doc.name) {
+            unis[doc.name] = { country: doc.country || "", courses: doc.courses || [], custom: true };
           }
         });
         setCustomUniversities(unis);
@@ -1731,9 +1728,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
 
   const handleAddUniversity = async (name, country) => {
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
-      await db.collection("erasmus_universities").add({ name, country, courses: [], createdAt: new Date().toISOString() });
+      await window.FirestoreWrite.add("erasmus_universities", { name, country, courses: [], createdAt: new Date().toISOString() });
       setCustomUniversities(prev => ({ ...prev, [name]: { country, courses: [], custom: true } }));
     } catch (e) { console.error("Üniversite eklenemedi:", e); }
   };

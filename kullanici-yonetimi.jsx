@@ -33,10 +33,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   useEffect(() => {
     const loadDepts = async () => {
       try {
-        const db = window.apiFirestore;
-        if (!db) return;
-        const snapshot = await db.collection("departments").get();
-        const depts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const depts = await window.apiRead("departments");
         setDbDepartments(depts);
       } catch (e) { console.error("Bölümler yüklenemedi:", e); }
     };

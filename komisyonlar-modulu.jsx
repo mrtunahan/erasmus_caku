@@ -57,11 +57,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
   useEffect(() => {
     const loadProfessors = async () => {
       try {
-        const db = window.apiFirestore;
-        if (!db) return;
-        const snapshot = await db.collection("professors").get();
-        const allProfs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // departmentId yoksa "bilgisayar" kabul et (eski kayıtlar)
+        const allProfs = await window.apiRead("professors");
         const filtered = activeDepartment
           ? allProfs.filter(p => (p.departmentId || "bilgisayar") === activeDepartment)
           : allProfs;
@@ -78,11 +74,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
     const loadCommissions = async () => {
       setLoading(true);
       try {
-        const db = window.apiFirestore;
-        if (!db) return;
-        const snapshot = await db.collection("commissions").get();
-        const allComms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // departmentId yoksa "bilgisayar" kabul et (eski kayıtlar)
+        const allComms = await window.apiRead("commissions");
         const filtered = activeDepartment
           ? allComms.filter(c => (c.departmentId || "bilgisayar") === activeDepartment)
           : allComms;
@@ -107,9 +99,6 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
       return;
     }
     try {
-      const db = window.apiFirestore;
-      if (!db) throw new Error("Veritabanı bağlantısı yok");
-
       const data = {
         name: formName.trim(),
         description: formDesc.trim(),
@@ -119,18 +108,17 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
       };
 
       if (editingId) {
-        await db.collection("commissions").doc(editingId).set(data, { merge: true });
+        await window.FirestoreWrite.set("commissions", editingId, data, true);
         showMessage("Komisyon güncellendi!");
       } else {
         data.createdAt = new Date().toISOString();
-        const docRef = await db.collection("commissions").add(data);
-        data.id = docRef.id;
+        const result = await window.FirestoreWrite.add("commissions", data);
+        data.id = result?.id || String(Date.now());
         showMessage("Komisyon oluşturuldu!");
       }
 
       // Reload (client-side bölüm filtresi)
-      const snapshot = await db.collection("commissions").get();
-      const allComms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const allComms = await window.apiRead("commissions");
       const filtered = activeDepartment
         ? allComms.filter(c => (c.departmentId || "bilgisayar") === activeDepartment)
         : allComms;
@@ -145,8 +133,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
   const handleDelete = async (commId) => {
     if (!confirm("Bu komisyonu silmek istediğinize emin misiniz?")) return;
     try {
-      const db = window.apiFirestore;
-      await db.collection("commissions").doc(commId).delete();
+      await window.FirestoreWrite.remove("commissions", commId);
       setCommissions(prev => prev.filter(c => c.id !== commId));
       if (selectedCommission?.id === commId) setSelectedCommission(null);
       showMessage("Komisyon silindi.");

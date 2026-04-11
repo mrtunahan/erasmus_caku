@@ -1957,6 +1957,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
           }
 
           // 2. Dersleri kontrol et (hem normalize hem mükerrer)
+          // NOT: Tüm bölümlerin dersleri yüklenir çünkü departmentId normalize edilmesi gerekiyor
           const cRef = getCoursesRef();
           const updateOps = [];
           const deleteOps = [];

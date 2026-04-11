@@ -236,29 +236,25 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
     const loadData = async () => {
       setLoadingRoadmap(true);
       try {
-        const db = window.apiFirestore;
-        if (!db || !studentId) { setLoadingRoadmap(false); return; }
+        if (!studentId) { setLoadingRoadmap(false); return; }
 
         // Öğrencinin başvurularını yükle
-        const appSnap = await db.collection("internship_applications")
-          .where("ogrenciNo", "==", studentId)
-          .get();
-        const apps = appSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const apps = await window.apiRead("internship_applications", { where: "ogrenciNo:eq:s:" + studentId });
         // Onaylanmış (devam) veya tamamlanmış başvuruyu bul, yoksa beklemede olanı al
         const activeApp = apps.find(a => a.status === "devam") || apps.find(a => a.status === "tamamlandi") || apps.find(a => a.status === "beklemede") || null;
         setMyApplication(activeApp);
 
         // Roadmap verilerini yükle
         if (activeApp) {
-          const roadmapDoc = await db.collection("internship_roadmap").doc(activeApp.id).get();
-          if (roadmapDoc.exists) {
-            setRoadmapData(roadmapDoc.data() || {});
+          const roadmapResult = await window.apiReadDoc("internship_roadmap", activeApp.id);
+          if (roadmapResult.exists) {
+            setRoadmapData(roadmapResult.data || {});
           }
         }
 
         // Yüklenen belgeleri yükle
-        const uploadDoc = await db.collection("internship_uploads").doc(studentId).get();
-        if (uploadDoc.exists) setUploads(uploadDoc.data() || {});
+        const uploadResult = await window.apiReadDoc("internship_uploads", studentId);
+        if (uploadResult.exists) setUploads(uploadResult.data || {});
       } catch (e) {
         console.error("Roadmap verileri yüklenirken hata:", e);
       } finally {
@@ -320,9 +316,6 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
     }
 
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
-
       const newRoadmapData = {
         ...roadmapData,
         steps: {
@@ -336,11 +329,11 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
         updatedAt: new Date().toISOString(),
       };
 
-      await db.collection("internship_roadmap").doc(myApplication.id).set(newRoadmapData, { merge: true });
+      await window.FirestoreWrite.set("internship_roadmap", myApplication.id, newRoadmapData, true);
 
       // Komisyon üyelerine bildirim oluştur
       try {
-        await db.collection("internship_notifications").add({
+        await window.FirestoreWrite.add("internship_notifications", {
           type: "step_submitted",
           departmentId: activeDepartment || myApplication.departmentId || "",
           appId: myApplication.id,
@@ -840,22 +833,17 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
   useEffect(() => {
     const loadApplications = async () => {
       try {
-        const db = window.apiFirestore;
-        if (!db) return;
         const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
         if (!studentId) return;
-        const snapshot = await db.collection("internship_applications")
-          .where("ogrenciNo", "==", studentId)
-          .get();
-        const apps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const apps = await window.apiRead("internship_applications", { where: "ogrenciNo:eq:s:" + studentId });
         setMyApplications(apps);
 
         // Her başvuru için roadmap verilerini yükle
         const roadmaps = {};
         for (const app of apps) {
           try {
-            const roadmapDoc = await db.collection("internship_roadmap").doc(app.id).get();
-            if (roadmapDoc.exists) roadmaps[app.id] = roadmapDoc.data();
+            const rmResult = await window.apiReadDoc("internship_roadmap", app.id);
+            if (rmResult.exists) roadmaps[app.id] = rmResult.data;
           } catch {}
         }
         setAppRoadmaps(roadmaps);
@@ -971,9 +959,6 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
 
     setSaving(true);
     try {
-      const db = window.apiFirestore;
-      if (!db) throw new Error("Veritabanı bağlantısı yok");
-
       const data = {
         ...form,
         departmentId: activeDepartment,
@@ -984,10 +969,10 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
       console.log("Staj başvurusu kaydediliyor:", { departmentId: data.departmentId, ogrenciNo: data.ogrenciNo, editingId });
 
       if (editingId) {
-        await db.collection("internship_applications").doc(editingId).set(data, { merge: true });
+        await window.FirestoreWrite.set("internship_applications", editingId, data, true);
       } else {
         data.createdAt = new Date().toISOString();
-        const result = await db.collection("internship_applications").add(data);
+        const result = await window.FirestoreWrite.add("internship_applications", data);
         console.log("Başvuru kaydedildi, ID:", result?.id);
       }
 
@@ -997,17 +982,14 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
       setForm(emptyForm);
       // Reload applications
       const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
-      const snapshot = await db.collection("internship_applications")
-        .where("ogrenciNo", "==", studentId)
-        .get();
-      const reloadedApps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const reloadedApps = await window.apiRead("internship_applications", { where: "ogrenciNo:eq:s:" + studentId });
       setMyApplications(reloadedApps);
       // Reload roadmaps
       const roadmaps = {};
       for (const a of reloadedApps) {
         try {
-          const rdoc = await db.collection("internship_roadmap").doc(a.id).get();
-          if (rdoc.exists) roadmaps[a.id] = rdoc.data();
+          const rmResult = await window.apiReadDoc("internship_roadmap", a.id);
+          if (rmResult.exists) roadmaps[a.id] = rmResult.data;
         } catch {}
       }
       setAppRoadmaps(roadmaps);
@@ -1361,29 +1343,25 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     const loadData = async () => {
       setLoadingApp(true);
       try {
-        const db = window.apiFirestore;
-        if (!db || !studentId) { setLoadingApp(false); return; }
+        if (!studentId) { setLoadingApp(false); return; }
 
         // Öğrencinin staj başvurusunu yükle (ogrenciNo alanıyla sorgula)
-        const appsSnap = await db.collection("internship_applications")
-          .where("ogrenciNo", "==", studentId)
-          .get();
-        if (!appsSnap.empty) {
+        const apps = await window.apiRead("internship_applications", { where: "ogrenciNo:eq:s:" + studentId });
+        if (apps.length > 0) {
           // Onaylı (devam) > beklemede > diğer sırasıyla al
-          const apps = appsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
           const app = apps.find(a => a.status === "devam") ||
                       apps.find(a => a.status === "tamamlandi") ||
                       apps.find(a => a.status === "beklemede") ||
                       apps[0];
           setMyApplication(app);
           // Roadmap verisini yükle
-          const rmDoc = await db.collection("internship_roadmap").doc(app.id).get();
-          if (rmDoc.exists) setRoadmapData(rmDoc.data());
+          const rmResult = await window.apiReadDoc("internship_roadmap", app.id);
+          if (rmResult.exists) setRoadmapData(rmResult.data);
 
           // Belgeleri yükle (başvurusu olanlar için)
-          const doc = await db.collection("internship_uploads").doc(studentId).get();
-          if (doc.exists) {
-            const data = doc.data() || {};
+          const uploadResult = await window.apiReadDoc("internship_uploads", studentId);
+          if (uploadResult.exists) {
+            const data = uploadResult.data || {};
             setUploads(data);
             const requests = {};
             Object.keys(data).forEach(key => {
@@ -1460,9 +1438,6 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   // Belge değişiklik talebi gönder
   const handleRequestChange = async (belgeId) => {
     try {
-      const db = window.apiFirestore;
-      if (!db) throw new Error("Veritabanı bağlantısı yok");
-
       const existingData = uploads[belgeId] || {};
       const updatedData = {
         ...existingData,
@@ -1473,10 +1448,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
         },
       };
 
-      await db.collection("internship_uploads").doc(studentId).set(
-        { [belgeId]: updatedData },
-        { merge: true }
-      );
+      await window.FirestoreWrite.set("internship_uploads", studentId, { [belgeId]: updatedData }, true);
 
       setUploads(prev => ({ ...prev, [belgeId]: updatedData }));
       setChangeRequests(prev => ({ ...prev, [belgeId]: updatedData.changeRequest }));
@@ -1550,9 +1522,6 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
 
     setUploading(belgeId);
     try {
-      const db = window.apiFirestore;
-      if (!db) throw new Error("Veritabanı bağlantısı yok");
-
       // Dosya bilgisini kaydet
       const fileData = {
         fileName: file.name,
@@ -1582,7 +1551,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       }
 
       const newUploads = { ...uploads, [belgeId]: fileData };
-      await db.collection("internship_uploads").doc(studentId).set(newUploads, { merge: true });
+      await window.FirestoreWrite.set("internship_uploads", studentId, newUploads, true);
       setUploads(newUploads);
       setChangeRequests(prev => { const p = { ...prev }; delete p[belgeId]; return p; });
       setMsg("Belge başarıyla yüklendi!");
@@ -1915,10 +1884,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   useEffect(() => {
     const loadCommission = async () => {
       try {
-        const db = window.apiFirestore;
-        if (!db) return;
-        const snapshot = await db.collection("commissions").get();
-        const comms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const comms = await window.apiRead("commissions");
         // "staj" kelimesi geçen komisyonu bul
         const stajComm = comms.find(c => (c.name || "").toLowerCase().includes("staj"));
         if (stajComm && stajComm.members) {
@@ -1950,14 +1916,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     if (!isStudent || !studentId) return;
     const loadNotifs = async () => {
       try {
-        const db = window.apiFirestore;
-        if (!db) return;
-        const snap = await db.collection("internship_notifications")
-          .where("targetStudentNo", "==", studentId)
-          .get();
-        const list = snap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+        const docs = await window.apiRead("internship_notifications", { where: "targetStudentNo:eq:s:" + studentId });
+        const list = docs.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
         setStudentNotifs(list);
       } catch (e) { console.error("Öğrenci bildirimleri yüklenemedi:", e); }
     };
@@ -1968,26 +1928,20 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const handleStudentMarkRead = async (notifId) => {
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
       const notif = studentNotifs.find(n => n.id === notifId);
       if (!notif || notif.readBy?.includes(studentId)) return;
       const newReadBy = [...(notif.readBy || []), studentId];
-      await db.collection("internship_notifications").doc(notifId).set({ readBy: newReadBy }, { merge: true });
+      await window.FirestoreWrite.set("internship_notifications", notifId, { readBy: newReadBy }, true);
       setStudentNotifs(prev => prev.map(n => n.id === notifId ? { ...n, readBy: newReadBy } : n));
     } catch (e) { console.error("Bildirim okundu hatası:", e); }
   };
 
   const handleStudentMarkAllRead = async () => {
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
       const unread = studentNotifs.filter(n => !n.readBy?.includes(studentId));
-      await Promise.all(unread.map(n =>
-        db.collection("internship_notifications").doc(n.id).set(
-          { readBy: [...(n.readBy || []), studentId] }, { merge: true }
-        )
-      ));
+      for (const n of unread) {
+        await window.FirestoreWrite.set("internship_notifications", n.id, { readBy: [...(n.readBy || []), studentId] }, true);
+      }
       setStudentNotifs(prev => prev.map(n => ({
         ...n, readBy: n.readBy?.includes(studentId) ? n.readBy : [...(n.readBy || []), studentId],
       })));
@@ -2010,43 +1964,35 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
-
       // Staj etaplarını yükle
-      let periodQuery = db.collection("internship_periods");
-      if (activeDepartment) periodQuery = periodQuery.where("departmentId", "==", activeDepartment);
-      const periodSnap = await periodQuery.get();
-      setStajPeriods(periodSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const periodParams = activeDepartment ? { where: "departmentId:eq:s:" + activeDepartment } : {};
+      const periods = await window.apiRead("internship_periods", periodParams);
+      setStajPeriods(periods);
 
       // Eski internships koleksiyonunu yükle
-      let query = db.collection("internships");
-      if (activeDepartment) query = query.where("departmentId", "==", activeDepartment);
-      const snapshot = await query.get();
-      setStajRecords(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const internParams = activeDepartment ? { where: "departmentId:eq:s:" + activeDepartment } : {};
+      const records = await window.apiRead("internships", internParams);
+      setStajRecords(records);
 
       // Admin/yönetici ise öğrenci başvurularını ve belgelerini yükle
       if (canManage) {
         // Önce departmentId filtresiyle dene
-        let appQuery = db.collection("internship_applications");
-        if (activeDepartment) appQuery = appQuery.where("departmentId", "==", activeDepartment);
-        let appSnap = await appQuery.get();
-        let apps = appSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const appParams = activeDepartment ? { where: "departmentId:eq:s:" + activeDepartment } : {};
+        let apps = await window.apiRead("internship_applications", appParams);
 
         // Eğer filtreyle sonuç yoksa filtresiz dene (departmentId eşleşmeme durumu)
         if (apps.length === 0 && activeDepartment) {
           console.warn("departmentId filtresiyle başvuru bulunamadı, filtresiz deneniyor...");
-          const allSnap = await db.collection("internship_applications").get();
-          apps = allSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          apps = await window.apiRead("internship_applications");
           console.log("Toplam başvuru:", apps.length, "departmentId değerleri:", apps.map(a => a.departmentId));
         }
 
         setAllApplications(apps);
 
         // Tüm yüklenen belgeleri getir
-        const uploadsSnap = await db.collection("internship_uploads").get();
+        const uploadDocs = await window.apiRead("internship_uploads");
         const uploadsMap = {};
-        uploadsSnap.docs.forEach(doc => { uploadsMap[doc.id] = doc.data(); });
+        uploadDocs.forEach(doc => { uploadsMap[doc.id] = doc; });
         setAllUploads(uploadsMap);
       }
     } catch (e) {
@@ -2103,13 +2049,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       }
     }
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
-      await db.collection("internship_applications").doc(appId).set({
+      await window.FirestoreWrite.set("internship_applications", appId, {
         status: newStatus,
         statusUpdatedBy: currentUser?.name || currentUser?.identifier || "",
         statusUpdatedAt: new Date().toISOString(),
-      }, { merge: true });
+      }, true);
       setAllApplications(prev => prev.map(a => a.id === appId ? { ...a, status: newStatus, statusUpdatedBy: currentUser?.name || "", statusUpdatedAt: new Date().toISOString() } : a));
       setSelectedApp(prev => prev && prev.id === appId ? { ...prev, status: newStatus } : prev);
     } catch (e) {
@@ -2130,11 +2074,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       : "Bu staj başvurusunu silmek istediğinizden emin misiniz?";
     if (!confirm(confirmMsg)) return;
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
-      await db.collection("internship_applications").doc(appId).delete();
+      await window.FirestoreWrite.remove("internship_applications", appId);
       // İlişkili roadmap verisini de sil
-      try { await db.collection("internship_roadmap").doc(appId).delete(); } catch {}
+      try { await window.FirestoreWrite.remove("internship_roadmap", appId); } catch {}
       setAllApplications(prev => prev.filter(a => a.id !== appId));
       setSelectedApp(null);
     } catch (e) {
@@ -2149,24 +2091,22 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       return;
     }
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
       const isNew = !editingPeriod;
       const data = { ...periodForm, departmentId: activeDepartment, updatedAt: new Date().toISOString() };
       let savedId = editingPeriod;
       if (editingPeriod) {
-        await db.collection("internship_periods").doc(editingPeriod).set(data, { merge: true });
+        await window.FirestoreWrite.set("internship_periods", editingPeriod, data, true);
       } else {
         data.createdAt = new Date().toISOString();
         data.isActive = true;
-        const ref = await db.collection("internship_periods").add(data);
-        savedId = ref.id;
+        const result = await window.FirestoreWrite.add("internship_periods", data);
+        savedId = result?.id || String(Date.now());
       }
 
       // Yeni etap ise bölümdeki tüm kullanıcılara bildirim gönder
       if (isNew) {
         try {
-          await db.collection("internship_notifications").add({
+          await window.FirestoreWrite.add("internship_notifications", {
             type: "new_period",
             departmentId: activeDepartment || "",
             periodId: savedId,
@@ -2199,9 +2139,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const handleDeletePeriod = async (periodId) => {
     if (!confirm("Bu staj etabını silmek istediğinizden emin misiniz?")) return;
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
-      await db.collection("internship_periods").doc(periodId).delete();
+      await window.FirestoreWrite.remove("internship_periods", periodId);
       loadAllData();
     } catch (e) {
       alert("Silme hatası: " + e.message);
@@ -2240,11 +2178,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
 
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
-
-      const roadmapDoc = await db.collection("internship_roadmap").doc(appId).get();
-      const existingData = roadmapDoc.exists ? roadmapDoc.data() : {};
+      const rmResult = await window.apiReadDoc("internship_roadmap", appId);
+      const existingData = rmResult.exists ? rmResult.data : {};
 
       const newData = {
         ...existingData,
@@ -2260,14 +2195,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         updatedAt: new Date().toISOString(),
       };
 
-      await db.collection("internship_roadmap").doc(appId).set(newData, { merge: true });
+      await window.FirestoreWrite.set("internship_roadmap", appId, newData, true);
 
       // Öğrenciye onay bildirimi gönder
       try {
         const app = allApplications.find(a => a.id === appId);
         const approverName = currentUser?.name || currentUser?.identifier || "";
         if (app?.ogrenciNo) {
-          await db.collection("internship_notifications").add({
+          await window.FirestoreWrite.add("internship_notifications", {
             type: "step_approved",
             targetStudentNo: app.ogrenciNo,
             departmentId: activeDepartment || app.departmentId || "",
@@ -2280,7 +2215,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             readBy: [],
           });
           // Komisyon üyelerine onay bildirimi gönder
-          await db.collection("internship_notifications").add({
+          await window.FirestoreWrite.add("internship_notifications", {
             type: "step_approved_commission",
             departmentId: activeDepartment || app.departmentId || "",
             appId,
@@ -2306,11 +2241,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Admin: Yol haritası adım reddi
   const handleRejectStep = async (appId, stepIdx) => {
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
-
-      const roadmapDoc = await db.collection("internship_roadmap").doc(appId).get();
-      const existingData = roadmapDoc.exists ? roadmapDoc.data() : {};
+      const rmResult = await window.apiReadDoc("internship_roadmap", appId);
+      const existingData = rmResult.exists ? rmResult.data : {};
 
       const newData = {
         ...existingData,
@@ -2325,14 +2257,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         updatedAt: new Date().toISOString(),
       };
 
-      await db.collection("internship_roadmap").doc(appId).set(newData, { merge: true });
+      await window.FirestoreWrite.set("internship_roadmap", appId, newData, true);
 
       // Öğrenciye red bildirimi gönder
       try {
         const app = allApplications.find(a => a.id === appId);
         const rejecterName = currentUser?.name || currentUser?.identifier || "";
         if (app?.ogrenciNo) {
-          await db.collection("internship_notifications").add({
+          await window.FirestoreWrite.add("internship_notifications", {
             type: "step_rejected",
             targetStudentNo: app.ogrenciNo,
             departmentId: activeDepartment || app.departmentId || "",
@@ -2345,7 +2277,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             readBy: [],
           });
           // Komisyon üyelerine red bildirimi gönder
-          await db.collection("internship_notifications").add({
+          await window.FirestoreWrite.add("internship_notifications", {
             type: "step_rejected_commission",
             departmentId: activeDepartment || app.departmentId || "",
             appId,
@@ -2371,10 +2303,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Admin: Belge değişiklik talebini onayla
   const handleApproveDocChange = async (ogrenciNo, belgeId) => {
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
-
-      await db.collection("internship_uploads").doc(ogrenciNo).set({
+      await window.FirestoreWrite.set("internship_uploads", ogrenciNo, {
         [belgeId]: {
           ...allUploads[ogrenciNo]?.[belgeId],
           changeRequest: {
@@ -2383,12 +2312,12 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             approvedAt: new Date().toISOString(),
           },
         },
-      }, { merge: true });
+      }, true);
 
       // Refresh uploads
-      const uploadsSnap = await db.collection("internship_uploads").get();
+      const uploadDocs = await window.apiRead("internship_uploads");
       const uploadsMap = {};
-      uploadsSnap.docs.forEach(doc => { uploadsMap[doc.id] = doc.data(); });
+      uploadDocs.forEach(doc => { uploadsMap[doc.id] = doc; });
       setAllUploads(uploadsMap);
 
       alert("Belge değişiklik talebi onaylandı. Öğrenci belgeyi yeniden yükleyebilir.");
@@ -2400,10 +2329,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Admin: Belge değişiklik talebini reddet
   const handleRejectDocChange = async (ogrenciNo, belgeId) => {
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
-
-      await db.collection("internship_uploads").doc(ogrenciNo).set({
+      await window.FirestoreWrite.set("internship_uploads", ogrenciNo, {
         [belgeId]: {
           ...allUploads[ogrenciNo]?.[belgeId],
           changeRequest: {
@@ -2412,11 +2338,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             rejectedAt: new Date().toISOString(),
           },
         },
-      }, { merge: true });
+      }, true);
 
-      const uploadsSnap = await db.collection("internship_uploads").get();
+      const uploadDocs = await window.apiRead("internship_uploads");
       const uploadsMap = {};
-      uploadsSnap.docs.forEach(doc => { uploadsMap[doc.id] = doc.data(); });
+      uploadDocs.forEach(doc => { uploadsMap[doc.id] = doc; });
       setAllUploads(uploadsMap);
 
       alert("Belge değişiklik talebi reddedildi.");
@@ -2515,14 +2441,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const loadNotifications = useCallback(async () => {
     if (!canManage) return;
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
-      const snap = await db.collection("internship_notifications")
-        .where("departmentId", "==", activeDepartment || "")
-        .get();
-      const list = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+      const docs = await window.apiRead("internship_notifications", { where: "departmentId:eq:s:" + (activeDepartment || "") });
+      const list = docs.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
       setNotifications(list);
     } catch (e) {
       console.error("Bildirimler yüklenirken hata:", e);
@@ -2537,26 +2457,20 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const handleMarkRead = async (notifId) => {
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
       const notif = notifications.find(n => n.id === notifId);
       if (!notif || notif.readBy?.includes(userId)) return;
       const newReadBy = [...(notif.readBy || []), userId];
-      await db.collection("internship_notifications").doc(notifId).set({ readBy: newReadBy }, { merge: true });
+      await window.FirestoreWrite.set("internship_notifications", notifId, { readBy: newReadBy }, true);
       setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, readBy: newReadBy } : n));
     } catch (e) { console.error("Bildirim okundu hatası:", e); }
   };
 
   const handleMarkAllRead = async () => {
     try {
-      const db = window.apiFirestore;
-      if (!db) return;
       const unread = notifications.filter(n => !n.readBy?.includes(userId));
-      await Promise.all(unread.map(n =>
-        db.collection("internship_notifications").doc(n.id).set(
-          { readBy: [...(n.readBy || []), userId] }, { merge: true }
-        )
-      ));
+      for (const n of unread) {
+        await window.FirestoreWrite.set("internship_notifications", n.id, { readBy: [...(n.readBy || []), userId] }, true);
+      }
       setNotifications(prev => prev.map(n => ({
         ...n, readBy: n.readBy?.includes(userId) ? n.readBy : [...(n.readBy || []), userId],
       })));
@@ -2569,11 +2483,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     const loadRoadmaps = async () => {
       if (!canManage) return;
       try {
-        const db = window.apiFirestore;
-        if (!db) return;
-        const snap = await db.collection("internship_roadmap").get();
+        const docs = await window.apiRead("internship_roadmap");
         const map = {};
-        snap.docs.forEach(doc => { map[doc.id] = doc.data(); });
+        docs.forEach(doc => { map[doc.id] = doc; });
         setAllRoadmaps(map);
       } catch (e) {
         console.error("Roadmap verileri yüklenirken hata:", e);
