@@ -420,11 +420,13 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
       try {
         // Dersler (sinav_dersler) - sadece aktif bölüm + mükerrer filtreleme
         const rawCourses = await window.apiRead('sinav_dersler', { where: `departmentId:eq:${activeDepartment}` });
-        // Mükerrer kayıtları filtrele (aynı code olan derslerden en iyisini tut)
+        // Mükerrer kayıtları filtrele (aynı code+name = gerçek mükerrer, farklı isimler korunur)
         const courseMap = {};
         rawCourses.forEach(c => {
-          const key = (c.code || "").trim();
-          if (!key) { courseMap[c.id] = c; return; }
+          const code = (c.code || "").trim();
+          const name = (c.name || "").trim();
+          if (!code) { courseMap[c.id] = c; return; }
+          const key = `${code}__${name}`;
           if (!courseMap[key]) { courseMap[key] = c; return; }
           const existing = courseMap[key];
           const eP = existing.professor && existing.professor !== "-" && existing.professor !== "";
