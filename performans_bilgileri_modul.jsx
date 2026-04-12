@@ -653,3 +653,6 @@ const lbl = { display: "block", fontSize: 11, fontWeight: 600, color: C.textMute
 const inp = { width: "100%", padding: "5px 6px", borderRadius: 5, border: `1px solid ${C.yellowBorder}`, background: C.yellowDim, color: C.text, fontSize: 12, fontFamily: F, textAlign: "center", outline: "none", boxSizing: "border-box" };
 const inpF = { width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.surfaceAlt, color: C.text, fontSize: 12, fontFamily: F, outline: "none", boxSizing: "border-box" };
 const txa = { width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.surfaceAlt, color: C.text, fontSize: 12, fontFamily: F, outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.5 };
+
+// ── Global window export (app-shell lazy loader için) ──
+window.PerformansBilgileriApp = PerformansBilgileri;
