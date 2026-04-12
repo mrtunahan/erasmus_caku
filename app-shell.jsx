@@ -545,43 +545,6 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser }) => 
           );
         })}
 
-        {/* Active Department Info Card */}
-        {activeDept && (
-          <>
-            <div style={{ margin: "8px 0", borderTop: "1px solid #E5E7EB" }} />
-            <div style={{
-              padding: "12px", borderRadius: 10,
-              background: `linear-gradient(135deg, ${activeDept.color}12, ${activeDept.color}06)`,
-              border: `1px solid ${activeDept.color}18`,
-            }}>
-              <div style={{
-                display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
-              }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: `${activeDept.color}18`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                    stroke={activeDept.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d={activeDept.icon} />
-                  </svg>
-                </div>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1F2937", lineHeight: 1.2 }}>{activeDept.shortName}</div>
-                  <div style={{ fontSize: 10, color: "#9CA3AF" }}>Mühendisliği</div>
-                </div>
-              </div>
-              <div style={{
-                fontSize: 10, color: "#6B7280", lineHeight: 1.4,
-                padding: "6px 8px", borderRadius: 6,
-                background: "rgba(255,255,255,0.6)",
-              }}>
-                {activeDept.name}
-              </div>
-            </div>
-          </>
-        )}
       </div>
     </div>
   );
