@@ -1738,14 +1738,14 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
       if (!DB.isReady()) { setLoading(false); return; }
       try {
         setLoading(true);
-        // Initialize database if needed
-        const ref = DB.studentsRef();
-        if (!ref) { setLoading(false); return; }
-        const snapshot = await ref.limit(1).get();
-        if (snapshot.empty) {
-          for (const student of SAMPLE_STUDENTS) await DB.addStudent({ ...student, erasmusAccess: true });
+        let allStudents = await DB.fetchStudents();
+        // Koleksiyon boşsa örnek veri seed et (ilk kurulum için)
+        if (!allStudents || allStudents.length === 0) {
+          for (const student of SAMPLE_STUDENTS) {
+            await DB.addStudent({ ...student, erasmusAccess: true });
+          }
+          allStudents = await DB.fetchStudents();
         }
-        const allStudents = await DB.fetchStudents();
         // Bölüm bazlı filtreleme: departmentId'si olmayan veriler bilgisayar bölümüne ait
         const fetchedStudents = allStudents.filter(s => {
           const deptId = s.departmentId || "bilgisayar";
@@ -1764,7 +1764,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
         setLoading(false);
       }
     };
-    setTimeout(loadStudents, 500);
+    loadStudents();
   }, [activeDepartment]);
 
   const canEdit = (student) => {
