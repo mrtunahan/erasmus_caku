@@ -5,15 +5,30 @@ const { ObjectId } = require("mongodb");
 
 const router = express.Router();
 
-// Rate limiting - dakikada max 120 istek
-const dbRateLimit = rateLimit({
+// Rate limiting — okuma ve yazma için ayrı limitler.
+// SPA sayfa açılışında 30-50 paralel apiRead yapıyor, bu yüzden okumalarda
+// yüksek tutuyoruz. Yazmalar daha hassas olduğu için düşük kalıyor.
+const readLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 120,
+  max: 1200, // dakikada 1200 okuma — sayfa geçişleri ve refresh'lere yer bırakır
   message: { error: "Çok fazla istek. Lütfen biraz bekleyin." },
   standardHeaders: true,
   legacyHeaders: false,
 });
-router.use(dbRateLimit);
+
+const writeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120, // dakikada 120 yazma
+  message: { error: "Çok fazla istek. Lütfen biraz bekleyin." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// /write endpoint'i ve diğer POST'lar yazma limitine, GET'ler okuma limitine tabi
+router.use((req, res, next) => {
+  if (req.method === "GET") return readLimiter(req, res, next);
+  return writeLimiter(req, res, next);
+});
 
 // İzin verilen koleksiyonlar (güvenlik sınırı)
 const ALLOWED_COLLECTIONS = [
