@@ -37,7 +37,6 @@ const ALLOWED_COLLECTIONS = [
   "sinav_dersler",
   "sinav_donemler",
   "professors",
-  "users",
   "portal_posts",
   "portal_moderators",
   "portal_notifications",

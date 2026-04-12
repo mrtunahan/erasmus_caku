@@ -18,6 +18,7 @@ async function setupIndexes(database) {
 
     // Bölüm yetkilisi girişi
     await database.collection("departments").createIndex({ managerName: 1 }, { background: true });
+    await database.collection("departments").createIndex({ managerNames: 1 }, { background: true });
 
     // Staj modülü
     await database.collection("internship_applications").createIndex({ ogrenciNo: 1, status: 1 }, { background: true });

@@ -286,7 +286,10 @@ router.post("/department-manager", async (req, res) => {
 
   try {
     const db = await getDbSafe();
-    const deptDoc = await db.collection("departments").findOne({ managerName });
+    // managerNames array (yeni) veya managerName string (eski) her ikisini de destekle
+    const deptDoc = await db.collection("departments").findOne({
+      $or: [{ managerNames: managerName }, { managerName }]
+    });
     if (!deptDoc) {
       recordAttempt(rateLimitKey);
       return res.json({ success: false, error: "Bu isimle kayıtlı bir bölüm yetkilisi bulunamadı." });
@@ -475,30 +478,6 @@ router.post("/admin-reset", async (req, res) => {
   }
 });
 
-// ══════════════════════════════════════════════
-// 8. Kullanıcı Rolü Kaydet
-// POST /api/auth/save-role
-// ══════════════════════════════════════════════
-router.post("/save-role", async (req, res) => {
-  const { uid, roleData } = req.body;
-
-  if (!uid || !roleData) {
-    return res.status(400).json({ error: "uid ve roleData gerekli." });
-  }
-
-  try {
-    const db = await getDbSafe();
-    await db.collection("users").updateOne(
-      { _docId: uid },
-      { $set: { ...roleData, _docId: uid, updatedAt: new Date() } },
-      { upsert: true }
-    );
-    return res.json({ success: true });
-  } catch (error) {
-    console.error("saveUserRole error:", error);
-    return res.status(500).json({ error: "Rol kaydedilemedi." });
-  }
-});
 
 // ══════════════════════════════════════════════
 // 9. Varsayılan Profesör Şifresi Ayarla
