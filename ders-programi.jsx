@@ -639,15 +639,19 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     setConflicts(c);
   }, [deptAllYearsSlots, allFacultySlots]);
 
-  // Seçili sınıfa ait dersler — akademisyen sadece kendi derslerini görebilir
+  // Seçili döneme ait tüm dersler — akademisyen sadece kendi derslerini görebilir
   const yearCourses = useMemo(() => {
-    const y = parseInt(year);
-    let filtered = courses.filter(c => (c.sinif === y || c.sinif === 5) && c.donem === semester);
+    let filtered = courses.filter(c => c.donem === semester);
     if (isProfessor && currentUser?.name) {
       filtered = filtered.filter(c => c.professor === currentUser.name);
     }
+    // Sınıfa göre sırala, sonra ders koduna göre
+    filtered.sort((a, b) => {
+      if ((a.sinif || 0) !== (b.sinif || 0)) return (a.sinif || 0) - (b.sinif || 0);
+      return (a.code || "").localeCompare(b.code || "");
+    });
     return filtered;
-  }, [courses, year, semester, isProfessor, currentUser]);
+  }, [courses, semester, isProfessor, currentUser]);
 
   // Renk ataması
   const courseColors = useMemo(() => {
@@ -1069,152 +1073,263 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
       {showAddModal && selectedSlot && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.4)", zIndex: 2000,
+          background: "rgba(15,23,42,0.5)", backdropFilter: "blur(4px)", zIndex: 2000,
           display: "flex", alignItems: "center", justifyContent: "center",
           padding: 16,
         }} onClick={() => setShowAddModal(false)}>
           <div style={{
-            background: "white", borderRadius: 16,
-            padding: responsive.val(20, 24, 28),
-            width: "100%", maxWidth: 480,
-            boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            background: "white", borderRadius: 20,
+            width: "100%", maxWidth: 520,
+            boxShadow: "0 25px 60px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.05)",
+            overflow: "hidden",
           }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: DP.navy, marginBottom: 4 }}>
-              Ders Programına Ekle
-            </h3>
-            <p style={{ fontSize: 13, color: DP.textMuted, marginBottom: 20 }}>
-              {selectedSlot.day} - {selectedSlot.hour}
-            </p>
-
-            {/* Saat seçimi (mobilde) */}
-            {responsive.isMobile && (
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.textMuted, marginBottom: 4 }}>Saat</label>
-                <select
-                  value={selectedSlot.hourIndex}
-                  onChange={e => setSelectedSlot({ ...selectedSlot, hourIndex: parseInt(e.target.value), hour: HOURS[parseInt(e.target.value)] })}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", background: "white" }}
-                >
-                  {HOURS.map((h, i) => <option key={i} value={i}>{h}</option>)}
-                </select>
+            {/* Modal Header */}
+            <div style={{
+              padding: "20px 24px 16px",
+              background: `linear-gradient(135deg, ${DP.primary}, #6D28D9)`,
+              position: "relative",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 12,
+                  background: "rgba(255,255,255,0.2)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <DPIcon path="M12 6v6l4 2M12 2a10 10 0 100 20 10 10 0 000-20z" size={20} color="white" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 17, fontWeight: 700, color: "white", margin: 0, lineHeight: 1.2 }}>
+                    Ders Programına Ekle
+                  </h3>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", margin: "3px 0 0" }}>
+                    {selectedSlot.day} &middot; {selectedSlot.hour}
+                  </p>
+                </div>
               </div>
-            )}
-
-            {/* Ders seçimi (sınav otomasyonundaki derslerden) */}
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.textMuted, marginBottom: 4 }}>
-                Ders Seçimi <span style={{ fontWeight: 400, color: "#9CA3AF" }}>(Sınav Otomasyonundan)</span>
-              </label>
-              {yearCourses.length > 0 ? (
-                <select
-                  value={modalCourseId}
-                  onChange={e => setModalCourseId(e.target.value)}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", background: "white" }}
-                >
-                  <option value="">Ders seçin...</option>
-                  {yearCourses.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.code} - {c.name} {c.professor ? `(${c.professor})` : ""}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div style={{
-                  padding: "10px 12px", borderRadius: 8, border: "1px solid #FCD34D",
-                  background: "#FFFBEB", fontSize: 12, color: "#92400E",
-                }}>
-                  Bu sınıf için ders bulunamadı. Sınav Otomasyonundan ders ekleyin.
-                </div>
-              )}
+              {/* Close button */}
+              <button onClick={() => { setShowAddModal(false); setAddSlotWarnings([]); }} style={{
+                position: "absolute", top: 14, right: 14, width: 30, height: 30,
+                borderRadius: 8, border: "none", background: "rgba(255,255,255,0.15)",
+                color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 18, lineHeight: 1, transition: "all 0.15s",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.3)"}
+                onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
+              >&times;</button>
             </div>
 
-            {/* Derslik seçimi */}
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.textMuted, marginBottom: 4 }}>
-                Derslik <span style={{ fontWeight: 400, color: "#9CA3AF" }}>(Sınav Otomasyonundan)</span>
-              </label>
-              {classrooms.length > 0 ? (
-                <select
-                  value={modalClassroom}
-                  onChange={e => setModalClassroom(e.target.value)}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", background: "white" }}
-                >
-                  <option value="">Derslik seçin (opsiyonel)...</option>
-                  {classrooms.map(r => (
-                    <option key={r.id} value={r.name}>{r.name} ({r.capacity} kişi)</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  value={modalClassroom}
-                  onChange={e => setModalClassroom(e.target.value)}
-                  placeholder="Derslik adı (ör: D-201)"
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none" }}
-                />
+            {/* Modal Body */}
+            <div style={{ padding: responsive.val(16, 20, 24) }}>
+              {/* Saat seçimi (mobilde) */}
+              {responsive.isMobile && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.text, marginBottom: 6 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                      <DPIcon path="M12 6v6l4 2M12 2a10 10 0 100 20 10 10 0 000-20z" size={14} color={DP.primary} />
+                      Saat
+                    </span>
+                  </label>
+                  <select
+                    value={selectedSlot.hourIndex}
+                    onChange={e => setSelectedSlot({ ...selectedSlot, hourIndex: parseInt(e.target.value), hour: HOURS[parseInt(e.target.value)] })}
+                    style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1.5px solid ${DP.border}`, fontSize: 13, outline: "none", background: "white", transition: "border-color 0.2s" }}
+                    onFocus={e => e.target.style.borderColor = DP.primary}
+                    onBlur={e => e.target.style.borderColor = DP.border}
+                  >
+                    {HOURS.map((h, i) => <option key={i} value={i}>{h}</option>)}
+                  </select>
+                </div>
               )}
-            </div>
 
-            {/* Seçili ders önizleme */}
-            {modalCourseId && (() => {
-              const c = courses.find(x => x.id === modalCourseId);
-              if (!c) return null;
-              return (
-                <div style={{
-                  padding: 12, borderRadius: 8, background: "#F3F4F6",
-                  marginBottom: 14, fontSize: 12,
-                }}>
-                  <div style={{ fontWeight: 600, color: DP.text }}>{c.code} - {c.name}</div>
-                  {c.professor && <div style={{ color: DP.textMuted, marginTop: 2 }}>Hoca: {c.professor}</div>}
-                  {c.sinif && <div style={{ color: DP.textMuted }}>Sınıf: {c.sinif === 5 ? "Seçmeli" : c.sinif + ". Sınıf"}</div>}
-                  {c.studentCount > 0 && <div style={{ color: DP.textMuted }}>Öğrenci: {c.studentCount}</div>}
-                </div>
-              );
-            })()}
-
-            {/* Çakışma uyarıları */}
-            {addSlotWarnings.length > 0 && (
-              <div style={{
-                padding: 12, borderRadius: 8, background: "#FEF2F2",
-                border: "1px solid #FECACA", marginBottom: 14,
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#991B1B", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                  <DPIcon path="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" size={14} color="#DC2626" />
-                  Çakışma — Ders Eklenemez!
-                </div>
-                {addSlotWarnings.map((w, i) => (
-                  <div key={i} style={{ fontSize: 11, color: "#7F1D1D", marginBottom: 3 }}>• {w}</div>
-                ))}
-                {isAdmin ? (
-                  <div style={{ fontSize: 11, color: "#991B1B", marginTop: 8, fontStyle: "italic" }}>
-                    Fakülte yöneticisi olarak çakışmayı geçersiz kılabilirsiniz.
-                  </div>
+              {/* Ders seçimi */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.text, marginBottom: 6 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <DPIcon path="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" size={14} color={DP.primary} />
+                    Ders Seçimi
+                  </span>
+                  <span style={{ fontWeight: 400, color: "#9CA3AF", fontSize: 11, marginLeft: 6 }}>({yearCourses.length} ders)</span>
+                </label>
+                {yearCourses.length > 0 ? (
+                  <select
+                    value={modalCourseId}
+                    onChange={e => setModalCourseId(e.target.value)}
+                    style={{
+                      width: "100%", padding: "11px 14px", borderRadius: 10,
+                      border: `1.5px solid ${modalCourseId ? DP.primary : DP.border}`,
+                      fontSize: 13, outline: "none", background: "white",
+                      transition: "border-color 0.2s",
+                      boxShadow: modalCourseId ? `0 0 0 3px ${DP.primary}15` : "none",
+                    }}
+                    onFocus={e => { e.target.style.borderColor = DP.primary; e.target.style.boxShadow = `0 0 0 3px ${DP.primary}15`; }}
+                    onBlur={e => { if (!modalCourseId) { e.target.style.borderColor = DP.border; e.target.style.boxShadow = "none"; } }}
+                  >
+                    <option value="">Ders seçin...</option>
+                    {(() => {
+                      let lastSinif = null;
+                      const options = [];
+                      yearCourses.forEach(c => {
+                        if (c.sinif !== lastSinif) {
+                          lastSinif = c.sinif;
+                          options.push(<optgroup key={`g-${c.sinif}`} label={c.sinif === 5 ? "Seçmeli Dersler" : `${c.sinif}. Sınıf`} />);
+                        }
+                        options.push(
+                          <option key={c.id} value={c.id}>
+                            {c.code} - {c.name} {c.professor ? `(${c.professor})` : ""}
+                          </option>
+                        );
+                      });
+                      return options;
+                    })()}
+                  </select>
                 ) : (
-                  <div style={{ fontSize: 11, color: "#991B1B", marginTop: 8, fontStyle: "italic" }}>
-                    Lütfen farklı bir saat veya derslik seçin. Çakışmalı ders eklenemez.
+                  <div style={{
+                    padding: "12px 14px", borderRadius: 10, border: "1px solid #FCD34D",
+                    background: "#FFFBEB", fontSize: 12, color: "#92400E",
+                    display: "flex", alignItems: "center", gap: 8,
+                  }}>
+                    <DPIcon path="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" size={16} color="#D97706" />
+                    Bu dönem için ders bulunamadı. Ders Yönetimi'nden ders ekleyin.
                   </div>
                 )}
               </div>
-            )}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              {/* Derslik seçimi */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: DP.text, marginBottom: 6 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <DPIcon path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" size={14} color={DP.primary} />
+                    Derslik
+                  </span>
+                  <span style={{ fontWeight: 400, color: "#9CA3AF", fontSize: 11, marginLeft: 6 }}>(opsiyonel)</span>
+                </label>
+                {classrooms.length > 0 ? (
+                  <select
+                    value={modalClassroom}
+                    onChange={e => setModalClassroom(e.target.value)}
+                    style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1.5px solid ${DP.border}`, fontSize: 13, outline: "none", background: "white", transition: "border-color 0.2s" }}
+                    onFocus={e => e.target.style.borderColor = DP.primary}
+                    onBlur={e => e.target.style.borderColor = DP.border}
+                  >
+                    <option value="">Derslik seçin...</option>
+                    {classrooms.map(r => (
+                      <option key={r.id} value={r.name}>{r.name} ({r.capacity} kişi)</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={modalClassroom}
+                    onChange={e => setModalClassroom(e.target.value)}
+                    placeholder="Derslik adı (ör: D-201)"
+                    style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1.5px solid ${DP.border}`, fontSize: 13, outline: "none", transition: "border-color 0.2s" }}
+                    onFocus={e => e.target.style.borderColor = DP.primary}
+                    onBlur={e => e.target.style.borderColor = DP.border}
+                  />
+                )}
+              </div>
+
+              {/* Seçili ders önizleme */}
+              {modalCourseId && (() => {
+                const c = courses.find(x => x.id === modalCourseId);
+                if (!c) return null;
+                return (
+                  <div style={{
+                    padding: 14, borderRadius: 12,
+                    background: `linear-gradient(135deg, ${DP.primaryPale}, #F5F3FF)`,
+                    border: `1px solid ${DP.primaryLight}30`,
+                    marginBottom: 16,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                      <div style={{
+                        padding: "3px 8px", borderRadius: 6,
+                        background: DP.primary, color: "white",
+                        fontSize: 11, fontWeight: 700, letterSpacing: "0.02em",
+                      }}>{c.code}</div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: DP.text }}>{c.name}</span>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: DP.textMuted }}>
+                      {c.professor && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <DPIcon path="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" size={12} color={DP.textMuted} />
+                          {c.professor}
+                        </span>
+                      )}
+                      {c.sinif && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <DPIcon path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16" size={12} color={DP.textMuted} />
+                          {c.sinif === 5 ? "Seçmeli" : c.sinif + ". Sınıf"}
+                        </span>
+                      )}
+                      {c.studentCount > 0 && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <DPIcon path="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" size={12} color={DP.textMuted} />
+                          {c.studentCount} kişi
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Çakışma uyarıları */}
+              {addSlotWarnings.length > 0 && (
+                <div style={{
+                  padding: 14, borderRadius: 12, background: "#FEF2F2",
+                  border: "1px solid #FECACA", marginBottom: 16,
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#991B1B", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                    <DPIcon path="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" size={16} color="#DC2626" />
+                    Çakışma Tespit Edildi
+                  </div>
+                  {addSlotWarnings.map((w, i) => (
+                    <div key={i} style={{ fontSize: 12, color: "#7F1D1D", marginBottom: 3, paddingLeft: 22 }}>• {w}</div>
+                  ))}
+                  <div style={{ fontSize: 11, color: "#991B1B", marginTop: 8, fontStyle: "italic", paddingLeft: 22 }}>
+                    {isAdmin
+                      ? "Fakülte yöneticisi olarak çakışmayı geçersiz kılabilirsiniz."
+                      : "Lütfen farklı bir saat veya derslik seçin."}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: "14px 24px 18px", borderTop: `1px solid ${DP.border}`,
+              display: "flex", justifyContent: "flex-end", gap: 10, background: "#FAFAFA",
+            }}>
               <button onClick={() => { setShowAddModal(false); setAddSlotWarnings([]); }} style={{
-                padding: "10px 20px", borderRadius: 8, border: "1px solid #D1D5DB",
-                background: "white", color: DP.textMuted, fontSize: 13, cursor: "pointer",
-              }}>İptal</button>
+                padding: "10px 22px", borderRadius: 10, border: `1.5px solid ${DP.border}`,
+                background: "white", color: DP.textMuted, fontSize: 13, fontWeight: 500,
+                cursor: "pointer", transition: "all 0.15s",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#F3F4F6"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "white"; }}
+              >İptal</button>
               {addSlotWarnings.length > 0 ? (
                 isAdmin ? (
                   <button onClick={() => handleAddSlot(true)} style={{
-                    padding: "10px 20px", borderRadius: 8, border: "none",
-                    background: "#DC2626", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  }}>Çakışmayı Geçersiz Kıl</button>
+                    padding: "10px 22px", borderRadius: 10, border: "none",
+                    background: "#DC2626", color: "white", fontSize: 13, fontWeight: 600,
+                    cursor: "pointer", transition: "all 0.15s",
+                    boxShadow: "0 2px 8px rgba(220,38,38,0.3)",
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 12px rgba(220,38,38,0.4)"}
+                    onMouseLeave={e => e.currentTarget.style.boxShadow = "0 2px 8px rgba(220,38,38,0.3)"}
+                  >Çakışmayı Geçersiz Kıl</button>
                 ) : null
               ) : (
                 <button onClick={() => handleAddSlot(false)} disabled={!modalCourseId} style={{
-                  padding: "10px 20px", borderRadius: 8, border: "none",
-                  background: modalCourseId ? DP.primary : "#D1D5DB",
+                  padding: "10px 22px", borderRadius: 10, border: "none",
+                  background: modalCourseId ? `linear-gradient(135deg, ${DP.primary}, #6D28D9)` : "#D1D5DB",
                   color: "white", fontSize: 13, fontWeight: 600,
                   cursor: modalCourseId ? "pointer" : "default",
-                }}>Ekle</button>
+                  transition: "all 0.15s",
+                  boxShadow: modalCourseId ? `0 2px 8px ${DP.primary}40` : "none",
+                }}
+                  onMouseEnter={e => { if (modalCourseId) e.currentTarget.style.boxShadow = `0 4px 14px ${DP.primary}50`; }}
+                  onMouseLeave={e => { if (modalCourseId) e.currentTarget.style.boxShadow = `0 2px 8px ${DP.primary}40`; }}
+                >Programa Ekle</button>
               )}
             </div>
           </div>
