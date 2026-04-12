@@ -254,7 +254,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                 </Btn>
               ))}
             </div>
-            {activeSection !== "passwords" && (
+            {(activeSection !== "passwords" || passwordTab !== "admin") && (
               <div style={{ flex: 1, maxWidth: 400, minWidth: 220, position: "relative" }}>
                 {/* Search Icon */}
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -265,7 +265,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                   type="text"
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  placeholder={activeSection === "students" ? "Ad, soyad veya öğrenci no ile ara..." : "İsim veya bölüm ile ara..."}
+                  placeholder={activeSection === "students" ? "Ad, soyad veya öğrenci no ile ara..." : activeSection === "passwords" ? (passwordTab === "student" ? "Öğrenci no veya ad soyad ile ara..." : "Akademisyen adı ile ara...") : "İsim veya bölüm ile ara..."}
                   style={{
                     width: "100%",
                     padding: "10px 36px 10px 38px",
@@ -302,11 +302,15 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         </Card>
 
         {/* Search Results Info */}
-        {searchTerm && activeSection !== "passwords" && (
+        {searchTerm && (activeSection !== "passwords" || passwordTab !== "admin") && (
           <div style={{ padding: "8px 16px", fontSize: 13, color: C.textMuted, display: "flex", alignItems: "center", gap: 6 }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
             <span>
-              <strong style={{ color: C.navy }}>"{searchTerm}"</strong> için {activeSection === "students" ? `${filteredStudents.length} öğrenci` : `${filteredProfessors.length} akademisyen`} bulundu
+              <strong style={{ color: C.navy }}>"{searchTerm}"</strong> için {
+                activeSection === "students" ? `${filteredStudents.length} öğrenci` :
+                activeSection === "passwords" ? (passwordTab === "student" ? `${filteredStudents.length} öğrenci` : `${filteredProfessors.length} akademisyen`) :
+                `${filteredProfessors.length} akademisyen`
+              } bulundu
             </span>
           </div>
         )}
@@ -527,7 +531,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
               ].map(tab => (
                 <Btn key={tab.id}
                   variant={passwordTab === tab.id ? "primary" : "secondary"}
-                  onClick={() => setPasswordTab(tab.id)}
+                  onClick={() => { setPasswordTab(tab.id); setSearchTerm(""); }}
                   small
                 >
                   {tab.label}
@@ -547,7 +551,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                     </tr>
                   </thead>
                   <tbody>
-                    {students.map(student => (
+                    {filteredStudents.map(student => (
                       <tr key={student.studentNumber} style={{ borderBottom: `1px solid ${C.border}` }}>
                         <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{student.studentNumber}</td>
                         <td style={{ padding: 12 }}>{student.firstName} {student.lastName}</td>
@@ -582,7 +586,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                     </tr>
                   </thead>
                   <tbody>
-                    {professors.map((prof, idx) => (
+                    {filteredProfessors.map((prof, idx) => (
                       <tr key={prof.id || idx} style={{ borderBottom: `1px solid ${C.border}` }}>
                         <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{prof.name}</td>
                         <td style={{ padding: 12 }}>
