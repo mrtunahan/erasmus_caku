@@ -238,7 +238,7 @@ const FormKarti = ({ form, kategori, isAdmin, onDelete }) => {
 // ══════════════════════════════════════════════════════════════
 // Form Ekleme Modal
 // ══════════════════════════════════════════════════════════════
-const FormEkleModal = ({ onClose, onEkle }) => {
+const FormEkleModal = ({ onClose, onEkle, activeDepartment }) => {
   const [baslik, setBaslik] = useState("");
   const [aciklama, setAciklama] = useState("");
   const [kategori, setKategori] = useState("ogrenci-isleri");
@@ -267,6 +267,8 @@ const FormEkleModal = ({ onClose, onEkle }) => {
         dosyaAdi: dosya.name,
         dosyaBoyutu: dosya.size,
         storagePath: fileName,
+        // Öğrenci İşleri formları tüm bölümler için ortak — departmentId eklenmez
+        ...(kategori !== "ogrenci-isleri" && { departmentId: activeDepartment }),
       };
 
       const saved = await DB.addForm(formData);
@@ -497,8 +499,11 @@ function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       const DB = window.DB;
       if (!DB) { setYukleniyor(false); return; }
       const data = await DB.fetchForms();
-      // Bölüm bazlı filtreleme: departmentId'si olmayan veriler bilgisayar bölümüne ait
+      // Bölüm bazlı filtreleme:
+      // - "ogrenci-isleri" kategorisi tüm bölümlerde ortak gösterilir
+      // - "bolum" ve "universite" formları sadece ilgili bölümde görünür
       const filtered = (data || []).filter(f => {
+        if (f.kategori === "ogrenci-isleri") return true;
         const deptId = f.departmentId || "bilgisayar";
         return deptId === activeDepartment;
       });
@@ -736,6 +741,7 @@ function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         <FormEkleModal
           onClose={() => setModalAcik(false)}
           onEkle={formEkle}
+          activeDepartment={activeDepartment}
         />
       )}
     </div>
