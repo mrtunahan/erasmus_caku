@@ -216,44 +216,86 @@ const Sidebar = ({
       flexDirection: "column",
       overflowY: "auto",
     }}>
-      {/* Department Selector */}
-      {availableDepts.length > 1 && (
-        <div style={{ padding: "16px 16px 8px" }}>
-          <label style={{
-            display: "block", fontSize: 10, fontWeight: 700, color: "#9CA3AF",
-            textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8,
-          }}>Bölüm Seçimi</label>
-          <select
-            value={activeDepartment}
-            onChange={e => onDepartmentChange(e.target.value)}
-            style={{
-              width: "100%", padding: "10px 12px", borderRadius: 8,
-              border: `2px solid ${activeDept?.color || "#E5E7EB"}`,
-              background: "white", fontSize: 13, fontWeight: 500,
-              color: "#1F2937", cursor: "pointer", outline: "none",
-              fontFamily: "'Inter', sans-serif",
-            }}
-          >
-            {availableDepts.map(d => (
-              <option key={d.id} value={d.id}>{d.shortName}</option>
-            ))}
-          </select>
+      {/* Department Selector - Modern Grid */}
+      <div style={{ padding: "16px 12px 8px" }}>
+        <label style={{
+          display: "block", fontSize: 10, fontWeight: 700, color: "#9CA3AF",
+          textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10,
+          paddingLeft: 4,
+        }}>Bölüm Seçimi</label>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: availableDepts.length > 1 ? "1fr 1fr" : "1fr",
+          gap: 6,
+        }}>
+          {availableDepts.map(d => {
+            const isActive = d.id === activeDepartment;
+            return (
+              <button
+                key={d.id}
+                onClick={() => onDepartmentChange(d.id)}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+                  padding: "10px 6px 8px", borderRadius: 10,
+                  border: isActive ? `2px solid ${d.color}` : "2px solid transparent",
+                  background: isActive ? `${d.color}12` : "white",
+                  cursor: availableDepts.length > 1 ? "pointer" : "default",
+                  transition: "all 0.2s ease",
+                  position: "relative",
+                  overflow: "hidden",
+                  boxShadow: isActive ? `0 2px 8px ${d.color}25` : "0 1px 3px rgba(0,0,0,0.06)",
+                }}
+                onMouseEnter={e => {
+                  if (!isActive && availableDepts.length > 1) {
+                    e.currentTarget.style.background = `${d.color}08`;
+                    e.currentTarget.style.borderColor = `${d.color}50`;
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                    e.currentTarget.style.boxShadow = `0 3px 10px ${d.color}20`;
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!isActive && availableDepts.length > 1) {
+                    e.currentTarget.style.background = "white";
+                    e.currentTarget.style.borderColor = "transparent";
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.06)";
+                  }
+                }}
+              >
+                {/* Department Icon */}
+                <div style={{
+                  width: 32, height: 32, borderRadius: 8,
+                  background: isActive ? `${d.color}20` : "#F3F4F6",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.2s ease",
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke={isActive ? d.color : "#6B7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={d.icon} />
+                  </svg>
+                </div>
+                {/* Department Name */}
+                <span style={{
+                  fontSize: 11, fontWeight: isActive ? 700 : 500,
+                  color: isActive ? d.color : "#4B5563",
+                  textAlign: "center", lineHeight: 1.2,
+                  fontFamily: "'Inter', sans-serif",
+                  transition: "all 0.2s ease",
+                }}>{d.shortName}</span>
+                {/* Active indicator dot */}
+                {isActive && (
+                  <div style={{
+                    position: "absolute", top: 5, right: 5,
+                    width: 6, height: 6, borderRadius: "50%",
+                    background: d.color,
+                    boxShadow: `0 0 0 2px ${d.color}30`,
+                  }} />
+                )}
+              </button>
+            );
+          })}
         </div>
-      )}
-
-      {/* Single department badge (for dept managers) */}
-      {availableDepts.length === 1 && (
-        <div style={{ padding: "16px 16px 8px" }}>
-          <div style={{
-            padding: "10px 12px", borderRadius: 8,
-            background: `${activeDept?.color}10`, border: `2px solid ${activeDept?.color}30`,
-            display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: activeDept?.color }} />
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#1F2937" }}>{activeDept?.name}</span>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Department Modules */}
       <div style={{ padding: "8px 12px 4px" }}>
