@@ -642,12 +642,12 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
   // Seçili sınıfa ait dersler — akademisyen sadece kendi derslerini görebilir
   const yearCourses = useMemo(() => {
     const y = parseInt(year);
-    let filtered = courses.filter(c => c.sinif === y || c.sinif === 5);
+    let filtered = courses.filter(c => (c.sinif === y || c.sinif === 5) && c.donem === semester);
     if (isProfessor && currentUser?.name) {
       filtered = filtered.filter(c => c.professor === currentUser.name);
     }
     return filtered;
-  }, [courses, year, isProfessor, currentUser]);
+  }, [courses, year, semester, isProfessor, currentUser]);
 
   // Renk ataması
   const courseColors = useMemo(() => {
