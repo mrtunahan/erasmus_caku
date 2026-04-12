@@ -418,23 +418,9 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         return;
       }
       try {
-        // Dersler (sinav_dersler) - sadece aktif bölüm + mükerrer filtreleme
+        // Dersler (sinav_dersler) - sadece aktif bölüm
         const rawCourses = await window.apiRead('sinav_dersler', { where: `departmentId:eq:${activeDepartment}` });
-        // Mükerrer kayıtları filtrele (aynı code+name = gerçek mükerrer, farklı isimler korunur)
-        const courseMap = {};
-        rawCourses.forEach(c => {
-          const code = (c.code || "").trim();
-          const name = (c.name || "").trim();
-          if (!code) { courseMap[c.id] = c; return; }
-          const key = `${code}__${name}`;
-          if (!courseMap[key]) { courseMap[key] = c; return; }
-          const existing = courseMap[key];
-          const eP = existing.professor && existing.professor !== "-" && existing.professor !== "";
-          const cP = c.professor && c.professor !== "-" && c.professor !== "";
-          if (cP && !eP) courseMap[key] = c;
-          else if (cP === eP && (c.studentCount || 0) > (existing.studentCount || 0)) courseMap[key] = c;
-        });
-        const courseList = Object.values(courseMap);
+        const courseList = (rawCourses || []).slice();
         courseList.sort((a, b) => (a.sinif || 0) - (b.sinif || 0) || (a.code || "").localeCompare(b.code || ""));
         setCourses(courseList);
 
