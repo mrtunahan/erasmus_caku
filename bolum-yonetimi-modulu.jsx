@@ -69,12 +69,18 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
 
 
   // ── Bölüm Yönetimi (Admin Only) ──
-  const startDeptEdit = (d) => { setEditingItem(d || "new"); setForm({ name: d?.name || "", managerName: d?.managerName || "" }); };
+  const startDeptEdit = (d) => {
+    // managerNames array veya eski managerName string'den ilk yöneticiyi al
+    const existingManagers = d?.managerNames || (d?.managerName ? [d.managerName] : []);
+    setEditingItem(d || "new");
+    setForm({ name: d?.name || "", managerNames: existingManagers.join(", ") });
+  };
   const handleDeptSave = async () => {
     if (!form.name.trim()) return alert("Bölüm adı gerekli");
     setSaving(true);
     try {
-      const data = { name: form.name.trim(), managerName: form.managerName.trim() };
+      const managerNames = form.managerNames.split(",").map(s => s.trim()).filter(Boolean);
+      const data = { name: form.name.trim(), managerNames, managerName: managerNames[0] || "" };
       if (editingItem === "new") {
         await DBWrite.add("departments", data);
       } else {
@@ -231,7 +237,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                   {departments.map(d => (
                     <tr key={d.id} style={{ borderBottom: "1px solid #E5E7EB" }}>
                       <td style={{ padding: "12px 16px", fontWeight: 500 }}>{d.name}</td>
-                      <td style={{ padding: "12px 16px" }}>{d.managerName || <span style={{ color: "#9CA3AF" }}>Atanmadı</span>}</td>
+                      <td style={{ padding: "12px 16px" }}>{(d.managerNames?.join(", ") || d.managerName) || <span style={{ color: "#9CA3AF" }}>Atanmadı</span>}</td>
                       <td style={{ padding: "12px 16px", textAlign: "center" }}>
                         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
                           <GhostBtn onClick={() => startDeptEdit(d)}>Düzenle</GhostBtn>
@@ -323,7 +329,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         <Modal open={true} title={editingItem === "new" ? "Yeni Bölüm" : "Bölüm Düzenle"} onClose={() => setEditingItem(null)} width={400}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <FormField label="Bölüm Adı"><Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></FormField>
-            <FormField label="Yetkili Kişi (Ad Soyad)"><Input value={form.managerName} onChange={e => setForm({...form, managerName: e.target.value})} /></FormField>
+            <FormField label="Yetkili Kişi (virgülle ayırarak birden fazla yazabilirsiniz)"><Input value={form.managerNames} onChange={e => setForm({...form, managerNames: e.target.value})} placeholder="Örn: Prof. Dr. Ali, Dr. Ayşe" /></FormField>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><GhostBtn onClick={() => setEditingItem(null)} style={{color:"#6B7280"}}>İptal</GhostBtn><Btn onClick={handleDeptSave} disabled={saving}>Kaydet</Btn></div>
           </div>
         </Modal>

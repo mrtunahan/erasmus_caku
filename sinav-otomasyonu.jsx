@@ -892,24 +892,27 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
 // ══════════════════════════════════════════════════════════════
 const DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) => {
   const [editingDept, setEditingDept] = useState(null);
-  const [form, setForm] = useState({ name: "", managerName: "" });
+  const [form, setForm] = useState({ name: "", managerNames: "" });
   const [saving, setSaving] = useState(false);
 
   const startEdit = (d) => {
     setEditingDept(d);
-    setForm({ name: d.name, managerName: d.managerName || "" });
+    const existing = d.managerNames || (d.managerName ? [d.managerName] : []);
+    setForm({ name: d.name, managerNames: existing.join(", ") });
   };
 
   const startNew = () => {
     setEditingDept("new");
-    setForm({ name: "", managerName: "" });
+    setForm({ name: "", managerNames: "" });
   };
 
   const handleSave = async () => {
     if (!form.name.trim()) return alert("Bölüm adı gerekli");
     setSaving(true);
     try {
-      await onSave(editingDept === "new" ? null : editingDept, form);
+      const managerNames = form.managerNames.split(",").map(s => s.trim()).filter(Boolean);
+      const saveData = { name: form.name.trim(), managerNames, managerName: managerNames[0] || "" };
+      await onSave(editingDept === "new" ? null : editingDept, saveData);
       setEditingDept(null);
     } catch (e) {
       alert("Hata: " + e.message);
@@ -932,7 +935,7 @@ const DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) =
             {departments.map((d, i) => (
               <tr key={d.id || i} style={{ borderBottom: `1px solid ${C.border}` }}>
                 <td style={{ padding: "8px 12px", fontWeight: 600 }}>{d.name}</td>
-                <td style={{ padding: "8px 12px" }}>{d.managerName || <span style={{ color: "#999" }}>Atanmadı</span>}</td>
+                <td style={{ padding: "8px 12px" }}>{(d.managerNames?.join(", ") || d.managerName) || <span style={{ color: "#999" }}>Atanmadı</span>}</td>
                 <td style={{ padding: "8px 12px", textAlign: "center" }}>
                   <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
                     <button onClick={() => startEdit(d)} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13 }}>Düzenle</button>
@@ -955,8 +958,8 @@ const DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) =
             <FormField label="Bölüm Adı">
               <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Örn: Kimya Mühendisliği" />
             </FormField>
-            <FormField label="Yetkili Kişi (Ad Soyad)">
-              <Input value={form.managerName} onChange={e => setForm({ ...form, managerName: e.target.value })} placeholder="Örn: Dr. Ahmet YILMAZ" />
+            <FormField label="Yetkili Kişi(ler) (virgülle ayırın)">
+              <Input value={form.managerNames} onChange={e => setForm({ ...form, managerNames: e.target.value })} placeholder="Örn: Dr. Ahmet YILMAZ, Dr. Ayşe KOÇ" />
             </FormField>
           </div>
           <div style={{ fontSize: 12, color: "#666", fontStyle: "italic" }}>

@@ -447,7 +447,6 @@ const AUTH_API_ROUTES = {
   changePassword: { method: 'POST', path: '/api/auth/change-password' },
   checkStudentHasPassword: { method: 'POST', path: '/api/auth/student-has-password-check' },
   adminResetPassword: { method: 'POST', path: '/api/auth/admin-reset' },
-  saveUserRole: { method: 'POST', path: '/api/auth/save-role' },
   setDefaultProfessorPassword: { method: 'POST', path: '/api/auth/default-professor-password' },
 };
 
@@ -1118,22 +1117,6 @@ const Auth = {
     return null;
   },
 
-  // Kullanıcı rolünü kaydet (API üzerinden)
-  async saveUserRole(uid, roleData) {
-    const result = await CloudFunctions.call('saveUserRole', { uid, roleData });
-    return result.data;
-  },
-
-  // Kullanıcı rolünü oku
-  async getUserRole(uid) {
-    try {
-      const result = await apiReadDoc('users', uid);
-      return result.exists ? result.data : null;
-    } catch (error) {
-      console.error('getUserRole error:', error);
-      return null;
-    }
-  },
 };
 
 // ── Icons ──
@@ -1451,17 +1434,6 @@ const LoginModal = ({ onLogin }) => {
       // Şifreyi Cloud Functions ile sunucu tarafında kaydet
       const identifier = pendingUser.role === "student" ? pendingUser.studentNumber : pendingUser.name;
       await DB.changePassword(pendingUser.role, identifier, newPassword);
-
-      // Kullanıcı rolünü kaydet
-      try {
-        const user = Auth.currentUser();
-        if (user) {
-          await Auth.saveUserRole(user.uid, pendingUser);
-        }
-      } catch (e) {
-        console.warn("Rol kaydetme hatası:", e.message);
-      }
-
       onLogin(pendingUser);
     } catch (err) {
       console.error("Password setup error:", err);
@@ -1505,18 +1477,7 @@ const LoginModal = ({ onLogin }) => {
       await DB.addStudent(studentData);
       // Şifreyi kaydet
       await DB.updatePassword(pendingStudentNumber, newPassword);
-      // Kullanıcı rolünü kaydet
       const user = { role: "student", name: `${firstName.trim()} ${lastName.trim()}`, studentNumber: pendingStudentNumber, departmentId: selectedDepartment, departmentName: deptObj?.name || "", erasmusAccess: false };
-
-      try {
-        const currentUser = Auth.currentUser();
-        if (currentUser) {
-          await Auth.saveUserRole(currentUser.uid, user);
-        }
-      } catch (e) {
-        console.warn("Rol kaydetme hatası:", e.message);
-      }
-
       onLogin(user);
     } catch (err) {
       console.error("Register error:", err);
@@ -1607,15 +1568,6 @@ const LoginModal = ({ onLogin }) => {
           setLoading(false);
           return;
         }
-        // Kullanıcı rolünü kaydet
-        try {
-          const currentUser = Auth.currentUser();
-          if (currentUser) {
-            await Auth.saveUserRole(currentUser.uid, user);
-          }
-        } catch (e) {
-          console.warn("Rol kaydetme hatası:", e.message);
-        }
         onLogin(user);
       } else {
         // Cloud Functions doğrulamadı - hata göster
@@ -1660,10 +1612,6 @@ const LoginModal = ({ onLogin }) => {
             setLoading(false);
             return;
           }
-          try {
-            const currentUser = Auth.currentUser();
-            if (currentUser) await Auth.saveUserRole(currentUser.uid, adminUser);
-          } catch (e) { console.warn("Rol kaydetme hatası:", e.message); }
           onLogin(adminUser);
         } else {
           // Cloud Functions doğrulamadı - hata göster
@@ -1704,11 +1652,6 @@ const LoginModal = ({ onLogin }) => {
             setSetupPasswordMode(true);
             setLoading(false);
             return;
-          }
-          try {
-            const currentUser = Auth.currentUser();
-            if (currentUser) await Auth.saveUserRole(currentUser.uid, user);
-          } catch (e) { console.warn("Rol kaydetme hatası:", e.message);
           }
           onLogin(user);
         } else {

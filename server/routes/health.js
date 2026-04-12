@@ -5,8 +5,8 @@ const router = express.Router();
 
 // Tüm bilinen koleksiyonlar
 const COLLECTIONS = [
-  "students", "users", "professors", "passwords", "departments",
-  "department_classrooms", "department_supervisors",
+  "students", "professors", "passwords", "departments",
+  "department_classrooms",
   "sinav_programi", "sinav_dersler", "sinav_donemler",
   "exams", "exam_results", "exam_periods",
   "course_groups", "course_group_posts", "course_schedules",
