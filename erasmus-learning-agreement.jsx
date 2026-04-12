@@ -1752,12 +1752,6 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
           return deptId === activeDepartment;
         });
         setStudents(fetchedStudents);
-        // Mevcut öğrencilerin eşleştirmelerini geçmişe kaydet (ilk seferde)
-        fetchedStudents.forEach(s => {
-          if ((s.outgoingMatches?.length > 0 || s.returnMatches?.length > 0) && s.hostInstitution) {
-            DB.syncStudentToTripHistory(s).catch(() => {});
-          }
-        });
       } catch (error) {
         console.error('Error loading students:', error);
       } finally {
