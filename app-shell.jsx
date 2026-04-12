@@ -195,7 +195,7 @@ const Sidebar = ({
     // Akademisyenler modülü sadece bölüm akademisyenlerine (professor) görünür
     // Benim Sayfam yalnızca öğrenciye gösterilir
     if (isAdmin || isDeptManager) return DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen" && m.id !== "benim");
-    if (isProfessor) return DEPARTMENT_MODULES.filter(m => ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj"].includes(m.id));
+    if (isProfessor) return DEPARTMENT_MODULES.filter(m => ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj", "performans"].includes(m.id));
     // Öğrenci: ders seçimi yapılana kadar yalnızca "Benim Sayfam" görünür
     if (studentLocked) return DEPARTMENT_MODULES.filter(m => m.id === "benim");
     return DEPARTMENT_MODULES.filter(m => ["benim", "erasmus", "projeler", "formlar", "staj"].includes(m.id));

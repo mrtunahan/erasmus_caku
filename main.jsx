@@ -30,6 +30,7 @@ window.__lazyModules = {
   roadmaps:      { loader: () => import('./roadmaps-module.jsx'),           component: 'RoadmapsModuleApp' },
   komisyonlar:   { loader: () => import('./komisyonlar-modulu.jsx'),       component: 'KomisyonlarModuluApp' },
   benim:         { loader: () => import('./benim-sayfam.jsx'),              component: 'BenimSayfamApp' },
+  performans:    { loader: () => import('./performans_bilgileri_modul.jsx'), component: 'PerformansBilgileriApp' },
 };
 
 // ── Phase 3: App Shell (routing & navigation) ──
