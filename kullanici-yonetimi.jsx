@@ -255,12 +255,61 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
               ))}
             </div>
             {activeSection !== "passwords" && (
-              <div style={{ flex: 1, maxWidth: 350, minWidth: 200 }}>
-                <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Ara..." />
+              <div style={{ flex: 1, maxWidth: 400, minWidth: 220, position: "relative" }}>
+                {/* Search Icon */}
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", opacity: 0.6 }}>
+                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  placeholder={activeSection === "students" ? "Ad, soyad veya öğrenci no ile ara..." : "İsim veya bölüm ile ara..."}
+                  style={{
+                    width: "100%",
+                    padding: "10px 36px 10px 38px",
+                    borderRadius: 10,
+                    border: `1.5px solid ${searchTerm ? C.gold : C.border}`,
+                    fontSize: 14,
+                    fontFamily: "'Source Sans 3', sans-serif",
+                    outline: "none",
+                    transition: "all 0.2s",
+                    background: C.card,
+                    boxShadow: searchTerm ? `0 0 0 3px ${C.gold}20` : "none",
+                  }}
+                  onFocus={e => { e.target.style.borderColor = C.gold; e.target.style.boxShadow = `0 0 0 3px ${C.gold}20`; }}
+                  onBlur={e => { if (!searchTerm) { e.target.style.borderColor = C.border; e.target.style.boxShadow = "none"; } }}
+                />
+                {/* Clear Button */}
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm("")}
+                    style={{
+                      position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                      background: C.bg, border: "none", borderRadius: "50%", width: 22, height: 22,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", color: C.textMuted, fontSize: 14, fontWeight: 600, lineHeight: 1,
+                      transition: "all 0.15s",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = C.border; e.currentTarget.style.color = C.navy; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.color = C.textMuted; }}
+                    title="Aramayı temizle"
+                  >&times;</button>
+                )}
               </div>
             )}
           </div>
         </Card>
+
+        {/* Search Results Info */}
+        {searchTerm && activeSection !== "passwords" && (
+          <div style={{ padding: "8px 16px", fontSize: 13, color: C.textMuted, display: "flex", alignItems: "center", gap: 6 }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <span>
+              <strong style={{ color: C.navy }}>"{searchTerm}"</strong> için {activeSection === "students" ? `${filteredStudents.length} öğrenci` : `${filteredProfessors.length} akademisyen`} bulundu
+            </span>
+          </div>
+        )}
 
         {/* ══════ STUDENTS SECTION ══════ */}
         {activeSection === "students" && (
