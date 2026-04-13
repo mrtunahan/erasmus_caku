@@ -52,19 +52,20 @@ const findGosterge = (id) => {
 
 // ── Akademisyen verileri artık /api/akademisyen API'sinden yüklenir ──
 
-// ── Renk Paleti ──
+// ── Renk Paleti (site ile uyumlu — açık tema) ──
 const C = {
-  bg: "#0f1923", surface: "#162231", surfaceAlt: "#1c2d3f",
-  border: "#263d52", borderLight: "#2f4d68",
-  accent: "#00b4d8", accentDark: "#0096b7", accentGlow: "rgba(0,180,216,0.12)",
-  text: "#e0e8f0", textMuted: "#8ba3b8", textDim: "#5a7a94",
-  white: "#fff", success: "#2dd4a8", successDim: "rgba(45,212,168,0.12)",
-  warning: "#f0b429", danger: "#ef6461",
-  yellow: "#fde047", yellowDim: "rgba(253,224,71,0.10)", yellowBorder: "rgba(253,224,71,0.30)",
-  purple: "#a78bfa", purpleDim: "rgba(167,139,250,0.12)",
-  orange: "#fb923c", orangeDim: "rgba(251,146,60,0.12)",
+  bg: "#F7F5F0", surface: "#FFFFFF", surfaceAlt: "#F8F6F1",
+  border: "#E5E1D8", borderLight: "#F0EDE6",
+  accent: "#1B2A4A", accentDark: "#152238", accentGlow: "rgba(27,42,74,0.06)",
+  text: "#2C2C2C", textMuted: "#6B7280", textDim: "#9CA3AF",
+  white: "#FFFFFF", success: "#2E7D52", successDim: "rgba(46,125,82,0.08)",
+  warning: "#C4973B", danger: "#8B2635",
+  yellow: "#C4973B", yellowDim: "rgba(196,151,59,0.08)", yellowBorder: "rgba(196,151,59,0.30)",
+  purple: "#6366F1", purpleDim: "rgba(99,102,241,0.06)",
+  orange: "#D97706", orangeDim: "rgba(217,119,6,0.06)",
+  headerBg: "linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)",
 };
-const F = "'Segoe UI', 'SF Pro Display', -apple-system, sans-serif";
+const F = "'Inter', 'Segoe UI', -apple-system, sans-serif";
 
 // ════════════════ ANA MODÜL ════════════════
 export default function PerformansBilgileri({ currentUser, activeDepartment, departmentInfo }) {
@@ -196,28 +197,28 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   };
 
   const tabs = [
-    { label: "Gösterge İzleme", icon: "📊" },
-    { label: "Hedef Değerlendirme", icon: "🎯" },
-    { label: "Performans Formu", icon: "📋" },
-    { label: "Rapor Formatı", icon: "📝" },
+    { label: "Gösterge İzleme" },
+    { label: "Hedef Değerlendirme" },
+    { label: "Performans Formu" },
+    { label: "Rapor Formatı" },
   ];
 
   // ═══════════════════════════════════════════════════════
   return (
     <div style={{ fontFamily: F, background: C.bg, color: C.text, minHeight: "100vh" }}>
       {/* ── Header ── */}
-      <div style={{ background: `linear-gradient(135deg, ${C.surface} 0%, ${C.surfaceAlt} 100%)`, borderBottom: `2px solid ${C.accent}`, padding: "20px 24px 14px", position: "relative" }}>
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${C.accent}, ${C.success}, ${C.purple})` }} />
+      <div style={{ background: C.headerBg, borderBottom: `2px solid ${C.border}`, padding: "20px 24px 14px", position: "relative" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${C.warning}, ${C.success}, ${C.purple})` }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 9, background: `linear-gradient(135deg, ${C.accent}, ${C.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#fff" }}>ÇÜ</div>
+            <div style={{ width: 40, height: 40, borderRadius: 9, background: `linear-gradient(135deg, ${C.warning}, #D4AF37)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#fff" }}>ÇÜ</div>
             <div>
-              <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.white }}>Performans Bilgileri Modülü</h1>
-              <p style={{ margin: "2px 0 0", fontSize: 11, color: C.textMuted }}>ÇAKÜ Erasmus+ — Akademisyen / Bölüm / Fakülte</p>
+              <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#fff" }}>Performans Bilgileri Modülü</h1>
+              <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.6)" }}>ÇAKÜ Erasmus+ — Akademisyen / Bölüm / Fakülte</p>
             </div>
           </div>
           {/* Rol Göstergesi */}
-          <div style={{ padding: "7px 14px", borderRadius: 8, background: role === "akademisyen" ? C.accent : role === "bolumYetkilisi" ? C.warning : C.purple, color: "#fff", fontSize: 11.5, fontWeight: 600, fontFamily: F }}>
+          <div style={{ padding: "6px 14px", borderRadius: 6, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 11.5, fontWeight: 600, fontFamily: F }}>
             {role === "akademisyen" ? "Akademisyen" : role === "bolumYetkilisi" ? "Bölüm Yetkilisi" : "Fakülte Yetkilisi"}
           </div>
         </div>
@@ -225,24 +226,24 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
         {/* Akademisyen bilgisi */}
         {role === "akademisyen" && matchedAkademisyen && (
           <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 11, color: C.textMuted }}>Giriş yapan:</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.accent }}>{matchedAkademisyen.ad} — {matchedAkademisyen.bolum}</span>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>Giriş yapan:</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{matchedAkademisyen.ad} — {matchedAkademisyen.bolum}</span>
           </div>
         )}
 
         {/* Bölüm bilgisi (bölüm yetkilisi rolünde) */}
         {role === "bolumYetkilisi" && (
           <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 11, color: C.textMuted }}>Bölüm:</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.warning }}>{departmentInfo?.name || selectedBolum}</span>
-            <span style={{ fontSize: 11, color: C.textDim, marginLeft: 8 }}>({bolumAkademisyenleri.length} akademisyen)</span>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>Bölüm:</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{departmentInfo?.name || selectedBolum}</span>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginLeft: 8 }}>({bolumAkademisyenleri.length} akademisyen)</span>
           </div>
         )}
 
         {role === "fakulteYetkilisi" && (
           <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 11, color: C.purple, fontWeight: 600 }}>Tüm bölümlerden gelen toplam değerler gösterilmektedir</span>
-            <span style={{ fontSize: 11, color: C.textDim }}>({FAKULTELER[0]} — {fakulteBolumleri.length} bölüm)</span>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", fontWeight: 600 }}>Tüm bölümlerden gelen toplam değerler gösterilmektedir</span>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>({FAKULTELER[0]} — {fakulteBolumleri.length} bölüm)</span>
           </div>
         )}
       </div>
@@ -259,7 +260,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
             transition: "all 0.2s", fontFamily: F, whiteSpace: "nowrap",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
           }}>
-            <span style={{ fontSize: 13 }}>{t.icon}</span> {t.label}
+            {t.label}
           </button>
         ))}
       </div>
@@ -273,8 +274,10 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
           </div>
         ) : role === "akademisyen" && !matchedAkademisyen ? (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
-            <div style={{ fontSize: 40, marginBottom: 16 }}>&#128274;</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.warning, marginBottom: 8 }}>Erişim Kısıtlaması</div>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: C.yellowDim, border: `2px solid ${C.yellowBorder}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.warning} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: C.accent, marginBottom: 8 }}>Erişim Kısıtlaması</div>
             <div style={{ fontSize: 13, color: C.textMuted, maxWidth: 420, margin: "0 auto", lineHeight: 1.6 }}>
               Bu modülü kullanabilmek için öncelikle <span style={{ color: C.accent, fontWeight: 600 }}>Akademisyenler</span> modülüne kayıtlı olmanız gerekmektedir. Lütfen bölüm yetkilinizle iletişime geçin.
             </div>
@@ -310,7 +313,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                 {bolumAkademisyenleri.map(akad => (
                   <div key={akad.id} style={{ marginBottom: 18 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: C.accent, padding: "8px 12px", background: C.accentGlow, borderRadius: 8, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
-                      <span>👨‍🏫</span> {akad.ad}
+                      {akad.ad}
                     </div>
                     {GOSTERGELER.map((kat, ki) => (
                       <GostergeTable key={ki} kat={kat} aylar={AYLAR} compact
@@ -323,7 +326,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                 {/* Toplam satırı */}
                 <div style={{ marginTop: 20, borderTop: `2px solid ${C.warning}`, paddingTop: 16 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: C.warning, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                    📊 BÖLÜM TOPLAM DEĞERLERİ
+                    BÖLÜM TOPLAM DEĞERLERİ
                   </div>
                   {GOSTERGELER.map((kat, ki) => (
                     <div key={ki} style={{ marginBottom: 16 }}>
@@ -382,7 +385,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                   return (
                     <div key={bolum} style={{ marginBottom: 16 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.warning, padding: "7px 12px", background: "rgba(240,180,41,0.10)", borderRadius: 8, marginBottom: 4 }}>
-                        🏛️ {bolum} ({bolumAkads.length} akademisyen)
+                        {bolum} ({bolumAkads.length} akademisyen)
                       </div>
                       {GOSTERGELER.map((kat, ki) => (
                         <div key={ki} style={{ marginBottom: 6 }}>
@@ -417,7 +420,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
 
                 {/* Fakülte toplam */}
                 <div style={{ marginTop: 16, borderTop: `2px solid ${C.purple}`, paddingTop: 14 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: C.purple, marginBottom: 10 }}>🎓 FAKÜLTE GENEL TOPLAM</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.purple, marginBottom: 10 }}>FAKÜLTE GENEL TOPLAM</div>
                   {GOSTERGELER.map((kat, ki) => (
                     <div key={ki} style={{ marginBottom: 10 }}>
                       <div style={{ fontSize: 10.5, fontWeight: 700, color: C.accent, textTransform: "uppercase", marginBottom: 3, padding: "5px 8px", background: C.accentGlow, borderRadius: 5 }}>{kat.kategori}</div>
@@ -477,7 +480,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                         if (!val) return null;
                         return (
                           <div key={a.id} style={{ marginTop: 8, padding: "8px 10px", background: C.surfaceAlt, borderRadius: 6, border: `1px solid ${C.border}` }}>
-                            <div style={{ fontSize: 11, fontWeight: 600, color: C.accent, marginBottom: 3 }}>👨‍🏫 {a.ad}</div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: C.accent, marginBottom: 3 }}>{a.ad}</div>
                             <div style={{ fontSize: 12, color: C.text, lineHeight: 1.4 }}>{val}</div>
                           </div>
                         );
@@ -508,7 +511,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                   if (!d || !d.gosterge) return null;
                   return (
                     <div key={a.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, marginBottom: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: C.accent, marginBottom: 8 }}>👨‍🏫 {a.ad} — {a.bolum}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.accent, marginBottom: 8 }}>{a.ad} — {a.bolum}</div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 12 }}>
                         <div><span style={{ color: C.textDim }}>Gösterge:</span> {d.gosterge}</div>
                         <div><span style={{ color: C.textDim }}>Dönem:</span> {d.donem}</div>
@@ -541,7 +544,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                   if (!d || !d.genelBilgiler) return null;
                   return (
                     <div key={a.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, marginBottom: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: C.accent, marginBottom: 6 }}>👨‍🏫 {a.ad} — {a.bolum}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.accent, marginBottom: 6 }}>{a.ad} — {a.bolum}</div>
                       <div style={{ fontSize: 11, color: C.textDim }}>Yıl: {d.yil} | Dönem: {d.donem} | İdare: {d.idare}</div>
                       <div style={{ marginTop: 6, fontSize: 12, color: C.text, lineHeight: 1.4, maxHeight: 80, overflow: "hidden" }}>{d.genelBilgiler?.substring(0, 200)}{d.genelBilgiler?.length > 200 ? "..." : ""}</div>
                     </div>
@@ -569,7 +572,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
 function Hdr({ title, sub }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.white }}>{title}</h2>
+      <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.accent }}>{title}</h2>
       {sub && <p style={{ margin: "2px 0 0", fontSize: 12, color: C.textMuted }}>{sub}</p>}
     </div>
   );
@@ -674,13 +677,13 @@ function RaporForm({ data, setData }) {
         ))}
       </div>
       <div style={{ borderLeft: `3px solid ${C.accent}`, paddingLeft: 12, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.white, marginBottom: 10 }}>I. Tespitler</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 10 }}>I. Tespitler</div>
         {[{ k: "genelBilgiler", l: "Genel Bilgiler" }, { k: "gerceklesmeDurumu", l: "Gerçekleşme Durumu" }, { k: "degerlendirme", l: "Değerlendirme" }].map(f => (
           <div key={f.k} style={{ marginBottom: 10 }}><label style={lbl}>{f.l}</label><textarea value={data[f.k] || ""} onChange={e => up(f.k, e.target.value)} rows={3} style={txa} placeholder="Bilgi giriniz..." /></div>
         ))}
       </div>
       <div style={{ borderLeft: `3px solid ${C.success}`, paddingLeft: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.white, marginBottom: 8 }}>II. Sonuç ve Öneriler</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 8 }}>II. Sonuç ve Öneriler</div>
         <textarea value={data.sonucOneriler || ""} onChange={e => up("sonucOneriler", e.target.value)} rows={4} style={txa} placeholder="Sonuç ve önerilerinizi yazınız..." />
       </div>
     </div>
