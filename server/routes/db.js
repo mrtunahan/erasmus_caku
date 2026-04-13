@@ -75,6 +75,10 @@ const ALLOWED_COLLECTIONS = [
   "akademisyen_cache",
   "erasmus_universities",
   "student_notifications",
+  "performance_indicators",
+  "performance_targets",
+  "performance_forms",
+  "performance_reports",
 ];
 
 const READABLE_COLLECTIONS = [
