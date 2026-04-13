@@ -139,8 +139,21 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   const FAKULTELER = useMemo(() => [...new Set(akademisyenlerList.map(a => a.fakulte))].filter(Boolean), [akademisyenlerList]);
 
   // Giriş yapan akademisyeni bul (professor rolü için)
-  const matchedAkademisyen = useMemo(() =>
-    AKADEMISYENLER.find(a => a.ad === currentUser?.name), [AKADEMISYENLER, currentUser?.name]);
+  // Unvan/büyük-küçük harf farklarını tolere eden karşılaştırma
+  const normalizeName = (name) => {
+    if (!name) return "";
+    let n = name.trim();
+    const titles = ["Prof. Dr.", "Prof.Dr.", "Doç. Dr.", "Doç.Dr.", "Dr. Öğr. Üyesi", "Dr.Öğr.Üyesi",
+      "Öğr. Gör. Dr.", "Öğr.Gör.Dr.", "Arş. Gör. Dr.", "Arş.Gör.Dr.",
+      "Öğr. Gör.", "Öğr.Gör.", "Arş. Gör.", "Arş.Gör.", "Dr."];
+    for (const t of titles) { if (n.toLocaleLowerCase("tr").startsWith(t.toLocaleLowerCase("tr"))) { n = n.slice(t.length).trim(); break; } }
+    return n.replace(/\s+/g, " ").trim().toLocaleLowerCase("tr");
+  };
+  const matchedAkademisyen = useMemo(() => {
+    const key = normalizeName(currentUser?.name);
+    if (!key) return null;
+    return AKADEMISYENLER.find(a => normalizeName(a.ad) === key);
+  }, [AKADEMISYENLER, currentUser?.name]);
   const selectedAkademisyen = matchedAkademisyen?.id || "";
 
   // ── Hesaplamalar ──
@@ -213,8 +226,8 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 9, background: `linear-gradient(135deg, ${C.warning}, #D4AF37)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#fff" }}>ÇÜ</div>
             <div>
-              <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#fff" }}>Performans Bilgileri Modülü</h1>
-              <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.6)" }}>ÇAKÜ Erasmus+ — Akademisyen / Bölüm / Fakülte</p>
+              <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#fff" }}>Performans Modülü</h1>
+              <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.6)" }}>Performans Bilgileri</p>
             </div>
           </div>
           {/* Rol Göstergesi */}
