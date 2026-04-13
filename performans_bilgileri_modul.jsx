@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 // ═══════════════════════════════════════════════════════════════
 // ÇAKÜ ERASMUS+ — PERFORMANS BİLGİLERİ MODÜLÜ
@@ -50,19 +50,7 @@ const findGosterge = (id) => {
   return null;
 };
 
-// ── Mock Akademisyen Veritabanı (Akademisyenler modülünden) ──
-const AKADEMISYENLER = [
-  { id: "a1", ad: "Dr. Ahmet Yılmaz", bolum: "Bilgisayar Mühendisliği", fakulte: "Mühendislik Fakültesi" },
-  { id: "a2", ad: "Dr. Elif Kaya", bolum: "Bilgisayar Mühendisliği", fakulte: "Mühendislik Fakültesi" },
-  { id: "a3", ad: "Prof. Dr. Mehmet Demir", bolum: "Bilgisayar Mühendisliği", fakulte: "Mühendislik Fakültesi" },
-  { id: "a4", ad: "Dr. Zeynep Arslan", bolum: "Elektrik-Elektronik Mühendisliği", fakulte: "Mühendislik Fakültesi" },
-  { id: "a5", ad: "Doç. Dr. Can Öztürk", bolum: "Elektrik-Elektronik Mühendisliği", fakulte: "Mühendislik Fakültesi" },
-  { id: "a6", ad: "Dr. Ayşe Çelik", bolum: "İşletme", fakulte: "İktisadi ve İdari Bilimler Fakültesi" },
-  { id: "a7", ad: "Prof. Dr. Ali Şahin", bolum: "İktisat", fakulte: "İktisadi ve İdari Bilimler Fakültesi" },
-];
-
-const BOLUMLER = [...new Set(AKADEMISYENLER.map(a => a.bolum))];
-const FAKULTELER = [...new Set(AKADEMISYENLER.map(a => a.fakulte))];
+// ── Akademisyen verileri artık /api/akademisyen API'sinden yüklenir ──
 
 // ── Renk Paleti ──
 const C = {
@@ -79,11 +67,18 @@ const C = {
 const F = "'Segoe UI', 'SF Pro Display', -apple-system, sans-serif";
 
 // ════════════════ ANA MODÜL ════════════════
-export default function PerformansBilgileri() {
-  // Rol sistemi
-  const [role, setRole] = useState("akademisyen"); // akademisyen | bolumYetkilisi | fakulteYetkilisi
-  const [selectedAkademisyen, setSelectedAkademisyen] = useState("a1");
-  const [selectedBolum, setSelectedBolum] = useState(BOLUMLER[0]);
+export default function PerformansBilgileri({ currentUser, activeDepartment, departmentInfo }) {
+  // Akademisyen listesi (API'den yüklenir)
+  const [akademisyenlerList, setAkademisyenlerList] = useState([]);
+  const [loadingAkad, setLoadingAkad] = useState(true);
+
+  // Rol currentUser'dan otomatik belirlenir
+  const role = currentUser?.role === "professor" ? "akademisyen"
+    : currentUser?.role === "bolum_yetkilisi" ? "bolumYetkilisi"
+    : currentUser?.role === "admin" ? "fakulteYetkilisi"
+    : "akademisyen";
+
+  const [selectedBolum, setSelectedBolum] = useState("");
   const [tab, setTab] = useState(0);
 
   // Akademisyen verileri: { [akademisyenId]: { [gostergeId_AY]: value } }
@@ -101,16 +96,67 @@ export default function PerformansBilgileri() {
   const [toast, setToast] = useState("");
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 3000); };
 
-  // ── Hesaplamalar ──
-  const currentAkad = AKADEMISYENLER.find(a => a.id === selectedAkademisyen);
+  // ── Akademisyen listesini API'den yükle ──
+  useEffect(() => {
+    const load = async () => {
+      setLoadingAkad(true);
+      try {
+        const token = localStorage.getItem("caku_auth_token");
+        const headers = {};
+        if (token) headers["Authorization"] = "Bearer " + token;
+        const res = await fetch("/api/akademisyen", { headers });
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const list = data.map(d => ({
+            id: d.username,
+            ad: d.fullName || d.username,
+            bolum: d.department || "",
+            departmentId: d.departmentId || "",
+            fakulte: "Mühendislik Fakültesi",
+          }));
+          setAkademisyenlerList(list);
+          // İlk bölüm seçimini ayarla
+          const bolumler = [...new Set(list.map(a => a.bolum))].filter(Boolean);
+          if (bolumler.length > 0) {
+            const initialBolum = (currentUser?.role === "bolum_yetkilisi" && departmentInfo?.name)
+              ? departmentInfo.name : bolumler[0];
+            setSelectedBolum(initialBolum);
+          }
+        }
+      } catch (err) {
+        console.error("Akademisyen listesi yüklenemedi:", err);
+      } finally {
+        setLoadingAkad(false);
+      }
+    };
+    load();
+  }, []);
 
-  const bolumAkademisyenleri = useMemo(() =>
-    AKADEMISYENLER.filter(a => a.bolum === selectedBolum), [selectedBolum]);
+  // Uyumlu referanslar (mevcut kodla uyum için)
+  const AKADEMISYENLER = akademisyenlerList;
+  const BOLUMLER = useMemo(() => [...new Set(akademisyenlerList.map(a => a.bolum))].filter(Boolean), [akademisyenlerList]);
+  const FAKULTELER = useMemo(() => [...new Set(akademisyenlerList.map(a => a.fakulte))].filter(Boolean), [akademisyenlerList]);
+
+  // Giriş yapan akademisyeni bul (professor rolü için)
+  const matchedAkademisyen = useMemo(() =>
+    AKADEMISYENLER.find(a => a.ad === currentUser?.name), [AKADEMISYENLER, currentUser?.name]);
+  const selectedAkademisyen = matchedAkademisyen?.id || "";
+
+  // ── Hesaplamalar ──
+  const currentAkad = matchedAkademisyen;
+
+  const bolumAkademisyenleri = useMemo(() => {
+    if (role === "bolumYetkilisi" && activeDepartment) {
+      return AKADEMISYENLER.filter(a => a.departmentId === activeDepartment);
+    }
+    return AKADEMISYENLER.filter(a => a.bolum === selectedBolum);
+  }, [AKADEMISYENLER, role, activeDepartment, selectedBolum]);
 
   const fakulteBolumleri = useMemo(() => {
-    const fak = role === "fakulteYetkilisi" ? FAKULTELER[0] : "";
+    if (role !== "fakulteYetkilisi" || FAKULTELER.length === 0) return [];
+    const fak = FAKULTELER[0];
     return [...new Set(AKADEMISYENLER.filter(a => a.fakulte === fak).map(a => a.bolum))];
-  }, [role]);
+  }, [role, AKADEMISYENLER, FAKULTELER]);
 
   // Bölüm toplamı hesapla
   const calcBolumToplam = (gostergeId, ay) => {
@@ -149,13 +195,6 @@ export default function PerformansBilgileri() {
     flash("JSON dosyası indirildi!");
   };
 
-  // ── Rol başlıkları ──
-  const ROLES = [
-    { key: "akademisyen", label: "Akademisyen", icon: "👨‍🏫", color: C.accent },
-    { key: "bolumYetkilisi", label: "Bölüm Yetkilisi", icon: "🏛️", color: C.warning },
-    { key: "fakulteYetkilisi", label: "Fakülte Yetkilisi", icon: "🎓", color: C.purple },
-  ];
-
   const tabs = [
     { label: "Gösterge İzleme", icon: "📊" },
     { label: "Hedef Değerlendirme", icon: "🎯" },
@@ -177,38 +216,25 @@ export default function PerformansBilgileri() {
               <p style={{ margin: "2px 0 0", fontSize: 11, color: C.textMuted }}>ÇAKÜ Erasmus+ — Akademisyen / Bölüm / Fakülte</p>
             </div>
           </div>
-          {/* Rol Seçici */}
-          <div style={{ display: "flex", gap: 4, background: C.surface, borderRadius: 10, padding: 3, border: `1px solid ${C.border}` }}>
-            {ROLES.map(r => (
-              <button key={r.key} onClick={() => { setRole(r.key); setTab(0); }} style={{
-                padding: "7px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: F,
-                fontSize: 11.5, fontWeight: role === r.key ? 700 : 500, transition: "all 0.2s",
-                background: role === r.key ? r.color : "transparent",
-                color: role === r.key ? "#fff" : C.textMuted,
-              }}>
-                {r.icon} {r.label}
-              </button>
-            ))}
+          {/* Rol Göstergesi */}
+          <div style={{ padding: "7px 14px", borderRadius: 8, background: role === "akademisyen" ? C.accent : role === "bolumYetkilisi" ? C.warning : C.purple, color: "#fff", fontSize: 11.5, fontWeight: 600, fontFamily: F }}>
+            {role === "akademisyen" ? "Akademisyen" : role === "bolumYetkilisi" ? "Bölüm Yetkilisi" : "Fakülte Yetkilisi"}
           </div>
         </div>
 
-        {/* Akademisyen seçici (sadece akademisyen rolünde) */}
-        {role === "akademisyen" && (
+        {/* Akademisyen bilgisi */}
+        {role === "akademisyen" && matchedAkademisyen && (
           <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, color: C.textMuted }}>Giriş yapan:</span>
-            <select value={selectedAkademisyen} onChange={e => setSelectedAkademisyen(e.target.value)} style={{ ...inpF, width: "auto", padding: "5px 10px", fontSize: 12 }}>
-              {AKADEMISYENLER.map(a => <option key={a.id} value={a.id}>{a.ad} — {a.bolum}</option>)}
-            </select>
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.accent }}>{matchedAkademisyen.ad} — {matchedAkademisyen.bolum}</span>
           </div>
         )}
 
-        {/* Bölüm seçici (bölüm yetkilisi rolünde) */}
+        {/* Bölüm bilgisi (bölüm yetkilisi rolünde) */}
         {role === "bolumYetkilisi" && (
           <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, color: C.textMuted }}>Bölüm:</span>
-            <select value={selectedBolum} onChange={e => setSelectedBolum(e.target.value)} style={{ ...inpF, width: "auto", padding: "5px 10px", fontSize: 12 }}>
-              {BOLUMLER.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.warning }}>{departmentInfo?.name || selectedBolum}</span>
             <span style={{ fontSize: 11, color: C.textDim, marginLeft: 8 }}>({bolumAkademisyenleri.length} akademisyen)</span>
           </div>
         )}
@@ -240,6 +266,20 @@ export default function PerformansBilgileri() {
 
       {/* ── Content ── */}
       <div style={{ padding: "20px 16px 40px", maxWidth: 1200, margin: "0 auto" }}>
+
+        {loadingAkad ? (
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "60px 20px" }}>
+            <span style={{ color: C.textMuted, fontSize: 14 }}>Akademisyen listesi yükleniyor...</span>
+          </div>
+        ) : role === "akademisyen" && !matchedAkademisyen ? (
+          <div style={{ textAlign: "center", padding: "60px 20px" }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>&#128274;</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: C.warning, marginBottom: 8 }}>Erişim Kısıtlaması</div>
+            <div style={{ fontSize: 13, color: C.textMuted, maxWidth: 420, margin: "0 auto", lineHeight: 1.6 }}>
+              Bu modülü kullanabilmek için öncelikle <span style={{ color: C.accent, fontWeight: 600 }}>Akademisyenler</span> modülüne kayıtlı olmanız gerekmektedir. Lütfen bölüm yetkilinizle iletişime geçin.
+            </div>
+          </div>
+        ) : (<>
 
         {/* ════════ TAB 0: GÖSTERGE İZLEME ════════ */}
         {tab === 0 && (
@@ -519,6 +559,7 @@ export default function PerformansBilgileri() {
             Verileri JSON İndir ({role === "akademisyen" ? "Kişisel" : role === "bolumYetkilisi" ? "Bölüm" : "Fakülte"})
           </button>
         </div>
+        </>)}
       </div>
     </div>
   );

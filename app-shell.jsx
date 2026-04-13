@@ -732,7 +732,7 @@ function AppShell() {
     const allowedDeptModules = isDeptManager
       ? DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen" && m.id !== "benim").map(m => m.id)
       : isProfessor
-        ? ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj"]
+        ? ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj", "performans"]
         : isAdmin
           ? DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen" && m.id !== "benim").map(m => m.id)
           : ["benim", "erasmus", "projeler", "formlar", "staj"]; // student
