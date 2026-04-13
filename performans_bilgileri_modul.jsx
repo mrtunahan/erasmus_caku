@@ -139,20 +139,53 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   const FAKULTELER = useMemo(() => [...new Set(akademisyenlerList.map(a => a.fakulte))].filter(Boolean), [akademisyenlerList]);
 
   // Giriş yapan akademisyeni bul (professor rolü için)
-  // Unvan/büyük-küçük harf farklarını tolere eden karşılaştırma
-  const normalizeName = (name) => {
+  // Çoklu strateji: isim eşleme → username türetme → soyadı eşleme
+  const TITLES = ["Prof. Dr.", "Prof.Dr.", "Doç. Dr.", "Doç.Dr.", "Dr. Öğr. Üyesi", "Dr.Öğr.Üyesi",
+    "Öğr. Gör. Dr.", "Öğr.Gör.Dr.", "Arş. Gör. Dr.", "Arş.Gör.Dr.",
+    "Öğr. Gör.", "Öğr.Gör.", "Arş. Gör.", "Arş.Gör.", "Dr."];
+  const stripTitle = (name) => {
     if (!name) return "";
     let n = name.trim();
-    const titles = ["Prof. Dr.", "Prof.Dr.", "Doç. Dr.", "Doç.Dr.", "Dr. Öğr. Üyesi", "Dr.Öğr.Üyesi",
-      "Öğr. Gör. Dr.", "Öğr.Gör.Dr.", "Arş. Gör. Dr.", "Arş.Gör.Dr.",
-      "Öğr. Gör.", "Öğr.Gör.", "Arş. Gör.", "Arş.Gör.", "Dr."];
-    for (const t of titles) { if (n.toLocaleLowerCase("tr").startsWith(t.toLocaleLowerCase("tr"))) { n = n.slice(t.length).trim(); break; } }
-    return n.replace(/\s+/g, " ").trim().toLocaleLowerCase("tr");
+    for (const t of TITLES) { if (n.toLocaleLowerCase("tr").startsWith(t.toLocaleLowerCase("tr"))) { n = n.slice(t.length).trim(); break; } }
+    return n;
+  };
+  const toAsciiSlug = (s) => {
+    if (!s) return "";
+    return s.replace(/İ/g, "i").replace(/I/g, "ı").replace(/\s+/g, "").toLocaleLowerCase("tr")
+      .replace(/ı/g, "i").replace(/ü/g, "u").replace(/ö/g, "o").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g");
   };
   const matchedAkademisyen = useMemo(() => {
-    const key = normalizeName(currentUser?.name);
-    if (!key) return null;
-    return AKADEMISYENLER.find(a => normalizeName(a.ad) === key);
+    if (!currentUser?.name) return null;
+    const bare = stripTitle(currentUser.name);
+    if (!bare) return null;
+
+    // 1) Tam isim eşleme (unvan/harf toleranslı)
+    const nameKey = bare.replace(/\s+/g, " ").trim().toLocaleLowerCase("tr");
+    const nameMatch = AKADEMISYENLER.find(a => {
+      const aKey = stripTitle(a.ad).replace(/\s+/g, " ").trim().toLocaleLowerCase("tr");
+      return aKey === nameKey;
+    });
+    if (nameMatch) return nameMatch;
+
+    // 2) Username türetme (tam ad birleşik → "selimbuyrukoglu")
+    const fullSlug = toAsciiSlug(bare);
+    const slugMatch = AKADEMISYENLER.find(a => a.id === fullSlug);
+    if (slugMatch) return slugMatch;
+
+    // 3) Soyadı + ad baş harfi eşleme ("sbuyrukoglu", "sbuyrukoğlu" vb.)
+    const parts = bare.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      const surname = toAsciiSlug(parts[parts.length - 1]);
+      const firstInitial = toAsciiSlug(parts[0]).charAt(0);
+      if (surname.length >= 3) {
+        const partialMatch = AKADEMISYENLER.find(a =>
+          a.id.endsWith(surname) || (a.id.includes(surname) && a.id.startsWith(firstInitial))
+        );
+        if (partialMatch) return partialMatch;
+      }
+    }
+
+    return null;
   }, [AKADEMISYENLER, currentUser?.name]);
   const selectedAkademisyen = matchedAkademisyen?.id || "";
 
