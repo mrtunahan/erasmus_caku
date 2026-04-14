@@ -283,79 +283,126 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     URL.revokeObjectURL(u);
   };
 
+  const xlsxStyles = `<style>
+    body{font-family:Calibri,Arial,sans-serif;font-size:10pt}
+    table{border-collapse:collapse;width:100%;table-layout:fixed}
+    td,th{border:1px solid #000;padding:6px 8px;vertical-align:middle;word-wrap:break-word}
+    .sec{background:#1F3864;color:#fff;font-weight:bold;text-align:center;font-size:11pt}
+    .sub{background:#D9E1F2;color:#1F3864;font-weight:bold;font-size:10pt}
+    .lbl{background:#F2F2F2;font-weight:bold}
+    .val{background:#FFF2CC;text-align:center;font-weight:bold}
+    .month{background:#1F3864;color:#fff;font-weight:bold;text-align:center}
+    .center{text-align:center}
+    .title{background:#1F3864;color:#fff;font-weight:bold;font-size:14pt;text-align:center;padding:10px}
+  </style>`;
+
   const xlsxWrap = (tableHtml) => `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Sayfa1</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${tableHtml}</body></html>`;
+<head><meta charset="utf-8">${xlsxStyles}<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Sayfa1</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${tableHtml}</body></html>`;
 
   const docxWrap = (bodyHtml) => `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><style>body{font-family:Calibri,sans-serif;font-size:11pt}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:6px 8px}th{background:#1B2A4A;color:#fff}</style><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--></head><body>${bodyHtml}</body></html>`;
 
-  // 1) Gösterge_İzleme.xlsx
+  // 1) Gösterge_İzleme.xlsx — Resmi format: Bölüm/Alt-hedef başlıkları + aylık değer matrisi
   const exportGostergeIzleme = () => {
     const akadId = role === "akademisyen" ? selectedAkademisyen : null;
+    const totalCols = AYLAR.length + 3; // Gösterge + Birim + Plan + aylar
     let rows = "";
+    // Üst başlık
+    rows += `<tr><td colspan="${totalCols}" class="title">GÖSTERGE İZLEME TABLOSU</td></tr>`;
+    // Sütun başlıkları
+    rows += `<tr><th class="month" style="width:42%">GÖSTERGE</th><th class="month" style="width:8%">BİRİM</th><th class="month" style="width:10%">PLAN/HEDEF</th>`;
+    AYLAR.forEach(a => { rows += `<th class="month">${a}</th>`; });
+    rows += `</tr>`;
+
     GOSTERGELER.forEach(kat => {
-      rows += `<tr><td colspan="${AYLAR.length + 2}" style="background:#F0EDE6;font-weight:bold">${kat.kategori}</td></tr>`;
+      // Stratejik amaç (koyu)
+      rows += `<tr><td colspan="${totalCols}" class="sec">${kat.kategori}</td></tr>`;
+      // Alt-hedef (açık mavi)
+      if (kat.hedef) rows += `<tr><td colspan="${totalCols}" class="sub">${kat.hedef}</td></tr>`;
       kat.gostergeler.forEach(g => {
-        rows += `<tr><td>${g.ad}</td><td>${g.birim}</td>`;
+        rows += `<tr><td>${g.ad}</td><td class="center">${g.birim}</td><td class="center"></td>`;
         AYLAR.forEach(a => {
-          if (role === "akademisyen") {
-            rows += `<td>${akademisyenData[akadId]?.[g.id + "_" + a] || ""}</td>`;
-          } else {
-            rows += `<td>${calcBolumToplam(g.id, a)}</td>`;
-          }
+          let v = "";
+          if (role === "akademisyen") v = akademisyenData[akadId]?.[g.id + "_" + a] || "";
+          else { const t = calcBolumToplam(g.id, a); v = (t === "—" ? "" : t); }
+          rows += `<td class="${v ? "val" : "center"}">${v}</td>`;
         });
         rows += `</tr>`;
       });
     });
-    const html = `<table><thead><tr><th>Gösterge</th><th>Birim</th>${AYLAR.map(a => `<th>${a}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`;
+    const html = `<table>${rows}</table>`;
     downloadFile(xlsxWrap(html), "Gösterge_İzleme.xlsx", "application/vnd.ms-excel");
     flash("Gösterge_İzleme.xlsx indirildi");
   };
 
-  // 2) Hedef_Değerlendirmeler.xlsx
+  // 2) Hedef_Değerlendirmeler.xlsx — 2 sütun: HEDEF | DÖNEM DEĞERLENDİRMESİ
   const exportHedefDegerlendirmeler = () => {
     const akadId = role === "akademisyen" ? selectedAkademisyen : null;
+    const donemAdi = (raporData[akadId]?.donem) || "VI. Dönem";
     let rows = "";
+    rows += `<tr><td colspan="2" class="title">HEDEF DEĞERLENDİRMELERİ</td></tr>`;
+    rows += `<tr><th class="month" style="width:50%">HEDEF</th><th class="month" style="width:50%">${donemAdi.toLocaleUpperCase("tr")} DEĞERLENDİRMESİ</th></tr>`;
     HEDEFLER.forEach((h, i) => {
+      // Hedef başlık satırı (koyu)
+      rows += `<tr><td class="sub" style="vertical-align:top"><div style="font-weight:bold;color:#1F3864">${h.hedef}</div><div style="font-size:9pt;color:#444;margin-top:4px;font-weight:normal">${h.alt}</div></td>`;
+      let val = "";
       if (role === "akademisyen") {
-        rows += `<tr><td>${h.hedef}</td><td>${h.alt}</td><td>${hedefData[akadId]?.[i] || ""}</td></tr>`;
+        val = hedefData[akadId]?.[i] || "";
       } else {
         const akads = role === "bolumYetkilisi" ? bolumAkademisyenleri : AKADEMISYENLER.filter(a => a.fakulte === FAKULTELER[0]);
-        akads.forEach(a => {
-          const val = hedefData[a.id]?.[i];
-          if (val) rows += `<tr><td>${h.hedef}</td><td>${a.ad}</td><td>${val}</td></tr>`;
-        });
+        const parts = akads.map(a => {
+          const v = hedefData[a.id]?.[i];
+          return v ? `<div style="margin-bottom:6px"><strong>${a.ad}:</strong> ${v}</div>` : "";
+        }).filter(Boolean);
+        val = parts.join("");
       }
+      rows += `<td style="vertical-align:top;min-height:60px">${val}</td></tr>`;
     });
-    const html = `<table><thead><tr><th>Hedef</th><th>${role === "akademisyen" ? "Alt Hedef" : "Akademisyen"}</th><th>Değerlendirme</th></tr></thead><tbody>${rows}</tbody></table>`;
+    const html = `<table>${rows}</table>`;
     downloadFile(xlsxWrap(html), "Hedef_Değerlendirmeler.xlsx", "application/vnd.ms-excel");
     flash("Hedef_Değerlendirmeler.xlsx indirildi");
   };
 
-  // 3) Performans_Göstergesi_Tablosu.xlsx
+  // 3) Performans_Göstergesi_Tablosu.xlsx — Performans Göstergesi Nitelikleri Formu
   const exportPerformansTablosu = () => {
     const akadId = role === "akademisyen" ? selectedAkademisyen : null;
     let rows = "";
-    const fields = [
-      { k: "gosterge", l: "Performans Göstergesi" }, { k: "donem", l: "Dönem" }, { k: "tur", l: "Gösterge Türü" },
-      { k: "dissal", l: "Dışsal Unsurlar" }, { k: "sorunlar", l: "Sorunlar/Zorluklar" }, { k: "maliyetler", l: "Maliyetler" },
-      { k: "kiyaslama", l: "Kıyaslama Kaynakları" }, { k: "olcumTarihi", l: "Ölçüm Tarihi" }, { k: "sonrakiOlcum", l: "Sonraki Ölçüm" },
-      { k: "gerekceler", l: "Gerekçeler" },
-    ];
+    const renderForm = (d) => {
+      let s = "";
+      // Performans Göstergesi
+      s += `<tr><td class="lbl" style="width:35%">Performans Göstergesi</td><td colspan="6">${d.gosterge || ""}</td></tr>`;
+      // Stratejik Yapılandırma (Dönem)
+      s += `<tr><td class="lbl">Stratejik Yapılandırma</td><td colspan="6">${d.donem || ""}</td></tr>`;
+      // Gösterge Türü (6 hücre tek satır)
+      s += `<tr><td class="lbl" rowspan="2">Performans Göstergesinin Hangi Yönünü Açıkladığı</td>`;
+      GOSTERGE_TURLERI.forEach(t => { s += `<td class="lbl center" style="font-size:9pt">${t}</td>`; });
+      s += `</tr><tr>`;
+      GOSTERGE_TURLERI.forEach(t => { s += `<td class="${d.tur === t ? "val" : ""} center">${d.tur === t ? "✓" : ""}</td>`; });
+      s += `</tr>`;
+      // Diğer alanlar
+      s += `<tr><td class="lbl">Performans Göstergesini Oluşturmak Esas Tahminler İçin Önemli Olduğu Bilinen Dışsal Unsurlar</td><td colspan="6">${d.dissal || ""}</td></tr>`;
+      s += `<tr><td class="lbl">Performans Göstergesinin İzlenmesinde Karşılaşılan Sorunlar</td><td colspan="6">${d.sorunlar || ""}</td></tr>`;
+      s += `<tr><td class="lbl">Performans Göstergesinin Maliyetleri</td><td colspan="6">${d.maliyetler || ""}</td></tr>`;
+      s += `<tr><td class="lbl">Performans Göstergesinin Kıyaslama Kaynakları</td><td colspan="6">${d.kiyaslama || ""}</td></tr>`;
+      s += `<tr><td class="lbl">Ölçüm Tarihi</td><td colspan="6">${d.olcumTarihi || ""}</td></tr>`;
+      s += `<tr><td class="lbl">Sonra Ölçüm Tarihi</td><td colspan="6">${d.sonrakiOlcum || ""}</td></tr>`;
+      s += `<tr><td class="lbl">Ölçüm Yapılmadıysa Gerekçeleri</td><td colspan="6">${d.gerekceler || ""}</td></tr>`;
+      return s;
+    };
+    rows += `<tr><td colspan="7" class="title">Performans Göstergesi Nitelikleri Formu</td></tr>`;
     if (role === "akademisyen") {
-      const d = perfData[akadId] || {};
-      fields.forEach(f => { rows += `<tr><td>${f.l}</td><td>${d[f.k] || ""}</td></tr>`; });
+      rows += renderForm(perfData[akadId] || {});
     } else {
       const akads = role === "bolumYetkilisi" ? bolumAkademisyenleri : AKADEMISYENLER.filter(a => a.fakulte === FAKULTELER[0]);
       akads.forEach(a => {
         const d = perfData[a.id];
         if (d && d.gosterge) {
-          rows += `<tr><td colspan="2" style="background:#F0EDE6;font-weight:bold">${a.ad}</td></tr>`;
-          fields.forEach(f => { rows += `<tr><td>${f.l}</td><td>${d[f.k] || ""}</td></tr>`; });
+          rows += `<tr><td colspan="7" class="sec">${a.ad} — ${a.bolum}</td></tr>`;
+          rows += renderForm(d);
         }
       });
     }
-    const html = `<table><thead><tr><th>Alan</th><th>Değer</th></tr></thead><tbody>${rows}</tbody></table>`;
+    const html = `<table>${rows}</table>`;
     downloadFile(xlsxWrap(html), "Performans_Göstergesi_Tablosu.xlsx", "application/vnd.ms-excel");
     flash("Performans_Göstergesi_Tablosu.xlsx indirildi");
   };
@@ -390,20 +437,12 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     flash("Gösterge_Rapor_Formatı.docx indirildi");
   };
 
-  // Fakülte yetkilisi yalnızca "Gösterge İzleme" sekmesini görür
-  const tabs = role === "fakulteYetkilisi"
-    ? [{ label: "Gösterge İzleme" }]
-    : [
-        { label: "Gösterge İzleme" },
-        { label: "Hedef Değerlendirme" },
-        { label: "Performans Formu" },
-        { label: "Rapor Formatı" },
-      ];
-
-  // Sekme indeksi mevcut sekme listesi içinde geçersizse 0'a sıfırla
-  useEffect(() => {
-    if (tab >= tabs.length) setTab(0);
-  }, [role, tabs.length, tab]);
+  const tabs = [
+    { label: "Gösterge İzleme" },
+    { label: "Hedef Değerlendirme" },
+    { label: "Performans Formu" },
+    { label: "Rapor Formatı" },
+  ];
 
   // ═══════════════════════════════════════════════════════
   return (
@@ -728,13 +767,9 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
           <div style={{ fontSize: 11.5, fontWeight: 600, color: C.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.3 }}>Dışa Aktar</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <button onClick={exportGostergeIzleme} style={exportBtn}>Gösterge_İzleme.xlsx</button>
-            {role !== "fakulteYetkilisi" && (
-              <>
-                <button onClick={exportHedefDegerlendirmeler} style={exportBtn}>Hedef_Değerlendirmeler.xlsx</button>
-                <button onClick={exportPerformansTablosu} style={exportBtn}>Performans_Göstergesi_Tablosu.xlsx</button>
-                <button onClick={exportRaporFormati} style={{ ...exportBtn, background: `linear-gradient(135deg, ${C.success}, #1B5E3B)` }}>Gösterge_Rapor_Formatı.docx</button>
-              </>
-            )}
+            <button onClick={exportHedefDegerlendirmeler} style={exportBtn}>Hedef_Değerlendirmeler.xlsx</button>
+            <button onClick={exportPerformansTablosu} style={exportBtn}>Performans_Göstergesi_Tablosu.xlsx</button>
+            <button onClick={exportRaporFormati} style={{ ...exportBtn, background: `linear-gradient(135deg, ${C.success}, #1B5E3B)` }}>Gösterge_Rapor_Formatı.docx</button>
           </div>
         </div>
         </>)}
