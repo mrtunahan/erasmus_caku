@@ -239,7 +239,11 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   }, [AKADEMISYENLER, role, activeDepartment, selectedBolum]);
 
   const fakulteBolumleri = useMemo(() => {
-    if (role !== "fakulteYetkilisi" || FAKULTELER.length === 0) return [];
+    if (role !== "fakulteYetkilisi") return [];
+    // Tüm Mühendislik Fakültesi bölümlerini window.DEPARTMENTS'tan al (6 bölüm)
+    const allDepts = (typeof window !== "undefined" && Array.isArray(window.DEPARTMENTS)) ? window.DEPARTMENTS : [];
+    if (allDepts.length > 0) return allDepts.map(d => d.name);
+    if (FAKULTELER.length === 0) return [];
     const fak = FAKULTELER[0];
     return [...new Set(AKADEMISYENLER.filter(a => a.fakulte === fak).map(a => a.bolum))];
   }, [role, AKADEMISYENLER, FAKULTELER]);
@@ -386,12 +390,20 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     flash("Gösterge_Rapor_Formatı.docx indirildi");
   };
 
-  const tabs = [
-    { label: "Gösterge İzleme" },
-    { label: "Hedef Değerlendirme" },
-    { label: "Performans Formu" },
-    { label: "Rapor Formatı" },
-  ];
+  // Fakülte yetkilisi yalnızca "Gösterge İzleme" sekmesini görür
+  const tabs = role === "fakulteYetkilisi"
+    ? [{ label: "Gösterge İzleme" }]
+    : [
+        { label: "Gösterge İzleme" },
+        { label: "Hedef Değerlendirme" },
+        { label: "Performans Formu" },
+        { label: "Rapor Formatı" },
+      ];
+
+  // Sekme indeksi mevcut sekme listesi içinde geçersizse 0'a sıfırla
+  useEffect(() => {
+    if (tab >= tabs.length) setTab(0);
+  }, [role, tabs.length, tab]);
 
   // ═══════════════════════════════════════════════════════
   return (
@@ -567,47 +579,8 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
             {/* ── FAKÜLTE YETKİLİSİ GÖRÜNÜMÜ ── */}
             {role === "fakulteYetkilisi" && (
               <>
-                <Hdr title="Fakülte Gösterge Özeti" sub="Tüm bölümlerden gelen toplam değerler" />
+                <Hdr title="Fakülte Genel Toplam" sub="Tüm bölümlerden gelen toplam değerler" />
                 <InfoBar color={C.purple} text="Her bölümden gelen toplam değerler fakülte düzeyinde birleştirilmiştir." />
-
-                {/* Bölüm bazlı kırılım */}
-                {fakulteBolumleri.map(bolum => {
-                  const bolumAkads = AKADEMISYENLER.filter(a => a.bolum === bolum && a.fakulte === FAKULTELER[0]);
-                  return (
-                    <div key={bolum} style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: C.warning, padding: "7px 12px", background: "rgba(240,180,41,0.10)", borderRadius: 8, marginBottom: 4 }}>
-                        {bolum} ({bolumAkads.length} akademisyen)
-                      </div>
-                      {GOSTERGELER.map((kat, ki) => (
-                        <div key={ki} style={{ marginBottom: 6 }}>
-                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
-                            <tbody>
-                              {kat.gostergeler.map(g => {
-                                const aggType = aggOverrides[g.id] || g.aggType;
-                                const vals = bolumAkads.map(a => {
-                                  return AYLAR.map(ay => {
-                                    const v = akademisyenData[a.id]?.[`${g.id}_${ay}`];
-                                    return v ? parseFloat(v) : 0;
-                                  });
-                                });
-                                return (
-                                  <tr key={g.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                                    <td style={{ ...td, fontSize: 11, paddingLeft: 8, maxWidth: 300 }}>{g.ad}</td>
-                                    {AYLAR.map((a, ai) => {
-                                      const colVals = vals.map(v => v[ai]).filter(v => !isNaN(v));
-                                      const total = aggType === "fixed" ? (colVals[0] || "—") : colVals.reduce((s, v) => s + v, 0);
-                                      return <td key={a} style={{ ...td, textAlign: "center", fontWeight: 600, color: C.warning, width: 80 }}>{total || "—"}</td>;
-                                    })}
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
 
                 {/* Fakülte toplam */}
                 <div style={{ marginTop: 16, borderTop: `2px solid ${C.purple}`, paddingTop: 14 }}>
@@ -755,9 +728,13 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
           <div style={{ fontSize: 11.5, fontWeight: 600, color: C.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.3 }}>Dışa Aktar</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <button onClick={exportGostergeIzleme} style={exportBtn}>Gösterge_İzleme.xlsx</button>
-            <button onClick={exportHedefDegerlendirmeler} style={exportBtn}>Hedef_Değerlendirmeler.xlsx</button>
-            <button onClick={exportPerformansTablosu} style={exportBtn}>Performans_Göstergesi_Tablosu.xlsx</button>
-            <button onClick={exportRaporFormati} style={{ ...exportBtn, background: `linear-gradient(135deg, ${C.success}, #1B5E3B)` }}>Gösterge_Rapor_Formatı.docx</button>
+            {role !== "fakulteYetkilisi" && (
+              <>
+                <button onClick={exportHedefDegerlendirmeler} style={exportBtn}>Hedef_Değerlendirmeler.xlsx</button>
+                <button onClick={exportPerformansTablosu} style={exportBtn}>Performans_Göstergesi_Tablosu.xlsx</button>
+                <button onClick={exportRaporFormati} style={{ ...exportBtn, background: `linear-gradient(135deg, ${C.success}, #1B5E3B)` }}>Gösterge_Rapor_Formatı.docx</button>
+              </>
+            )}
           </div>
         </div>
         </>)}
