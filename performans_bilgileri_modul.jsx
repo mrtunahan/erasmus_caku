@@ -94,8 +94,47 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   // Bölüm yetkilisi: toplama kuralları (sum/fixed override)
   const [aggOverrides, setAggOverrides] = useState({}); // { [gostergeId]: "sum" | "fixed" }
 
+  // Gönderim durumu: { [tabIndex]: true }
+  const [submittedTabs, setSubmittedTabs] = useState({});
+
   const [toast, setToast] = useState("");
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 3000); };
+
+  // ── localStorage'dan veri yükle ──
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("performans_saved_data");
+      if (saved) {
+        const d = JSON.parse(saved);
+        if (d.akademisyenData) setAkademisyenData(d.akademisyenData);
+        if (d.hedefData) setHedefData(d.hedefData);
+        if (d.perfData) setPerfData(d.perfData);
+        if (d.raporData) setRaporData(d.raporData);
+        if (d.submittedTabs) setSubmittedTabs(d.submittedTabs);
+      }
+    } catch (e) { console.error("Veri yüklenemedi:", e); }
+  }, []);
+
+  // ── Kaydet (localStorage) ──
+  const handleSave = () => {
+    try {
+      const d = { akademisyenData, hedefData, perfData, raporData, submittedTabs };
+      localStorage.setItem("performans_saved_data", JSON.stringify(d));
+      flash("Veriler kaydedildi");
+    } catch (e) { console.error("Kaydetme hatası:", e); flash("Kaydetme sırasında hata oluştu"); }
+  };
+
+  // ── Gönder ──
+  const handleSubmit = (tabIdx) => {
+    handleSave();
+    setSubmittedTabs(p => ({ ...p, [tabIdx]: true }));
+    try {
+      const d = { akademisyenData, hedefData, perfData, raporData, submittedTabs: { ...submittedTabs, [tabIdx]: true } };
+      localStorage.setItem("performans_saved_data", JSON.stringify(d));
+    } catch (e) { /* ignore */ }
+    const tabNames = ["Gösterge İzleme", "Hedef Değerlendirme", "Performans Formu", "Rapor Formatı"];
+    flash(`${tabNames[tabIdx]} verileri gönderildi`);
+  };
 
   // ── Akademisyen listesini API'den yükle ──
   useEffect(() => {
@@ -232,14 +271,119 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     return vals.reduce((a, b) => a + b, 0);
   };
 
-  // ── Export ──
-  const exportJSON = () => {
-    const d = { role, akademisyenData, hedefData, perfData, raporData, aggOverrides };
-    const b = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
+  // ── Export yardımcıları ──
+  const downloadFile = (content, filename, mimeType) => {
+    const b = new Blob([content], { type: mimeType });
     const u = URL.createObjectURL(b);
-    Object.assign(document.createElement("a"), { href: u, download: `performans_${role}.json` }).click();
+    Object.assign(document.createElement("a"), { href: u, download: filename }).click();
     URL.revokeObjectURL(u);
-    flash("JSON dosyası indirildi!");
+  };
+
+  const xlsxWrap = (tableHtml) => `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Sayfa1</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${tableHtml}</body></html>`;
+
+  const docxWrap = (bodyHtml) => `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><style>body{font-family:Calibri,sans-serif;font-size:11pt}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:6px 8px}th{background:#1B2A4A;color:#fff}</style><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--></head><body>${bodyHtml}</body></html>`;
+
+  // 1) Gösterge_İzleme.xlsx
+  const exportGostergeIzleme = () => {
+    const akadId = role === "akademisyen" ? selectedAkademisyen : null;
+    let rows = "";
+    GOSTERGELER.forEach(kat => {
+      rows += `<tr><td colspan="${AYLAR.length + 2}" style="background:#F0EDE6;font-weight:bold">${kat.kategori}</td></tr>`;
+      kat.gostergeler.forEach(g => {
+        rows += `<tr><td>${g.ad}</td><td>${g.birim}</td>`;
+        AYLAR.forEach(a => {
+          if (role === "akademisyen") {
+            rows += `<td>${akademisyenData[akadId]?.[g.id + "_" + a] || ""}</td>`;
+          } else {
+            rows += `<td>${calcBolumToplam(g.id, a)}</td>`;
+          }
+        });
+        rows += `</tr>`;
+      });
+    });
+    const html = `<table><thead><tr><th>Gösterge</th><th>Birim</th>${AYLAR.map(a => `<th>${a}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`;
+    downloadFile(xlsxWrap(html), "Gösterge_İzleme.xlsx", "application/vnd.ms-excel");
+    flash("Gösterge_İzleme.xlsx indirildi");
+  };
+
+  // 2) Hedef_Değerlendirmeler.xlsx
+  const exportHedefDegerlendirmeler = () => {
+    const akadId = role === "akademisyen" ? selectedAkademisyen : null;
+    let rows = "";
+    HEDEFLER.forEach((h, i) => {
+      if (role === "akademisyen") {
+        rows += `<tr><td>${h.hedef}</td><td>${h.alt}</td><td>${hedefData[akadId]?.[i] || ""}</td></tr>`;
+      } else {
+        const akads = role === "bolumYetkilisi" ? bolumAkademisyenleri : AKADEMISYENLER.filter(a => a.fakulte === FAKULTELER[0]);
+        akads.forEach(a => {
+          const val = hedefData[a.id]?.[i];
+          if (val) rows += `<tr><td>${h.hedef}</td><td>${a.ad}</td><td>${val}</td></tr>`;
+        });
+      }
+    });
+    const html = `<table><thead><tr><th>Hedef</th><th>${role === "akademisyen" ? "Alt Hedef" : "Akademisyen"}</th><th>Değerlendirme</th></tr></thead><tbody>${rows}</tbody></table>`;
+    downloadFile(xlsxWrap(html), "Hedef_Değerlendirmeler.xlsx", "application/vnd.ms-excel");
+    flash("Hedef_Değerlendirmeler.xlsx indirildi");
+  };
+
+  // 3) Performans_Göstergesi_Tablosu.xlsx
+  const exportPerformansTablosu = () => {
+    const akadId = role === "akademisyen" ? selectedAkademisyen : null;
+    let rows = "";
+    const fields = [
+      { k: "gosterge", l: "Performans Göstergesi" }, { k: "donem", l: "Dönem" }, { k: "tur", l: "Gösterge Türü" },
+      { k: "dissal", l: "Dışsal Unsurlar" }, { k: "sorunlar", l: "Sorunlar/Zorluklar" }, { k: "maliyetler", l: "Maliyetler" },
+      { k: "kiyaslama", l: "Kıyaslama Kaynakları" }, { k: "olcumTarihi", l: "Ölçüm Tarihi" }, { k: "sonrakiOlcum", l: "Sonraki Ölçüm" },
+      { k: "gerekceler", l: "Gerekçeler" },
+    ];
+    if (role === "akademisyen") {
+      const d = perfData[akadId] || {};
+      fields.forEach(f => { rows += `<tr><td>${f.l}</td><td>${d[f.k] || ""}</td></tr>`; });
+    } else {
+      const akads = role === "bolumYetkilisi" ? bolumAkademisyenleri : AKADEMISYENLER.filter(a => a.fakulte === FAKULTELER[0]);
+      akads.forEach(a => {
+        const d = perfData[a.id];
+        if (d && d.gosterge) {
+          rows += `<tr><td colspan="2" style="background:#F0EDE6;font-weight:bold">${a.ad}</td></tr>`;
+          fields.forEach(f => { rows += `<tr><td>${f.l}</td><td>${d[f.k] || ""}</td></tr>`; });
+        }
+      });
+    }
+    const html = `<table><thead><tr><th>Alan</th><th>Değer</th></tr></thead><tbody>${rows}</tbody></table>`;
+    downloadFile(xlsxWrap(html), "Performans_Göstergesi_Tablosu.xlsx", "application/vnd.ms-excel");
+    flash("Performans_Göstergesi_Tablosu.xlsx indirildi");
+  };
+
+  // 4) Gösterge_Rapor_Formatı.docx
+  const exportRaporFormati = () => {
+    const akadId = role === "akademisyen" ? selectedAkademisyen : null;
+    let body = "";
+    const renderRapor = (d, name) => {
+      let s = name ? `<h2>${name}</h2>` : "";
+      s += `<p><strong>Yıl:</strong> ${d.yil || ""} &nbsp; <strong>İdare:</strong> ${d.idare || ""} &nbsp; <strong>Merci:</strong> ${d.merci || ""} &nbsp; <strong>Dönem:</strong> ${d.donem || ""}</p>`;
+      s += `<h3>I. Tespitler</h3>`;
+      s += `<p><strong>Genel Bilgiler:</strong><br/>${(d.genelBilgiler || "").replace(/\n/g, "<br/>")}</p>`;
+      s += `<p><strong>Gerçekleşme Durumu:</strong><br/>${(d.gerceklesmeDurumu || "").replace(/\n/g, "<br/>")}</p>`;
+      s += `<p><strong>Değerlendirme:</strong><br/>${(d.degerlendirme || "").replace(/\n/g, "<br/>")}</p>`;
+      s += `<h3>II. Sonuç ve Öneriler</h3>`;
+      s += `<p>${(d.sonucOneriler || "").replace(/\n/g, "<br/>")}</p><hr/>`;
+      return s;
+    };
+    if (role === "akademisyen") {
+      const d = raporData[akadId] || {};
+      body = `<h1>Gösterge Rapor Formatı</h1>` + renderRapor(d);
+    } else {
+      body = `<h1>Gösterge Rapor Formatı — ${role === "bolumYetkilisi" ? "Bölüm Özeti" : "Fakülte Özeti"}</h1>`;
+      const akads = role === "bolumYetkilisi" ? bolumAkademisyenleri : AKADEMISYENLER.filter(a => a.fakulte === FAKULTELER[0]);
+      akads.forEach(a => {
+        const d = raporData[a.id];
+        if (d && d.genelBilgiler) body += renderRapor(d, a.ad);
+      });
+    }
+    downloadFile(docxWrap(body), "Gösterge_Rapor_Formatı.docx", "application/msword");
+    flash("Gösterge_Rapor_Formatı.docx indirildi");
   };
 
   const tabs = [
@@ -346,6 +490,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                     }))}
                     editable inputStyle={inp} />
                 ))}
+                <SaveSubmitBar onSave={handleSave} onSubmit={() => handleSubmit(0)} submitted={submittedTabs[0]} />
               </>
             )}
 
@@ -511,6 +656,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                       rows={3} placeholder="Değerlendirmenizi yazınız..." style={txa} />
                   </div>
                 ))}
+                <SaveSubmitBar onSave={handleSave} onSubmit={() => handleSubmit(1)} submitted={submittedTabs[1]} />
               </>
             )}
             {(role === "bolumYetkilisi" || role === "fakulteYetkilisi") && (
@@ -547,6 +693,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                 <Hdr title="Performans Göstergesi Nitelikleri" sub={`${currentAkad?.ad}`} />
                 <PerfForm data={perfData[selectedAkademisyen] || {}}
                   setData={(d) => setPerfData(p => ({ ...p, [selectedAkademisyen]: d }))} />
+                <SaveSubmitBar onSave={handleSave} onSubmit={() => handleSubmit(2)} submitted={submittedTabs[2]} />
               </>
             )}
             {(role === "bolumYetkilisi" || role === "fakulteYetkilisi") && (
@@ -580,6 +727,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                 <Hdr title="Rapor Formatı" sub={`${currentAkad?.ad}`} />
                 <RaporForm data={raporData[selectedAkademisyen] || { yil: "2026", donem: "I. Dönem" }}
                   setData={(d) => setRaporData(p => ({ ...p, [selectedAkademisyen]: d }))} />
+                <SaveSubmitBar onSave={handleSave} onSubmit={() => handleSubmit(3)} submitted={submittedTabs[3]} />
               </>
             )}
             {(role === "bolumYetkilisi" || role === "fakulteYetkilisi") && (
@@ -602,11 +750,15 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
         )}
 
         {/* Export bar */}
-        <div style={{ marginTop: 24, display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-          {toast && <span style={{ fontSize: 12, color: C.success, fontWeight: 600 }}>{toast}</span>}
-          <button onClick={exportJSON} style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: `linear-gradient(135deg, ${C.accent}, ${C.accentDark})`, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: F }}>
-            Verileri JSON İndir ({role === "akademisyen" ? "Kişisel" : role === "bolumYetkilisi" ? "Bölüm" : "Fakülte"})
-          </button>
+        <div style={{ marginTop: 24, padding: "16px 0", borderTop: `1px solid ${C.border}` }}>
+          {toast && <div style={{ fontSize: 12, color: C.success, fontWeight: 600, marginBottom: 10, textAlign: "center" }}>{toast}</div>}
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.3 }}>Dışa Aktar</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={exportGostergeIzleme} style={exportBtn}>Gösterge_İzleme.xlsx</button>
+            <button onClick={exportHedefDegerlendirmeler} style={exportBtn}>Hedef_Değerlendirmeler.xlsx</button>
+            <button onClick={exportPerformansTablosu} style={exportBtn}>Performans_Göstergesi_Tablosu.xlsx</button>
+            <button onClick={exportRaporFormati} style={{ ...exportBtn, background: `linear-gradient(135deg, ${C.success}, #1B5E3B)` }}>Gösterge_Rapor_Formatı.docx</button>
+          </div>
         </div>
         </>)}
       </div>
@@ -736,6 +888,20 @@ function RaporForm({ data, setData }) {
   );
 }
 
+function SaveSubmitBar({ onSave, onSubmit, submitted }) {
+  return (
+    <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      {submitted && <span style={{ fontSize: 11.5, color: C.success, fontWeight: 600, marginRight: "auto" }}>Gönderildi</span>}
+      <button onClick={onSave} style={{ padding: "10px 24px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.accent, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: F, transition: "all 0.15s" }}>
+        Kaydet
+      </button>
+      <button onClick={onSubmit} style={{ padding: "10px 24px", borderRadius: 8, border: "none", background: submitted ? C.success : `linear-gradient(135deg, ${C.accent}, ${C.accentDark})`, color: "#fff", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: F, transition: "all 0.15s" }}>
+        {submitted ? "Gönderildi" : "Gönder"}
+      </button>
+    </div>
+  );
+}
+
 // ── Stiller ──
 const th = { padding: "8px 6px", textAlign: "left", fontSize: 11, fontWeight: 600, color: C.textMuted, borderBottom: `2px solid ${C.border}`, background: C.surface };
 const td = { padding: "6px", fontSize: 12, color: C.text, lineHeight: 1.3 };
@@ -743,6 +909,7 @@ const lbl = { display: "block", fontSize: 11, fontWeight: 600, color: C.textMute
 const inp = { width: "100%", padding: "5px 6px", borderRadius: 5, border: `1px solid ${C.yellowBorder}`, background: C.yellowDim, color: C.text, fontSize: 12, fontFamily: F, textAlign: "center", outline: "none", boxSizing: "border-box" };
 const inpF = { width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.surfaceAlt, color: C.text, fontSize: 12, fontFamily: F, outline: "none", boxSizing: "border-box" };
 const txa = { width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.surfaceAlt, color: C.text, fontSize: 12, fontFamily: F, outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.5 };
+const exportBtn = { padding: "9px 16px", borderRadius: 8, border: "none", background: `linear-gradient(135deg, ${C.accent}, ${C.accentDark})`, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: F, whiteSpace: "nowrap" };
 
 // ── Global window export (app-shell lazy loader için) ──
 window.PerformansBilgileriApp = PerformansBilgileri;
