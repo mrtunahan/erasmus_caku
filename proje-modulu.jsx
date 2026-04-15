@@ -1084,12 +1084,13 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var isProfessor = currentUser && currentUser.role === "professor";
   var canManage = isAdmin || isDeptManager || isProfessor;
 
-  // ── Bölüm derslerini yükle (sinav_dersler koleksiyonundan) ──
+  // ── Bölüm derslerini yükle (sinav_dersler koleksiyonundan — Ders Yönetimi) ──
   useEffect(function () {
-    if (!activeDepartment || !window.apiFirestore) return;
-    window.apiFirestore.collection("sinav_dersler").get().then(function (snap) {
-      var all = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
-      var filtered = all.filter(function (c) { return c.departmentId === activeDepartment; });
+    if (!activeDepartment || !window.apiRead) return;
+    var where = "departmentId:eq:" + activeDepartment;
+    window.apiRead("sinav_dersler", { where: where }).then(function (all) {
+      // apiRead bazen tüm bölümleri dönebildiğinden güvenlik için tekrar filtrele
+      var filtered = (all || []).filter(function (c) { return c.departmentId === activeDepartment; });
       setDeptCourses(filtered);
     }).catch(function (err) { console.error("Bölüm dersleri yüklenemedi:", err); });
   }, [activeDepartment]);
