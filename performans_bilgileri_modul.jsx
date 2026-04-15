@@ -780,17 +780,25 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
           </div>
         )}
 
-        {/* Export bar */}
-        <div style={{ marginTop: 24, padding: "16px 0", borderTop: `1px solid ${C.border}` }}>
-          {toast && <div style={{ fontSize: 12, color: C.success, fontWeight: 600, marginBottom: 10, textAlign: "center" }}>{toast}</div>}
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.3 }}>Dışa Aktar</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={exportGostergeIzleme} style={exportBtn}>Gösterge_İzleme.xlsx</button>
-            <button onClick={exportHedefDegerlendirmeler} style={exportBtn}>Hedef_Değerlendirmeler.xlsx</button>
-            <button onClick={exportPerformansTablosu} style={exportBtn}>Performans_Göstergesi_Tablosu.xlsx</button>
-            <button onClick={exportRaporFormati} style={{ ...exportBtn, background: `linear-gradient(135deg, ${C.success}, #1B5E3B)` }}>Gösterge_Rapor_Formatı.docx</button>
+        {/* Export bar — yalnızca bölüm/fakülte yetkililerine açık */}
+        {(role === "bolumYetkilisi" || role === "fakulteYetkilisi") && (
+          <div style={{ marginTop: 24, padding: "16px 0", borderTop: `1px solid ${C.border}` }}>
+            {toast && <div style={{ fontSize: 12, color: C.success, fontWeight: 600, marginBottom: 10, textAlign: "center" }}>{toast}</div>}
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: C.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.3 }}>Dışa Aktar</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={exportGostergeIzleme} style={exportBtn}>Gösterge_İzleme.xlsx</button>
+              <button onClick={exportHedefDegerlendirmeler} style={exportBtn}>Hedef_Değerlendirmeler.xlsx</button>
+              <button onClick={exportPerformansTablosu} style={exportBtn}>Performans_Göstergesi_Tablosu.xlsx</button>
+              <button onClick={exportRaporFormati} style={{ ...exportBtn, background: `linear-gradient(135deg, ${C.success}, #1B5E3B)` }}>Gösterge_Rapor_Formatı.docx</button>
+            </div>
           </div>
-        </div>
+        )}
+        {/* Akademisyen için sadece toast bildirimi */}
+        {role === "akademisyen" && toast && (
+          <div style={{ marginTop: 16, padding: "10px 14px", background: C.successDim, border: `1px solid ${C.success}`, borderRadius: 8, fontSize: 12, color: C.success, fontWeight: 600, textAlign: "center" }}>
+            {toast}
+          </div>
+        )}
         </>)}
       </div>
     </div>
@@ -817,6 +825,10 @@ function InfoBar({ color, text }) {
 }
 
 function GostergeTable({ kat, aylar, getValue, setValue, editable = true, inputStyle, compact = false }) {
+  // Sabit sütun genişlikleri — tüm akademisyenlerde aynı hizalama için
+  const adW = compact ? "60%" : "55%";
+  const birimW = compact ? null : "70px";
+  const ayW = compact ? `${Math.floor(40 / aylar.length)}%` : "100px";
   return (
     <div style={{ marginBottom: compact ? 6 : 20 }}>
       {!compact && (
@@ -825,21 +837,26 @@ function GostergeTable({ kat, aylar, getValue, setValue, editable = true, inputS
           {kat.hedef && <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 1 }}>{kat.hedef}</div>}
         </div>
       )}
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: compact ? 11 : 12 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: compact ? 11 : 12, tableLayout: "fixed" }}>
+        <colgroup>
+          <col style={{ width: adW }} />
+          {!compact && <col style={{ width: birimW }} />}
+          {aylar.map(a => <col key={a} style={{ width: ayW }} />)}
+        </colgroup>
         {!compact && (
           <thead><tr>
             <th style={th}>Gösterge</th>
-            <th style={{ ...th, width: 55, textAlign: "center" }}>Birim</th>
-            {aylar.map(a => <th key={a} style={{ ...th, width: 90, textAlign: "center" }}>{a}</th>)}
+            <th style={{ ...th, textAlign: "center" }}>Birim</th>
+            {aylar.map(a => <th key={a} style={{ ...th, textAlign: "center" }}>{a}</th>)}
           </tr></thead>
         )}
         <tbody>
           {kat.gostergeler.map(g => (
             <tr key={g.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-              <td style={{ ...td, paddingLeft: 8, fontSize: compact ? 11 : 12 }}>
+              <td style={{ ...td, paddingLeft: 8, fontSize: compact ? 11 : 12, overflow: "hidden", textOverflow: "ellipsis" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                   <span style={{ width: 6, height: 6, borderRadius: 2, background: C.yellow, display: "inline-block", flexShrink: 0 }} />
-                  {g.ad}
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.ad}</span>
                 </div>
               </td>
               {!compact && <td style={{ ...td, textAlign: "center", color: C.textDim, fontSize: 10 }}>{g.birim}</td>}
@@ -849,7 +866,7 @@ function GostergeTable({ kat, aylar, getValue, setValue, editable = true, inputS
                     <input type="text" value={getValue(g.id, a)} onChange={e => setValue(g.id, a, e.target.value)}
                       style={inputStyle || inp} placeholder="—" />
                   ) : (
-                    <span style={{ color: getValue(g.id, a) ? C.text : C.textDim, fontWeight: getValue(g.id, a) ? 600 : 400 }}>
+                    <span style={{ color: getValue(g.id, a) ? C.text : C.textDim, fontWeight: getValue(g.id, a) ? 600 : 400, display: "inline-block", minWidth: 30, textAlign: "center" }}>
                       {getValue(g.id, a) || "—"}
                     </span>
                   )}
