@@ -297,6 +297,33 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     URL.revokeObjectURL(u);
   };
 
+  // SheetJS dinamik yükleyici (gerçek .xlsx üretmek için)
+  const loadSheetJS = () => new Promise((resolve, reject) => {
+    if (window.XLSX) { resolve(window.XLSX); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => resolve(window.XLSX);
+    s.onerror = () => reject(new Error("SheetJS yüklenemedi"));
+    document.head.appendChild(s);
+  });
+
+  // Verilen HTML tablosunu geçici DOM'a yerleştirip gerçek xlsx olarak indir
+  const downloadTableAsXlsx = async (tableHtml, filename, sheetName = "Sayfa1") => {
+    try {
+      const XLSX = await loadSheetJS();
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "position:absolute;left:-99999px;top:-99999px;visibility:hidden";
+      wrap.innerHTML = tableHtml;
+      document.body.appendChild(wrap);
+      const tableEl = wrap.querySelector("table");
+      const wb = XLSX.utils.table_to_book(tableEl, { sheet: sheetName.slice(0, 31), raw: false });
+      XLSX.writeFile(wb, filename);
+      document.body.removeChild(wrap);
+    } catch (e) {
+      alert("XLSX oluşturulamadı: " + e.message);
+    }
+  };
+
   const xlsxStyles = `<style>
     body{font-family:Calibri,Arial,sans-serif;font-size:10pt}
     table{border-collapse:collapse;width:100%;table-layout:fixed}
@@ -343,7 +370,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
       });
     });
     const html = `<table>${rows}</table>`;
-    downloadFile(xlsxWrap(html), `Gösterge_İzleme_${selectedYil}_${selectedDonem}.xlsx`, "application/vnd.ms-excel");
+    downloadTableAsXlsx(html, `Gösterge_İzleme_${selectedYil}_${selectedDonem}.xlsx`, "Gosterge Izleme");
     flash("Gösterge_İzleme.xlsx indirildi");
   };
 
@@ -371,7 +398,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
       rows += `<td style="vertical-align:top;min-height:60px">${val}</td></tr>`;
     });
     const html = `<table>${rows}</table>`;
-    downloadFile(xlsxWrap(html), "Hedef_Değerlendirmeler.xlsx", "application/vnd.ms-excel");
+    downloadTableAsXlsx(html, `Hedef_Değerlendirmeler_${selectedYil}_${selectedDonem}.xlsx`, "Hedef Degerlendirmeler");
     flash("Hedef_Değerlendirmeler.xlsx indirildi");
   };
 
@@ -415,7 +442,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
       });
     }
     const html = `<table>${rows}</table>`;
-    downloadFile(xlsxWrap(html), "Performans_Göstergesi_Tablosu.xlsx", "application/vnd.ms-excel");
+    downloadTableAsXlsx(html, `Performans_Göstergesi_Tablosu_${selectedYil}_${selectedDonem}.xlsx`, "Performans Tablosu");
     flash("Performans_Göstergesi_Tablosu.xlsx indirildi");
   };
 
