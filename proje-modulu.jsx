@@ -57,6 +57,48 @@ const PRJ_ICONS = {
   alertTriangle: "M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01",
 };
 
+// ── Akademisyen Adı Eşleme (Ders Yönetimi entegrasyonu için) ──
+// Ders Yönetimi'nde professor alanı "Prof. Dr. Tunahan Korkmaz" gibi unvanlı
+// girilebilir; oturumdaki currentUser.name ise sade olabilir. Unvan/boşluk/
+// büyük-küçük harf farklarını tolere eden bir karşılaştırma yapıyoruz.
+var PRJ_TITLES = ["Prof. Dr.", "Prof.Dr.", "Doç. Dr.", "Doç.Dr.", "Dr. Öğr. Üyesi",
+  "Dr.Öğr.Üyesi", "Öğr. Gör. Dr.", "Öğr.Gör.Dr.", "Arş. Gör. Dr.", "Arş.Gör.Dr.",
+  "Öğr. Gör.", "Öğr.Gör.", "Arş. Gör.", "Arş.Gör.", "Dr.", "Prof."];
+function prjStripTitle(name) {
+  if (!name) return "";
+  var n = String(name).trim();
+  for (var i = 0; i < PRJ_TITLES.length; i++) {
+    var t = PRJ_TITLES[i];
+    if (n.toLocaleLowerCase("tr").indexOf(t.toLocaleLowerCase("tr")) === 0) {
+      n = n.slice(t.length).trim();
+      break;
+    }
+  }
+  return n;
+}
+function prjNormalizeName(s) {
+  if (!s) return "";
+  return prjStripTitle(s).replace(/\s+/g, " ").trim().toLocaleLowerCase("tr");
+}
+function prjMatchesProfessor(courseProfessor, currentUserName) {
+  if (!courseProfessor || !currentUserName) return false;
+  var a = prjNormalizeName(courseProfessor);
+  var b = prjNormalizeName(currentUserName);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // Birinin diğerini içermesi (kısmi eşleme — soyadı benzerliği vs.)
+  if (a.indexOf(b) !== -1 || b.indexOf(a) !== -1) return true;
+  // Soyadı + ad baş harfi eşlemesi
+  var aParts = a.split(/\s+/);
+  var bParts = b.split(/\s+/);
+  if (aParts.length >= 2 && bParts.length >= 2) {
+    var aSur = aParts[aParts.length - 1];
+    var bSur = bParts[bParts.length - 1];
+    if (aSur === bSur && aParts[0].charAt(0) === bParts[0].charAt(0)) return true;
+  }
+  return false;
+}
+
 // ── Tarih Formatlama ──
 function prjFormatDate(ts) {
   if (!ts) return "—";
@@ -778,10 +820,10 @@ function AddCourseModal({ onClose, onAdd, editCourse, categoryLabel, availableCo
   var scs = useState(""), selectedCourseId = scs[0], setSelectedCourseId = scs[1];
 
   // Akademisyense sadece kendisine ait dersleri filtrele, admin/bölüm yetkilisiyse hepsini göster
-  var norm = function (s) { return (s || "").toString().trim().toLowerCase(); };
+  // Ders Yönetimi'ndeki professor alanı unvanlı/farklı yazılmış olabilir → toleranslı eşleme
   var myCourses = (availableCourses || []).filter(function (c) {
     if (!isProfessor) return true;
-    return norm(c.professor) === norm(currentUserName);
+    return prjMatchesProfessor(c.professor, currentUserName);
   });
   // Aynı ders kodu birden fazla kayıtta varsa tekilleştir
   var seen = {};
@@ -843,8 +885,15 @@ function AddCourseModal({ onClose, onAdd, editCourse, categoryLabel, availableCo
           </div>
         )}
         {!editCourse && isProfessor && uniqueCourses.length === 0 && (
-          <div style={{ marginBottom: 16, padding: 12, background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 10, fontSize: 12, color: "#92400E" }}>
-            Size tanımlı ders bulunamadı. Ders Yönetimi alanından bölüm yetkilisinin dersleri tanımlaması gerekir.
+          <div style={{ marginBottom: 16, padding: 12, background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 10, fontSize: 12, color: "#92400E", lineHeight: 1.5 }}>
+            <b>Size tanımlı ders bulunamadı.</b><br />
+            Bölüm yetkilisinin <b>Ders Yönetimi</b> sayfasından dersi size atamış olması gerekir.
+            {availableCourses && availableCourses.length > 0 && (
+              <div style={{ marginTop: 6, fontSize: 11, color: "#78350F" }}>
+                (Bölümünüzde {availableCourses.length} ders var ama hiçbiri "{currentUserName}" adıyla eşleşmiyor.
+                Ders Yönetimi'ndeki "Akademisyen" alanı tam adınızla aynı olmalı.)
+              </div>
+            )}
           </div>
         )}
 
@@ -1060,7 +1109,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     loadAllProjects();
     ProjDB.fetchCourses(activeCategory, activeDepartment).then(function (data) {
       var filtered = isProfessor && userName
-        ? data.filter(function (c) { return c.professor && c.professor.trim().toLowerCase() === userName.trim().toLowerCase(); })
+        ? data.filter(function (c) { return prjMatchesProfessor(c.professor, userName); })
         : data;
       setCourses(filtered);
       setLoading(false);
