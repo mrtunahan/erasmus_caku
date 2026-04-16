@@ -1288,6 +1288,39 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     try {
       var project = projects.find(function (p) { return p.id === projectId; }) || allProjects.find(function (p) { return p.id === projectId; });
       if (!project) return;
+      
+      // ── Kabul etmeden önce öğrencinin bu dersi seçip seçmediğini kontrol et ──
+      if (response === "accepted" && currentUser && currentUser.role === "student" && currentUser.studentNumber) {
+        try {
+          var students = await window.DB.fetchStudents();
+          var studentRecord = students.find(function (s) { return s.studentNumber === currentUser.studentNumber; });
+          
+          if (studentRecord) {
+            var myCourseIds = Array.isArray(studentRecord.myCourseIds) ? studentRecord.myCourseIds : [];
+            
+            // Projenin bağlı olduğu dersin ID'sini kontrol et
+            if (project.courseId && myCourseIds.indexOf(project.courseId) === -1) {
+              alert(
+                "Bu proje grubuna katılamazsınız!\n\n" +
+                "Sebep: İlk sisteme girdiğinizde bu dersi seçmediniz. " +
+                "Bir proje grubuna katılabilmek için, dersin sizin seçtiğiniz dersler arasında olması gerekir.\n\n" +
+                "Proje: " + (project.name || "İsimsiz Proje") + "\n" +
+                "Ders: " + (project.courseName || "Bilinmeyen Ders")
+              );
+              return;
+            }
+          } else {
+            // Öğrenci kaydı bulunamazsa uyarı ver
+            alert("Öğrenci kaydınız bulunamadı. Lütfen önce 'Benim Sayfam' bölümünden derslerinizi seçin.");
+            return;
+          }
+        } catch (err) {
+          console.error("Öğrenci ders kontrolü yapılırken hata:", err);
+          alert("Ders kontrolü yapılırken bir hata oluştu. Lütfen tekrar deneyin.");
+          return;
+        }
+      }
+      
       var newStatuses = (project.memberStatus || []).slice();
       newStatuses[memberIdx] = response;
       await ProjDB.updateProject(projectId, { memberStatus: newStatuses }, activeCategory);
@@ -1330,6 +1363,35 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         var dl = new Date(selectedCourse.deadline + "T23:59:59");
         if (now > dl) {
           alert("Bu ders için proje grubu oluşturma süresi dolmuştur! (Son tarih: " + selectedCourse.deadline + ")");
+          return;
+        }
+      }
+
+      // Kontrol: Öğrenci ise bu dersi seçmiş mi?
+      if (currentUser && currentUser.role === "student" && currentUser.studentNumber) {
+        try {
+          var students = await window.DB.fetchStudents();
+          var studentRecord = students.find(function (s) { return s.studentNumber === currentUser.studentNumber; });
+          
+          if (studentRecord) {
+            var myCourseIds = Array.isArray(studentRecord.myCourseIds) ? studentRecord.myCourseIds : [];
+            
+            if (selectedCourse.id && myCourseIds.indexOf(selectedCourse.id) === -1) {
+              alert(
+                "Bu ders için proje grubu oluşturamazsınız!\n\n" +
+                "Sebep: İlk sisteme girdiğinizde bu dersi seçmediniz. " +
+                "Bir proje grubu oluşturabilmek için, dersin sizin seçtiğiniz dersler arasında olması gerekir.\n\n" +
+                "Ders: " + (selectedCourse.code || "") + " - " + (selectedCourse.name || "")
+              );
+              return;
+            }
+          } else {
+            alert("Öğrenci kaydınız bulunamadı. Lütfen önce 'Benim Sayfam' bölümünden derslerinizi seçin.");
+            return;
+          }
+        } catch (err) {
+          console.error("Öğrenci ders kontrolü yapılırken hata:", err);
+          alert("Ders kontrolü yapılırken bir hata oluştu. Lütfen tekrar deneyin.");
           return;
         }
       }
