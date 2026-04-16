@@ -1285,8 +1285,16 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // ── Öğrenci ders kaydı kontrolü (yardımcı fonksiyon) ──
   var validateStudentCourseEnrollment = async function (courseId, courseInfo) {
+    // Öğrenci değilse kontrol gerekli değil
     if (!currentUser || currentUser.role !== "student" || !currentUser.studentNumber) {
-      return true; // Öğrenci değilse kontrol gerekli değil
+      return true;
+    }
+    
+    // courseId zorunlu
+    if (!courseId) {
+      console.error("validateStudentCourseEnrollment: courseId is required");
+      alert("Ders bilgisi eksik. Lütfen tekrar deneyin.");
+      return false;
     }
     
     try {
@@ -1300,7 +1308,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       
       var myCourseIds = Array.isArray(studentRecord.myCourseIds) ? studentRecord.myCourseIds : [];
       
-      if (courseId && myCourseIds.indexOf(courseId) === -1) {
+      if (myCourseIds.indexOf(courseId) === -1) {
         alert(
           "Bu işlemi gerçekleştiremezsiniz!\n\n" +
           "Sebep: İlk sisteme girdiğinizde bu dersi seçmediniz. " +
