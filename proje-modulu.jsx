@@ -1283,6 +1283,41 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
+  // ── Öğrenci ders kaydı kontrolü (yardımcı fonksiyon) ──
+  var validateStudentCourseEnrollment = async function (courseId, courseInfo) {
+    if (!currentUser || currentUser.role !== "student" || !currentUser.studentNumber) {
+      return true; // Öğrenci değilse kontrol gerekli değil
+    }
+    
+    try {
+      var students = await window.DB.fetchStudents();
+      var studentRecord = students.find(function (s) { return s.studentNumber === currentUser.studentNumber; });
+      
+      if (!studentRecord) {
+        alert("Öğrenci kaydınız bulunamadı. Lütfen önce 'Benim Sayfam' bölümünden derslerinizi seçin.");
+        return false;
+      }
+      
+      var myCourseIds = Array.isArray(studentRecord.myCourseIds) ? studentRecord.myCourseIds : [];
+      
+      if (courseId && myCourseIds.indexOf(courseId) === -1) {
+        alert(
+          "Bu işlemi gerçekleştiremezsiniz!\n\n" +
+          "Sebep: İlk sisteme girdiğinizde bu dersi seçmediniz. " +
+          "Bir proje grubuna katılabilmek veya oluşturabilmek için, dersin sizin seçtiğiniz dersler arasında olması gerekir.\n\n" +
+          (courseInfo || "")
+        );
+        return false;
+      }
+      
+      return true;
+    } catch (err) {
+      console.error("Öğrenci ders kontrolü yapılırken hata:", err);
+      alert("Ders kontrolü yapılırken bir hata oluştu. Lütfen tekrar deneyin.");
+      return false;
+    }
+  };
+
   // ── Üye davet yanıtı ──
   var handleRespondInvite = async function (projectId, memberIdx, response) {
     try {
@@ -1290,35 +1325,10 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       if (!project) return;
       
       // ── Kabul etmeden önce öğrencinin bu dersi seçip seçmediğini kontrol et ──
-      if (response === "accepted" && currentUser && currentUser.role === "student" && currentUser.studentNumber) {
-        try {
-          var students = await window.DB.fetchStudents();
-          var studentRecord = students.find(function (s) { return s.studentNumber === currentUser.studentNumber; });
-          
-          if (studentRecord) {
-            var myCourseIds = Array.isArray(studentRecord.myCourseIds) ? studentRecord.myCourseIds : [];
-            
-            // Projenin bağlı olduğu dersin ID'sini kontrol et
-            if (project.courseId && myCourseIds.indexOf(project.courseId) === -1) {
-              alert(
-                "Bu proje grubuna katılamazsınız!\n\n" +
-                "Sebep: İlk sisteme girdiğinizde bu dersi seçmediniz. " +
-                "Bir proje grubuna katılabilmek için, dersin sizin seçtiğiniz dersler arasında olması gerekir.\n\n" +
-                "Proje: " + (project.name || "İsimsiz Proje") + "\n" +
-                "Ders: " + (project.courseName || "Bilinmeyen Ders")
-              );
-              return;
-            }
-          } else {
-            // Öğrenci kaydı bulunamazsa uyarı ver
-            alert("Öğrenci kaydınız bulunamadı. Lütfen önce 'Benim Sayfam' bölümünden derslerinizi seçin.");
-            return;
-          }
-        } catch (err) {
-          console.error("Öğrenci ders kontrolü yapılırken hata:", err);
-          alert("Ders kontrolü yapılırken bir hata oluştu. Lütfen tekrar deneyin.");
-          return;
-        }
+      if (response === "accepted") {
+        var courseInfo = "Proje: " + (project.name || "İsimsiz Proje") + "\nDers: " + (project.courseName || "Bilinmeyen Ders");
+        var isEnrolled = await validateStudentCourseEnrollment(project.courseId, courseInfo);
+        if (!isEnrolled) return;
       }
       
       var newStatuses = (project.memberStatus || []).slice();
@@ -1368,33 +1378,9 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       }
 
       // Kontrol: Öğrenci ise bu dersi seçmiş mi?
-      if (currentUser && currentUser.role === "student" && currentUser.studentNumber) {
-        try {
-          var students = await window.DB.fetchStudents();
-          var studentRecord = students.find(function (s) { return s.studentNumber === currentUser.studentNumber; });
-          
-          if (studentRecord) {
-            var myCourseIds = Array.isArray(studentRecord.myCourseIds) ? studentRecord.myCourseIds : [];
-            
-            if (selectedCourse.id && myCourseIds.indexOf(selectedCourse.id) === -1) {
-              alert(
-                "Bu ders için proje grubu oluşturamazsınız!\n\n" +
-                "Sebep: İlk sisteme girdiğinizde bu dersi seçmediniz. " +
-                "Bir proje grubu oluşturabilmek için, dersin sizin seçtiğiniz dersler arasında olması gerekir.\n\n" +
-                "Ders: " + (selectedCourse.code || "") + " - " + (selectedCourse.name || "")
-              );
-              return;
-            }
-          } else {
-            alert("Öğrenci kaydınız bulunamadı. Lütfen önce 'Benim Sayfam' bölümünden derslerinizi seçin.");
-            return;
-          }
-        } catch (err) {
-          console.error("Öğrenci ders kontrolü yapılırken hata:", err);
-          alert("Ders kontrolü yapılırken bir hata oluştu. Lütfen tekrar deneyin.");
-          return;
-        }
-      }
+      var courseInfo = "Ders: " + (selectedCourse.code || "") + " - " + (selectedCourse.name || "");
+      var isEnrolled = await validateStudentCourseEnrollment(selectedCourse.id, courseInfo);
+      if (!isEnrolled) return;
 
       // Kontrol: Oluşturan kişi aynı derste zaten bir projede mi?
       var freshCourseProjects = await ProjDB.fetchProjects(selectedCourse.id);
