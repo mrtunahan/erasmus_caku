@@ -1076,12 +1076,14 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var [activeCategory, setActiveCategory] = useState("bolum"); // bolum, universite, tubitak
 
   var aps = _s([]), allProjects = aps[0], setAllProjects = aps[1];
+  var sccs = _s(null), studentCourseCodes = sccs[0], setStudentCourseCodes = sccs[1]; // öğrencinin seçtiği ders kodları
 
   var userId = currentUser && (currentUser.studentNumber || currentUser.name) || "anonymous";
   var userName = currentUser && currentUser.name || "Anonim";
   var isAdmin = currentUser && currentUser.role === "admin";
   var isDeptManager = currentUser && currentUser.role === "bolum_yetkilisi";
   var isProfessor = currentUser && currentUser.role === "professor";
+  var isStudent = currentUser && currentUser.role === "student";
   var canManage = isAdmin || isDeptManager || isProfessor;
 
   // ── Bölüm derslerini yükle (sinav_dersler koleksiyonundan — Ders Yönetimi) ──
@@ -1095,6 +1097,28 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }).catch(function (err) { console.error("Bölüm dersleri yüklenemedi:", err); });
   }, [activeDepartment]);
 
+  // ── Öğrencinin seçtiği ders kodlarını yükle (Benim Sayfam'daki myCourseIds → ders kodları) ──
+  useEffect(function () {
+    if (!isStudent || !currentUser.studentNumber) {
+      setStudentCourseCodes(null);
+      return;
+    }
+    if (!deptCourses || deptCourses.length === 0) return;
+
+    window.DB.fetchStudents().then(function (students) {
+      var me = students.find(function (s) { return s.studentNumber === currentUser.studentNumber; });
+      if (!me) { setStudentCourseCodes([]); return; }
+      var myCourseIds = Array.isArray(me.myCourseIds) ? me.myCourseIds : [];
+      var codes = [];
+      deptCourses.forEach(function (c) {
+        if (myCourseIds.indexOf(c.id) >= 0 && c.code) {
+          codes.push(c.code.trim().toLocaleLowerCase("tr"));
+        }
+      });
+      setStudentCourseCodes(codes);
+    }).catch(function () { setStudentCourseCodes([]); });
+  }, [isStudent, currentUser && currentUser.studentNumber, deptCourses]);
+
   // ── Tüm projeleri yükle (üyelik kontrolü için) ──
   var loadAllProjects = useCallback(function () {
     ProjDB.fetchAllProjects(activeCategory).then(function (data) {
@@ -1104,21 +1128,32 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // ── Dersleri Yükle (kategori ve bölüm bazlı) ──
   useEffect(function () {
+    // Öğrenci ise ve ders kodları henüz yüklenmediyse bekle (sadece "bolum" kategorisi için)
+    if (isStudent && activeCategory === "bolum" && studentCourseCodes === null) return;
+
     setLoading(true);
     setSelectedCourse(null);
     setProjects([]);
     loadAllProjects();
     ProjDB.fetchCourses(activeCategory, activeDepartment).then(function (data) {
-      var filtered = isProfessor && userName
-        ? data.filter(function (c) { return prjMatchesProfessor(c.professor, userName); })
-        : data;
+      var filtered;
+      if (isProfessor && userName) {
+        filtered = data.filter(function (c) { return prjMatchesProfessor(c.professor, userName); });
+      } else if (isStudent && activeCategory === "bolum" && Array.isArray(studentCourseCodes)) {
+        // Öğrenci yalnızca Benim Sayfam'da seçtiği derslere ait proje alanlarını görebilir
+        filtered = data.filter(function (c) {
+          return c.code && studentCourseCodes.indexOf(c.code.trim().toLocaleLowerCase("tr")) >= 0;
+        });
+      } else {
+        filtered = data;
+      }
       setCourses(filtered);
       setLoading(false);
     }).catch(function (err) {
       console.error("Ders listesi yüklenemedi:", err);
       setLoading(false);
     });
-  }, [activeCategory, activeDepartment]);
+  }, [activeCategory, activeDepartment, studentCourseCodes]);
 
   // ── Seçili ders değiştiğinde projeleri yükle ──
   useEffect(function () {
@@ -1284,15 +1319,16 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   };
 
   // ── Öğrenci ders kaydı kontrolü (yardımcı fonksiyon) ──
-  var validateStudentCourseEnrollment = async function (courseId, courseInfo) {
+  // courseCode: proje dersinin kodu (project_courses.code)
+  var validateStudentCourseEnrollment = async function (courseCode, courseInfo) {
     // Öğrenci değilse kontrol gerekli değil
     if (!currentUser || currentUser.role !== "student" || !currentUser.studentNumber) {
       return true;
     }
     
-    // courseId zorunlu
-    if (!courseId) {
-      console.error("validateStudentCourseEnrollment: courseId is required");
+    // courseCode zorunlu
+    if (!courseCode) {
+      console.error("validateStudentCourseEnrollment: courseCode is required");
       alert("Ders bilgisi eksik. Lütfen tekrar deneyin.");
       return false;
     }
@@ -1308,7 +1344,19 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       
       var myCourseIds = Array.isArray(studentRecord.myCourseIds) ? studentRecord.myCourseIds : [];
       
-      if (myCourseIds.indexOf(courseId) === -1) {
+      // myCourseIds sinav_dersler koleksiyonundaki ID'lerdir.
+      // Proje modülü farklı koleksiyon (project_courses) kullandığı için
+      // ID yerine ders kodu (code) üzerinden karşılaştırma yapıyoruz.
+      var myCourseCodes = [];
+      deptCourses.forEach(function (c) {
+        if (myCourseIds.indexOf(c.id) >= 0 && c.code) {
+          myCourseCodes.push(c.code.trim().toLocaleLowerCase("tr"));
+        }
+      });
+      
+      var targetCode = courseCode.trim().toLocaleLowerCase("tr");
+      
+      if (myCourseCodes.indexOf(targetCode) === -1) {
         alert(
           "Bu işlemi gerçekleştiremezsiniz!\n\n" +
           "Sebep: İlk sisteme girdiğinizde bu dersi seçmediniz. " +
@@ -1335,7 +1383,9 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       // ── Kabul etmeden önce öğrencinin bu dersi seçip seçmediğini kontrol et ──
       if (response === "accepted") {
         var courseInfo = "Proje: " + (project.name || "İsimsiz Proje") + "\nDers: " + (project.courseName || "Bilinmeyen Ders");
-        var isEnrolled = await validateStudentCourseEnrollment(project.courseId, courseInfo);
+        // courseCode alanı varsa kullan, yoksa courseName'den çıkar (format: "BIL401 - Ders Adı")
+        var projectCourseCode = project.courseCode || (project.courseName ? project.courseName.split(" - ")[0].trim() : "");
+        var isEnrolled = await validateStudentCourseEnrollment(projectCourseCode, courseInfo);
         if (!isEnrolled) return;
       }
       
@@ -1387,7 +1437,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
       // Kontrol: Öğrenci ise bu dersi seçmiş mi?
       var courseInfo = "Ders: " + (selectedCourse.code || "") + " - " + (selectedCourse.name || "");
-      var isEnrolled = await validateStudentCourseEnrollment(selectedCourse.id, courseInfo);
+      var isEnrolled = await validateStudentCourseEnrollment(selectedCourse.code, courseInfo);
       if (!isEnrolled) return;
 
       // Kontrol: Oluşturan kişi aynı derste zaten bir projede mi?
@@ -1430,6 +1480,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
       var docData = Object.assign({}, data, {
         courseId: selectedCourse.id,
+        courseCode: selectedCourse.code,
         courseName: selectedCourse.code + " - " + selectedCourse.name,
         createdBy: userId,
         createdByName: userName,
