@@ -177,7 +177,7 @@ async function executeSingleOp(db, op) {
       return { success: true };
     }
     case "delete": {
-      console.warn(`[DELETE] koleksiyon: ${colName}, docId: ${op.docId}, zaman: ${new Date().toISOString()}`);
+      console.log(`[DELETE] koleksiyon: ${colName}, docId: ${op.docId}, zaman: ${new Date().toISOString()}`);
       // Priority: real doc by string _id first
       let filter = { _docId: op.docId };
       const byId = await col.findOne({ _id: op.docId });
@@ -187,7 +187,7 @@ async function executeSingleOp(db, op) {
         try { const byObjId = await col.findOne({ _id: new ObjectId(op.docId) }); if (byObjId) filter = { _id: new ObjectId(op.docId) }; } catch(e) {}
       }
       const result = await col.deleteOne(filter);
-      console.warn(`[DELETE] sonuç: ${result.deletedCount} belge silindi (${colName}/${op.docId})`);
+      console.log(`[DELETE] sonuç: ${result.deletedCount} belge silindi (${colName}/${op.docId})`);
       return { success: true, deleted: result.deletedCount };
     }
     default:
