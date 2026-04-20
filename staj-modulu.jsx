@@ -974,6 +974,23 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
         data.createdAt = new Date().toISOString();
         const result = await window.DBWrite.add("internship_applications", data);
         console.log("Başvuru kaydedildi, ID:", result?.id);
+
+        // Komisyon üyelerine ve fakülte yetkilisine bildirim gönder
+        try {
+          await window.DBWrite.add("internship_notifications", {
+            type: "new_application",
+            departmentId: activeDepartment || "",
+            appId: result?.id || "",
+            studentName: data.adSoyad || currentUser?.name || "",
+            studentNo: data.ogrenciNo || "",
+            stajYeriAdi: data.stajYeriAdi || "",
+            stajEtapLabel: data.stajEtapLabel || "",
+            createdAt: new Date().toISOString(),
+            readBy: [],
+          });
+        } catch (notifErr) {
+          console.warn("Başvuru bildirimi oluşturulamadı:", notifErr);
+        }
       }
 
       setSavedMsg(editingId ? "Başvuru güncellendi!" : "Başvuru kaydedildi!");
@@ -1477,8 +1494,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     const sp = uploaded.serverPath || uploaded.downloadURL || uploaded.path || uploaded.url || "";
     if (!sp) return null;
     if (sp.startsWith("http")) return sp;
-    if (sp.startsWith("/api/")) return `${window.API_BASE || ""}${sp}`;
-    return `${window.API_BASE || ""}/api/files/download/${sp}`;
+    if (sp.startsWith("/api/")) return sp;
+    return `/api/files/download/${sp}`;
   };
 
   const handleStudentPreview = (belgeId) => {
@@ -1532,22 +1549,21 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       };
 
       // Dosyayı sunucuya yükle
-      if (window.API_BASE) {
-        const formData = new FormData();
-        formData.append("folder", `staj_belgeler/${studentId}`);
-        formData.append("file", file);
-        try {
-          const resp = await fetch(`${window.API_BASE}/api/files/upload`, {
-            method: "POST",
-            body: formData,
-          });
-          if (resp.ok) {
-            const result = await resp.json();
-            fileData.serverPath = result.fileName || result.downloadURL || result.path || result.filename;
-          }
-        } catch (uploadErr) {
-          console.warn("Dosya sunucuya yüklenemedi, sadece kayıt tutulacak:", uploadErr);
+      const formData = new FormData();
+      formData.append("folder", `staj_belgeler/${studentId}`);
+      formData.append("file", file);
+      try {
+        const resp = await fetch("/api/files/upload", {
+          method: "POST",
+          body: formData,
+        });
+        if (resp.ok) {
+          const result = await resp.json();
+          fileData.serverPath = result.fileName || result.downloadURL || result.path || result.filename;
+          fileData.downloadURL = result.downloadURL || "";
         }
+      } catch (uploadErr) {
+        console.warn("Dosya sunucuya yüklenemedi, sadece kayıt tutulacak:", uploadErr);
       }
 
       const newUploads = { ...uploads, [belgeId]: fileData };
@@ -2153,8 +2169,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     const sp = upload.serverPath || upload.downloadURL || upload.path || upload.url || "";
     if (!sp) return null;
     if (sp.startsWith("http")) return sp;
-    if (sp.startsWith("/api/")) return `${window.API_BASE || ""}${sp}`;
-    return `${window.API_BASE || ""}/api/files/download/${sp}`;
+    if (sp.startsWith("/api/")) return sp;
+    return `/api/files/download/${sp}`;
   };
 
   const handleDownloadFile = (studentId, belgeId) => {
@@ -2174,6 +2190,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     // Adım 5 (index 4) sadece Ergün ÇINAR onaylayabilir
     if (stepIdx === 4 && !isErgunCinar) {
       alert("Bu adım (SGK İşlemleri) yalnızca Ergün ÇINAR tarafından onaylanabilir.");
+      return;
+    }
+    // Ergün ÇINAR yalnızca adım 5 (index 4) için onay verebilir
+    if (stepIdx !== 4 && isErgunCinar) {
+      alert("Yalnızca SGK İşlemleri (Adım 5) için onay yetkiniz bulunmaktadır.");
       return;
     }
 
@@ -2240,6 +2261,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Yol haritası adım reddi
   const handleRejectStep = async (appId, stepIdx) => {
+    // Ergün ÇINAR yalnızca adım 5 (index 4) için red verebilir
+    if (stepIdx !== 4 && isErgunCinar) {
+      alert("Yalnızca SGK İşlemleri (Adım 5) için red yetkiniz bulunmaktadır.");
+      return;
+    }
     try {
       const rmResult = await window.apiReadDoc("internship_roadmap", appId);
       const existingData = rmResult.exists ? rmResult.data : {};
@@ -2628,8 +2654,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         const isApprovedNotif = notif.type === "step_approved_commission";
                         const isRejectedNotif = notif.type === "step_rejected_commission";
                         const isSubmittedNotif = notif.type === "step_submitted";
-                        const dotColor = isApprovedNotif ? STAJ.green : isRejectedNotif ? "#EF4444" : STAJ.primary;
-                        const bgUnread = isApprovedNotif ? "#F0FDF4" : isRejectedNotif ? "#FEF2F2" : "#F0F9FF";
+                        const isNewAppNotif = notif.type === "new_application";
+                        const dotColor = isApprovedNotif ? STAJ.green : isRejectedNotif ? "#EF4444" : isNewAppNotif ? "#8B5CF6" : STAJ.primary;
+                        const bgUnread = isApprovedNotif ? "#F0FDF4" : isRejectedNotif ? "#FEF2F2" : isNewAppNotif ? "#F5F3FF" : "#F0F9FF";
                         return (
                           <div key={notif.id} style={{
                             display: "flex", gap: 12, padding: "12px 16px",
@@ -2650,18 +2677,22 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                 {isSubmittedNotif && (
                                   <><span style={{ color: STAJ.primary }}>{notif.studentName || notif.studentNo}</span>{" "}<b>{notif.stepTitle}</b> adımını onaya gönderdi</>
                                 )}
+                                {isNewAppNotif && (
+                                  <><span style={{ color: "#8B5CF6" }}>{notif.studentName || notif.studentNo}</span>{" "}yeni staj başvurusu oluşturdu{notif.stajYeriAdi ? ` — ${notif.stajYeriAdi}` : ""}</>
+                                )}
                                 {isApprovedNotif && (
                                   <><b>{notif.stepTitle}</b> adımı <span style={{ color: STAJ.green }}>{notif.approvedBy}</span> tarafından onaylandı</>
                                 )}
                                 {isRejectedNotif && (
                                   <><b>{notif.stepTitle}</b> adımı <span style={{ color: "#EF4444" }}>{notif.rejectedBy}</span> tarafından reddedildi</>
                                 )}
-                                {!isSubmittedNotif && !isApprovedNotif && !isRejectedNotif && (
+                                {!isSubmittedNotif && !isNewAppNotif && !isApprovedNotif && !isRejectedNotif && (
                                   <><span style={{ color: STAJ.primary }}>{notif.studentName}</span> — {notif.stepTitle}</>
                                 )}
                               </div>
                               <div style={{ fontSize: 11, color: STAJ.textMuted, marginTop: 3 }}>
                                 {isSubmittedNotif && notif.studentNo && <span>{notif.studentNo} · </span>}
+                                {isNewAppNotif && notif.studentNo && <span>{notif.studentNo} · </span>}
                                 {isApprovedNotif && notif.studentName && <span>{notif.studentName} ({notif.studentNo}) · </span>}
                                 {isRejectedNotif && notif.studentName && <span>{notif.studentName} ({notif.studentNo}) · </span>}
                                 {notif.stajEtapLabel && <span>{notif.stajEtapLabel}</span>}
@@ -3412,7 +3443,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                         );
                                       })()}
                                     </div>
-                                    {isPending && (
+                                    {isPending && !(isErgunCinar && idx !== 4) && (
                                       <div style={{ display: "flex", gap: 6 }}>
                                         <button onClick={() => handleApproveStep(selectedApp.id, idx)} style={{
                                           padding: "7px 14px", borderRadius: 6, border: "none",
