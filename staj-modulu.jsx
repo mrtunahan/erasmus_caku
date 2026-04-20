@@ -1546,6 +1546,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
         fileType: file.type,
         uploadedAt: new Date().toISOString(),
         status: "yuklendi",
+        serverPath: "",
+        downloadURL: "",
       };
 
       // Dosyayı sunucuya yükle
