@@ -1487,6 +1487,35 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     return stepStatus === "pending_approval" || stepStatus === "completed";
   };
 
+  // Mevcut roadmap adımını belirle (öğrenci hangi adımda)
+  const getCurrentRoadmapStep = () => {
+    if (!myApplication) return 0;
+    if (myApplication.status === "beklemede") return 1;
+    if (myApplication.status === "reddedildi") return 0;
+
+    // Tamamlanmış en son adımı bul
+    let lastCompletedStep = 0;
+    for (let i = 0; i < 8; i++) {
+      const stepData = roadmapData?.steps?.[i];
+      if (stepData?.status === "completed") {
+        lastCompletedStep = i + 1; // 1-based step number
+      }
+    }
+    // Mevcut adım = tamamlanan son adım + 1
+    return Math.min(lastCompletedStep + 1, 8);
+  };
+
+  const currentStep = getCurrentRoadmapStep();
+
+  // Belge görünür mü kontrol et (Adım 3'te sadece step:3 belgeler, Adım 7'de tüm belgeler)
+  const isDocumentVisible = (belge) => {
+    if (!myApplication) return false;
+    // Adım 7 veya üstündeyse tüm belgeler görünür
+    if (currentStep >= 7) return true;
+    // Adım 7'nin altındaysa sadece step:3 belgeler görünür
+    return belge.step === 3;
+  };
+
   // Öğrenci belge görüntüleme/indirme
   const getStudentFileUrl = (belgeId) => {
     const uploaded = uploads[belgeId];
@@ -1632,7 +1661,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
             Başvurunuz tamamlandıktan sonra bu alandaki belgeler aktif hale gelecektir.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 340, margin: "0 auto 28px" }}>
-            {BELGE_ALANLARI.map(belge => (
+            {BELGE_ALANLARI.filter(belge => belge.step === 3).map(belge => (
               <div key={belge.id} style={{
                 display: "flex", alignItems: "center", gap: 10,
                 padding: "10px 14px", borderRadius: 8,
@@ -1719,7 +1748,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
           )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {BELGE_ALANLARI.map(belge => {
+            {BELGE_ALANLARI.filter(belge => isDocumentVisible(belge)).map(belge => {
               const uploaded = uploads[belge.id];
               const isUploading = uploading === belge.id;
               return (
@@ -1764,26 +1793,17 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                             ({(uploaded.fileSize / 1024).toFixed(0)} KB) — {new Date(uploaded.uploadedAt).toLocaleDateString("tr-TR")}
                           </span>
                           <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
-                            {getStudentFileUrl(belge.id) ? (
-                              <>
-                                <button onClick={() => handleStudentPreview(belge.id)} style={{
-                                  padding: "3px 8px", borderRadius: 5, border: "1px solid #93C5FD",
-                                  background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 600,
-                                  cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
-                                }}>
-                                  <StajIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" size={11} />
-                                  Görüntüle
-                                </button>
-                                <button onClick={() => handleStudentDownload(belge.id)} style={{
-                                  padding: "3px 8px", borderRadius: 5, border: "1px solid #D1D5DB",
-                                  background: "white", color: "#6B7280", fontSize: 10, fontWeight: 600,
-                                  cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
-                                }}>
-                                  <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" size={11} />
-                                  İndir
-                                </button>
-                              </>
-                            ) : (
+                            {getStudentFileUrl(belge.id) && (
+                              <button onClick={() => handleStudentPreview(belge.id)} style={{
+                                padding: "3px 8px", borderRadius: 5, border: "1px solid #93C5FD",
+                                background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 600,
+                                cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
+                              }}>
+                                <StajIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" size={11} />
+                                Görüntüle
+                              </button>
+                            )}
+                            {!getStudentFileUrl(belge.id) && (
                               <span style={{ fontSize: 9, color: "#EF4444", fontWeight: 500 }}>Tekrar yükleyin</span>
                             )}
                           </div>
@@ -2095,6 +2115,16 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       await window.DBWrite.remove("internship_applications", appId);
       // İlişkili roadmap verisini de sil
       try { await window.DBWrite.remove("internship_roadmap", appId); } catch {}
+      // İlişkili yüklenen belgeleri de sil (öğrenci no ile kayıtlı)
+      if (app?.ogrenciNo) {
+        try { await window.DBWrite.remove("internship_uploads", app.ogrenciNo); } catch {}
+        // allUploads state'inden de kaldır
+        setAllUploads(prev => {
+          const newUploads = { ...prev };
+          delete newUploads[app.ogrenciNo];
+          return newUploads;
+        });
+      }
       setAllApplications(prev => prev.filter(a => a.id !== appId));
       setSelectedApp(null);
     } catch (e) {
