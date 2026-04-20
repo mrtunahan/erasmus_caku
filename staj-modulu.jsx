@@ -1352,18 +1352,36 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   const [roadmapData, setRoadmapData] = useState(null);
   const [myApplication, setMyApplication] = useState(null);
   const [loadingApp, setLoadingApp] = useState(true);
+  
+  // Track if component is mounted to prevent state updates on unmounted component
+  const mountedRef = React.useRef(true);
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
+
+  // Document visibility step constants
+  // INITIAL_DOCUMENT_STEP: In Step 3, only initial application documents are visible
+  // FULL_DOCUMENT_ACCESS_STEP: In Step 7 (Staj Teslim), all documents become visible
+  const INITIAL_DOCUMENT_STEP = 3;
+  const FULL_DOCUMENT_ACCESS_STEP = 7;
 
   // Yüklenen belgeleri, değişiklik taleplerini ve roadmap durumunu yükle
   useEffect(() => {
     const loadData = async () => {
+      if (!mountedRef.current) return;
       setLoadingApp(true);
       try {
-        if (!studentId) { setLoadingApp(false); return; }
+        if (!studentId) { 
+          if (mountedRef.current) setLoadingApp(false); 
+          return; 
+        }
 
         // Öğrencinin staj başvurusunu yükle (ogrenciNo alanıyla sorgula)
         const apps = await window.apiRead("internship_applications", { where: "ogrenciNo:eq:s:" + studentId });
+        if (!mountedRef.current) return;
+        
         if (apps.length > 0) {
           // Onaylı (devam) > beklemede > diğer sırasıyla al
           const app = apps.find(a => a.status === "devam") ||
@@ -1373,10 +1391,12 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
           setMyApplication(app);
           // Roadmap verisini yükle
           const rmResult = await window.apiReadDoc("internship_roadmap", app.id);
+          if (!mountedRef.current) return;
           if (rmResult.exists) setRoadmapData(rmResult.data);
 
           // Belgeleri yükle (başvurusu olanlar için)
           const uploadResult = await window.apiReadDoc("internship_uploads", studentId);
+          if (!mountedRef.current) return;
           if (uploadResult.exists) {
             const data = uploadResult.data || {};
             setUploads(data);
@@ -1390,7 +1410,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       } catch (e) {
         console.error("Belgeler yüklenirken hata:", e);
       } finally {
-        setLoadingApp(false);
+        if (mountedRef.current) setLoadingApp(false);
       }
     };
     loadData();
@@ -1487,6 +1507,40 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     return stepStatus === "pending_approval" || stepStatus === "completed";
   };
 
+  // Mevcut roadmap adımını belirle (öğrenci hangi adımda)
+  const getCurrentRoadmapStep = () => {
+    if (!myApplication) return 0;
+    if (myApplication.status === "beklemede") return 1;
+    if (myApplication.status === "reddedildi") return 0;
+
+    // STAJ_ROADMAP_STEPS defines all roadmap steps (currently 8 steps)
+    const TOTAL_STEPS = STAJ_ROADMAP_STEPS.length;
+    
+    // Tamamlanmış en son adımı bul
+    let lastCompletedStep = 0;
+    for (let i = 0; i < TOTAL_STEPS; i++) {
+      const stepData = roadmapData?.steps?.[i];
+      if (stepData?.status === "completed") {
+        lastCompletedStep = i + 1; // 1-based step number
+      }
+    }
+    // Mevcut adım = tamamlanan son adım + 1
+    return Math.min(lastCompletedStep + 1, TOTAL_STEPS);
+  };
+
+  const currentStep = getCurrentRoadmapStep();
+
+  // Belge görünür mü kontrol et
+  // - Başlangıçta (Step 3'e kadar): Sadece başvuru belgeleri (step:3) görünür
+  // - Step 7'de (Staj Teslim): Tüm belgeler görünür ve yüklenebilir hale gelir
+  const isDocumentVisible = (belge) => {
+    if (!myApplication) return false;
+    // FULL_DOCUMENT_ACCESS_STEP veya üstündeyse tüm belgeler görünür
+    if (currentStep >= FULL_DOCUMENT_ACCESS_STEP) return true;
+    // Altındaysa sadece INITIAL_DOCUMENT_STEP belgeleri görünür
+    return belge.step === INITIAL_DOCUMENT_STEP;
+  };
+
   // Öğrenci belge görüntüleme/indirme
   const getStudentFileUrl = (belgeId) => {
     const uploaded = uploads[belgeId];
@@ -1570,16 +1624,21 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
 
       const newUploads = { ...uploads, [belgeId]: fileData };
       await window.DBWrite.set("internship_uploads", studentId, newUploads, true);
+      
+      // Only update state if component is still mounted
+      if (!mountedRef.current) return;
+      
       setUploads(newUploads);
       setChangeRequests(prev => { const p = { ...prev }; delete p[belgeId]; return p; });
       setMsg("Belge başarıyla yüklendi!");
-      setTimeout(() => setMsg(""), 3000);
+      setTimeout(() => { if (mountedRef.current) setMsg(""); }, 3000);
     } catch (e) {
       console.error("Yükleme hatası:", e);
+      if (!mountedRef.current) return;
       setMsg("Yükleme sırasında hata oluştu: " + e.message);
-      setTimeout(() => setMsg(""), 4000);
+      setTimeout(() => { if (mountedRef.current) setMsg(""); }, 4000);
     } finally {
-      setUploading(null);
+      if (mountedRef.current) setUploading(null);
     }
   };
 
@@ -1632,7 +1691,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
             Başvurunuz tamamlandıktan sonra bu alandaki belgeler aktif hale gelecektir.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 340, margin: "0 auto 28px" }}>
-            {BELGE_ALANLARI.map(belge => (
+            {BELGE_ALANLARI.filter(belge => belge.step === INITIAL_DOCUMENT_STEP).map(belge => (
               <div key={belge.id} style={{
                 display: "flex", alignItems: "center", gap: 10,
                 padding: "10px 14px", borderRadius: 8,
@@ -1719,7 +1778,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
           )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {BELGE_ALANLARI.map(belge => {
+            {BELGE_ALANLARI.filter(belge => isDocumentVisible(belge)).map(belge => {
               const uploaded = uploads[belge.id];
               const isUploading = uploading === belge.id;
               return (
@@ -1764,26 +1823,17 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                             ({(uploaded.fileSize / 1024).toFixed(0)} KB) — {new Date(uploaded.uploadedAt).toLocaleDateString("tr-TR")}
                           </span>
                           <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
-                            {getStudentFileUrl(belge.id) ? (
-                              <>
-                                <button onClick={() => handleStudentPreview(belge.id)} style={{
-                                  padding: "3px 8px", borderRadius: 5, border: "1px solid #93C5FD",
-                                  background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 600,
-                                  cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
-                                }}>
-                                  <StajIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" size={11} />
-                                  Görüntüle
-                                </button>
-                                <button onClick={() => handleStudentDownload(belge.id)} style={{
-                                  padding: "3px 8px", borderRadius: 5, border: "1px solid #D1D5DB",
-                                  background: "white", color: "#6B7280", fontSize: 10, fontWeight: 600,
-                                  cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
-                                }}>
-                                  <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" size={11} />
-                                  İndir
-                                </button>
-                              </>
-                            ) : (
+                            {getStudentFileUrl(belge.id) && (
+                              <button onClick={() => handleStudentPreview(belge.id)} style={{
+                                padding: "3px 8px", borderRadius: 5, border: "1px solid #93C5FD",
+                                background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 600,
+                                cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
+                              }}>
+                                <StajIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" size={11} />
+                                Görüntüle
+                              </button>
+                            )}
+                            {!getStudentFileUrl(belge.id) && (
                               <span style={{ fontSize: 9, color: "#EF4444", fontWeight: 500 }}>Tekrar yükleyin</span>
                             )}
                           </div>
@@ -2095,6 +2145,16 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       await window.DBWrite.remove("internship_applications", appId);
       // İlişkili roadmap verisini de sil
       try { await window.DBWrite.remove("internship_roadmap", appId); } catch {}
+      // İlişkili yüklenen belgeleri de sil (öğrenci no ile kayıtlı)
+      if (app?.ogrenciNo) {
+        try { await window.DBWrite.remove("internship_uploads", app.ogrenciNo); } catch {}
+        // allUploads state'inden de kaldır
+        setAllUploads(prev => {
+          const newUploads = { ...prev };
+          delete newUploads[app.ogrenciNo];
+          return newUploads;
+        });
+      }
       setAllApplications(prev => prev.filter(a => a.id !== appId));
       setSelectedApp(null);
     } catch (e) {
