@@ -1356,11 +1356,16 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   // Track if component is mounted to prevent state updates on unmounted component
   const mountedRef = React.useRef(true);
   useEffect(() => {
-    mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
 
   const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
+
+  // Document visibility step constants
+  // INITIAL_DOCUMENT_STEP: In Step 3, only initial application documents are visible
+  // FULL_DOCUMENT_ACCESS_STEP: In Step 7 (Staj Teslim), all documents become visible
+  const INITIAL_DOCUMENT_STEP = 3;
+  const FULL_DOCUMENT_ACCESS_STEP = 7;
 
   // Yüklenen belgeleri, değişiklik taleplerini ve roadmap durumunu yükle
   useEffect(() => {
@@ -1522,13 +1527,15 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
 
   const currentStep = getCurrentRoadmapStep();
 
-  // Belge görünür mü kontrol et (Adım 3'te sadece step:3 belgeler, Adım 7'de tüm belgeler)
+  // Belge görünür mü kontrol et
+  // - Başlangıçta (Step 3'e kadar): Sadece başvuru belgeleri (step:3) görünür
+  // - Step 7'de (Staj Teslim): Tüm belgeler görünür ve yüklenebilir hale gelir
   const isDocumentVisible = (belge) => {
     if (!myApplication) return false;
-    // Adım 7 veya üstündeyse tüm belgeler görünür
-    if (currentStep >= 7) return true;
-    // Adım 7'nin altındaysa sadece step:3 belgeler görünür
-    return belge.step === 3;
+    // FULL_DOCUMENT_ACCESS_STEP veya üstündeyse tüm belgeler görünür
+    if (currentStep >= FULL_DOCUMENT_ACCESS_STEP) return true;
+    // Altındaysa sadece INITIAL_DOCUMENT_STEP belgeleri görünür
+    return belge.step === INITIAL_DOCUMENT_STEP;
   };
 
   // Öğrenci belge görüntüleme/indirme
@@ -1681,7 +1688,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
             Başvurunuz tamamlandıktan sonra bu alandaki belgeler aktif hale gelecektir.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 340, margin: "0 auto 28px" }}>
-            {BELGE_ALANLARI.filter(belge => belge.step === 3).map(belge => (
+            {BELGE_ALANLARI.filter(belge => belge.step === INITIAL_DOCUMENT_STEP).map(belge => (
               <div key={belge.id} style={{
                 display: "flex", alignItems: "center", gap: 10,
                 padding: "10px 14px", borderRadius: 8,
