@@ -1352,18 +1352,31 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   const [roadmapData, setRoadmapData] = useState(null);
   const [myApplication, setMyApplication] = useState(null);
   const [loadingApp, setLoadingApp] = useState(true);
+  
+  // Track if component is mounted to prevent state updates on unmounted component
+  const mountedRef = React.useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
 
   // Yüklenen belgeleri, değişiklik taleplerini ve roadmap durumunu yükle
   useEffect(() => {
     const loadData = async () => {
+      if (!mountedRef.current) return;
       setLoadingApp(true);
       try {
-        if (!studentId) { setLoadingApp(false); return; }
+        if (!studentId) { 
+          if (mountedRef.current) setLoadingApp(false); 
+          return; 
+        }
 
         // Öğrencinin staj başvurusunu yükle (ogrenciNo alanıyla sorgula)
         const apps = await window.apiRead("internship_applications", { where: "ogrenciNo:eq:s:" + studentId });
+        if (!mountedRef.current) return;
+        
         if (apps.length > 0) {
           // Onaylı (devam) > beklemede > diğer sırasıyla al
           const app = apps.find(a => a.status === "devam") ||
@@ -1373,10 +1386,12 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
           setMyApplication(app);
           // Roadmap verisini yükle
           const rmResult = await window.apiReadDoc("internship_roadmap", app.id);
+          if (!mountedRef.current) return;
           if (rmResult.exists) setRoadmapData(rmResult.data);
 
           // Belgeleri yükle (başvurusu olanlar için)
           const uploadResult = await window.apiReadDoc("internship_uploads", studentId);
+          if (!mountedRef.current) return;
           if (uploadResult.exists) {
             const data = uploadResult.data || {};
             setUploads(data);
@@ -1390,7 +1405,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       } catch (e) {
         console.error("Belgeler yüklenirken hata:", e);
       } finally {
-        setLoadingApp(false);
+        if (mountedRef.current) setLoadingApp(false);
       }
     };
     loadData();
@@ -1599,16 +1614,21 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
 
       const newUploads = { ...uploads, [belgeId]: fileData };
       await window.DBWrite.set("internship_uploads", studentId, newUploads, true);
+      
+      // Only update state if component is still mounted
+      if (!mountedRef.current) return;
+      
       setUploads(newUploads);
       setChangeRequests(prev => { const p = { ...prev }; delete p[belgeId]; return p; });
       setMsg("Belge başarıyla yüklendi!");
-      setTimeout(() => setMsg(""), 3000);
+      setTimeout(() => { if (mountedRef.current) setMsg(""); }, 3000);
     } catch (e) {
       console.error("Yükleme hatası:", e);
+      if (!mountedRef.current) return;
       setMsg("Yükleme sırasında hata oluştu: " + e.message);
-      setTimeout(() => setMsg(""), 4000);
+      setTimeout(() => { if (mountedRef.current) setMsg(""); }, 4000);
     } finally {
-      setUploading(null);
+      if (mountedRef.current) setUploading(null);
     }
   };
 
