@@ -1513,16 +1513,19 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     if (myApplication.status === "beklemede") return 1;
     if (myApplication.status === "reddedildi") return 0;
 
+    // STAJ_ROADMAP_STEPS defines all roadmap steps (currently 8 steps)
+    const TOTAL_STEPS = STAJ_ROADMAP_STEPS.length;
+    
     // Tamamlanmış en son adımı bul
     let lastCompletedStep = 0;
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < TOTAL_STEPS; i++) {
       const stepData = roadmapData?.steps?.[i];
       if (stepData?.status === "completed") {
         lastCompletedStep = i + 1; // 1-based step number
       }
     }
     // Mevcut adım = tamamlanan son adım + 1
-    return Math.min(lastCompletedStep + 1, 8);
+    return Math.min(lastCompletedStep + 1, TOTAL_STEPS);
   };
 
   const currentStep = getCurrentRoadmapStep();
