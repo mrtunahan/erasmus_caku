@@ -1675,27 +1675,9 @@ const LoginModal = ({ onLogin }) => {
     }
   };
 
-  const stars = React.useMemo(() => Array.from({ length: 60 }, (_, i) => ({
-    id: i,
-    left: Math.random() * 100,
-    top: Math.random() * 60,
-    size: Math.random() * 2.5 + 0.5,
-    delay: Math.random() * 4,
-    duration: Math.random() * 3 + 2,
-  })), []);
-
-  const snowflakes = React.useMemo(() => Array.from({ length: 25 }, (_, i) => ({
-    id: i,
-    left: Math.random() * 100,
-    size: Math.random() * 3 + 1,
-    delay: Math.random() * 8,
-    duration: Math.random() * 6 + 6,
-    opacity: Math.random() * 0.4 + 0.1,
-  })), []);
-
   const loginStyles = `
     @keyframes loginFadeIn {
-      from { opacity: 0; transform: translateY(20px); }
+      from { opacity: 0; transform: translateY(12px); }
       to { opacity: 1; transform: translateY(0); }
     }
     @keyframes loginSpin {
@@ -1703,29 +1685,298 @@ const LoginModal = ({ onLogin }) => {
     }
     @keyframes loginShake {
       0%, 100% { transform: translateX(0); }
-      20%, 60% { transform: translateX(-6px); }
-      40%, 80% { transform: translateX(6px); }
+      20%, 60% { transform: translateX(-5px); }
+      40%, 80% { transform: translateX(5px); }
     }
-    @keyframes starTwinkle {
-      0%, 100% { opacity: 0.3; }
-      50% { opacity: 1; }
+
+    /* ── Login: Base Input ── */
+    .lg-input {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1.5px solid #D5DBE3;
+      background: #FFFFFF;
+      color: #0F172A;
+      font-size: 15px;
+      line-height: 1.4;
+      outline: none;
+      font-family: 'Inter', 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+      -webkit-appearance: none;
+      appearance: none;
+      box-sizing: border-box;
     }
-    @keyframes auroraPulse {
-      0% { opacity: 0.3; d: path("M0,200 Q200,120 400,180 T800,160 L800,300 L0,300 Z"); }
-      33% { opacity: 0.5; d: path("M0,180 Q250,100 500,160 T800,140 L800,300 L0,300 Z"); }
-      66% { opacity: 0.4; d: path("M0,190 Q180,130 450,150 T800,170 L800,300 L0,300 Z"); }
-      100% { opacity: 0.3; d: path("M0,200 Q200,120 400,180 T800,160 L800,300 L0,300 Z"); }
+    .lg-input.lg-input-icon { padding-left: 42px; }
+    .lg-input.lg-input-eye { padding-right: 44px; }
+    .lg-input::placeholder { color: #94A3B8; opacity: 1; }
+    .lg-input:-ms-input-placeholder { color: #94A3B8; }
+    .lg-input::-ms-input-placeholder { color: #94A3B8; }
+    .lg-input:hover { border-color: #B9C2CE; }
+    .lg-input:focus {
+      border-color: #0B2341;
+      box-shadow: 0 0 0 3px rgba(11, 35, 65, 0.12);
+      background: #FFFFFF;
     }
-    @keyframes auroraPulse2 {
-      0% { opacity: 0.2; d: path("M0,220 Q300,140 600,200 T800,180 L800,300 L0,300 Z"); }
-      50% { opacity: 0.4; d: path("M0,200 Q250,160 500,180 T800,200 L800,300 L0,300 Z"); }
-      100% { opacity: 0.2; d: path("M0,220 Q300,140 600,200 T800,180 L800,300 L0,300 Z"); }
+
+    .lg-input-icon-wrap {
+      position: relative;
     }
-    @keyframes snowFall {
-      0% { transform: translateY(-10px) rotate(0deg); opacity: 0; }
-      10% { opacity: 1; }
-      90% { opacity: 1; }
-      100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+    .lg-input-icon-left {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #64748B;
+      pointer-events: none;
+      display: flex;
+    }
+    .lg-input-eye-btn {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #64748B;
+      padding: 6px;
+      display: flex;
+      align-items: center;
+      border-radius: 6px;
+      transition: color 0.15s ease, background 0.15s ease;
+    }
+    .lg-input-eye-btn:hover { color: #0B2341; background: #F1F5F9; }
+
+    .lg-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* ── Login: Buttons ── */
+    .lg-btn {
+      width: 100%;
+      padding: 13px 20px;
+      border-radius: 10px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.05s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      line-height: 1.2;
+    }
+    .lg-btn-primary {
+      background: #0B2341;
+      color: #FFFFFF;
+      box-shadow: 0 1px 2px rgba(11, 35, 65, 0.15);
+    }
+    .lg-btn-primary:hover:not(:disabled) { background: #102E55; box-shadow: 0 4px 12px rgba(11, 35, 65, 0.25); }
+    .lg-btn-primary:active:not(:disabled) { transform: translateY(1px); }
+    .lg-btn-primary:disabled { background: #CBD5E1; color: #64748B; cursor: not-allowed; box-shadow: none; }
+
+    .lg-btn-secondary {
+      background: transparent;
+      color: #475569;
+      border: 1.5px solid #D5DBE3;
+    }
+    .lg-btn-secondary:hover { color: #0B2341; border-color: #0B2341; background: #F8FAFC; }
+
+    /* ── Login: Tabs ── */
+    .lg-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      background: #F1F5F9;
+      border-radius: 10px;
+      margin-bottom: 24px;
+    }
+    .lg-tab {
+      flex: 1;
+      padding: 10px 8px;
+      border: none;
+      background: transparent;
+      color: #64748B;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.18s ease;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+    }
+    .lg-tab:hover:not(.lg-tab-active) { color: #0B2341; background: rgba(255,255,255,0.6); }
+    .lg-tab-active {
+      background: #FFFFFF;
+      color: #0B2341;
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1), 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+
+    /* ── Login: Error Box ── */
+    .lg-error {
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      border-radius: 10px;
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      color: #B91C1C;
+      font-size: 13.5px;
+      line-height: 1.45;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      animation: loginShake 0.4s ease;
+      font-family: 'Inter', sans-serif;
+    }
+    .lg-error svg { flex-shrink: 0; margin-top: 1px; }
+
+    /* ── Login: Info hint ── */
+    .lg-hint {
+      font-size: 12.5px;
+      color: #64748B;
+      margin-top: 8px;
+      line-height: 1.45;
+    }
+
+    /* ── Login: Greeting pill ── */
+    .lg-greeting {
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+    }
+    .lg-greeting-label { font-size: 12px; color: #64748B; margin-bottom: 2px; font-weight: 500; }
+    .lg-greeting-name { font-size: 16px; font-weight: 600; color: #0B2341; }
+    .lg-greeting-id { font-size: 13px; color: #64748B; margin-top: 2px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em; }
+
+    /* ── Login: Card section divider ── */
+    .lg-setup-hero {
+      text-align: center;
+      margin-bottom: 22px;
+    }
+    .lg-setup-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      margin: 0 auto 14px;
+      background: rgba(196, 151, 59, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .lg-setup-title {
+      color: #0B2341;
+      font-size: 19px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+    .lg-setup-sub {
+      color: #64748B;
+      font-size: 13.5px;
+      margin: 8px 0 0;
+      line-height: 1.5;
+    }
+    .lg-setup-sub strong { color: #0B2341; font-weight: 600; }
+
+    /* ── Login: Professor picker ── */
+    .lg-prof-selected {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1.5px solid #0B2341;
+      background: #F8FAFC;
+      color: #0B2341;
+      font-size: 14.5px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 500;
+    }
+    .lg-prof-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #0B2341;
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+      letter-spacing: 0.02em;
+    }
+    .lg-prof-clear {
+      background: none; border: none; color: #64748B; cursor: pointer;
+      font-size: 20px; padding: 0 6px; line-height: 1; border-radius: 4px;
+    }
+    .lg-prof-clear:hover { color: #DC2626; background: #FEF2F2; }
+    .lg-prof-list {
+      max-height: 180px;
+      overflow-y: auto;
+      border-radius: 10px;
+      border: 1px solid #E2E8F0;
+      background: #FFFFFF;
+      margin-top: 6px;
+    }
+    .lg-prof-row {
+      padding: 10px 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #F1F5F9;
+      font-size: 13.5px;
+      color: #334155;
+      transition: background 0.12s;
+    }
+    .lg-prof-row:last-child { border-bottom: none; }
+    .lg-prof-row:hover { background: #F1F5F9; color: #0B2341; }
+    .lg-prof-row-avatar {
+      width: 28px; height: 28px; border-radius: 7px;
+      background: #E2E8F0; color: #475569;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; flex-shrink: 0;
+    }
+    .lg-prof-empty {
+      padding: 16px; text-align: center; color: #94A3B8; font-size: 13px;
+    }
+
+    /* ── Login: Admin banner ── */
+    .lg-admin-banner {
+      padding: 14px 28px;
+      background: linear-gradient(135deg, #0B2341 0%, #102E55 100%);
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    /* ── Login: Responsive ── */
+    @media (max-width: 520px) {
+      .lg-card-inner { padding: 22px !important; }
+      .lg-brand-title { font-size: 22px !important; }
+      .lg-tab { font-size: 12.5px !important; padding: 10px 4px !important; }
     }
   `;
 
@@ -1733,100 +1984,72 @@ const LoginModal = ({ onLogin }) => {
   return (
     <div style={{
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: "linear-gradient(180deg, #020b18 0%, #0a1628 25%, #0f1f3a 50%, #132844 70%, #1a3352 100%)",
+      background: "#0B2341",
+      backgroundImage: "radial-gradient(circle at 20% 0%, rgba(196, 151, 59, 0.12) 0%, transparent 45%), radial-gradient(circle at 85% 100%, rgba(28, 74, 132, 0.45) 0%, transparent 55%), linear-gradient(160deg, #081A30 0%, #0B2341 45%, #102E55 100%)",
       display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 10000, padding: 20, overflow: "hidden",
-      fontFamily: "'Source Sans 3', sans-serif",
+      zIndex: 10000, padding: 20, overflow: "auto",
+      fontFamily: "'Inter', 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      color: "#0F172A",
     }}>
       <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
 
-      {/* Yıldızlar */}
-      {stars.map(s => (
-        <div key={s.id} style={{
-          position: "absolute", left: `${s.left}%`, top: `${s.top}%`,
-          width: s.size, height: s.size, borderRadius: "50%",
-          background: "#FCD34D",
-          animation: `starTwinkle ${s.duration}s ease-in-out ${s.delay}s infinite`,
-          opacity: 0.3, zIndex: 0,
-        }} />
-      ))}
-
-      {/* Aurora Borealis SVG */}
-      <svg style={{ position: "absolute", bottom: 0, left: 0, width: "100%", height: "60%", zIndex: 0, pointerEvents: "none" }} viewBox="0 0 800 300" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="auroraGrad1" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#22d3ee" stopOpacity="0" />
-            <stop offset="40%" stopColor="#22d3ee" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="auroraGrad2" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#a78bfa" stopOpacity="0" />
-            <stop offset="40%" stopColor="#a78bfa" stopOpacity="0.12" />
-            <stop offset="100%" stopColor="#a78bfa" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="auroraGrad3" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#34d399" stopOpacity="0" />
-            <stop offset="50%" stopColor="#34d399" stopOpacity="0.1" />
-            <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d="M0,200 Q200,120 400,180 T800,160 L800,300 L0,300 Z" fill="url(#auroraGrad1)" style={{ animation: "auroraPulse 8s ease-in-out infinite" }} />
-        <path d="M0,220 Q300,140 600,200 T800,180 L800,300 L0,300 Z" fill="url(#auroraGrad2)" style={{ animation: "auroraPulse2 10s ease-in-out infinite" }} />
-        <path d="M0,240 Q150,180 350,220 T800,200 L800,300 L0,300 Z" fill="url(#auroraGrad3)" style={{ animation: "auroraPulse 12s ease-in-out 2s infinite" }} />
-      </svg>
-
-      {/* Dağlar */}
-      <svg style={{ position: "absolute", bottom: 0, left: 0, width: "100%", height: "30%", zIndex: 0, pointerEvents: "none" }} viewBox="0 0 800 200" preserveAspectRatio="none">
-        <polygon points="0,200 100,80 200,140 320,50 420,120 500,70 620,130 720,60 800,110 800,200" fill="#0d1b2a" opacity="0.8" />
-        <polygon points="0,200 80,120 180,160 280,90 400,140 520,100 650,150 750,100 800,130 800,200" fill="#1b2838" opacity="0.6" />
-        <polyline points="318,52 322,48 326,52" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" />
-        <polyline points="498,72 502,67 506,72" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
-        <polyline points="718,62 722,57 726,62" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
-      </svg>
-
-      {/* Kar Taneleri */}
-      {snowflakes.map(s => (
-        <div key={`snow-${s.id}`} style={{
-          position: "absolute", left: `${s.left}%`, top: "-10px",
-          width: s.size, height: s.size, borderRadius: "50%",
-          background: "white", opacity: s.opacity, zIndex: 1,
-          animation: `snowFall ${s.duration}s linear ${s.delay}s infinite`,
-        }} />
-      ))}
-
       <div style={{
-        maxWidth: 480, width: "calc(100% - 24px)", position: "relative", zIndex: 2,
-        animation: "loginFadeIn 0.5s ease-out",
-        margin: "0 auto", padding: "0 12px", boxSizing: "border-box",
+        maxWidth: 440, width: "100%", position: "relative", zIndex: 2,
+        animation: "loginFadeIn 0.45s ease-out",
+        margin: "auto 0", boxSizing: "border-box",
       }}>
-        {/* Papatya Logo & Başlık */}
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <img src="logo.png" alt="Logo" style={{
-            width: 72, height: 72, borderRadius: 18,
-            objectFit: "cover", margin: "0 auto 14px",
-            display: "block",
-          }} />
-          <h1 style={{
-            margin: 0, fontSize: 24, fontWeight: 600, color: "#FCD34D",
-            fontFamily: "'Inter', sans-serif", letterSpacing: "0.01em",
+        {/* Brand Header */}
+        <div style={{ textAlign: "center", marginBottom: 22 }}>
+          <div style={{
+            width: 76, height: 76, borderRadius: 18,
+            background: "#FFFFFF",
+            margin: "0 auto 16px",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.08)",
+            padding: 8,
+            boxSizing: "border-box",
+          }}>
+            <img src="logo.png" alt="ÇAKÜ Logo" style={{
+              width: "100%", height: "100%",
+              objectFit: "contain",
+              display: "block",
+            }} />
+          </div>
+          <h1 className="lg-brand-title" style={{
+            margin: 0, fontSize: 26, fontWeight: 700, color: "#FFFFFF",
+            fontFamily: "'Inter', sans-serif", letterSpacing: "-0.01em",
           }}>Offline Asistan</h1>
-          <p style={{ margin: "6px 0 0", fontSize: 12, color: "rgba(255,255,255,0.3)", fontWeight: 400, letterSpacing: "0.06em" }}>
+          <p style={{
+            margin: "6px 0 0", fontSize: 13.5,
+            color: "rgba(255,255,255,0.72)",
+            fontWeight: 500, letterSpacing: "0.02em",
+          }}>
             Çankırı Karatekin Üniversitesi
           </p>
         </div>
 
-        {/* Kart */}
+        {/* Card */}
         <div style={{
-          background: "rgba(10, 15, 30, 0.75)",
-          backdropFilter: "blur(16px)",
-          WebkitBackdropFilter: "blur(16px)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 16, overflow: "hidden",
-          boxShadow: "0 16px 48px rgba(0,0,0,0.4)",
+          background: "#FFFFFF",
+          border: "1px solid #E2E8F0",
+          borderRadius: 14,
+          overflow: "hidden",
+          boxShadow: "0 20px 50px rgba(0, 0, 0, 0.35), 0 4px 10px rgba(0, 0, 0, 0.15)",
         }}>
-          {/* Sekmeler - Admin hariç (admin URL ile girer) */}
-          {activeTab !== "admin" && (
-          <div style={{ display: "flex", borderBottom: "1px solid rgba(252,211,77,0.08)" }}>
+          {/* Gold accent strip */}
+          <div style={{ height: 3, background: "linear-gradient(90deg, #C4973B 0%, #E0B547 50%, #C4973B 100%)" }} />
+
+          {activeTab === "admin" && (
+            <div className="lg-admin-banner">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+              Yönetici Girişi
+            </div>
+          )}
+
+          <div className="lg-card-inner" style={{ padding: 28 }}>
+          {/* Tabs - Admin hariç */}
+          {activeTab !== "admin" && !registerMode && !setupPasswordMode && !(activeTab === "student" && studentStep === "password") && (
+          <div className="lg-tabs">
             {[
               { key: "student", label: "Öğrenci" },
               { key: "professor", label: "Akademisyen" },
@@ -1834,16 +2057,12 @@ const LoginModal = ({ onLogin }) => {
             ].map(tab => {
               const active = activeTab === tab.key;
               return (
-                <button key={tab.key} onClick={() => { setActiveTab(tab.key); setError(""); setIdentifier(""); setPassword(""); setStudentStep("number"); setStudentInfo(null); resetSetupState(); setProfSearch(""); setProfDropdownOpen(false); }} type="button" style={{
-                  flex: 1, padding: "14px 8px", border: "none", cursor: "pointer",
-                  background: "transparent",
-                  color: active ? "#FCD34D" : "rgba(255,255,255,0.3)",
-                  fontSize: 13, fontWeight: active ? 600 : 400,
-                  transition: "all 0.25s ease",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontFamily: "'Inter', sans-serif",
-                  borderBottom: active ? "2px solid #F59E0B" : "2px solid transparent",
-                }}>
+                <button
+                  key={tab.key}
+                  onClick={() => { setActiveTab(tab.key); setError(""); setIdentifier(""); setPassword(""); setStudentStep("number"); setStudentInfo(null); resetSetupState(); setProfSearch(""); setProfDropdownOpen(false); }}
+                  type="button"
+                  className={`lg-tab${active ? " lg-tab-active" : ""}`}
+                >
                   {tab.label}
                 </button>
               );
@@ -1851,105 +2070,80 @@ const LoginModal = ({ onLogin }) => {
           </div>
           )}
 
-          {/* Admin URL ile giriş - üst bar */}
-          {activeTab === "admin" && (
-            <div style={{ padding: "14px 28px", borderBottom: "1px solid rgba(252,211,77,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#FCD34D", letterSpacing: "0.05em" }}>Yönetici Girişi</span>
-            </div>
-          )}
-
           {/* Yeni Öğrenci Kayıt Ekranı */}
           {registerMode ? (
-            <form onSubmit={handleRegister} style={{ padding: 28 }}>
-              <div style={{ textAlign: "center", marginBottom: 24 }}>
-                <div style={{
-                  width: 56, height: 56, borderRadius: "50%", margin: "0 auto 16px",
-                  background: "rgba(245,158,11,0.1)", display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <form onSubmit={handleRegister}>
+              <div className="lg-setup-hero">
+                <div className="lg-setup-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C4973B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" />
                   </svg>
                 </div>
-                <h3 style={{ color: "white", fontSize: 18, fontWeight: 600, margin: 0 }}>Kayıt Ol</h3>
-                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, margin: "8px 0 0" }}>
-                  <strong style={{ color: "#FCD34D" }}>{pendingStudentNumber}</strong> numaralı öğrenci olarak kayıt olun.
+                <h3 className="lg-setup-title">Kayıt Ol</h3>
+                <p className="lg-setup-sub">
+                  <strong>{pendingStudentNumber}</strong> numaralı öğrenci olarak kayıt olun.
                 </p>
               </div>
 
-              <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Ad</label>
-                  <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Adınız" autoFocus
-                    style={{ width: "100%", padding: "12px 16px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
+              <div style={{ display: "flex", gap: 12, marginBottom: 18 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label className="lg-label">Ad</label>
+                  <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Adınız" autoFocus className="lg-input" />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Soyad</label>
-                  <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Soyadınız"
-                    style={{ width: "100%", padding: "12px 16px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label className="lg-label">Soyad</label>
+                  <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Soyadınız" className="lg-input" />
                 </div>
               </div>
 
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Bölüm</label>
-                <div style={{ position: "relative" }}>
-                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.2)", pointerEvents: "none" }}>
+              <div style={{ marginBottom: 18 }}>
+                <label className="lg-label">Bölüm</label>
+                <div className="lg-input-icon-wrap">
+                  <div className="lg-input-icon-left">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></svg>
                   </div>
                   <select value={selectedDepartment} onChange={e => setSelectedDepartment(e.target.value)}
-                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: selectedDepartment ? "white" : "rgba(255,255,255,0.4)", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", appearance: "none", cursor: "pointer" }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }}>
+                    className="lg-input lg-input-icon"
+                    style={{ paddingRight: 40, color: selectedDepartment ? "#0F172A" : "#94A3B8", cursor: "pointer" }}>
                     <option value="" disabled>Bölümünüzü seçin</option>
                     {DEPARTMENTS.map(d => (
-                      <option key={d.id} value={d.id} style={{ background: "#1a1408", color: "white" }}>{d.name}</option>
+                      <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
                   </select>
-                  <div style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.2)", pointerEvents: "none" }}>
+                  <div style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", color: "#64748B", pointerEvents: "none" }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
                   </div>
                 </div>
               </div>
 
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Şifre</label>
-                <div style={{ position: "relative" }}>
-                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.2)" }}>
+              <div style={{ marginBottom: 18 }}>
+                <label className="lg-label">Şifre</label>
+                <div className="lg-input-icon-wrap">
+                  <div className="lg-input-icon-left">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                   </div>
-                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Şifrenizi belirleyin (en az 4 karakter)"
-                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
+                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Şifrenizi belirleyin (en az 6 karakter)" className="lg-input lg-input-icon" />
                 </div>
               </div>
 
-              <div style={{ marginBottom: 24 }}>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Şifre Tekrar</label>
-                <div style={{ position: "relative" }}>
-                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.2)" }}>
+              <div style={{ marginBottom: 22 }}>
+                <label className="lg-label">Şifre Tekrar</label>
+                <div className="lg-input-icon-wrap">
+                  <div className="lg-input-icon-left">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
                   </div>
-                  <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifrenizi tekrar girin"
-                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
+                  <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifrenizi tekrar girin" className="lg-input lg-input-icon" />
                 </div>
               </div>
 
               {error && (
-                <div style={{ padding: "12px 16px", marginBottom: 20, borderRadius: 12, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)", color: "#fca5a5", fontSize: 13, display: "flex", alignItems: "center", gap: 10, animation: "loginShake 0.4s ease", backdropFilter: "blur(8px)" }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                <div className="lg-error">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                   {error}
                 </div>
               )}
 
-              <button type="submit" disabled={loading} style={{
-                width: "100%", padding: "12px 20px", borderRadius: 8, border: "none",
-                background: loading ? "rgba(255,255,255,0.06)" : "#F59E0B", color: loading ? "rgba(255,255,255,0.3)" : "#1a1408",
-                fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
-                fontFamily: "'Inter', sans-serif", transition: "all 0.2s ease",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                borderRadius: 10,
-              }}>
+              <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
                 {loading ? (
                   <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Kaydediliyor...</>
                 ) : (
@@ -1957,71 +2151,52 @@ const LoginModal = ({ onLogin }) => {
                 )}
               </button>
 
-              <button type="button" onClick={resetSetupState} style={{
-                width: "100%", padding: "10px", marginTop: 12, borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.06)", background: "transparent",
-                color: "rgba(255,255,255,0.5)", fontSize: 13, cursor: "pointer", fontFamily: "'Inter', sans-serif",
-                borderRadius: 10, transition: "all 0.2s ease",
-              }}>Geri Dön</button>
+              <button type="button" onClick={resetSetupState} className="lg-btn lg-btn-secondary" style={{ marginTop: 10, padding: "10px 16px", fontSize: 13 }}>Geri Dön</button>
             </form>
 
           ) : setupPasswordMode ? (
             /* Mevcut öğrenci: şifre değiştirme ekranı */
-            <form onSubmit={handleSetupPassword} style={{ padding: 28 }}>
-              <div style={{ textAlign: "center", marginBottom: 24 }}>
-                <div style={{
-                  width: 56, height: 56, borderRadius: "50%", margin: "0 auto 16px",
-                  background: "rgba(245,158,11,0.1)", display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <form onSubmit={handleSetupPassword}>
+              <div className="lg-setup-hero">
+                <div className="lg-setup-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C4973B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
                   </svg>
                 </div>
-                <h3 style={{ color: "white", fontSize: 18, fontWeight: 600, margin: 0 }}>Yeni Şifre Belirleyin</h3>
-                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, margin: "8px 0 0" }}>
-                  Hoş geldiniz, <strong style={{ color: "#FCD34D" }}>{pendingUser?.name}</strong>! Güvenliğiniz için lütfen yeni bir şifre belirleyin.
+                <h3 className="lg-setup-title">Yeni Şifre Belirleyin</h3>
+                <p className="lg-setup-sub">
+                  Hoş geldiniz, <strong>{pendingUser?.name}</strong>. Güvenliğiniz için lütfen yeni bir şifre belirleyin.
                 </p>
               </div>
 
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Yeni Şifre</label>
-                <div style={{ position: "relative" }}>
-                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.2)" }}>
+              <div style={{ marginBottom: 18 }}>
+                <label className="lg-label">Yeni Şifre</label>
+                <div className="lg-input-icon-wrap">
+                  <div className="lg-input-icon-left">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                   </div>
-                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Yeni şifrenizi girin (en az 4 karakter)" autoFocus
-                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
+                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Yeni şifrenizi girin (en az 6 karakter)" autoFocus className="lg-input lg-input-icon" />
                 </div>
               </div>
 
-              <div style={{ marginBottom: 24 }}>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Şifre Tekrar</label>
-                <div style={{ position: "relative" }}>
-                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.2)" }}>
+              <div style={{ marginBottom: 22 }}>
+                <label className="lg-label">Şifre Tekrar</label>
+                <div className="lg-input-icon-wrap">
+                  <div className="lg-input-icon-left">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
                   </div>
-                  <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifrenizi tekrar girin"
-                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
+                  <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifrenizi tekrar girin" className="lg-input lg-input-icon" />
                 </div>
               </div>
 
               {error && (
-                <div style={{ padding: "12px 16px", marginBottom: 20, borderRadius: 12, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)", color: "#fca5a5", fontSize: 13, display: "flex", alignItems: "center", gap: 10, animation: "loginShake 0.4s ease", backdropFilter: "blur(8px)" }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                <div className="lg-error">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                   {error}
                 </div>
               )}
 
-              <button type="submit" disabled={loading} style={{
-                width: "100%", padding: "12px 20px", borderRadius: 8, border: "none",
-                background: loading ? "rgba(255,255,255,0.06)" : "#F59E0B", color: loading ? "rgba(255,255,255,0.3)" : "#1a1408",
-                fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
-                fontFamily: "'Inter', sans-serif", transition: "all 0.2s ease",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                borderRadius: 10,
-              }}>
+              <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
                 {loading ? (
                   <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Kaydediliyor...</>
                 ) : (
@@ -2029,32 +2204,25 @@ const LoginModal = ({ onLogin }) => {
                 )}
               </button>
 
-              <button type="button" onClick={resetSetupState} style={{
-                width: "100%", padding: "10px", marginTop: 12, borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.06)", background: "transparent",
-                color: "rgba(255,255,255,0.5)", fontSize: 13, cursor: "pointer", fontFamily: "'Inter', sans-serif",
-                borderRadius: 10, transition: "all 0.2s ease",
-              }}>Geri Dön</button>
+              <button type="button" onClick={resetSetupState} className="lg-btn lg-btn-secondary" style={{ marginTop: 10, padding: "10px 16px", fontSize: 13 }}>Geri Dön</button>
             </form>
           ) : activeTab === "student" && studentStep === "password" ? (
           /* Öğrenci: Şifre Giriş Adımı */
-          <form onSubmit={handleStudentLogin} style={{ padding: 28 }}>
-            <div style={{ marginBottom: 20, padding: "14px 16px", borderRadius: 10, background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.12)" }}>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>Hoş geldiniz</div>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "#FCD34D" }}>{studentInfo?.firstName} {studentInfo?.lastName}</div>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 3, fontFamily: "'JetBrains Mono', monospace" }}>{identifier}</div>
+          <form onSubmit={handleStudentLogin}>
+            <div className="lg-greeting">
+              <div className="lg-greeting-label">Hoş geldiniz</div>
+              <div className="lg-greeting-name">{studentInfo?.firstName} {studentInfo?.lastName}</div>
+              <div className="lg-greeting-id">{identifier}</div>
             </div>
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Şifre</label>
-              <div style={{ position: "relative" }}>
-                <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.2)" }}>
+            <div style={{ marginBottom: 22 }}>
+              <label className="lg-label">Şifre</label>
+              <div className="lg-input-icon-wrap">
+                <div className="lg-input-icon-left">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                 </div>
-                <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Şifrenizi girin" autoFocus
-                  style={{ width: "100%", padding: "12px 48px 12px 40px", borderRadius: 8, border: "1px solid #374151", background: "#1F2937", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s" }}
-                  onFocus={e => { e.target.style.borderColor = "#059669"; }} onBlur={e => { e.target.style.borderColor = "#374151"; }} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.2)", padding: 4, display: "flex", alignItems: "center" }}>
+                <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Şifrenizi girin" autoFocus className="lg-input lg-input-icon lg-input-eye" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="lg-input-eye-btn" aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}>
                   {showPassword ? (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
                   ) : (
@@ -2065,69 +2233,48 @@ const LoginModal = ({ onLogin }) => {
             </div>
 
             {error && (
-              <div style={{ padding: "12px 16px", marginBottom: 20, borderRadius: 12, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)", color: "#fca5a5", fontSize: 13, display: "flex", alignItems: "center", gap: 10, animation: "loginShake 0.4s ease", backdropFilter: "blur(8px)" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+              <div className="lg-error">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                 {error}
               </div>
             )}
 
-            <button type="submit" disabled={loading} style={{
-              width: "100%", padding: "12px 20px", borderRadius: 8, border: "none",
-              background: loading ? "#374151" : "#059669", color: loading ? "#9CA3AF" : "white",
-              fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
-              fontFamily: "'Inter', sans-serif", transition: "background 0.2s ease",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-            }}>
+            <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
               {loading ? (
                 <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Giriş yapılıyor...</>
               ) : (
                 <>Giriş Yap<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg></>
               )}
             </button>
-            <button type="button" onClick={() => { setStudentStep("number"); setPassword(""); setStudentInfo(null); setError(""); }} style={{
-              width: "100%", padding: "10px", marginTop: 12, borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.06)", background: "transparent",
-              color: "rgba(255,255,255,0.5)", fontSize: 13, cursor: "pointer", fontFamily: "'Inter', sans-serif",
-              borderRadius: 10, transition: "all 0.2s ease",
-            }}>Farklı numara ile giriş</button>
+            <button type="button" onClick={() => { setStudentStep("number"); setPassword(""); setStudentInfo(null); setError(""); }} className="lg-btn lg-btn-secondary" style={{ marginTop: 10, padding: "10px 16px", fontSize: 13 }}>Farklı numara ile giriş</button>
           </form>
 
           ) : activeTab === "student" ? (
           /* Öğrenci: Numara Giriş Adımı */
-          <form onSubmit={handleStudentContinue} style={{ padding: 28 }}>
+          <form onSubmit={handleStudentContinue}>
             <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
-                Öğrenci Numarası
-              </label>
-              <div style={{ position: "relative" }}>
-                <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF" }}>
+              <label className="lg-label">Öğrenci Numarası</label>
+              <div className="lg-input-icon-wrap">
+                <div className="lg-input-icon-left">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                 </div>
-                <input value={identifier} onChange={e => setIdentifier(e.target.value.replace(/\D/g, ""))} placeholder="9 haneli öğrenci numaranız" autoFocus maxLength={9}
-                  style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid #374151", background: "#1F2937", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", letterSpacing: "1px", transition: "border-color 0.2s" }}
-                  onFocus={e => { e.target.style.borderColor = "#059669"; }} onBlur={e => { e.target.style.borderColor = "#374151"; }} />
+                <input value={identifier} onChange={e => setIdentifier(e.target.value.replace(/\D/g, ""))} placeholder="9 haneli öğrenci numaranız" autoFocus maxLength={9} inputMode="numeric"
+                  className="lg-input lg-input-icon"
+                  style={{ letterSpacing: "1px" }} />
               </div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 6 }}>
+              <div className="lg-hint">
                 Sisteme ilk kez giriyorsanız, bilgilerinizi girip şifre belirlemeniz istenecektir.
               </div>
             </div>
 
             {error && (
-              <div style={{ padding: "12px 16px", marginBottom: 20, borderRadius: 12, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)", color: "#fca5a5", fontSize: 13, display: "flex", alignItems: "center", gap: 10, animation: "loginShake 0.4s ease", backdropFilter: "blur(8px)" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+              <div className="lg-error">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                 {error}
               </div>
             )}
 
-            <button type="submit" disabled={loading || identifier.length !== 9} style={{
-              width: "100%", padding: "12px 20px", borderRadius: 8, border: "none",
-              background: (loading || identifier.length !== 9) ? "rgba(255,255,255,0.06)" : "#F59E0B",
-              color: (loading || identifier.length !== 9) ? "rgba(255,255,255,0.3)" : "#1a1408",
-              fontSize: 14, fontWeight: 600, cursor: (loading || identifier.length !== 9) ? "not-allowed" : "pointer",
-              fontFamily: "'Inter', sans-serif", transition: "all 0.2s ease",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              borderRadius: 10,
-            }}>
+            <button type="submit" disabled={loading || identifier.length !== 9} className="lg-btn lg-btn-primary">
               {loading ? (
                 <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Kontrol ediliyor...</>
               ) : (
@@ -2138,89 +2285,62 @@ const LoginModal = ({ onLogin }) => {
 
           ) : (
           /* Bölüm Yetkilisi / Akademisyen / Admin Form */
-          <form onSubmit={handleSubmit} style={{ padding: 28 }}>
+          <form onSubmit={handleSubmit}>
 
             {activeTab === "bolum_yetkilisi" && (
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
-                  Yetkili Adı Soyadı
-                </label>
-                <div style={{ position: "relative" }}>
-                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF" }}>
+              <div style={{ marginBottom: 18 }}>
+                <label className="lg-label">Yetkili Adı Soyadı</label>
+                <div className="lg-input-icon-wrap">
+                  <div className="lg-input-icon-left">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                   </div>
-                  <input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Adınızı ve soyadınızı girin" autoFocus
-                    style={{ width: "100%", padding: "12px 16px 12px 40px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "all 0.3s ease", borderRadius: 10 }}
-                    onFocus={e => { e.target.style.borderColor = "rgba(245,158,11,0.3)"; e.target.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.08)"; }} onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }} />
+                  <input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Adınızı ve soyadınızı girin" autoFocus className="lg-input lg-input-icon" />
                 </div>
               </div>
             )}
 
             {activeTab === "professor" && (
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
-                  Akademisyen
-                </label>
+              <div style={{ marginBottom: 18 }}>
+                <label className="lg-label">Akademisyen</label>
                 {/* Seçili akademisyen gösterimi */}
                 {identifier && !profDropdownOpen && (
                   <div
                     onClick={() => { setProfDropdownOpen(true); setProfSearch(""); }}
-                    style={{
-                      padding: "10px 14px", borderRadius: 10, marginBottom: 0,
-                      border: "1px solid rgba(245,158,11,0.2)", background: "rgba(245,158,11,0.06)",
-                      color: "#FCD34D", fontSize: 14, cursor: "pointer",
-                      fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", gap: 10,
-                      position: "relative",
-                    }}
+                    className="lg-prof-selected"
                   >
-                    <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(245,158,11,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#F59E0B", flexShrink: 0 }}>
+                    <div className="lg-prof-avatar">
                       {(identifier || "").split(" ").map(w => w.charAt(0)).slice(0, 2).join("").toUpperCase()}
                     </div>
                     <span style={{ flex: 1 }}>{identifier}</span>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setIdentifier(""); setProfSearch(""); setProfDropdownOpen(true); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: 16, padding: "2px 6px" }}>×</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setIdentifier(""); setProfSearch(""); setProfDropdownOpen(true); }} className="lg-prof-clear" aria-label="Seçimi temizle">×</button>
                   </div>
                 )}
                 {/* Arama + Liste */}
                 {(!identifier || profDropdownOpen) && (
                   <div>
-                    <div style={{ position: "relative", marginBottom: 6 }}>
-                      <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.2)", pointerEvents: "none" }}>
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <div className="lg-input-icon-wrap" style={{ marginBottom: 6 }}>
+                      <div className="lg-input-icon-left" style={{ left: 12 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                       </div>
                       <input
                         type="text" value={profSearch}
                         onChange={e => setProfSearch(e.target.value)}
                         placeholder="Akademisyen adı yazın..."
                         autoFocus
-                        style={{
-                          width: "100%", padding: "10px 14px 10px 34px", borderRadius: 10,
-                          border: "1px solid rgba(255,255,255,0.08)", background: "rgba(20,16,10,0.6)",
-                          color: "white", fontSize: 13, outline: "none",
-                          fontFamily: "'Inter', sans-serif", boxSizing: "border-box",
-                        }}
+                        className="lg-input lg-input-icon"
+                        style={{ fontSize: 14, padding: "11px 14px 11px 38px" }}
                       />
                     </div>
-                    <div style={{
-                      maxHeight: 180, overflowY: "auto", borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,0.05)", background: "rgba(16,13,8,0.8)",
-                    }}>
+                    <div className="lg-prof-list">
                       {(() => {
                         const filtered = professorList.filter(p => !profSearch || (p.name || "").toLocaleLowerCase("tr").indexOf(profSearch.toLocaleLowerCase("tr")) >= 0);
-                        if (filtered.length === 0) return <div style={{ padding: "14px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 12 }}>Sonuç bulunamadı</div>;
+                        if (filtered.length === 0) return <div className="lg-prof-empty">Sonuç bulunamadı</div>;
                         return filtered.map(p => (
                           <div key={p.id || p.name}
                             onClick={() => { setIdentifier(p.name); setProfDropdownOpen(false); setProfSearch(""); }}
-                            style={{
-                              padding: "9px 12px", cursor: "pointer",
-                              display: "flex", alignItems: "center", gap: 8,
-                              borderBottom: "1px solid rgba(255,255,255,0.03)",
-                              transition: "background 0.15s",
-                              fontSize: 13, color: "rgba(255,255,255,0.7)",
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,158,11,0.08)"; e.currentTarget.style.color = "#FCD34D"; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
+                            className="lg-prof-row"
                           >
-                            <div style={{ width: 26, height: 26, borderRadius: 6, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>
+                            <div className="lg-prof-row-avatar">
                               {(p.name || "").split(" ").map(w => w.charAt(0)).slice(0, 2).join("").toUpperCase()}
                             </div>
                             {p.name}
@@ -2233,17 +2353,16 @@ const LoginModal = ({ onLogin }) => {
               </div>
             )}
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Şifre</label>
-              <div style={{ position: "relative" }}>
-                <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.2)" }}>
+            <div style={{ marginBottom: 22 }}>
+              <label className="lg-label">Şifre</label>
+              <div className="lg-input-icon-wrap">
+                <div className="lg-input-icon-left">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                 </div>
                 <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
                   placeholder={activeTab === "admin" ? "Admin şifresi" : "Şifreniz"} autoFocus={activeTab === "admin"}
-                  style={{ width: "100%", padding: "12px 48px 12px 40px", borderRadius: 8, border: "1px solid #374151", background: "#1F2937", color: "white", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", transition: "border-color 0.2s" }}
-                  onFocus={e => { e.target.style.borderColor = "#059669"; }} onBlur={e => { e.target.style.borderColor = "#374151"; }} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.2)", padding: 4, display: "flex", alignItems: "center" }}>
+                  className="lg-input lg-input-icon lg-input-eye" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="lg-input-eye-btn" aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}>
                   {showPassword ? (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
                   ) : (
@@ -2254,19 +2373,13 @@ const LoginModal = ({ onLogin }) => {
             </div>
 
             {error && (
-              <div style={{ padding: "12px 16px", marginBottom: 20, borderRadius: 12, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)", color: "#fca5a5", fontSize: 13, display: "flex", alignItems: "center", gap: 10, animation: "loginShake 0.4s ease", backdropFilter: "blur(8px)" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+              <div className="lg-error">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                 {error}
               </div>
             )}
 
-            <button type="submit" disabled={loading} style={{
-              width: "100%", padding: "12px 20px", borderRadius: 8, border: "none",
-              background: loading ? "#374151" : "#059669", color: loading ? "#9CA3AF" : "white",
-              fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
-              fontFamily: "'Inter', sans-serif", transition: "background 0.2s ease",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-            }}>
+            <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
               {loading ? (
                 <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Giriş yapılıyor...</>
               ) : (
@@ -2275,10 +2388,15 @@ const LoginModal = ({ onLogin }) => {
             </button>
           </form>
           )}
+          </div>
         </div>
 
         {/* Alt bilgi */}
-        <p style={{ textAlign: "center", marginTop: 24, fontSize: 11, color: "rgba(255,255,255,0.12)", letterSpacing: "0.04em" }}>
+        <p style={{
+          textAlign: "center", marginTop: 20, fontSize: 12,
+          color: "rgba(255,255,255,0.55)", letterSpacing: "0.03em",
+          fontWeight: 500,
+        }}>
           © 2025 ÇAKÜ Bilgisayar Mühendisliği
         </p>
       </div>
