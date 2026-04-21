@@ -1575,10 +1575,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
 
   // Document visibility step constants
-  // INITIAL_DOCUMENT_STEP: In Step 3, only initial application documents are visible
-  // FULL_DOCUMENT_ACCESS_STEP: In Step 7 (Staj Teslim), all documents become visible
+  // INITIAL_DOCUMENT_STEP: Application documents belong to step 3
   const INITIAL_DOCUMENT_STEP = 3;
-  const FULL_DOCUMENT_ACCESS_STEP = 7;
 
   // Belge durumunu DB'den yükleyip state'e yaz
   const loadUploadsFromDB = async () => {
@@ -1761,15 +1759,16 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
 
   const currentStep = getCurrentRoadmapStep();
 
+  // Adım 5 (SGK İşlemleri, index=4) tamamlandı mı kontrol et
+  const isStep5Completed = () => {
+    return roadmapData?.steps?.[4]?.status === "completed";
+  };
+
   // Belge görünür mü kontrol et
-  // - Başlangıçta (Step 3'e kadar): Sadece başvuru belgeleri (step:3) görünür
-  // - Step 7'de (Staj Teslim): Tüm belgeler görünür ve yüklenebilir hale gelir
+  // Başvuru mevcut olduğunda tüm belgeler görünür
   const isDocumentVisible = (belge) => {
     if (!myApplication) return false;
-    // FULL_DOCUMENT_ACCESS_STEP veya üstündeyse tüm belgeler görünür
-    if (currentStep >= FULL_DOCUMENT_ACCESS_STEP) return true;
-    // Altındaysa sadece INITIAL_DOCUMENT_STEP belgeleri görünür
-    return belge.step === INITIAL_DOCUMENT_STEP;
+    return true;
   };
 
   // Öğrenci belge görüntüleme/indirme
@@ -1799,6 +1798,10 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   const canUploadDocument = (belgeId) => {
     // Başvuru yoksa hiçbir belge yüklenemez
     if (!myApplication) return false;
+    const belge = BELGE_ALANLARI.find(b => b.id === belgeId);
+    // Adım 7 belgeleri (staj defteri, ek2, staj teslim, turnitin) ancak
+    // adım 5 (SGK) tamamlandıktan sonra yüklenebilir
+    if (belge && belge.step === 7 && !isStep5Completed()) return false;
     const uploaded = uploads[belgeId];
     if (!uploaded || !uploaded.fileName) return true; // Henüz yüklenmemiş, yüklenebilir
     // Dosya sunucuda yoksa (serverPath/downloadURL/path yok), serbestçe yüklenebilir
@@ -1924,7 +1927,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
             Başvurunuz tamamlandıktan sonra bu alandaki belgeler aktif hale gelecektir.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 340, margin: "0 auto 28px" }}>
-            {BELGE_ALANLARI.filter(belge => belge.step === INITIAL_DOCUMENT_STEP).map(belge => (
+            {BELGE_ALANLARI.map(belge => (
               <div key={belge.id} style={{
                 display: "flex", alignItems: "center", gap: 10,
                 padding: "10px 14px", borderRadius: 8,
@@ -2103,8 +2106,21 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                         </button>
                       )}
 
+                      {/* Adım 7 belgeleri adım 5 tamamlanmadan kilitli */}
+                      {belge.step === 7 && !isStep5Completed() && (
+                        <span style={{
+                          padding: "8px 14px", borderRadius: 8,
+                          background: "#F1F5F9", border: "1px solid #CBD5E1",
+                          color: "#64748B", fontSize: 11, fontWeight: 600,
+                          display: "flex", alignItems: "center", gap: 5,
+                        }}>
+                          <StajIcon path="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" size={13} />
+                          Adım 5 tamamlandıktan sonra açılır
+                        </span>
+                      )}
+
                       {/* Belge yüklenmişse, adım onaya gönderilmişse ve değişiklik talebi yoksa → Değişiklik İste butonu */}
-                      {uploaded && uploaded.fileName && isStepSubmitted(belge.id) && !canUploadDocument(belge.id) && !uploaded.changeRequest && (
+                      {uploaded && uploaded.fileName && isStepSubmitted(belge.id) && !canUploadDocument(belge.id) && !uploaded.changeRequest && !(belge.step === 7 && !isStep5Completed()) && (
                         <button onClick={() => handleRequestChange(belge.id)} style={{
                           padding: "8px 14px", borderRadius: 8, border: "1px solid #FDBA74",
                           background: "#FFF7ED", color: "#EA580C", fontSize: 12, fontWeight: 600,
