@@ -1622,13 +1622,11 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
         console.warn("Dosya sunucuya yüklenemedi, sadece kayıt tutulacak:", uploadErr);
       }
 
-      const newUploads = { ...uploads, [belgeId]: fileData };
-      await window.DBWrite.set("internship_uploads", studentId, newUploads, true);
-      
-      // Only update state if component is still mounted
+      await window.DBWrite.set("internship_uploads", studentId, { [belgeId]: fileData }, true);
+
       if (!mountedRef.current) return;
-      
-      setUploads(newUploads);
+
+      setUploads(prev => ({ ...prev, [belgeId]: fileData }));
       setChangeRequests(prev => { const p = { ...prev }; delete p[belgeId]; return p; });
       setMsg("Belge başarıyla yüklendi!");
       setTimeout(() => { if (mountedRef.current) setMsg(""); }, 3000);
@@ -1822,19 +1820,35 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                           <span style={{ color: STAJ.textMuted }}>
                             ({(uploaded.fileSize / 1024).toFixed(0)} KB) — {new Date(uploaded.uploadedAt).toLocaleDateString("tr-TR")}
                           </span>
-                          <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
-                            {getStudentFileUrl(belge.id) && (
-                              <button onClick={() => handleStudentPreview(belge.id)} style={{
-                                padding: "3px 8px", borderRadius: 5, border: "1px solid #93C5FD",
-                                background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 600,
-                                cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
+                          <div style={{ display: "flex", gap: 6, marginLeft: "auto", alignItems: "center" }}>
+                            {getStudentFileUrl(belge.id) ? (
+                              <>
+                                <button onClick={() => handleStudentPreview(belge.id)} style={{
+                                  padding: "4px 10px", borderRadius: 6, border: "1px solid #93C5FD",
+                                  background: "#EFF6FF", color: "#2563EB", fontSize: 11, fontWeight: 600,
+                                  cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                }}>
+                                  <StajIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" size={12} />
+                                  Görüntüle
+                                </button>
+                                <button onClick={() => handleStudentDownload(belge.id)} style={{
+                                  padding: "4px 10px", borderRadius: 6, border: "1px solid #A7F3D0",
+                                  background: "#ECFDF5", color: "#059669", fontSize: 11, fontWeight: 600,
+                                  cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                }}>
+                                  <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" size={12} />
+                                  İndir
+                                </button>
+                              </>
+                            ) : (
+                              <span style={{
+                                fontSize: 10, fontWeight: 600,
+                                padding: "3px 8px", borderRadius: 6,
+                                background: "#FEF2F2", color: "#DC2626",
+                                border: "1px solid #FCA5A5",
                               }}>
-                                <StajIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" size={11} />
-                                Görüntüle
-                              </button>
-                            )}
-                            {!getStudentFileUrl(belge.id) && (
-                              <span style={{ fontSize: 9, color: "#EF4444", fontWeight: 500 }}>Tekrar yükleyin</span>
+                                Dosya sunucuda yok — tekrar yükleyin
+                              </span>
                             )}
                           </div>
                         </div>
@@ -3439,107 +3453,236 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       );
                     })()}
 
-                    {/* Yol Haritası Adım Onayları */}
+                    {/* Yol Haritası Adım Onayları — Dikey Timeline */}
                     {(() => {
                       const appRoadmap = allRoadmaps[selectedApp.id] || {};
                       const appSteps = appRoadmap.steps || {};
-                      const hasPendingSteps = Object.values(appSteps).some(s => s.status === "pending_approval");
+                      const totalSteps = STAJ_ROADMAP_STEPS.length;
+                      const completedCount = STAJ_ROADMAP_STEPS.reduce((n, _, i) => n + (appSteps[i]?.status === "completed" ? 1 : 0), 0);
+                      const pendingCount = STAJ_ROADMAP_STEPS.reduce((n, _, i) => n + (appSteps[i]?.status === "pending_approval" ? 1 : 0), 0);
+                      const rejectedCount = STAJ_ROADMAP_STEPS.reduce((n, _, i) => n + (appSteps[i]?.status === "rejected" ? 1 : 0), 0);
+                      const progressPct = Math.round((completedCount / totalSteps) * 100);
 
                       return (
                         <div style={{ marginBottom: 16 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: STAJ.navy, marginBottom: 8, paddingBottom: 4, borderBottom: `2px solid ${STAJ.primary}20` }}>
-                            Yol Haritası Adımları
+                          {/* Header + özet rozetleri */}
+                          <div style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between",
+                            gap: 10, flexWrap: "wrap",
+                            marginBottom: 10, paddingBottom: 8,
+                            borderBottom: `2px solid ${STAJ.primary}20`,
+                          }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{
+                                width: 28, height: 28, borderRadius: 8,
+                                background: `linear-gradient(135deg, ${STAJ.primary} 0%, #3B82F6 100%)`,
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                              }}>
+                                <StajIcon path="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" size={15} color="white" />
+                              </div>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: STAJ.navy }}>Staj Süreci</div>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: STAJ.greenLight, color: STAJ.green, border: "1px solid #A7F3D0" }}>
+                                ✓ {completedCount} Tamamlandı
+                              </span>
+                              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: "#DBEAFE", color: "#1E40AF", border: "1px solid #93C5FD" }}>
+                                ⏱ {pendingCount} Onay Bekliyor
+                              </span>
+                              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: STAJ.redLight, color: STAJ.red, border: "1px solid #FCA5A5" }}>
+                                ✕ {rejectedCount} Reddedildi
+                              </span>
+                              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: STAJ.primaryPale, color: STAJ.primary, border: `1px solid ${STAJ.primary}40` }}>
+                                {completedCount}/{totalSteps} • %{progressPct}
+                              </span>
+                            </div>
                           </div>
-                          {Object.keys(appSteps).length === 0 ? (
-                            <p style={{ fontSize: 12, color: STAJ.textMuted, fontStyle: "italic" }}>Öğrenci henüz yol haritasında ilerleme kaydetmemiş.</p>
-                          ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                              {STAJ_ROADMAP_STEPS.map((step, idx) => {
-                                const stepData = appSteps[idx];
-                                if (!stepData) return null;
-                                const isPending = stepData.status === "pending_approval";
-                                const isCompleted = stepData.status === "completed";
-                                const isRejected = stepData.status === "rejected";
-                                return (
-                                  <div key={idx} style={{
-                                    display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
-                                    borderRadius: 8, flexWrap: "wrap",
-                                    background: isPending ? "#DBEAFE" : isCompleted ? STAJ.greenLight : isRejected ? STAJ.redLight : "#F9FAFB",
-                                    border: `1px solid ${isPending ? "#93C5FD" : isCompleted ? "#A7F3D0" : isRejected ? "#FCA5A5" : "#E5E7EB"}`,
-                                  }}>
+
+                          {/* Gradient ilerleme çubuğu */}
+                          <div style={{
+                            height: 8, borderRadius: 999,
+                            background: "#F3F4F6", overflow: "hidden",
+                            marginBottom: 16, border: "1px solid #E5E7EB",
+                          }}>
+                            <div style={{
+                              width: `${progressPct}%`, height: "100%",
+                              background: `linear-gradient(90deg, ${STAJ.green} 0%, ${STAJ.primary} 50%, #3B82F6 100%)`,
+                              transition: "width 0.4s ease",
+                            }} />
+                          </div>
+
+                          {/* Dikey Timeline */}
+                          <div style={{ position: "relative", paddingLeft: 8 }}>
+                            {STAJ_ROADMAP_STEPS.map((step, idx) => {
+                              const stepData = appSteps[idx] || {};
+                              const isPending = stepData.status === "pending_approval";
+                              const isCompleted = stepData.status === "completed";
+                              const isRejected = stepData.status === "rejected";
+                              const isActive = isPending || isCompleted || isRejected;
+                              const isLast = idx === STAJ_ROADMAP_STEPS.length - 1;
+
+                              const circleBg = isCompleted ? STAJ.green
+                                : isPending ? "#3B82F6"
+                                : isRejected ? STAJ.red
+                                : "#E5E7EB";
+                              const circleColor = isActive ? "white" : "#9CA3AF";
+                              const circleContent = isCompleted ? "✓" : isRejected ? "✕" : String(step.id);
+
+                              const cardBg = isCompleted ? STAJ.greenLight
+                                : isPending ? "#EFF6FF"
+                                : isRejected ? STAJ.redLight
+                                : "#F9FAFB";
+                              const cardBorder = isCompleted ? "#A7F3D0"
+                                : isPending ? "#93C5FD"
+                                : isRejected ? "#FCA5A5"
+                                : "#E5E7EB";
+
+                              const statusBadge = isCompleted ? { label: "Onaylandı", bg: STAJ.green, color: "white" }
+                                : isPending ? { label: "Onay Bekliyor", bg: "#3B82F6", color: "white" }
+                                : isRejected ? { label: "Reddedildi", bg: STAJ.red, color: "white" }
+                                : { label: "Başlamadı", bg: "#E5E7EB", color: "#6B7280" };
+
+                              return (
+                                <div key={idx} style={{ position: "relative", display: "flex", gap: 14, paddingBottom: isLast ? 0 : 16 }}>
+                                  {/* Bağlantı çizgisi */}
+                                  {!isLast && (
                                     <div style={{
-                                      width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
-                                      background: isCompleted ? STAJ.green : isPending ? "#3B82F6" : isRejected ? STAJ.red : "#9CA3AF",
-                                      display: "flex", alignItems: "center", justifyContent: "center",
-                                      color: "white", fontSize: 12, fontWeight: 700,
-                                    }}>
-                                      {isCompleted ? "✓" : step.id}
+                                      position: "absolute",
+                                      left: 17, top: 36, bottom: 0, width: 2,
+                                      background: isCompleted ? STAJ.green : "#E5E7EB",
+                                      opacity: isActive ? 1 : 0.6,
+                                    }} />
+                                  )}
+
+                                  {/* Daire */}
+                                  <div style={{
+                                    width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                                    background: circleBg, color: circleColor,
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    fontSize: 14, fontWeight: 700,
+                                    border: `3px solid ${isActive ? "white" : "#F3F4F6"}`,
+                                    boxShadow: isActive ? `0 0 0 2px ${circleBg}` : "none",
+                                    zIndex: 1,
+                                  }}>
+                                    {circleContent}
+                                  </div>
+
+                                  {/* Kart */}
+                                  <div style={{
+                                    flex: 1, minWidth: 0,
+                                    background: cardBg, border: `1px solid ${cardBorder}`,
+                                    borderRadius: 10, padding: "10px 14px",
+                                    opacity: isActive ? 1 : 0.75,
+                                  }}>
+                                    {/* Üst satır: başlık + durum rozeti + süre */}
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                                      <span style={{ fontSize: 13, fontWeight: 700, color: STAJ.navy }}>
+                                        Adım {step.id} — {step.title}
+                                      </span>
+                                      <span style={{
+                                        fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+                                        background: statusBadge.bg, color: statusBadge.color,
+                                      }}>
+                                        {statusBadge.label}
+                                      </span>
+                                      {step.duration && (
+                                        <span style={{
+                                          fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 999,
+                                          background: "white", color: STAJ.textMuted, border: "1px solid #E5E7EB",
+                                          display: "inline-flex", alignItems: "center", gap: 4,
+                                        }}>
+                                          ⏱ {step.duration}
+                                        </span>
+                                      )}
                                     </div>
-                                    <div style={{ flex: 1, minWidth: 150 }}>
-                                      <div style={{ fontSize: 13, fontWeight: 600, color: STAJ.navy }}>{step.title}</div>
-                                      <div style={{ fontSize: 11, color: STAJ.textMuted }}>
-                                        {isCompleted && stepData.approvedBy && `Onaylayan: ${stepData.approvedBy} — ${stepData.approvedAt ? new Date(stepData.approvedAt).toLocaleString("tr-TR") : ""}`}
-                                        {isPending && `Öğrenci tamamladı — ${stepData.completedAt ? new Date(stepData.completedAt).toLocaleString("tr-TR") : ""}`}
-                                        {isRejected && `Reddeden: ${stepData.rejectedBy || ""} — ${stepData.rejectedAt ? new Date(stepData.rejectedAt).toLocaleString("tr-TR") : ""}`}
+
+                                    {/* Açıklama */}
+                                    {step.desc && (
+                                      <p style={{ fontSize: 11, color: STAJ.textMuted, margin: "0 0 6px", lineHeight: 1.5 }}>
+                                        {step.desc}
+                                      </p>
+                                    )}
+
+                                    {/* Meta bilgi */}
+                                    {(isCompleted || isPending || isRejected) && (
+                                      <div style={{ fontSize: 11, color: STAJ.text, marginTop: 4 }}>
+                                        {isCompleted && stepData.approvedBy && (
+                                          <span>Onaylayan: <strong>{stepData.approvedBy}</strong>{stepData.approvedAt ? ` — ${new Date(stepData.approvedAt).toLocaleString("tr-TR")}` : ""}</span>
+                                        )}
+                                        {isPending && (
+                                          <span>Öğrenci tamamladı{stepData.completedAt ? ` — ${new Date(stepData.completedAt).toLocaleString("tr-TR")}` : ""}</span>
+                                        )}
                                       </div>
-                                      {/* Deadline badge */}
-                                      {isPending && idx < 4 && (() => {
-                                        const od = getOnayDeadline(selectedApp);
-                                        const badge = deadlineBadge(od);
-                                        if (!badge) return null;
-                                        return (
-                                          <span style={{ marginTop: 4, display: "inline-block", fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 8, background: badge.bg, color: badge.color }}>
+                                    )}
+
+                                    {/* Red sebebi ayrı alan */}
+                                    {isRejected && (
+                                      <div style={{
+                                        marginTop: 6, padding: "8px 10px", borderRadius: 6,
+                                        background: "#FEF2F2", border: "1px solid #FCA5A5",
+                                        fontSize: 11, color: STAJ.red,
+                                      }}>
+                                        <div style={{ fontWeight: 700, marginBottom: 2 }}>✕ Reddedildi</div>
+                                        <div style={{ color: "#991B1B" }}>
+                                          Reddeden: <strong>{stepData.rejectedBy || "—"}</strong>
+                                          {stepData.rejectedAt && <> — {new Date(stepData.rejectedAt).toLocaleString("tr-TR")}</>}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Deadline rozetleri */}
+                                    {isPending && idx < 4 && (() => {
+                                      const od = getOnayDeadline(selectedApp);
+                                      const badge = deadlineBadge(od);
+                                      if (!badge) return null;
+                                      return (
+                                        <div style={{ marginTop: 6 }}>
+                                          <span style={{ display: "inline-block", fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: badge.bg, color: badge.color }}>
                                             ⏱ Komisyon onayı: {badge.label} ({od})
                                           </span>
-                                        );
-                                      })()}
-                                      {isPending && idx === 4 && (() => {
-                                        const appRoadmapLocal = allRoadmaps[selectedApp.id] || {};
-                                        const sgkDl = getSgkDeadline(appRoadmapLocal, selectedApp);
-                                        const badge = deadlineBadge(sgkDl);
-                                        if (!badge) return null;
-                                        return (
-                                          <span style={{ marginTop: 4, display: "inline-block", fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 8, background: badge.bg, color: badge.color }}>
+                                        </div>
+                                      );
+                                    })()}
+                                    {isPending && idx === 4 && (() => {
+                                      const appRoadmapLocal = allRoadmaps[selectedApp.id] || {};
+                                      const sgkDl = getSgkDeadline(appRoadmapLocal, selectedApp);
+                                      const badge = deadlineBadge(sgkDl);
+                                      if (!badge) return null;
+                                      return (
+                                        <div style={{ marginTop: 6 }}>
+                                          <span style={{ display: "inline-block", fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: badge.bg, color: badge.color }}>
                                             ⏱ Ergün ÇINAR SGK: {badge.label} ({sgkDl})
                                           </span>
-                                        );
-                                      })()}
-                                    </div>
+                                        </div>
+                                      );
+                                    })()}
+
+                                    {/* Onayla / Reddet butonları */}
                                     {isPending && !(isErgunCinar && idx !== 4) && (
-                                      <div style={{ display: "flex", gap: 6 }}>
+                                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
                                         <button onClick={() => handleApproveStep(selectedApp.id, idx)} style={{
-                                          padding: "7px 14px", borderRadius: 6, border: "none",
-                                          background: STAJ.green, color: "white", fontSize: 12, fontWeight: 600,
+                                          padding: "6px 14px", borderRadius: 6, border: "none",
+                                          background: STAJ.green, color: "white", fontSize: 11, fontWeight: 700,
                                           cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
                                         }}>
-                                          <StajIcon path="M5 13l4 4L19 7" size={13} />
+                                          <StajIcon path="M5 13l4 4L19 7" size={12} color="white" />
                                           Onayla
                                         </button>
                                         <button onClick={() => handleRejectStep(selectedApp.id, idx)} style={{
-                                          padding: "7px 14px", borderRadius: 6, border: "1px solid #FCA5A5",
-                                          background: "#FEF2F2", color: STAJ.red, fontSize: 12, fontWeight: 600,
+                                          padding: "6px 14px", borderRadius: 6, border: "1px solid #FCA5A5",
+                                          background: "white", color: STAJ.red, fontSize: 11, fontWeight: 700,
                                           cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
                                         }}>
-                                          <StajIcon path="M6 18L18 6M6 6l12 12" size={13} />
+                                          <StajIcon path="M6 18L18 6M6 6l12 12" size={12} />
                                           Reddet
                                         </button>
                                       </div>
                                     )}
-                                    {isCompleted && (
-                                      <span style={{ padding: "4px 10px", borderRadius: 6, background: STAJ.greenLight, color: STAJ.green, fontSize: 11, fontWeight: 600 }}>
-                                        Onaylandı
-                                      </span>
-                                    )}
-                                    {isRejected && (
-                                      <span style={{ padding: "4px 10px", borderRadius: 6, background: STAJ.redLight, color: STAJ.red, fontSize: 11, fontWeight: 600 }}>
-                                        Reddedildi
-                                      </span>
-                                    )}
                                   </div>
-                                );
-                              })}
-                            </div>
-                          )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })()}
