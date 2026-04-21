@@ -1627,7 +1627,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
           setMyApplication(app);
 
           // Roadmap ve belgeler bağımsız olarak yükle; birinin hatası diğerini etkilemesin
-          await Promise.allSettled([
+          const [rmSettled, uploadsSettled] = await Promise.allSettled([
             // Roadmap verisini yükle
             window.apiReadDoc("internship_roadmap", app.id).then(rmResult => {
               if (mountedRef.current && rmResult.exists) setRoadmapData(rmResult.data);
@@ -1635,6 +1635,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
             // Belgeleri yükle (başvurusu olanlar için)
             loadUploadsFromDB(),
           ]);
+          if (rmSettled.status === "rejected") console.error("Roadmap yüklenemedi:", rmSettled.reason);
+          if (uploadsSettled.status === "rejected") console.error("Belgeler yüklenemedi:", uploadsSettled.reason);
         }
       } catch (e) {
         console.error("Staj verileri yüklenirken hata:", e);
