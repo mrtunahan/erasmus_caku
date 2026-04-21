@@ -1058,40 +1058,164 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
 
   // Başvuru listesi görünümü
   if (!showForm) {
+    const totalApps = myApplications.length;
+    const activeApps = myApplications.filter(a => a.status === "devam" || a.status === "beklemede").length;
+    const completedApps = myApplications.filter(a => a.status === "tamamlandi").length;
+    const rejectedApps = myApplications.filter(a => a.status === "reddedildi").length;
+
     return (
       <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 600, color: STAJ.navy, margin: 0 }}>
-            Staj Başvurularım
-          </h3>
-          <button onClick={() => { setForm(emptyForm); setEditingId(null); setShowForm(true); }} style={{
-            padding: "10px 20px", borderRadius: 8, border: "none",
-            background: STAJ.primary, color: "white", fontSize: 13, fontWeight: 600,
-            cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+        {/* ── Hero / Hoşgeldin Banner ── */}
+        <div style={{
+          position: "relative", overflow: "hidden",
+          borderRadius: 16,
+          background: `linear-gradient(135deg, ${STAJ.navy} 0%, #0E3A5C 45%, ${STAJ.primary} 100%)`,
+          padding: responsive.val(18, 22, 26),
+          marginBottom: 18,
+          color: "white",
+          boxShadow: "0 6px 20px rgba(8, 145, 178, 0.18)",
+        }}>
+          {/* Dekoratif daireler */}
+          <div style={{ position: "absolute", top: -40, right: -40, width: 180, height: 180, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
+          <div style={{ position: "absolute", bottom: -60, right: 60, width: 140, height: 140, borderRadius: "50%", background: "rgba(34,211,238,0.12)" }} />
+
+          <div style={{ position: "relative", display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0, flex: 1 }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: 14, flexShrink: 0,
+                background: "rgba(255,255,255,0.15)",
+                backdropFilter: "blur(4px)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: "1px solid rgba(255,255,255,0.25)",
+              }}>
+                <StajIcon path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" size={24} color="white" />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: responsive.val(16, 18, 20), fontWeight: 700, marginBottom: 4, letterSpacing: -0.2 }}>
+                  Staj Başvurusu
+                </div>
+                <div style={{ fontSize: responsive.val(12, 12, 13), color: "rgba(255,255,255,0.82)", lineHeight: 1.5 }}>
+                  Yeni başvuru oluşturun, başvurularınızı düzenleyin ve staj sürecinin her adımını buradan takip edin.
+                </div>
+              </div>
+            </div>
+            <button onClick={() => { setForm(emptyForm); setEditingId(null); setShowForm(true); }} style={{
+              padding: "11px 20px", borderRadius: 10, border: "none",
+              background: "white", color: STAJ.primary,
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              transition: "transform 0.15s",
+            }}
+              onMouseEnter={e => e.currentTarget.style.transform = "translateY(-1px)"}
+              onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
+            >
+              <StajIcon path="M12 5v14M5 12h14" size={16} />
+              Yeni Staj Başvurusu
+            </button>
+          </div>
+        </div>
+
+        {/* ── Özet Rozetleri ── */}
+        {totalApps > 0 && (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: responsive.val("repeat(2, 1fr)", "repeat(4, 1fr)", "repeat(4, 1fr)"),
+            gap: responsive.val(8, 10, 12),
+            marginBottom: 18,
           }}>
-            <StajIcon path="M12 5v14M5 12h14" size={16} />
-            Yeni Staj Başvurusu
-          </button>
+            {[
+              { label: "Toplam Başvuru", value: totalApps, color: STAJ.primary, bg: STAJ.primaryPale, border: `${STAJ.primary}30`, icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+              { label: "Aktif", value: activeApps, color: "#3B82F6", bg: "#DBEAFE", border: "#93C5FD", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
+              { label: "Tamamlanan", value: completedApps, color: STAJ.green, bg: STAJ.greenLight, border: "#A7F3D0", icon: "M5 13l4 4L19 7" },
+              { label: "Reddedilen", value: rejectedApps, color: STAJ.red, bg: STAJ.redLight, border: "#FCA5A5", icon: "M6 18L18 6M6 6l12 12" },
+            ].map((s, i) => (
+              <div key={i} style={{
+                background: "white", borderRadius: 12,
+                padding: responsive.val("12px 14px", "14px 16px", "14px 18px"),
+                border: "1px solid #E5E7EB",
+                display: "flex", alignItems: "center", gap: 12,
+              }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                  background: s.bg, border: `1px solid ${s.border}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <StajIcon path={s.icon} size={18} color={s.color} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: responsive.val(18, 20, 22), fontWeight: 700, color: STAJ.navy, lineHeight: 1 }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: STAJ.textMuted, marginTop: 3 }}>{s.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Başvuru Listesi Başlığı ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div style={{ width: 3, height: 18, borderRadius: 2, background: STAJ.primary }} />
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: STAJ.navy, margin: 0 }}>
+            Başvurularım
+          </h3>
+          {totalApps > 0 && (
+            <span style={{
+              fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 999,
+              background: "#F3F4F6", color: STAJ.textMuted,
+            }}>{totalApps}</span>
+          )}
         </div>
 
         {savedMsg && (
           <div style={{
-            padding: "10px 16px", borderRadius: 8, marginBottom: 16,
+            padding: "10px 14px", borderRadius: 10, marginBottom: 14,
             background: savedMsg.includes("hata") || savedMsg.includes("doldurun") ? STAJ.redLight : STAJ.greenLight,
             color: savedMsg.includes("hata") || savedMsg.includes("doldurun") ? STAJ.red : STAJ.green,
             fontSize: 13, fontWeight: 500,
-          }}>{savedMsg}</div>
+            border: `1px solid ${savedMsg.includes("hata") || savedMsg.includes("doldurun") ? "#FCA5A5" : "#A7F3D0"}`,
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <StajIcon path={savedMsg.includes("hata") || savedMsg.includes("doldurun") ? "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" : "M5 13l4 4L19 7"} size={16} />
+            {savedMsg}
+          </div>
         )}
 
         {myApplications.length === 0 ? (
-          <div style={{ ...sectionStyle, textAlign: "center", padding: 40 }}>
-            <StajIcon path="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" size={48} color="#D1D5DB" />
-            <p style={{ color: STAJ.textMuted, fontSize: 14, marginTop: 16 }}>
-              Henüz staj başvurunuz bulunmuyor. Yeni başvuru oluşturmak için yukarıdaki butona tıklayın.
+          <div style={{
+            background: "white", borderRadius: 16,
+            border: "1.5px dashed #CBD5E1",
+            padding: responsive.val("32px 20px", "44px 28px", "56px 32px"),
+            textAlign: "center",
+          }}>
+            <div style={{
+              width: 80, height: 80, borderRadius: "50%",
+              background: `linear-gradient(135deg, ${STAJ.primaryPale} 0%, #F0F9FF 100%)`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              margin: "0 auto 18px",
+              border: `1px solid ${STAJ.primary}20`,
+            }}>
+              <StajIcon path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" size={36} color={STAJ.primary} />
+            </div>
+            <h4 style={{ fontSize: 16, fontWeight: 700, color: STAJ.navy, margin: "0 0 8px" }}>
+              Henüz başvurunuz bulunmuyor
+            </h4>
+            <p style={{ fontSize: 13, color: STAJ.textMuted, margin: "0 auto 22px", maxWidth: 420, lineHeight: 1.6 }}>
+              Staj yapmak için aşağıdaki butonla ilk başvurunuzu oluşturabilirsiniz.
+              Başvurunuz onaylandıktan sonra yol haritası üzerinden tüm süreci adım adım takip edebilirsiniz.
             </p>
+            <button onClick={() => { setForm(emptyForm); setEditingId(null); setShowForm(true); }} style={{
+              padding: "11px 22px", borderRadius: 10, border: "none",
+              background: STAJ.primary, color: "white",
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              display: "inline-flex", alignItems: "center", gap: 8,
+              boxShadow: `0 4px 12px ${STAJ.primary}40`,
+            }}>
+              <StajIcon path="M12 5v14M5 12h14" size={16} color="white" />
+              İlk Başvurunu Oluştur
+            </button>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {myApplications.map(app => {
               const status = STAJ_STATUS[app.status] || STAJ_STATUS.beklemede;
               const isRejected = app.status === "reddedildi";
@@ -1101,7 +1225,6 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
               const pendingSteps = Object.values(roadmapSteps).filter(s => s.status === "pending_approval").length;
               const totalSteps = 8;
 
-              // Progress: beklemede=0, onay sonrası roadmap ilerlemesine göre
               let progressPct = 0;
               let progressColor = "#EAB308";
               let progressLabel = "Beklemede";
@@ -1124,30 +1247,120 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
                 progressLabel = "Kayıt onayı bekleniyor";
               }
 
+              const stajYeri = app.stajYeriAdi || "—";
+              const stajInitial = (stajYeri[0] || "S").toUpperCase();
+
               return (
-                <div key={app.id} style={{
-                  ...sectionStyle, marginBottom: 0, padding: responsive.val(14, 18, 18),
-                  cursor: "pointer",
-                }} onClick={() => handleEdit(app)}>
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginBottom: 10 }}>
-                    <div style={{ flex: 1, minWidth: 160 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: STAJ.text }}>{app.stajYeriAdi || "—"}</div>
-                      <div style={{ fontSize: 12, color: STAJ.textMuted }}>{app.stajEtapLabel || (app.stajBaslamaTarihi ? `${app.stajBaslamaTarihi} — ${app.stajBitisTarihi}` : "")}</div>
+                <div key={app.id}
+                  onClick={() => handleEdit(app)}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(8, 145, 178, 0.12)";
+                    e.currentTarget.style.borderColor = `${STAJ.primary}50`;
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
+                    e.currentTarget.style.borderColor = "#E5E7EB";
+                  }}
+                  style={{
+                    background: "white", borderRadius: 14,
+                    padding: responsive.val(14, 16, 18),
+                    border: "1px solid #E5E7EB",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                    cursor: "pointer",
+                    transition: "transform 0.2s, box-shadow 0.2s, border-color 0.2s",
+                  }}
+                >
+                  {/* Üst satır: Avatar + başlık + durum rozeti */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                      background: `linear-gradient(135deg, ${STAJ.primary} 0%, #0E7490 100%)`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: "white", fontSize: 16, fontWeight: 700,
+                      boxShadow: `0 2px 8px ${STAJ.primary}30`,
+                    }}>
+                      {stajInitial}
                     </div>
-                    <span style={{
-                      padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                      color: status.color, background: status.bg,
-                    }}>{status.label}</span>
-                    <StajIcon path="M9 5l7 7-7 7" size={16} color="#9CA3AF" />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: STAJ.navy }}>{stajYeri}</span>
+                        <span style={{
+                          padding: "3px 10px", borderRadius: 999, fontSize: 10, fontWeight: 700,
+                          color: status.color, background: status.bg,
+                          border: `1px solid ${status.color}30`,
+                        }}>
+                          {status.label}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                        {app.stajEtapLabel && (
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 5,
+                            fontSize: 11, color: STAJ.textMuted, fontWeight: 500,
+                            padding: "3px 9px", borderRadius: 6,
+                            background: "#F9FAFB", border: "1px solid #F3F4F6",
+                          }}>
+                            <StajIcon path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={11} color="#9CA3AF" />
+                            {app.stajEtapLabel}
+                          </span>
+                        )}
+                        {(app.stajBaslamaTarihi || app.stajBitisTarihi) && (
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 5,
+                            fontSize: 11, color: STAJ.textMuted, fontWeight: 500,
+                            padding: "3px 9px", borderRadius: 6,
+                            background: "#F9FAFB", border: "1px solid #F3F4F6",
+                          }}>
+                            <StajIcon path="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" size={11} color="#9CA3AF" />
+                            {app.stajBaslamaTarihi || "—"} / {app.stajBitisTarihi || "—"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 4, flexShrink: 0,
+                      fontSize: 11, fontWeight: 600, color: STAJ.primary,
+                      padding: "5px 10px", borderRadius: 8,
+                      background: STAJ.primaryPale,
+                    }}>
+                      Düzenle
+                      <StajIcon path="M9 5l7 7-7 7" size={12} color={STAJ.primary} />
+                    </div>
                   </div>
-                  {/* Mini progress bar - 8 adım bazlı */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#E5E7EB", overflow: "hidden" }}>
-                      <div style={{ width: `${progressPct}%`, height: "100%", borderRadius: 3, background: progressColor, transition: "width 0.4s, background 0.3s" }} />
+
+                  {/* Alt satır: segmentli progress + etiket */}
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: STAJ.textMuted }}>
+                        Staj Süreci
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: progressColor }}>
+                        {progressLabel}
+                      </span>
                     </div>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: progressColor, flexShrink: 0 }}>
-                      {progressLabel}
-                    </span>
+                    {/* Segmentli adım göstergesi (8 parça) */}
+                    <div style={{ display: "flex", gap: 3 }}>
+                      {Array.from({ length: totalSteps }).map((_, i) => {
+                        const stepData = roadmapSteps[i];
+                        const isCompleted = stepData?.status === "completed";
+                        const isPending = stepData?.status === "pending_approval";
+                        const isStepRejected = stepData?.status === "rejected";
+                        const segColor = isRejected ? "#FCA5A5"
+                          : isCompleted ? STAJ.green
+                          : isPending ? "#3B82F6"
+                          : isStepRejected ? STAJ.red
+                          : "#E5E7EB";
+                        return (
+                          <div key={i} style={{
+                            flex: 1, height: 6, borderRadius: 999,
+                            background: segColor,
+                            transition: "background 0.3s",
+                          }} />
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               );
