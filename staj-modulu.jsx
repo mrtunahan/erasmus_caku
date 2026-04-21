@@ -1580,6 +1580,29 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   const INITIAL_DOCUMENT_STEP = 3;
   const FULL_DOCUMENT_ACCESS_STEP = 7;
 
+  // Belge durumunu DB'den yükleyip state'e yaz
+  const loadUploadsFromDB = async () => {
+    if (!studentId || !mountedRef.current) return;
+    try {
+      const uploadResult = await window.apiReadDoc("internship_uploads", studentId);
+      if (!mountedRef.current) return;
+      if (uploadResult.exists) {
+        const data = uploadResult.data || {};
+        setUploads(data);
+        const requests = {};
+        Object.keys(data).forEach(key => {
+          if (data[key]?.changeRequest) requests[key] = data[key].changeRequest;
+        });
+        setChangeRequests(requests);
+      } else {
+        setUploads({});
+        setChangeRequests({});
+      }
+    } catch (e) {
+      console.error("Belgeler yüklenirken hata:", e);
+    }
+  };
+
   // Yüklenen belgeleri, değişiklik taleplerini ve roadmap durumunu yükle
   useEffect(() => {
     const loadData = async () => {
@@ -1602,26 +1625,19 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                       apps.find(a => a.status === "beklemede") ||
                       apps[0];
           setMyApplication(app);
-          // Roadmap verisini yükle
-          const rmResult = await window.apiReadDoc("internship_roadmap", app.id);
-          if (!mountedRef.current) return;
-          if (rmResult.exists) setRoadmapData(rmResult.data);
 
-          // Belgeleri yükle (başvurusu olanlar için)
-          const uploadResult = await window.apiReadDoc("internship_uploads", studentId);
-          if (!mountedRef.current) return;
-          if (uploadResult.exists) {
-            const data = uploadResult.data || {};
-            setUploads(data);
-            const requests = {};
-            Object.keys(data).forEach(key => {
-              if (data[key]?.changeRequest) requests[key] = data[key].changeRequest;
-            });
-            setChangeRequests(requests);
-          }
+          // Roadmap ve belgeler bağımsız olarak yükle; birinin hatası diğerini etkilemesin
+          await Promise.allSettled([
+            // Roadmap verisini yükle
+            window.apiReadDoc("internship_roadmap", app.id).then(rmResult => {
+              if (mountedRef.current && rmResult.exists) setRoadmapData(rmResult.data);
+            }),
+            // Belgeleri yükle (başvurusu olanlar için)
+            loadUploadsFromDB(),
+          ]);
         }
       } catch (e) {
-        console.error("Belgeler yüklenirken hata:", e);
+        console.error("Staj verileri yüklenirken hata:", e);
       } finally {
         if (mountedRef.current) setLoadingApp(false);
       }
@@ -1839,9 +1855,13 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
 
       if (!mountedRef.current) return;
 
+      // Optimistic state güncelle
       setUploads(prev => ({ ...prev, [belgeId]: fileData }));
       setChangeRequests(prev => { const p = { ...prev }; delete p[belgeId]; return p; });
       setMsg("Belge başarıyla yüklendi!");
+
+      // DB'den güncel veriyi çek (tutarlılık için)
+      await loadUploadsFromDB();
       setTimeout(() => { if (mountedRef.current) setMsg(""); }, 3000);
     } catch (e) {
       console.error("Yükleme hatası:", e);
