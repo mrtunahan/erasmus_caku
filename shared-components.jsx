@@ -1677,7 +1677,7 @@ const LoginModal = ({ onLogin }) => {
 
   const loginStyles = `
     @keyframes loginFadeIn {
-      from { opacity: 0; transform: translateY(12px); }
+      from { opacity: 0; transform: translateY(16px); }
       to { opacity: 1; transform: translateY(0); }
     }
     @keyframes loginSpin {
@@ -1688,8 +1688,221 @@ const LoginModal = ({ onLogin }) => {
       20%, 60% { transform: translateX(-5px); }
       40%, 80% { transform: translateX(5px); }
     }
+    @keyframes lgBlobFloat {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(14px, -10px) scale(1.04); }
+    }
+    @keyframes lgBlobFloat2 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(-12px, 14px) scale(0.96); }
+    }
 
-    /* ── Login: Base Input ── */
+    /* ── Outer wrapper ── */
+    .lg-wrap {
+      position: fixed; inset: 0;
+      background-color: #C9D8DC;
+      background-image:
+        radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.7) 0%, transparent 40%),
+        radial-gradient(circle at 90% 95%, rgba(13, 155, 142, 0.18) 0%, transparent 45%),
+        radial-gradient(circle at 50% 50%, rgba(201, 216, 220, 1) 0%, rgba(169, 193, 199, 1) 100%);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+      overflow: auto;
+      z-index: 10000;
+      font-family: 'Inter', 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #0F172A;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Split card ── */
+    .lg-card-split {
+      background: #FFFFFF;
+      width: 100%;
+      max-width: 960px;
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow:
+        0 30px 70px rgba(11, 35, 65, 0.22),
+        0 10px 25px rgba(11, 35, 65, 0.10),
+        0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      animation: loginFadeIn 0.5s ease-out;
+      position: relative;
+      isolation: isolate;
+    }
+
+    /* ── Left panel (brand + illustration + tagline) ── */
+    .lg-left {
+      background: linear-gradient(155deg, #F3F6F4 0%, #E8EEEA 55%, #DDE8E5 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 34px 38px;
+      position: relative;
+      overflow: hidden;
+    }
+    .lg-left-blob1 {
+      position: absolute;
+      top: -80px; right: -60px;
+      width: 260px; height: 260px;
+      background: radial-gradient(circle, rgba(13, 155, 142, 0.22) 0%, rgba(13, 155, 142, 0) 70%);
+      filter: blur(18px);
+      -webkit-filter: blur(18px);
+      animation: lgBlobFloat 12s ease-in-out infinite;
+      pointer-events: none;
+      border-radius: 50%;
+    }
+    .lg-left-blob2 {
+      position: absolute;
+      bottom: -100px; left: -70px;
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, rgba(11, 35, 65, 0.14) 0%, rgba(11, 35, 65, 0) 70%);
+      filter: blur(22px);
+      -webkit-filter: blur(22px);
+      animation: lgBlobFloat2 14s ease-in-out infinite;
+      pointer-events: none;
+      border-radius: 50%;
+    }
+
+    .lg-brand-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+      z-index: 2;
+    }
+    .lg-brand-mark {
+      width: 32px; height: 32px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+      align-content: center;
+      justify-content: center;
+    }
+    .lg-brand-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #0B2341;
+    }
+    .lg-brand-dot-accent { background: #0D9B8E; }
+    .lg-brand-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #0B2341;
+      letter-spacing: -0.01em;
+      line-height: 1;
+    }
+    .lg-brand-sub {
+      font-size: 11px;
+      color: #5B6B75;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      margin-top: 2px;
+      line-height: 1;
+    }
+
+    .lg-illus {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px 0 10px;
+      position: relative;
+      z-index: 2;
+    }
+    .lg-illus-ring {
+      position: relative;
+      width: 260px;
+      height: 260px;
+      max-width: 100%;
+    }
+    .lg-illus-ring::before {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.55);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow:
+        0 20px 40px rgba(11, 35, 65, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+    }
+    .lg-illus-logo {
+      position: relative;
+      z-index: 2;
+      width: 72%; height: 72%;
+      object-fit: contain;
+      margin: 14% 14% 14%;
+      display: block;
+      filter: drop-shadow(0 6px 14px rgba(11, 35, 65, 0.18));
+    }
+    .lg-illus-orbit {
+      position: absolute;
+      inset: -18px;
+      border-radius: 50%;
+      border: 1.5px dashed rgba(13, 155, 142, 0.4);
+      pointer-events: none;
+    }
+    .lg-illus-orbit-dot {
+      position: absolute;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #0D9B8E;
+      box-shadow: 0 4px 10px rgba(13, 155, 142, 0.35);
+    }
+    .lg-illus-orbit-dot.top { top: -6px; left: 50%; transform: translateX(-50%); }
+    .lg-illus-orbit-dot.right { top: 50%; right: -6px; transform: translateY(-50%); background: #C4973B; box-shadow: 0 4px 10px rgba(196, 151, 59, 0.4); }
+    .lg-illus-orbit-dot.bottom { bottom: -6px; left: 30%; background: #0B2341; box-shadow: 0 4px 10px rgba(11, 35, 65, 0.4); }
+
+    .lg-left-tagline {
+      text-align: center;
+      color: #0B2341;
+      font-weight: 500;
+      max-width: 320px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 2;
+    }
+    .lg-left-tagline-main {
+      font-size: 17px;
+      line-height: 1.45;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+    }
+    .lg-left-tagline-sub {
+      font-size: 13px;
+      color: #5B6B75;
+      margin-top: 6px;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+
+    /* ── Right panel (form) ── */
+    .lg-right {
+      background: #FFFFFF;
+      padding: 38px 42px;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      position: relative;
+    }
+    .lg-right-heading {
+      color: #0D9B8E;
+      font-size: 30px;
+      font-weight: 700;
+      margin: 0 0 6px 0;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    .lg-right-sub {
+      color: #64748B;
+      font-size: 13.5px;
+      margin: 0 0 20px 0;
+      font-weight: 500;
+    }
+
+    /* ── Base input (shared by every form variant) ── */
     .lg-input {
       width: 100%;
       padding: 12px 16px;
@@ -1697,7 +1910,7 @@ const LoginModal = ({ onLogin }) => {
       border: 1.5px solid #D5DBE3;
       background: #FFFFFF;
       color: #0F172A;
-      font-size: 15px;
+      font-size: 14.5px;
       line-height: 1.4;
       outline: none;
       font-family: 'Inter', 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -1713,39 +1926,30 @@ const LoginModal = ({ onLogin }) => {
     .lg-input::-ms-input-placeholder { color: #94A3B8; }
     .lg-input:hover { border-color: #B9C2CE; }
     .lg-input:focus {
-      border-color: #0B2341;
-      box-shadow: 0 0 0 3px rgba(11, 35, 65, 0.12);
+      border-color: #0D9B8E;
+      box-shadow: 0 0 0 3px rgba(13, 155, 142, 0.16);
       background: #FFFFFF;
     }
 
-    .lg-input-icon-wrap {
-      position: relative;
-    }
+    .lg-input-icon-wrap { position: relative; }
     .lg-input-icon-left {
       position: absolute;
-      left: 14px;
-      top: 50%;
-      transform: translateY(-50%);
+      left: 14px; top: 50%; transform: translateY(-50%);
       color: #64748B;
       pointer-events: none;
       display: flex;
     }
     .lg-input-eye-btn {
       position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      cursor: pointer;
+      right: 10px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
       color: #64748B;
       padding: 6px;
-      display: flex;
-      align-items: center;
+      display: flex; align-items: center;
       border-radius: 6px;
       transition: color 0.15s ease, background 0.15s ease;
     }
-    .lg-input-eye-btn:hover { color: #0B2341; background: #F1F5F9; }
+    .lg-input-eye-btn:hover { color: #0D9B8E; background: #F1F5F9; }
 
     .lg-label {
       display: block;
@@ -1758,7 +1962,7 @@ const LoginModal = ({ onLogin }) => {
       font-family: 'Inter', sans-serif;
     }
 
-    /* ── Login: Buttons ── */
+    /* ── Buttons ── */
     .lg-btn {
       width: 100%;
       padding: 13px 20px;
@@ -1778,9 +1982,9 @@ const LoginModal = ({ onLogin }) => {
     .lg-btn-primary {
       background: #0B2341;
       color: #FFFFFF;
-      box-shadow: 0 1px 2px rgba(11, 35, 65, 0.15);
+      box-shadow: 0 6px 14px rgba(11, 35, 65, 0.22);
     }
-    .lg-btn-primary:hover:not(:disabled) { background: #102E55; box-shadow: 0 4px 12px rgba(11, 35, 65, 0.25); }
+    .lg-btn-primary:hover:not(:disabled) { background: #102E55; box-shadow: 0 8px 20px rgba(11, 35, 65, 0.32); }
     .lg-btn-primary:active:not(:disabled) { transform: translateY(1px); }
     .lg-btn-primary:disabled { background: #CBD5E1; color: #64748B; cursor: not-allowed; box-shadow: none; }
 
@@ -1791,14 +1995,14 @@ const LoginModal = ({ onLogin }) => {
     }
     .lg-btn-secondary:hover { color: #0B2341; border-color: #0B2341; background: #F8FAFC; }
 
-    /* ── Login: Tabs ── */
+    /* ── Tabs ── */
     .lg-tabs {
       display: flex;
       gap: 4px;
       padding: 4px;
       background: #F1F5F9;
       border-radius: 10px;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
     .lg-tab {
       flex: 1;
@@ -1815,17 +2019,18 @@ const LoginModal = ({ onLogin }) => {
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 36px;
+      min-height: 34px;
+      text-align: center;
     }
-    .lg-tab:hover:not(.lg-tab-active) { color: #0B2341; background: rgba(255,255,255,0.6); }
+    .lg-tab:hover:not(.lg-tab-active) { color: #0D9B8E; background: rgba(255,255,255,0.65); }
     .lg-tab-active {
       background: #FFFFFF;
       color: #0B2341;
       font-weight: 600;
-      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1), 0 1px 2px rgba(15, 23, 42, 0.06);
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10), 0 1px 2px rgba(15, 23, 42, 0.06);
     }
 
-    /* ── Login: Error Box ── */
+    /* ── Error ── */
     .lg-error {
       padding: 12px 14px;
       margin-bottom: 18px;
@@ -1843,7 +2048,6 @@ const LoginModal = ({ onLogin }) => {
     }
     .lg-error svg { flex-shrink: 0; margin-top: 1px; }
 
-    /* ── Login: Info hint ── */
     .lg-hint {
       font-size: 12.5px;
       color: #64748B;
@@ -1851,37 +2055,27 @@ const LoginModal = ({ onLogin }) => {
       line-height: 1.45;
     }
 
-    /* ── Login: Greeting pill ── */
     .lg-greeting {
-      margin-bottom: 20px;
+      margin-bottom: 18px;
       padding: 14px 16px;
       border-radius: 10px;
-      background: #F8FAFC;
-      border: 1px solid #E2E8F0;
+      background: linear-gradient(135deg, #F0FDFA 0%, #F8FAFC 100%);
+      border: 1px solid #CCFBF1;
     }
-    .lg-greeting-label { font-size: 12px; color: #64748B; margin-bottom: 2px; font-weight: 500; }
-    .lg-greeting-name { font-size: 16px; font-weight: 600; color: #0B2341; }
+    .lg-greeting-label { font-size: 12px; color: #0D9B8E; margin-bottom: 2px; font-weight: 600; letter-spacing: 0.02em; }
+    .lg-greeting-name { font-size: 16px; font-weight: 700; color: #0B2341; }
     .lg-greeting-id { font-size: 13px; color: #64748B; margin-top: 2px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em; }
 
-    /* ── Login: Card section divider ── */
-    .lg-setup-hero {
-      text-align: center;
-      margin-bottom: 22px;
-    }
+    .lg-setup-hero { text-align: center; margin-bottom: 22px; }
     .lg-setup-icon {
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
+      width: 56px; height: 56px; border-radius: 50%;
       margin: 0 auto 14px;
-      background: rgba(196, 151, 59, 0.12);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      background: rgba(13, 155, 142, 0.12);
+      display: flex; align-items: center; justify-content: center;
     }
     .lg-setup-title {
       color: #0B2341;
-      font-size: 19px;
-      font-weight: 700;
+      font-size: 20px; font-weight: 700;
       margin: 0;
       letter-spacing: -0.01em;
     }
@@ -1893,33 +2087,24 @@ const LoginModal = ({ onLogin }) => {
     }
     .lg-setup-sub strong { color: #0B2341; font-weight: 600; }
 
-    /* ── Login: Professor picker ── */
+    /* ── Professor picker ── */
     .lg-prof-selected {
       padding: 10px 12px;
       border-radius: 10px;
-      border: 1.5px solid #0B2341;
-      background: #F8FAFC;
+      border: 1.5px solid #0D9B8E;
+      background: #F0FDFA;
       color: #0B2341;
       font-size: 14.5px;
       cursor: pointer;
       font-family: 'Inter', sans-serif;
-      display: flex;
-      align-items: center;
-      gap: 10px;
+      display: flex; align-items: center; gap: 10px;
       font-weight: 500;
     }
     .lg-prof-avatar {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: #0B2341;
-      color: #FFFFFF;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: 700;
-      flex-shrink: 0;
+      width: 32px; height: 32px; border-radius: 8px;
+      background: #0B2341; color: #FFFFFF;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; flex-shrink: 0;
       letter-spacing: 0.02em;
     }
     .lg-prof-clear {
@@ -1938,16 +2123,14 @@ const LoginModal = ({ onLogin }) => {
     .lg-prof-row {
       padding: 10px 12px;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 10px;
+      display: flex; align-items: center; gap: 10px;
       border-bottom: 1px solid #F1F5F9;
       font-size: 13.5px;
       color: #334155;
       transition: background 0.12s;
     }
     .lg-prof-row:last-child { border-bottom: none; }
-    .lg-prof-row:hover { background: #F1F5F9; color: #0B2341; }
+    .lg-prof-row:hover { background: #F0FDFA; color: #0B2341; }
     .lg-prof-row-avatar {
       width: 28px; height: 28px; border-radius: 7px;
       background: #E2E8F0; color: #475569;
@@ -1958,117 +2141,132 @@ const LoginModal = ({ onLogin }) => {
       padding: 16px; text-align: center; color: #94A3B8; font-size: 13px;
     }
 
-    /* ── Login: Admin banner ── */
+    /* ── Admin banner ── */
     .lg-admin-banner {
-      padding: 14px 28px;
+      padding: 10px 14px;
+      margin-bottom: 18px;
       background: linear-gradient(135deg, #0B2341 0%, #102E55 100%);
+      border-radius: 10px;
       color: #FFFFFF;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      font-size: 14px;
-      font-weight: 600;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      font-size: 13px; font-weight: 600;
       letter-spacing: 0.03em;
     }
 
-    /* ── Login: Responsive ── */
+    .lg-footer {
+      text-align: center;
+      margin-top: 18px;
+      font-size: 12px;
+      color: rgba(11, 35, 65, 0.55);
+      letter-spacing: 0.02em;
+      font-weight: 500;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 820px) {
+      .lg-card-split {
+        grid-template-columns: 1fr;
+        max-width: 520px;
+      }
+      .lg-left {
+        padding: 26px 28px 22px;
+      }
+      .lg-illus { padding: 4px 0; }
+      .lg-illus-ring { width: 160px; height: 160px; }
+      .lg-left-tagline-main { font-size: 15px; }
+      .lg-left-tagline-sub { font-size: 12.5px; }
+      .lg-right { padding: 28px; }
+      .lg-right-heading { font-size: 26px; }
+    }
     @media (max-width: 520px) {
-      .lg-card-inner { padding: 22px !important; }
-      .lg-brand-title { font-size: 22px !important; }
-      .lg-tab { font-size: 12.5px !important; padding: 10px 4px !important; }
+      .lg-wrap { padding: 12px; }
+      .lg-right { padding: 22px; }
+      .lg-left { padding: 22px 22px 18px; }
+      .lg-tab { font-size: 12.5px; padding: 10px 4px; }
     }
   `;
 
 
   return (
-    <div style={{
-      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: "#0B2341",
-      backgroundImage: "radial-gradient(circle at 20% 0%, rgba(196, 151, 59, 0.12) 0%, transparent 45%), radial-gradient(circle at 85% 100%, rgba(28, 74, 132, 0.45) 0%, transparent 55%), linear-gradient(160deg, #081A30 0%, #0B2341 45%, #102E55 100%)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 10000, padding: 20, overflow: "auto",
-      fontFamily: "'Inter', 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      color: "#0F172A",
-    }}>
+    <div className="lg-wrap">
       <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
 
-      <div style={{
-        maxWidth: 440, width: "100%", position: "relative", zIndex: 2,
-        animation: "loginFadeIn 0.45s ease-out",
-        margin: "auto 0", boxSizing: "border-box",
-      }}>
-        {/* Brand Header */}
-        <div style={{ textAlign: "center", marginBottom: 22 }}>
-          <div style={{
-            width: 76, height: 76, borderRadius: 18,
-            background: "#FFFFFF",
-            margin: "0 auto 16px",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.08)",
-            padding: 8,
-            boxSizing: "border-box",
-          }}>
-            <img src="logo.png" alt="ÇAKÜ Logo" style={{
-              width: "100%", height: "100%",
-              objectFit: "contain",
-              display: "block",
-            }} />
-          </div>
-          <h1 className="lg-brand-title" style={{
-            margin: 0, fontSize: 26, fontWeight: 700, color: "#FFFFFF",
-            fontFamily: "'Inter', sans-serif", letterSpacing: "-0.01em",
-          }}>Offline Asistan</h1>
-          <p style={{
-            margin: "6px 0 0", fontSize: 13.5,
-            color: "rgba(255,255,255,0.72)",
-            fontWeight: 500, letterSpacing: "0.02em",
-          }}>
-            Çankırı Karatekin Üniversitesi
-          </p>
-        </div>
+      <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div className="lg-card-split">
+          {/* Left panel — brand + illustration + tagline */}
+          <div className="lg-left">
+            <div className="lg-left-blob1" aria-hidden="true" />
+            <div className="lg-left-blob2" aria-hidden="true" />
 
-        {/* Card */}
-        <div style={{
-          background: "#FFFFFF",
-          border: "1px solid #E2E8F0",
-          borderRadius: 14,
-          overflow: "hidden",
-          boxShadow: "0 20px 50px rgba(0, 0, 0, 0.35), 0 4px 10px rgba(0, 0, 0, 0.15)",
-        }}>
-          {/* Gold accent strip */}
-          <div style={{ height: 3, background: "linear-gradient(90deg, #C4973B 0%, #E0B547 50%, #C4973B 100%)" }} />
-
-          {activeTab === "admin" && (
-            <div className="lg-admin-banner">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-              Yönetici Girişi
+            <div className="lg-brand-row">
+              <div className="lg-brand-mark" aria-hidden="true">
+                <span className="lg-brand-dot" />
+                <span className="lg-brand-dot lg-brand-dot-accent" />
+                <span className="lg-brand-dot" />
+                <span className="lg-brand-dot lg-brand-dot-accent" />
+                <span className="lg-brand-dot" />
+                <span className="lg-brand-dot lg-brand-dot-accent" />
+                <span className="lg-brand-dot" />
+                <span className="lg-brand-dot" />
+                <span className="lg-brand-dot lg-brand-dot-accent" />
+              </div>
+              <div>
+                <div className="lg-brand-name">Offline Asistan</div>
+                <div className="lg-brand-sub">ÇAKÜ • Bilgisayar Mühendisliği</div>
+              </div>
             </div>
-          )}
 
-          <div className="lg-card-inner" style={{ padding: 28 }}>
-          {/* Tabs - Admin hariç */}
-          {activeTab !== "admin" && !registerMode && !setupPasswordMode && !(activeTab === "student" && studentStep === "password") && (
-          <div className="lg-tabs">
-            {[
-              { key: "student", label: "Öğrenci" },
-              { key: "professor", label: "Akademisyen" },
-              { key: "bolum_yetkilisi", label: "Bölüm Yetkilisi" },
-            ].map(tab => {
-              const active = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => { setActiveTab(tab.key); setError(""); setIdentifier(""); setPassword(""); setStudentStep("number"); setStudentInfo(null); resetSetupState(); setProfSearch(""); setProfDropdownOpen(false); }}
-                  type="button"
-                  className={`lg-tab${active ? " lg-tab-active" : ""}`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
+            <div className="lg-illus">
+              <div className="lg-illus-ring">
+                <img src="logo.png" alt="Çankırı Karatekin Üniversitesi" className="lg-illus-logo" />
+                <div className="lg-illus-orbit" aria-hidden="true">
+                  <span className="lg-illus-orbit-dot top" />
+                  <span className="lg-illus-orbit-dot right" />
+                  <span className="lg-illus-orbit-dot bottom" />
+                </div>
+              </div>
+            </div>
+
+            <div className="lg-left-tagline">
+              <div className="lg-left-tagline-main">Akademik yaşamı kolaylaştıran dijital asistanınız.</div>
+              <div className="lg-left-tagline-sub">Öğrenciler, akademisyenler ve bölüm yetkilileri için tek noktadan erişim.</div>
+            </div>
           </div>
-          )}
+
+          {/* Right panel — form */}
+          <div className="lg-right">
+            <h2 className="lg-right-heading">Giriş Yap</h2>
+            <p className="lg-right-sub">Devam etmek için hesabınızla oturum açın.</p>
+
+            {activeTab === "admin" && (
+              <div className="lg-admin-banner">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                Yönetici Girişi
+              </div>
+            )}
+
+            {/* Tabs - Admin hariç */}
+            {activeTab !== "admin" && !registerMode && !setupPasswordMode && !(activeTab === "student" && studentStep === "password") && (
+            <div className="lg-tabs">
+              {[
+                { key: "student", label: "Öğrenci" },
+                { key: "professor", label: "Akademisyen" },
+                { key: "bolum_yetkilisi", label: "Bölüm Yetkilisi" },
+              ].map(tab => {
+                const active = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => { setActiveTab(tab.key); setError(""); setIdentifier(""); setPassword(""); setStudentStep("number"); setStudentInfo(null); resetSetupState(); setProfSearch(""); setProfDropdownOpen(false); }}
+                    type="button"
+                    className={`lg-tab${active ? " lg-tab-active" : ""}`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+            )}
 
           {/* Yeni Öğrenci Kayıt Ekranı */}
           {registerMode ? (
@@ -2391,13 +2589,8 @@ const LoginModal = ({ onLogin }) => {
           </div>
         </div>
 
-        {/* Alt bilgi */}
-        <p style={{
-          textAlign: "center", marginTop: 20, fontSize: 12,
-          color: "rgba(255,255,255,0.55)", letterSpacing: "0.03em",
-          fontWeight: 500,
-        }}>
-          © 2025 ÇAKÜ Bilgisayar Mühendisliği
+        <p className="lg-footer">
+          © 2025 ÇAKÜ Bilgisayar Mühendisliği · Offline Asistan
         </p>
       </div>
     </div>
