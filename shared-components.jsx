@@ -1830,8 +1830,8 @@ const LoginModal = ({ onLogin }) => {
     }
     .lg-illus-ring {
       position: relative;
-      width: 195px;
-      height: 195px;
+      width: 140px;
+      height: 140px;
       max-width: 100%;
     }
     .lg-illus-ring::before {
@@ -1924,7 +1924,8 @@ const LoginModal = ({ onLogin }) => {
     /* ── Base input (shared by every form variant) ── */
     .lg-input {
       width: 100%;
-      padding: 12px 16px;
+      padding: 16px 16px;
+      min-height: 54px;
       border-radius: 10px;
       border: 1.5px solid #D5DBE3;
       background: #FFFFFF;
@@ -2191,7 +2192,7 @@ const LoginModal = ({ onLogin }) => {
         padding: 26px 28px 22px;
       }
       .lg-illus { padding: 4px 0; }
-      .lg-illus-ring { width: 160px; height: 160px; }
+      .lg-illus-ring { width: 110px; height: 110px; }
       .lg-left-tagline-main { font-size: 15px; }
       .lg-left-tagline-sub { font-size: 12.5px; }
       .lg-right { padding: 28px; }
