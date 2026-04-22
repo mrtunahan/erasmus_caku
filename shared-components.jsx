@@ -2219,16 +2219,17 @@ const LoginModal = ({ onLogin }) => {
 
             <div className="lg-brand-row">
               <div className="lg-brand-mini-logo" aria-hidden="true">
-                <svg viewBox="0 0 252 108" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style={{position:'absolute',inset:'3px',width:'calc(100% - 6px)',height:'calc(100% - 6px)'}}>
-                  <polyline points="5,105 55,5 105,105" fill="none" stroke="#7BB8D8" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="19,105 69,5 119,105" fill="none" stroke="#7BB8D8" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="33,105 83,5 133,105" fill="none" stroke="#7BB8D8" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="115,105 165,5 215,105" fill="none" stroke="#3A72A5" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="129,105 179,5 229,105" fill="none" stroke="#3A72A5" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="143,105 193,5 243,105" fill="none" stroke="#3A72A5" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="60,105 110,5 160,105" fill="none" stroke="#1B3566" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="74,105 124,5 174,105" fill="none" stroke="#1B3566" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="88,105 138,5 188,105" fill="none" stroke="#1B3566" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
+                <svg viewBox="0 0 260 112" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style={{position:'absolute',inset:'2px',width:'calc(100% - 4px)',height:'calc(100% - 4px)'}}>
+                  <rect x="0" y="0" width="260" height="112" fill="white" rx="4"/>
+                  <polyline points="8,108 58,8 108,108" fill="none" stroke="#6BAED6" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="22,108 72,8 122,108" fill="none" stroke="#6BAED6" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="36,108 86,8 136,108" fill="none" stroke="#6BAED6" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="118,108 168,8 218,108" fill="none" stroke="#3B72A5" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="132,108 182,8 232,108" fill="none" stroke="#3B72A5" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="146,108 196,8 246,108" fill="none" stroke="#3B72A5" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="63,108 113,8 163,108" fill="none" stroke="#1B3566" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="77,108 127,8 177,108" fill="none" stroke="#1B3566" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="91,108 141,8 191,108" fill="none" stroke="#1B3566" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
                 </svg>
                 <div className="lg-brand-mini-ring">
                   <span className="lg-brand-mini-dot d1" />
@@ -2238,25 +2239,29 @@ const LoginModal = ({ onLogin }) => {
               </div>
               <div>
                 <div className="lg-brand-name">Offline Asistan</div>
-                <div className="lg-brand-sub">ÇAKÜ Mühendislik Fakültesi (Bilgisayar Müh.)</div>
+                <div className="lg-brand-sub">ÇAKÜ Mühendislik Fakültesi</div>
               </div>
             </div>
 
             <div className="lg-illus">
               <div className="lg-illus-ring">
-                <svg viewBox="0 0 252 175" xmlns="http://www.w3.org/2000/svg" className="lg-illus-logo" preserveAspectRatio="xMidYMid meet">
-                  <polyline points="5,105 55,5 105,105" fill="none" stroke="#7BB8D8" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="19,105 69,5 119,105" fill="none" stroke="#7BB8D8" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="33,105 83,5 133,105" fill="none" stroke="#7BB8D8" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="115,105 165,5 215,105" fill="none" stroke="#3A72A5" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="129,105 179,5 229,105" fill="none" stroke="#3A72A5" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="143,105 193,5 243,105" fill="none" stroke="#3A72A5" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="60,105 110,5 160,105" fill="none" stroke="#1B3566" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="74,105 124,5 174,105" fill="none" stroke="#1B3566" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="88,105 138,5 188,105" fill="none" stroke="#1B3566" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <text x="126" y="126" textAnchor="middle" fontFamily="Georgia, serif" fontSize="11" letterSpacing="2" fill="#1B3566">2007</text>
-                  <text x="126" y="149" textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontSize="13" fontWeight="800" fill="#1B3566">ÇANKIRI KARATEKİN</text>
-                  <text x="126" y="167" textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontSize="13" fontWeight="800" fill="#1B3566">ÜNİVERSİTESİ</text>
+                <svg viewBox="0 0 260 182" xmlns="http://www.w3.org/2000/svg" className="lg-illus-logo" preserveAspectRatio="xMidYMid meet">
+                  <rect x="0" y="0" width="260" height="182" fill="white" rx="8"/>
+                  {/* Light blue group */}
+                  <polyline points="8,108 58,8 108,108" fill="none" stroke="#6BAED6" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="22,108 72,8 122,108" fill="none" stroke="#6BAED6" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="36,108 86,8 136,108" fill="none" stroke="#6BAED6" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  {/* Medium blue group */}
+                  <polyline points="118,108 168,8 218,108" fill="none" stroke="#3B72A5" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="132,108 182,8 232,108" fill="none" stroke="#3B72A5" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="146,108 196,8 246,108" fill="none" stroke="#3B72A5" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  {/* Dark navy group (on top) */}
+                  <polyline points="63,108 113,8 163,108" fill="none" stroke="#1B3566" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="77,108 127,8 177,108" fill="none" stroke="#1B3566" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <polyline points="91,108 141,8 191,108" fill="none" stroke="#1B3566" strokeWidth="10" strokeLinejoin="miter" strokeLinecap="butt"/>
+                  <text x="130" y="128" textAnchor="middle" fontFamily="Georgia, serif" fontSize="11" letterSpacing="3" fill="#1B3566">2007</text>
+                  <text x="130" y="151" textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontSize="14" fontWeight="800" fill="#1B3566">ÇANKIRI KARATEKİN</text>
+                  <text x="130" y="171" textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontSize="14" fontWeight="800" fill="#1B3566">Üniversitesi</text>
                 </svg>
                 <div className="lg-illus-orbit" aria-hidden="true">
                   <span className="lg-illus-orbit-dot top" />
