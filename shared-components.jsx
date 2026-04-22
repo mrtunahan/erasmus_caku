@@ -1696,6 +1696,10 @@ const LoginModal = ({ onLogin }) => {
       0%, 100% { transform: translate(0, 0) scale(1); }
       50% { transform: translate(-12px, 14px) scale(0.96); }
     }
+    @keyframes lg-orbit-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
 
     /* ── Outer wrapper ── */
     .lg-wrap {
@@ -1772,20 +1776,33 @@ const LoginModal = ({ onLogin }) => {
       position: relative;
       z-index: 2;
     }
-    .lg-brand-mark {
-      width: 32px; height: 32px;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 3px;
-      align-content: center;
-      justify-content: center;
+    .lg-brand-mini-logo {
+      width: 36px; height: 36px;
+      position: relative;
+      flex-shrink: 0;
     }
-    .lg-brand-dot {
-      width: 6px; height: 6px;
+    .lg-brand-mini-img {
+      position: absolute;
+      inset: 4px;
       border-radius: 50%;
-      background: #0B2341;
+      object-fit: contain;
+      background: rgba(255,255,255,0.75);
+      padding: 2px;
     }
-    .lg-brand-dot-accent { background: #0D9B8E; }
+    .lg-brand-mini-ring {
+      position: absolute;
+      inset: 0;
+      animation: lg-orbit-spin 6s linear infinite;
+      transform-origin: center center;
+    }
+    .lg-brand-mini-dot {
+      position: absolute;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+    .lg-brand-mini-dot.d1 { top: -4px; left: calc(50% - 4px); background: #22c55e; box-shadow: 0 2px 6px rgba(34,197,94,0.6); }
+    .lg-brand-mini-dot.d2 { top: calc(50% - 4px); right: -4px; background: #eab308; box-shadow: 0 2px 6px rgba(234,179,8,0.6); }
+    .lg-brand-mini-dot.d3 { bottom: -4px; left: calc(50% - 4px); background: #111827; box-shadow: 0 2px 6px rgba(0,0,0,0.45); }
     .lg-brand-name {
       font-size: 18px;
       font-weight: 700;
@@ -1842,18 +1859,20 @@ const LoginModal = ({ onLogin }) => {
       position: absolute;
       inset: -18px;
       border-radius: 50%;
-      border: 1.5px dashed rgba(13, 155, 142, 0.4);
+      border: 1.5px dashed rgba(34, 197, 94, 0.35);
       pointer-events: none;
+      animation: lg-orbit-spin 9s linear infinite;
+      transform-origin: center center;
     }
     .lg-illus-orbit-dot {
       position: absolute;
-      width: 12px; height: 12px; border-radius: 50%;
-      background: #0D9B8E;
-      box-shadow: 0 4px 10px rgba(13, 155, 142, 0.35);
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.5);
     }
-    .lg-illus-orbit-dot.top { top: -6px; left: 50%; transform: translateX(-50%); }
-    .lg-illus-orbit-dot.right { top: 50%; right: -6px; transform: translateY(-50%); background: #C4973B; box-shadow: 0 4px 10px rgba(196, 151, 59, 0.4); }
-    .lg-illus-orbit-dot.bottom { bottom: -6px; left: 30%; background: #0B2341; box-shadow: 0 4px 10px rgba(11, 35, 65, 0.4); }
+    .lg-illus-orbit-dot.top { top: -7px; left: 50%; transform: translateX(-50%); }
+    .lg-illus-orbit-dot.right { top: 50%; right: -7px; transform: translateY(-50%); background: #eab308; box-shadow: 0 4px 12px rgba(234, 179, 8, 0.55); }
+    .lg-illus-orbit-dot.bottom { bottom: -7px; left: 50%; transform: translateX(-50%); background: #111827; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45); }
 
     .lg-left-tagline {
       text-align: center;
@@ -2199,16 +2218,13 @@ const LoginModal = ({ onLogin }) => {
             <div className="lg-left-blob2" aria-hidden="true" />
 
             <div className="lg-brand-row">
-              <div className="lg-brand-mark" aria-hidden="true">
-                <span className="lg-brand-dot" />
-                <span className="lg-brand-dot lg-brand-dot-accent" />
-                <span className="lg-brand-dot" />
-                <span className="lg-brand-dot lg-brand-dot-accent" />
-                <span className="lg-brand-dot" />
-                <span className="lg-brand-dot lg-brand-dot-accent" />
-                <span className="lg-brand-dot" />
-                <span className="lg-brand-dot" />
-                <span className="lg-brand-dot lg-brand-dot-accent" />
+              <div className="lg-brand-mini-logo" aria-hidden="true">
+                <img src="logo.png" alt="" className="lg-brand-mini-img" />
+                <div className="lg-brand-mini-ring">
+                  <span className="lg-brand-mini-dot d1" />
+                  <span className="lg-brand-mini-dot d2" />
+                  <span className="lg-brand-mini-dot d3" />
+                </div>
               </div>
               <div>
                 <div className="lg-brand-name">Offline Asistan</div>
