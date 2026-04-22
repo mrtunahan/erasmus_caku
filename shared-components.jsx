@@ -2219,17 +2219,7 @@ const LoginModal = ({ onLogin }) => {
 
             <div className="lg-brand-row">
               <div className="lg-brand-mini-logo" aria-hidden="true">
-                <svg viewBox="0 0 252 108" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style={{position:'absolute',inset:'3px',width:'calc(100% - 6px)',height:'calc(100% - 6px)'}}>
-                  <polyline points="5,105 55,5 105,105" fill="none" stroke="#7BB8D8" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="19,105 69,5 119,105" fill="none" stroke="#7BB8D8" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="33,105 83,5 133,105" fill="none" stroke="#7BB8D8" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="115,105 165,5 215,105" fill="none" stroke="#3A72A5" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="129,105 179,5 229,105" fill="none" stroke="#3A72A5" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="143,105 193,5 243,105" fill="none" stroke="#3A72A5" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="60,105 110,5 160,105" fill="none" stroke="#1B3566" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="74,105 124,5 174,105" fill="none" stroke="#1B3566" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="88,105 138,5 188,105" fill="none" stroke="#1B3566" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                </svg>
+                <img src="logo.png" alt="Logo" className="lg-brand-mini-img" />
                 <div className="lg-brand-mini-ring">
                   <span className="lg-brand-mini-dot d1" />
                   <span className="lg-brand-mini-dot d2" />
@@ -2244,20 +2234,7 @@ const LoginModal = ({ onLogin }) => {
 
             <div className="lg-illus">
               <div className="lg-illus-ring">
-                <svg viewBox="0 0 252 175" xmlns="http://www.w3.org/2000/svg" className="lg-illus-logo" preserveAspectRatio="xMidYMid meet">
-                  <polyline points="5,105 55,5 105,105" fill="none" stroke="#7BB8D8" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="19,105 69,5 119,105" fill="none" stroke="#7BB8D8" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="33,105 83,5 133,105" fill="none" stroke="#7BB8D8" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="115,105 165,5 215,105" fill="none" stroke="#3A72A5" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="129,105 179,5 229,105" fill="none" stroke="#3A72A5" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="143,105 193,5 243,105" fill="none" stroke="#3A72A5" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="60,105 110,5 160,105" fill="none" stroke="#1B3566" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="74,105 124,5 174,105" fill="none" stroke="#1B3566" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <polyline points="88,105 138,5 188,105" fill="none" stroke="#1B3566" strokeWidth="9" strokeLinejoin="miter" strokeLinecap="butt"/>
-                  <text x="126" y="126" textAnchor="middle" fontFamily="Georgia, serif" fontSize="11" letterSpacing="2" fill="#1B3566">2007</text>
-                  <text x="126" y="149" textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontSize="13" fontWeight="800" fill="#1B3566">ÇANKIRI KARATEKİN</text>
-                  <text x="126" y="167" textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontSize="13" fontWeight="800" fill="#1B3566">ÜNİVERSİTESİ</text>
-                </svg>
+                <img src="logo.png" alt="Logo" className="lg-illus-logo" />
                 <div className="lg-illus-orbit" aria-hidden="true">
                   <span className="lg-illus-orbit-dot top" />
                   <span className="lg-illus-orbit-dot right" />
