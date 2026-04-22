@@ -1828,16 +1828,17 @@ const LoginModal = ({ onLogin }) => {
       position: relative;
       z-index: 2;
     }
-    .lg-illus-ring {
+    .lg-illus-orbit-wrap {
       position: relative;
-      width: 140px;
-      height: 140px;
-      max-width: 100%;
+      width: 176px;
+      height: 176px;
+      flex-shrink: 0;
     }
-    .lg-illus-ring::before {
-      content: '';
-      position: absolute; inset: 0;
+    .lg-illus-ring {
+      position: absolute;
+      inset: 18px;
       border-radius: 50%;
+      overflow: hidden;
       background: rgba(255, 255, 255, 0.55);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
@@ -1847,17 +1848,18 @@ const LoginModal = ({ onLogin }) => {
       border: 1px solid rgba(255, 255, 255, 0.8);
     }
     .lg-illus-logo {
-      position: relative;
-      z-index: 2;
-      width: 72%; height: 72%;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
       object-fit: contain;
-      margin: 14% 14% 14%;
+      padding: 14px;
+      box-sizing: border-box;
       display: block;
-      filter: drop-shadow(0 6px 14px rgba(11, 35, 65, 0.18));
     }
     .lg-illus-orbit {
       position: absolute;
-      inset: -18px;
+      inset: 0;
       border-radius: 50%;
       border: 1.5px dashed rgba(34, 197, 94, 0.35);
       pointer-events: none;
@@ -2192,7 +2194,8 @@ const LoginModal = ({ onLogin }) => {
         padding: 26px 28px 22px;
       }
       .lg-illus { padding: 4px 0; }
-      .lg-illus-ring { width: 110px; height: 110px; }
+      .lg-illus-orbit-wrap { width: 146px; height: 146px; }
+      .lg-illus-ring { inset: 18px; }
       .lg-left-tagline-main { font-size: 15px; }
       .lg-left-tagline-sub { font-size: 12.5px; }
       .lg-right { padding: 28px; }
@@ -2234,8 +2237,10 @@ const LoginModal = ({ onLogin }) => {
             </div>
 
             <div className="lg-illus">
-              <div className="lg-illus-ring">
-                <img src="logo.png" alt="Logo" className="lg-illus-logo" />
+              <div className="lg-illus-orbit-wrap">
+                <div className="lg-illus-ring">
+                  <img src="logo.png" alt="Logo" className="lg-illus-logo" />
+                </div>
                 <div className="lg-illus-orbit" aria-hidden="true">
                   <span className="lg-illus-orbit-dot top" />
                   <span className="lg-illus-orbit-dot right" />
