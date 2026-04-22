@@ -2228,7 +2228,7 @@ const LoginModal = ({ onLogin }) => {
               </div>
               <div>
                 <div className="lg-brand-name">Offline Asistan</div>
-                <div className="lg-brand-sub">ÇAKÜ Mühendislik Fakültesi (Bilgisayar Müh.)</div>
+                <div className="lg-brand-sub">ÇAKÜ Mühendislik Fakültesi</div>
               </div>
             </div>
 
