@@ -2183,7 +2183,6 @@ const LoginModal = ({ onLogin }) => {
 
             <div className="lg-brand-row">
               <div className="lg-brand-mini-logo" aria-hidden="true">
-                <img src="logo.png" alt="Logo" className="lg-brand-mini-img" />
                 <div className="lg-brand-mini-ring">
                   <span className="lg-brand-mini-dot d1" />
                   <span className="lg-brand-mini-dot d2" />
