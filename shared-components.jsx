@@ -1828,56 +1828,14 @@ const LoginModal = ({ onLogin }) => {
       position: relative;
       z-index: 2;
     }
-    .lg-illus-orbit-wrap {
-      position: relative;
-      width: 176px;
-      height: 176px;
-      flex-shrink: 0;
-    }
-    .lg-illus-ring {
-      position: absolute;
-      top: 18px;
-      left: 18px;
-      width: 140px;
-      height: 140px;
-      border-radius: 50%;
-      clip-path: circle(70px at center);
-      background: rgba(255, 255, 255, 0.72);
-      box-shadow:
-        0 20px 40px rgba(11, 35, 65, 0.15),
-        inset 0 1px 0 rgba(255, 255, 255, 0.9);
-      border: 1px solid rgba(255, 255, 255, 0.8);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
     .lg-illus-logo {
       display: block;
-      max-width: 80%;
-      max-height: 80%;
-      width: auto;
+      width: 180px;
       height: auto;
+      max-width: 100%;
       object-fit: contain;
       flex-shrink: 0;
     }
-    .lg-illus-orbit {
-      position: absolute;
-      inset: 0;
-      border-radius: 50%;
-      border: 1.5px dashed rgba(34, 197, 94, 0.35);
-      pointer-events: none;
-      animation: lg-orbit-spin 9s linear infinite;
-      transform-origin: center center;
-    }
-    .lg-illus-orbit-dot {
-      position: absolute;
-      width: 14px; height: 14px; border-radius: 50%;
-      background: #22c55e;
-      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.5);
-    }
-    .lg-illus-orbit-dot.top { top: -7px; left: 50%; transform: translateX(-50%); }
-    .lg-illus-orbit-dot.right { top: 50%; right: -7px; transform: translateY(-50%); background: #eab308; box-shadow: 0 4px 12px rgba(234, 179, 8, 0.55); }
-    .lg-illus-orbit-dot.bottom { bottom: -7px; left: 50%; transform: translateX(-50%); background: #111827; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45); }
 
     .lg-left-tagline {
       text-align: center;
@@ -2197,8 +2155,7 @@ const LoginModal = ({ onLogin }) => {
         padding: 26px 28px 22px;
       }
       .lg-illus { padding: 4px 0; }
-      .lg-illus-orbit-wrap { width: 146px; height: 146px; }
-      .lg-illus-ring { top: 18px; left: 18px; width: 110px; height: 110px; clip-path: circle(55px at center); }
+      .lg-illus-logo { width: 140px; }
       .lg-left-tagline-main { font-size: 15px; }
       .lg-left-tagline-sub { font-size: 12.5px; }
       .lg-right { padding: 28px; }
@@ -2240,16 +2197,7 @@ const LoginModal = ({ onLogin }) => {
             </div>
 
             <div className="lg-illus">
-              <div className="lg-illus-orbit-wrap">
-                <div className="lg-illus-ring">
-                  <img src="logo.png" alt="Logo" className="lg-illus-logo" />
-                </div>
-                <div className="lg-illus-orbit" aria-hidden="true">
-                  <span className="lg-illus-orbit-dot top" />
-                  <span className="lg-illus-orbit-dot right" />
-                  <span className="lg-illus-orbit-dot bottom" />
-                </div>
-              </div>
+              <img src="logo.png" alt="ÇAKÜ Logo" className="lg-illus-logo" />
             </div>
 
             <div className="lg-left-tagline">
