@@ -1836,33 +1836,27 @@ const LoginModal = ({ onLogin }) => {
     }
     .lg-illus-ring {
       position: absolute;
-      inset: 18px;
+      top: 18px;
+      left: 18px;
+      width: 140px;
+      height: 140px;
       border-radius: 50%;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .lg-illus-ring::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.55);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      clip-path: circle(70px at center);
+      background: rgba(255, 255, 255, 0.72);
       box-shadow:
         0 20px 40px rgba(11, 35, 65, 0.15),
         inset 0 1px 0 rgba(255, 255, 255, 0.9);
       border: 1px solid rgba(255, 255, 255, 0.8);
-      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .lg-illus-logo {
-      position: relative;
-      z-index: 1;
       display: block;
-      width: calc(100% - 28px);
-      height: calc(100% - 28px);
+      max-width: 80%;
+      max-height: 80%;
+      width: auto;
+      height: auto;
       object-fit: contain;
       flex-shrink: 0;
     }
@@ -2204,7 +2198,7 @@ const LoginModal = ({ onLogin }) => {
       }
       .lg-illus { padding: 4px 0; }
       .lg-illus-orbit-wrap { width: 146px; height: 146px; }
-      .lg-illus-ring { inset: 18px; }
+      .lg-illus-ring { top: 18px; left: 18px; width: 110px; height: 110px; clip-path: circle(55px at center); }
       .lg-left-tagline-main { font-size: 15px; }
       .lg-left-tagline-sub { font-size: 12.5px; }
       .lg-right { padding: 28px; }
