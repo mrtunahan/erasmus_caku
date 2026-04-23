@@ -1704,11 +1704,11 @@ const LoginModal = ({ onLogin }) => {
     /* ── Outer wrapper ── */
     .lg-wrap {
       position: fixed; inset: 0;
-      background-color: #C9D8DC;
+      background-color: #071220;
       background-image:
-        radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.7) 0%, transparent 40%),
-        radial-gradient(circle at 90% 95%, rgba(13, 155, 142, 0.18) 0%, transparent 45%),
-        radial-gradient(circle at 50% 50%, rgba(201, 216, 220, 1) 0%, rgba(169, 193, 199, 1) 100%);
+        radial-gradient(circle at 30% 25%, rgba(0, 90, 100, 0.28) 0%, transparent 50%),
+        radial-gradient(circle at 70% 75%, rgba(0, 60, 80, 0.22) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 105%, rgba(0, 180, 160, 0.10) 0%, transparent 55%);
       display: flex; align-items: center; justify-content: center;
       padding: 24px;
       overflow: auto;
@@ -1726,9 +1726,10 @@ const LoginModal = ({ onLogin }) => {
       border-radius: 22px;
       overflow: hidden;
       box-shadow:
-        0 30px 70px rgba(11, 35, 65, 0.22),
-        0 10px 25px rgba(11, 35, 65, 0.10),
-        0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+        0 40px 90px rgba(0, 0, 0, 0.65),
+        0 15px 35px rgba(0, 0, 0, 0.40),
+        0 0 0 1px rgba(255, 255, 255, 0.10) inset,
+        0 0 40px rgba(0, 200, 180, 0.12);
       display: grid;
       grid-template-columns: 1.05fr 1fr;
       animation: loginFadeIn 0.5s ease-out;
@@ -2204,12 +2205,233 @@ const LoginModal = ({ onLogin }) => {
       .lg-left { padding: 22px 22px 18px; }
       .lg-tab { font-size: 12.5px; padding: 10px 4px; }
     }
+
+    /* ── Circuit Tree Background ── */
+    @keyframes lgCircuitPulse {
+      0%, 100% { opacity: 0.75; }
+      50% { opacity: 1; }
+    }
+    .lg-circuit-bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      animation: lgCircuitPulse 5s ease-in-out infinite;
+    }
+    .lg-ct-trunk { fill:none; stroke:rgba(0,220,195,0.32); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
+    .lg-ct-l1    { fill:none; stroke:rgba(0,210,185,0.26); stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; }
+    .lg-ct-l2    { fill:none; stroke:rgba(0,200,175,0.20); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+    .lg-ct-l3    { fill:none; stroke:rgba(0,190,165,0.16); stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+    .lg-ct-pad   { fill:rgba(0,220,195,0.55); }
+    .lg-ct-chip  { fill:rgba(0,180,160,0.18); stroke:rgba(0,220,195,0.40); stroke-width:1; }
+    .lg-ct-led   { fill:rgba(0,230,205,0.85); }
+    .lg-ct-e     { fill:#00E5CC; }
+    .lg-ct-e2    { fill:#7FFFEF; }
   `;
 
 
   return (
     <div className="lg-wrap">
       <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
+
+      {/* ── Circuit Tree Background SVG ── */}
+      <svg className="lg-circuit-bg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <filter id="lgGlow" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="3.5" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="lgGlowS" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="7" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        {/* ── TRUNK ── */}
+        <path className="lg-ct-trunk" d="M720,920 L720,580"/>
+
+        {/* ── ROOTS (below trunk, going into ground) ── */}
+        <path className="lg-ct-l3" d="M720,760 L580,760 L580,880"/>
+        <path className="lg-ct-l3" d="M720,760 L860,760 L860,880"/>
+        <path className="lg-ct-l3" d="M580,830 L480,830 L480,920"/>
+        <path className="lg-ct-l3" d="M860,830 L960,830 L960,920"/>
+        <path className="lg-ct-l3" d="M480,920 L380,920"/>
+        <path className="lg-ct-l3" d="M960,920 L1060,920"/>
+
+        {/* ── LEVEL 1: horizontal bar + vertical legs ── */}
+        <path className="lg-ct-l1" d="M460,520 L980,520"/>
+        <path className="lg-ct-l1" d="M460,520 L460,380"/>
+        <path className="lg-ct-l1" d="M980,520 L980,380"/>
+        <path className="lg-ct-l1" d="M720,520 L720,340"/>
+
+        {/* ── LEVEL 2: from left leg (460,380) ── */}
+        <path className="lg-ct-l2" d="M460,380 L460,300"/>
+        <path className="lg-ct-l2" d="M460,300 L260,300 L260,140"/>
+        <path className="lg-ct-l2" d="M460,300 L620,300 L620,140"/>
+
+        {/* ── LEVEL 2: from right leg (980,380) ── */}
+        <path className="lg-ct-l2" d="M980,380 L980,300"/>
+        <path className="lg-ct-l2" d="M980,300 L820,300 L820,140"/>
+        <path className="lg-ct-l2" d="M980,300 L1140,300 L1140,140"/>
+
+        {/* ── LEVEL 2: from center (720,340) ── */}
+        <path className="lg-ct-l2" d="M720,340 L720,240"/>
+        <path className="lg-ct-l2" d="M720,240 L640,240 L640,80"/>
+        <path className="lg-ct-l2" d="M720,240 L800,240 L800,80"/>
+
+        {/* ── LEVEL 3: from far-left (260,140) ── */}
+        <path className="lg-ct-l3" d="M260,140 L260,60"/>
+        <path className="lg-ct-l3" d="M260,60 L180,60 L180,20"/>
+        <path className="lg-ct-l3" d="M260,60 L340,60 L340,20"/>
+
+        {/* ── LEVEL 3: from left-center (620,140) ── */}
+        <path className="lg-ct-l3" d="M620,140 L620,60"/>
+        <path className="lg-ct-l3" d="M620,60 L556,60 L556,20"/>
+        <path className="lg-ct-l3" d="M620,60 L684,60 L684,20"/>
+
+        {/* ── LEVEL 3: from right-center (820,140) ── */}
+        <path className="lg-ct-l3" d="M820,140 L820,60"/>
+        <path className="lg-ct-l3" d="M820,60 L756,60 L756,20"/>
+        <path className="lg-ct-l3" d="M820,60 L884,60 L884,20"/>
+
+        {/* ── LEVEL 3: from far-right (1140,140) ── */}
+        <path className="lg-ct-l3" d="M1140,140 L1140,60"/>
+        <path className="lg-ct-l3" d="M1140,60 L1060,60 L1060,20"/>
+        <path className="lg-ct-l3" d="M1140,60 L1210,60 L1210,20"/>
+
+        {/* ── LEVEL 3: center twin tips ── */}
+        <path className="lg-ct-l3" d="M640,80 L640,20"/>
+        <path className="lg-ct-l3" d="M800,80 L800,20"/>
+
+        {/* ── DECORATIVE CHIP SYMBOLS (small IC pads on traces) ── */}
+        <rect className="lg-ct-chip" x="590" y="514" width="24" height="12" rx="2"/>
+        <rect className="lg-ct-chip" x="826" y="514" width="24" height="12" rx="2"/>
+        <rect className="lg-ct-chip" x="714" y="415" width="12" height="22" rx="2"/>
+        <rect className="lg-ct-chip" x="350" y="294" width="22" height="12" rx="2"/>
+        <rect className="lg-ct-chip" x="538" y="294" width="22" height="12" rx="2"/>
+        <rect className="lg-ct-chip" x="870" y="294" width="22" height="12" rx="2"/>
+        <rect className="lg-ct-chip" x="1038" y="294" width="22" height="12" rx="2"/>
+        <rect className="lg-ct-chip" x="634" y="156" width="12" height="22" rx="2"/>
+        <rect className="lg-ct-chip" x="794" y="156" width="12" height="22" rx="2"/>
+
+        {/* ── JUNCTION PADS ── */}
+        <circle className="lg-ct-pad" cx="720" cy="580" r="5"/>
+        <circle className="lg-ct-pad" cx="720" cy="520" r="5"/>
+        <circle className="lg-ct-pad" cx="460" cy="520" r="4"/>
+        <circle className="lg-ct-pad" cx="980" cy="520" r="4"/>
+        <circle className="lg-ct-pad" cx="460" cy="380" r="4"/>
+        <circle className="lg-ct-pad" cx="980" cy="380" r="4"/>
+        <circle className="lg-ct-pad" cx="720" cy="340" r="4"/>
+        <circle className="lg-ct-pad" cx="460" cy="300" r="4"/>
+        <circle className="lg-ct-pad" cx="260" cy="300" r="3.5"/>
+        <circle className="lg-ct-pad" cx="620" cy="300" r="3.5"/>
+        <circle className="lg-ct-pad" cx="980" cy="300" r="4"/>
+        <circle className="lg-ct-pad" cx="820" cy="300" r="3.5"/>
+        <circle className="lg-ct-pad" cx="1140" cy="300" r="3.5"/>
+        <circle className="lg-ct-pad" cx="720" cy="240" r="4"/>
+        <circle className="lg-ct-pad" cx="640" cy="240" r="3"/>
+        <circle className="lg-ct-pad" cx="800" cy="240" r="3"/>
+        <circle className="lg-ct-pad" cx="260" cy="140" r="3"/>
+        <circle className="lg-ct-pad" cx="620" cy="140" r="3"/>
+        <circle className="lg-ct-pad" cx="820" cy="140" r="3"/>
+        <circle className="lg-ct-pad" cx="1140" cy="140" r="3"/>
+        <circle className="lg-ct-pad" cx="640" cy="80" r="3"/>
+        <circle className="lg-ct-pad" cx="800" cy="80" r="3"/>
+        <circle className="lg-ct-pad" cx="260" cy="60" r="2.5"/>
+        <circle className="lg-ct-pad" cx="620" cy="60" r="2.5"/>
+        <circle className="lg-ct-pad" cx="820" cy="60" r="2.5"/>
+        <circle className="lg-ct-pad" cx="1140" cy="60" r="2.5"/>
+        <circle className="lg-ct-pad" cx="720" cy="760" r="3.5"/>
+        <circle className="lg-ct-pad" cx="580" cy="760" r="3"/>
+        <circle className="lg-ct-pad" cx="860" cy="760" r="3"/>
+        <circle className="lg-ct-pad" cx="580" cy="830" r="3"/>
+        <circle className="lg-ct-pad" cx="860" cy="830" r="3"/>
+
+        {/* ── GLOWING LED TIPS (branch endpoints) ── */}
+        <circle className="lg-ct-led" cx="180" cy="20" r="3.5" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="340" cy="20" r="3.5" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="556" cy="20" r="3.5" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="684" cy="20" r="3.5" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="640" cy="20" r="3.5" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="756" cy="20" r="3.5" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="884" cy="20" r="3.5" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="800" cy="20" r="3.5" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="1060" cy="20" r="3.5" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="1210" cy="20" r="3.5" filter="url(#lgGlowS)"/>
+
+        {/* ══ ELECTRON ANIMATIONS ══ */}
+        {/* Route 1 — far left tip (stagger ×2) */}
+        <circle className="lg-ct-e" r="4.5" filter="url(#lgGlow)">
+          <animateMotion dur="5.2s" repeatCount="indefinite" begin="0s"
+            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,60 L180,60 L180,20"/>
+        </circle>
+        <circle className="lg-ct-e2" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="5.2s" repeatCount="indefinite" begin="2.6s"
+            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,60 L180,60 L180,20"/>
+        </circle>
+
+        {/* Route 2 — left-center tip */}
+        <circle className="lg-ct-e" r="4.5" filter="url(#lgGlow)">
+          <animateMotion dur="4.8s" repeatCount="indefinite" begin="0.7s"
+            path="M720,920 L720,520 L460,520 L460,300 L620,300 L620,60 L684,60 L684,20"/>
+        </circle>
+        <circle className="lg-ct-e2" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="4.8s" repeatCount="indefinite" begin="3.1s"
+            path="M720,920 L720,520 L460,520 L460,300 L620,300 L620,60 L556,60 L556,20"/>
+        </circle>
+
+        {/* Route 3 — center-left top */}
+        <circle className="lg-ct-e" r="4.5" filter="url(#lgGlow)">
+          <animateMotion dur="4.2s" repeatCount="indefinite" begin="0.3s"
+            path="M720,920 L720,340 L640,240 L640,20"/>
+        </circle>
+        <circle className="lg-ct-e2" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="4.2s" repeatCount="indefinite" begin="2.4s"
+            path="M720,920 L720,340 L640,240 L640,80 L640,20"/>
+        </circle>
+
+        {/* Route 4 — center-right top */}
+        <circle className="lg-ct-e" r="4.5" filter="url(#lgGlow)">
+          <animateMotion dur="4.2s" repeatCount="indefinite" begin="1.4s"
+            path="M720,920 L720,340 L800,240 L800,20"/>
+        </circle>
+        <circle className="lg-ct-e2" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="4.2s" repeatCount="indefinite" begin="3.5s"
+            path="M720,920 L720,340 L800,240 L800,80 L800,20"/>
+        </circle>
+
+        {/* Route 5 — right-center tip */}
+        <circle className="lg-ct-e" r="4.5" filter="url(#lgGlow)">
+          <animateMotion dur="4.8s" repeatCount="indefinite" begin="1.8s"
+            path="M720,920 L720,520 L980,520 L980,300 L820,300 L820,60 L884,60 L884,20"/>
+        </circle>
+        <circle className="lg-ct-e2" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="4.8s" repeatCount="indefinite" begin="3.9s"
+            path="M720,920 L720,520 L980,520 L980,300 L820,300 L820,60 L756,60 L756,20"/>
+        </circle>
+
+        {/* Route 6 — far right tip */}
+        <circle className="lg-ct-e" r="4.5" filter="url(#lgGlow)">
+          <animateMotion dur="5.2s" repeatCount="indefinite" begin="2.5s"
+            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,60 L1210,60 L1210,20"/>
+        </circle>
+        <circle className="lg-ct-e2" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="5.2s" repeatCount="indefinite" begin="4.8s"
+            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,60 L1060,60 L1060,20"/>
+        </circle>
+
+        {/* Route 7 — root traces (ground spread) */}
+        <circle className="lg-ct-e2" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="3.5s" repeatCount="indefinite" begin="1s"
+            path="M720,920 L720,760 L580,760 L580,830 L480,830 L480,920 L380,920"/>
+        </circle>
+        <circle className="lg-ct-e2" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="3.5s" repeatCount="indefinite" begin="2.8s"
+            path="M720,920 L720,760 L860,760 L860,830 L960,830 L960,920 L1060,920"/>
+        </circle>
+      </svg>
 
       <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
         <div className="lg-card-split">
