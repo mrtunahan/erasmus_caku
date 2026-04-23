@@ -1828,14 +1828,50 @@ const LoginModal = ({ onLogin }) => {
       position: relative;
       z-index: 2;
     }
-    .lg-illus-logo {
-      display: block;
-      width: 180px;
-      height: auto;
-      max-width: 100%;
-      object-fit: contain;
+    .lg-illus-wrap {
+      position: relative;
+      width: 200px;
+      height: 200px;
       flex-shrink: 0;
     }
+    .lg-illus-circle {
+      position: absolute;
+      inset: 18px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 40%, #ffffff 0%, #f4efe2 100%);
+      box-shadow: 0 12px 28px rgba(11,35,65,0.12), inset 0 0 0 1px rgba(11,35,65,0.06);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .lg-illus-logo {
+      display: block;
+      width: 78%;
+      height: 78%;
+      object-fit: contain;
+      mix-blend-mode: multiply;
+      filter: contrast(1.02);
+    }
+    .lg-illus-orbit {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1.5px dashed rgba(11,35,65,0.18);
+      animation: lg-orbit-spin 14s linear infinite;
+      transform-origin: center center;
+      pointer-events: none;
+    }
+    .lg-illus-orbit-dot {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .lg-illus-orbit-dot.d1 { top: -6px; left: calc(50% - 6px); background: #22c55e; box-shadow: 0 2px 8px rgba(34,197,94,0.55); }
+    .lg-illus-orbit-dot.d2 { top: calc(50% - 6px); right: -6px; background: #eab308; box-shadow: 0 2px 8px rgba(234,179,8,0.55); }
+    .lg-illus-orbit-dot.d3 { bottom: -6px; left: calc(50% - 6px); background: #1B2A4A; box-shadow: 0 2px 8px rgba(27,42,74,0.55); }
+    .lg-illus-orbit-dot.d4 { top: calc(50% - 6px); left: -6px; background: #C4973B; box-shadow: 0 2px 8px rgba(196,151,59,0.55); }
 
     .lg-left-tagline {
       text-align: center;
@@ -2155,7 +2191,8 @@ const LoginModal = ({ onLogin }) => {
         padding: 26px 28px 22px;
       }
       .lg-illus { padding: 4px 0; }
-      .lg-illus-logo { width: 140px; }
+      .lg-illus-wrap { width: 160px; height: 160px; }
+      .lg-illus-circle { inset: 14px; }
       .lg-left-tagline-main { font-size: 15px; }
       .lg-left-tagline-sub { font-size: 12.5px; }
       .lg-right { padding: 28px; }
@@ -2196,7 +2233,17 @@ const LoginModal = ({ onLogin }) => {
             </div>
 
             <div className="lg-illus">
-              <img src="logo.png" alt="ÇAKÜ Logo" className="lg-illus-logo" />
+              <div className="lg-illus-wrap">
+                <div className="lg-illus-circle">
+                  <img src="logo.png" alt="ÇAKÜ Logo" className="lg-illus-logo" />
+                </div>
+                <div className="lg-illus-orbit" aria-hidden="true">
+                  <span className="lg-illus-orbit-dot d1" />
+                  <span className="lg-illus-orbit-dot d2" />
+                  <span className="lg-illus-orbit-dot d3" />
+                  <span className="lg-illus-orbit-dot d4" />
+                </div>
+              </div>
             </div>
 
             <div className="lg-left-tagline">
