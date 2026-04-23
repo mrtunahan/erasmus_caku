@@ -1839,6 +1839,15 @@ const LoginModal = ({ onLogin }) => {
       inset: 18px;
       border-radius: 50%;
       overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .lg-illus-ring::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
       background: rgba(255, 255, 255, 0.55);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
@@ -1846,16 +1855,16 @@ const LoginModal = ({ onLogin }) => {
         0 20px 40px rgba(11, 35, 65, 0.15),
         inset 0 1px 0 rgba(255, 255, 255, 0.9);
       border: 1px solid rgba(255, 255, 255, 0.8);
+      pointer-events: none;
     }
     .lg-illus-logo {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      padding: 14px;
-      box-sizing: border-box;
+      position: relative;
+      z-index: 1;
       display: block;
+      width: calc(100% - 28px);
+      height: calc(100% - 28px);
+      object-fit: contain;
+      flex-shrink: 0;
     }
     .lg-illus-orbit {
       position: absolute;
