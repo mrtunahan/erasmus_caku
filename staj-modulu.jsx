@@ -1775,10 +1775,13 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     return `/api/files/download/${sp}`;
   };
 
+  // Görüntüle: tarayıcı içi viewer sayfasını yeni sekmede aç
   const handleStudentPreview = (belgeId) => {
     const url = getStudentFileUrl(belgeId);
     if (!url) { return; }
-    window.open(url, "_blank");
+    // /api/files/download/... → /api/files/view/... (tarayıcı içi viewer)
+    const viewUrl = url.replace("/api/files/download/", "/api/files/view/");
+    window.open(viewUrl, "_blank");
   };
 
   const handleStudentDownload = (belgeId) => {
@@ -2502,7 +2505,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const handlePreviewFile = (studentId, belgeId) => {
     const url = getFileUrl(studentId, belgeId);
     if (!url) { alert("Bu belge için görüntülenebilir dosya bulunamadı."); return; }
-    window.open(url, "_blank");
+    // /api/files/download/... → /api/files/view/... (tarayıcı içi viewer)
+    const viewUrl = url.replace("/api/files/download/", "/api/files/view/");
+    window.open(viewUrl, "_blank");
   };
 
   // Admin: Yol haritası adım onayı
