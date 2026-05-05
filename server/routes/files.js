@@ -67,6 +67,26 @@ router.get("/download/*", (req, res) => {
     return res.status(403).json({ error: "Geçersiz dosya yolu." });
   }
 
+  // Orijinal dosya adını çıkart (timestamp_ önekini kaldır)
+  const extractOriginalName = (fname) => {
+    const base = path.basename(fname);
+    const m = base.match(/^\d+_(.+)$/);
+    return m ? m[1] : base;
+  };
+
+  // Inline görüntüleme için response header'larını ayarla
+  const sendInline = (fp) => {
+    const originalName = extractOriginalName(fp);
+    // RFC 5987 uyumlu UTF-8 dosya adı
+    const encodedName = encodeURIComponent(originalName);
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${originalName.replace(/[^\x20-\x7E]/g, "_")}"; filename*=UTF-8''${encodedName}`
+    );
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.sendFile(fp);
+  };
+
   if (!fs.existsSync(filePath)) {
     // Fallback: dosya adını general/ dizininde ara (eski yüklemeler için)
     const fileName = path.basename(relativePath);
@@ -74,7 +94,7 @@ router.get("/download/*", (req, res) => {
     const fallbackResolved = path.resolve(fallbackPath);
     if (fallbackResolved.startsWith(path.resolve(UPLOAD_DIR)) && fs.existsSync(fallbackPath)) {
       if (req.query.download === "true") return res.download(fallbackPath);
-      return res.sendFile(fallbackPath);
+      return sendInline(fallbackPath);
     }
     return res.status(404).json({ error: "Dosya bulunamadı." });
   }
@@ -85,7 +105,7 @@ router.get("/download/*", (req, res) => {
   }
 
   // Varsayılan: tarayıcıda inline göster
-  res.sendFile(filePath);
+  sendInline(filePath);
 });
 
 // DELETE /api/files/:folder/:filename
