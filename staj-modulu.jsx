@@ -800,7 +800,31 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
   const [form, setForm] = useState(emptyForm);
   const [appRoadmaps, setAppRoadmaps] = useState({});
 
-  const set = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
+  const set = (key, val) => {
+    // Alan tipine göre giriş anında filtreleme
+    let v = val;
+    if (typeof v === "string") {
+      // Sadece harf alanları: rakam ve özel karakterleri at
+      if (["adSoyad", "isverenAdSoyad", "nufusSoyad", "nufusAd", "babaAdi", "anaAdi", "dogumYeri", "nufusIl", "nufusIlce", "nufusMahalleKoy", "isverenGorevUnvan"].includes(key)) {
+        v = v.replace(/[^a-zA-ZçÇğĞıİöÖşŞüÜ\s.]/g, "");
+      }
+      // Sadece rakam alanları
+      else if (["ogrenciNo", "tcKimlikNo", "sskNo", "nufusCuzdanSeriNo", "ciltNo", "aileSiraNo", "siraNo"].includes(key)) {
+        v = v.replace(/\D/g, "");
+        if (key === "tcKimlikNo") v = v.slice(0, 11);
+        if (key === "ogrenciNo") v = v.slice(0, 12);
+      }
+      // Telefon alanları: rakam, boşluk, +, -, (, )
+      else if (["telefonNo", "stajYeriTelefon", "stajYeriFaks"].includes(key)) {
+        v = v.replace(/[^\d\s+\-()]/g, "");
+      }
+      // E-posta: boşluk yasak
+      else if (["eposta", "stajYeriEposta", "isverenEposta"].includes(key)) {
+        v = v.replace(/\s/g, "");
+      }
+    }
+    setForm(prev => ({ ...prev, [key]: v }));
+  };
 
   // Etap seçildiğinde tarihleri otomatik doldur
   const handleEtapSelect = (etapId) => {
@@ -934,18 +958,48 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
       }
     }
 
-    // TC Kimlik No 11 haneli olmalı
-    if (form.tcKimlikNo && form.tcKimlikNo.trim().length !== 11) {
-      setSavedMsg("T.C. Kimlik No 11 haneli olmalıdır.");
-      setTimeout(() => setSavedMsg(""), 4000);
-      return;
+    // TC Kimlik No 11 haneli olmalı + TC Kimlik checksum doğrulaması
+    if (form.tcKimlikNo) {
+      const tc = form.tcKimlikNo.trim();
+      if (tc.length !== 11) {
+        setSavedMsg("T.C. Kimlik No 11 haneli olmalıdır.");
+        setTimeout(() => setSavedMsg(""), 4000);
+        return;
+      }
+      // TC Kimlik algoritması: ilk hane 0 olamaz; 10. hane = (1+3+5+7+9. * 7) - (2+4+6+8.) mod 10;
+      // 11. hane = ilk 10 hanenin toplamı mod 10
+      if (tc[0] === "0") {
+        setSavedMsg("T.C. Kimlik No 0 ile başlayamaz.");
+        setTimeout(() => setSavedMsg(""), 4000);
+        return;
+      }
+      const d = tc.split("").map(Number);
+      const odd = d[0] + d[2] + d[4] + d[6] + d[8];
+      const even = d[1] + d[3] + d[5] + d[7];
+      const check10 = ((odd * 7) - even) % 10;
+      const check10pos = ((check10 % 10) + 10) % 10;
+      const sum10 = d.slice(0, 10).reduce((a, b) => a + b, 0);
+      const check11 = sum10 % 10;
+      if (check10pos !== d[9] || check11 !== d[10]) {
+        setSavedMsg("T.C. Kimlik No geçersiz. Lütfen kontrol ediniz.");
+        setTimeout(() => setSavedMsg(""), 4000);
+        return;
+      }
     }
 
-    // Telefon alanları kontrolü
+    // Telefon alanları kontrolü (en az 10 haneli rakam, +/-/boşluk/parantez izinli)
     const phonePattern = /^[\d\s+\-()]+$/;
     for (const field of PHONE_FIELDS) {
-      if (form[field] && form[field].trim() && !phonePattern.test(form[field].trim())) {
+      const v = form[field] && form[field].trim();
+      if (!v) continue;
+      if (!phonePattern.test(v)) {
         setSavedMsg(`"${REQUIRED_FIELDS[field] || field}" alanına geçerli bir telefon numarası giriniz.`);
+        setTimeout(() => setSavedMsg(""), 4000);
+        return;
+      }
+      const digits = v.replace(/\D/g, "");
+      if (digits.length < 10 || digits.length > 15) {
+        setSavedMsg(`"${REQUIRED_FIELDS[field] || field}" en az 10, en fazla 15 haneli olmalıdır.`);
         setTimeout(() => setSavedMsg(""), 4000);
         return;
       }
@@ -958,6 +1012,43 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
         setSavedMsg(`"${REQUIRED_FIELDS[field] || field}" alanına geçerli bir e-posta adresi giriniz.`);
         setTimeout(() => setSavedMsg(""), 4000);
         return;
+      }
+    }
+
+    // Tarih alanları: doğum tarihi geçmişte olmalı + makul yaş aralığında, işveren tarihi geçerli
+    const DATE_FIELDS = [
+      { key: "dogumTarihi", label: "Doğum Tarihi", pastOnly: true, minAge: 15, maxAge: 100 },
+      { key: "isverenTarih", label: "İşveren Tarih", pastOnly: false },
+      { key: "verilisTarihi", label: "Veriliş Tarihi", pastOnly: true },
+    ];
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    for (const { key, label, pastOnly, minAge, maxAge } of DATE_FIELDS) {
+      const val = form[key];
+      if (!val) continue;
+      const d = new Date(val);
+      if (isNaN(d.getTime())) {
+        setSavedMsg(`"${label}" geçerli bir tarih değil.`);
+        setTimeout(() => setSavedMsg(""), 4000);
+        return;
+      }
+      if (pastOnly && d > today) {
+        setSavedMsg(`"${label}" gelecekte olamaz.`);
+        setTimeout(() => setSavedMsg(""), 4000);
+        return;
+      }
+      if (minAge !== undefined || maxAge !== undefined) {
+        const ageMs = today - d;
+        const ageYears = ageMs / (1000 * 60 * 60 * 24 * 365.25);
+        if (minAge !== undefined && ageYears < minAge) {
+          setSavedMsg(`"${label}" en az ${minAge} yıl önce olmalıdır.`);
+          setTimeout(() => setSavedMsg(""), 4000);
+          return;
+        }
+        if (maxAge !== undefined && ageYears > maxAge) {
+          setSavedMsg(`"${label}" en fazla ${maxAge} yıl önce olabilir.`);
+          setTimeout(() => setSavedMsg(""), 4000);
+          return;
+        }
       }
     }
 
@@ -1428,10 +1519,10 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
         <div style={sectionTitleStyle}>ÖĞRENCİNİN KİMLİK BİLGİLERİ <span style={{ fontSize: 11, fontWeight: 400, color: STAJ.textMuted }}>(Tüm alanları eksiksiz doldurunuz)</span></div>
         <div style={gridStyle(3)}>
           <div><label style={labelStyle}>Adı ve Soyadı {reqMark}</label><input value={form.adSoyad} onChange={e => set("adSoyad", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Öğrenci No {reqMark}</label><input value={form.ogrenciNo} onChange={e => set("ogrenciNo", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Öğrenci No {reqMark}</label><input value={form.ogrenciNo} onChange={e => set("ogrenciNo", e.target.value)} inputMode="numeric" pattern="\d*" maxLength={12} placeholder="Sadece rakam" style={inputStyle} /></div>
           <div><label style={labelStyle}>Bölümü/Programı {reqMark}</label><input value={form.bolumProgrami} onChange={e => set("bolumProgrami", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>E-posta Adresi {reqMark}</label><input type="email" value={form.eposta} onChange={e => set("eposta", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Telefon No {reqMark}</label><input value={form.telefonNo} onChange={e => set("telefonNo", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Telefon No {reqMark}</label><input type="tel" value={form.telefonNo} onChange={e => set("telefonNo", e.target.value)} inputMode="tel" placeholder="05xxxxxxxxx" style={inputStyle} /></div>
           <div><label style={labelStyle}>Eğitim Dönemi {reqMark}</label><input value={form.egitimDonemi} onChange={e => set("egitimDonemi", e.target.value)} placeholder="Örn: 2024-2025 Bahar" style={inputStyle} /></div>
           <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><label style={labelStyle}>İkametgah Adresi {reqMark}</label><input value={form.ikametgahAdresi} onChange={e => set("ikametgahAdresi", e.target.value)} style={inputStyle} /></div>
         </div>
@@ -1443,8 +1534,8 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
         <div style={gridStyle(3)}>
           <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><label style={labelStyle}>Adı / Unvanı {reqMark}</label><input value={form.stajYeriAdi} onChange={e => set("stajYeriAdi", e.target.value)} style={inputStyle} /></div>
           <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><label style={labelStyle}>Adresi {reqMark}</label><input value={form.stajYeriAdresi} onChange={e => set("stajYeriAdresi", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Telefon No {reqMark}</label><input value={form.stajYeriTelefon} onChange={e => set("stajYeriTelefon", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Faks No</label><input value={form.stajYeriFaks} onChange={e => set("stajYeriFaks", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Telefon No {reqMark}</label><input type="tel" value={form.stajYeriTelefon} onChange={e => set("stajYeriTelefon", e.target.value)} inputMode="tel" style={inputStyle} /></div>
+          <div><label style={labelStyle}>Faks No</label><input type="tel" value={form.stajYeriFaks} onChange={e => set("stajYeriFaks", e.target.value)} inputMode="tel" style={inputStyle} /></div>
           <div><label style={labelStyle}>E-posta Adresi {reqMark}</label><input type="email" value={form.stajYeriEposta} onChange={e => set("stajYeriEposta", e.target.value)} style={inputStyle} /></div>
         </div>
       </div>
@@ -1521,7 +1612,7 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
           <div><label style={labelStyle}>Ana Adı {reqMark}</label><input value={form.anaAdi} onChange={e => set("anaAdi", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>Doğum Yeri {reqMark}</label><input value={form.dogumYeri} onChange={e => set("dogumYeri", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>Doğum Tarihi {reqMark}</label><input type="date" value={form.dogumTarihi} onChange={e => set("dogumTarihi", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>T.C. Kimlik No {reqMark}</label><input value={form.tcKimlikNo} onChange={e => { const v = e.target.value.replace(/\D/g, ""); set("tcKimlikNo", v); }} maxLength={11} placeholder="11 haneli" style={inputStyle} /></div>
+          <div><label style={labelStyle}>T.C. Kimlik No {reqMark}</label><input value={form.tcKimlikNo} onChange={e => set("tcKimlikNo", e.target.value)} inputMode="numeric" pattern="\d{11}" maxLength={11} placeholder="11 haneli" style={inputStyle} /></div>
           <div><label style={labelStyle}>N.Cüzdan Seri No {reqMark}</label><input value={form.nufusCuzdanSeriNo} onChange={e => set("nufusCuzdanSeriNo", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>SSK No</label><input value={form.sskNo} onChange={e => set("sskNo", e.target.value)} placeholder="Tercih" style={inputStyle} /></div>
           <div><label style={labelStyle}>Nüfusa Kay. Olduğu İl {reqMark}</label><input value={form.nufusIl} onChange={e => set("nufusIl", e.target.value)} style={inputStyle} /></div>
@@ -2339,6 +2430,67 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     } catch (e) { console.error("Tümünü okundu hatası:", e); }
   };
 
+  // ── Öğrenci bildirim silme ──
+  const [selectedStudentNotifIds, setSelectedStudentNotifIds] = useState(() => new Set());
+
+  const toggleStudentNotifSelect = (notifId) => {
+    setSelectedStudentNotifIds(prev => {
+      const next = new Set(prev);
+      if (next.has(notifId)) next.delete(notifId);
+      else next.add(notifId);
+      return next;
+    });
+  };
+
+  const toggleStudentNotifSelectAll = () => {
+    setSelectedStudentNotifIds(prev => {
+      if (prev.size === studentNotifs.length) return new Set();
+      return new Set(studentNotifs.map(n => n.id));
+    });
+  };
+
+  const handleStudentDeleteNotif = async (notifId) => {
+    if (!window.confirm("Bu bildirimi silmek istediğinize emin misiniz?")) return;
+    try {
+      await window.DBWrite.remove("internship_notifications", notifId);
+      setStudentNotifs(prev => prev.filter(n => n.id !== notifId));
+      setSelectedStudentNotifIds(prev => {
+        if (!prev.has(notifId)) return prev;
+        const next = new Set(prev); next.delete(notifId); return next;
+      });
+    } catch (e) {
+      console.error("Bildirim silme hatası:", e);
+      alert("Bildirim silinemedi: " + e.message);
+    }
+  };
+
+  const handleStudentBulkDeleteNotifs = async () => {
+    const ids = Array.from(selectedStudentNotifIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`${ids.length} bildirim silinecek. Devam etmek istiyor musunuz?`)) return;
+    try {
+      await Promise.all(ids.map(id => window.DBWrite.remove("internship_notifications", id)));
+      setStudentNotifs(prev => prev.filter(n => !selectedStudentNotifIds.has(n.id)));
+      setSelectedStudentNotifIds(new Set());
+    } catch (e) {
+      console.error("Toplu bildirim silme hatası:", e);
+      alert("Bildirimler silinemedi: " + e.message);
+    }
+  };
+
+  const handleStudentDeleteAllNotifs = async () => {
+    if (studentNotifs.length === 0) return;
+    if (!window.confirm(`Tüm bildirimler (${studentNotifs.length} adet) silinecek. Devam etmek istiyor musunuz?`)) return;
+    try {
+      await Promise.all(studentNotifs.map(n => window.DBWrite.remove("internship_notifications", n.id)));
+      setStudentNotifs([]);
+      setSelectedStudentNotifIds(new Set());
+    } catch (e) {
+      console.error("Tümünü silme hatası:", e);
+      alert("Bildirimler silinemedi: " + e.message);
+    }
+  };
+
   // Varsayılan sekmeyi ayarla
   useEffect(() => {
     if (isStudent) setActiveTab("basvuru");
@@ -2890,6 +3042,67 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     } catch (e) { console.error("Tümünü okundu hatası:", e); }
   };
 
+  // ── Bildirim silme (admin/akademisyen) ──
+  const [selectedNotifIds, setSelectedNotifIds] = useState(() => new Set());
+
+  const toggleNotifSelect = (notifId) => {
+    setSelectedNotifIds(prev => {
+      const next = new Set(prev);
+      if (next.has(notifId)) next.delete(notifId);
+      else next.add(notifId);
+      return next;
+    });
+  };
+
+  const toggleNotifSelectAll = () => {
+    setSelectedNotifIds(prev => {
+      if (prev.size === notifications.length) return new Set();
+      return new Set(notifications.map(n => n.id));
+    });
+  };
+
+  const handleDeleteNotif = async (notifId) => {
+    if (!window.confirm("Bu bildirimi silmek istediğinize emin misiniz?")) return;
+    try {
+      await window.DBWrite.remove("internship_notifications", notifId);
+      setNotifications(prev => prev.filter(n => n.id !== notifId));
+      setSelectedNotifIds(prev => {
+        if (!prev.has(notifId)) return prev;
+        const next = new Set(prev); next.delete(notifId); return next;
+      });
+    } catch (e) {
+      console.error("Bildirim silme hatası:", e);
+      alert("Bildirim silinemedi: " + e.message);
+    }
+  };
+
+  const handleBulkDeleteNotifs = async () => {
+    const ids = Array.from(selectedNotifIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`${ids.length} bildirim silinecek. Devam etmek istiyor musunuz?`)) return;
+    try {
+      await Promise.all(ids.map(id => window.DBWrite.remove("internship_notifications", id)));
+      setNotifications(prev => prev.filter(n => !selectedNotifIds.has(n.id)));
+      setSelectedNotifIds(new Set());
+    } catch (e) {
+      console.error("Toplu bildirim silme hatası:", e);
+      alert("Bildirimler silinemedi: " + e.message);
+    }
+  };
+
+  const handleDeleteAllNotifs = async () => {
+    if (notifications.length === 0) return;
+    if (!window.confirm(`Tüm bildirimler (${notifications.length} adet) silinecek. Devam etmek istiyor musunuz?`)) return;
+    try {
+      await Promise.all(notifications.map(n => window.DBWrite.remove("internship_notifications", n.id)));
+      setNotifications([]);
+      setSelectedNotifIds(new Set());
+    } catch (e) {
+      console.error("Tümünü silme hatası:", e);
+      alert("Bildirimler silinemedi: " + e.message);
+    }
+  };
+
   // Tüm roadmap verilerini yükle (admin için)
   const [allRoadmaps, setAllRoadmaps] = useState({});
   useEffect(() => {
@@ -3019,6 +3232,51 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     )}
                   </div>
 
+                  {/* Toplu seçim / silme araç çubuğu */}
+                  {notifications.length > 0 && (
+                    <div style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      gap: 8, padding: "8px 16px", borderBottom: "1px solid #F3F4F6",
+                      background: "#FFFFFF",
+                    }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: STAJ.textMuted, cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedNotifIds.size === notifications.length && notifications.length > 0}
+                          onChange={toggleNotifSelectAll}
+                          style={{ accentColor: STAJ.primary }}
+                        />
+                        {selectedNotifIds.size > 0 ? `${selectedNotifIds.size} seçili` : "Tümünü seç"}
+                      </label>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {selectedNotifIds.size > 0 && (
+                          <button
+                            onClick={handleBulkDeleteNotifs}
+                            style={{
+                              fontSize: 11, fontWeight: 600,
+                              padding: "5px 10px", borderRadius: 6,
+                              border: "1px solid #FCA5A5", background: "#FEF2F2",
+                              color: "#DC2626", cursor: "pointer",
+                            }}
+                          >
+                            Seçilenleri Sil
+                          </button>
+                        )}
+                        <button
+                          onClick={handleDeleteAllNotifs}
+                          style={{
+                            fontSize: 11, fontWeight: 600,
+                            padding: "5px 10px", borderRadius: 6,
+                            border: "1px solid #E5E7EB", background: "white",
+                            color: STAJ.textMuted, cursor: "pointer",
+                          }}
+                        >
+                          Tümünü Sil
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Bildirim Listesi */}
                   <div style={{ maxHeight: 420, overflowY: "auto" }}>
                     {notifications.length === 0 ? (
@@ -3044,19 +3302,25 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         const isNewAppNotif = notif.type === "new_application";
                         const dotColor = isApprovedNotif ? STAJ.green : isRejectedNotif ? "#EF4444" : isNewAppNotif ? "#8B5CF6" : STAJ.primary;
                         const bgUnread = isApprovedNotif ? "#F0FDF4" : isRejectedNotif ? "#FEF2F2" : isNewAppNotif ? "#F5F3FF" : "#F0F9FF";
+                        const isSelected = selectedNotifIds.has(notif.id);
                         return (
                           <div key={notif.id} style={{
                             display: "flex", gap: 12, padding: "12px 16px",
                             borderBottom: "1px solid #F9FAFB",
-                            background: isRead ? "white" : bgUnread,
+                            background: isSelected ? "#FEF2F2" : (isRead ? "white" : bgUnread),
                             transition: "background 0.2s",
                           }}>
-                            {/* Renk dot */}
-                            <div style={{ flexShrink: 0, paddingTop: 3 }}>
+                            {/* Seçim checkbox + renk dot */}
+                            <div style={{ flexShrink: 0, paddingTop: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleNotifSelect(notif.id)}
+                                style={{ accentColor: STAJ.primary, cursor: "pointer" }}
+                              />
                               <div style={{
                                 width: 8, height: 8, borderRadius: "50%",
                                 background: isRead ? "#D1D5DB" : dotColor,
-                                marginTop: 4,
                               }} />
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -3086,21 +3350,35 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                               </div>
                               <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{timeAgo}</div>
                             </div>
-                            {!isRead && (
+                            <div style={{ flexShrink: 0, alignSelf: "center", display: "flex", flexDirection: "column", gap: 4 }}>
+                              {!isRead && (
+                                <button
+                                  onClick={() => handleMarkRead(notif.id)}
+                                  style={{
+                                    padding: "4px 10px", borderRadius: 6,
+                                    border: `1px solid ${STAJ.primary}30`,
+                                    background: STAJ.primaryPale, color: STAJ.primary,
+                                    fontSize: 11, fontWeight: 600, cursor: "pointer",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  Okundu
+                                </button>
+                              )}
                               <button
-                                onClick={() => handleMarkRead(notif.id)}
+                                onClick={() => handleDeleteNotif(notif.id)}
+                                title="Bildirimi sil"
                                 style={{
-                                  flexShrink: 0, alignSelf: "center",
-                                  padding: "4px 10px", borderRadius: 6,
-                                  border: `1px solid ${STAJ.primary}30`,
-                                  background: STAJ.primaryPale, color: STAJ.primary,
-                                  fontSize: 11, fontWeight: 600, cursor: "pointer",
-                                  whiteSpace: "nowrap",
+                                  padding: "4px 8px", borderRadius: 6,
+                                  border: "1px solid #FCA5A5", background: "#FEF2F2",
+                                  color: "#DC2626", fontSize: 11, fontWeight: 600,
+                                  cursor: "pointer", display: "flex", alignItems: "center",
+                                  justifyContent: "center", gap: 4,
                                 }}
                               >
-                                Okundu
+                                <StajIcon path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22m-15 0V4a2 2 0 012-2h4a2 2 0 012 2v3" size={12} color="#DC2626" />
                               </button>
-                            )}
+                            </div>
                           </div>
                         );
                       })
@@ -3174,6 +3452,51 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       </button>
                     )}
                   </div>
+
+                  {/* Toplu seçim / silme araç çubuğu */}
+                  {studentNotifs.length > 0 && (
+                    <div style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      gap: 8, padding: "8px 16px", borderBottom: "1px solid #F3F4F6",
+                      background: "#FFFFFF",
+                    }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: STAJ.textMuted, cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedStudentNotifIds.size === studentNotifs.length && studentNotifs.length > 0}
+                          onChange={toggleStudentNotifSelectAll}
+                          style={{ accentColor: STAJ.primary }}
+                        />
+                        {selectedStudentNotifIds.size > 0 ? `${selectedStudentNotifIds.size} seçili` : "Tümünü seç"}
+                      </label>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {selectedStudentNotifIds.size > 0 && (
+                          <button
+                            onClick={handleStudentBulkDeleteNotifs}
+                            style={{
+                              fontSize: 11, fontWeight: 600,
+                              padding: "5px 10px", borderRadius: 6,
+                              border: "1px solid #FCA5A5", background: "#FEF2F2",
+                              color: "#DC2626", cursor: "pointer",
+                            }}
+                          >
+                            Seçilenleri Sil
+                          </button>
+                        )}
+                        <button
+                          onClick={handleStudentDeleteAllNotifs}
+                          style={{
+                            fontSize: 11, fontWeight: 600,
+                            padding: "5px 10px", borderRadius: 6,
+                            border: "1px solid #E5E7EB", background: "white",
+                            color: STAJ.textMuted, cursor: "pointer",
+                          }}
+                        >
+                          Tümünü Sil
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div style={{ maxHeight: 400, overflowY: "auto" }}>
                     {studentNotifs.length === 0 ? (
                       <div style={{ padding: "32px 16px", textAlign: "center" }}>
@@ -3201,13 +3524,20 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           if (h < 24) return `${h} sa önce`;
                           return `${Math.floor(h / 24)} gün önce`;
                         })();
+                        const isSelected = selectedStudentNotifIds.has(notif.id);
                         return (
                           <div key={notif.id} style={{
                             display: "flex", gap: 12, padding: "12px 16px",
                             borderBottom: "1px solid #F9FAFB",
-                            background: isRead ? "white" : bgUnread,
+                            background: isSelected ? "#FEF2F2" : (isRead ? "white" : bgUnread),
                           }}>
-                            <div style={{ flexShrink: 0, paddingTop: 2 }}>
+                            <div style={{ flexShrink: 0, paddingTop: 2, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleStudentNotifSelect(notif.id)}
+                                style={{ accentColor: STAJ.primary, cursor: "pointer" }}
+                              />
                               <StajIcon path={iconPath} size={16} color={iconColor} />
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -3224,19 +3554,33 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                               </div>
                               <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{timeAgo}</div>
                             </div>
-                            {!isRead && (
-                              <button onClick={() => handleStudentMarkRead(notif.id)}
+                            <div style={{ flexShrink: 0, alignSelf: "center", display: "flex", flexDirection: "column", gap: 4 }}>
+                              {!isRead && (
+                                <button onClick={() => handleStudentMarkRead(notif.id)}
+                                  style={{
+                                    padding: "4px 10px", borderRadius: 6,
+                                    border: `1px solid ${iconColor}30`,
+                                    background: bgUnread, color: iconColor,
+                                    fontSize: 11, fontWeight: 600, cursor: "pointer",
+                                    whiteSpace: "nowrap",
+                                  }}>
+                                  Okundu
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleStudentDeleteNotif(notif.id)}
+                                title="Bildirimi sil"
                                 style={{
-                                  flexShrink: 0, alignSelf: "center",
-                                  padding: "4px 10px", borderRadius: 6,
-                                  border: `1px solid ${iconColor}30`,
-                                  background: bgUnread, color: iconColor,
-                                  fontSize: 11, fontWeight: 600, cursor: "pointer",
-                                  whiteSpace: "nowrap",
-                                }}>
-                                Okundu
+                                  padding: "4px 8px", borderRadius: 6,
+                                  border: "1px solid #FCA5A5", background: "#FEF2F2",
+                                  color: "#DC2626", fontSize: 11, fontWeight: 600,
+                                  cursor: "pointer", display: "flex", alignItems: "center",
+                                  justifyContent: "center", gap: 4,
+                                }}
+                              >
+                                <StajIcon path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22m-15 0V4a2 2 0 012-2h4a2 2 0 012 2v3" size={12} color="#DC2626" />
                               </button>
-                            )}
+                            </div>
                           </div>
                         );
                       })
