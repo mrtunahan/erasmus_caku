@@ -51,13 +51,6 @@ const STAJ_TYPES = [
 const STAJ_ROADMAP_STEPS = [
   {
     id: 1,
-    title: "Staj Yeri Araştırması",
-    duration: "2-4 Hafta",
-    result: "Uygun staj yeri belirlendi",
-    desc: "Bölümünüze uygun firmaları ve kurumları araştırın. Kariyer merkezinden destek alabilir, önceki öğrencilerin staj yaptığı yerleri inceleyebilirsiniz.",
-  },
-  {
-    id: 2,
     title: "Başvuru & Kabul",
     duration: "1-2 Hafta",
     result: "Firma kabul yazısı alındı",
@@ -71,7 +64,7 @@ const STAJ_ROADMAP_STEPS = [
     extraLink: { label: "Ek-3 Formu", module: "formlar", highlight: "ek3" },
   },
   {
-    id: 3,
+    id: 2,
     title: "Belge Yükleme",
     duration: "1 Hafta",
     result: "Başvuru belgeleri sisteme yüklendi",
@@ -81,14 +74,14 @@ const STAJ_ROADMAP_STEPS = [
     ],
   },
   {
-    id: 4,
+    id: 3,
     title: "Komisyon Onayı",
     duration: "1 Hafta",
     result: "Staj komisyonu onayı alındı",
     desc: "Komisyon staj yerinizin uygunluğunu değerlendirecektir. Onay sonucunu takip edin.",
   },
   {
-    id: 5,
+    id: 4,
     title: "SGK İşlemleri",
     duration: "3-5 Gün",
     result: "SGK kaydı tamamlandı",
@@ -96,7 +89,7 @@ const STAJ_ROADMAP_STEPS = [
     approver: "Ergün ÇINAR",
   },
   {
-    id: 6,
+    id: 5,
     title: "Staj Dönemi",
     duration: "20 İş Günü",
     result: "Staj defteri günlük tutuldu",
@@ -106,7 +99,7 @@ const STAJ_ROADMAP_STEPS = [
     ],
   },
   {
-    id: 7,
+    id: 6,
     title: "Staj Teslim & Belge Yükleme",
     duration: "1-2 Hafta",
     result: "Tüm belgeler sisteme yüklendi",
@@ -118,7 +111,7 @@ const STAJ_ROADMAP_STEPS = [
     ],
   },
   {
-    id: 8,
+    id: 7,
     title: "Değerlendirme & Sonuç",
     duration: "2-4 Hafta",
     result: "Staj notu belirlendi",
@@ -292,8 +285,8 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
 
   // Adım için gerekli belgelerin yüklenip yüklenmediğini kontrol et
   const getRequiredDocsForStep = (stepId) => {
-    if (stepId === 3) return ["zorunlu_staj_formu", "staj_basvuru_formu_ek1", "kimlik_fotokopisi"]; // Adım 3 (idx=2) → Belge Yükleme
-    if (stepId === 7) return ["staj_defteri", "ek2_belgesi", "staj_teslim_belgesi", "turnitin_raporu"]; // Adım 7 → Staj Teslim
+    if (stepId === 2) return ["zorunlu_staj_formu", "staj_basvuru_formu_ek1", "kimlik_fotokopisi"]; // Adım 2 (idx=1) → Belge Yükleme
+    if (stepId === 6) return ["staj_defteri", "ek2_belgesi", "staj_teslim_belgesi", "turnitin_raporu"]; // Adım 6 → Staj Teslim
     return [];
   };
 
@@ -400,8 +393,8 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
           <span style={{ fontSize: 12, color: "#64748B" }}>{step.result}</span>
         </div>
 
-        {/* Süre uyarısı - Adım 1-4 için komisyon deadline */}
-        {i < 4 && myApplication && (active || pending) && (() => {
+        {/* Süre uyarısı - Adım 1-3 için komisyon deadline */}
+        {i < 3 && myApplication && (active || pending) && (() => {
           const od = myApplication?.stajBaslamaTarihi ? addDays(myApplication.stajBaslamaTarihi, -10) : null;
           const badge = deadlineBadge(od);
           if (!badge) return null;
@@ -414,8 +407,8 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
           );
         })()}
 
-        {/* Süre uyarısı - Adım 5 için Ergün ÇINAR deadline */}
-        {i === 4 && myApplication && (active || pending) && (() => {
+        {/* Süre uyarısı - Adım 4 için Ergün ÇINAR deadline */}
+        {i === 3 && myApplication && (active || pending) && (() => {
           const sgkDl = myApplication?.stajBaslamaTarihi || null;
           const badge = deadlineBadge(sgkDl);
           if (!badge) return null;
@@ -527,15 +520,15 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
                 onClick={e => { e.stopPropagation(); handleCompleteStep(i); }}
                 style={{
                   marginTop: 12, padding: "10px 18px", borderRadius: 8, border: "none",
-                  background: (step.id === 2 || areRequiredDocsUploaded(step.id)) ? STAJ.primary : "#9CA3AF",
+                  background: (step.id === 1 || areRequiredDocsUploaded(step.id)) ? STAJ.primary : "#9CA3AF",
                   color: "white", fontSize: 13, fontWeight: 600, width: "100%",
-                  cursor: (step.id === 2 || areRequiredDocsUploaded(step.id)) ? "pointer" : "not-allowed",
+                  cursor: (step.id === 1 || areRequiredDocsUploaded(step.id)) ? "pointer" : "not-allowed",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 }}
-                disabled={step.id !== 2 && !areRequiredDocsUploaded(step.id)}
+                disabled={step.id !== 1 && !areRequiredDocsUploaded(step.id)}
               >
                 <StajIcon path="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" size={16} />
-                {step.id === 2
+                {step.id === 1
                   ? "Belgeleri yüklemek için hazırım"
                   : areRequiredDocsUploaded(step.id)
                     ? "Adımı Tamamla (Onaya Gönder)"
@@ -1223,7 +1216,7 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
               const roadmapSteps = roadmap.steps || {};
               const completedSteps = Object.values(roadmapSteps).filter(s => s.status === "completed").length;
               const pendingSteps = Object.values(roadmapSteps).filter(s => s.status === "pending_approval").length;
-              const totalSteps = 8;
+              const totalSteps = STAJ_ROADMAP_STEPS.length;
 
               let progressPct = 0;
               let progressColor = "#EAB308";
@@ -1340,7 +1333,7 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
                         {progressLabel}
                       </span>
                     </div>
-                    {/* Segmentli adım göstergesi (8 parça) */}
+                    {/* Segmentli adım göstergesi */}
                     <div style={{ display: "flex", gap: 3 }}>
                       {Array.from({ length: totalSteps }).map((_, i) => {
                         const stepData = roadmapSteps[i];
@@ -1575,8 +1568,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
 
   // Document visibility step constants
-  // INITIAL_DOCUMENT_STEP: Application documents belong to step 3
-  const INITIAL_DOCUMENT_STEP = 3;
+  // INITIAL_DOCUMENT_STEP: Application documents belong to step 2 (Belge Yükleme)
+  const INITIAL_DOCUMENT_STEP = 2;
 
   // Belge durumunu DB'den yükleyip state'e yaz
   const loadUploadsFromDB = async () => {
@@ -1651,7 +1644,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       title: "Zorunlu Staj Formu",
       desc: "Zorunlu staj formunu indirip doldurduktan sonra bu alana yükleyiniz.",
       icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-      step: 3,
+      step: 2,
       formLink: true,
     },
     {
@@ -1659,7 +1652,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       title: "Staj Başvuru Formu (Ek-1)",
       desc: "Staj başvuru formunu (Ek-1) indirip doldurduktan sonra bu alana yükleyiniz.",
       icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-      step: 3,
+      step: 2,
       formLink: true,
     },
     {
@@ -1667,21 +1660,21 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       title: "Kimlik Fotokopisi",
       desc: "Kimlik fotokopinizi tarayıp bu alana yükleyiniz.",
       icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0",
-      step: 3,
+      step: 2,
     },
     {
       id: "staj_defteri",
       title: "Staj Defteri",
       desc: "Her sayfası imzalı veya kaşelenmiş staj defteri",
       icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
-      step: 7,
+      step: 6,
     },
     {
       id: "ek2_belgesi",
       title: "Ek-2 Belgesi (İmzalı/Mühürlü)",
       desc: "İmzalı ve mühürlü Ek-2 belgesini yükleyin. Ek-2'ye Formlar modülünden erişebilirsiniz.",
       icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
-      step: 7,
+      step: 6,
       formLink: true,
     },
     {
@@ -1689,7 +1682,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       title: "Staj Teslim Belgesi",
       desc: "Staj teslim belgesini yükleyin. Formlar modülünden erişebilirsiniz.",
       icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-      step: 7,
+      step: 6,
       formLink: true,
     },
     {
@@ -1697,7 +1690,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       title: "Turnitin Benzerlik Raporu",
       desc: "Sadece Turnitin benzerlik raporunu yükleyin. Staj defterini bu alana tekrar yüklemenize gerek yoktur.",
       icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-      step: 7,
+      step: 6,
     },
   ];
 
@@ -1759,9 +1752,9 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
 
   const currentStep = getCurrentRoadmapStep();
 
-  // Adım 5 (SGK İşlemleri, index=4) tamamlandı mı kontrol et
+  // Adım 4 (SGK İşlemleri, index=3) tamamlandı mı kontrol et
   const isStep5Completed = () => {
-    return roadmapData?.steps?.[4]?.status === "completed";
+    return roadmapData?.steps?.[3]?.status === "completed";
   };
 
   // Belge görünür mü kontrol et
@@ -1799,9 +1792,9 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     // Başvuru yoksa hiçbir belge yüklenemez
     if (!myApplication) return false;
     const belge = BELGE_ALANLARI.find(b => b.id === belgeId);
-    // Adım 7 belgeleri (staj defteri, ek2, staj teslim, turnitin) ancak
-    // adım 5 (SGK) tamamlandıktan sonra yüklenebilir
-    if (belge && belge.step === 7 && !isStep5Completed()) return false;
+    // Adım 6 belgeleri (staj defteri, ek2, staj teslim, turnitin) ancak
+    // adım 4 (SGK) tamamlandıktan sonra yüklenebilir
+    if (belge && belge.step === 6 && !isStep5Completed()) return false;
     const uploaded = uploads[belgeId];
     if (!uploaded || !uploaded.fileName) return true; // Henüz yüklenmemiş, yüklenebilir
     // Dosya sunucuda yoksa (serverPath/downloadURL/path yok), serbestçe yüklenebilir
@@ -2106,8 +2099,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                         </button>
                       )}
 
-                      {/* Adım 7 belgeleri adım 5 tamamlanmadan kilitli */}
-                      {belge.step === 7 && !isStep5Completed() && (
+                      {/* Adım 6 belgeleri adım 4 tamamlanmadan kilitli */}
+                      {belge.step === 6 && !isStep5Completed() && (
                         <span style={{
                           padding: "8px 14px", borderRadius: 8,
                           background: "#F1F5F9", border: "1px solid #CBD5E1",
@@ -2115,12 +2108,12 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                           display: "flex", alignItems: "center", gap: 5,
                         }}>
                           <StajIcon path="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" size={13} />
-                          Adım 5 tamamlandıktan sonra açılır
+                          Adım 4 tamamlandıktan sonra açılır
                         </span>
                       )}
 
                       {/* Belge yüklenmişse, adım onaya gönderilmişse ve değişiklik talebi yoksa → Değişiklik İste butonu */}
-                      {uploaded && uploaded.fileName && isStepSubmitted(belge.id) && !canUploadDocument(belge.id) && !uploaded.changeRequest && !(belge.step === 7 && !isStep5Completed()) && (
+                      {uploaded && uploaded.fileName && isStepSubmitted(belge.id) && !canUploadDocument(belge.id) && !uploaded.changeRequest && !(belge.step === 6 && !isStep5Completed()) && (
                         <button onClick={() => handleRequestChange(belge.id)} style={{
                           padding: "8px 14px", borderRadius: 8, border: "1px solid #FDBA74",
                           background: "#FFF7ED", color: "#EA580C", fontSize: 12, fontWeight: 600,
@@ -2514,14 +2507,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Yol haritası adım onayı
   const handleApproveStep = async (appId, stepIdx) => {
-    // Adım 5 (index 4) sadece Ergün ÇINAR onaylayabilir
-    if (stepIdx === 4 && !isErgunCinar) {
+    // Adım 4 (index 3) sadece Ergün ÇINAR onaylayabilir
+    if (stepIdx === 3 && !isErgunCinar) {
       alert("Bu adım (SGK İşlemleri) yalnızca Ergün ÇINAR tarafından onaylanabilir.");
       return;
     }
-    // Ergün ÇINAR yalnızca adım 5 (index 4) için onay verebilir
-    if (stepIdx !== 4 && isErgunCinar) {
-      alert("Yalnızca SGK İşlemleri (Adım 5) için onay yetkiniz bulunmaktadır.");
+    // Ergün ÇINAR yalnızca adım 4 (index 3) için onay verebilir
+    if (stepIdx !== 3 && isErgunCinar) {
+      alert("Yalnızca SGK İşlemleri (Adım 4) için onay yetkiniz bulunmaktadır.");
       return;
     }
 
@@ -2588,9 +2581,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Yol haritası adım reddi
   const handleRejectStep = async (appId, stepIdx) => {
-    // Ergün ÇINAR yalnızca adım 5 (index 4) için red verebilir
-    if (stepIdx !== 4 && isErgunCinar) {
-      alert("Yalnızca SGK İşlemleri (Adım 5) için red yetkiniz bulunmaktadır.");
+    // Ergün ÇINAR yalnızca adım 4 (index 3) için red verebilir
+    if (stepIdx !== 3 && isErgunCinar) {
+      alert("Yalnızca SGK İşlemleri (Adım 4) için red yetkiniz bulunmaktadır.");
       return;
     }
     try {
@@ -2718,10 +2711,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const getSgkDeadline = (roadmap, app) => {
     // SGK son tarihi sabit: staj başlangıcı (komisyon bittikten sonra 10 günlük pencere zaten oraya denk gelir)
     if (app?.stajBaslamaTarihi) return app.stajBaslamaTarihi;
-    // Fallback: adım 4 onayından 10 gün
-    const step3 = roadmap?.steps?.[3];
-    if (step3?.status === "completed" && step3?.approvedAt) {
-      return addDays(step3.approvedAt.split("T")[0], 10);
+    // Fallback: adım 3 (Komisyon Onayı) onayından 10 gün
+    const komisyonStep = roadmap?.steps?.[2];
+    if (komisyonStep?.status === "completed" && komisyonStep?.approvedAt) {
+      return addDays(komisyonStep.approvedAt.split("T")[0], 10);
     }
     return null;
   };
@@ -4113,7 +4106,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                             {app.stajBaslamaTarihi || "—"} — {app.stajBitisTarihi || "—"}
                           </div>
                           {(() => {
-                            // Onay deadline (adım 1-4, sadece beklemede/devam olanlar için)
+                            // Onay deadline (adım 1-3, sadece beklemede/devam olanlar için)
                             if (app.status === "beklemede" || app.status === "devam") {
                               const od = getOnayDeadline(app);
                               const badge = deadlineBadge(od);
