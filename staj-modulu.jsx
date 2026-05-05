@@ -893,6 +893,17 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
   const isRequired = (key) => key in REQUIRED_FIELDS;
 
   const handleSave = async () => {
+    // Onaylanmış başvurular düzenlenemez (UI'da fieldset disabled olsa da
+    // bypass denemesine karşı ek güvenlik kontrolü)
+    if (editingId) {
+      const existing = myApplications.find(a => a.id === editingId);
+      if (existing && (existing.status === "devam" || existing.status === "tamamlandi")) {
+        setSavedMsg("Onaylanmış başvurular düzenlenemez.");
+        setTimeout(() => setSavedMsg(""), 4000);
+        return;
+      }
+    }
+
     // Zorunlu alan kontrolü
     const missingFields = Object.entries(REQUIRED_FIELDS)
       .filter(([key]) => !form[key] || !String(form[key]).trim())
@@ -1018,6 +1029,10 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
     setEditingId(app.id);
     setShowForm(true);
   };
+
+  // Onaylanmış (devam) veya tamamlanmış başvurular düzenlenemez — sadece görüntülenir.
+  const editingApp = editingId ? myApplications.find(a => a.id === editingId) : null;
+  const isReadOnly = !!editingApp && (editingApp.status === "devam" || editingApp.status === "tamamlandi");
 
   const inputStyle = {
     width: "100%", padding: "9px 12px", borderRadius: 8,
@@ -1312,15 +1327,20 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
                         )}
                       </div>
                     </div>
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: 4, flexShrink: 0,
-                      fontSize: 11, fontWeight: 600, color: STAJ.primary,
-                      padding: "5px 10px", borderRadius: 8,
-                      background: STAJ.primaryPale,
-                    }}>
-                      Düzenle
-                      <StajIcon path="M9 5l7 7-7 7" size={12} color={STAJ.primary} />
-                    </div>
+                    {(() => {
+                      const isLocked = app.status === "devam" || app.status === "tamamlandi";
+                      return (
+                        <div style={{
+                          display: "flex", alignItems: "center", gap: 4, flexShrink: 0,
+                          fontSize: 11, fontWeight: 600, color: STAJ.primary,
+                          padding: "5px 10px", borderRadius: 8,
+                          background: STAJ.primaryPale,
+                        }}>
+                          {isLocked ? "Görüntüle" : "Düzenle"}
+                          <StajIcon path="M9 5l7 7-7 7" size={12} color={STAJ.primary} />
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Alt satır: segmentli progress + etiket */}
@@ -1375,9 +1395,22 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
           <StajIcon path="M15 19l-7-7 7-7" size={16} color="#6B7280" />
         </button>
         <h3 style={{ fontSize: 16, fontWeight: 600, color: STAJ.navy, margin: 0 }}>
-          {editingId ? "Başvuruyu Düzenle" : "Yeni Staj Başvurusu"}
+          {isReadOnly ? "Başvuru (Görüntüleme)" : (editingId ? "Başvuruyu Düzenle" : "Yeni Staj Başvurusu")}
         </h3>
       </div>
+
+      {isReadOnly && (
+        <div style={{
+          padding: "12px 16px", borderRadius: 10, marginBottom: 16,
+          background: STAJ.primaryPale, border: `1px solid ${STAJ.primary}40`,
+          color: STAJ.primary, fontSize: 13, fontWeight: 500,
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <StajIcon path="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" size={16} color={STAJ.primary} />
+          Başvurunuz onaylandığı için düzenlenemez. Bilgileri yalnızca görüntüleyebilirsiniz.
+          Değişiklik yapmanız gerekiyorsa staj komisyonu ile iletişime geçiniz.
+        </div>
+      )}
 
       {savedMsg && (
         <div style={{
@@ -1387,6 +1420,8 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
           fontSize: 13, fontWeight: 500,
         }}>{savedMsg}</div>
       )}
+
+      <fieldset disabled={isReadOnly} style={{ border: "none", padding: 0, margin: 0, minWidth: 0 }}>
 
       {/* 1. ÖĞRENCİNİN KİMLİK BİLGİLERİ */}
       <div style={sectionStyle}>
@@ -1440,11 +1475,12 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
               const end = new Date(period.bitis);
               const diff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
               return (
-                <div key={period.id} onClick={() => handleEtapSelect(period.id)} style={{
-                  padding: "12px 16px", borderRadius: 10, cursor: "pointer",
+                <div key={period.id} onClick={() => { if (!isReadOnly) handleEtapSelect(period.id); }} style={{
+                  padding: "12px 16px", borderRadius: 10, cursor: isReadOnly ? "default" : "pointer",
                   border: `2px solid ${isSelected ? STAJ.primary : "#E5E7EB"}`,
                   background: isSelected ? STAJ.primaryPale : "white",
                   transition: "all 0.2s",
+                  opacity: isReadOnly && !isSelected ? 0.5 : 1,
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{
@@ -1526,20 +1562,24 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
         </div>
       </div>
 
+      </fieldset>
+
       {/* Kaydet / İptal */}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 8, marginBottom: 24 }}>
         <button onClick={() => { setShowForm(false); setEditingId(null); }} style={{
           padding: "12px 24px", borderRadius: 8, border: "1px solid #D1D5DB",
           background: "white", color: STAJ.textMuted, fontSize: 14, cursor: "pointer",
-        }}>İptal</button>
-        <button onClick={handleSave} disabled={saving} style={{
-          padding: "12px 28px", borderRadius: 8, border: "none",
-          background: saving ? "#9CA3AF" : STAJ.primary, color: "white",
-          fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer",
-          display: "flex", alignItems: "center", gap: 8,
-        }}>
-          {saving ? "Kaydediliyor..." : (editingId ? "Güncelle" : "Başvuruyu Kaydet")}
-        </button>
+        }}>{isReadOnly ? "Geri" : "İptal"}</button>
+        {!isReadOnly && (
+          <button onClick={handleSave} disabled={saving} style={{
+            padding: "12px 28px", borderRadius: 8, border: "none",
+            background: saving ? "#9CA3AF" : STAJ.primary, color: "white",
+            fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer",
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            {saving ? "Kaydediliyor..." : (editingId ? "Güncelle" : "Başvuruyu Kaydet")}
+          </button>
+        )}
       </div>
     </div>
   );
