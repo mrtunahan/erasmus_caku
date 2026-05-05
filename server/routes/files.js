@@ -43,6 +43,20 @@ router.post("/upload", upload.single("file"), (req, res) => {
   }
 
   const folder = req.body.folder || "general";
+
+  // Staj modülü yalnızca PDF kabul eder. Hatalı dosyayı diskte bırakmamak için
+  // reddedilen dosyayı sileriz.
+  if (folder.startsWith("staj_belgeler")) {
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    const isPdf = ext === ".pdf" || req.file.mimetype === "application/pdf";
+    if (!isPdf) {
+      try { fs.unlinkSync(req.file.path); } catch (_) { /* ignore */ }
+      return res.status(400).json({
+        error: "Staj belgeleri yalnızca PDF formatında yüklenebilir.",
+      });
+    }
+  }
+
   const fileName = `${folder}/${req.file.filename}`;
   const downloadURL = `/api/files/download/${fileName}`;
 
