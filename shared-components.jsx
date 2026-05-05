@@ -2348,6 +2348,78 @@ const LoginModal = ({ onLogin }) => {
         {/* Bottom-right corner arc (from root 1060,920) */}
         <path className="lg-ct-l3" d="M1060,920 L1140,920 L1140,870 L1280,870 L1280,790 L1380,790"/>
 
+        {/* ══ EXTRA TWIGS — denser tree feel (sub-branches & cross-connections) ══ */}
+
+        {/* Twigs off L1 horizontal bar (y=520) — fern-like fronds upward */}
+        <path className="lg-ct-l3" d="M540,520 L540,470 L500,470 L500,440"/>
+        <path className="lg-ct-l3" d="M540,470 L580,470 L580,440"/>
+        <path className="lg-ct-l3" d="M900,520 L900,470 L860,470 L860,440"/>
+        <path className="lg-ct-l3" d="M900,470 L940,470 L940,440"/>
+
+        {/* Twigs off L1 horizontal bar (y=520) — downward fronds toward roots */}
+        <path className="lg-ct-l3" d="M620,520 L620,580 L580,580"/>
+        <path className="lg-ct-l3" d="M820,520 L820,580 L860,580"/>
+
+        {/* Twigs off L1 verticals (between y=380 and y=520) */}
+        <path className="lg-ct-l3" d="M460,440 L420,440 L420,400 L390,400"/>
+        <path className="lg-ct-l3" d="M460,440 L500,440 L500,400 L530,400"/>
+        <path className="lg-ct-l3" d="M980,440 L1020,440 L1020,400 L1050,400"/>
+        <path className="lg-ct-l3" d="M980,440 L940,440 L940,400 L910,400"/>
+
+        {/* Mid-trunk twigs (between y=520 and y=580) */}
+        <path className="lg-ct-l3" d="M720,610 L660,610 L660,580 L630,580"/>
+        <path className="lg-ct-l3" d="M720,610 L780,610 L780,580 L810,580"/>
+
+        {/* Extra L3 sub-tips between existing top-tips (more LEDs at canopy) */}
+        <path className="lg-ct-l3" d="M260,140 L200,140 L200,90 L160,90 L160,40"/>
+        <path className="lg-ct-l3" d="M260,140 L320,140 L320,90 L380,90 L380,40"/>
+        <path className="lg-ct-l3" d="M1140,140 L1200,140 L1200,90 L1240,90 L1240,40"/>
+        <path className="lg-ct-l3" d="M1140,140 L1080,140 L1080,90 L1020,90 L1020,40"/>
+
+        {/* Branchlets at the very top — small twigs near canopy */}
+        <path className="lg-ct-l3" d="M260,60 L260,90 L220,90 L220,60 L240,60 L240,30"/>
+        <path className="lg-ct-l3" d="M1140,60 L1140,90 L1180,90 L1180,60 L1160,60 L1160,30"/>
+
+        {/* Inner diagonal-feel branches near upper sides */}
+        <path className="lg-ct-l3" d="M460,300 L400,300 L400,260 L360,260 L360,200 L320,200"/>
+        <path className="lg-ct-l3" d="M980,300 L1040,300 L1040,260 L1080,260 L1080,200 L1120,200"/>
+
+        {/* Mini twigs off L2 verticals (between y=140 and y=300) */}
+        <path className="lg-ct-l3" d="M260,220 L210,220 L210,260"/>
+        <path className="lg-ct-l3" d="M260,220 L310,220 L310,260"/>
+        <path className="lg-ct-l3" d="M620,220 L580,220 L580,260"/>
+        <path className="lg-ct-l3" d="M620,220 L660,220 L660,260"/>
+        <path className="lg-ct-l3" d="M820,220 L860,220 L860,260"/>
+        <path className="lg-ct-l3" d="M820,220 L780,220 L780,260"/>
+        <path className="lg-ct-l3" d="M1140,220 L1090,220 L1090,260"/>
+        <path className="lg-ct-l3" d="M1140,220 L1190,220 L1190,260"/>
+
+        {/* Center inner cross-connections (between center triplet) */}
+        <path className="lg-ct-l3" d="M620,300 L660,300 L660,360 L720,360"/>
+        <path className="lg-ct-l3" d="M820,300 L780,300 L780,360 L720,360"/>
+
+        {/* Tiny twigs on each top tip (creates leaf clusters) */}
+        <path className="lg-ct-l3" d="M180,60 L180,40 L150,40"/>
+        <path className="lg-ct-l3" d="M340,60 L340,40 L370,40"/>
+        <path className="lg-ct-l3" d="M556,60 L556,40 L526,40"/>
+        <path className="lg-ct-l3" d="M684,60 L684,40 L714,40"/>
+        <path className="lg-ct-l3" d="M756,60 L756,40 L726,40"/>
+        <path className="lg-ct-l3" d="M884,60 L884,40 L914,40"/>
+        <path className="lg-ct-l3" d="M1060,60 L1060,40 L1030,40"/>
+        <path className="lg-ct-l3" d="M1210,60 L1210,40 L1240,40"/>
+
+        {/* Bottom additional roots fanning out */}
+        <path className="lg-ct-l3" d="M580,830 L520,830 L520,790 L460,790 L460,750"/>
+        <path className="lg-ct-l3" d="M860,830 L920,830 L920,790 L980,790 L980,750"/>
+        <path className="lg-ct-l3" d="M580,760 L520,760 L520,700"/>
+        <path className="lg-ct-l3" d="M860,760 L920,760 L920,700"/>
+
+        {/* Inner sub-roots (small twigs off main roots) */}
+        <path className="lg-ct-l3" d="M720,820 L680,820 L680,860"/>
+        <path className="lg-ct-l3" d="M720,820 L760,820 L760,860"/>
+        <path className="lg-ct-l3" d="M720,890 L680,890"/>
+        <path className="lg-ct-l3" d="M720,890 L760,890"/>
+
         {/* ── DECORATIVE CHIP SYMBOLS (small IC pads on traces) ── */}
         <rect className="lg-ct-chip" x="590" y="514" width="24" height="12" rx="2"/>
         <rect className="lg-ct-chip" x="826" y="514" width="24" height="12" rx="2"/>
@@ -2441,6 +2513,72 @@ const LoginModal = ({ onLogin }) => {
         <circle className="lg-ct-pad" cx="1300" cy="660" r="3"/>
         <circle className="lg-ct-pad" cx="140" cy="800" r="3"/>
         <circle className="lg-ct-pad" cx="1300" cy="800" r="3"/>
+
+        {/* ── EXTRA junction pads on new twigs ── */}
+        <circle className="lg-ct-pad" cx="540" cy="520" r="2.5"/>
+        <circle className="lg-ct-pad" cx="900" cy="520" r="2.5"/>
+        <circle className="lg-ct-pad" cx="540" cy="470" r="2"/>
+        <circle className="lg-ct-pad" cx="900" cy="470" r="2"/>
+        <circle className="lg-ct-pad" cx="620" cy="520" r="2"/>
+        <circle className="lg-ct-pad" cx="820" cy="520" r="2"/>
+        <circle className="lg-ct-pad" cx="460" cy="440" r="2.5"/>
+        <circle className="lg-ct-pad" cx="980" cy="440" r="2.5"/>
+        <circle className="lg-ct-pad" cx="720" cy="610" r="2.5"/>
+        <circle className="lg-ct-pad" cx="200" cy="140" r="2.5"/>
+        <circle className="lg-ct-pad" cx="320" cy="140" r="2.5"/>
+        <circle className="lg-ct-pad" cx="1080" cy="140" r="2.5"/>
+        <circle className="lg-ct-pad" cx="1200" cy="140" r="2.5"/>
+        <circle className="lg-ct-pad" cx="260" cy="220" r="2"/>
+        <circle className="lg-ct-pad" cx="620" cy="220" r="2"/>
+        <circle className="lg-ct-pad" cx="820" cy="220" r="2"/>
+        <circle className="lg-ct-pad" cx="1140" cy="220" r="2"/>
+        <circle className="lg-ct-pad" cx="720" cy="360" r="2.5"/>
+        <circle className="lg-ct-pad" cx="660" cy="360" r="2"/>
+        <circle className="lg-ct-pad" cx="780" cy="360" r="2"/>
+        <circle className="lg-ct-pad" cx="720" cy="820" r="2.5"/>
+        <circle className="lg-ct-pad" cx="720" cy="890" r="2.5"/>
+
+        {/* ── EXTRA LED tips at new branch endpoints (canopy denser) ── */}
+        <circle className="lg-ct-led" cx="160" cy="40" r="3" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="380" cy="40" r="3" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="1240" cy="40" r="3" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="1020" cy="40" r="3" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="240" cy="30" r="2.5" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="1160" cy="30" r="2.5" filter="url(#lgGlowS)"/>
+        {/* Leaf-cluster tiny LEDs */}
+        <circle className="lg-ct-led" cx="150" cy="40" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="370" cy="40" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="526" cy="40" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="714" cy="40" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="726" cy="40" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="914" cy="40" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="1030" cy="40" r="2" filter="url(#lgGlowS)"/>
+        {/* Mini twig endpoint LEDs (near canopy mid) */}
+        <circle className="lg-ct-led" cx="210" cy="260" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="310" cy="260" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="580" cy="260" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="660" cy="260" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="780" cy="260" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="860" cy="260" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="1090" cy="260" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="1190" cy="260" r="2" filter="url(#lgGlowS)"/>
+        {/* Side twig endpoint LEDs */}
+        <circle className="lg-ct-led" cx="320" cy="200" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="1120" cy="200" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="390" cy="400" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="530" cy="400" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="910" cy="400" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="1050" cy="400" r="2" filter="url(#lgGlowS)"/>
+        {/* Mid-trunk twig LEDs */}
+        <circle className="lg-ct-led" cx="630" cy="580" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="810" cy="580" r="2" filter="url(#lgGlowS)"/>
+        {/* Root system extra LEDs */}
+        <circle className="lg-ct-led" cx="460" cy="750" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="980" cy="750" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="520" cy="700" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="920" cy="700" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="680" cy="860" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="760" cy="860" r="2" filter="url(#lgGlowS)"/>
 
         {/* ══ ELECTRON ANIMATIONS ══ */}
         {/* Route 1 — far left tip — TEAL */}
@@ -2591,6 +2729,110 @@ const LoginModal = ({ onLogin }) => {
         <circle className="lg-ct-e-yellow" r="3" filter="url(#lgGlow)">
           <animateMotion dur="5s" repeatCount="indefinite" begin="3s"
             path="M720,920 L720,760 L860,760 L860,830 L1060,920 L1140,920 L1140,870 L1280,870 L1280,790 L1380,790"/>
+        </circle>
+
+        {/* ══ EXTRA ROUTES on new twigs ══ */}
+
+        {/* Route 16 — left fern frond up → leaf cluster — GREEN */}
+        <circle className="lg-ct-e-green" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="4.5s" repeatCount="indefinite" begin="0.4s"
+            path="M720,920 L720,520 L540,520 L540,470 L500,470 L500,440"/>
+        </circle>
+        <circle className="lg-ct-e-cyan" r="2" filter="url(#lgGlow)">
+          <animateMotion dur="4.5s" repeatCount="indefinite" begin="2.7s"
+            path="M540,470 L580,470 L580,440"/>
+        </circle>
+
+        {/* Route 17 — right fern frond up — PURPLE */}
+        <circle className="lg-ct-e-purple" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="4.5s" repeatCount="indefinite" begin="1.2s"
+            path="M720,920 L720,520 L900,520 L900,470 L940,470 L940,440"/>
+        </circle>
+        <circle className="lg-ct-e-pink" r="2" filter="url(#lgGlow)">
+          <animateMotion dur="4.5s" repeatCount="indefinite" begin="3.4s"
+            path="M900,470 L860,470 L860,440"/>
+        </circle>
+
+        {/* Route 18 — extended top-left canopy (new sub-tip 160,40) — TEAL */}
+        <circle className="lg-ct-e-teal" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="6s" repeatCount="indefinite" begin="0.9s"
+            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,140 L200,140 L200,90 L160,90 L160,40"/>
+        </circle>
+
+        {/* Route 19 — extended top-right canopy (new sub-tip 1240,40) — ORANGE */}
+        <circle className="lg-ct-e-orange" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="6s" repeatCount="indefinite" begin="2.1s"
+            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,140 L1200,140 L1200,90 L1240,90 L1240,40"/>
+        </circle>
+
+        {/* Route 20 — secondary extended canopy (380,40) — YELLOW */}
+        <circle className="lg-ct-e-yellow" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="5.6s" repeatCount="indefinite" begin="1.7s"
+            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,140 L320,140 L320,90 L380,90 L380,40"/>
+        </circle>
+
+        {/* Route 21 — secondary extended canopy (1020,40) — BLUE */}
+        <circle className="lg-ct-e-blue" r="3" filter="url(#lgGlow)">
+          <animateMotion dur="5.6s" repeatCount="indefinite" begin="3.6s"
+            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,140 L1080,140 L1080,90 L1020,90 L1020,40"/>
+        </circle>
+
+        {/* Route 22 — center triangle cross (left) — TEAL */}
+        <circle className="lg-ct-e-teal" r="2.5" filter="url(#lgGlow)">
+          <animateMotion dur="3.8s" repeatCount="indefinite" begin="0.6s"
+            path="M460,300 L620,300 L660,300 L660,360 L720,360"/>
+        </circle>
+
+        {/* Route 23 — center triangle cross (right) — TEAL */}
+        <circle className="lg-ct-e-teal" r="2.5" filter="url(#lgGlow)">
+          <animateMotion dur="3.8s" repeatCount="indefinite" begin="2.4s"
+            path="M980,300 L820,300 L780,300 L780,360 L720,360"/>
+        </circle>
+
+        {/* Route 24 — L1 vertical mid-twig (left) — CYAN */}
+        <circle className="lg-ct-e-cyan" r="2.5" filter="url(#lgGlow)">
+          <animateMotion dur="4s" repeatCount="indefinite" begin="1.4s"
+            path="M460,520 L460,440 L500,440 L500,400 L530,400"/>
+        </circle>
+
+        {/* Route 25 — L1 vertical mid-twig (right) — CYAN */}
+        <circle className="lg-ct-e-cyan" r="2.5" filter="url(#lgGlow)">
+          <animateMotion dur="4s" repeatCount="indefinite" begin="3s"
+            path="M980,520 L980,440 L940,440 L940,400 L910,400"/>
+        </circle>
+
+        {/* Route 26 — L2 vertical mini-twigs (260) — GREEN */}
+        <circle className="lg-ct-e-green" r="2" filter="url(#lgGlow)">
+          <animateMotion dur="3.4s" repeatCount="indefinite" begin="0.8s"
+            path="M260,140 L260,220 L310,220 L310,260"/>
+        </circle>
+
+        {/* Route 27 — L2 vertical mini-twigs (1140) — PINK */}
+        <circle className="lg-ct-e-pink" r="2" filter="url(#lgGlow)">
+          <animateMotion dur="3.4s" repeatCount="indefinite" begin="2.1s"
+            path="M1140,140 L1140,220 L1090,220 L1090,260"/>
+        </circle>
+
+        {/* Route 28 — extended root fan-out (left) — PURPLE */}
+        <circle className="lg-ct-e-purple" r="2.5" filter="url(#lgGlow)">
+          <animateMotion dur="4.8s" repeatCount="indefinite" begin="1.1s"
+            path="M720,920 L720,760 L580,760 L580,830 L520,830 L520,790 L460,790 L460,750"/>
+        </circle>
+
+        {/* Route 29 — extended root fan-out (right) — ORANGE */}
+        <circle className="lg-ct-e-orange" r="2.5" filter="url(#lgGlow)">
+          <animateMotion dur="4.8s" repeatCount="indefinite" begin="3.2s"
+            path="M720,920 L720,760 L860,760 L860,830 L920,830 L920,790 L980,790 L980,750"/>
+        </circle>
+
+        {/* Route 30 — center sub-roots — YELLOW */}
+        <circle className="lg-ct-e-yellow" r="2" filter="url(#lgGlow)">
+          <animateMotion dur="3s" repeatCount="indefinite" begin="0.3s"
+            path="M720,820 L680,820 L680,860"/>
+        </circle>
+        <circle className="lg-ct-e-yellow" r="2" filter="url(#lgGlow)">
+          <animateMotion dur="3s" repeatCount="indefinite" begin="1.6s"
+            path="M720,820 L760,820 L760,860"/>
         </circle>
       </svg>
 
