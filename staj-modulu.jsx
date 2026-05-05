@@ -1642,7 +1642,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     {
       id: "zorunlu_staj_formu",
       title: "Zorunlu Staj Formu",
-      desc: "Zorunlu staj formunu indirip doldurduktan sonra bu alana yükleyiniz.",
+      desc: "Zorunlu staj formunu indirip doldurduktan sonra PDF olarak bu alana yükleyiniz. Yalnızca PDF formatı kabul edilmektedir.",
       icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
       step: 2,
       formLink: true,
@@ -1650,7 +1650,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     {
       id: "staj_basvuru_formu_ek1",
       title: "Staj Başvuru Formu (Ek-1)",
-      desc: "Staj başvuru formunu (Ek-1) indirip doldurduktan sonra bu alana yükleyiniz.",
+      desc: "Staj başvuru formunu (Ek-1) indirip doldurduktan sonra PDF olarak bu alana yükleyiniz. Yalnızca PDF formatı kabul edilmektedir.",
       icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
       step: 2,
       formLink: true,
@@ -1658,21 +1658,21 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     {
       id: "kimlik_fotokopisi",
       title: "Kimlik Fotokopisi",
-      desc: "Kimlik fotokopinizi tarayıp bu alana yükleyiniz.",
+      desc: "Kimlik fotokopinizi tarayıp PDF olarak bu alana yükleyiniz. Yalnızca PDF formatı kabul edilmektedir.",
       icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0",
       step: 2,
     },
     {
       id: "staj_defteri",
       title: "Staj Defteri",
-      desc: "Her sayfası imzalı veya kaşelenmiş staj defteri",
+      desc: "Her sayfası imzalı veya kaşelenmiş staj defterini PDF olarak yükleyiniz. Yalnızca PDF formatı kabul edilmektedir.",
       icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
       step: 6,
     },
     {
       id: "ek2_belgesi",
       title: "Ek-2 Belgesi (İmzalı/Mühürlü)",
-      desc: "İmzalı ve mühürlü Ek-2 belgesini yükleyin. Ek-2'ye Formlar modülünden erişebilirsiniz.",
+      desc: "İmzalı ve mühürlü Ek-2 belgesini PDF olarak yükleyiniz. Ek-2'ye Formlar modülünden erişebilirsiniz. Yalnızca PDF formatı kabul edilmektedir.",
       icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
       step: 6,
       formLink: true,
@@ -1680,7 +1680,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     {
       id: "staj_teslim_belgesi",
       title: "Staj Teslim Belgesi",
-      desc: "Staj teslim belgesini yükleyin. Formlar modülünden erişebilirsiniz.",
+      desc: "Staj teslim belgesini PDF olarak yükleyiniz. Formlar modülünden erişebilirsiniz. Yalnızca PDF formatı kabul edilmektedir.",
       icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
       step: 6,
       formLink: true,
@@ -1688,7 +1688,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     {
       id: "turnitin_raporu",
       title: "Turnitin Benzerlik Raporu",
-      desc: "Sadece Turnitin benzerlik raporunu yükleyin. Staj defterini bu alana tekrar yüklemenize gerek yoktur.",
+      desc: "Sadece Turnitin benzerlik raporunu PDF olarak yükleyiniz. Staj defterini bu alana tekrar yüklemenize gerek yoktur. Yalnızca PDF formatı kabul edilmektedir.",
       icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
       step: 6,
     },
@@ -1814,6 +1814,15 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   const handleFileUpload = async (belgeId, file) => {
     if (!file) return;
 
+    // Yalnızca PDF kabul et (uzantı + MIME tipi kontrolü)
+    const isPdf = (file.type === "application/pdf") ||
+      file.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf) {
+      setMsg("Yalnızca PDF formatında belge yükleyebilirsiniz. Lütfen dosyanızı PDF'e dönüştürüp tekrar deneyin.");
+      setTimeout(() => setMsg(""), 5000);
+      return;
+    }
+
     // Yüklenmiş belge değişiklik kontrolü
     if (!canUploadDocument(belgeId)) {
       setMsg("Bu belgeyi değiştirmek için önce yetkili izni almanız gerekmektedir.");
@@ -1847,6 +1856,19 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
           const result = await resp.json();
           fileData.serverPath = result.fileName || result.downloadURL || result.path || result.filename;
           fileData.downloadURL = result.downloadURL || "";
+        } else {
+          // Sunucu reddetti (örn. PDF dışı dosya) — kullanıcıya bildir ve kaydı atla
+          let serverMsg = "Dosya sunucuya yüklenemedi.";
+          try {
+            const err = await resp.json();
+            if (err?.error) serverMsg = err.error;
+          } catch (_) { /* ignore */ }
+          if (mountedRef.current) {
+            setMsg(serverMsg);
+            setTimeout(() => { if (mountedRef.current) setMsg(""); }, 5000);
+            setUploading(null);
+          }
+          return;
         }
       } catch (uploadErr) {
         console.warn("Dosya sunucuya yüklenemedi, sadece kayıt tutulacak:", uploadErr);
@@ -2150,12 +2172,12 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                           display: "flex", alignItems: "center", gap: 5,
                         }}>
                           <StajIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" size={13} />
-                          {isUploading ? "Yükleniyor..." : (uploaded?.fileName ? "Belgeyi Değiştir" : "Yükle")}
+                          {isUploading ? "Yükleniyor..." : (uploaded?.fileName ? "Belgeyi Değiştir (PDF)" : "Yükle (PDF)")}
                           <input
                             type="file"
                             style={{ display: "none" }}
                             disabled={isUploading}
-                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            accept="application/pdf,.pdf"
                             onChange={e => {
                               if (e.target.files?.[0]) handleFileUpload(belge.id, e.target.files[0]);
                               e.target.value = "";
