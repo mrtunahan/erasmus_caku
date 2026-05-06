@@ -196,6 +196,18 @@ const EXPORT_FIELDS = [
   ["createdAt", "Başvuru Tarihi"],
 ];
 
+// ── Ergün ÇINAR için sadeleştirilmiş XLSX kolonları ──
+const ERGUN_EXPORT_FIELDS = [
+  ["adSoyad", "Ad Soyad"],
+  ["ogrenciNo", "Öğrenci No"],
+  ["bolumProgrami", "Bölüm/Program"],
+  ["stajEtapLabel", "Staj Etabı"],
+  ["stajBaslamaTarihi", "Staj Başlama Tarihi"],
+  ["stajBitisTarihi", "Staj Bitiş Tarihi"],
+  ["stajSuresiGun", "Staj Süresi (Gün)"],
+  ["tcKimlikNo", "T.C. Kimlik No"],
+];
+
 // ── XML üretici ──
 const generateXML = (apps, periodLabel) => {
   const escape = (v) => String(v || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -2939,59 +2951,97 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   };
 
   // ── XML Export ──
+  // "Tüm Etaplar" seçili ise her etap için AYRI bir dosya indirilir.
   const handleExportXML = () => {
+    const triggerDownload = (xml, label) => {
+      const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `staj-kayitlari-${label.replace(/\s+/g, "_")}.xml`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    if (exportPeriodId === "all") {
+      const etapsWithApps = stajPeriods.filter(p =>
+        allApplications.some(a => a.stajEtapId === p.id)
+      );
+      if (etapsWithApps.length === 0) {
+        alert("Dışa aktarılacak kayıt bulunamadı.");
+        return;
+      }
+      etapsWithApps.forEach((p, i) => {
+        const apps = allApplications.filter(a => a.stajEtapId === p.id);
+        // Tarayıcının çoklu indirmeyi engellememesi için kademeli tetikle
+        setTimeout(() => triggerDownload(generateXML(apps, p.label), p.label), i * 250);
+      });
+      return;
+    }
+
     const period = stajPeriods.find(p => p.id === exportPeriodId);
-    const apps = exportPeriodId === "all"
-      ? allApplications
-      : allApplications.filter(a => a.stajEtapId === exportPeriodId);
-    const label = exportPeriodId === "all" ? "Tüm Etaplar" : (period?.label || exportPeriodId);
-    const xml = generateXML(apps, label);
-    const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `staj-kayitlari-${label.replace(/\s+/g, "_")}.xml`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const apps = allApplications.filter(a => a.stajEtapId === exportPeriodId);
+    const label = period?.label || exportPeriodId;
+    if (apps.length === 0) { alert("Bu etap için kayıt bulunamadı."); return; }
+    triggerDownload(generateXML(apps, label), label);
   };
 
   // ── XLSX Export ──
+  // Ergün ÇINAR için sadeleştirilmiş kolon seti kullanılır;
+  // "Tüm Etaplar" seçili ise her etap için AYRI bir dosya indirilir.
   const handleExportXLSX = async () => {
     setExporting(true);
     try {
       const XLSX = await loadSheetJS();
+      const fields = isErgunCinar ? ERGUN_EXPORT_FIELDS : EXPORT_FIELDS;
+
+      const buildSheet = (apps, label) => {
+        const headers = fields.map(([, tr]) => tr);
+        const rows = apps.map(app =>
+          fields.map(([key]) => {
+            const v = app[key];
+            if (key === "createdAt" && v) return new Date(v).toLocaleString("tr-TR");
+            if (key === "status") {
+              const map = { beklemede: "Beklemede", devam: "Devam Ediyor", tamamlandi: "Tamamlandı", reddedildi: "Reddedildi" };
+              return map[v] || v || "";
+            }
+            return v != null ? String(v) : "";
+          })
+        );
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.length + 4, 16) }));
+        headers.forEach((_, ci) => {
+          const cellRef = XLSX.utils.encode_cell({ r: 0, c: ci });
+          if (ws[cellRef]) ws[cellRef].s = { font: { bold: true } };
+        });
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, label.slice(0, 31));
+        XLSX.writeFile(wb, `staj-kayitlari-${label.replace(/\s+/g, "_")}.xlsx`);
+      };
+
+      if (exportPeriodId === "all") {
+        const etapsWithApps = stajPeriods.filter(p =>
+          allApplications.some(a => a.stajEtapId === p.id)
+        );
+        if (etapsWithApps.length === 0) {
+          alert("Dışa aktarılacak kayıt bulunamadı.");
+          return;
+        }
+        for (let i = 0; i < etapsWithApps.length; i++) {
+          const p = etapsWithApps[i];
+          const apps = allApplications.filter(a => a.stajEtapId === p.id);
+          buildSheet(apps, p.label);
+          // Tarayıcı indirmeleri arasında küçük bir bekleme (engellenme önleme)
+          if (i < etapsWithApps.length - 1) await new Promise(r => setTimeout(r, 350));
+        }
+        return;
+      }
+
       const period = stajPeriods.find(p => p.id === exportPeriodId);
-      const apps = exportPeriodId === "all"
-        ? allApplications
-        : allApplications.filter(a => a.stajEtapId === exportPeriodId);
-      const label = exportPeriodId === "all" ? "Tüm Etaplar" : (period?.label || exportPeriodId);
-
-      const headers = EXPORT_FIELDS.map(([, tr]) => tr);
-      const rows = apps.map(app =>
-        EXPORT_FIELDS.map(([key]) => {
-          const v = app[key];
-          if (key === "createdAt" && v) return new Date(v).toLocaleString("tr-TR");
-          if (key === "status") {
-            const map = { beklemede: "Beklemede", devam: "Devam Ediyor", tamamlandi: "Tamamlandı", reddedildi: "Reddedildi" };
-            return map[v] || v || "";
-          }
-          return v != null ? String(v) : "";
-        })
-      );
-
-      const wsData = [headers, ...rows];
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
-      // Kolon genişlikleri
-      ws["!cols"] = headers.map((h, i) => ({ wch: Math.max(h.length + 4, 16) }));
-      // Başlık satırı bold
-      headers.forEach((_, ci) => {
-        const cellRef = XLSX.utils.encode_cell({ r: 0, c: ci });
-        if (ws[cellRef]) ws[cellRef].s = { font: { bold: true } };
-      });
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, label.slice(0, 31));
-      XLSX.writeFile(wb, `staj-kayitlari-${label.replace(/\s+/g, "_")}.xlsx`);
+      const apps = allApplications.filter(a => a.stajEtapId === exportPeriodId);
+      const label = period?.label || exportPeriodId;
+      if (apps.length === 0) { alert("Bu etap için kayıt bulunamadı."); return; }
+      buildSheet(apps, label);
     } catch (e) {
       alert("XLSX dışa aktarma hatası: " + e.message);
     } finally {
@@ -4375,7 +4425,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     </div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: STAJ.navy }}>Veri Dışa Aktarma</div>
-                      <div style={{ fontSize: 11, color: STAJ.textMuted }}>Etap bazlı staj kayıt verilerini XML veya XLSX olarak indirin</div>
+                      <div style={{ fontSize: 11, color: STAJ.textMuted }}>Etap bazlı staj kayıt verilerini XML veya XLSX olarak indirin. "Tüm Etaplar" seçili ise her etap için ayrı dosya oluşturulur.</div>
                     </div>
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
@@ -4386,7 +4436,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         onChange={e => setExportPeriodId(e.target.value)}
                         style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", background: "white" }}
                       >
-                        <option value="all">Tüm Etaplar ({allApplications.length} öğrenci)</option>
+                        <option value="all">Tüm Etaplar — her etap ayrı dosya ({allApplications.length} öğrenci)</option>
                         {stajPeriods.map(p => {
                           const count = allApplications.filter(a => a.stajEtapId === p.id).length;
                           return <option key={p.id} value={p.id}>{p.label} ({count} öğrenci)</option>;
