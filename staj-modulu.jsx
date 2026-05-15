@@ -821,7 +821,7 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
         v = v.replace(/[^a-zA-ZçÇğĞıİöÖşŞüÜ\s.]/g, "");
       }
       // Sadece rakam alanları
-      else if (["ogrenciNo", "tcKimlikNo", "sskNo", "nufusCuzdanSeriNo", "ciltNo", "aileSiraNo", "siraNo"].includes(key)) {
+      else if (["ogrenciNo", "tcKimlikNo", "sskNo", "ciltNo", "aileSiraNo", "siraNo"].includes(key)) {
         v = v.replace(/\D/g, "");
         if (key === "tcKimlikNo") v = v.slice(0, 11);
         if (key === "ogrenciNo") v = v.slice(0, 12);
@@ -1625,7 +1625,7 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
           <div><label style={labelStyle}>Doğum Yeri {reqMark}</label><input value={form.dogumYeri} onChange={e => set("dogumYeri", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>Doğum Tarihi {reqMark}</label><input type="date" value={form.dogumTarihi} onChange={e => set("dogumTarihi", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>T.C. Kimlik No {reqMark}</label><input value={form.tcKimlikNo} onChange={e => set("tcKimlikNo", e.target.value)} inputMode="numeric" pattern="\d{11}" maxLength={11} placeholder="11 haneli" style={inputStyle} /></div>
-          <div><label style={labelStyle}>N.Cüzdan Seri No {reqMark}</label><input value={form.nufusCuzdanSeriNo} onChange={e => set("nufusCuzdanSeriNo", e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>N.Cüzdan Seri No {reqMark}</label><input value={form.nufusCuzdanSeriNo} onChange={e => set("nufusCuzdanSeriNo", e.target.value.toUpperCase())} maxLength={20} placeholder="Örn: A12 345678" style={inputStyle} /></div>
           <div><label style={labelStyle}>SSK No</label><input value={form.sskNo} onChange={e => set("sskNo", e.target.value)} placeholder="Tercih" style={inputStyle} /></div>
           <div><label style={labelStyle}>Nüfusa Kay. Olduğu İl {reqMark}</label><input value={form.nufusIl} onChange={e => set("nufusIl", e.target.value)} style={inputStyle} /></div>
           <div><label style={labelStyle}>İlçe</label><input value={form.nufusIlce} onChange={e => set("nufusIlce", e.target.value)} style={inputStyle} /></div>
