@@ -2165,6 +2165,20 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
             </span>
           </div>
 
+          {myApplication.status === "reddedildi" && myApplication.rejectionReason && (
+            <div style={{
+              padding: "12px 16px", borderRadius: 8, marginBottom: 16,
+              background: "#FEF2F2", border: "1px solid #FCA5A5",
+              color: "#991B1B", fontSize: 13,
+            }}>
+              <div style={{ fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                <StajIcon path="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" size={15} color="#991B1B" />
+                Başvurunuz Reddedildi — Gerekçe
+              </div>
+              <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{myApplication.rejectionReason}</div>
+            </div>
+          )}
+
           {msg && (
             <div style={{
               padding: "10px 16px", borderRadius: 8, marginBottom: 16,
@@ -2351,6 +2365,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("list");
   const [selectedApp, setSelectedApp] = useState(null);
+  const [rejectModalApp, setRejectModalApp] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
   const [editingApp, setEditingApp] = useState(null);
   const [showPeriodForm, setShowPeriodForm] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState(null);
@@ -2581,7 +2598,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   }), [allApplications]);
 
   // Admin: Başvuru durumu güncelle
-  const handleStatusChange = async (appId, newStatus) => {
+  const handleStatusChange = async (appId, newStatus, rejectionReason = "") => {
     // Tamamlandı onayı vermeden önce belge kontrolü
     if (newStatus === "tamamlandi") {
       const app = allApplications.find(a => a.id === appId);
@@ -2604,15 +2621,60 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       }
     }
     try {
-      await window.DBWrite.set("internship_applications", appId, {
+      const updaterName = currentUser?.name || currentUser?.identifier || "";
+      const now = new Date().toISOString();
+      const patch = {
         status: newStatus,
-        statusUpdatedBy: currentUser?.name || currentUser?.identifier || "",
-        statusUpdatedAt: new Date().toISOString(),
-      }, true);
-      setAllApplications(prev => prev.map(a => a.id === appId ? { ...a, status: newStatus, statusUpdatedBy: currentUser?.name || "", statusUpdatedAt: new Date().toISOString() } : a));
-      setSelectedApp(prev => prev && prev.id === appId ? { ...prev, status: newStatus } : prev);
+        statusUpdatedBy: updaterName,
+        statusUpdatedAt: now,
+      };
+      if (newStatus === "reddedildi") patch.rejectionReason = rejectionReason;
+      // Yeniden değerlendirmeye alınınca eski red gerekçesini temizle
+      if (newStatus === "beklemede") patch.rejectionReason = "";
+
+      await window.DBWrite.set("internship_applications", appId, patch, true);
+      setAllApplications(prev => prev.map(a => a.id === appId ? { ...a, ...patch } : a));
+      setSelectedApp(prev => prev && prev.id === appId ? { ...prev, ...patch } : prev);
+
+      // Red durumunda öğrenciye gerekçeli bildirim gönder
+      if (newStatus === "reddedildi") {
+        try {
+          const app = allApplications.find(a => a.id === appId) || selectedApp;
+          if (app?.ogrenciNo) {
+            await window.DBWrite.add("internship_notifications", {
+              type: "application_rejected",
+              targetStudentNo: app.ogrenciNo,
+              departmentId: activeDepartment || app.departmentId || "",
+              appId,
+              rejectedBy: updaterName,
+              rejectionReason,
+              stajEtapLabel: app.stajEtapLabel || "",
+              createdAt: now,
+              readBy: [],
+            });
+          }
+        } catch (notifErr) { console.warn("Red bildirimi oluşturulamadı:", notifErr); }
+      }
     } catch (e) {
       alert("Durum güncellenirken hata: " + e.message);
+    }
+  };
+
+  // Reddet modalını onayla: gerekçe zorunlu
+  const handleConfirmReject = async () => {
+    if (!rejectModalApp) return;
+    const reason = rejectReason.trim();
+    if (reason.length < 10) {
+      alert("Lütfen red gerekçesini en az 10 karakter olacak şekilde yazınız. Bu açıklama öğrenciye iletilecektir.");
+      return;
+    }
+    setRejecting(true);
+    try {
+      await handleStatusChange(rejectModalApp.id, "reddedildi", reason);
+      setRejectModalApp(null);
+      setRejectReason("");
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -3558,11 +3620,12 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         const isRead = notif.readBy?.includes(studentId);
                         const isApproved = notif.type === "step_approved";
                         const isRejected = notif.type === "step_rejected";
-                        const iconColor = isApproved ? STAJ.green : isRejected ? "#EF4444" : STAJ.primary;
-                        const bgUnread = isApproved ? "#F0FDF4" : isRejected ? "#FEF2F2" : "#F0F9FF";
+                        const isAppRejected = notif.type === "application_rejected";
+                        const iconColor = isApproved ? STAJ.green : (isRejected || isAppRejected) ? "#EF4444" : STAJ.primary;
+                        const bgUnread = isApproved ? "#F0FDF4" : (isRejected || isAppRejected) ? "#FEF2F2" : "#F0F9FF";
                         const iconPath = isApproved
                           ? "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                          : isRejected
+                          : (isRejected || isAppRejected)
                             ? "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
                             : "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z";
                         const timeAgo = (() => {
@@ -3594,11 +3657,23 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                               <div style={{ fontSize: 13, fontWeight: isRead ? 400 : 600, color: STAJ.navy, lineHeight: 1.4 }}>
                                 {isApproved
                                   ? <><b>{notif.stepTitle}</b> adımınız <span style={{ color: STAJ.green }}>{notif.approvedBy}</span> tarafından onaylanmıştır</>
-                                  : isRejected
-                                    ? <><b>{notif.stepTitle}</b> adımınız <span style={{ color: "#EF4444" }}>{notif.rejectedBy}</span> tarafından reddedilmiştir</>
-                                    : <><span style={{ color: iconColor }}>Bildirim</span>{" — "}{notif.stepTitle}</>
+                                  : isAppRejected
+                                    ? <>Staj başvurunuz <span style={{ color: "#EF4444" }}>{notif.rejectedBy}</span> tarafından <b style={{ color: "#EF4444" }}>reddedilmiştir</b></>
+                                    : isRejected
+                                      ? <><b>{notif.stepTitle}</b> adımınız <span style={{ color: "#EF4444" }}>{notif.rejectedBy}</span> tarafından reddedilmiştir</>
+                                      : <><span style={{ color: iconColor }}>Bildirim</span>{" — "}{notif.stepTitle}</>
                                 }
                               </div>
+                              {isAppRejected && notif.rejectionReason && (
+                                <div style={{
+                                  fontSize: 12, color: "#991B1B", marginTop: 6,
+                                  padding: "8px 10px", borderRadius: 6,
+                                  background: "#FEF2F2", border: "1px solid #FCA5A5",
+                                  whiteSpace: "pre-wrap", lineHeight: 1.5,
+                                }}>
+                                  <b>Red Gerekçesi:</b> {notif.rejectionReason}
+                                </div>
+                              )}
                               <div style={{ fontSize: 11, color: STAJ.textMuted, marginTop: 2 }}>
                                 {notif.stajEtapLabel || ""}
                               </div>
@@ -3827,6 +3902,81 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           {/* ── Admin/Yönetici Görünümü ── */}
           {canManage && (
             <>
+              {/* Red Gerekçesi Modalı */}
+              {rejectModalApp && (
+                <div style={{
+                  position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                  background: "rgba(0,0,0,0.6)", zIndex: 10001,
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+                }} onClick={() => { if (!rejecting) { setRejectModalApp(null); setRejectReason(""); } }}>
+                  <div style={{
+                    background: "white", borderRadius: 16, width: "100%", maxWidth: 480,
+                    padding: responsive.val(18, 22, 26),
+                  }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 8, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <StajIcon path="M6 18L18 6M6 6l12 12" size={18} color={STAJ.red} />
+                      </div>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, color: STAJ.navy, margin: 0 }}>
+                        Başvuruyu Reddet
+                      </h3>
+                    </div>
+                    <p style={{ fontSize: 13, color: STAJ.textMuted, margin: "0 0 14px" }}>
+                      <b>{rejectModalApp.adSoyad}</b> ({rejectModalApp.ogrenciNo}) adlı öğrencinin başvurusunu reddediyorsunuz.
+                      Lütfen red gerekçesini yazınız. Bu açıklama öğrenciye bildirim olarak iletilecektir.
+                    </p>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: STAJ.textMuted, marginBottom: 6 }}>
+                      Red Gerekçesi <span style={{ color: STAJ.red }}>*</span>
+                    </label>
+                    <textarea
+                      value={rejectReason}
+                      onChange={e => setRejectReason(e.target.value)}
+                      rows={5}
+                      autoFocus
+                      placeholder="Örn: Staj yeri bölümünüz için uygun değildir. Lütfen yazılım/donanım alanında faaliyet gösteren bir firma ile tekrar başvurunuz."
+                      style={{
+                        width: "100%", padding: "10px 12px", borderRadius: 8,
+                        border: "1px solid #D1D5DB", fontSize: 13, outline: "none",
+                        fontFamily: "'Inter', sans-serif", resize: "vertical",
+                        boxSizing: "border-box", lineHeight: 1.5,
+                      }}
+                    />
+                    <div style={{ fontSize: 11, color: rejectReason.trim().length < 10 ? STAJ.red : STAJ.textMuted, marginTop: 4 }}>
+                      {rejectReason.trim().length < 10
+                        ? `En az 10 karakter gereklidir (${rejectReason.trim().length}/10)`
+                        : `${rejectReason.trim().length} karakter`}
+                    </div>
+                    <div style={{ display: "flex", gap: 10, marginTop: 18, justifyContent: "flex-end" }}>
+                      <button
+                        onClick={() => { if (!rejecting) { setRejectModalApp(null); setRejectReason(""); } }}
+                        disabled={rejecting}
+                        style={{
+                          padding: "10px 18px", borderRadius: 8, border: "1px solid #D1D5DB",
+                          background: "white", color: STAJ.textMuted, fontSize: 13, fontWeight: 600,
+                          cursor: rejecting ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        Vazgeç
+                      </button>
+                      <button
+                        onClick={handleConfirmReject}
+                        disabled={rejecting || rejectReason.trim().length < 10}
+                        style={{
+                          padding: "10px 18px", borderRadius: 8, border: "none",
+                          background: (rejecting || rejectReason.trim().length < 10) ? "#FCA5A5" : STAJ.red,
+                          color: "white", fontSize: 13, fontWeight: 600,
+                          cursor: (rejecting || rejectReason.trim().length < 10) ? "not-allowed" : "pointer",
+                          display: "flex", alignItems: "center", gap: 6,
+                        }}
+                      >
+                        <StajIcon path="M6 18L18 6M6 6l12 12" size={15} />
+                        {rejecting ? "Reddediliyor..." : "Reddet ve Bildir"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Detay Modalı */}
               {selectedApp && (
                 <div style={{
@@ -3941,6 +4091,16 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                   Son güncelleme: {selectedApp.statusUpdatedBy} — {selectedApp.statusUpdatedAt ? new Date(selectedApp.statusUpdatedAt).toLocaleString("tr-TR") : ""}
                                 </p>
                               )}
+                              {selectedApp.status === "reddedildi" && selectedApp.rejectionReason && (
+                                <div style={{
+                                  marginTop: 12, padding: "10px 14px", borderRadius: 8,
+                                  background: "#FEF2F2", border: "1px solid #FCA5A5",
+                                  fontSize: 12, color: "#991B1B",
+                                }}>
+                                  <div style={{ fontWeight: 700, marginBottom: 4 }}>Red Gerekçesi:</div>
+                                  <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{selectedApp.rejectionReason}</div>
+                                </div>
+                              )}
                             </div>
                           )}
 
@@ -3956,7 +4116,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                   <StajIcon path="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" size={16} />
                                   Onayla
                                 </button>
-                                <button onClick={() => handleStatusChange(selectedApp.id, "reddedildi")} style={{
+                                <button onClick={() => { setRejectModalApp(selectedApp); setRejectReason(""); }} style={{
                                   padding: "10px 20px", borderRadius: 8, border: "1px solid #FCA5A5",
                                   background: "#FEF2F2", color: STAJ.red, fontSize: 13, fontWeight: 600,
                                   cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
