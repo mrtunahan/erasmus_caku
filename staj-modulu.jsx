@@ -2636,10 +2636,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       setAllApplications(prev => prev.map(a => a.id === appId ? { ...a, ...patch } : a));
       setSelectedApp(prev => prev && prev.id === appId ? { ...prev, ...patch } : prev);
 
-      // Red durumunda öğrenciye gerekçeli bildirim gönder
+      // Red durumunda öğrenciye gerekçeli bildirim gönder, ardından
+      // başvuruyu yetkilinin panelinden otomatik kaldır.
       if (newStatus === "reddedildi") {
+        const app = allApplications.find(a => a.id === appId) || selectedApp;
         try {
-          const app = allApplications.find(a => a.id === appId) || selectedApp;
           if (app?.ogrenciNo) {
             await window.DBWrite.add("internship_notifications", {
               type: "application_rejected",
@@ -2654,6 +2655,18 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             });
           }
         } catch (notifErr) { console.warn("Red bildirimi oluşturulamadı:", notifErr); }
+
+        // Başvuruyu sil — öğrenci bildirimden gerekçeyi görebilir,
+        // gerekirse yeniden başvuru yapabilir.
+        try {
+          await window.DBWrite.remove("internship_applications", appId);
+          try { await window.DBWrite.remove("internship_roadmap", appId); } catch {}
+        } catch (delErr) {
+          console.warn("Reddedilen başvuru silinemedi:", delErr);
+          alert("Başvuru reddedildi ancak panelden kaldırılamadı: " + delErr.message);
+        }
+        setAllApplications(prev => prev.filter(a => a.id !== appId));
+        setSelectedApp(prev => (prev && prev.id === appId ? null : prev));
       }
     } catch (e) {
       alert("Durum güncellenirken hata: " + e.message);
