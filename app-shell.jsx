@@ -16,6 +16,17 @@ const DEPARTMENT_MODULES = window.DEPARTMENT_MODULES;
 const COMMON_MODULES = window.COMMON_MODULES;
 const ADMIN_MODULES = window.ADMIN_MODULES;
 
+// Ergün ÇINAR (staj SGK onayı + fakülte geneli yetki) tespiti.
+// Bölüm yetkilisi olmasına rağmen fakültedeki tüm bölümler arası
+// geçiş yapabilir.
+const isErgunCinarUser = (currentUser) => {
+  const n = currentUser && (currentUser.name || currentUser.identifier);
+  if (!n) return false;
+  const s = n.toLowerCase();
+  return (s.includes("ergün") || s.includes("ergun")) &&
+         (s.includes("çinar") || s.includes("çınar") || s.includes("cinar") || s.includes("cınar"));
+};
+
 // ── Responsive Hook ──
 function useWindowWidth() {
   const [width, setWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
@@ -446,7 +457,9 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser }) => 
   const isDeptManager = currentUser?.role === "bolum_yetkilisi";
   const isStudent = !isAdmin && !isDeptManager && currentUser?.role !== "professor";
 
-  const availableDepts = (isDeptManager || isStudent)
+  // Ergün ÇINAR bölüm yetkilisi olsa da tüm bölümler arası geçiş yapabilir
+  const isErgunCinar = isErgunCinarUser(currentUser);
+  const availableDepts = ((isDeptManager || isStudent) && !isErgunCinar)
     ? DEPARTMENTS.filter(d => d.id === currentUser?.departmentId)
     : DEPARTMENTS;
 
@@ -624,7 +637,12 @@ function AppShell() {
 
   // Bölüm değiştiğinde kaydet (bölüm yetkilisi kendi bölümünden çıkamaz)
   const handleDepartmentChange = useCallback((deptId) => {
-    if ((currentUser?.role === "bolum_yetkilisi" || currentUser?.role === "student") && deptId !== currentUser?.departmentId) {
+    // Ergün ÇINAR bölüm yetkilisi olsa da tüm bölümlere geçebilir
+    if (
+      (currentUser?.role === "bolum_yetkilisi" || currentUser?.role === "student") &&
+      deptId !== currentUser?.departmentId &&
+      !isErgunCinarUser(currentUser)
+    ) {
       return; // Bölüm yetkilisi ve öğrenci sadece kendi bölümünü görebilir
     }
     setActiveDepartment(deptId);
