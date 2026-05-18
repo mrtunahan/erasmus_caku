@@ -27,6 +27,75 @@ const FileTextIcon = window.FileTextIcon;
 const PasswordManagementModal = window.PasswordManagementModal;
 const GradeConverter = window.GradeConverter;
 
+// ── JSZip yükleyici (gerçek .docx üretimi için) ──
+let _jszipPromise = null;
+const loadJSZip = () => {
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  if (_jszipPromise) return _jszipPromise;
+  _jszipPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload = () => resolve(window.JSZip);
+    s.onerror = () => reject(new Error("JSZip yüklenemedi (internet bağlantısını kontrol edin)."));
+    document.head.appendChild(s);
+  });
+  return _jszipPromise;
+};
+
+// ── HTML içeriğini gerçek bir .docx (OOXML altChunk) paketi olarak indir ──
+// Word, paket içine gömülü HTML'i açılışta otomatik dönüştürür; bu sayede
+// mevcut zengin tablo/yerleşim korunur ve dosya geçerli bir .docx olur.
+const downloadAsDocx = async (html, filename) => {
+  const JSZip = await loadJSZip();
+  const zip = new JSZip();
+
+  zip.file("[Content_Types].xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+<Override PartName="/word/afchunk.htm" ContentType="text/html"/>
+</Types>`);
+
+  zip.folder("_rels").file(".rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+
+  const wordFolder = zip.folder("word");
+  wordFolder.file("document.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<w:body>
+<w:altChunk r:id="htmlChunk"/>
+<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>
+</w:body>
+</w:document>`);
+
+  wordFolder.folder("_rels").file("document.xml.rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="htmlChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="afchunk.htm"/>
+</Relationships>`);
+
+  wordFolder.file("afchunk.htm", "﻿" + html);
+
+  const blob = await zip.generateAsync({
+    type: "blob",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
 // ── University Course Catalogs ──
 const UNIVERSITY_CATALOGS = {
   "Politechnika Bydgoska im Jana i Jedrzeja Sniadeckich": {
@@ -1536,7 +1605,7 @@ const StudentDetailModal = ({ student, onClose, onSave, readOnly = false, allStu
 };
 
 // ── Word Document Generators (same logic as before) ──
-const generateOutgoingWordDoc = (student) => {
+const generateOutgoingWordDoc = async (student) => {
   if (!student.outgoingMatches || student.outgoingMatches.length === 0) { alert('Bu öğrencinin henüz gidiş eşleştirmesi bulunmamaktadır.'); return; }
   const totalHomeCredits = student.outgoingMatches.reduce((sum, m) => sum + m.homeCourses.reduce((s, c) => s + c.credits, 0), 0);
   const totalHostCredits = student.outgoingMatches.reduce((sum, m) => sum + m.hostCourses.reduce((s, c) => s + c.credits, 0), 0);
@@ -1604,13 +1673,14 @@ ${rows.join('')}
 <p style='margin: 15px 0;'><strong>Öğrenci:</strong> ${student.firstName} ${student.lastName} (${student.studentNumber})</p>
 </body></html>`;
 
-  const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `${student.lastName}_${student.firstName}_Gidis_Degerlendirme.doc`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  try {
+    await downloadAsDocx(html, `${student.lastName}_${student.firstName}_Gidis_Degerlendirme.docx`);
+  } catch (e) {
+    alert('Belge olu\u015fturulamad\u0131: ' + e.message);
+  }
 };
 
-const generateReturnWordDoc = (student) => {
+const generateReturnWordDoc = async (student) => {
   if (student.returnMatches.length === 0) { alert('Bu öğrencinin henüz dönüş eşleştirmesi bulunmamaktadır.'); return; }
   const totalHomeCredits = student.returnMatches.reduce((sum, m) => sum + m.homeCourses.reduce((s, c) => s + c.credits, 0), 0);
   const totalHostCredits = student.returnMatches.reduce((sum, m) => sum + m.hostCourses.reduce((s, c) => s + c.credits, 0), 0);
@@ -1688,10 +1758,11 @@ ${rows.join('')}
 <p style='margin: 15px 0;'><strong>Öğrenci:</strong> ${student.firstName} ${student.lastName} (${student.studentNumber})</p>
 </body></html>`;
 
-  const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `${student.lastName}_${student.firstName}_Donus_Muafiyet.doc`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  try {
+    await downloadAsDocx(html, `${student.lastName}_${student.firstName}_Donus_Muafiyet.docx`);
+  } catch (e) {
+    alert('Belge olu\u015fturulamad\u0131: ' + e.message);
+  }
 };
 
 // ── Main Erasmus Module (receives currentUser as prop) ──
@@ -1780,8 +1851,15 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   };
   const semesters = generateSemesters();
 
-  // Erasmus modülünde yalnızca erasmus yetkili öğrenciler gösterilir
-  const erasmusStudents = students.filter(s => s.erasmusAccess === true);
+  // Bir öğrencinin yalnızca kendi kaydına erişebilmesi için kontrol.
+  // Admin ve bölüm yetkilisi tüm öğrencileri görür; öğrenci rolündeki
+  // kullanıcı (erasmus yetkili olsa bile) yalnızca kendi numarasını görür.
+  const isStudentRole = currentUser?.role === 'student';
+  const isOwnRecord = (s) => !isStudentRole || s.studentNumber === currentUser?.studentNumber;
+
+  // Erasmus modülünde yalnızca erasmus yetkili öğrenciler gösterilir;
+  // öğrenci rolü ise sadece kendi kaydı listelenir.
+  const erasmusStudents = students.filter(s => s.erasmusAccess === true && isOwnRecord(s));
 
   const filteredStudents = erasmusStudents
     .filter(s => selectedSemester === "all" || s.semester === selectedSemester)
