@@ -2537,9 +2537,14 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
             ty.indexOf("presentationml") !== -1 || ty.indexOf("ms-powerpoint") !== -1 ||
             ty.indexOf("wordprocessingml") !== -1 || ty.indexOf("msword") !== -1 ||
             ty.indexOf("spreadsheetml") !== -1 || ty.indexOf("ms-excel") !== -1;
-          // Sunucudaki tarayıcı içi görüntüleyici (PDF inline, Office için
-          // Office Online + indirme yedeği)
-          var viewUrl = (att.url || "").replace("/api/files/download/", "/api/files/view/");
+          // Office belgeleri tarayıcıda doğrudan açılamaz; Microsoft Office
+          // Online görüntüleyici ile önizlenir. Dosya mutlak (public) URL
+          // olmalı — göreli /api/files yolları origin ile mutlaklaştırılır.
+          var absUrl = /^https?:\/\//.test(att.url || "")
+            ? att.url
+            : (window.location.origin + (att.url || ""));
+          var officeSrc = "https://view.officeapps.live.com/op/embed.aspx?src=" +
+            encodeURIComponent(absUrl);
           var fileBar = (
             <a href={att.url} target="_blank" rel="noopener noreferrer"
               style={{
@@ -2571,7 +2576,7 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
             ) : isOffice ? (
               <div>
                 <iframe
-                  src={viewUrl}
+                  src={officeSrc}
                   style={{ width: "100%", height: 520, border: "none", display: "block", background: "#fff" }}
                   title={att.name}
                   referrerPolicy="no-referrer"
