@@ -2527,46 +2527,73 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
         )}
 
         {/* Eklenen dosya */}
-        {post.attachment && (
+        {post.attachment && (() => {
+          var att = post.attachment;
+          var nm = (att.name || "").toLowerCase();
+          var ty = att.type || "";
+          var isImg = ty.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(nm);
+          var isPdf = ty === "application/pdf" || nm.endsWith(".pdf");
+          var isOffice = /\.(pptx?|docx?|xlsx?)$/.test(nm) ||
+            ty.indexOf("presentationml") !== -1 || ty.indexOf("ms-powerpoint") !== -1 ||
+            ty.indexOf("wordprocessingml") !== -1 || ty.indexOf("msword") !== -1 ||
+            ty.indexOf("spreadsheetml") !== -1 || ty.indexOf("ms-excel") !== -1;
+          // Sunucudaki tarayıcı içi görüntüleyici (PDF inline, Office için
+          // Office Online + indirme yedeği)
+          var viewUrl = (att.url || "").replace("/api/files/download/", "/api/files/view/");
+          var fileBar = (
+            <a href={att.url} target="_blank" rel="noopener noreferrer"
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 16px",
+                background: DY.warmLight, textDecoration: "none", borderTop: "1px solid " + PC.borderLight,
+              }}>
+              <SvgIcon path={ICONS.file} size={20} color={DY.gold} />
+              <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy }}>{att.name}</div>
+              <div style={{ fontSize: 11, color: PC.textMuted, marginLeft: "auto" }}>İndir</div>
+            </a>
+          );
+          return (
           <div style={{
             marginTop: 12, borderRadius: 10, overflow: "hidden",
             border: "1px solid " + PC.borderLight,
           }}>
-            {post.attachment.type && post.attachment.type.startsWith("image/") ? (
-              <img src={post.attachment.url} alt={post.attachment.name}
+            {isImg ? (
+              <img src={att.url} alt={att.name}
                 style={{ width: "100%", maxHeight: 400, objectFit: "cover", display: "block" }} />
-            ) : post.attachment.type === "application/pdf" || (post.attachment.name && post.attachment.name.toLowerCase().endsWith(".pdf")) ? (
+            ) : isPdf ? (
               <div>
                 <iframe
-                  src={"https://docs.google.com/gview?embedded=true&url=" + encodeURIComponent(post.attachment.url)}
-                  style={{ width: "100%", height: 500, border: "none", display: "block" }}
-                  title={post.attachment.name}
+                  src={att.url + "#toolbar=1&view=FitH"}
+                  style={{ width: "100%", height: 520, border: "none", display: "block" }}
+                  title={att.name}
                 />
-                <a href={post.attachment.url} target="_blank" rel="noopener noreferrer"
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "10px 16px",
-                    background: DY.warmLight, textDecoration: "none", borderTop: "1px solid " + PC.borderLight,
-                  }}>
-                  <SvgIcon path={ICONS.file} size={20} color={DY.gold} />
-                  <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy }}>{post.attachment.name}</div>
-                  <div style={{ fontSize: 11, color: PC.textMuted, marginLeft: "auto" }}>İndir</div>
-                </a>
+                {fileBar}
+              </div>
+            ) : isOffice ? (
+              <div>
+                <iframe
+                  src={viewUrl}
+                  style={{ width: "100%", height: 520, border: "none", display: "block", background: "#fff" }}
+                  title={att.name}
+                  referrerPolicy="no-referrer"
+                />
+                {fileBar}
               </div>
             ) : (
-              <a href={post.attachment.url} target="_blank" rel="noopener noreferrer"
+              <a href={att.url} target="_blank" rel="noopener noreferrer"
                 style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "12px 16px",
                   background: DY.warmLight, textDecoration: "none",
                 }}>
                 <SvgIcon path={ICONS.file} size={24} color={DY.gold} />
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy }}>{post.attachment.name}</div>
-                  <div style={{ fontSize: 11, color: PC.textMuted }}>{post.attachment.size ? (post.attachment.size / 1024).toFixed(0) + " KB" : "Dosya"}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy }}>{att.name}</div>
+                  <div style={{ fontSize: 11, color: PC.textMuted }}>{att.size ? (att.size / 1024).toFixed(0) + " KB" : "Dosya"}</div>
                 </div>
               </a>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {/* Alt kısım: reaksiyonlar + yorumlar + yer imi */}
         <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
