@@ -2376,6 +2376,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [stajCommissionMembers, setStajCommissionMembers] = useState([]);
+  const [commissionDeptId, setCommissionDeptId] = useState(null);
   const [isCommissionMember, setIsCommissionMember] = useState(false);
   const responsive = window.useResponsive();
 
@@ -2396,17 +2397,28 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     const loadCommission = async () => {
       try {
         const comms = await window.apiRead("commissions");
-        // "staj" kelimesi geçen komisyonu bul
-        const stajComm = comms.find(c => (c.name || "").toLowerCase().includes("staj"));
-        if (stajComm && stajComm.members) {
-          setStajCommissionMembers(stajComm.members);
-          // Mevcut kullanıcı komisyon üyesi mi kontrol et
-          const userName = currentUser?.name || currentUser?.identifier || "";
-          const isMember = stajComm.members.some(m =>
-            m.name && userName && m.name.toLowerCase().trim() === userName.toLowerCase().trim()
-          );
-          setIsCommissionMember(isMember);
+        // "staj" kelimesi geçen TÜM komisyonlar (her bölümün kendi staj komisyonu)
+        const stajComms = comms.filter(c => (c.name || "").toLowerCase().includes("staj"));
+        const userName = currentUser?.name || currentUser?.identifier || "";
+        let isMember = false;
+        let memberDept = null;
+        let memberList = [];
+        for (const c of stajComms) {
+          const members = c.members || [];
+          if (members.some(m => m.name && userName &&
+            m.name.toLowerCase().trim() === userName.toLowerCase().trim())) {
+            isMember = true;
+            // Üyenin bağlı olduğu bölüm — yalnızca bu bölümde işlem yapabilir
+            memberDept = c.departmentId || "bilgisayar";
+            memberList = members;
+            break;
+          }
         }
+        // Komisyon üyesi değilse, gösterim için ilk staj komisyonunun üyelerini tut
+        if (!memberList.length && stajComms[0]?.members) memberList = stajComms[0].members;
+        setStajCommissionMembers(memberList);
+        setIsCommissionMember(isMember);
+        setCommissionDeptId(memberDept);
       } catch (e) {
         console.error("Komisyon bilgileri yüklenirken hata:", e);
       }
@@ -2426,6 +2438,18 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const effectiveDept = activeDepartment;
   const effectiveDeptName =
     ALL_DEPARTMENTS.find(d => d.id === effectiveDept)?.name || departmentInfo?.name || "Bölüm";
+
+  // Fakülte geneli yetki: admin (fakülte yöneticisi) ve Ergün ÇINAR her
+  // bölümde işlem yapabilir. Bölüm yetkilisi ve komisyon üyesi yalnızca
+  // KENDİ bölümünün staj ekranında işlem yapabilir.
+  const isFacultyWide = isAdmin || isErgunCinar;
+  const myDept = isDeptManager
+    ? (currentUser?.departmentId || "bilgisayar")
+    : (isCommissionMember ? (commissionDeptId || "bilgisayar") : null);
+  const canActOnDept = isFacultyWide || (!!myDept && effectiveDept === myDept);
+  const denyCrossDept = () => {
+    alert("Yalnızca kendi bölümünüzün staj işlemlerini gerçekleştirebilirsiniz. Başka bir bölümün staj ekranında işlem yapamazsınız.");
+  };
 
   // Bir başvurunun belirtilen bölüme ait olup olmadığını kontrol eder.
   // departmentId yoksa bölüm adından (bolumProgrami) eşleştirir; o da
@@ -2625,6 +2649,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Başvuru durumu güncelle
   const handleStatusChange = async (appId, newStatus, rejectionReason = "") => {
+    if (!canActOnDept) { denyCrossDept(); return; }
     // Tamamlandı onayı vermeden önce belge kontrolü
     if (newStatus === "tamamlandi") {
       const app = allApplications.find(a => a.id === appId);
@@ -2702,6 +2727,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Reddet modalını onayla: gerekçe zorunlu
   const handleConfirmReject = async () => {
     if (!rejectModalApp) return;
+    if (!canActOnDept) { denyCrossDept(); return; }
     const reason = rejectReason.trim();
     if (reason.length < 10) {
       alert("Lütfen red gerekçesini en az 10 karakter olacak şekilde yazınız. Bu açıklama öğrenciye iletilecektir.");
@@ -2719,6 +2745,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Başvuru sil
   const handleDeleteApp = async (appId) => {
+    if (!canActOnDept) { denyCrossDept(); return; }
     const app = allApplications.find(a => a.id === appId);
     // Fakülte yetkilisi (admin) her durumda silebilir, diğerleri sadece beklemede olanı silebilir
     if (!isAdmin && app && app.status !== "beklemede") {
@@ -2756,6 +2783,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       alert("Staj etaplarını düzenleme yetkiniz bulunmamaktadır.");
       return;
     }
+    if (!canActOnDept) { denyCrossDept(); return; }
     if (!periodForm.label || !periodForm.baslangic || !periodForm.bitis) {
       alert("Etap adı, başlangıç ve bitiş tarihi zorunludur.");
       return;
@@ -2811,6 +2839,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       alert("Staj etaplarını silme yetkiniz bulunmamaktadır.");
       return;
     }
+    if (!canActOnDept) { denyCrossDept(); return; }
     if (!confirm("Bu staj etabını silmek istediğinizden emin misiniz?")) return;
     try {
       await window.DBWrite.remove("internship_periods", periodId);
@@ -2847,6 +2876,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Yol haritası adım onayı
   const handleApproveStep = async (appId, stepIdx) => {
+    if (!canActOnDept) { denyCrossDept(); return; }
     // Adım 4 (index 3) sadece Ergün ÇINAR onaylayabilir
     if (stepIdx === 3 && !isErgunCinar) {
       alert("Bu adım (SGK İşlemleri) yalnızca Ergün ÇINAR tarafından onaylanabilir.");
@@ -2921,6 +2951,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Yol haritası adım reddi
   const handleRejectStep = async (appId, stepIdx) => {
+    if (!canActOnDept) { denyCrossDept(); return; }
     // Ergün ÇINAR yalnızca adım 4 (index 3) için red verebilir
     if (stepIdx !== 3 && isErgunCinar) {
       alert("Yalnızca SGK İşlemleri (Adım 4) için red yetkiniz bulunmaktadır.");
@@ -2988,6 +3019,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Belge değişiklik talebini onayla
   const handleApproveDocChange = async (ogrenciNo, belgeId) => {
+    if (!canActOnDept) { denyCrossDept(); return; }
     try {
       await window.DBWrite.set("internship_uploads", ogrenciNo, {
         [belgeId]: {
@@ -3014,6 +3046,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Belge değişiklik talebini reddet
   const handleRejectDocChange = async (ogrenciNo, belgeId) => {
+    if (!canActOnDept) { denyCrossDept(); return; }
     try {
       await window.DBWrite.set("internship_uploads", ogrenciNo, {
         [belgeId]: {
@@ -3883,10 +3916,12 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               <p style={{ fontSize: 12, color: STAJ.textMuted, margin: "4px 0 0" }}>
                 {isErgunCinar
                   ? "Tanımlı staj etaplarını görüntüleyebilirsiniz. Düzenleme ve silme yetkiniz bulunmamaktadır."
-                  : "Öğrenciler yalnızca tanımlanan etaplardan birini seçerek staj başvurusu yapabilir."}
+                  : !canActOnDept
+                    ? `Bu ekran ${effectiveDeptName} bölümüne aittir. Yalnızca kendi bölümünüzün staj etaplarını oluşturabilir/düzenleyebilirsiniz.`
+                    : "Öğrenciler yalnızca tanımlanan etaplardan birini seçerek staj başvurusu yapabilir."}
               </p>
             </div>
-            {!isErgunCinar && (
+            {!isErgunCinar && canActOnDept && (
               <button onClick={() => { setPeriodForm({ label: "", baslangic: "", bitis: "", aciklama: "" }); setEditingPeriod(null); setShowPeriodForm(true); }} style={{
                 padding: "10px 20px", borderRadius: 8, border: "none",
                 background: STAJ.primary, color: "white", fontSize: 13, fontWeight: 600,
@@ -3899,7 +3934,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           </div>
 
           {/* Etap Formu */}
-          {showPeriodForm && !isErgunCinar && (
+          {showPeriodForm && !isErgunCinar && canActOnDept && (
             <div style={{
               background: "white", borderRadius: 12, padding: responsive.val(16, 20, 24),
               border: "1px solid #E5E7EB", marginBottom: 20,
@@ -4009,7 +4044,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         );
                       })()}
                     </div>
-                    {!isErgunCinar && (
+                    {!isErgunCinar && canActOnDept && (
                       <div style={{ display: "flex", gap: 6 }}>
                         <button onClick={() => { setPeriodForm({ label: period.label, baslangic: period.baslangic, bitis: period.bitis, aciklama: period.aciklama || "" }); setEditingPeriod(period.id); setShowPeriodForm(true); }} style={{
                           padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "white", color: STAJ.primary, fontSize: 12, cursor: "pointer",
@@ -4318,7 +4353,12 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
                           {/* Onay / Reddet Butonları */}
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16, paddingTop: 14, borderTop: "1px solid #E5E7EB" }}>
-                            {selectedApp.status === "beklemede" && (
+                            {!canActOnDept && (
+                              <div style={{ padding: "10px 16px", borderRadius: 8, background: "#FEF9C3", color: "#92400E", fontSize: 12, fontWeight: 500, flex: 1, textAlign: "center" }}>
+                                Bu başvuru başka bir bölüme ait. Yalnızca kendi bölümünüzün başvurularında işlem yapabilirsiniz.
+                              </div>
+                            )}
+                            {canActOnDept && selectedApp.status === "beklemede" && (
                               <>
                                 <button onClick={() => handleStatusChange(selectedApp.id, "devam")} style={{
                                   flex: 1, padding: "10px 20px", borderRadius: 8, border: "none",
@@ -4338,7 +4378,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                 </button>
                               </>
                             )}
-                            {selectedApp.status === "devam" && (() => {
+                            {canActOnDept && selectedApp.status === "devam" && (() => {
                               const appRoadmap = allRoadmaps[selectedApp.id] || {};
                               const appSteps = appRoadmap.steps || {};
                               const allStepsCompleted = STAJ_ROADMAP_STEPS.every((_, idx) => appSteps[idx]?.status === "completed");
@@ -4357,12 +4397,12 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                 </div>
                               );
                             })()}
-                            {selectedApp.status === "tamamlandi" && (
+                            {canActOnDept && selectedApp.status === "tamamlandi" && (
                               <div style={{ padding: "10px 16px", borderRadius: 8, background: STAJ.greenLight, color: STAJ.green, fontSize: 13, fontWeight: 600, flex: 1, textAlign: "center" }}>
                                 Staj başarıyla tamamlanmıştır.
                               </div>
                             )}
-                            {selectedApp.status === "reddedildi" && (
+                            {canActOnDept && selectedApp.status === "reddedildi" && (
                               <button onClick={() => handleStatusChange(selectedApp.id, "beklemede")} style={{
                                 flex: 1, padding: "10px 20px", borderRadius: 8, border: "1px solid #D1D5DB",
                                 background: "white", color: STAJ.navy, fontSize: 13, fontWeight: 600,
@@ -4735,7 +4775,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                     })()}
 
                                     {/* Onayla / Reddet butonları */}
-                                    {isPending && !(isErgunCinar && idx !== 4) && (
+                                    {canActOnDept && isPending && !(isErgunCinar && idx !== 4) && (
                                       <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
                                         <button onClick={() => handleApproveStep(selectedApp.id, idx)} style={{
                                           padding: "6px 14px", borderRadius: 6, border: "none",
