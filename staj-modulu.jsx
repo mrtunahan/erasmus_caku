@@ -2419,13 +2419,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const isStudent = !canManage && !isProfessor;
   const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
 
-  // Ergün ÇINAR ve fakülte yetkilisi (admin) staj modülünde bölümler arası
-  // geçiş yapabilir. Diğer roller yalnızca kendi bölümünü görür.
-  const canSwitchDept = isErgunCinar || isAdmin;
+  // Görüntülenen bölüm app-shell'deki bölüm panelinden (RightSidebar)
+  // yönetilir. Ergün ÇINAR ve fakülte yetkilisi o panelden bölüm
+  // değiştirir; modül içinde ayrı bir dropdown bulunmaz.
   const ALL_DEPARTMENTS = window.DEPARTMENTS || [];
-  const [viewDept, setViewDept] = useState(activeDepartment);
-  useEffect(() => { setViewDept(activeDepartment); }, [activeDepartment]);
-  const effectiveDept = canSwitchDept ? viewDept : activeDepartment;
+  const effectiveDept = activeDepartment;
   const effectiveDeptName =
     ALL_DEPARTMENTS.find(d => d.id === effectiveDept)?.name || departmentInfo?.name || "Bölüm";
 
@@ -3407,27 +3405,6 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Bölüm Geçişi (Ergün ÇINAR ve fakülte yetkilisi) */}
-          {canSwitchDept && ALL_DEPARTMENTS.length > 1 && (
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <label style={{ fontSize: 9, fontWeight: 700, color: STAJ.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>Bölüm</label>
-              <select
-                value={viewDept}
-                onChange={e => setViewDept(e.target.value)}
-                title="Görüntülenen bölümü değiştir"
-                style={{
-                  padding: "8px 12px", borderRadius: 8, border: `1.5px solid ${STAJ.primary}40`,
-                  background: STAJ.primaryPale, color: STAJ.navy, fontSize: 13, fontWeight: 600,
-                  outline: "none", cursor: "pointer",
-                }}
-              >
-                {ALL_DEPARTMENTS.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {/* Bildirim Zili (sadece yöneticilere) */}
           {canManage && (
             <div style={{ position: "relative" }}>
