@@ -2726,6 +2726,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Staj etabı kaydet
   const handleSavePeriod = async () => {
+    if (isErgunCinar) {
+      alert("Staj etaplarını düzenleme yetkiniz bulunmamaktadır.");
+      return;
+    }
     if (!periodForm.label || !periodForm.baslangic || !periodForm.bitis) {
       alert("Etap adı, başlangıç ve bitiş tarihi zorunludur.");
       return;
@@ -2777,6 +2781,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Staj etabı sil
   const handleDeletePeriod = async (periodId) => {
+    if (isErgunCinar) {
+      alert("Staj etaplarını silme yetkiniz bulunmamaktadır.");
+      return;
+    }
     if (!confirm("Bu staj etabını silmek istediğinizden emin misiniz?")) return;
     try {
       await window.DBWrite.remove("internship_periods", periodId);
@@ -3028,6 +3036,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // ── XML Export ──
   // "Tüm Etaplar" seçili ise her etap için AYRI bir dosya indirilir.
   const handleExportXML = () => {
+    if (isErgunCinar && exportPeriodId === "all") {
+      alert("Lütfen dışa aktarmak istediğiniz bir staj etabı seçiniz.");
+      return;
+    }
     const triggerDownload = (xml, label) => {
       const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
       const url = URL.createObjectURL(blob);
@@ -3065,6 +3077,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Ergün ÇINAR için sadeleştirilmiş kolon seti kullanılır;
   // "Tüm Etaplar" seçili ise her etap için AYRI bir dosya indirilir.
   const handleExportXLSX = async () => {
+    if (isErgunCinar && exportPeriodId === "all") {
+      alert("Lütfen dışa aktarmak istediğiniz bir staj etabı seçiniz.");
+      return;
+    }
     setExporting(true);
     try {
       const XLSX = await loadSheetJS();
@@ -3258,7 +3274,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const TABS = [
     ...(isStudent ? [{ id: "basvuru", label: "Staj Başvurusu", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" }] : []),
-    ...((canManage && !isErgunCinar) ? [{ id: "etaplar", label: "Staj Etapları", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" }] : []),
+    ...(canManage ? [{ id: "etaplar", label: "Staj Etapları", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" }] : []),
     { id: "roadmap", label: "Yol Haritası", icon: "M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" },
     { id: "kayitlar", label: "Staj Kayıtları", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
   ];
@@ -3762,20 +3778,26 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
             <div>
               <h3 style={{ fontSize: 16, fontWeight: 600, color: STAJ.navy, margin: 0 }}>Staj Etapları</h3>
-              <p style={{ fontSize: 12, color: STAJ.textMuted, margin: "4px 0 0" }}>Öğrenciler yalnızca tanımlanan etaplardan birini seçerek staj başvurusu yapabilir.</p>
+              <p style={{ fontSize: 12, color: STAJ.textMuted, margin: "4px 0 0" }}>
+                {isErgunCinar
+                  ? "Tanımlı staj etaplarını görüntüleyebilirsiniz. Düzenleme ve silme yetkiniz bulunmamaktadır."
+                  : "Öğrenciler yalnızca tanımlanan etaplardan birini seçerek staj başvurusu yapabilir."}
+              </p>
             </div>
-            <button onClick={() => { setPeriodForm({ label: "", baslangic: "", bitis: "", aciklama: "" }); setEditingPeriod(null); setShowPeriodForm(true); }} style={{
-              padding: "10px 20px", borderRadius: 8, border: "none",
-              background: STAJ.primary, color: "white", fontSize: 13, fontWeight: 600,
-              cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-            }}>
-              <StajIcon path="M12 5v14M5 12h14" size={16} />
-              Yeni Etap Tanımla
-            </button>
+            {!isErgunCinar && (
+              <button onClick={() => { setPeriodForm({ label: "", baslangic: "", bitis: "", aciklama: "" }); setEditingPeriod(null); setShowPeriodForm(true); }} style={{
+                padding: "10px 20px", borderRadius: 8, border: "none",
+                background: STAJ.primary, color: "white", fontSize: 13, fontWeight: 600,
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+              }}>
+                <StajIcon path="M12 5v14M5 12h14" size={16} />
+                Yeni Etap Tanımla
+              </button>
+            )}
           </div>
 
           {/* Etap Formu */}
-          {showPeriodForm && (
+          {showPeriodForm && !isErgunCinar && (
             <div style={{
               background: "white", borderRadius: 12, padding: responsive.val(16, 20, 24),
               border: "1px solid #E5E7EB", marginBottom: 20,
@@ -3885,14 +3907,16 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         );
                       })()}
                     </div>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={() => { setPeriodForm({ label: period.label, baslangic: period.baslangic, bitis: period.bitis, aciklama: period.aciklama || "" }); setEditingPeriod(period.id); setShowPeriodForm(true); }} style={{
-                        padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "white", color: STAJ.primary, fontSize: 12, cursor: "pointer",
-                      }}>Düzenle</button>
-                      <button onClick={() => handleDeletePeriod(period.id)} style={{
-                        padding: "6px 12px", borderRadius: 6, border: "1px solid #FCA5A5", background: "#FEF2F2", color: STAJ.red, fontSize: 12, cursor: "pointer",
-                      }}>Sil</button>
-                    </div>
+                    {!isErgunCinar && (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button onClick={() => { setPeriodForm({ label: period.label, baslangic: period.baslangic, bitis: period.bitis, aciklama: period.aciklama || "" }); setEditingPeriod(period.id); setShowPeriodForm(true); }} style={{
+                          padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "white", color: STAJ.primary, fontSize: 12, cursor: "pointer",
+                        }}>Düzenle</button>
+                        <button onClick={() => handleDeletePeriod(period.id)} style={{
+                          padding: "6px 12px", borderRadius: 6, border: "1px solid #FCA5A5", background: "#FEF2F2", color: STAJ.red, fontSize: 12, cursor: "pointer",
+                        }}>Sil</button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -4598,7 +4622,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     </div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: STAJ.navy }}>Veri Dışa Aktarma</div>
-                      <div style={{ fontSize: 11, color: STAJ.textMuted }}>Etap bazlı staj kayıt verilerini XML veya XLSX olarak indirin. "Tüm Etaplar" seçili ise her etap için ayrı dosya oluşturulur.</div>
+                      <div style={{ fontSize: 11, color: STAJ.textMuted }}>
+                        {isErgunCinar
+                          ? "Bir etap seçerek o etaba kayıtlı staj verilerini XML veya XLSX olarak indirebilirsiniz."
+                          : 'Etap bazlı staj kayıt verilerini XML veya XLSX olarak indirin. "Tüm Etaplar" seçili ise her etap için ayrı dosya oluşturulur.'}
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
@@ -4609,7 +4637,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         onChange={e => setExportPeriodId(e.target.value)}
                         style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 13, outline: "none", background: "white" }}
                       >
-                        <option value="all">Tüm Etaplar — her etap ayrı dosya ({allApplications.length} öğrenci)</option>
+                        {isErgunCinar
+                          ? <option value="all" disabled>Lütfen bir etap seçiniz</option>
+                          : <option value="all">Tüm Etaplar — her etap ayrı dosya ({allApplications.length} öğrenci)</option>}
                         {stajPeriods.map(p => {
                           const count = allApplications.filter(a => a.stajEtapId === p.id).length;
                           return <option key={p.id} value={p.id}>{p.label} ({count} öğrenci)</option>;
