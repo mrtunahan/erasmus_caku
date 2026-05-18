@@ -2419,6 +2419,31 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const isStudent = !canManage && !isProfessor;
   const studentId = currentUser?.studentNumber || currentUser?.identifier || "";
 
+  // Ergün ÇINAR ve fakülte yetkilisi (admin) staj modülünde bölümler arası
+  // geçiş yapabilir. Diğer roller yalnızca kendi bölümünü görür.
+  const canSwitchDept = isErgunCinar || isAdmin;
+  const ALL_DEPARTMENTS = window.DEPARTMENTS || [];
+  const [viewDept, setViewDept] = useState(activeDepartment);
+  useEffect(() => { setViewDept(activeDepartment); }, [activeDepartment]);
+  const effectiveDept = canSwitchDept ? viewDept : activeDepartment;
+  const effectiveDeptName =
+    ALL_DEPARTMENTS.find(d => d.id === effectiveDept)?.name || departmentInfo?.name || "Bölüm";
+
+  // Bir başvurunun belirtilen bölüme ait olup olmadığını kontrol eder.
+  // departmentId yoksa bölüm adından (bolumProgrami) eşleştirir; o da
+  // yoksa varsayılan olarak "bilgisayar" kabul edilir (eski kayıtlar için).
+  const appInDept = (app, deptId) => {
+    if (!deptId) return true;
+    if (app.departmentId) return app.departmentId === deptId;
+    const d = ALL_DEPARTMENTS.find(x => x.id === deptId);
+    if (d && app.bolumProgrami) return app.bolumProgrami === d.name;
+    return deptId === "bilgisayar";
+  };
+
+  // Tüm fakülte başvuruları (yalnızca Ergün ÇINAR'ın fakülte geneli dışa
+  // aktarımı için — bölüm filtresiz tüm kayıtlar)
+  const [allFacultyApplications, setAllFacultyApplications] = useState([]);
+
   // ── Öğrenci bildirimleri ──
   const [studentNotifs, setStudentNotifs] = useState([]);
   const [showStudentNotifs, setShowStudentNotifs] = useState(false);
@@ -2537,36 +2562,30 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     setLoading(true);
     try {
       // Staj etaplarını yükle
-      const periodParams = activeDepartment ? { where: "departmentId:eq:s:" + activeDepartment } : {};
+      const periodParams = effectiveDept ? { where: "departmentId:eq:s:" + effectiveDept } : {};
       let periods = await window.apiRead("internship_periods", periodParams);
       // departmentId filtresiyle sonuç yoksa filtresiz dene
       // (etaplar farklı bir departmentId değeriyle kaydedilmiş olabilir —
       // ör. başka bir yetkili tarafından oluşturulmuş etaplar)
-      if (periods.length === 0 && activeDepartment) {
+      if (periods.length === 0 && effectiveDept) {
         console.warn("departmentId filtresiyle staj etabı bulunamadı, filtresiz deneniyor...");
         periods = await window.apiRead("internship_periods");
       }
       setStajPeriods(periods);
 
       // Eski internships koleksiyonunu yükle
-      const internParams = activeDepartment ? { where: "departmentId:eq:s:" + activeDepartment } : {};
+      const internParams = effectiveDept ? { where: "departmentId:eq:s:" + effectiveDept } : {};
       const records = await window.apiRead("internships", internParams);
       setStajRecords(records);
 
       // Admin/yönetici ise öğrenci başvurularını ve belgelerini yükle
       if (canManage) {
-        // Önce departmentId filtresiyle dene
-        const appParams = activeDepartment ? { where: "departmentId:eq:s:" + activeDepartment } : {};
-        let apps = await window.apiRead("internship_applications", appParams);
-
-        // Eğer filtreyle sonuç yoksa filtresiz dene (departmentId eşleşmeme durumu)
-        if (apps.length === 0 && activeDepartment) {
-          console.warn("departmentId filtresiyle başvuru bulunamadı, filtresiz deneniyor...");
-          apps = await window.apiRead("internship_applications");
-          console.log("Toplam başvuru:", apps.length, "departmentId değerleri:", apps.map(a => a.departmentId));
-        }
-
-        setAllApplications(apps);
+        // Tüm başvuruları çek, bölüme göre istemci tarafında ayır
+        // (her bölümün öğrencileri ayrı ayrı gösterilir)
+        const allApps = await window.apiRead("internship_applications");
+        if (isErgunCinar) setAllFacultyApplications(allApps);
+        const deptApps = allApps.filter(a => appInDept(a, effectiveDept));
+        setAllApplications(deptApps);
 
         // Tüm yüklenen belgeleri getir
         const uploadDocs = await window.apiRead("internship_uploads");
@@ -2581,7 +2600,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
-  useEffect(() => { loadAllData(); }, [activeDepartment, isCommissionMember]);
+  useEffect(() => { loadAllData(); }, [effectiveDept, isCommissionMember]);
 
   const filteredApplications = useMemo(() => {
     return allApplications.filter(r => {
@@ -3147,6 +3166,54 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
+  // ── Tüm Fakülte Dışa Aktarma (yalnızca Ergün ÇINAR) ──
+  // Tüm fakültedeki staj yapan öğrenciler tek bir XML / XLSX dosyasında.
+  const handleExportFacultyXML = () => {
+    const apps = allFacultyApplications;
+    if (apps.length === 0) { alert("Dışa aktarılacak fakülte kaydı bulunamadı."); return; }
+    const xml = generateXML(apps, "Tüm Fakülte");
+    const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "staj-kayitlari-Tum_Fakulte.xml";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportFacultyXLSX = async () => {
+    const apps = allFacultyApplications;
+    if (apps.length === 0) { alert("Dışa aktarılacak fakülte kaydı bulunamadı."); return; }
+    setExporting(true);
+    try {
+      const XLSX = await loadSheetJS();
+      const fields = ERGUN_EXPORT_FIELDS;
+      const deptName = (a) =>
+        ALL_DEPARTMENTS.find(d => d.id === a.departmentId)?.name || a.bolumProgrami || "";
+      const headers = ["Bölüm", ...fields.map(([, tr]) => tr)];
+      const rows = apps.map(app => [
+        deptName(app),
+        ...fields.map(([key]) => {
+          const v = app[key];
+          return v != null ? String(v) : "";
+        }),
+      ]);
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.length + 4, 16) }));
+      headers.forEach((_, ci) => {
+        const cellRef = XLSX.utils.encode_cell({ r: 0, c: ci });
+        if (ws[cellRef]) ws[cellRef].s = { font: { bold: true } };
+      });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Tüm Fakülte");
+      XLSX.writeFile(wb, "staj-kayitlari-Tum_Fakulte.xlsx");
+    } catch (e) {
+      alert("XLSX dışa aktarma hatası: " + e.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // ── Bildirimler ──
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -3154,13 +3221,13 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const loadNotifications = useCallback(async () => {
     if (!canManage) return;
     try {
-      const docs = await window.apiRead("internship_notifications", { where: "departmentId:eq:s:" + (activeDepartment || "") });
+      const docs = await window.apiRead("internship_notifications", { where: "departmentId:eq:s:" + (effectiveDept || "") });
       const list = docs.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
       setNotifications(list);
     } catch (e) {
       console.error("Bildirimler yüklenirken hata:", e);
     }
-  }, [canManage, activeDepartment]);
+  }, [canManage, effectiveDept]);
 
   useEffect(() => { loadNotifications(); }, [loadNotifications]);
 
@@ -3268,6 +3335,33 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     loadRoadmaps();
   }, [canManage, allApplications]);
 
+  // Bir başvurunun yol haritasında hangi adımda olduğunu rozet olarak döndürür.
+  // "Devam Ediyor / Beklemede / Tamamlandı" yerine güncel adım gösterilir.
+  const getAppStageBadge = (app) => {
+    if (app.status === "reddedildi") return { label: "Reddedildi", color: "#DC2626", bg: "#FEE2E2" };
+    if (app.status === "tamamlandi") return { label: "Staj Tamamlandı", color: "#059669", bg: "#D1FAE5" };
+    if (app.status === "beklemede") return { label: "Başvuru Onayı Bekliyor", color: "#EAB308", bg: "#FEF9C3" };
+    // devam — yol haritasındaki güncel adımı bul
+    const steps = allRoadmaps[app.id]?.steps || {};
+    const total = STAJ_ROADMAP_STEPS.length;
+    let lastCompleted = 0;
+    let pendingIdx = -1;
+    for (let i = 0; i < total; i++) {
+      const st = steps[i]?.status;
+      if (st === "completed") lastCompleted = i + 1;
+      if (st === "pending_approval" && pendingIdx === -1) pendingIdx = i;
+    }
+    if (lastCompleted >= total) return { label: "Tüm adımlar tamamlandı", color: "#059669", bg: "#D1FAE5" };
+    const curIdx = pendingIdx !== -1 ? pendingIdx : Math.min(lastCompleted, total - 1);
+    const step = STAJ_ROADMAP_STEPS[curIdx];
+    const pending = pendingIdx !== -1;
+    return {
+      label: `Adım ${step.id}/${total} — ${step.title}${pending ? " (Onay Bekliyor)" : ""}`,
+      color: pending ? "#3B82F6" : "#0891B2",
+      bg: pending ? "#DBEAFE" : "#ECFEFF",
+    };
+  };
+
   if (loading) {
     return (
       <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
@@ -3284,6 +3378,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     ...(canManage ? [{ id: "etaplar", label: "Staj Etapları", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" }] : []),
     { id: "roadmap", label: "Yol Haritası", icon: "M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" },
     { id: "kayitlar", label: "Staj Kayıtları", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
+    ...(isErgunCinar ? [{ id: "fakulte", label: "Tüm Fakülte", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2m-2 0h-4m-1 0h-1m-4 0H7m4 0v-4a1 1 0 011-1h0a1 1 0 011 1v4m-4 0h4M9 7h1m-1 4h1m4-4h1m-1 4h1" }] : []),
   ];
 
   return (
@@ -3307,11 +3402,32 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             Staj Yönetimi
           </h1>
           <p style={{ fontSize: 13, color: STAJ.textMuted, marginTop: 4 }}>
-            {departmentInfo?.name || "Bölüm"} - Staj takip ve değerlendirme
+            {effectiveDeptName} - Staj takip ve değerlendirme
           </p>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* Bölüm Geçişi (Ergün ÇINAR ve fakülte yetkilisi) */}
+          {canSwitchDept && ALL_DEPARTMENTS.length > 1 && (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <label style={{ fontSize: 9, fontWeight: 700, color: STAJ.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>Bölüm</label>
+              <select
+                value={viewDept}
+                onChange={e => setViewDept(e.target.value)}
+                title="Görüntülenen bölümü değiştir"
+                style={{
+                  padding: "8px 12px", borderRadius: 8, border: `1.5px solid ${STAJ.primary}40`,
+                  background: STAJ.primaryPale, color: STAJ.navy, fontSize: 13, fontWeight: 600,
+                  outline: "none", cursor: "pointer",
+                }}
+              >
+                {ALL_DEPARTMENTS.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Bildirim Zili (sadece yöneticilere) */}
           {canManage && (
             <div style={{ position: "relative" }}>
@@ -3929,6 +4045,79 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ════ Tüm Fakülte Sekmesi (yalnızca Ergün ÇINAR) ════ */}
+      {activeTab === "fakulte" && isErgunCinar && (
+        <div>
+          <div style={{
+            background: "linear-gradient(135deg, #ECFEFF 0%, #F0F9FF 100%)",
+            border: "1.5px solid #0891B220",
+            borderRadius: 14, padding: responsive.val(14, 18, 22), marginBottom: 20,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: STAJ.primary, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <StajIcon path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2m-2 0h-4m-1 0h-1m-4 0H7m4 0v-4a1 1 0 011-1h0a1 1 0 011 1v4m-4 0h4M9 7h1m-1 4h1m4-4h1m-1 4h1" size={16} color="white" />
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: STAJ.navy }}>Tüm Fakülte — Staj Kayıtları</div>
+                <div style={{ fontSize: 11, color: STAJ.textMuted }}>
+                  Fakültedeki tüm bölümlerin staj yapan öğrencilerini tek bir XML veya XLSX dosyası olarak indirin.
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+              <div style={{ flex: 1, minWidth: 200, fontSize: 13, color: STAJ.navy, fontWeight: 600 }}>
+                Toplam {allFacultyApplications.length} öğrenci
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={handleExportFacultyXML} style={{
+                  padding: "9px 16px", borderRadius: 8, border: "1.5px solid #0891B2",
+                  background: "white", color: STAJ.primary, fontSize: 13, fontWeight: 600,
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  <StajIcon path="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" size={15} />
+                  Tüm Fakülte XML
+                </button>
+                <button onClick={handleExportFacultyXLSX} disabled={exporting} style={{
+                  padding: "9px 16px", borderRadius: 8, border: "none",
+                  background: exporting ? "#9CA3AF" : STAJ.primary, color: "white",
+                  fontSize: 13, fontWeight: 600, cursor: exporting ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  <StajIcon path="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" size={15} />
+                  {exporting ? "Hazırlanıyor..." : "Tüm Fakülte XLSX"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Bölüm bazında özet */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {ALL_DEPARTMENTS.map(d => {
+              const deptApps = allFacultyApplications.filter(a => appInDept(a, d.id));
+              if (deptApps.length === 0) return null;
+              return (
+                <div key={d.id} style={{
+                  background: "white", borderRadius: 10, padding: 16,
+                  border: "1px solid #E5E7EB", display: "flex", alignItems: "center",
+                  justifyContent: "space-between", gap: 12, flexWrap: "wrap",
+                }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: STAJ.navy }}>{d.name}</div>
+                  <span style={{
+                    padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 700,
+                    background: STAJ.primaryPale, color: STAJ.primary,
+                  }}>{deptApps.length} öğrenci</span>
+                </div>
+              );
+            })}
+            {allFacultyApplications.length === 0 && (
+              <div style={{ background: "white", borderRadius: 12, padding: 40, border: "1px solid #E5E7EB", textAlign: "center" }}>
+                <p style={{ color: STAJ.textMuted, fontSize: 14 }}>Fakülte genelinde henüz staj kaydı bulunmuyor.</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -4755,7 +4944,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {filteredApplications.map(app => {
-                    const status = STAJ_STATUS[app.status] || STAJ_STATUS.beklemede;
+                    const status = getAppStageBadge(app);
                     const studentUploads = allUploads[app.ogrenciNo] || {};
                     const VALID_DOC_KEYS = ["zorunlu_staj_formu", "staj_basvuru_formu_ek1", "kimlik_fotokopisi", "staj_defteri", "ek2_belgesi", "staj_teslim_belgesi", "turnitin_raporu"];
                     const uploadCount = Object.keys(studentUploads).filter(k => VALID_DOC_KEYS.includes(k) && studentUploads[k]?.fileName).length;
