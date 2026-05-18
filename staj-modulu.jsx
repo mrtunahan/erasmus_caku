@@ -2438,6 +2438,15 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     return deptId === "bilgisayar";
   };
 
+  // Bir staj etabının belirtilen bölüme ait olup olmadığını kontrol eder.
+  // Her bölümün etapları yalnızca o bölüme görünür; departmentId'si
+  // olmayan eski etaplar Bilgisayar Mühendisliği'ne ait kabul edilir.
+  const periodInDept = (period, deptId) => {
+    if (!deptId) return true;
+    if (period.departmentId) return period.departmentId === deptId;
+    return deptId === "bilgisayar";
+  };
+
   // Tüm fakülte başvuruları (yalnızca Ergün ÇINAR'ın fakülte geneli dışa
   // aktarımı için — bölüm filtresiz tüm kayıtlar)
   const [allFacultyApplications, setAllFacultyApplications] = useState([]);
@@ -2559,17 +2568,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      // Staj etaplarını yükle
-      const periodParams = effectiveDept ? { where: "departmentId:eq:s:" + effectiveDept } : {};
-      let periods = await window.apiRead("internship_periods", periodParams);
-      // departmentId filtresiyle sonuç yoksa filtresiz dene
-      // (etaplar farklı bir departmentId değeriyle kaydedilmiş olabilir —
-      // ör. başka bir yetkili tarafından oluşturulmuş etaplar)
-      if (periods.length === 0 && effectiveDept) {
-        console.warn("departmentId filtresiyle staj etabı bulunamadı, filtresiz deneniyor...");
-        periods = await window.apiRead("internship_periods");
-      }
-      setStajPeriods(periods);
+      // Staj etaplarını yükle — her bölüm yalnızca kendi etaplarını görür.
+      // Tüm etaplar çekilip bölüme göre istemci tarafında ayrılır.
+      const allPeriods = await window.apiRead("internship_periods");
+      setStajPeriods(allPeriods.filter(p => periodInDept(p, effectiveDept)));
 
       // Eski internships koleksiyonunu yükle
       const internParams = effectiveDept ? { where: "departmentId:eq:s:" + effectiveDept } : {};
