@@ -2177,9 +2177,15 @@ const LoginModal = ({ onLogin }) => {
       text-align: center;
       margin-top: 18px;
       font-size: 12px;
-      color: rgba(11, 35, 65, 0.55);
+      color: rgba(255, 255, 255, 0.55);
       letter-spacing: 0.02em;
       font-weight: 500;
+      line-height: 1.7;
+    }
+    .lg-footer-dev {
+      color: rgba(127, 255, 239, 0.78);
+      font-size: 11.5px;
+      font-weight: 600;
     }
 
     /* ── Responsive ── */
@@ -3234,6 +3240,8 @@ const LoginModal = ({ onLogin }) => {
 
         <p className="lg-footer">
           © 2025 ÇAKÜ Bilgisayar Mühendisliği · Offline Asistan
+          <br />
+          <span className="lg-footer-dev">Offline Asistan Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.</span>
         </p>
       </div>
     </div>
