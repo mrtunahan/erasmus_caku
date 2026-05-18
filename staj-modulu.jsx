@@ -2538,7 +2538,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     try {
       // Staj etaplarını yükle
       const periodParams = activeDepartment ? { where: "departmentId:eq:s:" + activeDepartment } : {};
-      const periods = await window.apiRead("internship_periods", periodParams);
+      let periods = await window.apiRead("internship_periods", periodParams);
+      // departmentId filtresiyle sonuç yoksa filtresiz dene
+      // (etaplar farklı bir departmentId değeriyle kaydedilmiş olabilir —
+      // ör. başka bir yetkili tarafından oluşturulmuş etaplar)
+      if (periods.length === 0 && activeDepartment) {
+        console.warn("departmentId filtresiyle staj etabı bulunamadı, filtresiz deneniyor...");
+        periods = await window.apiRead("internship_periods");
+      }
       setStajPeriods(periods);
 
       // Eski internships koleksiyonunu yükle
