@@ -1057,8 +1057,6 @@ function BulkScheduleModal({ onClose, onDistribute, projectCount }) {
 // ── Proje Kategorileri ──
 const PROJECT_CATEGORIES = [
   { id: "bolum", label: "Bölüm", icon: PRJ_ICONS.users, color: "#3B82F6", description: "Bölüm içi ders bazlı proje grupları", collection: "project_courses" },
-  { id: "unides", label: "ÜNİDES", icon: PRJ_ICONS.book, color: "#8B5CF6", description: "ÜNİDES destekli projeler", collection: "unides_courses" },
-  { id: "tubitak2209", label: "TÜBİTAK 2209", icon: PRJ_ICONS.shield, color: "#059669", description: "TÜBİTAK 2209 destekli araştırma projeleri", collection: "tubitak2209_courses" },
 ];
 
 function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {

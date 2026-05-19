@@ -2537,6 +2537,10 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
             ty.indexOf("presentationml") !== -1 || ty.indexOf("ms-powerpoint") !== -1 ||
             ty.indexOf("wordprocessingml") !== -1 || ty.indexOf("msword") !== -1 ||
             ty.indexOf("spreadsheetml") !== -1 || ty.indexOf("ms-excel") !== -1;
+          // Eski Firebase Storage'a yüklenmiş dosyalar (billing kapalı —
+          // 402) erişilemez. Bu URL'leri iframe'e gömmek ham hata JSON'u
+          // gösterir; bunun yerine bilgilendirici bir kart gösterilir.
+          var isFirebase = /firebasestorage\.googleapis\.com|\.firebasestorage\.app/.test(att.url || "");
           // Office belgeleri tarayıcıda doğrudan açılamaz; Microsoft Office
           // Online görüntüleyici ile önizlenir. Dosya mutlak (public) URL
           // olmalı — göreli /api/files yolları origin ile mutlaklaştırılır.
@@ -2561,9 +2565,29 @@ const PostCard = ({ post, currentUser, onReact, onVote, onVotePost, onDelete, on
             marginTop: 12, borderRadius: 10, overflow: "hidden",
             border: "1px solid " + PC.borderLight,
           }}>
-            {isImg ? (
+            {isImg && !isFirebase ? (
               <img src={att.url} alt={att.name}
                 style={{ width: "100%", maxHeight: 400, objectFit: "cover", display: "block" }} />
+            ) : isFirebase ? (
+              <div style={{
+                padding: "20px 16px", background: DY.warmLight, textAlign: "center",
+              }}>
+                <SvgIcon path={ICONS.file} size={32} color={DY.gold} />
+                <div style={{ fontSize: 13, fontWeight: 600, color: PC.navy, marginTop: 8 }}>{att.name}</div>
+                <div style={{ fontSize: 12, color: PC.textMuted, marginTop: 6, lineHeight: 1.5 }}>
+                  Bu dosya eski depolama alanında bulunduğu için önizlenemiyor.
+                  Yeni paylaşılan dosyalar normal şekilde önizlenir.
+                </div>
+                <a href={att.url} target="_blank" rel="noopener noreferrer"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12,
+                    padding: "8px 16px", borderRadius: 8, background: PC.blue,
+                    color: "white", fontSize: 13, fontWeight: 600, textDecoration: "none",
+                  }}>
+                  <SvgIcon path={ICONS.file} size={14} color="white" />
+                  Dosyayı Aç
+                </a>
+              </div>
             ) : isPdf ? (
               <div>
                 <iframe
