@@ -370,6 +370,37 @@ function exportDeptSchedule(deptAllYearsSlots, deptName, semester) {
   if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500); }
 }
 
+// ── Sürüklenebilir Ders Kartı (havuzdan tabloya bırakma) ──
+const CourseChip = ({ course, color }) => {
+  const handleDragStart = (e) => {
+    e.dataTransfer.setData("application/json", JSON.stringify({
+      id: course.id, code: course.code, name: course.name,
+      professor: course.professor || "", sinif: course.sinif || 0,
+    }));
+    e.dataTransfer.effectAllowed = "copy";
+    e.currentTarget.style.opacity = "0.45";
+  };
+  const handleDragEnd = (e) => { e.currentTarget.style.opacity = "1"; };
+  const c = color || "#6B7280";
+  return (
+    <div
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      title={`${course.code} - ${course.name}${course.professor ? " (" + course.professor + ")" : ""}`}
+      style={{
+        padding: "7px 9px", borderRadius: 7, cursor: "grab", userSelect: "none",
+        background: `${c}12`, borderLeft: `3px solid ${c}`,
+        border: `1px solid ${c}30`, marginBottom: 6, transition: "all 0.15s",
+      }}
+    >
+      <div style={{ fontSize: 11, fontWeight: 700, color: c }}>{course.code}</div>
+      <div style={{ fontSize: 10, color: "#374151", lineHeight: 1.3, marginTop: 1 }}>{course.name}</div>
+      {course.professor && <div style={{ fontSize: 9, color: "#9CA3AF", marginTop: 2 }}>{course.professor}</div>}
+    </div>
+  );
+};
+
 function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
   const [scheduleData, setScheduleData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -477,26 +508,75 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     loadSchedule();
   }, [activeDepartment, semester, year]);
 
-  // Program kaydet
-  const saveSchedule = useCallback(async (newData) => {
-    if (!activeDepartment) {
-      alert("Lütfen önce bir bölüm seçin.");
-      return;
-    }
+  // Slot bazlı kaydet (oku-değiştir-yaz): tüm slots haritasını körlemesine
+  // ezmek yerine en güncel dokümanı okuyup yalnızca ilgili slotu değiştirir.
+  // Böylece eşzamanlı düzenlemede veri kaybı en aza iner.
+  const commitSlots = useCallback(async (mutator) => {
+    if (!activeDepartment) { alert("Lütfen önce bir bölüm seçin."); return null; }
+    const docId = `${activeDepartment}_${semester}_${year}`;
     try {
-      const docId = `${activeDepartment}_${semester}_${year}`;
+      let base = {};
+      try {
+        const res = await window.apiReadDoc("course_schedules", docId);
+        base = (res.exists && res.data?.slots) ? res.data.slots : {};
+      } catch (_) { base = scheduleData; }
+      const next = { ...base };
+      mutator(next);
       await window.DBWrite.set("course_schedules", docId, {
-        slots: newData,
-        departmentId: activeDepartment,
-        semester,
-        year,
+        slots: next, departmentId: activeDepartment, semester, year,
         updatedAt: new Date().toISOString(),
       }, true);
+      setScheduleData(next);
+      return next;
     } catch (e) {
       console.error("Program kaydedilirken hata:", e);
       alert("Program kaydedilirken hata: " + e.message);
+      return null;
     }
-  }, [activeDepartment, semester, year]);
+  }, [activeDepartment, semester, year, scheduleData]);
+
+  // Sürükle-bırak / modal ortak yerleştirme mantığı
+  const placeCourse = useCallback(({ course, day, hi, classroom = "", forceAdd = false }) => {
+    if (!course) return false;
+    if (isProfessor && currentUser?.name && course.professor && course.professor !== currentUser.name) {
+      alert("Sadece kendi derslerinizi programa ekleyebilirsiniz.");
+      return false;
+    }
+    const key = `${day}_${hi}`;
+    if (!forceAdd) {
+      const otherYearsSlots = deptAllYearsSlots.filter(s => s.year !== year);
+      const warnings = checkSlotConflict(day, hi, classroom, course.professor || "", otherYearsSlots, allFacultySlots);
+      if (scheduleData[key] && scheduleData[key].courseCode !== course.code) {
+        warnings.unshift(`Bu saatte zaten "${scheduleData[key].courseCode}" dersi var (${year}. Sınıf).`);
+      }
+      if (warnings.length > 0) {
+        if (isAdmin) {
+          if (!window.confirm("Çakışma tespit edildi:\n\n• " + warnings.join("\n• ") + "\n\nYine de yerleştirilsin mi?")) return false;
+        } else {
+          alert("Çakışma nedeniyle yerleştirilemedi:\n\n• " + warnings.join("\n• "));
+          return false;
+        }
+      }
+    }
+    commitSlots((s) => {
+      s[key] = {
+        courseCode: course.code || "", courseName: course.name || "",
+        instructor: course.professor || "", classroom: classroom || "",
+        courseId: course.id, sinif: course.sinif || 0,
+      };
+    });
+    return true;
+  }, [deptAllYearsSlots, allFacultySlots, scheduleData, year, isProfessor, isAdmin, currentUser, commitSlots]);
+
+  // Tablodaki boş hücreye ders bırakıldığında
+  const handleDropCourse = useCallback((course, day, hi) => {
+    placeCourse({ course, day, hi, classroom: "" });
+  }, [placeCourse]);
+
+  // Yerleştirilmiş slotun dersliğini satır içi değiştir
+  const handleSlotClassroom = useCallback((key, classroom) => {
+    commitSlots((s) => { if (s[key]) s[key] = { ...s[key], classroom }; });
+  }, [commitSlots]);
 
   // Slot ekle — otomatik çakışma önleme (admin hariç herkes engellenir)
   const handleAddSlot = useCallback((forceAdd) => {
@@ -533,97 +613,83 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
     }
 
     const key = `${selectedSlot.day}_${selectedSlot.hourIndex}`;
-    const newData = {
-      ...scheduleData,
-      [key]: {
+    commitSlots((s) => {
+      s[key] = {
         courseCode: course.code || "",
         courseName: course.name || "",
         instructor: course.professor || "",
         classroom,
         courseId: course.id,
         sinif: course.sinif || 0,
-      },
-    };
-    setScheduleData(newData);
-    saveSchedule(newData);
+      };
+    });
     setShowAddModal(false);
     setModalCourseId("");
     setModalClassroom("");
     setAddSlotWarnings([]);
-  }, [selectedSlot, modalCourseId, modalClassroom, scheduleData, courses, saveSchedule, deptAllYearsSlots, allFacultySlots, year, isProfessor, currentUser]);
+  }, [selectedSlot, modalCourseId, modalClassroom, scheduleData, courses, commitSlots, deptAllYearsSlots, allFacultySlots, year, isProfessor, currentUser]);
 
   // Slot sil
   const handleRemoveSlot = useCallback((key) => {
-    const newData = { ...scheduleData };
-    delete newData[key];
-    setScheduleData(newData);
-    saveSchedule(newData);
-  }, [scheduleData, saveSchedule]);
+    commitSlots((s) => { delete s[key]; });
+  }, [commitSlots]);
 
-  // Bölüm içi tüm sınıfların programlarını yükle
-  const loadDeptAllYears = useCallback(async () => {
-    if (!activeDepartment) { setDeptAllYearsSlots([]); return []; }
-    try {
-      const result = [];
-      for (const yr of ["1", "2", "3", "4"]) {
-        const docId = `${activeDepartment}_${semester}_${yr}`;
-        const doc = await window.apiReadDoc('course_schedules', docId);
-        if (doc.exists && doc.data?.slots && Object.keys(doc.data.slots).length > 0) {
-          result.push({ year: yr, slots: doc.data.slots });
-        }
-      }
-      setDeptAllYearsSlots(result);
-      return result;
-    } catch (e) {
-      console.error("Bölüm programları yüklenirken hata:", e);
-      return [];
+  // Tüm ders programlarını TEK bir koleksiyon okumasıyla yükle
+  // (önceki N+1 okuma: bölüm×4 + diğer bölümler×4 ayrı istek yerine 1 istek).
+  // Aktif bölüm = deptAllYearsSlots, diğer bölümler = allFacultySlots.
+  const loadAllSchedules = useCallback(async () => {
+    if (!activeDepartment) {
+      setDeptAllYearsSlots([]); setAllFacultySlots([]);
+      return { deptYears: [], faculty: [] };
     }
-  }, [activeDepartment, semester]);
-
-  // Fakülte geneli tüm bölüm programlarını yükle (tüm sınıflar dahil)
-  const loadAllFacultySchedules = useCallback(async () => {
     setLoadingFaculty(true);
     try {
-      const depts = await window.apiRead('departments');
-      const schedules = [];
-      for (const dept of depts) {
-        const deptId = dept.id || dept._id;
-        // Aktif bölümü hariç tut (kendi bölümümüz zaten deptAllYearsSlots'ta)
-        if (deptId === activeDepartment) continue;
-        for (const yr of ["1", "2", "3", "4"]) {
-          const docId = `${deptId}_${semester}_${yr}`;
-          const doc = await window.apiReadDoc('course_schedules', docId);
-          if (doc.exists && doc.data?.slots && Object.keys(doc.data.slots).length > 0) {
-            schedules.push({
-              deptId: deptId,
-              deptName: dept.name || deptId,
-              year: yr,
-              slots: doc.data.slots,
-            });
-          }
+      const [allDocs, depts] = await Promise.all([
+        window.apiRead("course_schedules"),
+        window.apiRead("departments"),
+      ]);
+      const deptNameMap = {};
+      (depts || []).forEach(d => { deptNameMap[d.id || d._id] = d.name || (d.id || d._id); });
+      const deptYears = [];
+      const faculty = [];
+      (allDocs || []).forEach(d => {
+        const parts = String(d.id || "").split("_");
+        const deptId = d.departmentId || parts[0] || "";
+        const sem = d.semester || parts[1] || "";
+        const yr = String(d.year || parts[2] || "");
+        const slots = d.slots || {};
+        if (sem !== semester || !slots || Object.keys(slots).length === 0) return;
+        if (deptId === activeDepartment) {
+          deptYears.push({ year: yr, slots });
+        } else {
+          faculty.push({ deptId, deptName: deptNameMap[deptId] || deptId, year: yr, slots });
         }
-      }
-      setAllFacultySlots(schedules);
-      return schedules;
+      });
+      setDeptAllYearsSlots(deptYears);
+      setAllFacultySlots(faculty);
+      return { deptYears, faculty };
     } catch (e) {
-      console.error("Fakülte programları yüklenirken hata:", e);
-      return [];
+      console.error("Programlar yüklenirken hata:", e);
+      return { deptYears: [], faculty: [] };
     } finally {
       setLoadingFaculty(false);
     }
-  }, [semester, activeDepartment]);
+  }, [activeDepartment, semester]);
 
-  // Bölüm programı veya dönem değiştiğinde tüm sınıfları ve fakülte verilerini yükle (otomatik çakışma kontrolü)
+  // Yalnızca bölüm/dönem değişince yeniden yükle (scheduleData YOK → döngü
+  // ve her düzenlemede N+1 yeniden okuma sorunu giderildi).
   useEffect(() => {
-    loadDeptAllYears();
-    loadAllFacultySchedules();
-  }, [activeDepartment, semester, scheduleData]);
+    loadAllSchedules();
+  }, [activeDepartment, semester]);
 
-  // Çakışma tespiti (otomatik)
+  // Çakışma tespiti — kalıcı veriye ek olarak DÜZENLENEN sınıfın canlı
+  // scheduleData'sı yansıtılır (yeniden ağ okuması yapmadan).
   useEffect(() => {
-    const c = detectConflicts(deptAllYearsSlots, allFacultySlots);
+    const merged = deptAllYearsSlots.filter(s => String(s.year) !== String(year));
+    merged.push({ year: String(year), slots: scheduleData });
+    const c = detectConflicts(merged, allFacultySlots);
     setConflicts(c);
-  }, [deptAllYearsSlots, allFacultySlots]);
+  }, [deptAllYearsSlots, allFacultySlots, scheduleData, year]);
 
   // Seçili döneme ait tüm dersler — akademisyen sadece kendi derslerini görebilir
   const yearCourses = useMemo(() => {
@@ -697,7 +763,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "white" }}>
             <DPIcon path="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" size={16} color="white" />
             <span style={{ fontSize: 13, fontWeight: 600 }}>Düzenleme Modu</span>
-            <span style={{ fontSize: 12, opacity: 0.85 }}>— Boş hücrelere tıklayarak ders ekleyin, X ile silin</span>
+            <span style={{ fontSize: 12, opacity: 0.85 }}>— {responsive.isMobile ? "Boş hücreye tıklayarak ders ekleyin" : "Soldaki dersleri tabloya sürükleyip bırakın"}, X ile silin</span>
           </div>
           <button onClick={() => setEditMode(false)} style={{
             padding: "5px 14px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.4)",
@@ -740,13 +806,12 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
             </button>
           )}
           <button onClick={async () => {
-            const deptData = await loadDeptAllYears();
-            const facData = await loadAllFacultySchedules();
-            const ownDeptSlots = (deptData || []).map(s => ({
+            const { deptYears, faculty } = await loadAllSchedules();
+            const ownDeptSlots = (deptYears || []).map(s => ({
               deptId: activeDepartment, deptName: departmentInfo?.name || "Bölüm",
               year: s.year, slots: s.slots,
             }));
-            const combined = [...ownDeptSlots, ...(facData || [])];
+            const combined = [...ownDeptSlots, ...(faculty || [])];
             if (combined.length > 0) { setAllSchedules(combined); setShowFacultyView(true); }
             else { alert("Fakülte genelinde bu dönem için ders programı bulunamadı."); }
           }} disabled={loadingFaculty} style={{
@@ -866,8 +931,49 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         </div>
       )}
 
-      {/* Schedule Grid */}
+      {/* Schedule Grid + Sürüklenebilir Ders Havuzu */}
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+        {editMode && !responsive.isMobile && (
+          <div style={{
+            width: 220, flexShrink: 0, background: "white", borderRadius: 12,
+            border: "1px solid #E5E7EB", padding: 12, maxHeight: 620, overflowY: "auto",
+            position: "sticky", top: 8,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: DP.navy, marginBottom: 4 }}>Dersler</div>
+            <div style={{ fontSize: 10, color: DP.textMuted, marginBottom: 10 }}>
+              Tabloya sürükleyip bırakın
+            </div>
+            {yearCourses.length === 0 ? (
+              <div style={{ fontSize: 11, color: DP.textMuted, padding: "12px 0", textAlign: "center" }}>
+                Bu dönem için ders yok.
+              </div>
+            ) : (() => {
+              const groups = {};
+              yearCourses.forEach(c => {
+                const k = c.sinif || 0;
+                (groups[k] = groups[k] || []).push(c);
+              });
+              return Object.keys(groups).sort((a, b) => a - b).map(sinif => {
+                const gc = GRADE_COLORS[sinif] || GRADE_COLORS[1];
+                return (
+                  <div key={sinif} style={{ marginBottom: 12 }}>
+                    <div style={{
+                      fontSize: 10, fontWeight: 700, color: gc.text, background: gc.bg,
+                      padding: "3px 8px", borderRadius: 5, marginBottom: 6, display: "inline-block",
+                    }}>
+                      {sinif === "5" || sinif === 5 ? "Seçmeli" : `${sinif}. Sınıf`}
+                    </div>
+                    {groups[sinif].map(c => (
+                      <CourseChip key={c.id} course={c} color={courseColors[c.code] || gc.text} />
+                    ))}
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        )}
       <div style={{
+        flex: 1, minWidth: 0,
         background: "white", borderRadius: 12, border: "1px solid #E5E7EB",
         overflow: "auto",
       }}>
@@ -981,18 +1087,19 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                     return (
                       <td
                         key={day}
-                        onClick={() => {
-                          if (editMode && !slot) {
-                            setSelectedSlot({ day, hourIndex: hi, hour });
-                            setModalCourseId("");
-                            setModalClassroom("");
-                            setAddSlotWarnings([]);
-                            setShowAddModal(true);
-                          }
-                        }}
+                        onDragOver={(editMode && !slot) ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } : undefined}
+                        onDragEnter={(editMode && !slot) ? (e) => { e.currentTarget.style.background = "#DDD6FE"; } : undefined}
+                        onDragLeave={(editMode && !slot) ? (e) => { e.currentTarget.style.background = isToday ? "#EDE9FE" : "#F5F3FF"; } : undefined}
+                        onDrop={(editMode && !slot) ? (e) => {
+                          e.preventDefault();
+                          e.currentTarget.style.background = isToday ? "#EDE9FE" : "#F5F3FF";
+                          try {
+                            const c = JSON.parse(e.dataTransfer.getData("application/json"));
+                            handleDropCourse(c, day, hi);
+                          } catch (err) { console.error("Bırakma hatası:", err); }
+                        } : undefined}
                         style={{
                           padding: 3, borderBottom: "1px solid #F3F4F6",
-                          cursor: editMode && !slot ? "pointer" : "default",
                           background: editMode && !slot ? (isToday ? "#EDE9FE" : "#F5F3FF") : (isToday ? "#FAFAFE" : (hi % 2 === 0 ? "transparent" : "#FCFCFD")),
                           transition: "background 0.15s",
                           borderLeft: isToday ? "1px solid #EDE9FE" : "none",
@@ -1009,7 +1116,23 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                             <div style={{ fontSize: 11, fontWeight: 700, color: courseColors[slot.courseCode] || DP.text, letterSpacing: 0.3 }}>{slot.courseCode}</div>
                             <div style={{ fontSize: 10, color: DP.text, lineHeight: 1.3, marginTop: 1 }}>{slot.courseName}</div>
                             {slot.instructor && <div style={{ fontSize: 9, color: DP.textMuted, marginTop: 2 }}>{slot.instructor}</div>}
-                            {slot.classroom && <div style={{ fontSize: 9, color: DP.primary, fontWeight: 600, marginTop: 1 }}>{slot.classroom}</div>}
+                            {editMode ? (
+                              <select
+                                value={slot.classroom || ""}
+                                onChange={(e) => handleSlotClassroom(key, e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  marginTop: 3, width: "100%", fontSize: 9, padding: "2px 4px",
+                                  borderRadius: 4, border: "1px solid #E5E7EB", outline: "none",
+                                  background: "white", color: DP.primary, fontWeight: 600,
+                                }}
+                              >
+                                <option value="">Derslik seç...</option>
+                                {classrooms.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                              </select>
+                            ) : (
+                              slot.classroom && <div style={{ fontSize: 9, color: DP.primary, fontWeight: 600, marginTop: 1 }}>{slot.classroom}</div>
+                            )}
                             {editMode && (
                               <button onClick={(e) => { e.stopPropagation(); handleRemoveSlot(key); }} style={{
                                 position: "absolute", top: 2, right: 2,
@@ -1023,8 +1146,8 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
                         ) : editMode ? (
                           <div style={{
                             minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center",
-                            borderRadius: 6, border: "2px dashed #D1D5DB", background: "#FAFAFA",
-                            transition: "border-color 0.15s, background 0.15s",
+                            borderRadius: 6, border: "2px dashed #C4B5FD", background: "rgba(255,255,255,0.5)",
+                            transition: "border-color 0.15s, background 0.15s", pointerEvents: "none",
                           }}>
                             <DPIcon path="M12 5v14M5 12h14" size={14} color="#C4B5FD" />
                           </div>
@@ -1037,6 +1160,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
             </tbody>
           </table>
         )}
+      </div>
       </div>
 
       {/* Color legend */}
