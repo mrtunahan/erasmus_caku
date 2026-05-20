@@ -2684,6 +2684,13 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       if (newStatus === "beklemede") patch.rejectionReason = "";
 
       await window.DBWrite.set("internship_applications", appId, patch, true);
+      if (window.audit) window.audit(
+        newStatus === "reddedildi" ? "application_reject" :
+        newStatus === "devam" ? "application_approve" :
+        newStatus === "tamamlandi" ? "application_complete" : "application_status",
+        "internship_applications", appId,
+        { meta: { newStatus, rejectionReason: rejectionReason || undefined } }
+      );
       setAllApplications(prev => prev.map(a => a.id === appId ? { ...a, ...patch } : a));
       setSelectedApp(prev => prev && prev.id === appId ? { ...prev, ...patch } : prev);
 
@@ -2758,6 +2765,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     if (!confirm(confirmMsg)) return;
     try {
       await window.DBWrite.remove("internship_applications", appId);
+      if (window.audit) window.audit("application_delete", "internship_applications", appId, {
+        meta: { studentNo: app?.ogrenciNo, status: app?.status, etap: app?.stajEtapLabel },
+      });
       // İlişkili roadmap verisini de sil
       try { await window.DBWrite.remove("internship_roadmap", appId); } catch {}
       // İlişkili yüklenen belgeleri de sil (öğrenci no ile kayıtlı)
@@ -2843,6 +2853,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     if (!confirm("Bu staj etabını silmek istediğinizden emin misiniz?")) return;
     try {
       await window.DBWrite.remove("internship_periods", periodId);
+      if (window.audit) window.audit("period_delete", "internship_periods", periodId, {
+        departmentId: effectiveDept,
+      });
       loadAllData();
     } catch (e) {
       alert("Silme hatası: " + e.message);
@@ -2907,6 +2920,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       };
 
       await window.DBWrite.set("internship_roadmap", appId, newData, true);
+      if (window.audit) window.audit("step_approve", "internship_roadmap", appId, {
+        meta: { stepIdx, stepTitle: STAJ_ROADMAP_STEPS[stepIdx]?.title },
+      });
 
       // Öğrenciye onay bildirimi gönder
       try {
@@ -2975,6 +2991,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       };
 
       await window.DBWrite.set("internship_roadmap", appId, newData, true);
+      if (window.audit) window.audit("step_reject", "internship_roadmap", appId, {
+        meta: { stepIdx, stepTitle: STAJ_ROADMAP_STEPS[stepIdx]?.title },
+      });
 
       // Öğrenciye red bildirimi gönder
       try {

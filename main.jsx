@@ -31,6 +31,7 @@ window.__lazyModules = {
   komisyonlar:   { loader: () => import('./komisyonlar-modulu.jsx'),       component: 'KomisyonlarModuluApp' },
   benim:         { loader: () => import('./benim-sayfam.jsx'),              component: 'BenimSayfamApp' },
   performans:    { loader: () => import('./performans_bilgileri_modul.jsx'), component: 'PerformansBilgileriApp' },
+  audit:         { loader: () => import('./audit-log-modulu.jsx'),          component: 'AuditLogModuluApp' },
 };
 
 // ── Phase 3: App Shell (routing & navigation) ──

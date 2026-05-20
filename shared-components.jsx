@@ -253,6 +253,7 @@ const ADMIN_MODULES = [
   { id: "bolumyonetimi", label: "Bölüm Yönetimi", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
   { id: "dersyonetimi", label: "Ders Yönetimi", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
   { id: "komisyonlar", label: "Komisyonlar", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" },
+  { id: "audit", label: "Audit Log", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
 ];
 
 window.FACULTY = FACULTY;
@@ -539,7 +540,9 @@ const DBWrite = {
     if (merge) op.merge = true;
     if (parentDocId) op.parentDocId = parentDocId;
     if (subCollection) op.subCollection = subCollection;
-    return this._apiCall([op]);
+    const res = await this._apiCall([op]);
+    if (typeof window !== "undefined" && window.apiInvalidate) window.apiInvalidate(collection);
+    return res;
   },
   async add(collection, data, parentDocId, subCollection) {
     return this.single(collection, 'add', data, null, false, parentDocId, subCollection);
@@ -554,13 +557,43 @@ const DBWrite = {
     return this.single(collection, 'delete', null, docId, false, parentDocId, subCollection);
   },
   async batch(operations) {
-    return this._apiCall(operations);
+    const res = await this._apiCall(operations);
+    if (typeof window !== "undefined" && window.apiInvalidate) {
+      const seen = new Set();
+      (operations || []).forEach(op => {
+        if (op && op.collection && !seen.has(op.collection)) {
+          seen.add(op.collection);
+          window.apiInvalidate(op.collection);
+        }
+      });
+    }
+    return res;
   }
 };
 window.DBWrite = DBWrite;
 
 // ── MongoDB API okuma yardımcısı ──
-async function apiRead(collection, params = {}) {
+// Saydam cache + in-flight dedup + yazma sonrası otomatik invalidasyon.
+// Aynı koleksiyon/parametreyle eş zamanlı çağrılar tek isteğe katlanır,
+// kısa TTL içinde tekrar çağrı bellekten döner, herhangi bir DBWrite
+// işlemi etkilenen koleksiyonun cache'ini geçersiz kılar.
+const __apiCache = new Map();   // key -> { data, ts }
+const __apiInflight = new Map(); // key -> Promise
+const __API_TTL = 15 * 1000;    // 15 sn
+
+function __apiInvalidate(collection) {
+  if (!collection) { __apiCache.clear(); return; }
+  const prefix = collection + "::";
+  for (const k of Array.from(__apiCache.keys())) {
+    if (k.startsWith(prefix)) __apiCache.delete(k);
+  }
+  for (const k of Array.from(__apiInflight.keys())) {
+    if (k.startsWith(prefix)) __apiInflight.delete(k);
+  }
+}
+window.apiInvalidate = __apiInvalidate;
+
+async function __apiReadRaw(collection, params = {}) {
   const url = new URL(`/api/db/${collection}`, window.location.origin);
   if (params.where) {
     const wheres = Array.isArray(params.where) ? params.where : [params.where];
@@ -581,7 +614,31 @@ async function apiRead(collection, params = {}) {
   return response.json();
 }
 
-async function apiReadDoc(collection, docId) {
+async function apiRead(collection, params = {}) {
+  const key = collection + "::" + JSON.stringify(params || {});
+  // Bellekteki taze cache
+  const cached = __apiCache.get(key);
+  if (cached && (Date.now() - cached.ts) < __API_TTL) return cached.data;
+  // Eş zamanlı uçuş halinde tek isteğe katla
+  if (__apiInflight.has(key)) return __apiInflight.get(key);
+  const p = __apiReadRaw(collection, params).then(data => {
+    __apiCache.set(key, { data, ts: Date.now() });
+    __apiInflight.delete(key);
+    return data;
+  }).catch(err => {
+    __apiInflight.delete(key);
+    throw err;
+  });
+  __apiInflight.set(key, p);
+  return p;
+}
+// Açıkça taze veri isteyen yerler için
+apiRead.fresh = function(collection, params) {
+  __apiInvalidate(collection);
+  return apiRead(collection, params);
+};
+
+async function __apiReadDocRaw(collection, docId) {
   const token = localStorage.getItem('caku_auth_token');
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -594,9 +651,306 @@ async function apiReadDoc(collection, docId) {
   return response.json();
 }
 
+async function apiReadDoc(collection, docId) {
+  const key = collection + "::doc::" + docId;
+  const cached = __apiCache.get(key);
+  if (cached && (Date.now() - cached.ts) < __API_TTL) return cached.data;
+  if (__apiInflight.has(key)) return __apiInflight.get(key);
+  const p = __apiReadDocRaw(collection, docId).then(data => {
+    __apiCache.set(key, { data, ts: Date.now() });
+    __apiInflight.delete(key);
+    return data;
+  }).catch(err => {
+    __apiInflight.delete(key);
+    throw err;
+  });
+  __apiInflight.set(key, p);
+  return p;
+}
+
 // API yardımcılarını global yap (diğer modüller için)
 window.apiRead = apiRead;
 window.apiReadDoc = apiReadDoc;
+
+// ══════════════════════════════════════════════════════════════
+// ── Merkezi Bildirim Sistemi (notifications koleksiyonu) ─────
+// Tek koleksiyon, çoklu modül (staj/portal/erasmus/sistem...).
+// Mevcut modül-bazlı bildirim koleksiyonları olduğu gibi kalır;
+// yeni kodlar bu API'yi kullanabilir, modüller tedrici geçer.
+// ══════════════════════════════════════════════════════════════
+// Doküman şeması:
+//   { recipientType: "user"|"department"|"role",
+//     recipientId: string,
+//     module: "staj"|"portal"|"erasmus"|"sistem"|...,
+//     type: string, title: string, body: string,
+//     link: string?, meta: object?, readBy: string[], createdAt: ISO }
+const Notify = {
+  async send(n) {
+    const doc = {
+      recipientType: n.recipientType || "user",
+      recipientId: n.recipientId || "",
+      module: n.module || "sistem",
+      type: n.type || "info",
+      title: n.title || "",
+      body: n.body || "",
+      link: n.link || "",
+      meta: n.meta || {},
+      readBy: [],
+      createdAt: new Date().toISOString(),
+    };
+    try { return await window.DBWrite.add("notifications", doc); }
+    catch (e) { console.warn("Bildirim gönderilemedi:", e); return null; }
+  },
+  // Birden çok alıcıya tek seferde (batch)
+  async sendMany(list) {
+    if (!Array.isArray(list) || list.length === 0) return;
+    const ops = list.map(n => ({
+      collection: "notifications", type: "add",
+      data: {
+        recipientType: n.recipientType || "user",
+        recipientId: n.recipientId || "",
+        module: n.module || "sistem",
+        type: n.type || "info",
+        title: n.title || "",
+        body: n.body || "",
+        link: n.link || "",
+        meta: n.meta || {},
+        readBy: [],
+        createdAt: new Date().toISOString(),
+      },
+    }));
+    try { return await window.DBWrite.batch(ops); }
+    catch (e) { console.warn("Toplu bildirim gönderilemedi:", e); }
+  },
+  // Kullanıcı için uygulanabilir bildirimleri getir.
+  // (recipientId === userKey) VEYA (recipientType === "department" && id === aktifBölüm)
+  // VEYA (recipientType === "role" && id === kullanıcı rolü).
+  async listFor(currentUser, activeDepartment) {
+    if (!currentUser) return [];
+    const userKey = currentUser.studentNumber || currentUser.identifier || currentUser.name || "";
+    try {
+      const all = await window.apiRead("notifications");
+      const role = currentUser.role || "";
+      return (all || []).filter(n => {
+        if (n.recipientType === "user") return n.recipientId === userKey;
+        if (n.recipientType === "department") return n.recipientId === activeDepartment;
+        if (n.recipientType === "role") return n.recipientId === role;
+        return false;
+      }).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    } catch (e) { console.warn("Bildirimler yüklenemedi:", e); return []; }
+  },
+  async markRead(notifId, userKey) {
+    try {
+      const r = await window.apiReadDoc("notifications", notifId);
+      if (!r.exists) return;
+      const readBy = Array.from(new Set([...(r.data.readBy || []), userKey]));
+      await window.DBWrite.set("notifications", notifId, { readBy }, true);
+    } catch (e) { console.warn("Okundu işaretlenemedi:", e); }
+  },
+  async markAllRead(notifs, userKey) {
+    const unread = (notifs || []).filter(n => !(n.readBy || []).includes(userKey));
+    if (unread.length === 0) return;
+    const ops = unread.map(n => ({
+      collection: "notifications", type: "set", docId: n.id, merge: true,
+      data: { readBy: Array.from(new Set([...(n.readBy || []), userKey])) },
+    }));
+    try { await window.DBWrite.batch(ops); } catch (e) { console.warn("Tümünü okundu hatası:", e); }
+  },
+  async remove(notifId) {
+    try { await window.DBWrite.remove("notifications", notifId); }
+    catch (e) { console.warn("Bildirim silinemedi:", e); }
+  },
+  async removeMany(ids) {
+    if (!ids || ids.length === 0) return;
+    const ops = ids.map(id => ({ collection: "notifications", type: "delete", docId: id }));
+    try { await window.DBWrite.batch(ops); } catch (e) { console.warn("Toplu silme hatası:", e); }
+  },
+};
+window.Notify = Notify;
+
+// ── Paylaşılan Bildirim Zili (her modül/app-shell tarafından kullanılır)
+const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
+  const [open, setOpen] = window.React.useState(false);
+  const [list, setList] = window.React.useState([]);
+  const [selected, setSelected] = window.React.useState(() => new Set());
+  const userKey = currentUser && (currentUser.studentNumber || currentUser.identifier || currentUser.name || "");
+
+  const reload = window.React.useCallback(async () => {
+    setList(await Notify.listFor(currentUser, activeDepartment));
+  }, [currentUser, activeDepartment]);
+
+  window.React.useEffect(() => { reload(); }, [reload]);
+  // Açıldıkça yenile (kısa süreli)
+  window.React.useEffect(() => { if (open) reload(); }, [open, reload]);
+
+  const unread = list.filter(n => !(n.readBy || []).includes(userKey)).length;
+
+  const toggleSel = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = () => {
+    setSelected(prev => prev.size === list.length ? new Set() : new Set(list.map(n => n.id)));
+  };
+  const doMarkAll = async () => { await Notify.markAllRead(list, userKey); reload(); };
+  const doDelete = async () => {
+    if (selected.size === 0) return;
+    if (!window.confirm(`${selected.size} bildirim silinsin mi?`)) return;
+    await Notify.removeMany(Array.from(selected));
+    setSelected(new Set()); reload();
+  };
+  const doDeleteAll = async () => {
+    if (list.length === 0) return;
+    if (!window.confirm(`Tüm bildirimler (${list.length}) silinsin mi?`)) return;
+    await Notify.removeMany(list.map(n => n.id));
+    setSelected(new Set()); reload();
+  };
+
+  const PRIMARY = "#0891B2", NAVY = "#1E293B", MUTED = "#64748B";
+  const timeAgo = (iso) => {
+    if (!iso) return "";
+    const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 1) return "Az önce"; if (m < 60) return `${m} dk önce`;
+    const h = Math.floor(m / 60); if (h < 24) return `${h} sa önce`;
+    return `${Math.floor(h / 24)} gün önce`;
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      {open && <div style={{ position: "fixed", inset: 0, zIndex: 9990 }} onClick={() => setOpen(false)} />}
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Bildirimler"
+        style={{
+          width: 40, height: 40, borderRadius: 10,
+          border: `1.5px solid ${unread > 0 ? PRIMARY : "#E5E7EB"}`,
+          background: unread > 0 ? "#ECFEFF" : "white",
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          position: "relative",
+        }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={unread > 0 ? PRIMARY : MUTED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+        {unread > 0 && (
+          <span style={{
+            position: "absolute", top: -5, right: -5,
+            background: "#DC2626", color: "white", fontSize: 10, fontWeight: 700,
+            minWidth: 18, height: 18, borderRadius: 9, display: "flex",
+            alignItems: "center", justifyContent: "center", padding: "0 4px",
+            border: "2px solid white",
+          }}>{unread > 99 ? "99+" : unread}</span>
+        )}
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: 48, right: 0, zIndex: 9999,
+          width: 380, background: "white", borderRadius: 14,
+          border: "1px solid #E5E7EB", boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+          overflow: "hidden",
+        }} onClick={e => e.stopPropagation()}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: "1px solid #F3F4F6", background: "#FAFAFA" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: NAVY }}>Bildirimler</span>
+              {unread > 0 && <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 10, background: "#ECFEFF", color: PRIMARY }}>{unread} yeni</span>}
+            </div>
+            {unread > 0 && <button onClick={doMarkAll} style={{ fontSize: 12, color: PRIMARY, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Tümünü okundu</button>}
+          </div>
+
+          {list.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 16px", borderBottom: "1px solid #F3F4F6" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: MUTED, cursor: "pointer" }}>
+                <input type="checkbox" checked={selected.size === list.length && list.length > 0} onChange={toggleAll} style={{ accentColor: PRIMARY }} />
+                {selected.size > 0 ? `${selected.size} seçili` : "Tümünü seç"}
+              </label>
+              <div style={{ display: "flex", gap: 6 }}>
+                {selected.size > 0 && (
+                  <button onClick={doDelete} style={{ fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 6, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#DC2626", cursor: "pointer" }}>Seçilenleri Sil</button>
+                )}
+                <button onClick={doDeleteAll} style={{ fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "white", color: MUTED, cursor: "pointer" }}>Tümünü Sil</button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ maxHeight: 420, overflowY: "auto" }}>
+            {list.length === 0 ? (
+              <div style={{ padding: "32px 16px", textAlign: "center", color: MUTED, fontSize: 13 }}>Henüz bildirim yok</div>
+            ) : (
+              list.map(n => {
+                const isRead = (n.readBy || []).includes(userKey);
+                const isSel = selected.has(n.id);
+                const tagColor =
+                  n.type === "approved" ? "#059669" :
+                  n.type === "rejected" ? "#DC2626" :
+                  n.type === "request"  ? "#8B5CF6" : PRIMARY;
+                return (
+                  <div key={n.id} style={{
+                    display: "flex", gap: 12, padding: "12px 16px", borderBottom: "1px solid #F9FAFB",
+                    background: isSel ? "#FEF2F2" : (isRead ? "white" : "#F0F9FF"),
+                  }}>
+                    <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, paddingTop: 2 }}>
+                      <input type="checkbox" checked={isSel} onChange={() => toggleSel(n.id)} style={{ accentColor: PRIMARY, cursor: "pointer" }} />
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: isRead ? "#D1D5DB" : tagColor }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0, cursor: n.link ? "pointer" : "default" }}
+                         onClick={() => {
+                           if (!isRead) Notify.markRead(n.id, userKey).then(reload);
+                           if (n.link && onNavigate) { onNavigate(n.link); setOpen(false); }
+                         }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                        {n.module && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: tagColor + "20", color: tagColor, textTransform: "uppercase" }}>{n.module}</span>}
+                        <span style={{ fontSize: 13, fontWeight: isRead ? 500 : 700, color: NAVY }}>{n.title}</span>
+                      </div>
+                      {n.body && <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.4 }}>{n.body}</div>}
+                      <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 3 }}>{timeAgo(n.createdAt)}</div>
+                    </div>
+                    <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 4, alignSelf: "center" }}>
+                      {!isRead && (
+                        <button onClick={() => Notify.markRead(n.id, userKey).then(reload)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${PRIMARY}30`, background: "#ECFEFF", color: PRIMARY, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Okundu</button>
+                      )}
+                      <button onClick={async () => { await Notify.remove(n.id); reload(); }} title="Sil" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#DC2626", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22m-15 0V4a2 2 0 012-2h4a2 2 0 012 2v3" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+window.BellMenu = BellMenu;
+
+// ══════════════════════════════════════════════════════════════
+// ── Audit Log ────────────────────────────────────────────────
+// Kritik aksiyonların merkezi kaydı (kim/ne zaman/ne yaptı).
+// ══════════════════════════════════════════════════════════════
+// Schema: { actor, actorRole, action, target, targetId, before?, after?, meta?, createdAt }
+const audit = async (action, target, targetId, opts = {}) => {
+  try {
+    const u = (typeof window !== "undefined" && window.__currentUser) || null;
+    await window.DBWrite.add("audit_logs", {
+      action,
+      target,
+      targetId: targetId == null ? "" : String(targetId),
+      actor: (u && (u.name || u.identifier || u.studentNumber)) || opts.actor || "",
+      actorRole: (u && u.role) || opts.actorRole || "",
+      departmentId: opts.departmentId || (u && u.departmentId) || "",
+      before: opts.before == null ? null : opts.before,
+      after: opts.after == null ? null : opts.after,
+      meta: opts.meta || {},
+      createdAt: new Date().toISOString(),
+    });
+  } catch (e) { console.warn("Audit log yazılamadı:", e); }
+};
+window.audit = audit;
 
 // NOT: Eski uyumluluk katmanı kaldırıldı.
 // Tüm modüller artık doğrudan apiRead, apiReadDoc ve DBWrite kullanır.
