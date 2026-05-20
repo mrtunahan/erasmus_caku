@@ -1,4 +1,5 @@
 const express = require("express");
+const http = require("http");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const { connect, disconnect } = require("./config/database");
@@ -13,6 +14,29 @@ const MAX_RETRIES = 10;
 const RETRY_DELAY_MS = 5000;
 
 const app = express();
+const httpServer = http.createServer(app);
+
+// ── Socket.IO (gerçek zamanlı bildirim/güncelleme) ──
+// Yazma işlemlerinden sonra etkilenen koleksiyon için "db:write" yayınlanır;
+// istemci tarafı cache'i geçersiz kılar ve modüller dinleyebilir.
+let io = null;
+try {
+  const { Server } = require("socket.io");
+  io = new Server(httpServer, {
+    cors: { origin: true, credentials: true },
+    path: "/socket.io",
+  });
+  app.set("io", io);
+  io.on("connection", (socket) => {
+    // bağlanmış istemci sayısını izlemek istersek burada loglarız
+    socket.on("subscribe", (rooms) => {
+      if (Array.isArray(rooms)) rooms.forEach(r => typeof r === "string" && socket.join(r));
+    });
+  });
+  console.log("[Socket.IO] hazır (/socket.io)");
+} catch (e) {
+  console.warn("[Socket.IO] yüklenemedi — gerçek zamanlı devre dışı:", e.message);
+}
 
 // Reverse proxy (nginx) arkasında çalıştığı için gerçek client IP'yi al
 // express-rate-limit'in X-Forwarded-For header'ını doğru okuması için şart
@@ -65,7 +89,7 @@ async function start() {
     }
   }
 
-  app.listen(PORT, () => {
+  httpServer.listen(PORT, () => {
     console.log(`API sunucusu çalışıyor: http://localhost:${PORT}`);
     console.log(`Health check: http://localhost:${PORT}/api/health`);
   });

@@ -224,16 +224,24 @@ router.post("/write", async (req, res) => {
   try {
     const db = await getDbSafe();
 
+    // Etkilenen koleksiyonları topla (gerçek zamanlı yayın için)
+    const touched = new Set();
+    const addTouched = (op) => { if (op && op.collection) touched.add(op.collection); };
+
     if (operations.length === 1) {
       const result = await executeSingleOp(db, operations[0]);
+      addTouched(operations[0]);
+      emitDbWrite(req, touched);
       return res.json(result);
     }
 
     const addedIds = [];
     for (const op of operations) {
       const result = await executeSingleOp(db, op);
+      addTouched(op);
       if (result.id) addedIds.push(result.id);
     }
+    emitDbWrite(req, touched);
 
     return res.json({ success: true, ids: addedIds });
   } catch (error) {
@@ -241,6 +249,16 @@ router.post("/write", async (req, res) => {
     return res.status(500).json({ error: "Yazma hatası: " + error.message });
   }
 });
+
+// Socket.IO üzerinden değişen koleksiyonları yayınla (fire-and-forget)
+function emitDbWrite(req, touchedSet) {
+  try {
+    const io = req.app && req.app.get && req.app.get("io");
+    if (!io || !touchedSet || touchedSet.size === 0) return;
+    const collections = Array.from(touchedSet);
+    io.emit("db:write", { collections, at: new Date().toISOString() });
+  } catch (e) { /* sessiz: real-time opsiyonel */ }
+}
 
 // ══════════════════════════════════════════════
 // GET /api/db/:collection - Koleksiyon okuma

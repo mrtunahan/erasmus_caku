@@ -11,6 +11,30 @@ window.ReactDOM = ReactDOM;
 // ── Phase 1: Shared components (tüm modüller buna bağımlı) ──
 import './shared-components.jsx';
 
+// ── Phase 1.5: Gerçek zamanlı (Socket.IO) — opsiyonel & dayanıklı ──
+// Sunucu yazma yapınca her açık istemci ilgili cache'i geçersiz kılar,
+// modüller `realtime:<collection>` CustomEvent'ini dinler. Bağlantı
+// kurulamazsa uygulama 15 sn TTL cache + manuel ile çalışmaya devam eder.
+(async () => {
+  try {
+    const { io } = await import('socket.io-client');
+    const socket = io({ path: '/socket.io', withCredentials: true, autoConnect: true, reconnection: true });
+    window.__socket = socket;
+    socket.on('connect', () => { console.info('[realtime] bağlandı'); });
+    socket.on('disconnect', () => { /* sessiz */ });
+    socket.on('db:write', (payload) => {
+      const cols = (payload && payload.collections) || [];
+      cols.forEach((c) => {
+        if (window.apiInvalidate) window.apiInvalidate(c);
+        try { window.dispatchEvent(new CustomEvent('realtime:' + c, { detail: payload })); } catch (_) {}
+      });
+      try { window.dispatchEvent(new CustomEvent('realtime:any', { detail: payload })); } catch (_) {}
+    });
+  } catch (e) {
+    console.warn('[realtime] socket.io-client yüklenemedi, gerçek zamanlı devre dışı:', e?.message);
+  }
+})();
+
 // ── Phase 2: Lazy module loaders (sadece ihtiyaç olduğunda yüklenecek) ──
 window.__lazyModules = {
   erasmus:       { loader: () => import('./erasmus-learning-agreement.jsx'), component: 'ErasmusLearningAgreementApp' },
