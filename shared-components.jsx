@@ -64,6 +64,59 @@ const C = {
   blueLight: "#DBEAFE",
 };
 
+// ── Tasarım Sistemi Tokenları (CSS değişkenleri + JS objesi) ──
+// Tüm modüller bunları kullanarak görsel tutarlılık sağlar.
+// CSS tarafında: var(--color-primary), var(--radius-md) vb.
+// JS tarafında: window.T.color.primary, window.T.radius.md
+const T = {
+  color: {
+    primary: "#0891B2", primaryPale: "#ECFEFF", primaryStrong: "#0E7490",
+    navy: "#1B2A4A", navyLight: "#2D4A7A",
+    text: "#1F2937", textMuted: "#64748B",
+    bg: "#F7F5F0", surface: "#FFFFFF", surfaceMuted: "#FAFAFA",
+    border: "#E5E7EB", borderStrong: "#D1D5DB",
+    success: "#059669", successPale: "#D1FAE5",
+    danger: "#DC2626", dangerPale: "#FEE2E2",
+    warning: "#D97706", warningPale: "#FEF3C7",
+    info: "#3B82F6", infoPale: "#DBEAFE",
+  },
+  radius: { xs: "4px", sm: "6px", md: "8px", lg: "10px", xl: "14px", pill: "999px" },
+  shadow: {
+    sm: "0 1px 3px rgba(0,0,0,0.05)",
+    md: "0 4px 12px rgba(0,0,0,0.08)",
+    lg: "0 8px 24px rgba(0,0,0,0.12)",
+  },
+  space: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 },
+  font: {
+    family: "'Inter', 'Source Sans 3', -apple-system, sans-serif",
+    sizeXs: 11, sizeSm: 12, sizeMd: 13, sizeLg: 14, sizeXl: 16, size2xl: 20,
+    weightNormal: 400, weightMedium: 500, weightSemibold: 600, weightBold: 700,
+  },
+};
+if (typeof window !== "undefined") window.T = T;
+
+// Tema CSS değişkenlerini :root'a enjekte et (idempotent)
+if (typeof document !== "undefined" && !document.getElementById("__caku-tokens")) {
+  const css = `:root{
+    --color-primary:${T.color.primary};--color-primary-pale:${T.color.primaryPale};--color-primary-strong:${T.color.primaryStrong};
+    --color-navy:${T.color.navy};--color-text:${T.color.text};--color-text-muted:${T.color.textMuted};
+    --color-bg:${T.color.bg};--color-surface:${T.color.surface};--color-surface-muted:${T.color.surfaceMuted};
+    --color-border:${T.color.border};--color-border-strong:${T.color.borderStrong};
+    --color-success:${T.color.success};--color-success-pale:${T.color.successPale};
+    --color-danger:${T.color.danger};--color-danger-pale:${T.color.dangerPale};
+    --color-warning:${T.color.warning};--color-warning-pale:${T.color.warningPale};
+    --color-info:${T.color.info};--color-info-pale:${T.color.infoPale};
+    --radius-xs:${T.radius.xs};--radius-sm:${T.radius.sm};--radius-md:${T.radius.md};--radius-lg:${T.radius.lg};--radius-xl:${T.radius.xl};--radius-pill:${T.radius.pill};
+    --shadow-sm:${T.shadow.sm};--shadow-md:${T.shadow.md};--shadow-lg:${T.shadow.lg};
+    --space-xs:${T.space.xs}px;--space-sm:${T.space.sm}px;--space-md:${T.space.md}px;--space-lg:${T.space.lg}px;--space-xl:${T.space.xl}px;--space-xxl:${T.space.xxl}px;
+    --font-family:${T.font.family};
+  }`;
+  const el = document.createElement("style");
+  el.id = "__caku-tokens";
+  el.textContent = css;
+  document.head.appendChild(el);
+}
+
 // ── Daisy Theme Colors ──
 const DY = {
   bg: "#fffdf5", // Creamy background
@@ -782,6 +835,12 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
   window.React.useEffect(() => { reload(); }, [reload]);
   // Açıldıkça yenile (kısa süreli)
   window.React.useEffect(() => { if (open) reload(); }, [open, reload]);
+  // Gerçek zamanlı: notifications koleksiyonu değişince otomatik yenile
+  window.React.useEffect(() => {
+    const handler = () => reload();
+    window.addEventListener("realtime:notifications", handler);
+    return () => window.removeEventListener("realtime:notifications", handler);
+  }, [reload]);
 
   const unread = list.filter(n => !(n.readBy || []).includes(userKey)).length;
 
