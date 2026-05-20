@@ -1,6 +1,7 @@
 // ══════════════════════════════════════════════════════════════
 // ÇAKÜ Yönetim Sistemi - Ortak Bileşenler
 // ══════════════════════════════════════════════════════════════
+import T_TOKENS from './design-tokens.cjs';
 
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
@@ -44,55 +45,35 @@ const PasswordSecurity = {
 };
 
 // ── Color Palette ──
+// ── C: Geriye dönük uyumluluk — design-tokens'tan türetilmiş alias.
+// Yeni kod doğrudan T'yi (window.T) veya Tailwind class'larını kullanmalı.
 const C = {
-  bg: "#F7F5F0",
-  card: "#FFFFFF",
-  navy: "#1B2A4A",
-  navyLight: "#2D4A7A",
-  gold: "#C4973B",
-  goldLight: "#E8D5A8",
-  goldPale: "#FBF6EC",
-  accent: "#8B2635",
-  accentLight: "#D4A0A7",
-  green: "#2E7D52",
-  greenLight: "#D4EDDA",
-  text: "#2C2C2C",
-  textMuted: "#6B7280",
-  border: "#E5E1D8",
-  borderLight: "#F0EDE6",
-  blue: "#3B82F6",
-  blueLight: "#DBEAFE",
+  bg: T_TOKENS.color.bg,
+  card: T_TOKENS.color.surface,
+  navy: T_TOKENS.color.navy,
+  navyLight: T_TOKENS.color.navyLight,
+  gold: T_TOKENS.color.gold,
+  goldLight: T_TOKENS.color.goldLight,
+  goldPale: T_TOKENS.color.goldPale,
+  accent: T_TOKENS.color.accent,
+  accentLight: T_TOKENS.color.accentLight,
+  green: T_TOKENS.color.success,
+  greenLight: T_TOKENS.color.successPale,
+  text: T_TOKENS.color.text,
+  textMuted: T_TOKENS.color.textMuted,
+  border: T_TOKENS.color.border,
+  borderLight: T_TOKENS.color.borderSoft,
+  blue: T_TOKENS.color.info,
+  blueLight: T_TOKENS.color.infoPale,
 };
 
 // ── Tasarım Sistemi Tokenları (CSS değişkenleri + JS objesi) ──
 // Tüm modüller bunları kullanarak görsel tutarlılık sağlar.
 // CSS tarafında: var(--color-primary), var(--radius-md) vb.
 // JS tarafında: window.T.color.primary, window.T.radius.md
-const T = {
-  color: {
-    primary: "#0891B2", primaryPale: "#ECFEFF", primaryStrong: "#0E7490",
-    navy: "#1B2A4A", navyLight: "#2D4A7A",
-    text: "#1F2937", textMuted: "#64748B",
-    bg: "#F7F5F0", surface: "#FFFFFF", surfaceMuted: "#FAFAFA",
-    border: "#E5E7EB", borderStrong: "#D1D5DB",
-    success: "#059669", successPale: "#D1FAE5",
-    danger: "#DC2626", dangerPale: "#FEE2E2",
-    warning: "#D97706", warningPale: "#FEF3C7",
-    info: "#3B82F6", infoPale: "#DBEAFE",
-  },
-  radius: { xs: "4px", sm: "6px", md: "8px", lg: "10px", xl: "14px", pill: "999px" },
-  shadow: {
-    sm: "0 1px 3px rgba(0,0,0,0.05)",
-    md: "0 4px 12px rgba(0,0,0,0.08)",
-    lg: "0 8px 24px rgba(0,0,0,0.12)",
-  },
-  space: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 },
-  font: {
-    family: "'Inter', 'Source Sans 3', -apple-system, sans-serif",
-    sizeXs: 11, sizeSm: 12, sizeMd: 13, sizeLg: 14, sizeXl: 16, size2xl: 20,
-    weightNormal: 400, weightMedium: 500, weightSemibold: 600, weightBold: 700,
-  },
-};
+// Tasarım tokenları design-tokens.cjs'den geliyor — TEK kaynak.
+// Tailwind config de aynı dosyayı okuyor.
+const T = T_TOKENS;
 if (typeof window !== "undefined") window.T = T;
 
 // Tema CSS değişkenlerini :root'a enjekte et (idempotent)
@@ -117,22 +98,23 @@ if (typeof document !== "undefined" && !document.getElementById("__caku-tokens")
   document.head.appendChild(el);
 }
 
-// ── Daisy Theme Colors ──
+// ── DY: Geriye dönük uyumluluk — design-tokens'tan türetilmiş alias.
 const DY = {
-  bg: "#fffdf5", // Creamy background
-  card: "#ffffff",
-  gold: "#d4af37",
-  goldLight: "#f3e5ab",
-  goldDark: "#b4941f",
-  navy: "#1e3a8a",
-  navyLight: "#3b82f6",
-  green: "#059669",
-  greenLight: "#d1fae5",
-  text: "#1f2937",
-  textLight: "#4b5563",
-  border: "#e5e7eb",
-  shadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-  hover: "#fffbe6",
+  bg: T_TOKENS.color.surfaceMuted,
+  card: T_TOKENS.color.surface,
+  gold: T_TOKENS.color.gold,
+  goldLight: T_TOKENS.color.goldLight,
+  goldDark: T_TOKENS.color.gold,
+  navy: T_TOKENS.color.navy,
+  navyLight: T_TOKENS.color.navyLight,
+  green: T_TOKENS.color.success,
+  greenLight: T_TOKENS.color.successPale,
+  text: T_TOKENS.color.text,
+  textLight: T_TOKENS.color.textMuted,
+  border: T_TOKENS.color.border,
+  shadow: T_TOKENS.shadow.md,
+  hover: T_TOKENS.color.surfaceMuted,
+  warmLight: T_TOKENS.color.warningPale,
 };
 
 // ── Daisy Theme Icons ──
@@ -1571,42 +1553,42 @@ const FileTextIcon = () => (
 );
 
 // ── UI Components ──
+// ══════════════════════════════════════════════════════════════
+// ── Ortak Bileşenler (T tokenlarına bağlı, tutarlı) ──────────
+// ══════════════════════════════════════════════════════════════
 const Card = ({ children, title, actions, noPadding }) => (
   <div style={{
-    background: C.card,
-    borderRadius: 12,
-    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-    border: `1px solid ${C.border}`,
-    marginBottom: 24,
+    background: T.color.surface,
+    borderRadius: T.radius.xl,            // 14px — modern, yumuşak
+    boxShadow: T.shadow.sm,               // hafif gölge
+    border: `1px solid ${T.color.border}`,
+    marginBottom: T.space.xl,             // 24px
+    fontFamily: T.font.family,
   }}>
     {title && (
       <div style={{
-        padding: "20px 24px",
-        borderBottom: `1px solid ${C.border}`,
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
+        padding: `${T.space.lg}px ${T.space.xl}px`, // 16 24
+        borderBottom: `1px solid ${T.color.border}`,
+        display: "flex", justifyContent: "space-between", alignItems: "center",
       }}>
         <h2 style={{
-          fontSize: 18,
-          fontWeight: 600,
-          color: C.navy,
-          fontFamily: "'Playfair Display', serif",
+          fontSize: T.font.sizeXl, fontWeight: T.font.weightSemibold,
+          color: T.color.navy, fontFamily: T.font.family, margin: 0,
         }}>{title}</h2>
-        {actions && <div style={{ display: "flex", gap: 8 }}>{actions}</div>}
+        {actions && <div style={{ display: "flex", gap: T.space.sm }}>{actions}</div>}
       </div>
     )}
-    <div style={{ padding: noPadding ? 0 : 24 }}>{children}</div>
+    <div style={{ padding: noPadding ? 0 : T.space.xl }}>{children}</div>
   </div>
 );
 
 const Btn = ({ children, onClick, variant = "primary", icon, small, disabled, style: customStyle }) => {
   const btnStyles = {
-    primary: { bg: C.navy, color: "#fff", hoverBg: C.navyLight },
-    secondary: { bg: C.border, color: C.text, hoverBg: C.borderLight },
-    success: { bg: C.green, color: "#fff", hoverBg: "#247d4d" },
-    danger: { bg: C.accent, color: "#fff", hoverBg: "#6d1d29" },
-    ghost: { bg: "transparent", color: C.blue, hoverBg: C.blueLight },
+    primary:   { bg: T.color.primary, color: "#fff", hoverBg: T.color.primaryStrong, border: "none" },
+    secondary: { bg: "transparent", color: T.color.text, hoverBg: T.color.surfaceMuted, border: `1px solid ${T.color.border}` },
+    success:   { bg: T.color.success, color: "#fff", hoverBg: "#047857", border: "none" },
+    danger:    { bg: T.color.danger,  color: "#fff", hoverBg: "#B91C1C", border: "none" },
+    ghost:     { bg: "transparent", color: T.color.primary, hoverBg: T.color.primaryPale, border: `1px solid ${T.color.border}` },
   };
   const s = btnStyles[variant] || btnStyles.primary;
   const [hover, setHover] = useState(false);
@@ -1617,20 +1599,18 @@ const Btn = ({ children, onClick, variant = "primary", icon, small, disabled, st
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        padding: small ? "8px 14px" : "10px 18px",
-        borderRadius: 8,
-        border: variant === "ghost" ? `1px solid ${C.border}` : "none",
-        background: disabled ? C.border : (hover ? s.hoverBg : s.bg),
-        color: disabled ? C.textMuted : s.color,
-        fontSize: small ? 13 : 14,
-        fontWeight: 600,
+        padding: small ? `${T.space.sm}px ${T.space.md}px` : `${T.space.md - 2}px ${T.space.lg}px`,
+        borderRadius: T.radius.md,        // 8px — standart
+        border: s.border,
+        background: disabled ? T.color.surfaceMuted : (hover ? s.hoverBg : s.bg),
+        color: disabled ? T.color.textMuted : s.color,
+        fontSize: small ? T.font.sizeMd : T.font.sizeLg,
+        fontWeight: T.font.weightSemibold,
         cursor: disabled ? "not-allowed" : "pointer",
-        fontFamily: "'Source Sans 3', sans-serif",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        transition: "all 0.2s",
-        opacity: disabled ? 0.5 : 1,
+        fontFamily: T.font.family,
+        display: "inline-flex", alignItems: "center", gap: T.space.sm,
+        transition: "background 0.15s, color 0.15s, border-color 0.15s",
+        opacity: disabled ? 0.55 : 1,
         ...customStyle,
       }}
     >
@@ -1650,18 +1630,20 @@ const Input = ({ value, onChange, placeholder, type = "text", disabled, ...rest 
     {...rest}
     style={{
       width: "100%",
-      padding: "10px 14px",
-      borderRadius: 8,
-      border: `1px solid ${C.border}`,
-      fontSize: 14,
-      fontFamily: "'Source Sans 3', sans-serif",
+      padding: `${T.space.sm + 2}px ${T.space.md + 2}px`, // 10 14
+      borderRadius: T.radius.md,
+      border: `1px solid ${T.color.border}`,
+      fontSize: T.font.sizeLg,
+      fontFamily: T.font.family,
       outline: "none",
-      transition: "all 0.2s",
-      background: disabled ? C.bg : C.card,
+      transition: "border-color 0.15s, box-shadow 0.15s",
+      background: disabled ? T.color.surfaceMuted : T.color.surface,
+      color: T.color.text,
+      boxSizing: "border-box",
       ...(rest.style || {}),
     }}
-    onFocus={e => e.target.style.borderColor = C.navy}
-    onBlur={e => e.target.style.borderColor = C.border}
+    onFocus={e => { e.target.style.borderColor = T.color.primary; e.target.style.boxShadow = `0 0 0 3px ${T.color.primary}20`; }}
+    onBlur={e => { e.target.style.borderColor = T.color.border; e.target.style.boxShadow = "none"; }}
   />
 );
 
@@ -1671,14 +1653,16 @@ const Select = ({ value, onChange, options, placeholder, children }) => (
     onChange={onChange}
     style={{
       width: "100%",
-      padding: "10px 14px",
-      borderRadius: 8,
-      border: `1px solid ${C.border}`,
-      fontSize: 14,
-      fontFamily: "'Source Sans 3', sans-serif",
+      padding: `${T.space.sm + 2}px ${T.space.md + 2}px`,
+      borderRadius: T.radius.md,
+      border: `1px solid ${T.color.border}`,
+      fontSize: T.font.sizeLg,
+      fontFamily: T.font.family,
       outline: "none",
-      background: C.card,
+      background: T.color.surface,
+      color: T.color.text,
       cursor: "pointer",
+      boxSizing: "border-box",
     }}
   >
     {placeholder && <option value="">{placeholder}</option>}
@@ -1689,15 +1673,16 @@ const Select = ({ value, onChange, options, placeholder, children }) => (
 );
 
 const FormField = ({ label, children }) => (
-  <div style={{ marginBottom: 16 }}>
+  <div style={{ marginBottom: T.space.lg }}>
     <label style={{
       display: "block",
-      fontSize: 11,
-      fontWeight: 700,
-      color: C.navy,
-      letterSpacing: "0.1em",
+      fontSize: T.font.sizeXs,
+      fontWeight: T.font.weightSemibold,
+      color: T.color.textMuted,
+      letterSpacing: "0.06em",
       textTransform: "uppercase",
-      marginBottom: 8,
+      marginBottom: T.space.sm,
+      fontFamily: T.font.family,
     }}>{label}</label>
     {children}
   </div>
@@ -1710,53 +1695,61 @@ const Modal = ({ open, onClose, title, children, width = 700 }) => {
   return (
     <div
       style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+        position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)",
+        backdropFilter: "blur(4px)",
         display: "flex", alignItems: isMobileModal ? "flex-end" : "center", justifyContent: "center",
-        zIndex: 1000, padding: isMobileModal ? 0 : 20,
+        zIndex: 1000, padding: isMobileModal ? 0 : T.space.xl,
       }}
       onClick={onClose}
     >
       <div
         style={{
-          background: C.card,
-          borderRadius: isMobileModal ? "16px 16px 0 0" : 12,
+          background: T.color.surface,
+          borderRadius: isMobileModal ? `${T.radius.xl} ${T.radius.xl} 0 0` : T.radius.xl,
           width: "100%",
           maxWidth: isMobileModal ? "100%" : width,
           maxHeight: isMobileModal ? "85vh" : "90vh",
           overflow: "auto",
-          boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+          boxShadow: T.shadow.lg,
+          fontFamily: T.font.family,
         }}
         onClick={e => e.stopPropagation()}
       >
         {title && (
           <div style={{
-            padding: isMobileModal ? "16px 16px" : "20px 24px",
-            borderBottom: `1px solid ${C.border}`,
-            position: "sticky", top: 0, background: C.card, zIndex: 1,
+            padding: isMobileModal ? `${T.space.lg}px` : `${T.space.lg}px ${T.space.xl}px`,
+            borderBottom: `1px solid ${T.color.border}`,
+            position: "sticky", top: 0, background: T.color.surface, zIndex: 1,
             display: "flex", justifyContent: "space-between", alignItems: "center",
           }}>
             <h2 style={{
-              fontSize: isMobileModal ? 17 : 20, fontWeight: 600, color: C.navy,
-              fontFamily: "'Playfair Display', serif",
+              fontSize: isMobileModal ? T.font.sizeXl : T.font.size2xl,
+              fontWeight: T.font.weightSemibold, color: T.color.navy,
+              fontFamily: T.font.family, margin: 0,
             }}>{title}</h2>
-            {isMobileModal && (
-              <button onClick={onClose} style={{
-                border: "none", background: "none", cursor: "pointer", padding: 4,
-                color: C.textMuted, fontSize: 20,
-              }}>✕</button>
-            )}
+            <button onClick={onClose} style={{
+              border: "none", background: "none", cursor: "pointer",
+              padding: T.space.xs, color: T.color.textMuted, fontSize: T.font.sizeXl,
+              lineHeight: 1,
+            }}>✕</button>
           </div>
         )}
-        <div style={{ padding: isMobileModal ? 16 : 24 }}>{children}</div>
+        <div style={{ padding: isMobileModal ? T.space.lg : T.space.xl }}>{children}</div>
       </div>
     </div>
   );
 };
 
-const Badge = ({ children, color = C.green, bg = C.greenLight }) => (
+const Badge = ({ children, color, bg }) => (
   <span style={{
-    padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-    color, background: bg, display: "inline-flex", alignItems: "center", gap: 6,
+    padding: `${T.space.xs}px ${T.space.md - 2}px`, // 4 10
+    borderRadius: T.radius.sm,
+    fontSize: T.font.sizeXs,
+    fontWeight: T.font.weightSemibold,
+    color: color || T.color.success,
+    background: bg || T.color.successPale,
+    display: "inline-flex", alignItems: "center", gap: T.space.xs + 2,
+    fontFamily: T.font.family,
   }}>{children}</span>
 );
 
