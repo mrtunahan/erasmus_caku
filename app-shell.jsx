@@ -88,7 +88,7 @@ const NavIcon = ({ path, size = 20, color = "currentColor" }) => (
 // ══════════════════════════════════════════════════════════════
 // Top Header Bar
 // ══════════════════════════════════════════════════════════════
-const TopHeader = ({ currentUser, onLogout, isMobile, onToggleSidebar, sidebarOpen, activeDepartment }) => {
+const TopHeader = ({ currentUser, onLogout, isMobile, onToggleSidebar, sidebarOpen, activeDepartment, onNavigate }) => {
   const dept = DEPARTMENTS.find(d => d.id === activeDepartment);
 
   return (
@@ -150,8 +150,11 @@ const TopHeader = ({ currentUser, onLogout, isMobile, onToggleSidebar, sidebarOp
         </div>
       )}
 
-      {/* Right: User info + Logout */}
+      {/* Right: Bildirim + User info + Logout */}
       <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 16 }}>
+        {window.BellMenu && currentUser && (
+          <window.BellMenu currentUser={currentUser} activeDepartment={activeDepartment} onNavigate={onNavigate} />
+        )}
         {!isMobile && (
           <div style={{ textAlign: "right" }}>
             <div style={{ color: "white", fontSize: 13, fontWeight: 600 }}>
@@ -598,6 +601,10 @@ function AppShell() {
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth <= 768;
 
+  // Audit log ve merkezi bildirim helper'larının erişebilmesi için
+  // mevcut kullanıcıyı global'e yansıt
+  useEffect(() => { window.__currentUser = currentUser; }, [currentUser]);
+
   // Üyesi olunan komisyonlara göre erişilebilir modülleri belirle.
   // (Örn. Erasmus komisyonu üyesi akademisyen → Erasmus modülü)
   useEffect(() => {
@@ -892,6 +899,7 @@ function AppShell() {
         dersprogrami: window.DersProgramiApp,
         komisyonlar: window.KomisyonlarModuluApp,
         benim: window.BenimSayfamApp,
+        audit: window.AuditLogModuluApp,
       };
       const FallbackComponent = fallback[route];
       if (FallbackComponent) return React.createElement(FallbackComponent, {
@@ -933,6 +941,7 @@ function AppShell() {
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         sidebarOpen={sidebarOpen}
         activeDepartment={activeDepartment}
+        onNavigate={navigate}
       />
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
