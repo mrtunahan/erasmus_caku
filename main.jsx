@@ -4,6 +4,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
+// Tailwind + tasarım sistemi temel CSS
+import './index.css';
+
 // React'i global yap (mevcut modüller window.React kullanıyor)
 window.React = React;
 window.ReactDOM = ReactDOM;
