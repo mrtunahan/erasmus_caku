@@ -109,11 +109,17 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
 
       if (editingId) {
         await window.DBWrite.set("commissions", editingId, data, true);
+        if (window.audit) window.audit("commission_update", "commissions", editingId, {
+          departmentId: activeDepartment, meta: { name: data.name, memberCount: (data.members || []).length },
+        });
         showMessage("Komisyon güncellendi!");
       } else {
         data.createdAt = new Date().toISOString();
         const result = await window.DBWrite.add("commissions", data);
         data.id = result?.id || String(Date.now());
+        if (window.audit) window.audit("commission_create", "commissions", data.id, {
+          departmentId: activeDepartment, meta: { name: data.name, memberCount: (data.members || []).length },
+        });
         showMessage("Komisyon oluşturuldu!");
       }
 
@@ -133,7 +139,11 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
   const handleDelete = async (commId) => {
     if (!confirm("Bu komisyonu silmek istediğinize emin misiniz?")) return;
     try {
+      const comm = commissions.find(c => c.id === commId);
       await window.DBWrite.remove("commissions", commId);
+      if (window.audit) window.audit("commission_delete", "commissions", commId, {
+        departmentId: activeDepartment, meta: { name: comm?.name || "" },
+      });
       setCommissions(prev => prev.filter(c => c.id !== commId));
       if (selectedCommission?.id === commId) setSelectedCommission(null);
       showMessage("Komisyon silindi.");

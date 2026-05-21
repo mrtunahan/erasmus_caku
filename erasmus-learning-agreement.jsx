@@ -1908,7 +1908,11 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   const handleDeleteStudent = async (id) => {
     if (confirm("Bu öğrenciyi silmek istediğinizden emin misiniz?")) {
       try {
+        const st = students.find(s => s.id === id);
         await DB.deleteStudent(id);
+        if (window.audit) window.audit("erasmus_student_delete", "students", id, {
+          meta: { studentNumber: st?.studentNumber, name: `${st?.firstName || ""} ${st?.lastName || ""}`.trim() },
+        });
         setStudents(prev => prev.filter(s => s.id !== id));
       } catch (error) {
         console.error('Delete error:', error);

@@ -83,8 +83,10 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
       const data = { name: form.name.trim(), managerNames, managerName: managerNames[0] || "" };
       if (editingItem === "new") {
         await DBWrite.add("departments", data);
+        if (window.audit) window.audit("department_create", "departments", "", { meta: { name: data.name } });
       } else {
         await DBWrite.set("departments", editingItem.id, data, true);
+        if (window.audit) window.audit("department_update", "departments", editingItem.id, { meta: { name: data.name } });
       }
       setEditingItem(null);
       loadData();
@@ -94,6 +96,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   const handleDeptDelete = async (d) => {
     if (!confirm(`${d.name} silinecek, emin misiniz?`)) return;
     await DBWrite.remove("departments", d.id);
+    if (window.audit) window.audit("department_delete", "departments", d.id, { meta: { name: d.name } });
     setDepartments(departments.filter(x => x.id !== d.id));
   };
 
@@ -107,8 +110,10 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
       const data = { name: form.name.trim(), capacity: parseInt(form.capacity) || 0, departmentId: activeDepartment };
       if (editingItem === "new") {
         await DBWrite.add("department_classrooms", data);
+        if (window.audit) window.audit("classroom_create", "department_classrooms", "", { departmentId: activeDepartment, meta: { name: data.name } });
       } else {
         await DBWrite.set("department_classrooms", editingItem.id, data, true);
+        if (window.audit) window.audit("classroom_update", "department_classrooms", editingItem.id, { departmentId: activeDepartment, meta: { name: data.name } });
       }
       setEditingItem(null);
       loadData();
@@ -118,6 +123,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   const handleClassDelete = async (c) => {
     if (!confirm(`${c.name} silinecek, emin misiniz?`)) return;
     await DBWrite.remove("department_classrooms", c.id);
+    if (window.audit) window.audit("classroom_delete", "department_classrooms", c.id, { departmentId: activeDepartment, meta: { name: c.name } });
     setClassrooms(classrooms.filter(x => x.id !== c.id));
   };
 

@@ -499,6 +499,7 @@ var PortalDB = {
 
   async deletePost(id) {
     await window.DBWrite.remove("portal_posts", String(id));
+    if (window.audit) window.audit("portal_post_delete", "portal_posts", String(id), {});
   },
 
   async toggleReaction(postId, reactionType, userId) {

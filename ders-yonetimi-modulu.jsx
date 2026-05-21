@@ -101,8 +101,10 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
         dataToSave.studentCount = 0;
         dataToSave.createdAt = dataToSave.updatedAt;
         await DBWrite.add('sinav_dersler', dataToSave);
+        if (window.audit) window.audit("course_create", "sinav_dersler", "", { meta: { code: dataToSave.code, name: dataToSave.name } });
       } else {
         await DBWrite.set('sinav_dersler', editingCourse.id, dataToSave, true);
+        if (window.audit) window.audit("course_update", "sinav_dersler", editingCourse.id, { meta: { code: dataToSave.code, name: dataToSave.name } });
       }
 
       setEditingCourse(null);
@@ -119,6 +121,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
     if (!confirm(`${c.code} kodlu ${c.name} dersini silmek istediğinize emin misiniz?`)) return;
     try {
       await DBWrite.remove('sinav_dersler', c.id);
+      if (window.audit) window.audit("course_delete", "sinav_dersler", c.id, { meta: { code: c.code, name: c.name } });
       setCourses(courses.filter(course => course.id !== c.id));
     } catch (e) {
       console.error(e);

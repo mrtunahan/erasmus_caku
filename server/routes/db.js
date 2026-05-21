@@ -79,6 +79,8 @@ const ALLOWED_COLLECTIONS = [
   "performance_targets",
   "performance_forms",
   "performance_reports",
+  "audit_logs",
+  "notifications",
 ];
 
 const READABLE_COLLECTIONS = [
