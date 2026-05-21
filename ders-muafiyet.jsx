@@ -789,6 +789,7 @@ var MuafiyetDB = {
   },
   async deleteRecord(id) {
     await window.DBWrite.remove("muafiyet_records", String(id));
+    if (window.audit) window.audit("muafiyet_record_delete", "muafiyet_records", String(id), {});
   },
 
   // Admin insan onayı: tek bir match'in kararını günceller
@@ -812,6 +813,11 @@ var MuafiyetDB = {
       pendingReviewCount: pendingLeft,
       updatedAt: new Date().toISOString(),
     });
+    if (window.audit) window.audit(
+      decision === "confirmed" ? "muafiyet_approve" : "muafiyet_reject",
+      "muafiyet_records", String(recordId),
+      { meta: { matchIndex: matchIndex, decision: decision, note: adminNote || "" } }
+    );
     return matches;
   },
 };

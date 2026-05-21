@@ -117,7 +117,11 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   const handleDeleteStudent = async (id) => {
     if (!confirm("Bu öğrenciyi silmek istediğinizden emin misiniz?")) return;
     try {
+      const st = students.find(s => s.id === id);
       await DB.deleteStudent(id);
+      if (window.audit) window.audit("student_delete", "students", id, {
+        meta: { studentNumber: st?.studentNumber, name: `${st?.firstName || ""} ${st?.lastName || ""}`.trim() },
+      });
       setStudents(prev => prev.filter(s => s.id !== id));
     } catch (error) {
       console.error('Delete error:', error);
@@ -128,6 +132,9 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     try {
       const newAccess = !student.erasmusAccess;
       await DB.updateStudent(student.id, { ...student, erasmusAccess: newAccess });
+      if (window.audit) window.audit("student_erasmus_access", "students", student.id, {
+        meta: { studentNumber: student.studentNumber, erasmusAccess: newAccess },
+      });
       setStudents(prev => prev.map(s => s.id === student.id ? { ...s, erasmusAccess: newAccess } : s));
     } catch (error) {
       console.error('Erasmus erişim güncelleme hatası:', error);
@@ -147,6 +154,9 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     setSaving(true);
     try {
       await DB.saveProfessor(profData);
+      if (window.audit) window.audit(editingProf.id ? "professor_update" : "professor_create", "professors", editingProf.id || "", {
+        meta: { name: profData.name, departmentId: profData.departmentId },
+      });
       setEditingProf(null);
       // Filtreyi yeniden uygula (bölüm değişmişse profesör bu listeden çıkar)
       await loadData();
@@ -165,6 +175,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     setSaving(true);
     try {
       await DB.deleteProfessor(id);
+      if (window.audit) window.audit("professor_delete", "professors", id, { meta: { name } });
       await loadData();
     } catch (e) {
       alert("Hata: " + e.message);
@@ -181,17 +192,20 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         for (const [studentNo, pass] of Object.entries(studentPasses)) {
           if (pass && pass !== '••••••') {
             await DB.changePassword('student', studentNo, pass);
+            if (window.audit) window.audit("password_reset", "passwords", studentNo, { meta: { role: "student" } });
           }
         }
       } else if (passwordTab === "professor") {
         for (const [name, pass] of Object.entries(professorPasses)) {
           if (pass && pass !== '••••••') {
             await DB.changePassword('professor', name, pass);
+            if (window.audit) window.audit("password_reset", "passwords", name, { meta: { role: "professor" } });
           }
         }
       } else if (passwordTab === "admin") {
         if (adminPass && adminPass.length >= 6) {
           await DB.changePassword('admin', null, adminPass);
+          if (window.audit) window.audit("password_reset", "passwords", "admin", { meta: { role: "admin" } });
         }
       }
       alert('Şifreler kaydedildi!');
