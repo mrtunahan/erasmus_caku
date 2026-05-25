@@ -1,7 +1,21 @@
 const jwt = require("jsonwebtoken");
 
-const JWT_SECRET = process.env.JWT_SECRET || "caku-erasmus-dev-secret-key";
+// Üretimde JWT_SECRET zorunlu — dev'de fallback (mevcut davranışla uyumlu).
+const DEV_FALLBACK_SECRET = "caku-erasmus-dev-secret-key";
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  // Fail-fast: zayıf default secret ile prod açılması engellenir.
+  throw new Error(
+    "JWT_SECRET ortam değişkeni production'da zorunludur. .env dosyanızı kontrol edin."
+  );
+}
+const JWT_SECRET = process.env.JWT_SECRET || DEV_FALLBACK_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
+
+if (JWT_SECRET === DEV_FALLBACK_SECRET) {
+  console.warn(
+    "[auth] DİKKAT: JWT_SECRET ayarlanmamış — geliştirme fallback kullanılıyor. Üretimde mutlaka değiştirin."
+  );
+}
 
 // JWT token oluştur
 function generateToken(payload) {

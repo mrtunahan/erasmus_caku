@@ -1,11 +1,36 @@
+# Bağımlılıklar
 node_modules/
-dist/
 server/node_modules/
-.env
-server/uploads/
-scripts/serviceAccountKey.json
 functions/node_modules/
-.DS_Store
+
+# Build çıktıları
+dist/
+build/
+coverage/
+.vite/
+
+# Environment dosyaları
+.env
+.env.local
+.env.*.local
+server/.env
+
+# Uploads / runtime artefaktları
+server/uploads/
 server/tmp_*
+scripts/serviceAccountKey.json
+
+# OS / editor
 .DS_Store
-server/tmp_*
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Log
+*.log
+npm-debug.log*
+
+# Test
+.nyc_output/
+*.lcov

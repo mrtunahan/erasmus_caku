@@ -8,6 +8,13 @@ const authRoutes = require("./routes/auth");
 const dbRoutes = require("./routes/db");
 const fileRoutes = require("./routes/files");
 const akademisyenRoutes = require("./routes/akademisyen");
+const {
+  helmetMiddleware,
+  authRateLimiter,
+  apiRateLimiter,
+  corsOrigin,
+} = require("./middleware/security");
+const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
 
 const PORT = process.env.PORT || 3001;
 const MAX_RETRIES = 10;
@@ -23,7 +30,7 @@ let io = null;
 try {
   const { Server } = require("socket.io");
   io = new Server(httpServer, {
-    cors: { origin: true, credentials: true },
+    cors: { origin: corsOrigin(), credentials: true },
     path: "/socket.io",
   });
   app.set("io", io);
@@ -43,16 +50,22 @@ try {
 app.set("trust proxy", 1);
 
 // Middleware
-app.use(cors({ origin: true, credentials: true }));
+app.use(helmetMiddleware());
+app.use(cors({ origin: corsOrigin(), credentials: true }));
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
+app.use("/api", apiRateLimiter());
 
 // Routes
 app.use("/api/health", healthRoutes);
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authRateLimiter(), authRoutes);
 app.use("/api/db", dbRoutes);
 app.use("/api/files", fileRoutes);
 app.use("/api/akademisyen", akademisyenRoutes);
+
+// 404 + merkezi hata yakalayıcı (route'lardan sonra mount edilmeli)
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 // Yakalanmamış hataları logla ve sunucunun çökmesini engelle
 process.on("unhandledRejection", (reason, promise) => {
