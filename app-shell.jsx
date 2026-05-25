@@ -900,6 +900,7 @@ function AppShell() {
         komisyonlar: window.KomisyonlarModuluApp,
         benim: window.BenimSayfamApp,
         audit: window.AuditLogModuluApp,
+        rehber: window.KullaniciRehberiApp,
       };
       const FallbackComponent = fallback[route];
       if (FallbackComponent) return React.createElement(FallbackComponent, {
