@@ -3,12 +3,15 @@ const rateLimit = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { auditWrites } = require('../middleware/auditLog');
+const { softAuth } = require('../middleware/softAuth');
 
 const router = express.Router();
 
 // Audit log middleware — /write öncesi req işaretlenir, sonrasında
 // fire-and-forget olarak `audit_logs` koleksiyonuna kaydedilir.
 const auditMiddleware = auditWrites(getDbSafe);
+// softAuth: token varsa req.user, yoksa audit_logs'a "soft_auth_miss" — bloklamaz.
+const softAuthMiddleware = softAuth(getDbSafe);
 
 // Rate limiting — okuma ve yazma için ayrı limitler.
 // SPA sayfa açılışında 30-50 paralel apiRead yapıyor, bu yüzden okumalarda
@@ -88,7 +91,20 @@ const ALLOWED_COLLECTIONS = [
   'notifications',
 ];
 
+// passwords salt-hash karşılaştırma için server tarafında okunur; UI'da
+// listelenmez ama izinli okuma listesinde tutulur.
 const READABLE_COLLECTIONS = [...ALLOWED_COLLECTIONS, 'passwords'];
+
+// Where/orderBy field adları için güvenlik allowlist'i —
+// Mongo operatör enjeksiyonu (örn. $where) ve prototip kirletmesini engeller.
+const SAFE_FIELD_NAME = /^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/;
+const FORBIDDEN_FIELDS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function isSafeField(name) {
+  if (typeof name !== 'string' || name.length === 0 || name.length > 100) return false;
+  if (FORBIDDEN_FIELDS.has(name)) return false;
+  return SAFE_FIELD_NAME.test(name);
+}
 
 // Rastgele 20 karakterlik ID üret
 function generateId() {
@@ -211,7 +227,7 @@ async function executeSingleOp(db, op) {
 }
 
 // POST /api/db/write
-router.post('/write', auditMiddleware, async (req, res) => {
+router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
   const { operations } = req.body;
 
   if (!operations || !Array.isArray(operations) || operations.length === 0) {
@@ -227,21 +243,17 @@ router.post('/write', auditMiddleware, async (req, res) => {
   const deleteCount = operations.filter((op) => op.type === 'delete').length;
   if (deleteCount > 20) {
     console.error(`BLOCKED: ${deleteCount} silme işlemi engellendi (max 20)`);
-    return res
-      .status(403)
-      .json({
-        error: `Tek istekte en fazla 20 silme işlemi yapılabilir (istenen: ${deleteCount})`,
-      });
+    return res.status(403).json({
+      error: `Tek istekte en fazla 20 silme işlemi yapılabilir (istenen: ${deleteCount})`,
+    });
   }
 
   const updateCount = operations.filter((op) => op.type === 'update' || op.type === 'set').length;
   if (updateCount > 50) {
     console.error(`BLOCKED: ${updateCount} güncelleme işlemi engellendi (max 50)`);
-    return res
-      .status(403)
-      .json({
-        error: `Tek istekte en fazla 50 güncelleme işlemi yapılabilir (istenen: ${updateCount})`,
-      });
+    return res.status(403).json({
+      error: `Tek istekte en fazla 50 güncelleme işlemi yapılabilir (istenen: ${updateCount})`,
+    });
   }
 
   try {
@@ -328,6 +340,9 @@ router.get('/:collection', async (req, res) => {
       const op = parts[1];
       const value = parts.slice(2).join(':');
 
+      // Field adını sıkı doğrula — Mongo operatör enjeksiyonu önlemi
+      if (!isSafeField(field)) continue;
+
       const mongoOp = mongoOps[op];
       if (mongoOp) {
         let convertedValue = value;
@@ -337,6 +352,8 @@ router.get('/:collection', async (req, res) => {
         else if (value === 'false') convertedValue = false;
         else if (value !== '' && !isNaN(value)) convertedValue = Number(value);
 
+        // Object.defineProperty yerine doğrudan atama; field adı zaten
+        // allowlist'ten geçti, prototype-pollution riski yok.
         filter[field] = { [mongoOp]: convertedValue };
       }
     }
@@ -345,7 +362,9 @@ router.get('/:collection', async (req, res) => {
 
     if (req.query.orderBy) {
       const [field, dir] = req.query.orderBy.split(':');
-      cursor = cursor.sort({ [field]: dir === 'desc' ? -1 : 1 });
+      if (isSafeField(field)) {
+        cursor = cursor.sort({ [field]: dir === 'desc' ? -1 : 1 });
+      }
     }
 
     const limitVal = req.query.limit ? parseInt(req.query.limit, 10) : 0;

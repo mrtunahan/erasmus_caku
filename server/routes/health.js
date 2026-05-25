@@ -1,25 +1,43 @@
-const express = require("express");
-const { getDbSafe } = require("../config/database");
+const express = require('express');
+const { getDbSafe } = require('../config/database');
 
 const router = express.Router();
 
 // Tüm bilinen koleksiyonlar
 const COLLECTIONS = [
-  "students", "professors", "passwords", "departments",
-  "department_classrooms",
-  "sinav_programi", "sinav_dersler", "sinav_donemler",
-  "exams", "exam_results", "exam_periods",
-  "course_groups", "course_group_posts", "course_schedules",
-  "trip_history",
-  "portal_posts", "portal_moderators", "portal_notifications",
-  "portal_profiles", "portal_follows", "portal_reports",
-  "muafiyet_settings", "muafiyet_records",
-  "projects", "project_courses",
-  "events", "resources", "forms", "internships",
+  'students',
+  'professors',
+  'passwords',
+  'departments',
+  'department_classrooms',
+  'sinav_programi',
+  'sinav_dersler',
+  'sinav_donemler',
+  'exams',
+  'exam_results',
+  'exam_periods',
+  'course_groups',
+  'course_group_posts',
+  'course_schedules',
+  'trip_history',
+  'portal_posts',
+  'portal_moderators',
+  'portal_notifications',
+  'portal_profiles',
+  'portal_follows',
+  'portal_reports',
+  'muafiyet_settings',
+  'muafiyet_records',
+  'projects',
+  'project_courses',
+  'events',
+  'resources',
+  'forms',
+  'internships',
 ];
 
-// GET /api/health
-router.get("/", async (req, res) => {
+// GET /api/health — eski sözleşme korunur, yeni alanlar additif
+router.get('/', async (req, res) => {
   try {
     const db = await getDbSafe();
     const counts = {};
@@ -34,16 +52,53 @@ router.get("/", async (req, res) => {
     );
 
     res.json({
-      status: "ok",
-      database: "mongodb",
+      status: 'ok',
+      database: 'mongodb',
       totalCollections: COLLECTIONS.length,
       totalDocuments,
       collections: counts,
     });
   } catch (err) {
     res.status(500).json({
-      status: "error",
+      status: 'error',
       message: err.message,
+    });
+  }
+});
+
+// GET /api/health/live — hafif liveness probe (Kubernetes/Docker için)
+// DB sorgulamadan sadece sunucunun cevap verdiğini doğrular.
+router.get('/live', (req, res) => {
+  res.json({ status: 'ok', uptime: Math.round(process.uptime()) });
+});
+
+// GET /api/health/ready — readiness: DB ping + uptime + memory
+router.get('/ready', async (req, res) => {
+  const started = Date.now();
+  try {
+    const db = await getDbSafe();
+    const pingStarted = Date.now();
+    await db.command({ ping: 1 });
+    const pingMs = Date.now() - pingStarted;
+    const mem = process.memoryUsage();
+    res.json({
+      status: 'ok',
+      uptimeSec: Math.round(process.uptime()),
+      nodeVersion: process.version,
+      env: process.env.NODE_ENV || 'development',
+      mongo: { reachable: true, pingMs },
+      memory: {
+        rssMb: Math.round(mem.rss / 1024 / 1024),
+        heapUsedMb: Math.round(mem.heapUsed / 1024 / 1024),
+      },
+      latencyMs: Date.now() - started,
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'error',
+      mongo: { reachable: false, error: err.message },
+      uptimeSec: Math.round(process.uptime()),
+      latencyMs: Date.now() - started,
     });
   }
 });
