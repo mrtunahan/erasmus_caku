@@ -83,11 +83,29 @@ function dosyaRenk(fileName) {
 // ══════════════════════════════════════════════════════════════
 // Form Kartı Bileşeni
 // ══════════════════════════════════════════════════════════════
-const FormKarti = ({ form, kategori, isAdmin, onDelete }) => {
+const FormKarti = ({ form, kategori, isAdmin, onDelete, onDosyaDegistir }) => {
   const [hover, setHover] = useState(false);
   const [silOnay, setSilOnay] = useState(false);
+  const [degistiriliyor, setDegistiriliyor] = useState(false);
+  const fileInputRef = React.useRef(null);
 
   const kat = FORM_KATEGORILER.find(k => k.id === kategori) || FORM_KATEGORILER[0];
+  const eskiFirebaseUrl = typeof form.dosyaURL === "string" &&
+    form.dosyaURL.includes("firebasestorage.googleapis.com");
+
+  const handleDosyaSecildi = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setDegistiriliyor(true);
+    try {
+      await onDosyaDegistir(form, file);
+    } catch (err) {
+      alert("Dosya değiştirilemedi: " + (err.message || err));
+    } finally {
+      setDegistiriliyor(false);
+    }
+  };
 
   return (
     <div
@@ -166,8 +184,8 @@ const FormKarti = ({ form, kategori, isAdmin, onDelete }) => {
         </span>
       </div>
 
-      {/* İndir Butonu */}
-      {form.dosyaURL && (
+      {/* İndir Butonu / Eski URL uyarısı */}
+      {form.dosyaURL && !eskiFirebaseUrl && (
         <a
           href={form.dosyaURL}
           target="_blank"
@@ -187,6 +205,63 @@ const FormKarti = ({ form, kategori, isAdmin, onDelete }) => {
           </svg>
           İndir
         </a>
+      )}
+      {eskiFirebaseUrl && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          padding: "8px 0", borderRadius: 8,
+          background: "#FEF3C7", color: "#92400E",
+          fontSize: 12, fontWeight: 500,
+          border: "1px solid #FCD34D",
+        }}>
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0L3.16 16.25A2 2 0 005 19z" />
+          </svg>
+          Dosya güncellenmeyi bekliyor
+        </div>
+      )}
+
+      {/* Admin: Dosyayı Değiştir */}
+      {isAdmin && form.dosyaURL && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            style={{ display: "none" }}
+            onChange={handleDosyaSecildi}
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+          />
+          <button
+            onClick={() => fileInputRef.current && fileInputRef.current.click()}
+            disabled={degistiriliyor}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              padding: "6px 0", borderRadius: 8,
+              background: eskiFirebaseUrl ? kat.color : "transparent",
+              color: eskiFirebaseUrl ? "#fff" : FM_C.textMuted,
+              fontSize: 12, fontWeight: 500,
+              border: `1px dashed ${eskiFirebaseUrl ? kat.color : FM_C.border}`,
+              cursor: degistiriliyor ? "wait" : "pointer",
+              opacity: degistiriliyor ? 0.7 : 1,
+            }}
+          >
+            {degistiriliyor ? (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ animation: "spin 1s linear infinite" }}>
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round" />
+                </svg>
+                Yükleniyor…
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.9 5 5 0 019.9-1A5.5 5.5 0 0118.5 18H7zM12 12v6m-3-3l3-3 3 3" />
+                </svg>
+                {eskiFirebaseUrl ? "Yeni Dosya Yükle" : "Dosyayı Değiştir"}
+              </>
+            )}
+          </button>
+        </>
       )}
 
       {/* Admin: Sil Butonu */}
@@ -537,6 +612,38 @@ function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     setFormlar(prev => [yeniForm, ...prev]);
   }, []);
 
+  // Form dosyasını değiştir (metadata korunur)
+  const dosyaDegistir = useCallback(async (form, file) => {
+    const DB = window.DB;
+    if (!DB) throw new Error("Veritabanı bağlantısı yok");
+
+    const { downloadURL, fileName } = await DB.uploadFormFile(file);
+
+    const eskiStoragePath = form.storagePath;
+    const eskiUrlFirebase = typeof form.dosyaURL === "string" &&
+      form.dosyaURL.includes("firebasestorage.googleapis.com");
+
+    const guncellemeVerisi = {
+      dosyaURL: downloadURL,
+      dosyaAdi: file.name,
+      dosyaBoyutu: file.size,
+      storagePath: fileName,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await DB.updateForm(form.id, guncellemeVerisi);
+
+    // Eski dosya yerel sunucuda ise sil (Firebase URL'leri için silmeye çalışma)
+    if (eskiStoragePath && !eskiUrlFirebase) {
+      try { await DB.deleteFormFile(eskiStoragePath); }
+      catch (err) { console.warn("Eski dosya silinemedi:", err); }
+    }
+
+    setFormlar(prev => prev.map(f =>
+      f.id === form.id ? { ...f, ...guncellemeVerisi } : f
+    ));
+  }, []);
+
   // Filtreleme
   const filtrelenmisFormlar = useMemo(() => {
     let sonuc = formlar;
@@ -731,6 +838,7 @@ function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               kategori={form.kategori}
               isAdmin={isAdmin}
               onDelete={formSil}
+              onDosyaDegistir={dosyaDegistir}
             />
           ))}
         </div>
