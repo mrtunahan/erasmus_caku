@@ -7,18 +7,29 @@ const { logger } = require('../lib/logger');
 const AUDIT_COLLECTION = 'audit_logs';
 
 // İstekten kim/nereden bilgisini güvenli şekilde çıkar.
+// DİKKAT: Frontend audit-log-modulu.jsx `actor`'ı STRING bekliyor
+// (window.audit() yazımıyla uyumlu). Bu nedenle:
+//   - actor: kısa string (kullanıcı adı / IP fallback) — UI render eder
+//   - actorDetail: zengin obje — sorgulama/forensik için
 function actorFrom(req) {
   const u = req.user || {};
+  const ip =
+    (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
+    req.ip ||
+    req.socket?.remoteAddress ||
+    null;
+  const username = u.username || u.email || u.name || null;
+  const userId = u.userId || u.sub || u.id || null;
   return {
-    userId: u.userId || u.sub || u.id || null,
-    username: u.username || u.email || null,
-    role: u.role || null,
-    ip:
-      (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
-      req.ip ||
-      req.socket?.remoteAddress ||
-      null,
-    userAgent: req.headers['user-agent'] || null,
+    actor: username || userId || (ip ? `ip:${ip}` : 'anonymous'),
+    actorRole: u.role || null,
+    actorDetail: {
+      userId,
+      username,
+      role: u.role || null,
+      ip,
+      userAgent: req.headers['user-agent'] || null,
+    },
   };
 }
 
@@ -58,16 +69,26 @@ function auditWrites(getDb) {
 
     res.on('finish', () => {
       // Sadece başarılı veya başarısız yazma denemelerini logla; sağlık kontrolü vb. dışarıda
+      const actorInfo = actorFrom(req);
       const entry = {
         requestId: req.id || null,
         at: new Date(),
+        // Frontend uyumluluğu için: action/target/targetId string alanları
+        // (window.audit() şeması). Server-side girişler için 'api_write'.
+        action: 'api_write',
+        target: req.originalUrl || req.url,
+        targetId: '',
+        actor: actorInfo.actor,
+        actorRole: actorInfo.actorRole,
+        actorDetail: actorInfo.actorDetail,
         method: req.method,
         path: req.originalUrl || req.url,
         status: res.statusCode,
         durationMs: Date.now() - startedAt,
-        actor: actorFrom(req),
         operations: opsSummary,
         operationCount: operations.length,
+        // createdAt: frontend schema uyumluluğu (ISO string)
+        createdAt: new Date().toISOString(),
       };
       // getDb() değer dönerse promise olur; biz fire-and-forget yapıyoruz
       Promise.resolve()
