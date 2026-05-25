@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "jsx": "react",
+    "checkJs": false,
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@modules/*": ["./*"],
+      "@shared/*": ["./shared-components.jsx"]
+    }
+  },
+  "include": ["*.jsx", "*.js", "tests/**/*"],
+  "exclude": ["node_modules", "dist", "server/node_modules"]
+}
