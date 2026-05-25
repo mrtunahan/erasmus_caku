@@ -1040,6 +1040,14 @@ const DB = {
       throw error;
     }
   },
+  async updateForm(formId, data) {
+    try {
+      await DBWrite.update('forms', String(formId), data);
+    } catch (error) {
+      console.error('Error updating form:', error);
+      throw error;
+    }
+  },
   async uploadFormFile(file) {
     try {
       const formData = new FormData();
