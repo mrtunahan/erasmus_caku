@@ -1,0 +1,23 @@
+name: 'ÇAKÜ CodeQL config'
+
+# Tarama kapsamı — tests, dist ve config dosyaları gürültü yapar.
+paths-ignore:
+  - 'tests/**'
+  - 'dist/**'
+  - 'build/**'
+  - 'coverage/**'
+  - 'node_modules/**'
+  - 'server/node_modules/**'
+  - 'public/**'
+  - '**/*.min.js'
+  - 'vite.config.js'
+  - 'vitest.config.js'
+  - 'eslint.config.js'
+  - 'postcss.config.cjs'
+  - 'tailwind.config.js'
+  - 'design-tokens.cjs'
+
+# Standart güvenlik query'lerini kullan. security-and-quality daha gürültülü
+# olduğu için (kalite önerileri dahil) security-extended'a düşürüldü.
+queries:
+  - uses: security-extended

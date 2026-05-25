@@ -35,10 +35,15 @@ function softAuth(getDb) {
     const token = extractToken(req);
     if (token) {
       try {
-        req.user = jwt.verify(token, JWT_SECRET);
+        // jwt.verify token'ın HMAC imzasını JWT_SECRET ile doğrular;
+        // imza geçerli değilse hata fırlatır. Bu nedenle req.user'a yalnızca
+        // sunucumuz tarafından imzalanmış payload atanır — user-controlled
+        // input olsa da kriptografik doğrulamadan sonra trust edilir.
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded;
         return next();
       } catch (err) {
-        // Geçersiz token — neden'i logla, sonra anonim olarak devam
+        // Geçersiz/expired token — req.user atanmaz; aşağıdaki audit log akışına devam
         req.softAuthError = err.name;
       }
     }

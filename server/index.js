@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const { connect, disconnect } = require('./config/database');
+const { connect, disconnect, getDbSafe } = require('./config/database');
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const dbRoutes = require('./routes/db');
@@ -16,6 +16,7 @@ const {
 } = require('./middleware/security');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const { requestId } = require('./middleware/requestId');
+const { csrfOriginCheck } = require('./middleware/csrf');
 const { logger } = require('./lib/logger');
 const {
   initSentry,
@@ -105,6 +106,9 @@ app.use(helmetMiddleware());
 app.use(cors({ origin: corsOrigin(), credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
+// CSRF defense-in-depth (SameSite=Strict cookie + Origin/Referer kontrolü).
+// Varsayılan SOFT log; CSRF_PROTECTION=enforce ile bloklar.
+app.use('/api', csrfOriginCheck(getDbSafe));
 app.use('/api', apiRateLimiter());
 
 // Routes
