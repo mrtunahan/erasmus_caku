@@ -19,8 +19,13 @@ const toText = (v) => {
   if (v == null) return '';
   if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v);
   if (typeof v === 'object') {
-    // Aktör objeleri için anlamlı kısa gösterim
-    if (v.username || v.userId || v.name) return String(v.username || v.name || v.userId);
+    // Aktör objesi: username > name > email > userId > ip fallback
+    // (eski PR #404 kayıtları null username + ip taşıyor; ip gösterimi temiz).
+    if (v.username) return String(v.username);
+    if (v.name) return String(v.name);
+    if (v.email) return String(v.email);
+    if (v.userId) return String(v.userId);
+    if (v.ip) return `ip:${v.ip}`;
     try {
       return JSON.stringify(v);
     } catch (_e) {
