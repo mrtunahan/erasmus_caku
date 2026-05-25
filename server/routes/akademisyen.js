@@ -1,15 +1,86 @@
 var express = require('express');
 var https = require('https');
+var rateLimit = require('express-rate-limit');
 var { getDbSafe } = require('../config/database');
 var { softAuth } = require('../middleware/softAuth');
 
 var router = express.Router();
 var softAuthMiddleware = softAuth(getDbSafe);
 
+// Modül-bazlı rate limit'ler — global /api limit'inin üstünde, akademisyen
+// scrape endpoint'leri pahalı olduğu için sıkılaştırılmış.
+var readLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Çok fazla istek. Lütfen biraz bekleyin.' },
+});
+var writeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Çok fazla yazma isteği.' },
+});
+var scrapeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Scrape sınırı aşıldı, daha sonra deneyin.' },
+});
+
+// Güvenlik: NoSQL injection önlemi — query'den gelen değerleri stringe zorla.
+// req.query parser'ı `?field[$ne]=null` gibi nested object'leri kabul eder.
+function asPlainString(v) {
+  if (v == null) return null;
+  if (typeof v === 'string') return v;
+  // Object / array gibi kompleks değer → reddet
+  return null;
+}
+
+// Açık redirect savunması: yalnızca bu allowlist'teki host'lara redirect
+// edilebilir. ÇAKÜ ve YÖK alt-alanları + scholar/orcid avatar host'ları.
+var ALLOWED_REDIRECT_HOSTS = new Set([
+  'karatekin.edu.tr',
+  'www.karatekin.edu.tr',
+  'akademik.yok.gov.tr',
+  'scholar.google.com',
+  'scholar.googleusercontent.com',
+  'orcid.org',
+  'sandbox.orcid.org',
+  'avatars.githubusercontent.com',
+  'ui-avatars.com',
+  'via.placeholder.com',
+]);
+
+function isAllowedRedirectUrl(input) {
+  if (typeof input !== 'string' || input.length === 0 || input.length > 2048) return false;
+  try {
+    var u = new URL(input);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    var host = u.hostname.toLowerCase();
+    if (ALLOWED_REDIRECT_HOSTS.has(host)) return true;
+    // Aynı zamanda *.karatekin.edu.tr alt-alanlarına izin
+    if (host.endsWith('.karatekin.edu.tr')) return true;
+    return false;
+  } catch (_e) {
+    return false;
+  }
+}
+
 function stripTags(html) {
   if (!html) return '';
-  return html
-    .replace(/<[^>]+>/g, '')
+  // İç içe/parçalı tag bypass'ını önlemek için sabit nokta'ya kadar yinele
+  // (örn. "<<script>script>" tek geçişte "<script>"e döner; ikinci geçişte temizlenir).
+  var prev;
+  var s = String(html);
+  do {
+    prev = s;
+    s = s.replace(/<[^>]*>/g, '');
+  } while (s !== prev);
+  return s
     .replace(/&nbsp;/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -292,11 +363,13 @@ async function setCacheDoc(db, username, data, merge = false) {
   }
 }
 
-router.get('/metrics/all', async function (req, res) {
+router.get('/metrics/all', readLimiter, async function (req, res) {
   try {
     var db = await getDbSafe();
     var filter = {};
-    if (req.query.departmentId) filter.departmentId = req.query.departmentId;
+    // NoSQL injection önlemi — yalnızca düz string kabul et
+    var deptId = asPlainString(req.query.departmentId);
+    if (deptId) filter.departmentId = deptId;
     var docs = await db.collection('akademisyen_cache').find(filter).toArray();
     var results = docs.map((d) => ({
       username: d._docId || d._id.toString(),
@@ -313,15 +386,23 @@ router.get('/metrics/all', async function (req, res) {
   }
 });
 
-router.get('/proxy/photo', async function (req, res) {
-  res.redirect(req.query.url || 'https://via.placeholder.com/150');
+// Açık redirect savunması — yalnızca allowlist'teki host'lara yönlendir.
+// Geçersiz/eksik URL placeholder'a düşer; mevcut frontend davranışı korunur.
+var DEFAULT_PHOTO = 'https://ui-avatars.com/api/?background=random';
+router.get('/proxy/photo', readLimiter, async function (req, res) {
+  var url = asPlainString(req.query.url);
+  if (url && isAllowedRedirectUrl(url)) {
+    return res.redirect(url);
+  }
+  return res.redirect(DEFAULT_PHOTO);
 });
 
-router.get('/', async function (req, res) {
+router.get('/', readLimiter, async function (req, res) {
   try {
     var db = await getDbSafe();
     var filter = {};
-    if (req.query.departmentId) filter.departmentId = req.query.departmentId;
+    var deptId = asPlainString(req.query.departmentId);
+    if (deptId) filter.departmentId = deptId;
     var docs = await db.collection('akademisyen_cache').find(filter).toArray();
     var list = docs.map((d) => ({
       username: d._docId || d._id.toString(),
@@ -338,9 +419,10 @@ router.get('/', async function (req, res) {
   }
 });
 
-router.post('/:username/assign', softAuthMiddleware, async function (req, res) {
+router.post('/:username/assign', writeLimiter, softAuthMiddleware, async function (req, res) {
   var username = normalizeUsername(req.params.username);
-  var departmentId = req.body.departmentId;
+  // NoSQL injection önlemi — body'den gelen değeri stringe zorla
+  var departmentId = asPlainString(req.body && req.body.departmentId);
   if (!departmentId) return res.status(400).json({ error: 'departmentId gerekli' });
   try {
     var db = await getDbSafe();
@@ -355,7 +437,7 @@ router.post('/:username/assign', softAuthMiddleware, async function (req, res) {
   }
 });
 
-router.delete('/:username', softAuthMiddleware, async function (req, res) {
+router.delete('/:username', writeLimiter, softAuthMiddleware, async function (req, res) {
   var username = normalizeUsername(req.params.username);
   try {
     var db = await getDbSafe();
@@ -366,9 +448,10 @@ router.delete('/:username', softAuthMiddleware, async function (req, res) {
   }
 });
 
-router.get('/:username', async function (req, res) {
+router.get('/:username', scrapeLimiter, async function (req, res) {
   var username = normalizeUsername(req.params.username);
-  var departmentId = req.query.departmentId || null;
+  // NoSQL injection önlemi — query'den gelen değeri stringe zorla
+  var departmentId = asPlainString(req.query.departmentId);
   var forceRefresh = req.query.force === 'true';
   if (!username) return res.status(400).json({ error: 'Kullanıcı adı gerekli' });
 

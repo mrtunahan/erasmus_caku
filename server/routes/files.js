@@ -2,11 +2,35 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const rateLimit = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
 const { softAuth } = require('../middleware/softAuth');
 
 const router = express.Router();
 const softAuthMiddleware = softAuth(getDbSafe);
+
+// Modül-bazlı rate limit'ler — yükleme/silme pahalı, indirme sık.
+const downloadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Çok fazla istek.' },
+});
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Çok fazla yükleme isteği.' },
+});
+const deleteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Çok fazla silme isteği.' },
+});
 
 // Upload dizini
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
@@ -61,7 +85,7 @@ const upload = multer({
 });
 
 // POST /api/files/upload
-router.post('/upload', softAuthMiddleware, upload.single('file'), (req, res) => {
+router.post('/upload', uploadLimiter, softAuthMiddleware, upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Dosya gerekli.' });
   }
@@ -163,23 +187,38 @@ const extractOriginalName = (fname) => {
   return m ? m[1] : base;
 };
 
+// Sıkı path validation — yalnızca güvenli karakterler ve sınırlı uzunluk.
+// CodeQL'in data-flow analizinin görebileceği şekilde explicit erken-dönüş yapar.
+const SAFE_RELATIVE_PATH = /^[a-zA-Z0-9_./-]+$/;
+const UPLOAD_ROOT = path.resolve(UPLOAD_DIR);
+
 const resolveSafePath = (relativePath) => {
+  // Ön doğrulama: tipi, uzunluğu, karakter setini sıkı kontrol et.
+  if (typeof relativePath !== 'string') return null;
+  if (relativePath.length === 0 || relativePath.length > 512) return null;
+  if (!SAFE_RELATIVE_PATH.test(relativePath)) return null;
+  // ".." segmentini erken yakala — path.normalize öncesi de sonrası da.
+  if (relativePath.includes('..')) return null;
+
   const filePath = path.join(UPLOAD_DIR, relativePath);
   const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(path.resolve(UPLOAD_DIR))) return null;
+  // Sınır kontrolü: UPLOAD_ROOT'un altında olmalı (separator ile sıkılaştırma).
+  if (!resolved.startsWith(UPLOAD_ROOT + path.sep) && resolved !== UPLOAD_ROOT) return null;
   if (fs.existsSync(filePath)) return filePath;
-  // Fallback: dosya adını general/ dizininde ara (eski yüklemeler için)
+
+  // Fallback: dosya adını general/ dizininde ara (eski yüklemeler için).
   const fileName = path.basename(relativePath);
+  if (!fileName || fileName.includes('..')) return null;
   const fallbackPath = path.join(UPLOAD_DIR, 'general', fileName);
   const fallbackResolved = path.resolve(fallbackPath);
-  if (fallbackResolved.startsWith(path.resolve(UPLOAD_DIR)) && fs.existsSync(fallbackPath)) {
+  if (fallbackResolved.startsWith(UPLOAD_ROOT + path.sep) && fs.existsSync(fallbackPath)) {
     return fallbackPath;
   }
   return null;
 };
 
 // GET /api/files/download/* - Dosya indirme/görüntüleme (nested folder desteği)
-router.get('/download/*', (req, res) => {
+router.get('/download/*', downloadLimiter, (req, res) => {
   const relativePath = req.params[0];
   const filePath = resolveSafePath(relativePath);
   if (!filePath) {
@@ -212,7 +251,7 @@ router.get('/download/*', (req, res) => {
 // Office belgeleri (docx/xlsx/pptx) tarayıcılar tarafından inline render
 // edilemez; bu sayfa türe göre uygun viewer'ı yükler veya indirme/dış viewer
 // seçenekleri sunar.
-router.get('/view/*', (req, res) => {
+router.get('/view/*', downloadLimiter, (req, res) => {
   const relativePath = req.params[0];
   const filePath = resolveSafePath(relativePath);
   if (!filePath) {
@@ -283,7 +322,7 @@ router.get('/view/*', (req, res) => {
 
 // DELETE /api/files/:folder/:filename
 const SAFE_FILENAME = /^[a-zA-Z0-9._-]+$/;
-router.delete('/:folder/:filename', softAuthMiddleware, (req, res) => {
+router.delete('/:folder/:filename', deleteLimiter, softAuthMiddleware, (req, res) => {
   const { folder, filename } = req.params;
 
   // Sıkı format kontrolü — yalnızca güvenli karakterler
