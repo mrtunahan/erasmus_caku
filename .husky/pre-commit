@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Husky 9+ — bu hook `npx lint-staged` çalıştırır.
+# `npm run prepare` ile etkinleşir (CI'da otomatik).
+# Devre dışı: HUSKY=0 ile commit.
+npx lint-staged

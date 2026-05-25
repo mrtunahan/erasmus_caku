@@ -14,7 +14,9 @@
     "lint": "eslint . --ext .js,.jsx,.cjs",
     "lint:fix": "eslint . --ext .js,.jsx,.cjs --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "analyze": "ANALYZE=true vite build",
+    "prepare": "husky 2>/dev/null || true"
   },
   "repository": {
     "type": "git",
@@ -28,12 +30,25 @@
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.5.0",
     "eslint": "^9.18.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "globals": "^15.14.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.3.0",
     "postcss": "^8.5.15",
     "prettier": "^3.4.2",
+    "rollup-plugin-visualizer": "^5.13.1",
     "tailwindcss": "^3.4.19",
     "vite": "^8.0.2",
     "vitest": "^2.1.8"
+  },
+  "lint-staged": {
+    "*.{js,jsx,cjs}": [
+      "prettier --write",
+      "eslint --fix --max-warnings 9999"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "lucide-react": "^1.16.0",

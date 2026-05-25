@@ -60,26 +60,32 @@ npm run server       # Express'i başlatır; nginx ile dist/ servis edilmeli
   Socket.IO `db:write` event'i sunucudan tetikler.
 - CSP `index.html` `<meta>` etiketinden yönetilir; `helmet`'in CSP'si
   kapalıdır.
+- Her HTTP isteğine `X-Request-Id` eklenir; log'lar ve `audit_logs`
+  kayıtları bu ID ile ilişkilendirilir.
+- `/api/db/write` çağrıları otomatik olarak `audit_logs` koleksiyonuna
+  kaydedilir (fire-and-forget; aksaklık ana isteği etkilemez).
+- API sözleşmesi `server/openapi.yaml` dosyasında belgelenir; index
+  önerileri `docs/MONGO_INDEXES.md` altındadır.
 
 ## Komutlar
 
-| Komut                | Açıklama                                  |
-| -------------------- | ----------------------------------------- |
-| `npm run dev`        | Vite dev server                           |
-| `npm run server`     | Express prod                              |
-| `npm run server:dev` | Express, dosya değişikliğinde restart     |
-| `npm run build`      | Üretim build'i (`dist/`)                  |
-| `npm run preview`    | Build çıktısını lokal önizle              |
-| `npm run lint`       | ESLint (gevşek; uyarı seviyesinde)        |
-| `npm run format`     | Prettier ile biçim                        |
-| `npm test`           | Vitest (watch)                            |
-| `npm run test:run`   | Vitest (tek seferlik, CI)                 |
+| Komut                | Açıklama                              |
+| -------------------- | ------------------------------------- |
+| `npm run dev`        | Vite dev server                       |
+| `npm run server`     | Express prod                          |
+| `npm run server:dev` | Express, dosya değişikliğinde restart |
+| `npm run build`      | Üretim build'i (`dist/`)              |
+| `npm run preview`    | Build çıktısını lokal önizle          |
+| `npm run lint`       | ESLint (gevşek; uyarı seviyesinde)    |
+| `npm run format`     | Prettier ile biçim                    |
+| `npm test`           | Vitest (watch)                        |
+| `npm run test:run`   | Vitest (tek seferlik, CI)             |
 
 Server dizininde:
 
-| Komut                  | Açıklama                          |
-| ---------------------- | --------------------------------- |
-| `npm run migrate`      | MongoDB migration'larını uygula   |
+| Komut                    | Açıklama                        |
+| ------------------------ | ------------------------------- |
+| `npm run migrate`        | MongoDB migration'larını uygula |
 | `npm run migrate:status` | Migration durumunu raporla      |
 
 ## Ortam değişkenleri

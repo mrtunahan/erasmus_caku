@@ -16,8 +16,11 @@ function useResponsive() {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => setWidth(window.innerWidth));
     };
-    window.addEventListener("resize", handler);
-    return () => { window.removeEventListener("resize", handler); cancelAnimationFrame(raf); };
+    window.addEventListener('resize', handler);
+    return () => {
+      window.removeEventListener('resize', handler);
+      cancelAnimationFrame(raf);
+    };
   }, []);
   return {
     width,
@@ -26,7 +29,8 @@ function useResponsive() {
     isSmallDesktop: width > 768 && width <= 1024,
     isDesktop: width > 1024,
     // Responsive değerler için yardımcı
-    val: (mobile, tablet, desktop) => width <= 480 ? mobile : width <= 768 ? (tablet ?? mobile) : (desktop ?? tablet ?? mobile),
+    val: (mobile, tablet, desktop) =>
+      width <= 480 ? mobile : width <= 768 ? (tablet ?? mobile) : (desktop ?? tablet ?? mobile),
     // Modal genişlik hesapla
     modalWidth: (maxW) => Math.min(maxW, width - (width <= 480 ? 16 : 32)),
   };
@@ -38,10 +42,18 @@ window.useResponsive = useResponsive;
 // bcrypt ile yapılmaktadır. İstemci tarafında hash'leme yapılmaz.
 const PasswordSecurity = {
   // Geriye dönük uyumluluk için stub - tüm hash'leme artık sunucu tarafında bcrypt ile yapılır
-  async hashPassword(password) { return password; },
-  isHashed() { return false; },
-  async verifyPassword() { return false; },
-  async migrateIfNeeded(stored) { return stored; }
+  async hashPassword(password) {
+    return password;
+  },
+  isHashed() {
+    return false;
+  },
+  async verifyPassword() {
+    return false;
+  },
+  async migrateIfNeeded(stored) {
+    return stored;
+  },
 };
 
 // ── Color Palette ──
@@ -74,10 +86,10 @@ const C = {
 // Tasarım tokenları design-tokens.cjs'den geliyor — TEK kaynak.
 // Tailwind config de aynı dosyayı okuyor.
 const T = T_TOKENS;
-if (typeof window !== "undefined") window.T = T;
+if (typeof window !== 'undefined') window.T = T;
 
 // Tema CSS değişkenlerini :root'a enjekte et (idempotent)
-if (typeof document !== "undefined" && !document.getElementById("__caku-tokens")) {
+if (typeof document !== 'undefined' && !document.getElementById('__caku-tokens')) {
   const css = `:root{
     --color-primary:${T.color.primary};--color-primary-pale:${T.color.primaryPale};--color-primary-strong:${T.color.primaryStrong};
     --color-navy:${T.color.navy};--color-text:${T.color.text};--color-text-muted:${T.color.textMuted};
@@ -92,8 +104,8 @@ if (typeof document !== "undefined" && !document.getElementById("__caku-tokens")
     --space-xs:${T.space.xs}px;--space-sm:${T.space.sm}px;--space-md:${T.space.md}px;--space-lg:${T.space.lg}px;--space-xl:${T.space.xl}px;--space-xxl:${T.space.xxl}px;
     --font-family:${T.font.family};
   }`;
-  const el = document.createElement("style");
-  el.id = "__caku-tokens";
+  const el = document.createElement('style');
+  el.id = '__caku-tokens';
   el.textContent = css;
   document.head.appendChild(el);
 }
@@ -119,29 +131,35 @@ const DY = {
 
 // ── Daisy Theme Icons ──
 const ICONS = {
-  home: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
-  book: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
-  calendar: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
-  chart: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-  user: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
-  bell: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
-  search: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
-  filter: "M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z",
-  plus: "M12 4v16m8-8H4",
-  dots: "M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z",
-  heart: "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
-  message: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
-  share: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z",
-  bookmark: "M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z",
-  check: "M5 13l4 4L19 7",
-  x: "M6 18L18 6M6 6l12 12",
-  chevronDown: "M19 9l-7 7-7-7"
+  home: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
+  book: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  calendar:
+    'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  chart:
+    'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+  user: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+  bell: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
+  search: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
+  filter:
+    'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z',
+  plus: 'M12 4v16m8-8H4',
+  dots: 'M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z',
+  heart:
+    'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
+  message:
+    'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
+  share:
+    'M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z',
+  bookmark: 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z',
+  check: 'M5 13l4 4L19 7',
+  x: 'M6 18L18 6M6 6l12 12',
+  chevronDown: 'M19 9l-7 7-7-7',
 };
 
 // ── Inject Daisy Theme Styles Global ──
 (function () {
-  const style = document.createElement("style");
-  style.id = "portal-daisy-style";
+  const style = document.createElement('style');
+  style.id = 'portal-daisy-style';
   style.innerHTML = `
     .portal-bg {
       background-color: ${DY.bg};
@@ -237,9 +255,18 @@ const generateColorFromString = (str) => {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
   const colors = [
-    "#EF4444", "#F97316", "#EAB308", "#22C55E", "#10B981",
-    "#06B6D4", "#3B82F6", "#6366F1", "#8B5CF6", "#A855F7",
-    "#EC4899", "#F43F5E"
+    '#EF4444',
+    '#F97316',
+    '#EAB308',
+    '#22C55E',
+    '#10B981',
+    '#06B6D4',
+    '#3B82F6',
+    '#6366F1',
+    '#8B5CF6',
+    '#A855F7',
+    '#EC4899',
+    '#F43F5E',
   ];
   return colors[Math.abs(hash) % colors.length];
 };
@@ -248,47 +275,147 @@ const generateColorFromString = (str) => {
 // Mühendislik Fakültesi - Bölüm Tanımlamaları
 // ══════════════════════════════════════════════════════════════
 const FACULTY = {
-  name: "Mühendislik Fakültesi",
-  university: "Çankırı Karatekin Üniversitesi",
+  name: 'Mühendislik Fakültesi',
+  university: 'Çankırı Karatekin Üniversitesi',
 };
 
 const DEPARTMENTS = [
-  { id: "bilgisayar", name: "Bilgisayar Mühendisliği", shortName: "Bilgisayar", color: "#3B82F6", icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
-  { id: "elektrik", name: "Elektrik ve Elektronik Mühendisliği", shortName: "Elektrik-Elektronik", color: "#EAB308", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
-  { id: "makine", name: "Makine Mühendisliği", shortName: "Makine", color: "#EF4444", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" },
-  { id: "insaat", name: "İnşaat Mühendisliği", shortName: "İnşaat", color: "#F97316", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
-  { id: "gida", name: "Gıda Mühendisliği", shortName: "Gıda", color: "#22C55E", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
-  { id: "kimya", name: "Kimya Mühendisliği", shortName: "Kimya", color: "#8B5CF6", icon: "M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" },
+  {
+    id: 'bilgisayar',
+    name: 'Bilgisayar Mühendisliği',
+    shortName: 'Bilgisayar',
+    color: '#3B82F6',
+    icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  },
+  {
+    id: 'elektrik',
+    name: 'Elektrik ve Elektronik Mühendisliği',
+    shortName: 'Elektrik-Elektronik',
+    color: '#EAB308',
+    icon: 'M13 10V3L4 14h7v7l9-11h-7z',
+  },
+  {
+    id: 'makine',
+    name: 'Makine Mühendisliği',
+    shortName: 'Makine',
+    color: '#EF4444',
+    icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+  },
+  {
+    id: 'insaat',
+    name: 'İnşaat Mühendisliği',
+    shortName: 'İnşaat',
+    color: '#F97316',
+    icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+  },
+  {
+    id: 'gida',
+    name: 'Gıda Mühendisliği',
+    shortName: 'Gıda',
+    color: '#22C55E',
+    icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  },
+  {
+    id: 'kimya',
+    name: 'Kimya Mühendisliği',
+    shortName: 'Kimya',
+    color: '#8B5CF6',
+    icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z',
+  },
 ];
 
 // Bölüm bazlı modüller (her bölüm yetkilisi bunlara erişir)
 const DEPARTMENT_MODULES = [
-  { id: "erasmus", label: "Erasmus", icon: "M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" },
-  { id: "muafiyet", label: "Ders Muafiyet", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
-  { id: "staj", label: "Staj", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
-  { id: "sinav", label: "Sınav Otomasyonu", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" },
-  { id: "dersprogrami", label: "Ders Programı", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
-  { id: "projeler", label: "Proje", icon: "M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" },
+  {
+    id: 'erasmus',
+    label: 'Erasmus',
+    icon: 'M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z',
+  },
+  { id: 'muafiyet', label: 'Ders Muafiyet', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+  {
+    id: 'staj',
+    label: 'Staj',
+    icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  },
+  {
+    id: 'sinav',
+    label: 'Sınav Otomasyonu',
+    icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01',
+  },
+  {
+    id: 'dersprogrami',
+    label: 'Ders Programı',
+    icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  },
+  {
+    id: 'projeler',
+    label: 'Proje',
+    icon: 'M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z',
+  },
 
-  { id: "formlar", label: "Formlar", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
-  { id: "akademisyen", label: "Akademisyenler", icon: "M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" },
-  { id: "performans", label: "Performans Modülü", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
-  { id: "benim", label: "Benim Sayfam", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+  {
+    id: 'formlar',
+    label: 'Formlar',
+    icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+  },
+  {
+    id: 'akademisyen',
+    label: 'Akademisyenler',
+    icon: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25',
+  },
+  {
+    id: 'performans',
+    label: 'Performans Modülü',
+    icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+  },
+  {
+    id: 'benim',
+    label: 'Benim Sayfam',
+    icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+  },
 ];
 
 // Ortak modüller (tüm bölümler için)
 const COMMON_MODULES = [
-  { id: "portal", label: "Öğrenci Portalı", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
-  { id: "roadmaps", label: "Yol Haritaları", icon: "M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" },
+  {
+    id: 'portal',
+    label: 'Öğrenci Portalı',
+    icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
+  },
+  {
+    id: 'roadmaps',
+    label: 'Yol Haritaları',
+    icon: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
+  },
 ];
 
 // Admin-only modüller
 const ADMIN_MODULES = [
-  { id: "kullanici", label: "Kullanıcı Yönetimi", icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" },
-  { id: "bolumyonetimi", label: "Bölüm Yönetimi", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
-  { id: "dersyonetimi", label: "Ders Yönetimi", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
-  { id: "komisyonlar", label: "Komisyonlar", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" },
-  { id: "audit", label: "Audit Log", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
+  {
+    id: 'kullanici',
+    label: 'Kullanıcı Yönetimi',
+    icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
+  },
+  {
+    id: 'bolumyonetimi',
+    label: 'Bölüm Yönetimi',
+    icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+  },
+  {
+    id: 'dersyonetimi',
+    label: 'Ders Yönetimi',
+    icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  },
+  {
+    id: 'komisyonlar',
+    label: 'Komisyonlar',
+    icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
+  },
+  {
+    id: 'audit',
+    label: 'Audit Log',
+    icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+  },
 ];
 
 window.FACULTY = FACULTY;
@@ -299,23 +426,24 @@ window.ADMIN_MODULES = ADMIN_MODULES;
 
 // ── Shared Constants ──
 const SEED_PROFESSORS = [
-  { name: "Prof. Dr. Hamit ALYAR", department: "Fizik", isExternal: true },
-  { name: "Prof. Dr. Çiğdem YÜKSEKTEPE ATAOL", department: "Kimya", isExternal: true },
-  { name: "Dr. Öğr. Üyesi Celalettin KAYA", department: "Matematik", isExternal: true },
-  { name: "Dr. Öğr. Üyesi Esma Baran ÖZKAN", department: "Matematik", isExternal: true },
-  { name: "Dr. Öğr. Üyesi Taha ETEM", department: "Bilgisayar", isExternal: false },
-  { name: "Dr. Öğr. Üyesi Seda ŞAHİN", department: "Bilgisayar", isExternal: false },
-  { name: "Dr. Öğr. Üyesi Fatih ISSI", department: "Bilgisayar", isExternal: false },
-  { name: "Doç. Dr. Selim BÜYÜKOĞLU", department: "Bilgisayar", isExternal: false },
-  { name: "Dr. Mehmet Akif ALPER", department: "Bilgisayar", isExternal: false },
-  { name: "Prof. Dr. İlyas İNCİ", department: "Matematik", isExternal: true },
-  { name: "Dr. Selim SÜRÜCÜ", department: "Bilgisayar", isExternal: false },
-  { name: "Dr. Uğur BİNZAT", department: "İstatistik", isExternal: true },
-  { name: "Dr. Alime YILMAZ", department: "Yabancı Diller", isExternal: true },
-  { name: "Dr. Öğr. Üyesi Osman GÜLER", department: "Bilgisayar", isExternal: false },
+  { name: 'Prof. Dr. Hamit ALYAR', department: 'Fizik', isExternal: true },
+  { name: 'Prof. Dr. Çiğdem YÜKSEKTEPE ATAOL', department: 'Kimya', isExternal: true },
+  { name: 'Dr. Öğr. Üyesi Celalettin KAYA', department: 'Matematik', isExternal: true },
+  { name: 'Dr. Öğr. Üyesi Esma Baran ÖZKAN', department: 'Matematik', isExternal: true },
+  { name: 'Dr. Öğr. Üyesi Taha ETEM', department: 'Bilgisayar', isExternal: false },
+  { name: 'Dr. Öğr. Üyesi Seda ŞAHİN', department: 'Bilgisayar', isExternal: false },
+  { name: 'Dr. Öğr. Üyesi Fatih ISSI', department: 'Bilgisayar', isExternal: false },
+  { name: 'Doç. Dr. Selim BÜYÜKOĞLU', department: 'Bilgisayar', isExternal: false },
+  { name: 'Dr. Mehmet Akif ALPER', department: 'Bilgisayar', isExternal: false },
+  { name: 'Prof. Dr. İlyas İNCİ', department: 'Matematik', isExternal: true },
+  { name: 'Dr. Selim SÜRÜCÜ', department: 'Bilgisayar', isExternal: false },
+  { name: 'Dr. Uğur BİNZAT', department: 'İstatistik', isExternal: true },
+  { name: 'Dr. Alime YILMAZ', department: 'Yabancı Diller', isExternal: true },
+  { name: 'Dr. Öğr. Üyesi Osman GÜLER', department: 'Bilgisayar', isExternal: false },
 ];
 
-const FONTS_LINK = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap";
+const FONTS_LINK =
+  'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap';
 
 // ── Styles ──
 const sharedStyles = {
@@ -328,144 +456,597 @@ const sharedStyles = {
 
 // ── Home Institution Course Catalog ──
 const HOME_INSTITUTION_CATALOG = {
-  name: "Çankırı Karatekin Üniversitesi",
-  department: "Bilgisayar Mühendisliği",
+  name: 'Çankırı Karatekin Üniversitesi',
+  department: 'Bilgisayar Mühendisliği',
   courses: [
-    { code: "TDİ101", name: "Türk Dili I", credits: 2, year: 1, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL111", name: "Bilgisayar Programlama I", credits: 5, year: 1, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL113", name: "Bilgisayar Mühendisliği Etiği", credits: 4, year: 1, semester: "Fall", type: "Zorunlu" },
-    { code: "ATA101", name: "Atatürk İlkeleri ve İnkılâp Tarihi I", credits: 2, year: 1, semester: "Fall", type: "Zorunlu" },
-    { code: "FİZ161", name: "Genel Fizik I", credits: 5, year: 1, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL101", name: "Bilgisayar Mühendisliğine Giriş", credits: 5, year: 1, semester: "Fall", type: "Zorunlu" },
-    { code: "OZD101", name: "Kariyer Planlama", credits: 1, year: 1, semester: "Fall", type: "Zorunlu" },
-    { code: "MAT161", name: "Matematik I", credits: 5, year: 1, semester: "Fall", type: "Zorunlu" },
-    { code: "ATA102", name: "Atatürk İlkeleri ve İnkılâp Tarihi II", credits: 2, year: 1, semester: "Spring", type: "Zorunlu" },
-    { code: "TDİ102", name: "Türk Dili II", credits: 2, year: 1, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL132", name: "Bilgisayar Programlama II", credits: 7, year: 1, semester: "Spring", type: "Zorunlu" },
-    { code: "MAT162", name: "Matematik II", credits: 5, year: 1, semester: "Spring", type: "Zorunlu" },
-    { code: "FİZ162", name: "Genel Fizik II", credits: 5, year: 1, semester: "Spring", type: "Zorunlu" },
-    { code: "MAT142", name: "Ayrık Matematik ve Uygulamaları", credits: 5, year: 1, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL231", name: "Bilgisayar Mühendisliğinde Mesleki İngilizce", credits: 4, year: 2, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL201", name: "Algoritma ve Veri Yapıları I", credits: 6, year: 2, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL203", name: "Nesnesel Tasarım ve Programlama", credits: 7, year: 2, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL205", name: "Sayısal Sistem Tasarımı", credits: 7, year: 2, semester: "Fall", type: "Zorunlu" },
-    { code: "MAT221", name: "Doğrusal Cebir", credits: 6, year: 2, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL222", name: "Differansiyel Denklemler", credits: 5, year: 2, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL232", name: "Mühendislik Ekonomisi", credits: 5, year: 2, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL202", name: "Algoritma ve Veri Yapıları II", credits: 6, year: 2, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL206", name: "Elektrik ve Elektronik Devrelerinin Temelleri", credits: 5, year: 2, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL212", name: "Olasılık Teorisi ve İstatistik", credits: 5, year: 2, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL200", name: "Staj I", credits: 4, year: 2, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL305", name: "İşletim Sistemleri", credits: 6, year: 3, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL307", name: "Mikroişlemciler", credits: 7, year: 3, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL301", name: "Programlama Dilleri", credits: 6, year: 3, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL303", name: "Veritabanı Sistemleri", credits: 7, year: 3, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL308", name: "Bilgisayar Mimarisi ve Organizasyonu", credits: 6, year: 3, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL312", name: "Web Tasarımı ve Programlama", credits: 5, year: 3, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL314", name: "Otomata Teorisi ve Formal Diller", credits: 5, year: 3, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL300", name: "Staj II", credits: 4, year: 3, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL401", name: "Bilgisayar Ağları", credits: 7, year: 4, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL403", name: "Yazılım Mühendisliği İlkeleri", credits: 6, year: 4, semester: "Fall", type: "Zorunlu" },
-    { code: "BİL482", name: "Yönetim Bilişim Sistemleri", credits: 6, year: 4, semester: "Spring", type: "Zorunlu" },
-    { code: "BİL494", name: "Bitirme Projesi", credits: 6, year: 4, semester: "Spring", type: "Zorunlu" },
-    { code: "SEÇ301", name: "Bilgisayar Grafiği", credits: 5, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ302", name: "Yapay Zeka", credits: 6, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ303", name: "Mobil Programlama", credits: 5, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ304", name: "Görüntü İşleme", credits: 6, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ305", name: "Makine Öğrenmesi", credits: 6, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ306", name: "Bulut Bilişim", credits: 5, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ307", name: "Siber Güvenlik", credits: 5, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ308", name: "Veri Madenciliği", credits: 6, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ309", name: "Derin Öğrenme", credits: 6, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ310", name: "Gömülü Sistemler", credits: 5, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ311", name: "IoT ve Uygulamaları", credits: 5, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ312", name: "Blockchain Teknolojileri", credits: 5, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ313", name: "Oyun Programlama", credits: 6, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ314", name: "Doğal Dil İşleme", credits: 6, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ315", name: "Bilgisayar Güvenliği", credits: 5, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ401", name: "Girişimcilik", credits: 3, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ402", name: "Proje Yönetimi", credits: 4, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ403", name: "İnovasyon Yönetimi", credits: 3, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ404", name: "Teknik İletişim", credits: 3, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ405", name: "Mesleki İngilizce", credits: 4, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ406", name: "Patent ve Fikri Mülkiyet Hakları", credits: 3, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ407", name: "Takım Çalışması ve Liderlik", credits: 3, year: 0, semester: "Any", type: "Seçmeli" },
-    { code: "SEÇ408", name: "Araştırma Yöntemleri", credits: 4, year: 0, semester: "Any", type: "Seçmeli" },
-  ]
+    { code: 'TDİ101', name: 'Türk Dili I', credits: 2, year: 1, semester: 'Fall', type: 'Zorunlu' },
+    {
+      code: 'BİL111',
+      name: 'Bilgisayar Programlama I',
+      credits: 5,
+      year: 1,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL113',
+      name: 'Bilgisayar Mühendisliği Etiği',
+      credits: 4,
+      year: 1,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'ATA101',
+      name: 'Atatürk İlkeleri ve İnkılâp Tarihi I',
+      credits: 2,
+      year: 1,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'FİZ161',
+      name: 'Genel Fizik I',
+      credits: 5,
+      year: 1,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL101',
+      name: 'Bilgisayar Mühendisliğine Giriş',
+      credits: 5,
+      year: 1,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'OZD101',
+      name: 'Kariyer Planlama',
+      credits: 1,
+      year: 1,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    { code: 'MAT161', name: 'Matematik I', credits: 5, year: 1, semester: 'Fall', type: 'Zorunlu' },
+    {
+      code: 'ATA102',
+      name: 'Atatürk İlkeleri ve İnkılâp Tarihi II',
+      credits: 2,
+      year: 1,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'TDİ102',
+      name: 'Türk Dili II',
+      credits: 2,
+      year: 1,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL132',
+      name: 'Bilgisayar Programlama II',
+      credits: 7,
+      year: 1,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'MAT162',
+      name: 'Matematik II',
+      credits: 5,
+      year: 1,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'FİZ162',
+      name: 'Genel Fizik II',
+      credits: 5,
+      year: 1,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'MAT142',
+      name: 'Ayrık Matematik ve Uygulamaları',
+      credits: 5,
+      year: 1,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL231',
+      name: 'Bilgisayar Mühendisliğinde Mesleki İngilizce',
+      credits: 4,
+      year: 2,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL201',
+      name: 'Algoritma ve Veri Yapıları I',
+      credits: 6,
+      year: 2,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL203',
+      name: 'Nesnesel Tasarım ve Programlama',
+      credits: 7,
+      year: 2,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL205',
+      name: 'Sayısal Sistem Tasarımı',
+      credits: 7,
+      year: 2,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'MAT221',
+      name: 'Doğrusal Cebir',
+      credits: 6,
+      year: 2,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL222',
+      name: 'Differansiyel Denklemler',
+      credits: 5,
+      year: 2,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL232',
+      name: 'Mühendislik Ekonomisi',
+      credits: 5,
+      year: 2,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL202',
+      name: 'Algoritma ve Veri Yapıları II',
+      credits: 6,
+      year: 2,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL206',
+      name: 'Elektrik ve Elektronik Devrelerinin Temelleri',
+      credits: 5,
+      year: 2,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL212',
+      name: 'Olasılık Teorisi ve İstatistik',
+      credits: 5,
+      year: 2,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    { code: 'BİL200', name: 'Staj I', credits: 4, year: 2, semester: 'Spring', type: 'Zorunlu' },
+    {
+      code: 'BİL305',
+      name: 'İşletim Sistemleri',
+      credits: 6,
+      year: 3,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL307',
+      name: 'Mikroişlemciler',
+      credits: 7,
+      year: 3,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL301',
+      name: 'Programlama Dilleri',
+      credits: 6,
+      year: 3,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL303',
+      name: 'Veritabanı Sistemleri',
+      credits: 7,
+      year: 3,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL308',
+      name: 'Bilgisayar Mimarisi ve Organizasyonu',
+      credits: 6,
+      year: 3,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL312',
+      name: 'Web Tasarımı ve Programlama',
+      credits: 5,
+      year: 3,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL314',
+      name: 'Otomata Teorisi ve Formal Diller',
+      credits: 5,
+      year: 3,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    { code: 'BİL300', name: 'Staj II', credits: 4, year: 3, semester: 'Spring', type: 'Zorunlu' },
+    {
+      code: 'BİL401',
+      name: 'Bilgisayar Ağları',
+      credits: 7,
+      year: 4,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL403',
+      name: 'Yazılım Mühendisliği İlkeleri',
+      credits: 6,
+      year: 4,
+      semester: 'Fall',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL482',
+      name: 'Yönetim Bilişim Sistemleri',
+      credits: 6,
+      year: 4,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'BİL494',
+      name: 'Bitirme Projesi',
+      credits: 6,
+      year: 4,
+      semester: 'Spring',
+      type: 'Zorunlu',
+    },
+    {
+      code: 'SEÇ301',
+      name: 'Bilgisayar Grafiği',
+      credits: 5,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    { code: 'SEÇ302', name: 'Yapay Zeka', credits: 6, year: 0, semester: 'Any', type: 'Seçmeli' },
+    {
+      code: 'SEÇ303',
+      name: 'Mobil Programlama',
+      credits: 5,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ304',
+      name: 'Görüntü İşleme',
+      credits: 6,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ305',
+      name: 'Makine Öğrenmesi',
+      credits: 6,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ306',
+      name: 'Bulut Bilişim',
+      credits: 5,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ307',
+      name: 'Siber Güvenlik',
+      credits: 5,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ308',
+      name: 'Veri Madenciliği',
+      credits: 6,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ309',
+      name: 'Derin Öğrenme',
+      credits: 6,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ310',
+      name: 'Gömülü Sistemler',
+      credits: 5,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ311',
+      name: 'IoT ve Uygulamaları',
+      credits: 5,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ312',
+      name: 'Blockchain Teknolojileri',
+      credits: 5,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ313',
+      name: 'Oyun Programlama',
+      credits: 6,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ314',
+      name: 'Doğal Dil İşleme',
+      credits: 6,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ315',
+      name: 'Bilgisayar Güvenliği',
+      credits: 5,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    { code: 'SEÇ401', name: 'Girişimcilik', credits: 3, year: 0, semester: 'Any', type: 'Seçmeli' },
+    {
+      code: 'SEÇ402',
+      name: 'Proje Yönetimi',
+      credits: 4,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ403',
+      name: 'İnovasyon Yönetimi',
+      credits: 3,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ404',
+      name: 'Teknik İletişim',
+      credits: 3,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ405',
+      name: 'Mesleki İngilizce',
+      credits: 4,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ406',
+      name: 'Patent ve Fikri Mülkiyet Hakları',
+      credits: 3,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ407',
+      name: 'Takım Çalışması ve Liderlik',
+      credits: 3,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+    {
+      code: 'SEÇ408',
+      name: 'Araştırma Yöntemleri',
+      credits: 4,
+      year: 0,
+      semester: 'Any',
+      type: 'Seçmeli',
+    },
+  ],
 };
 
 // ── Grade Conversion System ──
 const GRADE_CONVERSION = {
   table1: {
-    "very good": "A",
-    "good +": "B1",
-    "good": "B2",
-    "sufficient +": "B3",
-    "sufficient": "C1",
-    "allowing +": "C2",
-    "allowing": "C3",
-    "insufficient": "F1",
+    'very good': 'A',
+    'good +': 'B1',
+    good: 'B2',
+    'sufficient +': 'B3',
+    sufficient: 'C1',
+    'allowing +': 'C2',
+    allowing: 'C3',
+    insufficient: 'F1',
   },
   numericToGrade: (score) => {
     const num = parseFloat(score);
-    if (num >= 90) return "A";
-    if (num >= 85) return "B1";
-    if (num >= 80) return "B2";
-    if (num >= 75) return "B3";
-    if (num >= 70) return "C1";
-    if (num >= 65) return "C2";
-    if (num >= 60) return "C3";
-    if (num >= 50) return "F1";
-    return "F2";
+    if (num >= 90) return 'A';
+    if (num >= 85) return 'B1';
+    if (num >= 80) return 'B2';
+    if (num >= 75) return 'B3';
+    if (num >= 70) return 'C1';
+    if (num >= 65) return 'C2';
+    if (num >= 60) return 'C3';
+    if (num >= 50) return 'F1';
+    return 'F2';
   },
   letterGrades: {
-    "AA": "A", "A+": "A", "A": "A",
-    "BA": "B1", "A-": "B1",
-    "BB": "B2", "B+": "B2", "B": "B2",
-    "CB": "B3", "B-": "B3",
-    "CC": "C1", "C+": "C1", "C": "C1",
-    "DC": "C2", "C-": "C2",
-    "DD": "C3", "D+": "C3", "D": "C3",
-    "FF": "F1", "F": "F1",
-    "FD": "F2", "F-": "F2",
+    AA: 'A',
+    'A+': 'A',
+    A: 'A',
+    BA: 'B1',
+    'A-': 'B1',
+    BB: 'B2',
+    'B+': 'B2',
+    B: 'B2',
+    CB: 'B3',
+    'B-': 'B3',
+    CC: 'C1',
+    'C+': 'C1',
+    C: 'C1',
+    DC: 'C2',
+    'C-': 'C2',
+    DD: 'C3',
+    'D+': 'C3',
+    D: 'C3',
+    FF: 'F1',
+    F: 'F1',
+    FD: 'F2',
+    'F-': 'F2',
   },
   ectsGrades: {
-    "A": "A", "B": "B1", "C": "B2", "D": "C1", "E": "C3", "FX": "F1", "F": "F2",
+    A: 'A',
+    B: 'B1',
+    C: 'B2',
+    D: 'C1',
+    E: 'C3',
+    FX: 'F1',
+    F: 'F2',
   },
   scale10: {
-    "10": "A", "9": "B1", "8": "B2", "7": "B3", "6": "C1", "5": "C2", "4": "C3",
-    "3": "F2", "2": "F2", "1": "F2", "0": "F2",
+    10: 'A',
+    9: 'B1',
+    8: 'B2',
+    7: 'B3',
+    6: 'C1',
+    5: 'C2',
+    4: 'C3',
+    3: 'F2',
+    2: 'F2',
+    1: 'F2',
+    0: 'F2',
   },
   scale5a: {
-    "5": "A", "5.0": "A", "4.5": "B1", "4": "B2", "4.0": "B2", "3.5": "B3",
-    "3": "C1", "3.0": "C1", "2.5": "C2", "2": "C3", "2.0": "C3",
-    "1.5": "F2", "1": "F2", "1.0": "F2", "0.5": "F2", "0": "F2", "0.0": "F2",
+    5: 'A',
+    '5.0': 'A',
+    4.5: 'B1',
+    4: 'B2',
+    '4.0': 'B2',
+    3.5: 'B3',
+    3: 'C1',
+    '3.0': 'C1',
+    2.5: 'C2',
+    2: 'C3',
+    '2.0': 'C3',
+    1.5: 'F2',
+    1: 'F2',
+    '1.0': 'F2',
+    0.5: 'F2',
+    0: 'F2',
+    '0.0': 'F2',
   },
   scale5b: {
-    "5": "A", "5.0": "A", "4.5": "B1", "4": "B2", "4.0": "B2", "3.5": "C1",
-    "3": "C2", "3.0": "C2", "2.5": "C3", "2": "F2", "2.0": "F2",
+    5: 'A',
+    '5.0': 'A',
+    4.5: 'B1',
+    4: 'B2',
+    '4.0': 'B2',
+    3.5: 'C1',
+    3: 'C2',
+    '3.0': 'C2',
+    2.5: 'C3',
+    2: 'F2',
+    '2.0': 'F2',
   },
   scale5c: {
-    "5": "A", "5.0": "A", "4": "B2", "4.0": "B2", "3": "C1", "3.0": "C1",
-    "2": "C3", "2.0": "C3", "1": "F1", "1.0": "F1", "0": "F2", "0.0": "F2",
+    5: 'A',
+    '5.0': 'A',
+    4: 'B2',
+    '4.0': 'B2',
+    3: 'C1',
+    '3.0': 'C1',
+    2: 'C3',
+    '2.0': 'C3',
+    1: 'F1',
+    '1.0': 'F1',
+    0: 'F2',
+    '0.0': 'F2',
   },
   scale5d: {
-    "5": "A", "5.0": "A", "4.5": "B1", "4": "B2", "4.0": "B2", "3.5": "C1",
-    "3": "C2", "3.0": "C2", "2.5": "C3", "2": "F2", "2.0": "F2",
+    5: 'A',
+    '5.0': 'A',
+    4.5: 'B1',
+    4: 'B2',
+    '4.0': 'B2',
+    3.5: 'C1',
+    3: 'C2',
+    '3.0': 'C2',
+    2.5: 'C3',
+    2: 'F2',
+    '2.0': 'F2',
   },
 };
 
-const convertGrade = (inputGrade, system = "auto") => {
-  if (!inputGrade) return "Muaf";
+const convertGrade = (inputGrade, system = 'auto') => {
+  if (!inputGrade) return 'Muaf';
   const grade = inputGrade.toString().trim().toUpperCase();
-  if (system === "auto") {
+  if (system === 'auto') {
     if (/^[A-F]X?$/.test(grade)) return GRADE_CONVERSION.ectsGrades[grade] || grade;
     if (GRADE_CONVERSION.letterGrades[grade]) return GRADE_CONVERSION.letterGrades[grade];
     const num = parseFloat(grade);
     if (!isNaN(num)) {
       if (num <= 4) return GRADE_CONVERSION.numericToGrade(num * 25);
-      if (num <= 5) return GRADE_CONVERSION.scale5a[grade] || GRADE_CONVERSION.numericToGrade(num * 20);
-      if (num <= 10) return GRADE_CONVERSION.scale10[Math.floor(num).toString()] || GRADE_CONVERSION.numericToGrade(num * 10);
+      if (num <= 5)
+        return GRADE_CONVERSION.scale5a[grade] || GRADE_CONVERSION.numericToGrade(num * 20);
+      if (num <= 10)
+        return (
+          GRADE_CONVERSION.scale10[Math.floor(num).toString()] ||
+          GRADE_CONVERSION.numericToGrade(num * 10)
+        );
       return GRADE_CONVERSION.numericToGrade(num);
     }
     const lowerGrade = inputGrade.toLowerCase();
@@ -520,7 +1101,7 @@ const CloudFunctions = {
     }
 
     return { data: result };
-  }
+  },
 };
 window.CloudFunctions = CloudFunctions;
 
@@ -532,15 +1113,18 @@ async function fetchWithRetry(url, options = {}, maxRetries = 2) {
       if (response.ok) return response;
       // 5xx sunucu hatası ise yeniden dene
       if (response.status >= 500 && attempt < maxRetries) {
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
         continue;
       }
       return response;
     } catch (err) {
       // Ağ hatası (bağlantı kopması)
       if (attempt < maxRetries) {
-        console.warn(`[DB] İstek başarısız (deneme ${attempt + 1}/${maxRetries + 1}):`, err.message);
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        console.warn(
+          `[DB] İstek başarısız (deneme ${attempt + 1}/${maxRetries + 1}):`,
+          err.message
+        );
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
         continue;
       }
       throw err;
@@ -576,7 +1160,7 @@ const DBWrite = {
     if (parentDocId) op.parentDocId = parentDocId;
     if (subCollection) op.subCollection = subCollection;
     const res = await this._apiCall([op]);
-    if (typeof window !== "undefined" && window.apiInvalidate) window.apiInvalidate(collection);
+    if (typeof window !== 'undefined' && window.apiInvalidate) window.apiInvalidate(collection);
     return res;
   },
   async add(collection, data, parentDocId, subCollection) {
@@ -593,9 +1177,9 @@ const DBWrite = {
   },
   async batch(operations) {
     const res = await this._apiCall(operations);
-    if (typeof window !== "undefined" && window.apiInvalidate) {
+    if (typeof window !== 'undefined' && window.apiInvalidate) {
       const seen = new Set();
-      (operations || []).forEach(op => {
+      (operations || []).forEach((op) => {
         if (op && op.collection && !seen.has(op.collection)) {
           seen.add(op.collection);
           window.apiInvalidate(op.collection);
@@ -603,7 +1187,7 @@ const DBWrite = {
       });
     }
     return res;
-  }
+  },
 };
 window.DBWrite = DBWrite;
 
@@ -612,13 +1196,28 @@ window.DBWrite = DBWrite;
 // Aynı koleksiyon/parametreyle eş zamanlı çağrılar tek isteğe katlanır,
 // kısa TTL içinde tekrar çağrı bellekten döner, herhangi bir DBWrite
 // işlemi etkilenen koleksiyonun cache'ini geçersiz kılar.
-const __apiCache = new Map();   // key -> { data, ts }
+const __apiCache = new Map(); // key -> { data, ts }
 const __apiInflight = new Map(); // key -> Promise
-const __API_TTL = 15 * 1000;    // 15 sn
+const __API_TTL = 15 * 1000; // 15 sn
+const __API_CACHE_MAX = 500; // LRU üst sınırı — uzun oturumlarda bellek sızıntısını engeller
+
+// Map ekleme/erişim sırasını koruduğu için: en eski (ilk) anahtarı atarak LRU
+function __apiCacheSet(key, value) {
+  if (__apiCache.has(key)) __apiCache.delete(key); // erişim sırası güncellensin
+  __apiCache.set(key, value);
+  while (__apiCache.size > __API_CACHE_MAX) {
+    const oldest = __apiCache.keys().next().value;
+    if (oldest === undefined) break;
+    __apiCache.delete(oldest);
+  }
+}
 
 function __apiInvalidate(collection) {
-  if (!collection) { __apiCache.clear(); return; }
-  const prefix = collection + "::";
+  if (!collection) {
+    __apiCache.clear();
+    return;
+  }
+  const prefix = collection + '::';
   for (const k of Array.from(__apiCache.keys())) {
     if (k.startsWith(prefix)) __apiCache.delete(k);
   }
@@ -632,7 +1231,7 @@ async function __apiReadRaw(collection, params = {}) {
   const url = new URL(`/api/db/${collection}`, window.location.origin);
   if (params.where) {
     const wheres = Array.isArray(params.where) ? params.where : [params.where];
-    wheres.forEach(w => url.searchParams.append('where', w));
+    wheres.forEach((w) => url.searchParams.append('where', w));
   }
   if (params.orderBy) url.searchParams.set('orderBy', params.orderBy);
   if (params.limit) url.searchParams.set('limit', params.limit);
@@ -650,25 +1249,27 @@ async function __apiReadRaw(collection, params = {}) {
 }
 
 async function apiRead(collection, params = {}) {
-  const key = collection + "::" + JSON.stringify(params || {});
+  const key = collection + '::' + JSON.stringify(params || {});
   // Bellekteki taze cache
   const cached = __apiCache.get(key);
-  if (cached && (Date.now() - cached.ts) < __API_TTL) return cached.data;
+  if (cached && Date.now() - cached.ts < __API_TTL) return cached.data;
   // Eş zamanlı uçuş halinde tek isteğe katla
   if (__apiInflight.has(key)) return __apiInflight.get(key);
-  const p = __apiReadRaw(collection, params).then(data => {
-    __apiCache.set(key, { data, ts: Date.now() });
-    __apiInflight.delete(key);
-    return data;
-  }).catch(err => {
-    __apiInflight.delete(key);
-    throw err;
-  });
+  const p = __apiReadRaw(collection, params)
+    .then((data) => {
+      __apiCacheSet(key, { data, ts: Date.now() });
+      __apiInflight.delete(key);
+      return data;
+    })
+    .catch((err) => {
+      __apiInflight.delete(key);
+      throw err;
+    });
   __apiInflight.set(key, p);
   return p;
 }
 // Açıkça taze veri isteyen yerler için
-apiRead.fresh = function(collection, params) {
+apiRead.fresh = function (collection, params) {
   __apiInvalidate(collection);
   return apiRead(collection, params);
 };
@@ -678,7 +1279,10 @@ async function __apiReadDocRaw(collection, docId) {
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const response = await fetchWithRetry(`/api/db/${collection}/${encodeURIComponent(docId)}`, { headers, credentials: 'include' });
+  const response = await fetchWithRetry(`/api/db/${collection}/${encodeURIComponent(docId)}`, {
+    headers,
+    credentials: 'include',
+  });
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: 'Okuma hatası' }));
     throw new Error(err.error || `HTTP ${response.status}`);
@@ -687,18 +1291,20 @@ async function __apiReadDocRaw(collection, docId) {
 }
 
 async function apiReadDoc(collection, docId) {
-  const key = collection + "::doc::" + docId;
+  const key = collection + '::doc::' + docId;
   const cached = __apiCache.get(key);
-  if (cached && (Date.now() - cached.ts) < __API_TTL) return cached.data;
+  if (cached && Date.now() - cached.ts < __API_TTL) return cached.data;
   if (__apiInflight.has(key)) return __apiInflight.get(key);
-  const p = __apiReadDocRaw(collection, docId).then(data => {
-    __apiCache.set(key, { data, ts: Date.now() });
-    __apiInflight.delete(key);
-    return data;
-  }).catch(err => {
-    __apiInflight.delete(key);
-    throw err;
-  });
+  const p = __apiReadDocRaw(collection, docId)
+    .then((data) => {
+      __apiCacheSet(key, { data, ts: Date.now() });
+      __apiInflight.delete(key);
+      return data;
+    })
+    .catch((err) => {
+      __apiInflight.delete(key);
+      throw err;
+    });
   __apiInflight.set(key, p);
   return p;
 }
@@ -722,83 +1328,112 @@ window.apiReadDoc = apiReadDoc;
 const Notify = {
   async send(n) {
     const doc = {
-      recipientType: n.recipientType || "user",
-      recipientId: n.recipientId || "",
-      module: n.module || "sistem",
-      type: n.type || "info",
-      title: n.title || "",
-      body: n.body || "",
-      link: n.link || "",
+      recipientType: n.recipientType || 'user',
+      recipientId: n.recipientId || '',
+      module: n.module || 'sistem',
+      type: n.type || 'info',
+      title: n.title || '',
+      body: n.body || '',
+      link: n.link || '',
       meta: n.meta || {},
       readBy: [],
       createdAt: new Date().toISOString(),
     };
-    try { return await window.DBWrite.add("notifications", doc); }
-    catch (e) { console.warn("Bildirim gönderilemedi:", e); return null; }
+    try {
+      return await window.DBWrite.add('notifications', doc);
+    } catch (e) {
+      console.warn('Bildirim gönderilemedi:', e);
+      return null;
+    }
   },
   // Birden çok alıcıya tek seferde (batch)
   async sendMany(list) {
     if (!Array.isArray(list) || list.length === 0) return;
-    const ops = list.map(n => ({
-      collection: "notifications", type: "add",
+    const ops = list.map((n) => ({
+      collection: 'notifications',
+      type: 'add',
       data: {
-        recipientType: n.recipientType || "user",
-        recipientId: n.recipientId || "",
-        module: n.module || "sistem",
-        type: n.type || "info",
-        title: n.title || "",
-        body: n.body || "",
-        link: n.link || "",
+        recipientType: n.recipientType || 'user',
+        recipientId: n.recipientId || '',
+        module: n.module || 'sistem',
+        type: n.type || 'info',
+        title: n.title || '',
+        body: n.body || '',
+        link: n.link || '',
         meta: n.meta || {},
         readBy: [],
         createdAt: new Date().toISOString(),
       },
     }));
-    try { return await window.DBWrite.batch(ops); }
-    catch (e) { console.warn("Toplu bildirim gönderilemedi:", e); }
+    try {
+      return await window.DBWrite.batch(ops);
+    } catch (e) {
+      console.warn('Toplu bildirim gönderilemedi:', e);
+    }
   },
   // Kullanıcı için uygulanabilir bildirimleri getir.
   // (recipientId === userKey) VEYA (recipientType === "department" && id === aktifBölüm)
   // VEYA (recipientType === "role" && id === kullanıcı rolü).
   async listFor(currentUser, activeDepartment) {
     if (!currentUser) return [];
-    const userKey = currentUser.studentNumber || currentUser.identifier || currentUser.name || "";
+    const userKey = currentUser.studentNumber || currentUser.identifier || currentUser.name || '';
     try {
-      const all = await window.apiRead("notifications");
-      const role = currentUser.role || "";
-      return (all || []).filter(n => {
-        if (n.recipientType === "user") return n.recipientId === userKey;
-        if (n.recipientType === "department") return n.recipientId === activeDepartment;
-        if (n.recipientType === "role") return n.recipientId === role;
-        return false;
-      }).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-    } catch (e) { console.warn("Bildirimler yüklenemedi:", e); return []; }
+      const all = await window.apiRead('notifications');
+      const role = currentUser.role || '';
+      return (all || [])
+        .filter((n) => {
+          if (n.recipientType === 'user') return n.recipientId === userKey;
+          if (n.recipientType === 'department') return n.recipientId === activeDepartment;
+          if (n.recipientType === 'role') return n.recipientId === role;
+          return false;
+        })
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    } catch (e) {
+      console.warn('Bildirimler yüklenemedi:', e);
+      return [];
+    }
   },
   async markRead(notifId, userKey) {
     try {
-      const r = await window.apiReadDoc("notifications", notifId);
+      const r = await window.apiReadDoc('notifications', notifId);
       if (!r.exists) return;
       const readBy = Array.from(new Set([...(r.data.readBy || []), userKey]));
-      await window.DBWrite.set("notifications", notifId, { readBy }, true);
-    } catch (e) { console.warn("Okundu işaretlenemedi:", e); }
+      await window.DBWrite.set('notifications', notifId, { readBy }, true);
+    } catch (e) {
+      console.warn('Okundu işaretlenemedi:', e);
+    }
   },
   async markAllRead(notifs, userKey) {
-    const unread = (notifs || []).filter(n => !(n.readBy || []).includes(userKey));
+    const unread = (notifs || []).filter((n) => !(n.readBy || []).includes(userKey));
     if (unread.length === 0) return;
-    const ops = unread.map(n => ({
-      collection: "notifications", type: "set", docId: n.id, merge: true,
+    const ops = unread.map((n) => ({
+      collection: 'notifications',
+      type: 'set',
+      docId: n.id,
+      merge: true,
       data: { readBy: Array.from(new Set([...(n.readBy || []), userKey])) },
     }));
-    try { await window.DBWrite.batch(ops); } catch (e) { console.warn("Tümünü okundu hatası:", e); }
+    try {
+      await window.DBWrite.batch(ops);
+    } catch (e) {
+      console.warn('Tümünü okundu hatası:', e);
+    }
   },
   async remove(notifId) {
-    try { await window.DBWrite.remove("notifications", notifId); }
-    catch (e) { console.warn("Bildirim silinemedi:", e); }
+    try {
+      await window.DBWrite.remove('notifications', notifId);
+    } catch (e) {
+      console.warn('Bildirim silinemedi:', e);
+    }
   },
   async removeMany(ids) {
     if (!ids || ids.length === 0) return;
-    const ops = ids.map(id => ({ collection: "notifications", type: "delete", docId: id }));
-    try { await window.DBWrite.batch(ops); } catch (e) { console.warn("Toplu silme hatası:", e); }
+    const ops = ids.map((id) => ({ collection: 'notifications', type: 'delete', docId: id }));
+    try {
+      await window.DBWrite.batch(ops);
+    } catch (e) {
+      console.warn('Toplu silme hatası:', e);
+    }
   },
 };
 window.Notify = Notify;
@@ -808,153 +1443,406 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
   const [open, setOpen] = window.React.useState(false);
   const [list, setList] = window.React.useState([]);
   const [selected, setSelected] = window.React.useState(() => new Set());
-  const userKey = currentUser && (currentUser.studentNumber || currentUser.identifier || currentUser.name || "");
+  const userKey =
+    currentUser && (currentUser.studentNumber || currentUser.identifier || currentUser.name || '');
 
   const reload = window.React.useCallback(async () => {
     setList(await Notify.listFor(currentUser, activeDepartment));
   }, [currentUser, activeDepartment]);
 
-  window.React.useEffect(() => { reload(); }, [reload]);
+  window.React.useEffect(() => {
+    reload();
+  }, [reload]);
   // Açıldıkça yenile (kısa süreli)
-  window.React.useEffect(() => { if (open) reload(); }, [open, reload]);
+  window.React.useEffect(() => {
+    if (open) reload();
+  }, [open, reload]);
   // Gerçek zamanlı: notifications koleksiyonu değişince otomatik yenile
   window.React.useEffect(() => {
     const handler = () => reload();
-    window.addEventListener("realtime:notifications", handler);
-    return () => window.removeEventListener("realtime:notifications", handler);
+    window.addEventListener('realtime:notifications', handler);
+    return () => window.removeEventListener('realtime:notifications', handler);
   }, [reload]);
 
-  const unread = list.filter(n => !(n.readBy || []).includes(userKey)).length;
+  const unread = list.filter((n) => !(n.readBy || []).includes(userKey)).length;
 
   const toggleSel = (id) => {
-    setSelected(prev => {
+    setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
   const toggleAll = () => {
-    setSelected(prev => prev.size === list.length ? new Set() : new Set(list.map(n => n.id)));
+    setSelected((prev) => (prev.size === list.length ? new Set() : new Set(list.map((n) => n.id))));
   };
-  const doMarkAll = async () => { await Notify.markAllRead(list, userKey); reload(); };
+  const doMarkAll = async () => {
+    await Notify.markAllRead(list, userKey);
+    reload();
+  };
   const doDelete = async () => {
     if (selected.size === 0) return;
     if (!window.confirm(`${selected.size} bildirim silinsin mi?`)) return;
     await Notify.removeMany(Array.from(selected));
-    setSelected(new Set()); reload();
+    setSelected(new Set());
+    reload();
   };
   const doDeleteAll = async () => {
     if (list.length === 0) return;
     if (!window.confirm(`Tüm bildirimler (${list.length}) silinsin mi?`)) return;
-    await Notify.removeMany(list.map(n => n.id));
-    setSelected(new Set()); reload();
+    await Notify.removeMany(list.map((n) => n.id));
+    setSelected(new Set());
+    reload();
   };
 
-  const PRIMARY = "#0891B2", NAVY = "#1E293B", MUTED = "#64748B";
+  const PRIMARY = '#0891B2',
+    NAVY = '#1E293B',
+    MUTED = '#64748B';
   const timeAgo = (iso) => {
-    if (!iso) return "";
+    if (!iso) return '';
     const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-    if (m < 1) return "Az önce"; if (m < 60) return `${m} dk önce`;
-    const h = Math.floor(m / 60); if (h < 24) return `${h} sa önce`;
+    if (m < 1) return 'Az önce';
+    if (m < 60) return `${m} dk önce`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h} sa önce`;
     return `${Math.floor(h / 24)} gün önce`;
   };
 
   return (
-    <div style={{ position: "relative" }}>
-      {open && <div style={{ position: "fixed", inset: 0, zIndex: 9990 }} onClick={() => setOpen(false)} />}
+    <div style={{ position: 'relative' }}>
+      {open && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9990 }} onClick={() => setOpen(false)} />
+      )}
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => setOpen((v) => !v)}
         title="Bildirimler"
         style={{
-          width: 40, height: 40, borderRadius: 10,
-          border: `1.5px solid ${unread > 0 ? PRIMARY : "#E5E7EB"}`,
-          background: unread > 0 ? "#ECFEFF" : "white",
-          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          position: "relative",
+          width: 40,
+          height: 40,
+          borderRadius: 10,
+          border: `1.5px solid ${unread > 0 ? PRIMARY : '#E5E7EB'}`,
+          background: unread > 0 ? '#ECFEFF' : 'white',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
         }}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={unread > 0 ? PRIMARY : MUTED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={unread > 0 ? PRIMARY : MUTED}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
         </svg>
         {unread > 0 && (
-          <span style={{
-            position: "absolute", top: -5, right: -5,
-            background: "#DC2626", color: "white", fontSize: 10, fontWeight: 700,
-            minWidth: 18, height: 18, borderRadius: 9, display: "flex",
-            alignItems: "center", justifyContent: "center", padding: "0 4px",
-            border: "2px solid white",
-          }}>{unread > 99 ? "99+" : unread}</span>
+          <span
+            style={{
+              position: 'absolute',
+              top: -5,
+              right: -5,
+              background: '#DC2626',
+              color: 'white',
+              fontSize: 10,
+              fontWeight: 700,
+              minWidth: 18,
+              height: 18,
+              borderRadius: 9,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 4px',
+              border: '2px solid white',
+            }}
+          >
+            {unread > 99 ? '99+' : unread}
+          </span>
         )}
       </button>
 
       {open && (
-        <div style={{
-          position: "absolute", top: 48, right: 0, zIndex: 9999,
-          width: 380, background: "white", borderRadius: 14,
-          border: "1px solid #E5E7EB", boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-          overflow: "hidden",
-        }} onClick={e => e.stopPropagation()}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: "1px solid #F3F4F6", background: "#FAFAFA" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: 48,
+            right: 0,
+            zIndex: 9999,
+            width: 380,
+            background: 'white',
+            borderRadius: 14,
+            border: '1px solid #E5E7EB',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            overflow: 'hidden',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 16px',
+              borderBottom: '1px solid #F3F4F6',
+              background: '#FAFAFA',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: NAVY }}>Bildirimler</span>
-              {unread > 0 && <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 10, background: "#ECFEFF", color: PRIMARY }}>{unread} yeni</span>}
+              {unread > 0 && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '2px 7px',
+                    borderRadius: 10,
+                    background: '#ECFEFF',
+                    color: PRIMARY,
+                  }}
+                >
+                  {unread} yeni
+                </span>
+              )}
             </div>
-            {unread > 0 && <button onClick={doMarkAll} style={{ fontSize: 12, color: PRIMARY, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Tümünü okundu</button>}
+            {unread > 0 && (
+              <button
+                onClick={doMarkAll}
+                style={{
+                  fontSize: 12,
+                  color: PRIMARY,
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                Tümünü okundu
+              </button>
+            )}
           </div>
 
           {list.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 16px", borderBottom: "1px solid #F3F4F6" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: MUTED, cursor: "pointer" }}>
-                <input type="checkbox" checked={selected.size === list.length && list.length > 0} onChange={toggleAll} style={{ accentColor: PRIMARY }} />
-                {selected.size > 0 ? `${selected.size} seçili` : "Tümünü seç"}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+                padding: '8px 16px',
+                borderBottom: '1px solid #F3F4F6',
+              }}
+            >
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 12,
+                  color: MUTED,
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.size === list.length && list.length > 0}
+                  onChange={toggleAll}
+                  style={{ accentColor: PRIMARY }}
+                />
+                {selected.size > 0 ? `${selected.size} seçili` : 'Tümünü seç'}
               </label>
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
                 {selected.size > 0 && (
-                  <button onClick={doDelete} style={{ fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 6, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#DC2626", cursor: "pointer" }}>Seçilenleri Sil</button>
+                  <button
+                    onClick={doDelete}
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: '5px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #FCA5A5',
+                      background: '#FEF2F2',
+                      color: '#DC2626',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Seçilenleri Sil
+                  </button>
                 )}
-                <button onClick={doDeleteAll} style={{ fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "white", color: MUTED, cursor: "pointer" }}>Tümünü Sil</button>
+                <button
+                  onClick={doDeleteAll}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '5px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #E5E7EB',
+                    background: 'white',
+                    color: MUTED,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Tümünü Sil
+                </button>
               </div>
             </div>
           )}
 
-          <div style={{ maxHeight: 420, overflowY: "auto" }}>
+          <div style={{ maxHeight: 420, overflowY: 'auto' }}>
             {list.length === 0 ? (
-              <div style={{ padding: "32px 16px", textAlign: "center", color: MUTED, fontSize: 13 }}>Henüz bildirim yok</div>
+              <div
+                style={{ padding: '32px 16px', textAlign: 'center', color: MUTED, fontSize: 13 }}
+              >
+                Henüz bildirim yok
+              </div>
             ) : (
-              list.map(n => {
+              list.map((n) => {
                 const isRead = (n.readBy || []).includes(userKey);
                 const isSel = selected.has(n.id);
                 const tagColor =
-                  n.type === "approved" ? "#059669" :
-                  n.type === "rejected" ? "#DC2626" :
-                  n.type === "request"  ? "#8B5CF6" : PRIMARY;
+                  n.type === 'approved'
+                    ? '#059669'
+                    : n.type === 'rejected'
+                      ? '#DC2626'
+                      : n.type === 'request'
+                        ? '#8B5CF6'
+                        : PRIMARY;
                 return (
-                  <div key={n.id} style={{
-                    display: "flex", gap: 12, padding: "12px 16px", borderBottom: "1px solid #F9FAFB",
-                    background: isSel ? "#FEF2F2" : (isRead ? "white" : "#F0F9FF"),
-                  }}>
-                    <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, paddingTop: 2 }}>
-                      <input type="checkbox" checked={isSel} onChange={() => toggleSel(n.id)} style={{ accentColor: PRIMARY, cursor: "pointer" }} />
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: isRead ? "#D1D5DB" : tagColor }} />
+                  <div
+                    key={n.id}
+                    style={{
+                      display: 'flex',
+                      gap: 12,
+                      padding: '12px 16px',
+                      borderBottom: '1px solid #F9FAFB',
+                      background: isSel ? '#FEF2F2' : isRead ? 'white' : '#F0F9FF',
+                    }}
+                  >
+                    <div
+                      style={{
+                        flexShrink: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 6,
+                        paddingTop: 2,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSel}
+                        onChange={() => toggleSel(n.id)}
+                        style={{ accentColor: PRIMARY, cursor: 'pointer' }}
+                      />
+                      <div
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: isRead ? '#D1D5DB' : tagColor,
+                        }}
+                      />
                     </div>
-                    <div style={{ flex: 1, minWidth: 0, cursor: n.link ? "pointer" : "default" }}
-                         onClick={() => {
-                           if (!isRead) Notify.markRead(n.id, userKey).then(reload);
-                           if (n.link && onNavigate) { onNavigate(n.link); setOpen(false); }
-                         }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                        {n.module && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: tagColor + "20", color: tagColor, textTransform: "uppercase" }}>{n.module}</span>}
-                        <span style={{ fontSize: 13, fontWeight: isRead ? 500 : 700, color: NAVY }}>{n.title}</span>
+                    <div
+                      style={{ flex: 1, minWidth: 0, cursor: n.link ? 'pointer' : 'default' }}
+                      onClick={() => {
+                        if (!isRead) Notify.markRead(n.id, userKey).then(reload);
+                        if (n.link && onNavigate) {
+                          onNavigate(n.link);
+                          setOpen(false);
+                        }
+                      }}
+                    >
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}
+                      >
+                        {n.module && (
+                          <span
+                            style={{
+                              fontSize: 9,
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              borderRadius: 4,
+                              background: tagColor + '20',
+                              color: tagColor,
+                              textTransform: 'uppercase',
+                            }}
+                          >
+                            {n.module}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 13, fontWeight: isRead ? 500 : 700, color: NAVY }}>
+                          {n.title}
+                        </span>
                       </div>
-                      {n.body && <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.4 }}>{n.body}</div>}
-                      <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 3 }}>{timeAgo(n.createdAt)}</div>
-                    </div>
-                    <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 4, alignSelf: "center" }}>
-                      {!isRead && (
-                        <button onClick={() => Notify.markRead(n.id, userKey).then(reload)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${PRIMARY}30`, background: "#ECFEFF", color: PRIMARY, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Okundu</button>
+                      {n.body && (
+                        <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.4 }}>
+                          {n.body}
+                        </div>
                       )}
-                      <button onClick={async () => { await Notify.remove(n.id); reload(); }} title="Sil" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#DC2626", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22m-15 0V4a2 2 0 012-2h4a2 2 0 012 2v3" /></svg>
+                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>
+                        {timeAgo(n.createdAt)}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        flexShrink: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                        alignSelf: 'center',
+                      }}
+                    >
+                      {!isRead && (
+                        <button
+                          onClick={() => Notify.markRead(n.id, userKey).then(reload)}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            border: `1px solid ${PRIMARY}30`,
+                            background: '#ECFEFF',
+                            color: PRIMARY,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Okundu
+                        </button>
+                      )}
+                      <button
+                        onClick={async () => {
+                          await Notify.remove(n.id);
+                          reload();
+                        }}
+                        title="Sil"
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          border: '1px solid #FCA5A5',
+                          background: '#FEF2F2',
+                          color: '#DC2626',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#DC2626"
+                          strokeWidth="2"
+                        >
+                          <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22m-15 0V4a2 2 0 012-2h4a2 2 0 012 2v3" />
+                        </svg>
                       </button>
                     </div>
                   </div>
@@ -976,20 +1864,22 @@ window.BellMenu = BellMenu;
 // Schema: { actor, actorRole, action, target, targetId, before?, after?, meta?, createdAt }
 const audit = async (action, target, targetId, opts = {}) => {
   try {
-    const u = (typeof window !== "undefined" && window.__currentUser) || null;
-    await window.DBWrite.add("audit_logs", {
+    const u = (typeof window !== 'undefined' && window.__currentUser) || null;
+    await window.DBWrite.add('audit_logs', {
       action,
       target,
-      targetId: targetId == null ? "" : String(targetId),
-      actor: (u && (u.name || u.identifier || u.studentNumber)) || opts.actor || "",
-      actorRole: (u && u.role) || opts.actorRole || "",
-      departmentId: opts.departmentId || (u && u.departmentId) || "",
+      targetId: targetId == null ? '' : String(targetId),
+      actor: (u && (u.name || u.identifier || u.studentNumber)) || opts.actor || '',
+      actorRole: (u && u.role) || opts.actorRole || '',
+      departmentId: opts.departmentId || (u && u.departmentId) || '',
       before: opts.before == null ? null : opts.before,
       after: opts.after == null ? null : opts.after,
       meta: opts.meta || {},
       createdAt: new Date().toISOString(),
     });
-  } catch (e) { console.warn("Audit log yazılamadı:", e); }
+  } catch (e) {
+    console.warn('Audit log yazılamadı:', e);
+  }
 };
 window.audit = audit;
 
@@ -1079,7 +1969,11 @@ const DB = {
   async fetchStudents() {
     try {
       const students = await apiRead('students');
-      return students.map(s => ({ ...s, outgoingMatches: s.outgoingMatches || [], returnMatches: s.returnMatches || [] }));
+      return students.map((s) => ({
+        ...s,
+        outgoingMatches: s.outgoingMatches || [],
+        returnMatches: s.returnMatches || [],
+      }));
     } catch (error) {
       console.error('Error fetching students:', error);
       throw error;
@@ -1170,56 +2064,65 @@ const DB = {
       });
 
       // Build match signature for deduplication
-      const matchKey = (m) => JSON.stringify({
-        home: m.homeCourses.map(c => c.code).sort(),
-        host: m.hostCourses.map(c => c.code).sort(),
-      });
+      const matchKey = (m) =>
+        JSON.stringify({
+          home: m.homeCourses.map((c) => c.code).sort(),
+          host: m.hostCourses.map((c) => c.code).sort(),
+        });
 
-      const existingKeys = new Set(existingEntries.map(e => matchKey(e)));
+      const existingKeys = new Set(existingEntries.map((e) => matchKey(e)));
       const ops = [];
 
       // Process outgoing matches
-      (student.outgoingMatches || []).forEach(m => {
+      (student.outgoingMatches || []).forEach((m) => {
         if (m.homeCourses.length === 0 && m.hostCourses.length === 0) return;
         const key = matchKey(m);
         if (!existingKeys.has(key)) {
-          ops.push({ collection: 'trip_history', type: 'add', data: {
-            hostInstitution: student.hostInstitution,
-            hostCountry: student.hostCountry || '',
-            type: 'outgoing',
-            homeCourses: m.homeCourses,
-            hostCourses: m.hostCourses,
-            studentName: `${student.firstName} ${student.lastName}`,
-            studentNumber: student.studentNumber,
-            semester: student.semester || '',
-            departmentId: student.departmentId || 'bilgisayar',
-            createdAt: new Date().toISOString(),
-          }});
+          ops.push({
+            collection: 'trip_history',
+            type: 'add',
+            data: {
+              hostInstitution: student.hostInstitution,
+              hostCountry: student.hostCountry || '',
+              type: 'outgoing',
+              homeCourses: m.homeCourses,
+              hostCourses: m.hostCourses,
+              studentName: `${student.firstName} ${student.lastName}`,
+              studentNumber: student.studentNumber,
+              semester: student.semester || '',
+              departmentId: student.departmentId || 'bilgisayar',
+              createdAt: new Date().toISOString(),
+            },
+          });
           existingKeys.add(key);
         }
       });
 
       // Process return matches
-      (student.returnMatches || []).forEach(m => {
+      (student.returnMatches || []).forEach((m) => {
         if (m.homeCourses.length === 0 && m.hostCourses.length === 0) return;
         const key = matchKey(m);
         if (!existingKeys.has(key)) {
-          ops.push({ collection: 'trip_history', type: 'add', data: {
-            hostInstitution: student.hostInstitution,
-            hostCountry: student.hostCountry || '',
-            type: 'return',
-            homeCourses: m.homeCourses,
-            hostCourses: m.hostCourses,
-            hostGrade: m.hostGrade || '',
-            homeGrade: m.homeGrade || '',
-            hostGrades: m.hostGrades || {},
-            homeGrades: m.homeGrades || {},
-            studentName: `${student.firstName} ${student.lastName}`,
-            studentNumber: student.studentNumber,
-            semester: student.semester || '',
-            departmentId: student.departmentId || 'bilgisayar',
-            createdAt: new Date().toISOString(),
-          }});
+          ops.push({
+            collection: 'trip_history',
+            type: 'add',
+            data: {
+              hostInstitution: student.hostInstitution,
+              hostCountry: student.hostCountry || '',
+              type: 'return',
+              homeCourses: m.homeCourses,
+              hostCourses: m.hostCourses,
+              hostGrade: m.hostGrade || '',
+              homeGrade: m.homeGrade || '',
+              hostGrades: m.hostGrades || {},
+              homeGrades: m.homeGrades || {},
+              studentName: `${student.firstName} ${student.lastName}`,
+              studentNumber: student.studentNumber,
+              semester: student.semester || '',
+              departmentId: student.departmentId || 'bilgisayar',
+              createdAt: new Date().toISOString(),
+            },
+          });
           existingKeys.add(key);
         }
       });
@@ -1248,7 +2151,10 @@ const DB = {
     } catch (error) {
       console.error('verifyStudentLogin error:', error);
       if (error.code === 'functions/resource-exhausted') {
-        return { success: false, error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' };
+        return {
+          success: false,
+          error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.',
+        };
       }
       throw error;
     }
@@ -1261,7 +2167,10 @@ const DB = {
     } catch (error) {
       console.error('verifyAdminLogin error:', error);
       if (error.code === 'functions/resource-exhausted') {
-        return { success: false, error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' };
+        return {
+          success: false,
+          error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.',
+        };
       }
       throw error;
     }
@@ -1274,7 +2183,10 @@ const DB = {
     } catch (error) {
       console.error('verifyProfessorLogin error:', error);
       if (error.code === 'functions/resource-exhausted') {
-        return { success: false, error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' };
+        return {
+          success: false,
+          error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.',
+        };
       }
       throw error;
     }
@@ -1282,12 +2194,18 @@ const DB = {
 
   async verifyDepartmentManagerLogin(managerName, password) {
     try {
-      const result = await CloudFunctions.call('verifyDepartmentManagerLogin', { managerName, password });
+      const result = await CloudFunctions.call('verifyDepartmentManagerLogin', {
+        managerName,
+        password,
+      });
       return result.data;
     } catch (error) {
       console.error('verifyDepartmentManagerLogin error:', error);
       if (error.code === 'functions/resource-exhausted') {
-        return { success: false, error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' };
+        return {
+          success: false,
+          error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.',
+        };
       }
       throw error;
     }
@@ -1295,7 +2213,12 @@ const DB = {
 
   async changePassword(role, identifier, newPassword, currentPassword) {
     try {
-      const result = await CloudFunctions.call('changePassword', { role, identifier, newPassword, currentPassword });
+      const result = await CloudFunctions.call('changePassword', {
+        role,
+        identifier,
+        newPassword,
+        currentPassword,
+      });
       return result.data;
     } catch (error) {
       console.error('changePassword error:', error);
@@ -1315,7 +2238,10 @@ const DB = {
 
   async setDefaultProfessorPassword(adminPassword, defaultPassword) {
     try {
-      const result = await CloudFunctions.call('setDefaultProfessorPassword', { adminPassword, defaultPassword });
+      const result = await CloudFunctions.call('setDefaultProfessorPassword', {
+        adminPassword,
+        defaultPassword,
+      });
       return result.data;
     } catch (error) {
       console.error('setDefaultProfessorPassword error:', error);
@@ -1475,10 +2401,10 @@ const DB = {
     try {
       const { id: _id, ...data } = prof;
       if (_id) {
-        await DBWrite.update("professors", String(_id), data);
+        await DBWrite.update('professors', String(_id), data);
         return prof;
       } else {
-        const result = await DBWrite.add("professors", data);
+        const result = await DBWrite.add('professors', data);
         return { ...prof, id: result?.id || String(Date.now()) };
       }
     } catch (error) {
@@ -1488,7 +2414,7 @@ const DB = {
   },
   async deleteProfessor(id) {
     try {
-      await DBWrite.remove("professors", String(id));
+      await DBWrite.remove('professors', String(id));
       return true;
     } catch (error) {
       console.error('Error deleting professor:', error);
@@ -1501,7 +2427,9 @@ const DB = {
 const Auth = {
   // Çıkış yap (httpOnly cookie + localStorage temizle)
   async signOut() {
-    try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (e) {}
     localStorage.removeItem('caku_auth_token');
     localStorage.removeItem('caku_current_user');
   },
@@ -1516,47 +2444,123 @@ const Auth = {
           return { uid: payload.identifier || payload.role };
         }
         localStorage.removeItem('caku_auth_token');
-      } catch (e) { /* geçersiz token */ }
+      } catch (e) {
+        /* geçersiz token */
+      }
     }
     return null;
   },
-
 };
 
 // ── Icons ──
 const UploadIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" />
+    <line x1="12" y1="3" x2="12" y2="15" />
   </svg>
 );
 const DownloadIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-15a2 2 0 0 1 2-2h4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-15a2 2 0 0 1 2-2h4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
   </svg>
 );
 const PlusIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
   </svg>
 );
 const EditIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
   </svg>
 );
 const TrashIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
   </svg>
 );
 const ArrowRightIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+  <svg
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <line x1="5" y1="12" x2="19" y2="12" />
+    <polyline points="12 5 19 12 12 19" />
   </svg>
 );
 const FileTextIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+    <polyline points="10 9 9 9 8 9" />
   </svg>
 );
 
@@ -1565,38 +2569,69 @@ const FileTextIcon = () => (
 // ── Ortak Bileşenler (T tokenlarına bağlı, tutarlı) ──────────
 // ══════════════════════════════════════════════════════════════
 const Card = ({ children, title, actions, noPadding }) => (
-  <div style={{
-    background: T.color.surface,
-    borderRadius: T.radius.xl,            // 14px — modern, yumuşak
-    boxShadow: T.shadow.sm,               // hafif gölge
-    border: `1px solid ${T.color.border}`,
-    marginBottom: T.space.xl,             // 24px
-    fontFamily: T.font.family,
-  }}>
+  <div
+    style={{
+      background: T.color.surface,
+      borderRadius: T.radius.xl, // 14px — modern, yumuşak
+      boxShadow: T.shadow.sm, // hafif gölge
+      border: `1px solid ${T.color.border}`,
+      marginBottom: T.space.xl, // 24px
+      fontFamily: T.font.family,
+    }}
+  >
     {title && (
-      <div style={{
-        padding: `${T.space.lg}px ${T.space.xl}px`, // 16 24
-        borderBottom: `1px solid ${T.color.border}`,
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-      }}>
-        <h2 style={{
-          fontSize: T.font.sizeXl, fontWeight: T.font.weightSemibold,
-          color: T.color.navy, fontFamily: T.font.family, margin: 0,
-        }}>{title}</h2>
-        {actions && <div style={{ display: "flex", gap: T.space.sm }}>{actions}</div>}
+      <div
+        style={{
+          padding: `${T.space.lg}px ${T.space.xl}px`, // 16 24
+          borderBottom: `1px solid ${T.color.border}`,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <h2
+          style={{
+            fontSize: T.font.sizeXl,
+            fontWeight: T.font.weightSemibold,
+            color: T.color.navy,
+            fontFamily: T.font.family,
+            margin: 0,
+          }}
+        >
+          {title}
+        </h2>
+        {actions && <div style={{ display: 'flex', gap: T.space.sm }}>{actions}</div>}
       </div>
     )}
     <div style={{ padding: noPadding ? 0 : T.space.xl }}>{children}</div>
   </div>
 );
 
-const Btn = ({ children, onClick, variant = "primary", icon, small, disabled, style: customStyle }) => {
+const Btn = ({
+  children,
+  onClick,
+  variant = 'primary',
+  icon,
+  small,
+  disabled,
+  style: customStyle,
+}) => {
   const btnStyles = {
-    primary:   { bg: T.color.primary, color: "#fff", hoverBg: T.color.primaryStrong, border: "none" },
-    secondary: { bg: "transparent", color: T.color.text, hoverBg: T.color.surfaceMuted, border: `1px solid ${T.color.border}` },
-    success:   { bg: T.color.success, color: "#fff", hoverBg: "#047857", border: "none" },
-    danger:    { bg: T.color.danger,  color: "#fff", hoverBg: "#B91C1C", border: "none" },
-    ghost:     { bg: "transparent", color: T.color.primary, hoverBg: T.color.primaryPale, border: `1px solid ${T.color.border}` },
+    primary: { bg: T.color.primary, color: '#fff', hoverBg: T.color.primaryStrong, border: 'none' },
+    secondary: {
+      bg: 'transparent',
+      color: T.color.text,
+      hoverBg: T.color.surfaceMuted,
+      border: `1px solid ${T.color.border}`,
+    },
+    success: { bg: T.color.success, color: '#fff', hoverBg: '#047857', border: 'none' },
+    danger: { bg: T.color.danger, color: '#fff', hoverBg: '#B91C1C', border: 'none' },
+    ghost: {
+      bg: 'transparent',
+      color: T.color.primary,
+      hoverBg: T.color.primaryPale,
+      border: `1px solid ${T.color.border}`,
+    },
   };
   const s = btnStyles[variant] || btnStyles.primary;
   const [hover, setHover] = useState(false);
@@ -1608,16 +2643,18 @@ const Btn = ({ children, onClick, variant = "primary", icon, small, disabled, st
       onMouseLeave={() => setHover(false)}
       style={{
         padding: small ? `${T.space.sm}px ${T.space.md}px` : `${T.space.md - 2}px ${T.space.lg}px`,
-        borderRadius: T.radius.md,        // 8px — standart
+        borderRadius: T.radius.md, // 8px — standart
         border: s.border,
-        background: disabled ? T.color.surfaceMuted : (hover ? s.hoverBg : s.bg),
+        background: disabled ? T.color.surfaceMuted : hover ? s.hoverBg : s.bg,
         color: disabled ? T.color.textMuted : s.color,
         fontSize: small ? T.font.sizeMd : T.font.sizeLg,
         fontWeight: T.font.weightSemibold,
-        cursor: disabled ? "not-allowed" : "pointer",
+        cursor: disabled ? 'not-allowed' : 'pointer',
         fontFamily: T.font.family,
-        display: "inline-flex", alignItems: "center", gap: T.space.sm,
-        transition: "background 0.15s, color 0.15s, border-color 0.15s",
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: T.space.sm,
+        transition: 'background 0.15s, color 0.15s, border-color 0.15s',
         opacity: disabled ? 0.55 : 1,
         ...customStyle,
       }}
@@ -1628,7 +2665,7 @@ const Btn = ({ children, onClick, variant = "primary", icon, small, disabled, st
   );
 };
 
-const Input = ({ value, onChange, placeholder, type = "text", disabled, ...rest }) => (
+const Input = ({ value, onChange, placeholder, type = 'text', disabled, ...rest }) => (
   <input
     type={type}
     value={value}
@@ -1637,21 +2674,27 @@ const Input = ({ value, onChange, placeholder, type = "text", disabled, ...rest 
     disabled={disabled}
     {...rest}
     style={{
-      width: "100%",
+      width: '100%',
       padding: `${T.space.sm + 2}px ${T.space.md + 2}px`, // 10 14
       borderRadius: T.radius.md,
       border: `1px solid ${T.color.border}`,
       fontSize: T.font.sizeLg,
       fontFamily: T.font.family,
-      outline: "none",
-      transition: "border-color 0.15s, box-shadow 0.15s",
+      outline: 'none',
+      transition: 'border-color 0.15s, box-shadow 0.15s',
       background: disabled ? T.color.surfaceMuted : T.color.surface,
       color: T.color.text,
-      boxSizing: "border-box",
+      boxSizing: 'border-box',
       ...(rest.style || {}),
     }}
-    onFocus={e => { e.target.style.borderColor = T.color.primary; e.target.style.boxShadow = `0 0 0 3px ${T.color.primary}20`; }}
-    onBlur={e => { e.target.style.borderColor = T.color.border; e.target.style.boxShadow = "none"; }}
+    onFocus={(e) => {
+      e.target.style.borderColor = T.color.primary;
+      e.target.style.boxShadow = `0 0 0 3px ${T.color.primary}20`;
+    }}
+    onBlur={(e) => {
+      e.target.style.borderColor = T.color.border;
+      e.target.style.boxShadow = 'none';
+    }}
   />
 );
 
@@ -1660,38 +2703,46 @@ const Select = ({ value, onChange, options, placeholder, children }) => (
     value={value}
     onChange={onChange}
     style={{
-      width: "100%",
+      width: '100%',
       padding: `${T.space.sm + 2}px ${T.space.md + 2}px`,
       borderRadius: T.radius.md,
       border: `1px solid ${T.color.border}`,
       fontSize: T.font.sizeLg,
       fontFamily: T.font.family,
-      outline: "none",
+      outline: 'none',
       background: T.color.surface,
       color: T.color.text,
-      cursor: "pointer",
-      boxSizing: "border-box",
+      cursor: 'pointer',
+      boxSizing: 'border-box',
     }}
   >
     {placeholder && <option value="">{placeholder}</option>}
-    {children ? children : (options || []).map((opt, i) => (
-      <option key={i} value={opt.value}>{opt.label}</option>
-    ))}
+    {children
+      ? children
+      : (options || []).map((opt, i) => (
+          <option key={i} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
   </select>
 );
 
 const FormField = ({ label, children }) => (
   <div style={{ marginBottom: T.space.lg }}>
-    <label style={{
-      display: "block",
-      fontSize: T.font.sizeXs,
-      fontWeight: T.font.weightSemibold,
-      color: T.color.textMuted,
-      letterSpacing: "0.06em",
-      textTransform: "uppercase",
-      marginBottom: T.space.sm,
-      fontFamily: T.font.family,
-    }}>{label}</label>
+    <label
+      style={{
+        display: 'block',
+        fontSize: T.font.sizeXs,
+        fontWeight: T.font.weightSemibold,
+        color: T.color.textMuted,
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase',
+        marginBottom: T.space.sm,
+        fontFamily: T.font.family,
+      }}
+    >
+      {label}
+    </label>
     {children}
   </div>
 );
@@ -1703,10 +2754,15 @@ const Modal = ({ open, onClose, title, children, width = 700 }) => {
   return (
     <div
       style={{
-        position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)",
-        backdropFilter: "blur(4px)",
-        display: "flex", alignItems: isMobileModal ? "flex-end" : "center", justifyContent: "center",
-        zIndex: 1000, padding: isMobileModal ? 0 : T.space.xl,
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.45)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: isMobileModal ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: isMobileModal ? 0 : T.space.xl,
       }}
       onClick={onClose}
     >
@@ -1714,32 +2770,54 @@ const Modal = ({ open, onClose, title, children, width = 700 }) => {
         style={{
           background: T.color.surface,
           borderRadius: isMobileModal ? `${T.radius.xl} ${T.radius.xl} 0 0` : T.radius.xl,
-          width: "100%",
-          maxWidth: isMobileModal ? "100%" : width,
-          maxHeight: isMobileModal ? "85vh" : "90vh",
-          overflow: "auto",
+          width: '100%',
+          maxWidth: isMobileModal ? '100%' : width,
+          maxHeight: isMobileModal ? '85vh' : '90vh',
+          overflow: 'auto',
           boxShadow: T.shadow.lg,
           fontFamily: T.font.family,
         }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <div style={{
-            padding: isMobileModal ? `${T.space.lg}px` : `${T.space.lg}px ${T.space.xl}px`,
-            borderBottom: `1px solid ${T.color.border}`,
-            position: "sticky", top: 0, background: T.color.surface, zIndex: 1,
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-          }}>
-            <h2 style={{
-              fontSize: isMobileModal ? T.font.sizeXl : T.font.size2xl,
-              fontWeight: T.font.weightSemibold, color: T.color.navy,
-              fontFamily: T.font.family, margin: 0,
-            }}>{title}</h2>
-            <button onClick={onClose} style={{
-              border: "none", background: "none", cursor: "pointer",
-              padding: T.space.xs, color: T.color.textMuted, fontSize: T.font.sizeXl,
-              lineHeight: 1,
-            }}>✕</button>
+          <div
+            style={{
+              padding: isMobileModal ? `${T.space.lg}px` : `${T.space.lg}px ${T.space.xl}px`,
+              borderBottom: `1px solid ${T.color.border}`,
+              position: 'sticky',
+              top: 0,
+              background: T.color.surface,
+              zIndex: 1,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <h2
+              style={{
+                fontSize: isMobileModal ? T.font.sizeXl : T.font.size2xl,
+                fontWeight: T.font.weightSemibold,
+                color: T.color.navy,
+                fontFamily: T.font.family,
+                margin: 0,
+              }}
+            >
+              {title}
+            </h2>
+            <button
+              onClick={onClose}
+              style={{
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                padding: T.space.xs,
+                color: T.color.textMuted,
+                fontSize: T.font.sizeXl,
+                lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
           </div>
         )}
         <div style={{ padding: isMobileModal ? T.space.lg : T.space.xl }}>{children}</div>
@@ -1749,45 +2827,51 @@ const Modal = ({ open, onClose, title, children, width = 700 }) => {
 };
 
 const Badge = ({ children, color, bg }) => (
-  <span style={{
-    padding: `${T.space.xs}px ${T.space.md - 2}px`, // 4 10
-    borderRadius: T.radius.sm,
-    fontSize: T.font.sizeXs,
-    fontWeight: T.font.weightSemibold,
-    color: color || T.color.success,
-    background: bg || T.color.successPale,
-    display: "inline-flex", alignItems: "center", gap: T.space.xs + 2,
-    fontFamily: T.font.family,
-  }}>{children}</span>
+  <span
+    style={{
+      padding: `${T.space.xs}px ${T.space.md - 2}px`, // 4 10
+      borderRadius: T.radius.sm,
+      fontSize: T.font.sizeXs,
+      fontWeight: T.font.weightSemibold,
+      color: color || T.color.success,
+      background: bg || T.color.successPale,
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: T.space.xs + 2,
+      fontFamily: T.font.family,
+    }}
+  >
+    {children}
+  </span>
 );
 
 // ── Login Modal ──
 const LoginModal = ({ onLogin }) => {
-  const [activeTab, setActiveTab] = useState("student"); // student, professor, admin
-  const [identifier, setIdentifier] = useState(""); // studentNo or professorName
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState('student'); // student, professor, admin
+  const [identifier, setIdentifier] = useState(''); // studentNo or professorName
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [professorList, setProfessorList] = useState([]);
   // İlk giriş / kayıt state'leri
   const [setupPasswordMode, setSetupPasswordMode] = useState(false); // mevcut öğrenci şifre değiştirme
   const [registerMode, setRegisterMode] = useState(false); // yeni öğrenci kayıt
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [pendingUser, setPendingUser] = useState(null);
-  const [pendingStudentNumber, setPendingStudentNumber] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState("");
-  const [profSearch, setProfSearch] = useState("");
+  const [pendingStudentNumber, setPendingStudentNumber] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [profSearch, setProfSearch] = useState('');
   const [profDropdownOpen, setProfDropdownOpen] = useState(false);
 
   // URL'den admin girişi kontrolü (?admin veya #admin)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has('admin') || window.location.hash === '#admin') {
-      setActiveTab("admin");
+      setActiveTab('admin');
     }
   }, []);
 
@@ -1796,10 +2880,26 @@ const LoginModal = ({ onLogin }) => {
       try {
         const profs = await DB.fetchProfessors();
         // Unvanları soyarak soyadı + ilk ad bazında tekilleştir
-        const titles = ["Dr. Öğr. Üyesi", "Dr. Öğr. Gör.", "Öğr. Gör. Dr.", "Arş. Gör. Dr.", "Prof. Dr.", "Prof Dr.", "Doç. Dr.", "Öğr. Gör.", "Arş. Gör.", "Dr."];
+        const titles = [
+          'Dr. Öğr. Üyesi',
+          'Dr. Öğr. Gör.',
+          'Öğr. Gör. Dr.',
+          'Arş. Gör. Dr.',
+          'Prof. Dr.',
+          'Prof Dr.',
+          'Doç. Dr.',
+          'Öğr. Gör.',
+          'Arş. Gör.',
+          'Dr.',
+        ];
         const stripTitle = (name) => {
-          let n = (name || "").trim();
-          for (const t of titles) { if (n.startsWith(t)) { n = n.slice(t.length).trim(); break; } }
+          let n = (name || '').trim();
+          for (const t of titles) {
+            if (n.startsWith(t)) {
+              n = n.slice(t.length).trim();
+              break;
+            }
+          }
           return n;
         };
         // Soyadını çıkar (sondaki tamamı büyük harf kelime(ler))
@@ -1809,28 +2909,30 @@ const LoginModal = ({ onLogin }) => {
           // Sondaki büyük harfli kelimeler = soyadı
           const surnames = [];
           for (let i = parts.length - 1; i >= 0; i--) {
-            if (parts[i] === parts[i].toUpperCase() && parts[i].length > 1) surnames.unshift(parts[i]);
+            if (parts[i] === parts[i].toUpperCase() && parts[i].length > 1)
+              surnames.unshift(parts[i]);
             else break;
           }
-          const surname = surnames.join(" ");
+          const surname = surnames.join(' ');
           // İlk ad = soyadı hariç ilk kelime
-          const firstName = parts.length > surnames.length ? parts[0].replace(/\./g, "").toUpperCase() : "";
-          return (firstName + " " + surname).trim().toUpperCase();
+          const firstName =
+            parts.length > surnames.length ? parts[0].replace(/\./g, '').toUpperCase() : '';
+          return (firstName + ' ' + surname).trim().toUpperCase();
         };
         const seen = new Map();
-        (profs || []).forEach(p => {
+        (profs || []).forEach((p) => {
           const key = getKey(p.name);
           if (!key) return;
           // Daha uzun (daha detaylı) ismi tercih et
-          if (!seen.has(key) || (p.name || "").length > (seen.get(key).name || "").length) {
+          if (!seen.has(key) || (p.name || '').length > (seen.get(key).name || '').length) {
             seen.set(key, p);
           }
         });
         const unique = Array.from(seen.values());
-        unique.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr"));
+        unique.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
         setProfessorList(unique);
       } catch (e) {
-        console.error("Error loading professors:", e);
+        console.error('Error loading professors:', e);
         setProfessorList(window.SEED_PROFESSORS || []);
       }
     };
@@ -1840,19 +2942,29 @@ const LoginModal = ({ onLogin }) => {
   // Mevcut öğrenci/profesör/admin: şifre değiştirme + Auth hesabı oluşturma
   const handleSetupPassword = async (e) => {
     e.preventDefault();
-    setError("");
-    if (!newPassword.trim()) { setError("Yeni şifre boş olamaz!"); return; }
-    if (newPassword.length < 6) { setError("Şifre en az 6 karakter olmalıdır!"); return; }
-    if (newPassword !== confirmPassword) { setError("Şifreler uyuşmuyor!"); return; }
+    setError('');
+    if (!newPassword.trim()) {
+      setError('Yeni şifre boş olamaz!');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('Şifre en az 6 karakter olmalıdır!');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Şifreler uyuşmuyor!');
+      return;
+    }
     setLoading(true);
     try {
       // Şifreyi Cloud Functions ile sunucu tarafında kaydet
-      const identifier = pendingUser.role === "student" ? pendingUser.studentNumber : pendingUser.name;
+      const identifier =
+        pendingUser.role === 'student' ? pendingUser.studentNumber : pendingUser.name;
       await DB.changePassword(pendingUser.role, identifier, newPassword);
       onLogin(pendingUser);
     } catch (err) {
-      console.error("Password setup error:", err);
-      setError("Şifre kaydedilirken hata: " + err.message);
+      console.error('Password setup error:', err);
+      setError('Şifre kaydedilirken hata: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -1861,42 +2973,67 @@ const LoginModal = ({ onLogin }) => {
   // Yeni öğrenci: kayıt ol + Auth hesabı oluştur
   const handleRegister = async (e) => {
     e.preventDefault();
-    setError("");
-    if (!firstName.trim()) { setError("Ad alanı zorunludur!"); return; }
-    if (!lastName.trim()) { setError("Soyad alanı zorunludur!"); return; }
-    if (!selectedDepartment) { setError("Bölüm seçimi zorunludur!"); return; }
-    if (!newPassword.trim()) { setError("Şifre boş olamaz!"); return; }
-    if (newPassword.length < 6) { setError("Şifre en az 6 karakter olmalıdır!"); return; }
-    if (newPassword !== confirmPassword) { setError("Şifreler uyuşmuyor!"); return; }
+    setError('');
+    if (!firstName.trim()) {
+      setError('Ad alanı zorunludur!');
+      return;
+    }
+    if (!lastName.trim()) {
+      setError('Soyad alanı zorunludur!');
+      return;
+    }
+    if (!selectedDepartment) {
+      setError('Bölüm seçimi zorunludur!');
+      return;
+    }
+    if (!newPassword.trim()) {
+      setError('Şifre boş olamaz!');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('Şifre en az 6 karakter olmalıdır!');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Şifreler uyuşmuyor!');
+      return;
+    }
     setLoading(true);
     try {
       // Mükerrer kayıt kontrolü
       const existingStudents = await DB.fetchStudents();
-      const alreadyExists = existingStudents.find(s => s.studentNumber === pendingStudentNumber);
+      const alreadyExists = existingStudents.find((s) => s.studentNumber === pendingStudentNumber);
       if (alreadyExists) {
-        setError("Bu öğrenci numarası ile daha önce kayıt olunmuş!");
+        setError('Bu öğrenci numarası ile daha önce kayıt olunmuş!');
         setLoading(false);
         return;
       }
 
       // Öğrenciyi veritabanına kaydet
-      const deptObj = DEPARTMENTS.find(d => d.id === selectedDepartment);
+      const deptObj = DEPARTMENTS.find((d) => d.id === selectedDepartment);
       const studentData = {
         studentNumber: pendingStudentNumber,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         departmentId: selectedDepartment,
-        departmentName: deptObj?.name || "",
+        departmentName: deptObj?.name || '',
         erasmusAccess: false,
       };
       await DB.addStudent(studentData);
       // Şifreyi kaydet
       await DB.updatePassword(pendingStudentNumber, newPassword);
-      const user = { role: "student", name: `${firstName.trim()} ${lastName.trim()}`, studentNumber: pendingStudentNumber, departmentId: selectedDepartment, departmentName: deptObj?.name || "", erasmusAccess: false };
+      const user = {
+        role: 'student',
+        name: `${firstName.trim()} ${lastName.trim()}`,
+        studentNumber: pendingStudentNumber,
+        departmentId: selectedDepartment,
+        departmentName: deptObj?.name || '',
+        erasmusAccess: false,
+      };
       onLogin(user);
     } catch (err) {
-      console.error("Register error:", err);
-      setError("Kayıt hatası: " + err.message);
+      console.error('Register error:', err);
+      setError('Kayıt hatası: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -1906,43 +3043,56 @@ const LoginModal = ({ onLogin }) => {
     setSetupPasswordMode(false);
     setRegisterMode(false);
     setPendingUser(null);
-    setPendingStudentNumber("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setFirstName("");
-    setLastName("");
-    setSelectedDepartment("");
-    setStudentStep("number");
+    setPendingStudentNumber('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setFirstName('');
+    setLastName('');
+    setSelectedDepartment('');
+    setStudentStep('number');
     setStudentInfo(null);
-    setError("");
+    setError('');
   };
 
   // Öğrenci: numara doğrulama (ilk adım)
-  const [studentStep, setStudentStep] = useState("number"); // number, password
+  const [studentStep, setStudentStep] = useState('number'); // number, password
   const [studentInfo, setStudentInfo] = useState(null); // mevcut öğrenci bilgisi
 
   const handleStudentContinue = async (e) => {
     e.preventDefault();
-    setError("");
-    if (!identifier.trim()) { setError("Öğrenci numarası gerekli!"); return; }
+    setError('');
+    if (!identifier.trim()) {
+      setError('Öğrenci numarası gerekli!');
+      return;
+    }
     const trimmedId = identifier.trim();
-    if (!/^\d{9}$/.test(trimmedId)) { setError("Öğrenci numarası 9 haneli olmalıdır!"); return; }
+    if (!/^\d{9}$/.test(trimmedId)) {
+      setError('Öğrenci numarası 9 haneli olmalıdır!');
+      return;
+    }
     setLoading(true);
     try {
       const students = await DB.fetchStudents();
-      const student = students.find(s => s.studentNumber === trimmedId);
+      const student = students.find((s) => s.studentNumber === trimmedId);
       if (student) {
         // Mevcut öğrenci: şifre var mı kontrol et (Cloud Functions üzerinden)
         const hasPassword = await DB.checkStudentHasPassword(trimmedId);
         if (!hasPassword) {
           // Şifre yok: şifre belirleme ekranına
-          const user = { role: "student", name: `${student.firstName} ${student.lastName}`, studentNumber: trimmedId, departmentId: student.departmentId || "bilgisayar", departmentName: student.departmentName || "Bilgisayar Mühendisliği", erasmusAccess: student.erasmusAccess === true };
+          const user = {
+            role: 'student',
+            name: `${student.firstName} ${student.lastName}`,
+            studentNumber: trimmedId,
+            departmentId: student.departmentId || 'bilgisayar',
+            departmentName: student.departmentName || 'Bilgisayar Mühendisliği',
+            erasmusAccess: student.erasmusAccess === true,
+          };
           setPendingUser(user);
           setSetupPasswordMode(true);
         } else {
           // Şifresi var: şifre giriş adımına geç
           setStudentInfo(student);
-          setStudentStep("password");
+          setStudentStep('password');
         }
       } else {
         // Yeni öğrenci: kayıt ekranına yönlendir
@@ -1950,14 +3100,16 @@ const LoginModal = ({ onLogin }) => {
         setRegisterMode(true);
       }
     } catch (err) {
-      console.error("Student check error:", err);
+      console.error('Student check error:', err);
       const msg = err.message || '';
       if (msg.includes('400') || msg.includes('Bad Request') || msg.includes('bağlantısı yok')) {
-        setError("Veritabanına bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.");
+        setError(
+          'Veritabanına bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.'
+        );
       } else if (err.code === 'permission-denied') {
-        setError("Veritabanı erişim izni reddedildi. Yöneticiyle iletişime geçin.");
+        setError('Veritabanı erişim izni reddedildi. Yöneticiyle iletişime geçin.');
       } else {
-        setError("Bir hata oluştu: " + (msg || "Lütfen tekrar deneyin."));
+        setError('Bir hata oluştu: ' + (msg || 'Lütfen tekrar deneyin.'));
       }
     } finally {
       setLoading(false);
@@ -1966,12 +3118,22 @@ const LoginModal = ({ onLogin }) => {
 
   const handleStudentLogin = async (e) => {
     e.preventDefault();
-    setError("");
-    if (!password.trim()) { setError("Şifre gerekli!"); return; }
+    setError('');
+    if (!password.trim()) {
+      setError('Şifre gerekli!');
+      return;
+    }
     setLoading(true);
     try {
       const trimmedId = identifier.trim();
-      const user = { role: "student", name: `${studentInfo.firstName} ${studentInfo.lastName}`, studentNumber: trimmedId, departmentId: studentInfo.departmentId || "bilgisayar", departmentName: studentInfo.departmentName || "Bilgisayar Mühendisliği", erasmusAccess: studentInfo.erasmusAccess === true };
+      const user = {
+        role: 'student',
+        name: `${studentInfo.firstName} ${studentInfo.lastName}`,
+        studentNumber: trimmedId,
+        departmentId: studentInfo.departmentId || 'bilgisayar',
+        departmentName: studentInfo.departmentName || 'Bilgisayar Mühendisliği',
+        erasmusAccess: studentInfo.erasmusAccess === true,
+      };
 
       // Sunucu tarafında şifre doğrulama
       const loginResult = await DB.verifyStudentLogin(trimmedId, password);
@@ -1986,17 +3148,19 @@ const LoginModal = ({ onLogin }) => {
         onLogin(user);
       } else {
         // Cloud Functions doğrulamadı - hata göster
-        setError(loginResult.error || "Giriş bilgileri hatalı!");
+        setError(loginResult.error || 'Giriş bilgileri hatalı!');
       }
     } catch (err) {
-      console.error("Login error:", err);
+      console.error('Login error:', err);
       const msg = err.message || '';
       if (msg.includes('400') || msg.includes('Bad Request') || msg.includes('bağlantısı yok')) {
-        setError("Veritabanına bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.");
+        setError(
+          'Veritabanına bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.'
+        );
       } else if (err.code === 'permission-denied') {
-        setError("Veritabanı erişim izni reddedildi. Yöneticiyle iletişime geçin.");
+        setError('Veritabanı erişim izni reddedildi. Yöneticiyle iletişime geçin.');
       } else {
-        setError("Giriş hatası: " + (msg || "Bilinmeyen hata"));
+        setError('Giriş hatası: ' + (msg || 'Bilinmeyen hata'));
       }
     } finally {
       setLoading(false);
@@ -2005,17 +3169,23 @@ const LoginModal = ({ onLogin }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
+    setError('');
     setLoading(true);
 
     try {
-      if (activeTab === "admin") {
-        const adminUser = { role: "admin", name: "A. Tunahan KORKMAZ", studentNumber: null, departmentId: "bilgisayar", departmentName: "Bilgisayar Mühendisliği" };
+      if (activeTab === 'admin') {
+        const adminUser = {
+          role: 'admin',
+          name: 'A. Tunahan KORKMAZ',
+          studentNumber: null,
+          departmentId: 'bilgisayar',
+          departmentName: 'Bilgisayar Mühendisliği',
+        };
 
         const adminResult = await DB.verifyAdminLogin(password);
 
         if (!adminResult.success && adminResult.error?.includes('belirlenmemiş')) {
-          setError("Admin şifresi henüz belirlenmemiş.");
+          setError('Admin şifresi henüz belirlenmemiş.');
           setLoading(false);
           return;
         }
@@ -2030,27 +3200,35 @@ const LoginModal = ({ onLogin }) => {
           onLogin(adminUser);
         } else {
           // Cloud Functions doğrulamadı - hata göster
-          setError(adminResult.error || "Giriş bilgileri hatalı!");
+          setError(adminResult.error || 'Giriş bilgileri hatalı!');
         }
-      } else if (activeTab === "bolum_yetkilisi") {
-        if (!identifier.trim()) { setError("Yetkili adı gerekli!"); setLoading(false); return; }
-        const user = { role: "bolum_yetkilisi", name: identifier, studentNumber: null };
+      } else if (activeTab === 'bolum_yetkilisi') {
+        if (!identifier.trim()) {
+          setError('Yetkili adı gerekli!');
+          setLoading(false);
+          return;
+        }
+        const user = { role: 'bolum_yetkilisi', name: identifier, studentNumber: null };
 
         const deptResult = await DB.verifyDepartmentManagerLogin(identifier, password);
 
         if (deptResult.success) {
           // Veritabanı doc ID ile hardcoded DEPARTMENTS ID'sini eşleştir
           // Tüm veriler hardcoded ID ile kaydedildiği için bu eşleşme kritik
-          const matchedDept = DEPARTMENTS.find(d => d.name === deptResult.departmentName);
+          const matchedDept = DEPARTMENTS.find((d) => d.name === deptResult.departmentName);
           user.departmentId = matchedDept ? matchedDept.id : deptResult.departmentId;
           user.departmentName = deptResult.departmentName;
           onLogin(user);
         } else {
-          setError(deptResult.error || "Giriş bilgileri hatalı!");
+          setError(deptResult.error || 'Giriş bilgileri hatalı!');
         }
-      } else if (activeTab === "professor") {
-        if (!identifier.trim()) { setError("Akademisyen seçimi gerekli!"); setLoading(false); return; }
-        const user = { role: "professor", name: identifier, studentNumber: null };
+      } else if (activeTab === 'professor') {
+        if (!identifier.trim()) {
+          setError('Akademisyen seçimi gerekli!');
+          setLoading(false);
+          return;
+        }
+        const user = { role: 'professor', name: identifier, studentNumber: null };
 
         const profResult = await DB.verifyProfessorLogin(identifier, password);
 
@@ -2071,18 +3249,20 @@ const LoginModal = ({ onLogin }) => {
           onLogin(user);
         } else {
           // Cloud Functions doğrulamadı - hata göster
-          setError(profResult.error || "Giriş bilgileri hatalı!");
+          setError(profResult.error || 'Giriş bilgileri hatalı!');
         }
       }
     } catch (err) {
-      console.error("Login error:", err);
+      console.error('Login error:', err);
       const msg = err.message || '';
       if (msg.includes('400') || msg.includes('Bad Request') || msg.includes('bağlantısı yok')) {
-        setError("Veritabanına bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.");
+        setError(
+          'Veritabanına bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.'
+        );
       } else if (err.code === 'permission-denied') {
-        setError("Veritabanı erişim izni reddedildi. Yöneticiyle iletişime geçin.");
+        setError('Veritabanı erişim izni reddedildi. Yöneticiyle iletişime geçin.');
       } else {
-        setError("Giriş hatası: " + (msg || "Bilinmeyen hata"));
+        setError('Giriş hatası: ' + (msg || 'Bilinmeyen hata'));
       }
     } finally {
       setLoading(false);
@@ -2658,605 +3838,818 @@ const LoginModal = ({ onLogin }) => {
     .lg-ct-e-red    { fill:#f87171; }
   `;
 
-
   return (
     <div className="lg-wrap">
       <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
 
       {/* ── Circuit Tree Background SVG ── */}
-      <svg className="lg-circuit-bg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <svg
+        className="lg-circuit-bg"
+        viewBox="0 0 1440 900"
+        preserveAspectRatio="xMidYMid slice"
+        aria-hidden="true"
+      >
         <defs>
           <filter id="lgGlow" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="3.5" result="b"/>
-            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            <feGaussianBlur stdDeviation="3.5" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
           </filter>
           <filter id="lgGlowS" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="7" result="b"/>
-            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            <feGaussianBlur stdDeviation="7" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
           </filter>
         </defs>
 
         {/* ── TRUNK ── */}
-        <path className="lg-ct-trunk" d="M720,920 L720,580"/>
+        <path className="lg-ct-trunk" d="M720,920 L720,580" />
 
         {/* ── ROOTS (below trunk, going into ground) ── */}
-        <path className="lg-ct-l3" d="M720,760 L580,760 L580,880"/>
-        <path className="lg-ct-l3" d="M720,760 L860,760 L860,880"/>
-        <path className="lg-ct-l3" d="M580,830 L480,830 L480,920"/>
-        <path className="lg-ct-l3" d="M860,830 L960,830 L960,920"/>
-        <path className="lg-ct-l3" d="M480,920 L380,920"/>
-        <path className="lg-ct-l3" d="M960,920 L1060,920"/>
+        <path className="lg-ct-l3" d="M720,760 L580,760 L580,880" />
+        <path className="lg-ct-l3" d="M720,760 L860,760 L860,880" />
+        <path className="lg-ct-l3" d="M580,830 L480,830 L480,920" />
+        <path className="lg-ct-l3" d="M860,830 L960,830 L960,920" />
+        <path className="lg-ct-l3" d="M480,920 L380,920" />
+        <path className="lg-ct-l3" d="M960,920 L1060,920" />
 
         {/* ── LEVEL 1: horizontal bar + vertical legs ── */}
-        <path className="lg-ct-l1" d="M460,520 L980,520"/>
-        <path className="lg-ct-l1" d="M460,520 L460,380"/>
-        <path className="lg-ct-l1" d="M980,520 L980,380"/>
-        <path className="lg-ct-l1" d="M720,520 L720,340"/>
+        <path className="lg-ct-l1" d="M460,520 L980,520" />
+        <path className="lg-ct-l1" d="M460,520 L460,380" />
+        <path className="lg-ct-l1" d="M980,520 L980,380" />
+        <path className="lg-ct-l1" d="M720,520 L720,340" />
 
         {/* ── LEVEL 2: from left leg (460,380) ── */}
-        <path className="lg-ct-l2" d="M460,380 L460,300"/>
-        <path className="lg-ct-l2" d="M460,300 L260,300 L260,140"/>
-        <path className="lg-ct-l2" d="M460,300 L620,300 L620,140"/>
+        <path className="lg-ct-l2" d="M460,380 L460,300" />
+        <path className="lg-ct-l2" d="M460,300 L260,300 L260,140" />
+        <path className="lg-ct-l2" d="M460,300 L620,300 L620,140" />
 
         {/* ── LEVEL 2: from right leg (980,380) ── */}
-        <path className="lg-ct-l2" d="M980,380 L980,300"/>
-        <path className="lg-ct-l2" d="M980,300 L820,300 L820,140"/>
-        <path className="lg-ct-l2" d="M980,300 L1140,300 L1140,140"/>
+        <path className="lg-ct-l2" d="M980,380 L980,300" />
+        <path className="lg-ct-l2" d="M980,300 L820,300 L820,140" />
+        <path className="lg-ct-l2" d="M980,300 L1140,300 L1140,140" />
 
         {/* ── LEVEL 2: from center (720,340) ── */}
-        <path className="lg-ct-l2" d="M720,340 L720,240"/>
-        <path className="lg-ct-l2" d="M720,240 L640,240 L640,80"/>
-        <path className="lg-ct-l2" d="M720,240 L800,240 L800,80"/>
+        <path className="lg-ct-l2" d="M720,340 L720,240" />
+        <path className="lg-ct-l2" d="M720,240 L640,240 L640,80" />
+        <path className="lg-ct-l2" d="M720,240 L800,240 L800,80" />
 
         {/* ── LEVEL 3: from far-left (260,140) ── */}
-        <path className="lg-ct-l3" d="M260,140 L260,60"/>
-        <path className="lg-ct-l3" d="M260,60 L180,60 L180,20"/>
-        <path className="lg-ct-l3" d="M260,60 L340,60 L340,20"/>
+        <path className="lg-ct-l3" d="M260,140 L260,60" />
+        <path className="lg-ct-l3" d="M260,60 L180,60 L180,20" />
+        <path className="lg-ct-l3" d="M260,60 L340,60 L340,20" />
 
         {/* ── LEVEL 3: from left-center (620,140) ── */}
-        <path className="lg-ct-l3" d="M620,140 L620,60"/>
-        <path className="lg-ct-l3" d="M620,60 L556,60 L556,20"/>
-        <path className="lg-ct-l3" d="M620,60 L684,60 L684,20"/>
+        <path className="lg-ct-l3" d="M620,140 L620,60" />
+        <path className="lg-ct-l3" d="M620,60 L556,60 L556,20" />
+        <path className="lg-ct-l3" d="M620,60 L684,60 L684,20" />
 
         {/* ── LEVEL 3: from right-center (820,140) ── */}
-        <path className="lg-ct-l3" d="M820,140 L820,60"/>
-        <path className="lg-ct-l3" d="M820,60 L756,60 L756,20"/>
-        <path className="lg-ct-l3" d="M820,60 L884,60 L884,20"/>
+        <path className="lg-ct-l3" d="M820,140 L820,60" />
+        <path className="lg-ct-l3" d="M820,60 L756,60 L756,20" />
+        <path className="lg-ct-l3" d="M820,60 L884,60 L884,20" />
 
         {/* ── LEVEL 3: from far-right (1140,140) ── */}
-        <path className="lg-ct-l3" d="M1140,140 L1140,60"/>
-        <path className="lg-ct-l3" d="M1140,60 L1060,60 L1060,20"/>
-        <path className="lg-ct-l3" d="M1140,60 L1210,60 L1210,20"/>
+        <path className="lg-ct-l3" d="M1140,140 L1140,60" />
+        <path className="lg-ct-l3" d="M1140,60 L1060,60 L1060,20" />
+        <path className="lg-ct-l3" d="M1140,60 L1210,60 L1210,20" />
 
         {/* ── LEVEL 3: center twin tips ── */}
-        <path className="lg-ct-l3" d="M640,80 L640,20"/>
-        <path className="lg-ct-l3" d="M800,80 L800,20"/>
+        <path className="lg-ct-l3" d="M640,80 L640,20" />
+        <path className="lg-ct-l3" d="M800,80 L800,20" />
 
         {/* ══ EDGE EXTENSIONS — reach page corners ══ */}
 
         {/* Top-left corner extension (from 180,60 tip) */}
-        <path className="lg-ct-l3" d="M180,60 L60,60 L60,20"/>
-        <path className="lg-ct-l3" d="M60,60 L60,140 L130,140"/>
+        <path className="lg-ct-l3" d="M180,60 L60,60 L60,20" />
+        <path className="lg-ct-l3" d="M60,60 L60,140 L130,140" />
 
         {/* Top-right corner extension (from 1210,60 tip) */}
-        <path className="lg-ct-l3" d="M1210,60 L1380,60 L1380,20"/>
-        <path className="lg-ct-l3" d="M1380,60 L1380,140 L1310,140"/>
+        <path className="lg-ct-l3" d="M1210,60 L1380,60 L1380,20" />
+        <path className="lg-ct-l3" d="M1380,60 L1380,140 L1310,140" />
 
         {/* Left mid-side branches (from L1 leg 460,380) */}
-        <path className="lg-ct-l2" d="M460,380 L300,380 L300,240 L140,240 L140,120 L60,120 L60,40"/>
-        <path className="lg-ct-l3" d="M300,240 L220,240 L220,180"/>
-        <path className="lg-ct-l3" d="M140,120 L140,200 L80,200"/>
+        <path
+          className="lg-ct-l2"
+          d="M460,380 L300,380 L300,240 L140,240 L140,120 L60,120 L60,40"
+        />
+        <path className="lg-ct-l3" d="M300,240 L220,240 L220,180" />
+        <path className="lg-ct-l3" d="M140,120 L140,200 L80,200" />
 
         {/* Right mid-side branches (from L1 leg 980,380) */}
-        <path className="lg-ct-l2" d="M980,380 L1140,380 L1140,240 L1300,240 L1300,120 L1380,120 L1380,40"/>
-        <path className="lg-ct-l3" d="M1140,240 L1220,240 L1220,180"/>
-        <path className="lg-ct-l3" d="M1300,120 L1300,200 L1360,200"/>
+        <path
+          className="lg-ct-l2"
+          d="M980,380 L1140,380 L1140,240 L1300,240 L1300,120 L1380,120 L1380,40"
+        />
+        <path className="lg-ct-l3" d="M1140,240 L1220,240 L1220,180" />
+        <path className="lg-ct-l3" d="M1300,120 L1300,200 L1360,200" />
 
         {/* Left lower side (from L1 leg 460,520) going down-left */}
-        <path className="lg-ct-l2" d="M460,520 L300,520 L300,660 L140,660 L140,800 L60,800"/>
-        <path className="lg-ct-l3" d="M300,660 L220,660 L220,720 L160,720"/>
-        <path className="lg-ct-l3" d="M140,800 L140,860 L60,860"/>
+        <path className="lg-ct-l2" d="M460,520 L300,520 L300,660 L140,660 L140,800 L60,800" />
+        <path className="lg-ct-l3" d="M300,660 L220,660 L220,720 L160,720" />
+        <path className="lg-ct-l3" d="M140,800 L140,860 L60,860" />
 
         {/* Right lower side (from L1 leg 980,520) going down-right */}
-        <path className="lg-ct-l2" d="M980,520 L1140,520 L1140,660 L1300,660 L1300,800 L1380,800"/>
-        <path className="lg-ct-l3" d="M1140,660 L1220,660 L1220,720 L1280,720"/>
-        <path className="lg-ct-l3" d="M1300,800 L1300,860 L1380,860"/>
+        <path className="lg-ct-l2" d="M980,520 L1140,520 L1140,660 L1300,660 L1300,800 L1380,800" />
+        <path className="lg-ct-l3" d="M1140,660 L1220,660 L1220,720 L1280,720" />
+        <path className="lg-ct-l3" d="M1300,800 L1300,860 L1380,860" />
 
         {/* Bottom-left corner arc (from root 480,920) */}
-        <path className="lg-ct-l3" d="M380,920 L300,920 L300,870 L160,870 L160,790 L60,790"/>
+        <path className="lg-ct-l3" d="M380,920 L300,920 L300,870 L160,870 L160,790 L60,790" />
 
         {/* Bottom-right corner arc (from root 1060,920) */}
-        <path className="lg-ct-l3" d="M1060,920 L1140,920 L1140,870 L1280,870 L1280,790 L1380,790"/>
+        <path
+          className="lg-ct-l3"
+          d="M1060,920 L1140,920 L1140,870 L1280,870 L1280,790 L1380,790"
+        />
 
         {/* ══ EXTRA TWIGS — denser tree feel (sub-branches & cross-connections) ══ */}
 
         {/* Twigs off L1 horizontal bar (y=520) — fern-like fronds upward */}
-        <path className="lg-ct-l3" d="M540,520 L540,470 L500,470 L500,440"/>
-        <path className="lg-ct-l3" d="M540,470 L580,470 L580,440"/>
-        <path className="lg-ct-l3" d="M900,520 L900,470 L860,470 L860,440"/>
-        <path className="lg-ct-l3" d="M900,470 L940,470 L940,440"/>
+        <path className="lg-ct-l3" d="M540,520 L540,470 L500,470 L500,440" />
+        <path className="lg-ct-l3" d="M540,470 L580,470 L580,440" />
+        <path className="lg-ct-l3" d="M900,520 L900,470 L860,470 L860,440" />
+        <path className="lg-ct-l3" d="M900,470 L940,470 L940,440" />
 
         {/* Twigs off L1 horizontal bar (y=520) — downward fronds toward roots */}
-        <path className="lg-ct-l3" d="M620,520 L620,580 L580,580"/>
-        <path className="lg-ct-l3" d="M820,520 L820,580 L860,580"/>
+        <path className="lg-ct-l3" d="M620,520 L620,580 L580,580" />
+        <path className="lg-ct-l3" d="M820,520 L820,580 L860,580" />
 
         {/* Twigs off L1 verticals (between y=380 and y=520) */}
-        <path className="lg-ct-l3" d="M460,440 L420,440 L420,400 L390,400"/>
-        <path className="lg-ct-l3" d="M460,440 L500,440 L500,400 L530,400"/>
-        <path className="lg-ct-l3" d="M980,440 L1020,440 L1020,400 L1050,400"/>
-        <path className="lg-ct-l3" d="M980,440 L940,440 L940,400 L910,400"/>
+        <path className="lg-ct-l3" d="M460,440 L420,440 L420,400 L390,400" />
+        <path className="lg-ct-l3" d="M460,440 L500,440 L500,400 L530,400" />
+        <path className="lg-ct-l3" d="M980,440 L1020,440 L1020,400 L1050,400" />
+        <path className="lg-ct-l3" d="M980,440 L940,440 L940,400 L910,400" />
 
         {/* Mid-trunk twigs (between y=520 and y=580) */}
-        <path className="lg-ct-l3" d="M720,610 L660,610 L660,580 L630,580"/>
-        <path className="lg-ct-l3" d="M720,610 L780,610 L780,580 L810,580"/>
+        <path className="lg-ct-l3" d="M720,610 L660,610 L660,580 L630,580" />
+        <path className="lg-ct-l3" d="M720,610 L780,610 L780,580 L810,580" />
 
         {/* Extra L3 sub-tips between existing top-tips (more LEDs at canopy) */}
-        <path className="lg-ct-l3" d="M260,140 L200,140 L200,90 L160,90 L160,40"/>
-        <path className="lg-ct-l3" d="M260,140 L320,140 L320,90 L380,90 L380,40"/>
-        <path className="lg-ct-l3" d="M1140,140 L1200,140 L1200,90 L1240,90 L1240,40"/>
-        <path className="lg-ct-l3" d="M1140,140 L1080,140 L1080,90 L1020,90 L1020,40"/>
+        <path className="lg-ct-l3" d="M260,140 L200,140 L200,90 L160,90 L160,40" />
+        <path className="lg-ct-l3" d="M260,140 L320,140 L320,90 L380,90 L380,40" />
+        <path className="lg-ct-l3" d="M1140,140 L1200,140 L1200,90 L1240,90 L1240,40" />
+        <path className="lg-ct-l3" d="M1140,140 L1080,140 L1080,90 L1020,90 L1020,40" />
 
         {/* Branchlets at the very top — small twigs near canopy */}
-        <path className="lg-ct-l3" d="M260,60 L260,90 L220,90 L220,60 L240,60 L240,30"/>
-        <path className="lg-ct-l3" d="M1140,60 L1140,90 L1180,90 L1180,60 L1160,60 L1160,30"/>
+        <path className="lg-ct-l3" d="M260,60 L260,90 L220,90 L220,60 L240,60 L240,30" />
+        <path className="lg-ct-l3" d="M1140,60 L1140,90 L1180,90 L1180,60 L1160,60 L1160,30" />
 
         {/* Inner diagonal-feel branches near upper sides */}
-        <path className="lg-ct-l3" d="M460,300 L400,300 L400,260 L360,260 L360,200 L320,200"/>
-        <path className="lg-ct-l3" d="M980,300 L1040,300 L1040,260 L1080,260 L1080,200 L1120,200"/>
+        <path className="lg-ct-l3" d="M460,300 L400,300 L400,260 L360,260 L360,200 L320,200" />
+        <path className="lg-ct-l3" d="M980,300 L1040,300 L1040,260 L1080,260 L1080,200 L1120,200" />
 
         {/* Mini twigs off L2 verticals (between y=140 and y=300) */}
-        <path className="lg-ct-l3" d="M260,220 L210,220 L210,260"/>
-        <path className="lg-ct-l3" d="M260,220 L310,220 L310,260"/>
-        <path className="lg-ct-l3" d="M620,220 L580,220 L580,260"/>
-        <path className="lg-ct-l3" d="M620,220 L660,220 L660,260"/>
-        <path className="lg-ct-l3" d="M820,220 L860,220 L860,260"/>
-        <path className="lg-ct-l3" d="M820,220 L780,220 L780,260"/>
-        <path className="lg-ct-l3" d="M1140,220 L1090,220 L1090,260"/>
-        <path className="lg-ct-l3" d="M1140,220 L1190,220 L1190,260"/>
+        <path className="lg-ct-l3" d="M260,220 L210,220 L210,260" />
+        <path className="lg-ct-l3" d="M260,220 L310,220 L310,260" />
+        <path className="lg-ct-l3" d="M620,220 L580,220 L580,260" />
+        <path className="lg-ct-l3" d="M620,220 L660,220 L660,260" />
+        <path className="lg-ct-l3" d="M820,220 L860,220 L860,260" />
+        <path className="lg-ct-l3" d="M820,220 L780,220 L780,260" />
+        <path className="lg-ct-l3" d="M1140,220 L1090,220 L1090,260" />
+        <path className="lg-ct-l3" d="M1140,220 L1190,220 L1190,260" />
 
         {/* Center inner cross-connections (between center triplet) */}
-        <path className="lg-ct-l3" d="M620,300 L660,300 L660,360 L720,360"/>
-        <path className="lg-ct-l3" d="M820,300 L780,300 L780,360 L720,360"/>
+        <path className="lg-ct-l3" d="M620,300 L660,300 L660,360 L720,360" />
+        <path className="lg-ct-l3" d="M820,300 L780,300 L780,360 L720,360" />
 
         {/* Tiny twigs on each top tip (creates leaf clusters) */}
-        <path className="lg-ct-l3" d="M180,60 L180,40 L150,40"/>
-        <path className="lg-ct-l3" d="M340,60 L340,40 L370,40"/>
-        <path className="lg-ct-l3" d="M556,60 L556,40 L526,40"/>
-        <path className="lg-ct-l3" d="M684,60 L684,40 L714,40"/>
-        <path className="lg-ct-l3" d="M756,60 L756,40 L726,40"/>
-        <path className="lg-ct-l3" d="M884,60 L884,40 L914,40"/>
-        <path className="lg-ct-l3" d="M1060,60 L1060,40 L1030,40"/>
-        <path className="lg-ct-l3" d="M1210,60 L1210,40 L1240,40"/>
+        <path className="lg-ct-l3" d="M180,60 L180,40 L150,40" />
+        <path className="lg-ct-l3" d="M340,60 L340,40 L370,40" />
+        <path className="lg-ct-l3" d="M556,60 L556,40 L526,40" />
+        <path className="lg-ct-l3" d="M684,60 L684,40 L714,40" />
+        <path className="lg-ct-l3" d="M756,60 L756,40 L726,40" />
+        <path className="lg-ct-l3" d="M884,60 L884,40 L914,40" />
+        <path className="lg-ct-l3" d="M1060,60 L1060,40 L1030,40" />
+        <path className="lg-ct-l3" d="M1210,60 L1210,40 L1240,40" />
 
         {/* Bottom additional roots fanning out */}
-        <path className="lg-ct-l3" d="M580,830 L520,830 L520,790 L460,790 L460,750"/>
-        <path className="lg-ct-l3" d="M860,830 L920,830 L920,790 L980,790 L980,750"/>
-        <path className="lg-ct-l3" d="M580,760 L520,760 L520,700"/>
-        <path className="lg-ct-l3" d="M860,760 L920,760 L920,700"/>
+        <path className="lg-ct-l3" d="M580,830 L520,830 L520,790 L460,790 L460,750" />
+        <path className="lg-ct-l3" d="M860,830 L920,830 L920,790 L980,790 L980,750" />
+        <path className="lg-ct-l3" d="M580,760 L520,760 L520,700" />
+        <path className="lg-ct-l3" d="M860,760 L920,760 L920,700" />
 
         {/* Inner sub-roots (small twigs off main roots) */}
-        <path className="lg-ct-l3" d="M720,820 L680,820 L680,860"/>
-        <path className="lg-ct-l3" d="M720,820 L760,820 L760,860"/>
-        <path className="lg-ct-l3" d="M720,890 L680,890"/>
-        <path className="lg-ct-l3" d="M720,890 L760,890"/>
+        <path className="lg-ct-l3" d="M720,820 L680,820 L680,860" />
+        <path className="lg-ct-l3" d="M720,820 L760,820 L760,860" />
+        <path className="lg-ct-l3" d="M720,890 L680,890" />
+        <path className="lg-ct-l3" d="M720,890 L760,890" />
 
         {/* ── DECORATIVE CHIP SYMBOLS (small IC pads on traces) ── */}
-        <rect className="lg-ct-chip" x="590" y="514" width="24" height="12" rx="2"/>
-        <rect className="lg-ct-chip" x="826" y="514" width="24" height="12" rx="2"/>
-        <rect className="lg-ct-chip" x="714" y="415" width="12" height="22" rx="2"/>
-        <rect className="lg-ct-chip" x="350" y="294" width="22" height="12" rx="2"/>
-        <rect className="lg-ct-chip" x="538" y="294" width="22" height="12" rx="2"/>
-        <rect className="lg-ct-chip" x="870" y="294" width="22" height="12" rx="2"/>
-        <rect className="lg-ct-chip" x="1038" y="294" width="22" height="12" rx="2"/>
-        <rect className="lg-ct-chip" x="634" y="156" width="12" height="22" rx="2"/>
-        <rect className="lg-ct-chip" x="794" y="156" width="12" height="22" rx="2"/>
+        <rect className="lg-ct-chip" x="590" y="514" width="24" height="12" rx="2" />
+        <rect className="lg-ct-chip" x="826" y="514" width="24" height="12" rx="2" />
+        <rect className="lg-ct-chip" x="714" y="415" width="12" height="22" rx="2" />
+        <rect className="lg-ct-chip" x="350" y="294" width="22" height="12" rx="2" />
+        <rect className="lg-ct-chip" x="538" y="294" width="22" height="12" rx="2" />
+        <rect className="lg-ct-chip" x="870" y="294" width="22" height="12" rx="2" />
+        <rect className="lg-ct-chip" x="1038" y="294" width="22" height="12" rx="2" />
+        <rect className="lg-ct-chip" x="634" y="156" width="12" height="22" rx="2" />
+        <rect className="lg-ct-chip" x="794" y="156" width="12" height="22" rx="2" />
 
         {/* ── JUNCTION PADS ── */}
-        <circle className="lg-ct-pad" cx="720" cy="580" r="5"/>
-        <circle className="lg-ct-pad" cx="720" cy="520" r="5"/>
-        <circle className="lg-ct-pad" cx="460" cy="520" r="4"/>
-        <circle className="lg-ct-pad" cx="980" cy="520" r="4"/>
-        <circle className="lg-ct-pad" cx="460" cy="380" r="4"/>
-        <circle className="lg-ct-pad" cx="980" cy="380" r="4"/>
-        <circle className="lg-ct-pad" cx="720" cy="340" r="4"/>
-        <circle className="lg-ct-pad" cx="460" cy="300" r="4"/>
-        <circle className="lg-ct-pad" cx="260" cy="300" r="3.5"/>
-        <circle className="lg-ct-pad" cx="620" cy="300" r="3.5"/>
-        <circle className="lg-ct-pad" cx="980" cy="300" r="4"/>
-        <circle className="lg-ct-pad" cx="820" cy="300" r="3.5"/>
-        <circle className="lg-ct-pad" cx="1140" cy="300" r="3.5"/>
-        <circle className="lg-ct-pad" cx="720" cy="240" r="4"/>
-        <circle className="lg-ct-pad" cx="640" cy="240" r="3"/>
-        <circle className="lg-ct-pad" cx="800" cy="240" r="3"/>
-        <circle className="lg-ct-pad" cx="260" cy="140" r="3"/>
-        <circle className="lg-ct-pad" cx="620" cy="140" r="3"/>
-        <circle className="lg-ct-pad" cx="820" cy="140" r="3"/>
-        <circle className="lg-ct-pad" cx="1140" cy="140" r="3"/>
-        <circle className="lg-ct-pad" cx="640" cy="80" r="3"/>
-        <circle className="lg-ct-pad" cx="800" cy="80" r="3"/>
-        <circle className="lg-ct-pad" cx="260" cy="60" r="2.5"/>
-        <circle className="lg-ct-pad" cx="620" cy="60" r="2.5"/>
-        <circle className="lg-ct-pad" cx="820" cy="60" r="2.5"/>
-        <circle className="lg-ct-pad" cx="1140" cy="60" r="2.5"/>
-        <circle className="lg-ct-pad" cx="720" cy="760" r="3.5"/>
-        <circle className="lg-ct-pad" cx="580" cy="760" r="3"/>
-        <circle className="lg-ct-pad" cx="860" cy="760" r="3"/>
-        <circle className="lg-ct-pad" cx="580" cy="830" r="3"/>
-        <circle className="lg-ct-pad" cx="860" cy="830" r="3"/>
+        <circle className="lg-ct-pad" cx="720" cy="580" r="5" />
+        <circle className="lg-ct-pad" cx="720" cy="520" r="5" />
+        <circle className="lg-ct-pad" cx="460" cy="520" r="4" />
+        <circle className="lg-ct-pad" cx="980" cy="520" r="4" />
+        <circle className="lg-ct-pad" cx="460" cy="380" r="4" />
+        <circle className="lg-ct-pad" cx="980" cy="380" r="4" />
+        <circle className="lg-ct-pad" cx="720" cy="340" r="4" />
+        <circle className="lg-ct-pad" cx="460" cy="300" r="4" />
+        <circle className="lg-ct-pad" cx="260" cy="300" r="3.5" />
+        <circle className="lg-ct-pad" cx="620" cy="300" r="3.5" />
+        <circle className="lg-ct-pad" cx="980" cy="300" r="4" />
+        <circle className="lg-ct-pad" cx="820" cy="300" r="3.5" />
+        <circle className="lg-ct-pad" cx="1140" cy="300" r="3.5" />
+        <circle className="lg-ct-pad" cx="720" cy="240" r="4" />
+        <circle className="lg-ct-pad" cx="640" cy="240" r="3" />
+        <circle className="lg-ct-pad" cx="800" cy="240" r="3" />
+        <circle className="lg-ct-pad" cx="260" cy="140" r="3" />
+        <circle className="lg-ct-pad" cx="620" cy="140" r="3" />
+        <circle className="lg-ct-pad" cx="820" cy="140" r="3" />
+        <circle className="lg-ct-pad" cx="1140" cy="140" r="3" />
+        <circle className="lg-ct-pad" cx="640" cy="80" r="3" />
+        <circle className="lg-ct-pad" cx="800" cy="80" r="3" />
+        <circle className="lg-ct-pad" cx="260" cy="60" r="2.5" />
+        <circle className="lg-ct-pad" cx="620" cy="60" r="2.5" />
+        <circle className="lg-ct-pad" cx="820" cy="60" r="2.5" />
+        <circle className="lg-ct-pad" cx="1140" cy="60" r="2.5" />
+        <circle className="lg-ct-pad" cx="720" cy="760" r="3.5" />
+        <circle className="lg-ct-pad" cx="580" cy="760" r="3" />
+        <circle className="lg-ct-pad" cx="860" cy="760" r="3" />
+        <circle className="lg-ct-pad" cx="580" cy="830" r="3" />
+        <circle className="lg-ct-pad" cx="860" cy="830" r="3" />
 
         {/* ── GLOWING LED TIPS (branch endpoints) ── */}
-        <circle className="lg-ct-led" cx="180" cy="20" r="3.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="340" cy="20" r="3.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="556" cy="20" r="3.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="684" cy="20" r="3.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="640" cy="20" r="3.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="756" cy="20" r="3.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="884" cy="20" r="3.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="800" cy="20" r="3.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1060" cy="20" r="3.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1210" cy="20" r="3.5" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="180" cy="20" r="3.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="340" cy="20" r="3.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="556" cy="20" r="3.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="684" cy="20" r="3.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="640" cy="20" r="3.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="756" cy="20" r="3.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="884" cy="20" r="3.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="800" cy="20" r="3.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1060" cy="20" r="3.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1210" cy="20" r="3.5" filter="url(#lgGlowS)" />
         {/* Extended edge LED tips */}
-        <circle className="lg-ct-led" cx="60" cy="20" r="3.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1380" cy="20" r="3.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="60" cy="40" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1380" cy="40" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="130" cy="140" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1310" cy="140" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="220" cy="180" r="2.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1220" cy="180" r="2.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="80" cy="200" r="2.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1360" cy="200" r="2.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="160" cy="720" r="2.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1280" cy="720" r="2.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="60" cy="800" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1380" cy="800" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="60" cy="860" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1380" cy="860" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="60" cy="790" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1380" cy="790" r="3" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="60" cy="20" r="3.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1380" cy="20" r="3.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="60" cy="40" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1380" cy="40" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="130" cy="140" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1310" cy="140" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="220" cy="180" r="2.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1220" cy="180" r="2.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="80" cy="200" r="2.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1360" cy="200" r="2.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="160" cy="720" r="2.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1280" cy="720" r="2.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="60" cy="800" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1380" cy="800" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="60" cy="860" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1380" cy="860" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="60" cy="790" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1380" cy="790" r="3" filter="url(#lgGlowS)" />
         {/* Extended junction pads */}
-        <circle className="lg-ct-pad" cx="60" cy="60" r="3"/>
-        <circle className="lg-ct-pad" cx="1380" cy="60" r="3"/>
-        <circle className="lg-ct-pad" cx="300" cy="380" r="3"/>
-        <circle className="lg-ct-pad" cx="1140" cy="380" r="3"/>
-        <circle className="lg-ct-pad" cx="300" cy="240" r="3"/>
-        <circle className="lg-ct-pad" cx="1140" cy="240" r="3"/>
-        <circle className="lg-ct-pad" cx="140" cy="240" r="3"/>
-        <circle className="lg-ct-pad" cx="1300" cy="240" r="3"/>
-        <circle className="lg-ct-pad" cx="140" cy="120" r="3"/>
-        <circle className="lg-ct-pad" cx="1300" cy="120" r="3"/>
-        <circle className="lg-ct-pad" cx="300" cy="520" r="3"/>
-        <circle className="lg-ct-pad" cx="1140" cy="520" r="3"/>
-        <circle className="lg-ct-pad" cx="300" cy="660" r="3"/>
-        <circle className="lg-ct-pad" cx="1140" cy="660" r="3"/>
-        <circle className="lg-ct-pad" cx="140" cy="660" r="3"/>
-        <circle className="lg-ct-pad" cx="1300" cy="660" r="3"/>
-        <circle className="lg-ct-pad" cx="140" cy="800" r="3"/>
-        <circle className="lg-ct-pad" cx="1300" cy="800" r="3"/>
+        <circle className="lg-ct-pad" cx="60" cy="60" r="3" />
+        <circle className="lg-ct-pad" cx="1380" cy="60" r="3" />
+        <circle className="lg-ct-pad" cx="300" cy="380" r="3" />
+        <circle className="lg-ct-pad" cx="1140" cy="380" r="3" />
+        <circle className="lg-ct-pad" cx="300" cy="240" r="3" />
+        <circle className="lg-ct-pad" cx="1140" cy="240" r="3" />
+        <circle className="lg-ct-pad" cx="140" cy="240" r="3" />
+        <circle className="lg-ct-pad" cx="1300" cy="240" r="3" />
+        <circle className="lg-ct-pad" cx="140" cy="120" r="3" />
+        <circle className="lg-ct-pad" cx="1300" cy="120" r="3" />
+        <circle className="lg-ct-pad" cx="300" cy="520" r="3" />
+        <circle className="lg-ct-pad" cx="1140" cy="520" r="3" />
+        <circle className="lg-ct-pad" cx="300" cy="660" r="3" />
+        <circle className="lg-ct-pad" cx="1140" cy="660" r="3" />
+        <circle className="lg-ct-pad" cx="140" cy="660" r="3" />
+        <circle className="lg-ct-pad" cx="1300" cy="660" r="3" />
+        <circle className="lg-ct-pad" cx="140" cy="800" r="3" />
+        <circle className="lg-ct-pad" cx="1300" cy="800" r="3" />
 
         {/* ── EXTRA junction pads on new twigs ── */}
-        <circle className="lg-ct-pad" cx="540" cy="520" r="2.5"/>
-        <circle className="lg-ct-pad" cx="900" cy="520" r="2.5"/>
-        <circle className="lg-ct-pad" cx="540" cy="470" r="2"/>
-        <circle className="lg-ct-pad" cx="900" cy="470" r="2"/>
-        <circle className="lg-ct-pad" cx="620" cy="520" r="2"/>
-        <circle className="lg-ct-pad" cx="820" cy="520" r="2"/>
-        <circle className="lg-ct-pad" cx="460" cy="440" r="2.5"/>
-        <circle className="lg-ct-pad" cx="980" cy="440" r="2.5"/>
-        <circle className="lg-ct-pad" cx="720" cy="610" r="2.5"/>
-        <circle className="lg-ct-pad" cx="200" cy="140" r="2.5"/>
-        <circle className="lg-ct-pad" cx="320" cy="140" r="2.5"/>
-        <circle className="lg-ct-pad" cx="1080" cy="140" r="2.5"/>
-        <circle className="lg-ct-pad" cx="1200" cy="140" r="2.5"/>
-        <circle className="lg-ct-pad" cx="260" cy="220" r="2"/>
-        <circle className="lg-ct-pad" cx="620" cy="220" r="2"/>
-        <circle className="lg-ct-pad" cx="820" cy="220" r="2"/>
-        <circle className="lg-ct-pad" cx="1140" cy="220" r="2"/>
-        <circle className="lg-ct-pad" cx="720" cy="360" r="2.5"/>
-        <circle className="lg-ct-pad" cx="660" cy="360" r="2"/>
-        <circle className="lg-ct-pad" cx="780" cy="360" r="2"/>
-        <circle className="lg-ct-pad" cx="720" cy="820" r="2.5"/>
-        <circle className="lg-ct-pad" cx="720" cy="890" r="2.5"/>
+        <circle className="lg-ct-pad" cx="540" cy="520" r="2.5" />
+        <circle className="lg-ct-pad" cx="900" cy="520" r="2.5" />
+        <circle className="lg-ct-pad" cx="540" cy="470" r="2" />
+        <circle className="lg-ct-pad" cx="900" cy="470" r="2" />
+        <circle className="lg-ct-pad" cx="620" cy="520" r="2" />
+        <circle className="lg-ct-pad" cx="820" cy="520" r="2" />
+        <circle className="lg-ct-pad" cx="460" cy="440" r="2.5" />
+        <circle className="lg-ct-pad" cx="980" cy="440" r="2.5" />
+        <circle className="lg-ct-pad" cx="720" cy="610" r="2.5" />
+        <circle className="lg-ct-pad" cx="200" cy="140" r="2.5" />
+        <circle className="lg-ct-pad" cx="320" cy="140" r="2.5" />
+        <circle className="lg-ct-pad" cx="1080" cy="140" r="2.5" />
+        <circle className="lg-ct-pad" cx="1200" cy="140" r="2.5" />
+        <circle className="lg-ct-pad" cx="260" cy="220" r="2" />
+        <circle className="lg-ct-pad" cx="620" cy="220" r="2" />
+        <circle className="lg-ct-pad" cx="820" cy="220" r="2" />
+        <circle className="lg-ct-pad" cx="1140" cy="220" r="2" />
+        <circle className="lg-ct-pad" cx="720" cy="360" r="2.5" />
+        <circle className="lg-ct-pad" cx="660" cy="360" r="2" />
+        <circle className="lg-ct-pad" cx="780" cy="360" r="2" />
+        <circle className="lg-ct-pad" cx="720" cy="820" r="2.5" />
+        <circle className="lg-ct-pad" cx="720" cy="890" r="2.5" />
 
         {/* ── EXTRA LED tips at new branch endpoints (canopy denser) ── */}
-        <circle className="lg-ct-led" cx="160" cy="40" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="380" cy="40" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1240" cy="40" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1020" cy="40" r="3" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="240" cy="30" r="2.5" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1160" cy="30" r="2.5" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="160" cy="40" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="380" cy="40" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1240" cy="40" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1020" cy="40" r="3" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="240" cy="30" r="2.5" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1160" cy="30" r="2.5" filter="url(#lgGlowS)" />
         {/* Leaf-cluster tiny LEDs */}
-        <circle className="lg-ct-led" cx="150" cy="40" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="370" cy="40" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="526" cy="40" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="714" cy="40" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="726" cy="40" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="914" cy="40" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1030" cy="40" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="150" cy="40" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="370" cy="40" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="526" cy="40" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="714" cy="40" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="726" cy="40" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="914" cy="40" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1030" cy="40" r="2" filter="url(#lgGlowS)" />
         {/* Mini twig endpoint LEDs (near canopy mid) */}
-        <circle className="lg-ct-led" cx="210" cy="260" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="310" cy="260" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="580" cy="260" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="660" cy="260" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="780" cy="260" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="860" cy="260" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1090" cy="260" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1190" cy="260" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="210" cy="260" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="310" cy="260" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="580" cy="260" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="660" cy="260" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="780" cy="260" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="860" cy="260" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1090" cy="260" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1190" cy="260" r="2" filter="url(#lgGlowS)" />
         {/* Side twig endpoint LEDs */}
-        <circle className="lg-ct-led" cx="320" cy="200" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1120" cy="200" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="390" cy="400" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="530" cy="400" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="910" cy="400" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="1050" cy="400" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="320" cy="200" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1120" cy="200" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="390" cy="400" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="530" cy="400" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="910" cy="400" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="1050" cy="400" r="2" filter="url(#lgGlowS)" />
         {/* Mid-trunk twig LEDs */}
-        <circle className="lg-ct-led" cx="630" cy="580" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="810" cy="580" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="630" cy="580" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="810" cy="580" r="2" filter="url(#lgGlowS)" />
         {/* Root system extra LEDs */}
-        <circle className="lg-ct-led" cx="460" cy="750" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="980" cy="750" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="520" cy="700" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="920" cy="700" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="680" cy="860" r="2" filter="url(#lgGlowS)"/>
-        <circle className="lg-ct-led" cx="760" cy="860" r="2" filter="url(#lgGlowS)"/>
+        <circle className="lg-ct-led" cx="460" cy="750" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="980" cy="750" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="520" cy="700" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="920" cy="700" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="680" cy="860" r="2" filter="url(#lgGlowS)" />
+        <circle className="lg-ct-led" cx="760" cy="860" r="2" filter="url(#lgGlowS)" />
 
         {/* ══ ELECTRON ANIMATIONS ══ */}
         {/* Route 1 — far left tip — TEAL */}
         <circle className="lg-ct-e-teal" r="4.5" filter="url(#lgGlow)">
-          <animateMotion dur="5.2s" repeatCount="indefinite" begin="0s"
-            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,60 L180,60 L180,20"/>
+          <animateMotion
+            dur="5.2s"
+            repeatCount="indefinite"
+            begin="0s"
+            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,60 L180,60 L180,20"
+          />
         </circle>
         <circle className="lg-ct-e-cyan" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="5.2s" repeatCount="indefinite" begin="2.6s"
-            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,60 L180,60 L180,20"/>
+          <animateMotion
+            dur="5.2s"
+            repeatCount="indefinite"
+            begin="2.6s"
+            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,60 L180,60 L180,20"
+          />
         </circle>
 
         {/* Route 2 — left-center tip — GREEN */}
         <circle className="lg-ct-e-green" r="4.5" filter="url(#lgGlow)">
-          <animateMotion dur="4.8s" repeatCount="indefinite" begin="0.7s"
-            path="M720,920 L720,520 L460,520 L460,300 L620,300 L620,60 L684,60 L684,20"/>
+          <animateMotion
+            dur="4.8s"
+            repeatCount="indefinite"
+            begin="0.7s"
+            path="M720,920 L720,520 L460,520 L460,300 L620,300 L620,60 L684,60 L684,20"
+          />
         </circle>
         <circle className="lg-ct-e-green" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="4.8s" repeatCount="indefinite" begin="3.1s"
-            path="M720,920 L720,520 L460,520 L460,300 L620,300 L620,60 L556,60 L556,20"/>
+          <animateMotion
+            dur="4.8s"
+            repeatCount="indefinite"
+            begin="3.1s"
+            path="M720,920 L720,520 L460,520 L460,300 L620,300 L620,60 L556,60 L556,20"
+          />
         </circle>
 
         {/* Route 3 — center-left top — YELLOW */}
         <circle className="lg-ct-e-yellow" r="4.5" filter="url(#lgGlow)">
-          <animateMotion dur="4.2s" repeatCount="indefinite" begin="0.3s"
-            path="M720,920 L720,340 L640,240 L640,20"/>
+          <animateMotion
+            dur="4.2s"
+            repeatCount="indefinite"
+            begin="0.3s"
+            path="M720,920 L720,340 L640,240 L640,20"
+          />
         </circle>
         <circle className="lg-ct-e-orange" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="4.2s" repeatCount="indefinite" begin="2.4s"
-            path="M720,920 L720,340 L640,240 L640,20"/>
+          <animateMotion
+            dur="4.2s"
+            repeatCount="indefinite"
+            begin="2.4s"
+            path="M720,920 L720,340 L640,240 L640,20"
+          />
         </circle>
 
         {/* Route 4 — center-right top — PURPLE */}
         <circle className="lg-ct-e-purple" r="4.5" filter="url(#lgGlow)">
-          <animateMotion dur="4.2s" repeatCount="indefinite" begin="1.4s"
-            path="M720,920 L720,340 L800,240 L800,20"/>
+          <animateMotion
+            dur="4.2s"
+            repeatCount="indefinite"
+            begin="1.4s"
+            path="M720,920 L720,340 L800,240 L800,20"
+          />
         </circle>
         <circle className="lg-ct-e-blue" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="4.2s" repeatCount="indefinite" begin="3.5s"
-            path="M720,920 L720,340 L800,240 L800,20"/>
+          <animateMotion
+            dur="4.2s"
+            repeatCount="indefinite"
+            begin="3.5s"
+            path="M720,920 L720,340 L800,240 L800,20"
+          />
         </circle>
 
         {/* Route 5 — right-center tip — ORANGE */}
         <circle className="lg-ct-e-orange" r="4.5" filter="url(#lgGlow)">
-          <animateMotion dur="4.8s" repeatCount="indefinite" begin="1.8s"
-            path="M720,920 L720,520 L980,520 L980,300 L820,300 L820,60 L884,60 L884,20"/>
+          <animateMotion
+            dur="4.8s"
+            repeatCount="indefinite"
+            begin="1.8s"
+            path="M720,920 L720,520 L980,520 L980,300 L820,300 L820,60 L884,60 L884,20"
+          />
         </circle>
         <circle className="lg-ct-e-yellow" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="4.8s" repeatCount="indefinite" begin="3.9s"
-            path="M720,920 L720,520 L980,520 L980,300 L820,300 L820,60 L756,60 L756,20"/>
+          <animateMotion
+            dur="4.8s"
+            repeatCount="indefinite"
+            begin="3.9s"
+            path="M720,920 L720,520 L980,520 L980,300 L820,300 L820,60 L756,60 L756,20"
+          />
         </circle>
 
         {/* Route 6 — far right tip — PINK */}
         <circle className="lg-ct-e-pink" r="4.5" filter="url(#lgGlow)">
-          <animateMotion dur="5.2s" repeatCount="indefinite" begin="2.5s"
-            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,60 L1210,60 L1210,20"/>
+          <animateMotion
+            dur="5.2s"
+            repeatCount="indefinite"
+            begin="2.5s"
+            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,60 L1210,60 L1210,20"
+          />
         </circle>
         <circle className="lg-ct-e-red" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="5.2s" repeatCount="indefinite" begin="4.8s"
-            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,60 L1060,60 L1060,20"/>
+          <animateMotion
+            dur="5.2s"
+            repeatCount="indefinite"
+            begin="4.8s"
+            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,60 L1060,60 L1060,20"
+          />
         </circle>
 
         {/* Route 7 — root traces — BLUE */}
         <circle className="lg-ct-e-blue" r="3.5" filter="url(#lgGlow)">
-          <animateMotion dur="3.5s" repeatCount="indefinite" begin="1s"
-            path="M720,920 L720,760 L580,760 L580,830 L480,830 L480,920 L380,920"/>
+          <animateMotion
+            dur="3.5s"
+            repeatCount="indefinite"
+            begin="1s"
+            path="M720,920 L720,760 L580,760 L580,830 L480,830 L480,920 L380,920"
+          />
         </circle>
         <circle className="lg-ct-e-purple" r="3.5" filter="url(#lgGlow)">
-          <animateMotion dur="3.5s" repeatCount="indefinite" begin="2.8s"
-            path="M720,920 L720,760 L860,760 L860,830 L960,830 L960,920 L1060,920"/>
+          <animateMotion
+            dur="3.5s"
+            repeatCount="indefinite"
+            begin="2.8s"
+            path="M720,920 L720,760 L860,760 L860,830 L960,830 L960,920 L1060,920"
+          />
         </circle>
 
         {/* Route 8 — top-left corner extension — CYAN */}
         <circle className="lg-ct-e-cyan" r="4" filter="url(#lgGlow)">
-          <animateMotion dur="6.5s" repeatCount="indefinite" begin="0.5s"
-            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,60 L180,60 L60,60 L60,20"/>
+          <animateMotion
+            dur="6.5s"
+            repeatCount="indefinite"
+            begin="0.5s"
+            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,60 L180,60 L60,60 L60,20"
+          />
         </circle>
         <circle className="lg-ct-e-teal" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="6.5s" repeatCount="indefinite" begin="3.2s"
-            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,60 L180,60 L60,60 L60,140 L130,140"/>
+          <animateMotion
+            dur="6.5s"
+            repeatCount="indefinite"
+            begin="3.2s"
+            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,60 L180,60 L60,60 L60,140 L130,140"
+          />
         </circle>
 
         {/* Route 9 — top-right corner extension — RED */}
         <circle className="lg-ct-e-red" r="4" filter="url(#lgGlow)">
-          <animateMotion dur="6.5s" repeatCount="indefinite" begin="1.1s"
-            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,60 L1210,60 L1380,60 L1380,20"/>
+          <animateMotion
+            dur="6.5s"
+            repeatCount="indefinite"
+            begin="1.1s"
+            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,60 L1210,60 L1380,60 L1380,20"
+          />
         </circle>
         <circle className="lg-ct-e-pink" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="6.5s" repeatCount="indefinite" begin="3.8s"
-            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,60 L1210,60 L1380,60 L1380,140 L1310,140"/>
+          <animateMotion
+            dur="6.5s"
+            repeatCount="indefinite"
+            begin="3.8s"
+            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,60 L1210,60 L1380,60 L1380,140 L1310,140"
+          />
         </circle>
 
         {/* Route 10 — left mid-side extension — GREEN */}
         <circle className="lg-ct-e-green" r="3.5" filter="url(#lgGlow)">
-          <animateMotion dur="7.2s" repeatCount="indefinite" begin="0.2s"
-            path="M720,920 L720,520 L460,520 L460,380 L300,380 L300,240 L140,240 L140,120 L60,120 L60,40"/>
+          <animateMotion
+            dur="7.2s"
+            repeatCount="indefinite"
+            begin="0.2s"
+            path="M720,920 L720,520 L460,520 L460,380 L300,380 L300,240 L140,240 L140,120 L60,120 L60,40"
+          />
         </circle>
         <circle className="lg-ct-e-yellow" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="5.8s" repeatCount="indefinite" begin="2s"
-            path="M460,380 L300,380 L300,240 L220,240 L220,180"/>
+          <animateMotion
+            dur="5.8s"
+            repeatCount="indefinite"
+            begin="2s"
+            path="M460,380 L300,380 L300,240 L220,240 L220,180"
+          />
         </circle>
 
         {/* Route 11 — right mid-side extension — PURPLE */}
         <circle className="lg-ct-e-purple" r="3.5" filter="url(#lgGlow)">
-          <animateMotion dur="7.2s" repeatCount="indefinite" begin="1.6s"
-            path="M720,920 L720,520 L980,520 L980,380 L1140,380 L1140,240 L1300,240 L1300,120 L1380,120 L1380,40"/>
+          <animateMotion
+            dur="7.2s"
+            repeatCount="indefinite"
+            begin="1.6s"
+            path="M720,920 L720,520 L980,520 L980,380 L1140,380 L1140,240 L1300,240 L1300,120 L1380,120 L1380,40"
+          />
         </circle>
         <circle className="lg-ct-e-blue" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="5.8s" repeatCount="indefinite" begin="3.4s"
-            path="M980,380 L1140,380 L1140,240 L1220,240 L1220,180"/>
+          <animateMotion
+            dur="5.8s"
+            repeatCount="indefinite"
+            begin="3.4s"
+            path="M980,380 L1140,380 L1140,240 L1220,240 L1220,180"
+          />
         </circle>
 
         {/* Route 12 — left lower side — ORANGE */}
         <circle className="lg-ct-e-orange" r="3.5" filter="url(#lgGlow)">
-          <animateMotion dur="6.8s" repeatCount="indefinite" begin="0.9s"
-            path="M720,920 L720,520 L460,520 L300,520 L300,660 L140,660 L140,800 L60,800"/>
+          <animateMotion
+            dur="6.8s"
+            repeatCount="indefinite"
+            begin="0.9s"
+            path="M720,920 L720,520 L460,520 L300,520 L300,660 L140,660 L140,800 L60,800"
+          />
         </circle>
         <circle className="lg-ct-e-red" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="5.5s" repeatCount="indefinite" begin="3.6s"
-            path="M300,660 L220,660 L220,720 L160,720"/>
+          <animateMotion
+            dur="5.5s"
+            repeatCount="indefinite"
+            begin="3.6s"
+            path="M300,660 L220,660 L220,720 L160,720"
+          />
         </circle>
         <circle className="lg-ct-e-orange" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="4.8s" repeatCount="indefinite" begin="1.8s"
-            path="M140,800 L140,860 L60,860"/>
+          <animateMotion
+            dur="4.8s"
+            repeatCount="indefinite"
+            begin="1.8s"
+            path="M140,800 L140,860 L60,860"
+          />
         </circle>
 
         {/* Route 13 — right lower side — PINK */}
         <circle className="lg-ct-e-pink" r="3.5" filter="url(#lgGlow)">
-          <animateMotion dur="6.8s" repeatCount="indefinite" begin="2.3s"
-            path="M720,920 L720,520 L980,520 L1140,520 L1140,660 L1300,660 L1300,800 L1380,800"/>
+          <animateMotion
+            dur="6.8s"
+            repeatCount="indefinite"
+            begin="2.3s"
+            path="M720,920 L720,520 L980,520 L1140,520 L1140,660 L1300,660 L1300,800 L1380,800"
+          />
         </circle>
         <circle className="lg-ct-e-purple" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="5.5s" repeatCount="indefinite" begin="4.1s"
-            path="M1140,660 L1220,660 L1220,720 L1280,720"/>
+          <animateMotion
+            dur="5.5s"
+            repeatCount="indefinite"
+            begin="4.1s"
+            path="M1140,660 L1220,660 L1220,720 L1280,720"
+          />
         </circle>
         <circle className="lg-ct-e-pink" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="4.8s" repeatCount="indefinite" begin="3.2s"
-            path="M1300,800 L1300,860 L1380,860"/>
+          <animateMotion
+            dur="4.8s"
+            repeatCount="indefinite"
+            begin="3.2s"
+            path="M1300,800 L1300,860 L1380,860"
+          />
         </circle>
 
         {/* Route 14 — bottom-left corner — TEAL */}
         <circle className="lg-ct-e-teal" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="5s" repeatCount="indefinite" begin="1.5s"
-            path="M720,920 L720,760 L580,760 L580,830 L380,920 L300,920 L300,870 L160,870 L160,790 L60,790"/>
+          <animateMotion
+            dur="5s"
+            repeatCount="indefinite"
+            begin="1.5s"
+            path="M720,920 L720,760 L580,760 L580,830 L380,920 L300,920 L300,870 L160,870 L160,790 L60,790"
+          />
         </circle>
 
         {/* Route 15 — bottom-right corner — YELLOW */}
         <circle className="lg-ct-e-yellow" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="5s" repeatCount="indefinite" begin="3s"
-            path="M720,920 L720,760 L860,760 L860,830 L1060,920 L1140,920 L1140,870 L1280,870 L1280,790 L1380,790"/>
+          <animateMotion
+            dur="5s"
+            repeatCount="indefinite"
+            begin="3s"
+            path="M720,920 L720,760 L860,760 L860,830 L1060,920 L1140,920 L1140,870 L1280,870 L1280,790 L1380,790"
+          />
         </circle>
 
         {/* ══ EXTRA ROUTES on new twigs ══ */}
 
         {/* Route 16 — left fern frond up → leaf cluster — GREEN */}
         <circle className="lg-ct-e-green" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="4.5s" repeatCount="indefinite" begin="0.4s"
-            path="M720,920 L720,520 L540,520 L540,470 L500,470 L500,440"/>
+          <animateMotion
+            dur="4.5s"
+            repeatCount="indefinite"
+            begin="0.4s"
+            path="M720,920 L720,520 L540,520 L540,470 L500,470 L500,440"
+          />
         </circle>
         <circle className="lg-ct-e-cyan" r="2" filter="url(#lgGlow)">
-          <animateMotion dur="4.5s" repeatCount="indefinite" begin="2.7s"
-            path="M540,470 L580,470 L580,440"/>
+          <animateMotion
+            dur="4.5s"
+            repeatCount="indefinite"
+            begin="2.7s"
+            path="M540,470 L580,470 L580,440"
+          />
         </circle>
 
         {/* Route 17 — right fern frond up — PURPLE */}
         <circle className="lg-ct-e-purple" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="4.5s" repeatCount="indefinite" begin="1.2s"
-            path="M720,920 L720,520 L900,520 L900,470 L940,470 L940,440"/>
+          <animateMotion
+            dur="4.5s"
+            repeatCount="indefinite"
+            begin="1.2s"
+            path="M720,920 L720,520 L900,520 L900,470 L940,470 L940,440"
+          />
         </circle>
         <circle className="lg-ct-e-pink" r="2" filter="url(#lgGlow)">
-          <animateMotion dur="4.5s" repeatCount="indefinite" begin="3.4s"
-            path="M900,470 L860,470 L860,440"/>
+          <animateMotion
+            dur="4.5s"
+            repeatCount="indefinite"
+            begin="3.4s"
+            path="M900,470 L860,470 L860,440"
+          />
         </circle>
 
         {/* Route 18 — extended top-left canopy (new sub-tip 160,40) — TEAL */}
         <circle className="lg-ct-e-teal" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="6s" repeatCount="indefinite" begin="0.9s"
-            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,140 L200,140 L200,90 L160,90 L160,40"/>
+          <animateMotion
+            dur="6s"
+            repeatCount="indefinite"
+            begin="0.9s"
+            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,140 L200,140 L200,90 L160,90 L160,40"
+          />
         </circle>
 
         {/* Route 19 — extended top-right canopy (new sub-tip 1240,40) — ORANGE */}
         <circle className="lg-ct-e-orange" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="6s" repeatCount="indefinite" begin="2.1s"
-            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,140 L1200,140 L1200,90 L1240,90 L1240,40"/>
+          <animateMotion
+            dur="6s"
+            repeatCount="indefinite"
+            begin="2.1s"
+            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,140 L1200,140 L1200,90 L1240,90 L1240,40"
+          />
         </circle>
 
         {/* Route 20 — secondary extended canopy (380,40) — YELLOW */}
         <circle className="lg-ct-e-yellow" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="5.6s" repeatCount="indefinite" begin="1.7s"
-            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,140 L320,140 L320,90 L380,90 L380,40"/>
+          <animateMotion
+            dur="5.6s"
+            repeatCount="indefinite"
+            begin="1.7s"
+            path="M720,920 L720,520 L460,520 L460,300 L260,300 L260,140 L320,140 L320,90 L380,90 L380,40"
+          />
         </circle>
 
         {/* Route 21 — secondary extended canopy (1020,40) — BLUE */}
         <circle className="lg-ct-e-blue" r="3" filter="url(#lgGlow)">
-          <animateMotion dur="5.6s" repeatCount="indefinite" begin="3.6s"
-            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,140 L1080,140 L1080,90 L1020,90 L1020,40"/>
+          <animateMotion
+            dur="5.6s"
+            repeatCount="indefinite"
+            begin="3.6s"
+            path="M720,920 L720,520 L980,520 L980,300 L1140,300 L1140,140 L1080,140 L1080,90 L1020,90 L1020,40"
+          />
         </circle>
 
         {/* Route 22 — center triangle cross (left) — TEAL */}
         <circle className="lg-ct-e-teal" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="3.8s" repeatCount="indefinite" begin="0.6s"
-            path="M460,300 L620,300 L660,300 L660,360 L720,360"/>
+          <animateMotion
+            dur="3.8s"
+            repeatCount="indefinite"
+            begin="0.6s"
+            path="M460,300 L620,300 L660,300 L660,360 L720,360"
+          />
         </circle>
 
         {/* Route 23 — center triangle cross (right) — TEAL */}
         <circle className="lg-ct-e-teal" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="3.8s" repeatCount="indefinite" begin="2.4s"
-            path="M980,300 L820,300 L780,300 L780,360 L720,360"/>
+          <animateMotion
+            dur="3.8s"
+            repeatCount="indefinite"
+            begin="2.4s"
+            path="M980,300 L820,300 L780,300 L780,360 L720,360"
+          />
         </circle>
 
         {/* Route 24 — L1 vertical mid-twig (left) — CYAN */}
         <circle className="lg-ct-e-cyan" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="4s" repeatCount="indefinite" begin="1.4s"
-            path="M460,520 L460,440 L500,440 L500,400 L530,400"/>
+          <animateMotion
+            dur="4s"
+            repeatCount="indefinite"
+            begin="1.4s"
+            path="M460,520 L460,440 L500,440 L500,400 L530,400"
+          />
         </circle>
 
         {/* Route 25 — L1 vertical mid-twig (right) — CYAN */}
         <circle className="lg-ct-e-cyan" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="4s" repeatCount="indefinite" begin="3s"
-            path="M980,520 L980,440 L940,440 L940,400 L910,400"/>
+          <animateMotion
+            dur="4s"
+            repeatCount="indefinite"
+            begin="3s"
+            path="M980,520 L980,440 L940,440 L940,400 L910,400"
+          />
         </circle>
 
         {/* Route 26 — L2 vertical mini-twigs (260) — GREEN */}
         <circle className="lg-ct-e-green" r="2" filter="url(#lgGlow)">
-          <animateMotion dur="3.4s" repeatCount="indefinite" begin="0.8s"
-            path="M260,140 L260,220 L310,220 L310,260"/>
+          <animateMotion
+            dur="3.4s"
+            repeatCount="indefinite"
+            begin="0.8s"
+            path="M260,140 L260,220 L310,220 L310,260"
+          />
         </circle>
 
         {/* Route 27 — L2 vertical mini-twigs (1140) — PINK */}
         <circle className="lg-ct-e-pink" r="2" filter="url(#lgGlow)">
-          <animateMotion dur="3.4s" repeatCount="indefinite" begin="2.1s"
-            path="M1140,140 L1140,220 L1090,220 L1090,260"/>
+          <animateMotion
+            dur="3.4s"
+            repeatCount="indefinite"
+            begin="2.1s"
+            path="M1140,140 L1140,220 L1090,220 L1090,260"
+          />
         </circle>
 
         {/* Route 28 — extended root fan-out (left) — PURPLE */}
         <circle className="lg-ct-e-purple" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="4.8s" repeatCount="indefinite" begin="1.1s"
-            path="M720,920 L720,760 L580,760 L580,830 L520,830 L520,790 L460,790 L460,750"/>
+          <animateMotion
+            dur="4.8s"
+            repeatCount="indefinite"
+            begin="1.1s"
+            path="M720,920 L720,760 L580,760 L580,830 L520,830 L520,790 L460,790 L460,750"
+          />
         </circle>
 
         {/* Route 29 — extended root fan-out (right) — ORANGE */}
         <circle className="lg-ct-e-orange" r="2.5" filter="url(#lgGlow)">
-          <animateMotion dur="4.8s" repeatCount="indefinite" begin="3.2s"
-            path="M720,920 L720,760 L860,760 L860,830 L920,830 L920,790 L980,790 L980,750"/>
+          <animateMotion
+            dur="4.8s"
+            repeatCount="indefinite"
+            begin="3.2s"
+            path="M720,920 L720,760 L860,760 L860,830 L920,830 L920,790 L980,790 L980,750"
+          />
         </circle>
 
         {/* Route 30 — center sub-roots — YELLOW */}
         <circle className="lg-ct-e-yellow" r="2" filter="url(#lgGlow)">
-          <animateMotion dur="3s" repeatCount="indefinite" begin="0.3s"
-            path="M720,820 L680,820 L680,860"/>
+          <animateMotion
+            dur="3s"
+            repeatCount="indefinite"
+            begin="0.3s"
+            path="M720,820 L680,820 L680,860"
+          />
         </circle>
         <circle className="lg-ct-e-yellow" r="2" filter="url(#lgGlow)">
-          <animateMotion dur="3s" repeatCount="indefinite" begin="1.6s"
-            path="M720,820 L760,820 L760,860"/>
+          <animateMotion
+            dur="3s"
+            repeatCount="indefinite"
+            begin="1.6s"
+            path="M720,820 L760,820 L760,860"
+          />
         </circle>
       </svg>
 
-      <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div
+        style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+      >
         <div className="lg-card-split">
           {/* Left panel — brand + illustration + tagline */}
           <div className="lg-left">
@@ -3292,7 +4685,9 @@ const LoginModal = ({ onLogin }) => {
             </div>
 
             <div className="lg-left-tagline">
-              <div className="lg-left-tagline-main">Akademik yaşamı kolaylaştıran dijital asistanınız.</div>
+              <div className="lg-left-tagline-main">
+                Akademik yaşamı kolaylaştıran dijital asistanınız.
+              </div>
             </div>
           </div>
 
@@ -3301,361 +4696,950 @@ const LoginModal = ({ onLogin }) => {
             <h2 className="lg-right-heading">Giriş Yap</h2>
             <p className="lg-right-sub">Devam etmek için hesabınızla oturum açın.</p>
 
-            {activeTab === "admin" && (
+            {activeTab === 'admin' && (
               <div className="lg-admin-banner">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
                 Yönetici Girişi
               </div>
             )}
 
             {/* Tabs - Admin hariç */}
-            {activeTab !== "admin" && !registerMode && !setupPasswordMode && !(activeTab === "student" && studentStep === "password") && (
-            <div className="lg-tabs">
-              {[
-                { key: "student", label: "Öğrenci" },
-                { key: "professor", label: "Akademisyen" },
-                { key: "bolum_yetkilisi", label: "Bölüm Yetkilisi" },
-              ].map(tab => {
-                const active = activeTab === tab.key;
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => { setActiveTab(tab.key); setError(""); setIdentifier(""); setPassword(""); setStudentStep("number"); setStudentInfo(null); resetSetupState(); setProfSearch(""); setProfDropdownOpen(false); }}
-                    type="button"
-                    className={`lg-tab${active ? " lg-tab-active" : ""}`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-            )}
-
-          {/* Yeni Öğrenci Kayıt Ekranı */}
-          {registerMode ? (
-            <form onSubmit={handleRegister}>
-              <div className="lg-setup-hero">
-                <div className="lg-setup-icon">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C4973B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" />
-                  </svg>
-                </div>
-                <h3 className="lg-setup-title">Kayıt Ol</h3>
-                <p className="lg-setup-sub">
-                  <strong>{pendingStudentNumber}</strong> numaralı öğrenci olarak kayıt olun.
-                </p>
-              </div>
-
-              <div style={{ display: "flex", gap: 12, marginBottom: 18 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <label className="lg-label">Ad</label>
-                  <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Adınız" autoFocus className="lg-input" />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <label className="lg-label">Soyad</label>
-                  <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Soyadınız" className="lg-input" />
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 18 }}>
-                <label className="lg-label">Bölüm</label>
-                <div className="lg-input-icon-wrap">
-                  <div className="lg-input-icon-left">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></svg>
-                  </div>
-                  <select value={selectedDepartment} onChange={e => setSelectedDepartment(e.target.value)}
-                    className="lg-input lg-input-icon"
-                    style={{ paddingRight: 40, color: selectedDepartment ? "#0F172A" : "#94A3B8", cursor: "pointer" }}>
-                    <option value="" disabled>Bölümünüzü seçin</option>
-                    {DEPARTMENTS.map(d => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
-                  <div style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", color: "#64748B", pointerEvents: "none" }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 18 }}>
-                <label className="lg-label">Şifre</label>
-                <div className="lg-input-icon-wrap">
-                  <div className="lg-input-icon-left">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-                  </div>
-                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Şifrenizi belirleyin (en az 6 karakter)" className="lg-input lg-input-icon" />
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 22 }}>
-                <label className="lg-label">Şifre Tekrar</label>
-                <div className="lg-input-icon-wrap">
-                  <div className="lg-input-icon-left">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                  </div>
-                  <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifrenizi tekrar girin" className="lg-input lg-input-icon" />
-                </div>
-              </div>
-
-              {error && (
-                <div className="lg-error">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-                  {error}
+            {activeTab !== 'admin' &&
+              !registerMode &&
+              !setupPasswordMode &&
+              !(activeTab === 'student' && studentStep === 'password') && (
+                <div className="lg-tabs">
+                  {[
+                    { key: 'student', label: 'Öğrenci' },
+                    { key: 'professor', label: 'Akademisyen' },
+                    { key: 'bolum_yetkilisi', label: 'Bölüm Yetkilisi' },
+                  ].map((tab) => {
+                    const active = activeTab === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => {
+                          setActiveTab(tab.key);
+                          setError('');
+                          setIdentifier('');
+                          setPassword('');
+                          setStudentStep('number');
+                          setStudentInfo(null);
+                          resetSetupState();
+                          setProfSearch('');
+                          setProfDropdownOpen(false);
+                        }}
+                        type="button"
+                        className={`lg-tab${active ? ' lg-tab-active' : ''}`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
-              <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
-                {loading ? (
-                  <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Kaydediliyor...</>
-                ) : (
-                  <>Kayıt Ol ve Giriş Yap<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg></>
-                )}
-              </button>
-
-              <button type="button" onClick={resetSetupState} className="lg-btn lg-btn-secondary" style={{ marginTop: 10, padding: "10px 16px", fontSize: 13 }}>Geri Dön</button>
-            </form>
-
-          ) : setupPasswordMode ? (
-            /* Mevcut öğrenci: şifre değiştirme ekranı */
-            <form onSubmit={handleSetupPassword}>
-              <div className="lg-setup-hero">
-                <div className="lg-setup-icon">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C4973B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
-                  </svg>
-                </div>
-                <h3 className="lg-setup-title">Yeni Şifre Belirleyin</h3>
-                <p className="lg-setup-sub">
-                  Hoş geldiniz, <strong>{pendingUser?.name}</strong>. Güvenliğiniz için lütfen yeni bir şifre belirleyin.
-                </p>
-              </div>
-
-              <div style={{ marginBottom: 18 }}>
-                <label className="lg-label">Yeni Şifre</label>
-                <div className="lg-input-icon-wrap">
-                  <div className="lg-input-icon-left">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+            {/* Yeni Öğrenci Kayıt Ekranı */}
+            {registerMode ? (
+              <form onSubmit={handleRegister}>
+                <div className="lg-setup-hero">
+                  <div className="lg-setup-icon">
+                    <svg
+                      width="28"
+                      height="28"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#C4973B"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                      <circle cx="8.5" cy="7" r="4" />
+                      <line x1="20" y1="8" x2="20" y2="14" />
+                      <line x1="23" y1="11" x2="17" y2="11" />
+                    </svg>
                   </div>
-                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Yeni şifrenizi girin (en az 6 karakter)" autoFocus className="lg-input lg-input-icon" />
+                  <h3 className="lg-setup-title">Kayıt Ol</h3>
+                  <p className="lg-setup-sub">
+                    <strong>{pendingStudentNumber}</strong> numaralı öğrenci olarak kayıt olun.
+                  </p>
                 </div>
-              </div>
 
-              <div style={{ marginBottom: 22 }}>
-                <label className="lg-label">Şifre Tekrar</label>
-                <div className="lg-input-icon-wrap">
-                  <div className="lg-input-icon-left">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <label className="lg-label">Ad</label>
+                    <input
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Adınız"
+                      autoFocus
+                      className="lg-input"
+                    />
                   </div>
-                  <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifrenizi tekrar girin" className="lg-input lg-input-icon" />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <label className="lg-label">Soyad</label>
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Soyadınız"
+                      className="lg-input"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {error && (
-                <div className="lg-error">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-                  {error}
+                <div style={{ marginBottom: 18 }}>
+                  <label className="lg-label">Bölüm</label>
+                  <div className="lg-input-icon-wrap">
+                    <div className="lg-input-icon-left">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+                      </svg>
+                    </div>
+                    <select
+                      value={selectedDepartment}
+                      onChange={(e) => setSelectedDepartment(e.target.value)}
+                      className="lg-input lg-input-icon"
+                      style={{
+                        paddingRight: 40,
+                        color: selectedDepartment ? '#0F172A' : '#94A3B8',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value="" disabled>
+                        Bölümünüzü seçin
+                      </option>
+                      {DEPARTMENTS.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        right: 14,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#64748B',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
-              )}
 
-              <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
-                {loading ? (
-                  <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Kaydediliyor...</>
-                ) : (
-                  <>Şifreyi Belirle ve Giriş Yap<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg></>
+                <div style={{ marginBottom: 18 }}>
+                  <label className="lg-label">Şifre</label>
+                  <div className="lg-input-icon-wrap">
+                    <div className="lg-input-icon-left">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0110 0v4" />
+                      </svg>
+                    </div>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Şifrenizi belirleyin (en az 6 karakter)"
+                      className="lg-input lg-input-icon"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 22 }}>
+                  <label className="lg-label">Şifre Tekrar</label>
+                  <div className="lg-input-icon-wrap">
+                    <div className="lg-input-icon-left">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M20 6L9 17l-5-5" />
+                      </svg>
+                    </div>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Şifrenizi tekrar girin"
+                      className="lg-input lg-input-icon"
+                    />
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="lg-error">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="15" y1="9" x2="9" y2="15" />
+                      <line x1="9" y1="9" x2="15" y2="15" />
+                    </svg>
+                    {error}
+                  </div>
                 )}
-              </button>
 
-              <button type="button" onClick={resetSetupState} className="lg-btn lg-btn-secondary" style={{ marginTop: 10, padding: "10px 16px", fontSize: 13 }}>Geri Dön</button>
-            </form>
-          ) : activeTab === "student" && studentStep === "password" ? (
-          /* Öğrenci: Şifre Giriş Adımı */
-          <form onSubmit={handleStudentLogin}>
-            <div className="lg-greeting">
-              <div className="lg-greeting-label">Hoş geldiniz</div>
-              <div className="lg-greeting-name">{studentInfo?.firstName} {studentInfo?.lastName}</div>
-              <div className="lg-greeting-id">{identifier}</div>
-            </div>
-
-            <div style={{ marginBottom: 22 }}>
-              <label className="lg-label">Şifre</label>
-              <div className="lg-input-icon-wrap">
-                <div className="lg-input-icon-left">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-                </div>
-                <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Şifrenizi girin" autoFocus className="lg-input lg-input-icon lg-input-eye" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="lg-input-eye-btn" aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}>
-                  {showPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
+                  {loading ? (
+                    <>
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        style={{ animation: 'loginSpin 1s linear infinite' }}
+                      >
+                        <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+                      </svg>
+                      Kaydediliyor...
+                    </>
                   ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                    <>
+                      Kayıt Ol ve Giriş Yap
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                      </svg>
+                    </>
                   )}
                 </button>
-              </div>
-            </div>
 
-            {error && (
-              <div className="lg-error">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-                {error}
-              </div>
-            )}
-
-            <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
-              {loading ? (
-                <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Giriş yapılıyor...</>
-              ) : (
-                <>Giriş Yap<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg></>
-              )}
-            </button>
-            <button type="button" onClick={() => { setStudentStep("number"); setPassword(""); setStudentInfo(null); setError(""); }} className="lg-btn lg-btn-secondary" style={{ marginTop: 10, padding: "10px 16px", fontSize: 13 }}>Farklı numara ile giriş</button>
-          </form>
-
-          ) : activeTab === "student" ? (
-          /* Öğrenci: Numara Giriş Adımı */
-          <form onSubmit={handleStudentContinue}>
-            <div style={{ marginBottom: 20 }}>
-              <label className="lg-label">Öğrenci Numarası</label>
-              <div className="lg-input-icon-wrap">
-                <div className="lg-input-icon-left">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                </div>
-                <input value={identifier} onChange={e => setIdentifier(e.target.value.replace(/\D/g, ""))} placeholder="9 haneli öğrenci numaranız" autoFocus maxLength={9} inputMode="numeric"
-                  className="lg-input lg-input-icon"
-                  style={{ letterSpacing: "1px" }} />
-              </div>
-              <div className="lg-hint">
-                Sisteme ilk kez giriyorsanız, bilgilerinizi girip şifre belirlemeniz istenecektir.
-              </div>
-            </div>
-
-            {error && (
-              <div className="lg-error">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-                {error}
-              </div>
-            )}
-
-            <button type="submit" disabled={loading || identifier.length !== 9} className="lg-btn lg-btn-primary">
-              {loading ? (
-                <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Kontrol ediliyor...</>
-              ) : (
-                <>Devam Et<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg></>
-              )}
-            </button>
-          </form>
-
-          ) : (
-          /* Bölüm Yetkilisi / Akademisyen / Admin Form */
-          <form onSubmit={handleSubmit}>
-
-            {activeTab === "bolum_yetkilisi" && (
-              <div style={{ marginBottom: 18 }}>
-                <label className="lg-label">Yetkili Adı Soyadı</label>
-                <div className="lg-input-icon-wrap">
-                  <div className="lg-input-icon-left">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                <button
+                  type="button"
+                  onClick={resetSetupState}
+                  className="lg-btn lg-btn-secondary"
+                  style={{ marginTop: 10, padding: '10px 16px', fontSize: 13 }}
+                >
+                  Geri Dön
+                </button>
+              </form>
+            ) : setupPasswordMode ? (
+              /* Mevcut öğrenci: şifre değiştirme ekranı */
+              <form onSubmit={handleSetupPassword}>
+                <div className="lg-setup-hero">
+                  <div className="lg-setup-icon">
+                    <svg
+                      width="28"
+                      height="28"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#C4973B"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0110 0v4" />
+                    </svg>
                   </div>
-                  <input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Adınızı ve soyadınızı girin" autoFocus className="lg-input lg-input-icon" />
+                  <h3 className="lg-setup-title">Yeni Şifre Belirleyin</h3>
+                  <p className="lg-setup-sub">
+                    Hoş geldiniz, <strong>{pendingUser?.name}</strong>. Güvenliğiniz için lütfen
+                    yeni bir şifre belirleyin.
+                  </p>
                 </div>
-              </div>
-            )}
 
-            {activeTab === "professor" && (
-              <div style={{ marginBottom: 18 }}>
-                <label className="lg-label">Akademisyen</label>
-                {/* Seçili akademisyen gösterimi */}
-                {identifier && !profDropdownOpen && (
-                  <div
-                    onClick={() => { setProfDropdownOpen(true); setProfSearch(""); }}
-                    className="lg-prof-selected"
-                  >
-                    <div className="lg-prof-avatar">
-                      {(identifier || "").split(" ").map(w => w.charAt(0)).slice(0, 2).join("").toUpperCase()}
+                <div style={{ marginBottom: 18 }}>
+                  <label className="lg-label">Yeni Şifre</label>
+                  <div className="lg-input-icon-wrap">
+                    <div className="lg-input-icon-left">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0110 0v4" />
+                      </svg>
                     </div>
-                    <span style={{ flex: 1 }}>{identifier}</span>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setIdentifier(""); setProfSearch(""); setProfDropdownOpen(true); }} className="lg-prof-clear" aria-label="Seçimi temizle">×</button>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Yeni şifrenizi girin (en az 6 karakter)"
+                      autoFocus
+                      className="lg-input lg-input-icon"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 22 }}>
+                  <label className="lg-label">Şifre Tekrar</label>
+                  <div className="lg-input-icon-wrap">
+                    <div className="lg-input-icon-left">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M20 6L9 17l-5-5" />
+                      </svg>
+                    </div>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Şifrenizi tekrar girin"
+                      className="lg-input lg-input-icon"
+                    />
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="lg-error">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="15" y1="9" x2="9" y2="15" />
+                      <line x1="9" y1="9" x2="15" y2="15" />
+                    </svg>
+                    {error}
                   </div>
                 )}
-                {/* Arama + Liste */}
-                {(!identifier || profDropdownOpen) && (
-                  <div>
-                    <div className="lg-input-icon-wrap" style={{ marginBottom: 6 }}>
-                      <div className="lg-input-icon-left" style={{ left: 12 }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+
+                <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
+                  {loading ? (
+                    <>
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        style={{ animation: 'loginSpin 1s linear infinite' }}
+                      >
+                        <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+                      </svg>
+                      Kaydediliyor...
+                    </>
+                  ) : (
+                    <>
+                      Şifreyi Belirle ve Giriş Yap
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                      </svg>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={resetSetupState}
+                  className="lg-btn lg-btn-secondary"
+                  style={{ marginTop: 10, padding: '10px 16px', fontSize: 13 }}
+                >
+                  Geri Dön
+                </button>
+              </form>
+            ) : activeTab === 'student' && studentStep === 'password' ? (
+              /* Öğrenci: Şifre Giriş Adımı */
+              <form onSubmit={handleStudentLogin}>
+                <div className="lg-greeting">
+                  <div className="lg-greeting-label">Hoş geldiniz</div>
+                  <div className="lg-greeting-name">
+                    {studentInfo?.firstName} {studentInfo?.lastName}
+                  </div>
+                  <div className="lg-greeting-id">{identifier}</div>
+                </div>
+
+                <div style={{ marginBottom: 22 }}>
+                  <label className="lg-label">Şifre</label>
+                  <div className="lg-input-icon-wrap">
+                    <div className="lg-input-icon-left">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0110 0v4" />
+                      </svg>
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Şifrenizi girin"
+                      autoFocus
+                      className="lg-input lg-input-icon lg-input-eye"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="lg-input-eye-btn"
+                      aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                    >
+                      {showPassword ? (
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                          <line x1="1" y1="1" x2="23" y2="23" />
+                        </svg>
+                      ) : (
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="lg-error">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="15" y1="9" x2="9" y2="15" />
+                      <line x1="9" y1="9" x2="15" y2="15" />
+                    </svg>
+                    {error}
+                  </div>
+                )}
+
+                <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
+                  {loading ? (
+                    <>
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        style={{ animation: 'loginSpin 1s linear infinite' }}
+                      >
+                        <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+                      </svg>
+                      Giriş yapılıyor...
+                    </>
+                  ) : (
+                    <>
+                      Giriş Yap
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                      </svg>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStudentStep('number');
+                    setPassword('');
+                    setStudentInfo(null);
+                    setError('');
+                  }}
+                  className="lg-btn lg-btn-secondary"
+                  style={{ marginTop: 10, padding: '10px 16px', fontSize: 13 }}
+                >
+                  Farklı numara ile giriş
+                </button>
+              </form>
+            ) : activeTab === 'student' ? (
+              /* Öğrenci: Numara Giriş Adımı */
+              <form onSubmit={handleStudentContinue}>
+                <div style={{ marginBottom: 20 }}>
+                  <label className="lg-label">Öğrenci Numarası</label>
+                  <div className="lg-input-icon-wrap">
+                    <div className="lg-input-icon-left">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <input
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value.replace(/\D/g, ''))}
+                      placeholder="9 haneli öğrenci numaranız"
+                      autoFocus
+                      maxLength={9}
+                      inputMode="numeric"
+                      className="lg-input lg-input-icon"
+                      style={{ letterSpacing: '1px' }}
+                    />
+                  </div>
+                  <div className="lg-hint">
+                    Sisteme ilk kez giriyorsanız, bilgilerinizi girip şifre belirlemeniz
+                    istenecektir.
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="lg-error">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="15" y1="9" x2="9" y2="15" />
+                      <line x1="9" y1="9" x2="15" y2="15" />
+                    </svg>
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading || identifier.length !== 9}
+                  className="lg-btn lg-btn-primary"
+                >
+                  {loading ? (
+                    <>
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        style={{ animation: 'loginSpin 1s linear infinite' }}
+                      >
+                        <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+                      </svg>
+                      Kontrol ediliyor...
+                    </>
+                  ) : (
+                    <>
+                      Devam Et
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                      </svg>
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              /* Bölüm Yetkilisi / Akademisyen / Admin Form */
+              <form onSubmit={handleSubmit}>
+                {activeTab === 'bolum_yetkilisi' && (
+                  <div style={{ marginBottom: 18 }}>
+                    <label className="lg-label">Yetkili Adı Soyadı</label>
+                    <div className="lg-input-icon-wrap">
+                      <div className="lg-input-icon-left">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
                       </div>
                       <input
-                        type="text" value={profSearch}
-                        onChange={e => setProfSearch(e.target.value)}
-                        placeholder="Akademisyen adı yazın..."
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        placeholder="Adınızı ve soyadınızı girin"
                         autoFocus
                         className="lg-input lg-input-icon"
-                        style={{ fontSize: 14, padding: "11px 14px 11px 38px" }}
                       />
-                    </div>
-                    <div className="lg-prof-list">
-                      {(() => {
-                        const filtered = professorList.filter(p => !profSearch || (p.name || "").toLocaleLowerCase("tr").indexOf(profSearch.toLocaleLowerCase("tr")) >= 0);
-                        if (filtered.length === 0) return <div className="lg-prof-empty">Sonuç bulunamadı</div>;
-                        return filtered.map(p => (
-                          <div key={p.id || p.name}
-                            onClick={() => { setIdentifier(p.name); setProfDropdownOpen(false); setProfSearch(""); }}
-                            className="lg-prof-row"
-                          >
-                            <div className="lg-prof-row-avatar">
-                              {(p.name || "").split(" ").map(w => w.charAt(0)).slice(0, 2).join("").toUpperCase()}
-                            </div>
-                            {p.name}
-                          </div>
-                        ));
-                      })()}
                     </div>
                   </div>
                 )}
-              </div>
-            )}
 
-            <div style={{ marginBottom: 22 }}>
-              <label className="lg-label">Şifre</label>
-              <div className="lg-input-icon-wrap">
-                <div className="lg-input-icon-left">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                {activeTab === 'professor' && (
+                  <div style={{ marginBottom: 18 }}>
+                    <label className="lg-label">Akademisyen</label>
+                    {/* Seçili akademisyen gösterimi */}
+                    {identifier && !profDropdownOpen && (
+                      <div
+                        onClick={() => {
+                          setProfDropdownOpen(true);
+                          setProfSearch('');
+                        }}
+                        className="lg-prof-selected"
+                      >
+                        <div className="lg-prof-avatar">
+                          {(identifier || '')
+                            .split(' ')
+                            .map((w) => w.charAt(0))
+                            .slice(0, 2)
+                            .join('')
+                            .toUpperCase()}
+                        </div>
+                        <span style={{ flex: 1 }}>{identifier}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIdentifier('');
+                            setProfSearch('');
+                            setProfDropdownOpen(true);
+                          }}
+                          className="lg-prof-clear"
+                          aria-label="Seçimi temizle"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
+                    {/* Arama + Liste */}
+                    {(!identifier || profDropdownOpen) && (
+                      <div>
+                        <div className="lg-input-icon-wrap" style={{ marginBottom: 6 }}>
+                          <div className="lg-input-icon-left" style={{ left: 12 }}>
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <circle cx="11" cy="11" r="8" />
+                              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                          </div>
+                          <input
+                            type="text"
+                            value={profSearch}
+                            onChange={(e) => setProfSearch(e.target.value)}
+                            placeholder="Akademisyen adı yazın..."
+                            autoFocus
+                            className="lg-input lg-input-icon"
+                            style={{ fontSize: 14, padding: '11px 14px 11px 38px' }}
+                          />
+                        </div>
+                        <div className="lg-prof-list">
+                          {(() => {
+                            const filtered = professorList.filter(
+                              (p) =>
+                                !profSearch ||
+                                (p.name || '')
+                                  .toLocaleLowerCase('tr')
+                                  .indexOf(profSearch.toLocaleLowerCase('tr')) >= 0
+                            );
+                            if (filtered.length === 0)
+                              return <div className="lg-prof-empty">Sonuç bulunamadı</div>;
+                            return filtered.map((p) => (
+                              <div
+                                key={p.id || p.name}
+                                onClick={() => {
+                                  setIdentifier(p.name);
+                                  setProfDropdownOpen(false);
+                                  setProfSearch('');
+                                }}
+                                className="lg-prof-row"
+                              >
+                                <div className="lg-prof-row-avatar">
+                                  {(p.name || '')
+                                    .split(' ')
+                                    .map((w) => w.charAt(0))
+                                    .slice(0, 2)
+                                    .join('')
+                                    .toUpperCase()}
+                                </div>
+                                {p.name}
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ marginBottom: 22 }}>
+                  <label className="lg-label">Şifre</label>
+                  <div className="lg-input-icon-wrap">
+                    <div className="lg-input-icon-left">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0110 0v4" />
+                      </svg>
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={activeTab === 'admin' ? 'Admin şifresi' : 'Şifreniz'}
+                      autoFocus={activeTab === 'admin'}
+                      className="lg-input lg-input-icon lg-input-eye"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="lg-input-eye-btn"
+                      aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                    >
+                      {showPassword ? (
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                          <line x1="1" y1="1" x2="23" y2="23" />
+                        </svg>
+                      ) : (
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder={activeTab === "admin" ? "Admin şifresi" : "Şifreniz"} autoFocus={activeTab === "admin"}
-                  className="lg-input lg-input-icon lg-input-eye" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="lg-input-eye-btn" aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}>
-                  {showPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+
+                {error && (
+                  <div className="lg-error">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="15" y1="9" x2="9" y2="15" />
+                      <line x1="9" y1="9" x2="15" y2="15" />
+                    </svg>
+                    {error}
+                  </div>
+                )}
+
+                <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
+                  {loading ? (
+                    <>
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        style={{ animation: 'loginSpin 1s linear infinite' }}
+                      >
+                        <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+                      </svg>
+                      Giriş yapılıyor...
+                    </>
                   ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                    <>
+                      Giriş Yap
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                      </svg>
+                    </>
                   )}
                 </button>
-              </div>
-            </div>
-
-            {error && (
-              <div className="lg-error">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-                {error}
-              </div>
+              </form>
             )}
-
-            <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
-              {loading ? (
-                <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "loginSpin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" /></svg>Giriş yapılıyor...</>
-              ) : (
-                <>Giriş Yap<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg></>
-              )}
-            </button>
-          </form>
-          )}
           </div>
         </div>
 
         <p className="lg-footer">
           © 2025 ÇAKÜ Bilgisayar Mühendisliği · Offline Asistan
           <br />
-          <span className="lg-footer-dev">Offline Asistan Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.</span>
+          <span className="lg-footer-dev">
+            Offline Asistan Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.
+          </span>
         </p>
       </div>
     </div>
@@ -3664,16 +5648,18 @@ const LoginModal = ({ onLogin }) => {
 
 // ── Password Management Modal ──
 const PasswordManagementModal = ({ students, onClose }) => {
-  const [activeTab, setActiveTab] = useState("student"); // student, professor, admin
+  const [activeTab, setActiveTab] = useState('student'); // student, professor, admin
   const [studentPasses, setStudentPasses] = useState({});
   const [professorPasses, setProfessorPasses] = useState({});
-  const [adminPass, setAdminPass] = useState("");
+  const [adminPass, setAdminPass] = useState('');
   const [professorList, setProfessorList] = useState([]);
   const [editingProf, setEditingProf] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const loadData = async () => {
     try {
@@ -3689,20 +5675,20 @@ const PasswordManagementModal = ({ students, onClose }) => {
   const handleSavePasswords = async () => {
     setSaving(true);
     try {
-      if (activeTab === "student") {
+      if (activeTab === 'student') {
         // Her değiştirilmiş öğrenci şifresini Cloud Functions ile kaydet
         for (const [studentNo, pass] of Object.entries(studentPasses)) {
           if (pass && pass !== '••••••') {
             await DB.changePassword('student', studentNo, pass);
           }
         }
-      } else if (activeTab === "professor") {
+      } else if (activeTab === 'professor') {
         for (const [name, pass] of Object.entries(professorPasses)) {
           if (pass && pass !== '••••••') {
             await DB.changePassword('professor', name, pass);
           }
         }
-      } else if (activeTab === "admin") {
+      } else if (activeTab === 'admin') {
         if (adminPass && adminPass.length >= 6) {
           await DB.changePassword('admin', null, adminPass);
         }
@@ -3710,7 +5696,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
       alert('Şifreler kaydedildi!');
       setStudentPasses({});
       setProfessorPasses({});
-      setAdminPass("");
+      setAdminPass('');
     } catch (error) {
       console.error('Error saving passwords:', error);
       alert('Hata: ' + error.message);
@@ -3727,14 +5713,14 @@ const PasswordManagementModal = ({ students, onClose }) => {
       const newProfs = await DB.fetchProfessors();
       setProfessorList(newProfs);
     } catch (e) {
-      alert("Hata: " + e.message);
+      alert('Hata: ' + e.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleSaveProfessorValues = async () => {
-    if (!editingProf.name || !editingProf.department) return alert("İsim ve Bölüm zorunludur.");
+    if (!editingProf.name || !editingProf.department) return alert('İsim ve Bölüm zorunludur.');
     setSaving(true);
     try {
       await DB.saveProfessor(editingProf);
@@ -3742,7 +5728,7 @@ const PasswordManagementModal = ({ students, onClose }) => {
       setProfessorList(newProfs);
       setEditingProf(null);
     } catch (e) {
-      alert("Hata: " + e.message);
+      alert('Hata: ' + e.message);
     } finally {
       setSaving(false);
     }
@@ -3750,13 +5736,14 @@ const PasswordManagementModal = ({ students, onClose }) => {
 
   return (
     <Modal open={true} onClose={onClose} title="Yönetim Paneli" width={900}>
-      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-        {["student", "professor", "admin"].map(tab => (
-          <Btn key={tab}
-            variant={activeTab === tab ? "primary" : "secondary"}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+        {['student', 'professor', 'admin'].map((tab) => (
+          <Btn
+            key={tab}
+            variant={activeTab === tab ? 'primary' : 'secondary'}
             onClick={() => setActiveTab(tab)}
           >
-            {tab === "student" ? "Öğrenciler" : tab === "professor" ? "Akademisyenler" : "Admin"}
+            {tab === 'student' ? 'Öğrenciler' : tab === 'professor' ? 'Akademisyenler' : 'Admin'}
           </Btn>
         ))}
       </div>
@@ -3766,36 +5753,96 @@ const PasswordManagementModal = ({ students, onClose }) => {
       ) : (
         <div>
           <div style={{ maxHeight: 500, overflowY: 'auto', marginBottom: 24, paddingRight: 8 }}>
-
-            {activeTab === "student" && (
+            {activeTab === 'student' && (
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: C.bg }}>
-                    <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Öğrenci No</th>
-                    <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Ad Soyad</th>
-                    <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Şifre</th>
-                    <th style={{ padding: 12, textAlign: 'center', borderBottom: `2px solid ${C.border}` }}>İşlem</th>
+                    <th
+                      style={{
+                        padding: 12,
+                        textAlign: 'left',
+                        borderBottom: `2px solid ${C.border}`,
+                      }}
+                    >
+                      Öğrenci No
+                    </th>
+                    <th
+                      style={{
+                        padding: 12,
+                        textAlign: 'left',
+                        borderBottom: `2px solid ${C.border}`,
+                      }}
+                    >
+                      Ad Soyad
+                    </th>
+                    <th
+                      style={{
+                        padding: 12,
+                        textAlign: 'left',
+                        borderBottom: `2px solid ${C.border}`,
+                      }}
+                    >
+                      Şifre
+                    </th>
+                    <th
+                      style={{
+                        padding: 12,
+                        textAlign: 'center',
+                        borderBottom: `2px solid ${C.border}`,
+                      }}
+                    >
+                      İşlem
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map(student => (
-                    <tr key={student.studentNumber} style={{ borderBottom: `1px solid ${C.border}` }}>
-                      <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{student.studentNumber}</td>
-                      <td style={{ padding: 12 }}>{student.firstName} {student.lastName}</td>
+                  {students.map((student) => (
+                    <tr
+                      key={student.studentNumber}
+                      style={{ borderBottom: `1px solid ${C.border}` }}
+                    >
+                      <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>
+                        {student.studentNumber}
+                      </td>
                       <td style={{ padding: 12 }}>
-                        <Input type="password" value={studentPasses[student.studentNumber] || ''}
+                        {student.firstName} {student.lastName}
+                      </td>
+                      <td style={{ padding: 12 }}>
+                        <Input
+                          type="password"
+                          value={studentPasses[student.studentNumber] || ''}
                           placeholder="Yeni şifre girin"
-                          onChange={e => setStudentPasses(p => ({ ...p, [student.studentNumber]: e.target.value }))} />
+                          onChange={(e) =>
+                            setStudentPasses((p) => ({
+                              ...p,
+                              [student.studentNumber]: e.target.value,
+                            }))
+                          }
+                        />
                       </td>
                       <td style={{ padding: 12, textAlign: 'center' }}>
-                        <button onClick={() => {
-                          if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz? Kullanıcı bir sonraki girişte yeni şifre belirleyecek.')) {
-                            setStudentPasses(p => ({ ...p, [student.studentNumber]: '' }));
-                          }
-                        }} style={{
-                          padding: "6px 12px", fontSize: 12, border: `1px solid ${C.border}`,
-                          borderRadius: 6, background: "white", cursor: "pointer", color: C.accent,
-                        }}>Sıfırla</button>
+                        <button
+                          onClick={() => {
+                            if (
+                              confirm(
+                                'Şifreyi sıfırlamak istediğinizden emin misiniz? Kullanıcı bir sonraki girişte yeni şifre belirleyecek.'
+                              )
+                            ) {
+                              setStudentPasses((p) => ({ ...p, [student.studentNumber]: '' }));
+                            }
+                          }}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: 12,
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 6,
+                            background: 'white',
+                            cursor: 'pointer',
+                            color: C.accent,
+                          }}
+                        >
+                          Sıfırla
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -3803,34 +5850,96 @@ const PasswordManagementModal = ({ students, onClose }) => {
               </table>
             )}
 
-            {activeTab === "professor" && (
+            {activeTab === 'professor' && (
               <div>
-                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-                  <Btn small onClick={() => setEditingProf({ name: "", department: "" })} icon={<PlusIcon />}>Yeni Ekle</Btn>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                  <Btn
+                    small
+                    onClick={() => setEditingProf({ name: '', department: '' })}
+                    icon={<PlusIcon />}
+                  >
+                    Yeni Ekle
+                  </Btn>
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: C.bg }}>
-                      <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Unvan & İsim</th>
-                      <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Bölüm</th>
-                      <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Şifre</th>
-                      <th style={{ padding: 12, textAlign: 'center', borderBottom: `2px solid ${C.border}` }}>İşlemler</th>
+                      <th
+                        style={{
+                          padding: 12,
+                          textAlign: 'left',
+                          borderBottom: `2px solid ${C.border}`,
+                        }}
+                      >
+                        Unvan & İsim
+                      </th>
+                      <th
+                        style={{
+                          padding: 12,
+                          textAlign: 'left',
+                          borderBottom: `2px solid ${C.border}`,
+                        }}
+                      >
+                        Bölüm
+                      </th>
+                      <th
+                        style={{
+                          padding: 12,
+                          textAlign: 'left',
+                          borderBottom: `2px solid ${C.border}`,
+                        }}
+                      >
+                        Şifre
+                      </th>
+                      <th
+                        style={{
+                          padding: 12,
+                          textAlign: 'center',
+                          borderBottom: `2px solid ${C.border}`,
+                        }}
+                      >
+                        İşlemler
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {/* New/Editing Row at top if adding new */}
                     {editingProf && !editingProf.id && (
-                      <tr style={{ background: "rgba(0,255,135,0.05)", borderBottom: `1px solid ${C.border}` }}>
+                      <tr
+                        style={{
+                          background: 'rgba(0,255,135,0.05)',
+                          borderBottom: `1px solid ${C.border}`,
+                        }}
+                      >
                         <td style={{ padding: 12 }}>
-                          <Input autoFocus value={editingProf.name} onChange={e => setEditingProf({ ...editingProf, name: e.target.value })} placeholder="Örn: Dr. Ali Veli" />
+                          <Input
+                            autoFocus
+                            value={editingProf.name}
+                            onChange={(e) =>
+                              setEditingProf({ ...editingProf, name: e.target.value })
+                            }
+                            placeholder="Örn: Dr. Ali Veli"
+                          />
                         </td>
                         <td style={{ padding: 12 }}>
-                          <Input value={editingProf.department} onChange={e => setEditingProf({ ...editingProf, department: e.target.value })} placeholder="Örn: Bilgisayar Müh." />
+                          <Input
+                            value={editingProf.department}
+                            onChange={(e) =>
+                              setEditingProf({ ...editingProf, department: e.target.value })
+                            }
+                            placeholder="Örn: Bilgisayar Müh."
+                          />
                         </td>
                         <td style={{ padding: 12, color: C.textMuted }}>-</td>
-                        <td style={{ padding: 12, display: "flex", gap: 6, justifyContent: "center" }}>
-                          <Btn small onClick={handleSaveProfessorValues} disabled={saving}>Kaydet</Btn>
-                          <Btn small variant="secondary" onClick={() => setEditingProf(null)}>İptal</Btn>
+                        <td
+                          style={{ padding: 12, display: 'flex', gap: 6, justifyContent: 'center' }}
+                        >
+                          <Btn small onClick={handleSaveProfessorValues} disabled={saving}>
+                            Kaydet
+                          </Btn>
+                          <Btn small variant="secondary" onClick={() => setEditingProf(null)}>
+                            İptal
+                          </Btn>
                         </td>
                       </tr>
                     )}
@@ -3838,47 +5947,122 @@ const PasswordManagementModal = ({ students, onClose }) => {
                     {professorList.map((prof, idx) => {
                       const isEditing = editingProf && editingProf.id === prof.id;
                       return isEditing ? (
-                        <tr key={prof.id} style={{ background: "rgba(0,255,135,0.05)", borderBottom: `1px solid ${C.border}` }}>
+                        <tr
+                          key={prof.id}
+                          style={{
+                            background: 'rgba(0,255,135,0.05)',
+                            borderBottom: `1px solid ${C.border}`,
+                          }}
+                        >
                           <td style={{ padding: 12 }}>
-                            <Input value={editingProf.name} onChange={e => setEditingProf({ ...editingProf, name: e.target.value })} />
+                            <Input
+                              value={editingProf.name}
+                              onChange={(e) =>
+                                setEditingProf({ ...editingProf, name: e.target.value })
+                              }
+                            />
                           </td>
                           <td style={{ padding: 12 }}>
-                            <Input value={editingProf.department} onChange={e => setEditingProf({ ...editingProf, department: e.target.value })} />
+                            <Input
+                              value={editingProf.department}
+                              onChange={(e) =>
+                                setEditingProf({ ...editingProf, department: e.target.value })
+                              }
+                            />
                           </td>
-                          <td style={{ padding: 12, color: C.textMuted }}>
-                            (Şifre değişmez)
-                          </td>
-                          <td style={{ padding: 12, display: "flex", gap: 6, justifyContent: "center" }}>
-                            <Btn small onClick={handleSaveProfessorValues} disabled={saving}>Kaydet</Btn>
-                            <Btn small variant="secondary" onClick={() => setEditingProf(null)}>İptal</Btn>
+                          <td style={{ padding: 12, color: C.textMuted }}>(Şifre değişmez)</td>
+                          <td
+                            style={{
+                              padding: 12,
+                              display: 'flex',
+                              gap: 6,
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Btn small onClick={handleSaveProfessorValues} disabled={saving}>
+                              Kaydet
+                            </Btn>
+                            <Btn small variant="secondary" onClick={() => setEditingProf(null)}>
+                              İptal
+                            </Btn>
                           </td>
                         </tr>
                       ) : (
                         <tr key={prof.id || idx} style={{ borderBottom: `1px solid ${C.border}` }}>
-                          <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{prof.name}</td>
+                          <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>
+                            {prof.name}
+                          </td>
                           <td style={{ padding: 12 }}>{prof.department}</td>
                           <td style={{ padding: 12 }}>
-                            <Input type="password" value={professorPasses[prof.name] || ''}
+                            <Input
+                              type="password"
+                              value={professorPasses[prof.name] || ''}
                               placeholder="Yeni şifre girin"
-                              onChange={e => setProfessorPasses(p => ({ ...p, [prof.name]: e.target.value }))} />
-                          </td>
-                          <td style={{ padding: 12, display: "flex", gap: 6, justifyContent: "center" }}>
-                            <button onClick={() => setEditingProf({ ...prof })} style={{
-                              padding: "6px", border: `1px solid ${C.border}`, borderRadius: 6,
-                              background: "white", cursor: "pointer", color: C.blue, display: "flex"
-                            }} title="Düzenle"><EditIcon /></button>
-                            <button onClick={() => handleDeleteProf(prof.id, prof.name)} style={{
-                              padding: "6px", border: `1px solid ${C.border}`, borderRadius: 6,
-                              background: "white", cursor: "pointer", color: C.accent, display: "flex"
-                            }} title="Sil"><TrashIcon /></button>
-                            <button onClick={() => {
-                              if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz? Kullanıcı bir sonraki girişte yeni şifre belirleyecek.')) {
-                                setProfessorPasses(p => ({ ...p, [prof.name]: '' }));
+                              onChange={(e) =>
+                                setProfessorPasses((p) => ({ ...p, [prof.name]: e.target.value }))
                               }
-                            }} style={{
-                              padding: "6px 12px", fontSize: 12, border: `1px solid ${C.border}`,
-                              borderRadius: 6, background: "white", cursor: "pointer", color: C.accent,
-                            }}>Şifre Sıfırla</button>
+                            />
+                          </td>
+                          <td
+                            style={{
+                              padding: 12,
+                              display: 'flex',
+                              gap: 6,
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <button
+                              onClick={() => setEditingProf({ ...prof })}
+                              style={{
+                                padding: '6px',
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 6,
+                                background: 'white',
+                                cursor: 'pointer',
+                                color: C.blue,
+                                display: 'flex',
+                              }}
+                              title="Düzenle"
+                            >
+                              <EditIcon />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProf(prof.id, prof.name)}
+                              style={{
+                                padding: '6px',
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 6,
+                                background: 'white',
+                                cursor: 'pointer',
+                                color: C.accent,
+                                display: 'flex',
+                              }}
+                              title="Sil"
+                            >
+                              <TrashIcon />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (
+                                  confirm(
+                                    'Şifreyi sıfırlamak istediğinizden emin misiniz? Kullanıcı bir sonraki girişte yeni şifre belirleyecek.'
+                                  )
+                                ) {
+                                  setProfessorPasses((p) => ({ ...p, [prof.name]: '' }));
+                                }
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: 12,
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 6,
+                                background: 'white',
+                                cursor: 'pointer',
+                                color: C.accent,
+                              }}
+                            >
+                              Şifre Sıfırla
+                            </button>
                           </td>
                         </tr>
                       );
@@ -3888,22 +6072,41 @@ const PasswordManagementModal = ({ students, onClose }) => {
               </div>
             )}
 
-            {activeTab === "admin" && (
+            {activeTab === 'admin' && (
               <div style={{ padding: 20, textAlign: 'center' }}>
-                <div style={{ marginBottom: 16, fontWeight: 600, color: C.navy }}>Admin Giriş Şifresi</div>
+                <div style={{ marginBottom: 16, fontWeight: 600, color: C.navy }}>
+                  Admin Giriş Şifresi
+                </div>
                 <div style={{ maxWidth: 300, margin: '0 auto' }}>
-                  <Input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} placeholder="Yeni admin şifresi" style={{ textAlign: 'center', fontSize: 18, letterSpacing: 2 }} />
+                  <Input
+                    type="password"
+                    value={adminPass}
+                    onChange={(e) => setAdminPass(e.target.value)}
+                    placeholder="Yeni admin şifresi"
+                    style={{ textAlign: 'center', fontSize: 18, letterSpacing: 2 }}
+                  />
                 </div>
                 <div style={{ marginTop: 12, fontSize: 13, color: C.textMuted }}>
                   Bu şifre ile Admin paneline erişim sağlanır.
                 </div>
               </div>
             )}
-
           </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-            <Btn onClick={onClose} variant="secondary">Kapat</Btn>
-            <Btn onClick={handleSavePasswords} disabled={saving}>{saving ? 'Kaydediliyor...' : 'Şifreleri Kaydet'}</Btn>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 12,
+              paddingTop: 20,
+              borderTop: `1px solid ${C.border}`,
+            }}
+          >
+            <Btn onClick={onClose} variant="secondary">
+              Kapat
+            </Btn>
+            <Btn onClick={handleSavePasswords} disabled={saving}>
+              {saving ? 'Kaydediliyor...' : 'Şifreleri Kaydet'}
+            </Btn>
           </div>
         </div>
       )}
@@ -3913,8 +6116,8 @@ const PasswordManagementModal = ({ students, onClose }) => {
 
 // ── Grade Converter Widget ──
 const GradeConverter = () => {
-  const [activeTab, setActiveTab] = useState("table1");
-  const [inputGrade, setInputGrade] = useState("");
+  const [activeTab, setActiveTab] = useState('table1');
+  const [inputGrade, setInputGrade] = useState('');
   const [result, setResult] = useState(null);
 
   // ── Table Definitions ──
@@ -3922,165 +6125,200 @@ const GradeConverter = () => {
     table1: {
       title: "Tablo 1 (100'lük)",
       desc: "100'lük Sistem -> Harf Notu",
-      placeholder: "Not (0-100)",
-      type: "range",
-      columns: ["Tanım (English)", "Sayısal (Numeric)", "Karsılık"],
+      placeholder: 'Not (0-100)',
+      type: 'range',
+      columns: ['Tanım (English)', 'Sayısal (Numeric)', 'Karsılık'],
       data: [
-        { text: "very good", range: "90-100", min: 90, max: 100, eq: "A", color: "#10B981" },
-        { text: "good +", range: "85-89", min: 85, max: 89, eq: "B1", color: "#3B82F6" },
-        { text: "good", range: "80-84", min: 80, max: 84, eq: "B2", color: "#60A5FA" },
-        { text: "sufficient +", range: "75-79", min: 75, max: 79, eq: "B3", color: "#93C5FD" },
-        { text: "sufficient", range: "70-74", min: 70, max: 74, eq: "C1", color: "#F59E0B" },
-        { text: "allowing +", range: "65-69", min: 65, max: 69, eq: "C2", color: "#FBBF24" },
-        { text: "allowing", range: "60-64", min: 60, max: 64, eq: "C3", color: "#FCD34D" },
-        { text: "insufficient", range: "50-59", min: 50, max: 59, eq: "F1", color: "#EF4444" },
-        { text: "insufficient", range: "0-49", min: 0, max: 49, eq: "F2", color: "#DC2626" },
-      ]
+        { text: 'very good', range: '90-100', min: 90, max: 100, eq: 'A', color: '#10B981' },
+        { text: 'good +', range: '85-89', min: 85, max: 89, eq: 'B1', color: '#3B82F6' },
+        { text: 'good', range: '80-84', min: 80, max: 84, eq: 'B2', color: '#60A5FA' },
+        { text: 'sufficient +', range: '75-79', min: 75, max: 79, eq: 'B3', color: '#93C5FD' },
+        { text: 'sufficient', range: '70-74', min: 70, max: 74, eq: 'C1', color: '#F59E0B' },
+        { text: 'allowing +', range: '65-69', min: 65, max: 69, eq: 'C2', color: '#FBBF24' },
+        { text: 'allowing', range: '60-64', min: 60, max: 64, eq: 'C3', color: '#FCD34D' },
+        { text: 'insufficient', range: '50-59', min: 50, max: 59, eq: 'F1', color: '#EF4444' },
+        { text: 'insufficient', range: '0-49', min: 0, max: 49, eq: 'F2', color: '#DC2626' },
+      ],
     },
     table2: {
-      title: "Tablo 2 (Katsayı)",
+      title: 'Tablo 2 (Katsayı)',
       desc: "100'lük -> Katsayı -> Harf",
-      placeholder: "Not (0-100)",
-      type: "range",
-      columns: ["Sayısal Notlar", "Katsayılar", "Karsılık"],
+      placeholder: 'Not (0-100)',
+      type: 'range',
+      columns: ['Sayısal Notlar', 'Katsayılar', 'Karsılık'],
       data: [
-        { range: "90-100", min: 90, max: 100, coef: "4,00", eq: "A", color: "#10B981" },
-        { range: "85-89", min: 85, max: 89, coef: "3,50", eq: "B1", color: "#3B82F6" },
-        { range: "80-84", min: 80, max: 84, coef: "3,25", eq: "B2", color: "#60A5FA" },
-        { range: "75-79", min: 75, max: 79, coef: "3,00", eq: "B3", color: "#93C5FD" },
-        { range: "70-74", min: 70, max: 74, coef: "2,50", eq: "C1", color: "#F59E0B" },
-        { range: "65-69", min: 65, max: 69, coef: "2,25", eq: "C2", color: "#FBBF24" },
-        { range: "60-64", min: 60, max: 64, coef: "2,00", eq: "C3", color: "#FCD34D" },
-        { range: "50-59", min: 50, max: 59, coef: "1,50", eq: "F1", color: "#EF4444" },
-        { range: "0-49", min: 0, max: 49, coef: "0,00", eq: "F2", color: "#DC2626" },
-      ]
+        { range: '90-100', min: 90, max: 100, coef: '4,00', eq: 'A', color: '#10B981' },
+        { range: '85-89', min: 85, max: 89, coef: '3,50', eq: 'B1', color: '#3B82F6' },
+        { range: '80-84', min: 80, max: 84, coef: '3,25', eq: 'B2', color: '#60A5FA' },
+        { range: '75-79', min: 75, max: 79, coef: '3,00', eq: 'B3', color: '#93C5FD' },
+        { range: '70-74', min: 70, max: 74, coef: '2,50', eq: 'C1', color: '#F59E0B' },
+        { range: '65-69', min: 65, max: 69, coef: '2,25', eq: 'C2', color: '#FBBF24' },
+        { range: '60-64', min: 60, max: 64, coef: '2,00', eq: 'C3', color: '#FCD34D' },
+        { range: '50-59', min: 50, max: 59, coef: '1,50', eq: 'F1', color: '#EF4444' },
+        { range: '0-49', min: 0, max: 49, coef: '0,00', eq: 'F2', color: '#DC2626' },
+      ],
     },
     table3: {
       title: "Tablo 3 (Harf/4'lük)",
-      desc: "Basarı Notu / Harf -> Karsılık",
-      placeholder: "Not (örn: 3.50 veya BA)",
-      type: "mixed",
-      columns: ["Basarı Notu", "Harf Notu", "Karsılık"],
+      desc: 'Basarı Notu / Harf -> Karsılık',
+      placeholder: 'Not (örn: 3.50 veya BA)',
+      type: 'mixed',
+      columns: ['Basarı Notu', 'Harf Notu', 'Karsılık'],
       data: [
-        { val: 4.00, letter: "AA", eq: "A", color: "#10B981" },
-        { val: 3.50, letter: "BA", eq: "B1", color: "#3B82F6" },
-        { val: 3.00, letter: "BB", eq: "B2", color: "#60A5FA" },
-        { val: 2.50, letter: "CB", eq: "B3", color: "#93C5FD" },
-        { val: 2.00, letter: "CC", eq: "C1", color: "#F59E0B" },
-        { val: 1.50, letter: "DC", eq: "C2", color: "#FBBF24" },
-        { val: 1.00, letter: "DD", eq: "C3", color: "#FCD34D" },
-        { val: 0.00, letter: "FF", eq: "F1", color: "#EF4444" },
-        { val: 0.00, letter: "FD", eq: "F2", color: "#DC2626" },
-        { text: "-", letter: "Sınava girmedi", eq: "FF1", color: "#991B1B" },
-        { text: "-", letter: "Devamsızlıktan kaldı", eq: "FF2", color: "#7F1D1D" },
-      ]
+        { val: 4.0, letter: 'AA', eq: 'A', color: '#10B981' },
+        { val: 3.5, letter: 'BA', eq: 'B1', color: '#3B82F6' },
+        { val: 3.0, letter: 'BB', eq: 'B2', color: '#60A5FA' },
+        { val: 2.5, letter: 'CB', eq: 'B3', color: '#93C5FD' },
+        { val: 2.0, letter: 'CC', eq: 'C1', color: '#F59E0B' },
+        { val: 1.5, letter: 'DC', eq: 'C2', color: '#FBBF24' },
+        { val: 1.0, letter: 'DD', eq: 'C3', color: '#FCD34D' },
+        { val: 0.0, letter: 'FF', eq: 'F1', color: '#EF4444' },
+        { val: 0.0, letter: 'FD', eq: 'F2', color: '#DC2626' },
+        { text: '-', letter: 'Sınava girmedi', eq: 'FF1', color: '#991B1B' },
+        { text: '-', letter: 'Devamsızlıktan kaldı', eq: 'FF2', color: '#7F1D1D' },
+      ],
     },
     ects_conv: {
-      title: "ECTS Dönüşüm",
-      desc: "ECTS Notu -> Kurum Notu",
-      placeholder: "ECTS Notu (A, B...)",
-      type: "match",
-      columns: ["ECTS Notu", "Acıklama", "Karsılık"],
+      title: 'ECTS Dönüşüm',
+      desc: 'ECTS Notu -> Kurum Notu',
+      placeholder: 'ECTS Notu (A, B...)',
+      type: 'match',
+      columns: ['ECTS Notu', 'Acıklama', 'Karsılık'],
       data: [
-        { eq: "A", def: "excellent", u_eq: "A", color: "#10B981" },
-        { eq: "B", def: "very good", u_eq: "B1", color: "#3B82F6" },
-        { eq: "C", def: "good", u_eq: "B2", color: "#60A5FA" },
-        { eq: "D", def: "satisfactory", u_eq: "C1", color: "#F59E0B" },
-        { eq: "E", def: "sufficient", u_eq: "C3", color: "#FCD34D" },
-        { eq: "FX", def: "failed", u_eq: "F1", color: "#EF4444" },
-        { eq: "F", def: "failed", u_eq: "F2", color: "#DC2626" },
-      ]
+        { eq: 'A', def: 'excellent', u_eq: 'A', color: '#10B981' },
+        { eq: 'B', def: 'very good', u_eq: 'B1', color: '#3B82F6' },
+        { eq: 'C', def: 'good', u_eq: 'B2', color: '#60A5FA' },
+        { eq: 'D', def: 'satisfactory', u_eq: 'C1', color: '#F59E0B' },
+        { eq: 'E', def: 'sufficient', u_eq: 'C3', color: '#FCD34D' },
+        { eq: 'FX', def: 'failed', u_eq: 'F1', color: '#EF4444' },
+        { eq: 'F', def: 'failed', u_eq: 'F2', color: '#DC2626' },
+      ],
     },
     table4: {
-      title: "ECTS Tanım",
-      desc: "ECTS Notu -> Tanım (Referans)",
-      placeholder: "ECTS Notu (A, B, C...)",
-      type: "match",
-      columns: ["ECTS Grade", "% of successful students", "Definition"],
+      title: 'ECTS Tanım',
+      desc: 'ECTS Notu -> Tanım (Referans)',
+      placeholder: 'ECTS Notu (A, B, C...)',
+      type: 'match',
+      columns: ['ECTS Grade', '% of successful students', 'Definition'],
       data: [
-        { eq: "A", pct: "10", def: "EXCELLENT - outstanding performance with only minor errors", color: "#10B981" },
-        { eq: "B", pct: "25", def: "VERY GOOD - above the average standard but with some errors", color: "#3B82F6" },
-        { eq: "C", pct: "30", def: "GOOD - generally sound work with a number of notable errors", color: "#60A5FA" },
-        { eq: "D", pct: "25", def: "SATISFACTORY - fair but with significant shortcomings", color: "#F59E0B" },
-        { eq: "E", pct: "10", def: "SUFFICIENT - performance meets the minimum criteria", color: "#FBBF24" },
-        { eq: "FX", pct: "-", def: "FAIL - some more work required before the credit can be awarded", color: "#EF4444" },
-        { eq: "F", pct: "-", def: "FAIL - considerable further work is required", color: "#DC2626" },
-      ]
+        {
+          eq: 'A',
+          pct: '10',
+          def: 'EXCELLENT - outstanding performance with only minor errors',
+          color: '#10B981',
+        },
+        {
+          eq: 'B',
+          pct: '25',
+          def: 'VERY GOOD - above the average standard but with some errors',
+          color: '#3B82F6',
+        },
+        {
+          eq: 'C',
+          pct: '30',
+          def: 'GOOD - generally sound work with a number of notable errors',
+          color: '#60A5FA',
+        },
+        {
+          eq: 'D',
+          pct: '25',
+          def: 'SATISFACTORY - fair but with significant shortcomings',
+          color: '#F59E0B',
+        },
+        {
+          eq: 'E',
+          pct: '10',
+          def: 'SUFFICIENT - performance meets the minimum criteria',
+          color: '#FBBF24',
+        },
+        {
+          eq: 'FX',
+          pct: '-',
+          def: 'FAIL - some more work required before the credit can be awarded',
+          color: '#EF4444',
+        },
+        {
+          eq: 'F',
+          pct: '-',
+          def: 'FAIL - considerable further work is required',
+          color: '#DC2626',
+        },
+      ],
     },
     system10: {
       title: "10'luk Sistem",
       desc: "10'luk Sistem -> Harf Notu",
-      placeholder: "Not (0-10)",
-      type: "exact",
-      columns: ["Not", "Acıklama", "Karsılık"],
+      placeholder: 'Not (0-10)',
+      type: 'exact',
+      columns: ['Not', 'Acıklama', 'Karsılık'],
       data: [
-        { val: 10, text: "with distinctions", eq: "A", color: "#10B981" },
-        { val: 9, text: "excellent", eq: "B1", color: "#3B82F6" },
-        { val: 8, text: "very good", eq: "B2", color: "#60A5FA" },
-        { val: 7, text: "good", eq: "B3", color: "#93C5FD" },
-        { val: 6, text: "almost good", eq: "C1", color: "#F59E0B" },
-        { val: 5, text: "satisfactory", eq: "C2", color: "#FBBF24" },
-        { val: 4, text: "almost satisfactory", eq: "C3", color: "#FCD34D" },
-        { val: 3, text: "not passed or failed", eq: "F2", color: "#EF4444" },
-        { val: 2, text: "not passed or failed", eq: "F2", color: "#EF4444" },
-        { val: 1, text: "not passed or failed", eq: "F2", color: "#EF4444" },
-        { val: 0, text: "not passed or failed", eq: "F2", color: "#EF4444" },
-      ]
+        { val: 10, text: 'with distinctions', eq: 'A', color: '#10B981' },
+        { val: 9, text: 'excellent', eq: 'B1', color: '#3B82F6' },
+        { val: 8, text: 'very good', eq: 'B2', color: '#60A5FA' },
+        { val: 7, text: 'good', eq: 'B3', color: '#93C5FD' },
+        { val: 6, text: 'almost good', eq: 'C1', color: '#F59E0B' },
+        { val: 5, text: 'satisfactory', eq: 'C2', color: '#FBBF24' },
+        { val: 4, text: 'almost satisfactory', eq: 'C3', color: '#FCD34D' },
+        { val: 3, text: 'not passed or failed', eq: 'F2', color: '#EF4444' },
+        { val: 2, text: 'not passed or failed', eq: 'F2', color: '#EF4444' },
+        { val: 1, text: 'not passed or failed', eq: 'F2', color: '#EF4444' },
+        { val: 0, text: 'not passed or failed', eq: 'F2', color: '#EF4444' },
+      ],
     },
     system5a: {
       title: "5'lik (A)",
       desc: "5'lik Sistem (Tip A) -> Harf",
-      placeholder: "Not (0-5)",
-      type: "exact",
-      columns: ["Not", "Acıklama", "Karsılık"],
+      placeholder: 'Not (0-5)',
+      type: 'exact',
+      columns: ['Not', 'Acıklama', 'Karsılık'],
       data: [
-        { val: 5, text: "very good", eq: "A", color: "#10B981" },
-        { val: 4.5, text: "good +", eq: "B1", color: "#3B82F6" },
-        { val: 4, text: "good", eq: "B2", color: "#60A5FA" },
-        { val: 3.5, text: "sufficient +", eq: "B3", color: "#93C5FD" },
-        { val: 3, text: "sufficient", eq: "C1", color: "#F59E0B" },
-        { val: 2.5, text: "allowing +", eq: "C2", color: "#FBBF24" },
-        { val: 2, text: "allowing", eq: "C3", color: "#FCD34D" },
-        { val: 1.5, text: "insufficient", eq: "F2", color: "#EF4444" },
-        { val: 1, text: "insufficient", eq: "F2", color: "#EF4444" },
-        { val: 0.5, text: "insufficient", eq: "F2", color: "#EF4444" },
-        { val: 0, text: "insufficient", eq: "F2", color: "#EF4444" },
-      ]
+        { val: 5, text: 'very good', eq: 'A', color: '#10B981' },
+        { val: 4.5, text: 'good +', eq: 'B1', color: '#3B82F6' },
+        { val: 4, text: 'good', eq: 'B2', color: '#60A5FA' },
+        { val: 3.5, text: 'sufficient +', eq: 'B3', color: '#93C5FD' },
+        { val: 3, text: 'sufficient', eq: 'C1', color: '#F59E0B' },
+        { val: 2.5, text: 'allowing +', eq: 'C2', color: '#FBBF24' },
+        { val: 2, text: 'allowing', eq: 'C3', color: '#FCD34D' },
+        { val: 1.5, text: 'insufficient', eq: 'F2', color: '#EF4444' },
+        { val: 1, text: 'insufficient', eq: 'F2', color: '#EF4444' },
+        { val: 0.5, text: 'insufficient', eq: 'F2', color: '#EF4444' },
+        { val: 0, text: 'insufficient', eq: 'F2', color: '#EF4444' },
+      ],
     },
     system5b: {
       title: "5'lik (B/D)",
       desc: "5'lik Sistem (Tip B/D) -> Harf",
-      placeholder: "Not (0-5)",
-      type: "exact",
-      columns: ["Not", "Acıklama", "Karsılık"],
+      placeholder: 'Not (0-5)',
+      type: 'exact',
+      columns: ['Not', 'Acıklama', 'Karsılık'],
       data: [
-        { val: 5, text: "very good", eq: "A", color: "#10B981" },
-        { val: 4.5, text: "better than good", eq: "B1", color: "#3B82F6" },
-        { val: 4, text: "good", eq: "B2", color: "#60A5FA" },
-        { val: 3.5, text: "better than satisfactory", eq: "C1", color: "#F59E0B" },
-        { val: 3, text: "satisfactory", eq: "C2", color: "#FBBF24" },
-        { val: 2.5, text: "satisfactory", eq: "C3", color: "#FCD34D" },
-        { val: 2, text: "failure", eq: "F2", color: "#EF4444" },
-        { val: 1.5, text: "failure", eq: "F2", color: "#EF4444" },
-        { val: 1, text: "failure", eq: "F2", color: "#EF4444" },
-        { val: 0.5, text: "failure", eq: "F2", color: "#EF4444" },
-        { val: 0, text: "failure", eq: "F2", color: "#EF4444" },
-      ]
+        { val: 5, text: 'very good', eq: 'A', color: '#10B981' },
+        { val: 4.5, text: 'better than good', eq: 'B1', color: '#3B82F6' },
+        { val: 4, text: 'good', eq: 'B2', color: '#60A5FA' },
+        { val: 3.5, text: 'better than satisfactory', eq: 'C1', color: '#F59E0B' },
+        { val: 3, text: 'satisfactory', eq: 'C2', color: '#FBBF24' },
+        { val: 2.5, text: 'satisfactory', eq: 'C3', color: '#FCD34D' },
+        { val: 2, text: 'failure', eq: 'F2', color: '#EF4444' },
+        { val: 1.5, text: 'failure', eq: 'F2', color: '#EF4444' },
+        { val: 1, text: 'failure', eq: 'F2', color: '#EF4444' },
+        { val: 0.5, text: 'failure', eq: 'F2', color: '#EF4444' },
+        { val: 0, text: 'failure', eq: 'F2', color: '#EF4444' },
+      ],
     },
     system5c: {
       title: "5'lik (C)",
       desc: "5'lik Sistem (Tip C - Tam Sayı) -> Harf",
-      placeholder: "Not (0-5)",
-      type: "exact",
-      columns: ["Not", "Acıklama", "Karsılık"],
+      placeholder: 'Not (0-5)',
+      type: 'exact',
+      columns: ['Not', 'Acıklama', 'Karsılık'],
       data: [
-        { val: 5, text: "excellent", eq: "A", color: "#10B981" },
-        { val: 4, text: "good", eq: "B2", color: "#60A5FA" },
-        { val: 3, text: "satisfactory", eq: "C1", color: "#F59E0B" },
-        { val: 2, text: "passed", eq: "C3", color: "#FCD34D" },
-        { val: 1, text: "failed", eq: "F1", color: "#EF4444" },
-        { val: 0, text: "failed", eq: "F2", color: "#DC2626" },
-      ]
+        { val: 5, text: 'excellent', eq: 'A', color: '#10B981' },
+        { val: 4, text: 'good', eq: 'B2', color: '#60A5FA' },
+        { val: 3, text: 'satisfactory', eq: 'C1', color: '#F59E0B' },
+        { val: 2, text: 'passed', eq: 'C3', color: '#FCD34D' },
+        { val: 1, text: 'failed', eq: 'F1', color: '#EF4444' },
+        { val: 0, text: 'failed', eq: 'F2', color: '#DC2626' },
+      ],
     },
   };
 
@@ -4090,25 +6328,25 @@ const GradeConverter = () => {
     const num = parseFloat(val);
     const str = String(val).trim().toUpperCase();
 
-    if (table.type === "range") {
+    if (table.type === 'range') {
       if (isNaN(num)) return null;
-      return table.data.find(row => num >= row.min && num <= row.max) || null;
-    }
-    else if (table.type === "exact") {
+      return table.data.find((row) => num >= row.min && num <= row.max) || null;
+    } else if (table.type === 'exact') {
       if (isNaN(num)) return null;
       // Precision handle for 4.5 vs 4,5
-      return table.data.find(row => Math.abs(row.val - num) < 0.1) || null;
-    }
-    else if (table.type === "mixed") {
+      return table.data.find((row) => Math.abs(row.val - num) < 0.1) || null;
+    } else if (table.type === 'mixed') {
       // Try string match (AA, BA...)
-      const strMatch = table.data.find(row => row.letter && row.letter.toUpperCase() === str);
+      const strMatch = table.data.find((row) => row.letter && row.letter.toUpperCase() === str);
       if (strMatch) return strMatch;
       // Try number match (4.00, 3.50...)
-      if (!isNaN(num)) return table.data.find(row => row.val !== undefined && Math.abs(row.val - num) < 0.01) || null;
+      if (!isNaN(num))
+        return (
+          table.data.find((row) => row.val !== undefined && Math.abs(row.val - num) < 0.01) || null
+        );
       return null;
-    }
-    else if (table.type === "match") {
-      return table.data.find(row => row.eq === str) || null;
+    } else if (table.type === 'match') {
+      return table.data.find((row) => row.eq === str) || null;
     }
     return null;
   };
@@ -4122,17 +6360,35 @@ const GradeConverter = () => {
   return (
     <div style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 12, borderBottom: "1px solid #E5E7EB", marginBottom: 20 }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 6,
+          overflowX: 'auto',
+          paddingBottom: 12,
+          borderBottom: '1px solid #E5E7EB',
+          marginBottom: 20,
+        }}
+      >
         {Object.entries(TABLE_DATA).map(([key, t]) => (
           <button
             key={key}
-            onClick={() => { setActiveTab(key); setInputGrade(""); setResult(null); }}
+            onClick={() => {
+              setActiveTab(key);
+              setInputGrade('');
+              setResult(null);
+            }}
             style={{
-              padding: "8px 12px", borderRadius: 8, fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", cursor: "pointer",
-              background: activeTab === key ? "#EEF2FF" : "transparent",
-              color: activeTab === key ? "#4F46E5" : "#6B7280",
-              border: activeTab === key ? "1px solid #C7D2FE" : "1px solid transparent",
-              transition: "all 0.2s"
+              padding: '8px 12px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+              cursor: 'pointer',
+              background: activeTab === key ? '#EEF2FF' : 'transparent',
+              color: activeTab === key ? '#4F46E5' : '#6B7280',
+              border: activeTab === key ? '1px solid #C7D2FE' : '1px solid transparent',
+              transition: 'all 0.2s',
             }}
           >
             {t.title}
@@ -4141,44 +6397,94 @@ const GradeConverter = () => {
       </div>
 
       {/* Input Section */}
-      <div style={{ background: "#F3F4F6", padding: 20, borderRadius: 12, marginBottom: 24, textAlign: "center" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#6B7280", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+      <div
+        style={{
+          background: '#F3F4F6',
+          padding: 20,
+          borderRadius: 12,
+          marginBottom: 24,
+          textAlign: 'center',
+        }}
+      >
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#6B7280',
+            marginBottom: 12,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}
+        >
           {activeData.desc}
         </div>
-        <div style={{ display: "flex", gap: 12, maxWidth: 320, margin: "0 auto" }}>
+        <div style={{ display: 'flex', gap: 12, maxWidth: 320, margin: '0 auto' }}>
           <Input
             value={inputGrade}
-            onChange={e => setInputGrade(e.target.value)}
+            onChange={(e) => setInputGrade(e.target.value)}
             placeholder={activeData.placeholder}
-            style={{ textAlign: "center", fontSize: 16, padding: 12 }}
+            style={{ textAlign: 'center', fontSize: 16, padding: 12 }}
           />
         </div>
 
         {result && (
-          <div style={{ marginTop: 20, animation: "fadeIn 0.3s ease" }}>
-            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 4 }}>Dönüştürülen Not</div>
-            <div style={{
-              fontSize: 48, fontWeight: 700,
-              color: result.color || "#374151",
-              fontFamily: "'Playfair Display', serif",
-              lineHeight: 1
-            }}>
+          <div style={{ marginTop: 20, animation: 'fadeIn 0.3s ease' }}>
+            <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>Dönüştürülen Not</div>
+            <div
+              style={{
+                fontSize: 48,
+                fontWeight: 700,
+                color: result.color || '#374151',
+                fontFamily: "'Playfair Display', serif",
+                lineHeight: 1,
+              }}
+            >
               {result.u_eq || result.eq || result.def}
             </div>
-            {result.text && <div style={{ fontSize: 14, fontWeight: 500, color: "#374151", marginTop: 8 }}>{result.text}</div>}
-            {activeTab === "ects_conv" && <div style={{ fontSize: 14, fontWeight: 500, color: "#374151", marginTop: 8 }}>{result.def}</div>}
-            {activeTab === "table4" && <div style={{ fontSize: 12, color: "#6B7280", marginTop: 8, maxWidth: 300, margin: "8px auto" }}>{result.def}</div>}
+            {result.text && (
+              <div style={{ fontSize: 14, fontWeight: 500, color: '#374151', marginTop: 8 }}>
+                {result.text}
+              </div>
+            )}
+            {activeTab === 'ects_conv' && (
+              <div style={{ fontSize: 14, fontWeight: 500, color: '#374151', marginTop: 8 }}>
+                {result.def}
+              </div>
+            )}
+            {activeTab === 'table4' && (
+              <div
+                style={{
+                  fontSize: 12,
+                  color: '#6B7280',
+                  marginTop: 8,
+                  maxWidth: 300,
+                  margin: '8px auto',
+                }}
+              >
+                {result.def}
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Reference Table */}
-      <div style={{ border: "1px solid #E5E7EB", borderRadius: 12, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+            <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
               {activeData.columns.map((col, i) => (
-                <th key={i} style={{ padding: "12px 16px", textAlign: i === 0 ? "left" : "center", color: "#6B7280", fontWeight: 600 }}>{col}</th>
+                <th
+                  key={i}
+                  style={{
+                    padding: '12px 16px',
+                    textAlign: i === 0 ? 'left' : 'center',
+                    color: '#6B7280',
+                    fontWeight: 600,
+                  }}
+                >
+                  {col}
+                </th>
               ))}
             </tr>
           </thead>
@@ -4187,58 +6493,152 @@ const GradeConverter = () => {
               // Highlight logic varies by table
               let isActive = false;
               if (result) {
-                if (activeTab === "table4") isActive = result.eq === row.eq;
-                else if (activeTab === "ects_conv") isActive = result.eq === row.eq;
+                if (activeTab === 'table4') isActive = result.eq === row.eq;
+                else if (activeTab === 'ects_conv') isActive = result.eq === row.eq;
                 else if (row.eq) isActive = result.eq === row.eq;
               }
 
               return (
-                <tr key={i} style={{
-                  background: isActive ? `${row.color}15` : "white",
-                  borderBottom: i !== activeData.data.length - 1 ? "1px solid #F3F4F6" : "none",
-                  transition: "background 0.2s"
-                }}>
+                <tr
+                  key={i}
+                  style={{
+                    background: isActive ? `${row.color}15` : 'white',
+                    borderBottom: i !== activeData.data.length - 1 ? '1px solid #F3F4F6' : 'none',
+                    transition: 'background 0.2s',
+                  }}
+                >
                   {/* Render columns based on table type */}
-                  {activeTab === "table1" && (
+                  {activeTab === 'table1' && (
                     <>
-                      <td style={{ padding: "10px 16px", color: "#111827", fontWeight: 500 }}>{row.text}</td>
-                      <td style={{ padding: "10px 16px", textAlign: "center", fontFamily: "'JetBrains Mono', monospace" }}>{row.range}</td>
-                      <td style={{ padding: "10px 16px", textAlign: "center" }}><Badge color="white" bg={result && result.eq === row.eq ? row.color : "#9CA3AF"}>{row.eq}</Badge></td>
+                      <td style={{ padding: '10px 16px', color: '#111827', fontWeight: 500 }}>
+                        {row.text}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 16px',
+                          textAlign: 'center',
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}
+                      >
+                        {row.range}
+                      </td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                        <Badge
+                          color="white"
+                          bg={result && result.eq === row.eq ? row.color : '#9CA3AF'}
+                        >
+                          {row.eq}
+                        </Badge>
+                      </td>
                     </>
                   )}
-                  {activeTab === "table2" && (
+                  {activeTab === 'table2' && (
                     <>
-                      <td style={{ padding: "10px 16px", color: "#111827", fontWeight: 500 }}>{row.range}</td>
-                      <td style={{ padding: "10px 16px", textAlign: "center", fontFamily: "'JetBrains Mono', monospace" }}>{row.coef}</td>
-                      <td style={{ padding: "10px 16px", textAlign: "center" }}><Badge color="white" bg={result && result.eq === row.eq ? row.color : "#9CA3AF"}>{row.eq}</Badge></td>
+                      <td style={{ padding: '10px 16px', color: '#111827', fontWeight: 500 }}>
+                        {row.range}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 16px',
+                          textAlign: 'center',
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}
+                      >
+                        {row.coef}
+                      </td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                        <Badge
+                          color="white"
+                          bg={result && result.eq === row.eq ? row.color : '#9CA3AF'}
+                        >
+                          {row.eq}
+                        </Badge>
+                      </td>
                     </>
                   )}
-                  {activeTab === "table3" && (
+                  {activeTab === 'table3' && (
                     <>
-                      <td style={{ padding: "10px 16px", color: "#111827", fontWeight: 500 }}>{row.val !== undefined ? row.val.toFixed(2) : row.text}</td>
-                      <td style={{ padding: "10px 16px", textAlign: "center", fontFamily: "'JetBrains Mono', monospace" }}>{row.letter}</td>
-                      <td style={{ padding: "10px 16px", textAlign: "center" }}><Badge color="white" bg={result && result.eq === row.eq ? row.color : "#9CA3AF"}>{row.eq}</Badge></td>
+                      <td style={{ padding: '10px 16px', color: '#111827', fontWeight: 500 }}>
+                        {row.val !== undefined ? row.val.toFixed(2) : row.text}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 16px',
+                          textAlign: 'center',
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}
+                      >
+                        {row.letter}
+                      </td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                        <Badge
+                          color="white"
+                          bg={result && result.eq === row.eq ? row.color : '#9CA3AF'}
+                        >
+                          {row.eq}
+                        </Badge>
+                      </td>
                     </>
                   )}
-                  {activeTab === "ects_conv" && (
+                  {activeTab === 'ects_conv' && (
                     <>
-                      <td style={{ padding: "10px 16px", color: "#111827", fontWeight: 500, textAlign: "center" }}><Badge color="white" bg={row.color}>{row.eq}</Badge></td>
-                      <td style={{ padding: "10px 16px", textAlign: "center" }}>{row.def}</td>
-                      <td style={{ padding: "10px 16px", textAlign: "center" }}><Badge color="white" bg={result && result.u_eq === row.u_eq ? row.color : "#9CA3AF"}>{row.u_eq}</Badge></td>
+                      <td
+                        style={{
+                          padding: '10px 16px',
+                          color: '#111827',
+                          fontWeight: 500,
+                          textAlign: 'center',
+                        }}
+                      >
+                        <Badge color="white" bg={row.color}>
+                          {row.eq}
+                        </Badge>
+                      </td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center' }}>{row.def}</td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                        <Badge
+                          color="white"
+                          bg={result && result.u_eq === row.u_eq ? row.color : '#9CA3AF'}
+                        >
+                          {row.u_eq}
+                        </Badge>
+                      </td>
                     </>
                   )}
-                  {activeTab === "table4" && (
+                  {activeTab === 'table4' && (
                     <>
-                      <td style={{ padding: "10px 16px", color: "#111827", fontWeight: 500, textAlign: "center" }}><Badge color="white" bg={row.color}>{row.eq}</Badge></td>
-                      <td style={{ padding: "10px 16px", textAlign: "center" }}>{row.pct}</td>
-                      <td style={{ padding: "10px 16px", fontSize: 12, color: "#4B5563" }}>{row.def}</td>
+                      <td
+                        style={{
+                          padding: '10px 16px',
+                          color: '#111827',
+                          fontWeight: 500,
+                          textAlign: 'center',
+                        }}
+                      >
+                        <Badge color="white" bg={row.color}>
+                          {row.eq}
+                        </Badge>
+                      </td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center' }}>{row.pct}</td>
+                      <td style={{ padding: '10px 16px', fontSize: 12, color: '#4B5563' }}>
+                        {row.def}
+                      </td>
                     </>
                   )}
-                  {(activeTab.startsWith("system10") || activeTab.startsWith("system5")) && (
+                  {(activeTab.startsWith('system10') || activeTab.startsWith('system5')) && (
                     <>
-                      <td style={{ padding: "10px 16px", color: "#111827", fontWeight: 500 }}>{row.val}</td>
-                      <td style={{ padding: "10px 16px", textAlign: "center" }}>{row.text}</td>
-                      <td style={{ padding: "10px 16px", textAlign: "center" }}><Badge color="white" bg={result && result.eq === row.eq ? row.color : "#9CA3AF"}>{row.eq}</Badge></td>
+                      <td style={{ padding: '10px 16px', color: '#111827', fontWeight: 500 }}>
+                        {row.val}
+                      </td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center' }}>{row.text}</td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                        <Badge
+                          color="white"
+                          bg={result && result.eq === row.eq ? row.color : '#9CA3AF'}
+                        >
+                          {row.eq}
+                        </Badge>
+                      </td>
                     </>
                   )}
                 </tr>
@@ -4256,122 +6656,362 @@ const GradeConverter = () => {
 // ══════════════════════════════════════════════
 const ChangePasswordModal = ({ currentUser, onClose }) => {
   const { useState } = React;
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  const eyeIcon = (show) => show
-    ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-    : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+  const eyeIcon = (show) =>
+    show ? (
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+        <line x1="1" y1="1" x2="23" y2="23" />
+      </svg>
+    ) : (
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-    if (newPassword.length < 6) { setError("Yeni şifre en az 6 karakter olmalıdır."); return; }
-    if (newPassword !== confirmPassword) { setError("Yeni şifreler uyuşmuyor."); return; }
+    setError('');
+    if (newPassword.length < 6) {
+      setError('Yeni şifre en az 6 karakter olmalıdır.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Yeni şifreler uyuşmuyor.');
+      return;
+    }
 
     setLoading(true);
     try {
       const role = currentUser.role;
-      const identifier = role === "student" ? currentUser.studentNumber
-        : role === "professor" ? currentUser.name
-        : role === "bolum_yetkilisi" ? currentUser.name
-        : null;
+      const identifier =
+        role === 'student'
+          ? currentUser.studentNumber
+          : role === 'professor'
+            ? currentUser.name
+            : role === 'bolum_yetkilisi'
+              ? currentUser.name
+              : null;
 
-      const res = await fetch("/api/auth/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("caku_auth_token") || ""}` },
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('caku_auth_token') || ''}`,
+        },
         body: JSON.stringify({ role, identifier, newPassword, currentPassword }),
       });
       const data = await res.json();
       if (data.success) {
         setSuccess(true);
-        setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
       } else {
-        setError(data.error || "Şifre değiştirilemedi.");
+        setError(data.error || 'Şifre değiştirilemedi.');
       }
     } catch (err) {
-      setError("Sunucu hatası: " + err.message);
+      setError('Sunucu hatası: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const inputWrap = { position: "relative", marginBottom: 16 };
-  const inputStyle = { width: "100%", padding: "11px 42px 11px 14px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif", boxSizing: "border-box", transition: "border-color 0.2s" };
-  const eyeBtn = { position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", display: "flex", alignItems: "center", padding: 4 };
-  const label = { display: "block", fontSize: 11, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 };
+  const inputWrap = { position: 'relative', marginBottom: 16 };
+  const inputStyle = {
+    width: '100%',
+    padding: '11px 42px 11px 14px',
+    borderRadius: 8,
+    border: '1px solid #D1D5DB',
+    fontSize: 14,
+    outline: 'none',
+    fontFamily: "'Inter', sans-serif",
+    boxSizing: 'border-box',
+    transition: 'border-color 0.2s',
+  };
+  const eyeBtn = {
+    position: 'absolute',
+    right: 12,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    color: '#9CA3AF',
+    display: 'flex',
+    alignItems: 'center',
+    padding: 4,
+  };
+  const label = {
+    display: 'block',
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    marginBottom: 6,
+  };
 
   return (
     <Modal open={true} onClose={onClose} title="Şifre Değiştir" width={400}>
       {success ? (
-        <div style={{ textAlign: "center", padding: "32px 0" }}>
-          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#D1FAE5", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <div style={{ textAlign: 'center', padding: '32px 0' }}>
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              background: '#D1FAE5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}
+          >
+            <svg
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#059669"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#059669", marginBottom: 8 }}>Şifre başarıyla değiştirildi!</div>
-          <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 24 }}>Bir sonraki girişinizde yeni şifrenizi kullanın.</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#059669', marginBottom: 8 }}>
+            Şifre başarıyla değiştirildi!
+          </div>
+          <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>
+            Bir sonraki girişinizde yeni şifrenizi kullanın.
+          </div>
           <Btn onClick={onClose}>Kapat</Btn>
         </div>
       ) : (
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 8, padding: "10px 14px", borderRadius: 8, background: "#F3F4F6", fontSize: 13, color: "#374151" }}>
-            <span style={{ fontWeight: 600 }}>{currentUser?.name || currentUser?.studentNumber}</span>
-            <span style={{ color: "#9CA3AF", marginLeft: 8, fontSize: 11 }}>
-              {currentUser?.role === "admin" ? "Yönetici" : currentUser?.role === "professor" ? "Akademisyen" : currentUser?.role === "bolum_yetkilisi" ? "Bölüm Yetkilisi" : "Öğrenci"}
+          <div
+            style={{
+              marginBottom: 8,
+              padding: '10px 14px',
+              borderRadius: 8,
+              background: '#F3F4F6',
+              fontSize: 13,
+              color: '#374151',
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>
+              {currentUser?.name || currentUser?.studentNumber}
+            </span>
+            <span style={{ color: '#9CA3AF', marginLeft: 8, fontSize: 11 }}>
+              {currentUser?.role === 'admin'
+                ? 'Yönetici'
+                : currentUser?.role === 'professor'
+                  ? 'Akademisyen'
+                  : currentUser?.role === 'bolum_yetkilisi'
+                    ? 'Bölüm Yetkilisi'
+                    : 'Öğrenci'}
             </span>
           </div>
 
-          <div style={{ height: 1, background: "#E5E7EB", margin: "16px 0" }} />
+          <div style={{ height: 1, background: '#E5E7EB', margin: '16px 0' }} />
 
           {/* Mevcut şifre — admin için gerekli değil */}
-          {currentUser?.role !== "admin" && (
+          {currentUser?.role !== 'admin' && (
             <div>
               <label style={label}>Mevcut Şifre</label>
               <div style={inputWrap}>
-                <input type={showCurrent ? "text" : "password"} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} placeholder="Mevcut şifreniz" style={inputStyle} onFocus={e => e.target.style.borderColor = "#6366F1"} onBlur={e => e.target.style.borderColor = "#D1D5DB"} />
-                <button type="button" style={eyeBtn} onClick={() => setShowCurrent(!showCurrent)}>{eyeIcon(showCurrent)}</button>
+                <input
+                  type={showCurrent ? 'text' : 'password'}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Mevcut şifreniz"
+                  style={inputStyle}
+                  onFocus={(e) => (e.target.style.borderColor = '#6366F1')}
+                  onBlur={(e) => (e.target.style.borderColor = '#D1D5DB')}
+                />
+                <button type="button" style={eyeBtn} onClick={() => setShowCurrent(!showCurrent)}>
+                  {eyeIcon(showCurrent)}
+                </button>
               </div>
             </div>
           )}
 
           <label style={label}>Yeni Şifre</label>
           <div style={inputWrap}>
-            <input type={showNew ? "text" : "password"} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="En az 6 karakter" style={inputStyle} onFocus={e => e.target.style.borderColor = "#6366F1"} onBlur={e => e.target.style.borderColor = "#D1D5DB"} />
-            <button type="button" style={eyeBtn} onClick={() => setShowNew(!showNew)}>{eyeIcon(showNew)}</button>
+            <input
+              type={showNew ? 'text' : 'password'}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="En az 6 karakter"
+              style={inputStyle}
+              onFocus={(e) => (e.target.style.borderColor = '#6366F1')}
+              onBlur={(e) => (e.target.style.borderColor = '#D1D5DB')}
+            />
+            <button type="button" style={eyeBtn} onClick={() => setShowNew(!showNew)}>
+              {eyeIcon(showNew)}
+            </button>
           </div>
           {newPassword.length > 0 && (
-            <div style={{ marginTop: -10, marginBottom: 12, display: "flex", gap: 4 }}>
-              {[1,2,3].map(i => (
-                <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: newPassword.length >= i * 4 ? (newPassword.length >= 10 ? "#10B981" : "#F59E0B") : "#E5E7EB", transition: "background 0.3s" }} />
+            <div style={{ marginTop: -10, marginBottom: 12, display: 'flex', gap: 4 }}>
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    flex: 1,
+                    height: 3,
+                    borderRadius: 2,
+                    background:
+                      newPassword.length >= i * 4
+                        ? newPassword.length >= 10
+                          ? '#10B981'
+                          : '#F59E0B'
+                        : '#E5E7EB',
+                    transition: 'background 0.3s',
+                  }}
+                />
               ))}
-              <span style={{ fontSize: 10, color: newPassword.length >= 10 ? "#10B981" : "#F59E0B", marginLeft: 6, alignSelf: "center" }}>{newPassword.length >= 10 ? "Güçlü" : "Orta"}</span>
+              <span
+                style={{
+                  fontSize: 10,
+                  color: newPassword.length >= 10 ? '#10B981' : '#F59E0B',
+                  marginLeft: 6,
+                  alignSelf: 'center',
+                }}
+              >
+                {newPassword.length >= 10 ? 'Güçlü' : 'Orta'}
+              </span>
             </div>
           )}
 
           <label style={label}>Yeni Şifre (Tekrar)</label>
           <div style={inputWrap}>
-            <input type={showConfirm ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Şifreyi tekrar girin" style={{ ...inputStyle, borderColor: confirmPassword && confirmPassword !== newPassword ? "#EF4444" : "#D1D5DB" }} onFocus={e => e.target.style.borderColor = "#6366F1"} onBlur={e => e.target.style.borderColor = confirmPassword && confirmPassword !== newPassword ? "#EF4444" : "#D1D5DB"} />
-            <button type="button" style={eyeBtn} onClick={() => setShowConfirm(!showConfirm)}>{eyeIcon(showConfirm)}</button>
+            <input
+              type={showConfirm ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Şifreyi tekrar girin"
+              style={{
+                ...inputStyle,
+                borderColor:
+                  confirmPassword && confirmPassword !== newPassword ? '#EF4444' : '#D1D5DB',
+              }}
+              onFocus={(e) => (e.target.style.borderColor = '#6366F1')}
+              onBlur={(e) =>
+                (e.target.style.borderColor =
+                  confirmPassword && confirmPassword !== newPassword ? '#EF4444' : '#D1D5DB')
+              }
+            />
+            <button type="button" style={eyeBtn} onClick={() => setShowConfirm(!showConfirm)}>
+              {eyeIcon(showConfirm)}
+            </button>
           </div>
 
           {error && (
-            <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626", fontSize: 13, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: 8,
+                background: '#FEF2F2',
+                border: '1px solid #FECACA',
+                color: '#DC2626',
+                fontSize: 13,
+                marginBottom: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
               {error}
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            <Btn variant="secondary" onClick={onClose} style={{ flex: 1 }}>İptal</Btn>
-            <button type="submit" disabled={loading} style={{ flex: 2, padding: "10px 16px", borderRadius: 8, border: "none", background: loading ? "#A5B4FC" : "#6366F1", color: "white", fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background 0.2s" }}>
-              {loading ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" style={{ animation: "spin 1s linear infinite" }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93"/></svg>Kaydediliyor...</> : "Şifreyi Değiştir"}
+          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+            <Btn variant="secondary" onClick={onClose} style={{ flex: 1 }}>
+              İptal
+            </Btn>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                flex: 2,
+                padding: '10px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: loading ? '#A5B4FC' : '#6366F1',
+                color: 'white',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontFamily: "'Inter', sans-serif",
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                transition: 'background 0.2s',
+              }}
+            >
+              {loading ? (
+                <>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth="2.5"
+                    style={{ animation: 'spin 1s linear infinite' }}
+                  >
+                    <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+                  </svg>
+                  Kaydediliyor...
+                </>
+              ) : (
+                'Şifreyi Değiştir'
+              )}
             </button>
           </div>
         </form>
@@ -4389,41 +7029,46 @@ const StudentNotifier = {
     try {
       return await FirebaseDB.fetchStudents();
     } catch (e) {
-      console.warn("StudentNotifier: öğrenciler alınamadı", e);
+      console.warn('StudentNotifier: öğrenciler alınamadı', e);
       return [];
     }
   },
   async _fetchCoursesByCode(departmentId, code) {
     try {
-      var snap = await window.apiFirestore.collection("sinav_dersler").get();
-      var all = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
-      var normalized = (code || "").toString().trim().toLowerCase();
+      var snap = await window.apiFirestore.collection('sinav_dersler').get();
+      var all = snap.docs.map(function (d) {
+        return Object.assign({ id: d.id }, d.data());
+      });
+      var normalized = (code || '').toString().trim().toLowerCase();
       return all.filter(function (c) {
         if (!normalized) return false;
         if (departmentId && c.departmentId !== departmentId) return false;
-        return (c.code || "").toString().trim().toLowerCase() === normalized;
+        return (c.code || '').toString().trim().toLowerCase() === normalized;
       });
     } catch (e) {
-      console.warn("StudentNotifier: dersler alınamadı", e);
+      console.warn('StudentNotifier: dersler alınamadı', e);
       return [];
     }
   },
   async _addNotification(studentNumber, payload) {
     try {
-      var data = Object.assign({
-        studentNumber: String(studentNumber),
-        read: false,
-        createdAt: new Date().toISOString(),
-      }, payload);
-      await FirestoreWrite.add("student_notifications", data);
+      var data = Object.assign(
+        {
+          studentNumber: String(studentNumber),
+          read: false,
+          createdAt: new Date().toISOString(),
+        },
+        payload
+      );
+      await FirestoreWrite.add('student_notifications', data);
     } catch (e) {
-      console.warn("StudentNotifier: bildirim eklenemedi", studentNumber, e);
+      console.warn('StudentNotifier: bildirim eklenemedi', studentNumber, e);
     }
   },
   async fetchForStudent(studentNumber, limitN) {
     try {
-      var items = await apiRead("student_notifications", {
-        where: "studentNumber:eq:s:" + String(studentNumber),
+      var items = await apiRead('student_notifications', {
+        where: 'studentNumber:eq:s:' + String(studentNumber),
       });
       items.sort(function (a, b) {
         var ta = new Date(a.createdAt || 0).getTime();
@@ -4433,40 +7078,55 @@ const StudentNotifier = {
       if (limitN) return items.slice(0, limitN);
       return items;
     } catch (e) {
-      console.warn("StudentNotifier: liste alınamadı", e);
+      console.warn('StudentNotifier: liste alınamadı', e);
       return [];
     }
   },
   async markRead(id) {
-    try { await FirestoreWrite.update("student_notifications", String(id), { read: true }); }
-    catch (e) { console.warn("StudentNotifier: okundu yapılamadı", e); }
+    try {
+      await FirestoreWrite.update('student_notifications', String(id), { read: true });
+    } catch (e) {
+      console.warn('StudentNotifier: okundu yapılamadı', e);
+    }
   },
   async markAllRead(studentNumber) {
     try {
       var items = await this.fetchForStudent(studentNumber);
-      var ops = items.filter(function (n) { return !n.read; }).map(function (n) {
-        return FirestoreWrite.update("student_notifications", String(n.id), { read: true });
-      });
+      var ops = items
+        .filter(function (n) {
+          return !n.read;
+        })
+        .map(function (n) {
+          return FirestoreWrite.update('student_notifications', String(n.id), { read: true });
+        });
       await Promise.all(ops);
-    } catch (e) { console.warn("StudentNotifier: toplu okundu hatası", e); }
+    } catch (e) {
+      console.warn('StudentNotifier: toplu okundu hatası', e);
+    }
   },
   // Bir dersle ilgili proje grubu oluştuğunda o dersi almış öğrencilere bildirim yolla
   async notifyCourseStudents(departmentId, courseCode, payload) {
     try {
       var courses = await this._fetchCoursesByCode(departmentId, courseCode);
       if (courses.length === 0) return;
-      var courseIds = courses.map(function (c) { return c.id; });
+      var courseIds = courses.map(function (c) {
+        return c.id;
+      });
       var students = await this._fetchStudents();
       var targets = students.filter(function (s) {
         if (!Array.isArray(s.myCourseIds) || s.myCourseIds.length === 0) return false;
         if (departmentId && s.departmentId !== departmentId) return false;
-        return s.myCourseIds.some(function (id) { return courseIds.indexOf(id) !== -1; });
+        return s.myCourseIds.some(function (id) {
+          return courseIds.indexOf(id) !== -1;
+        });
       });
-      await Promise.all(targets.map(function (s) {
-        return StudentNotifier._addNotification(s.studentNumber, payload);
-      }));
+      await Promise.all(
+        targets.map(function (s) {
+          return StudentNotifier._addNotification(s.studentNumber, payload);
+        })
+      );
     } catch (e) {
-      console.warn("StudentNotifier: ders bildirimi gönderilemedi", e);
+      console.warn('StudentNotifier: ders bildirimi gönderilemedi', e);
     }
   },
   // Portal duyurusunda bölüm öğrencilerinin tümüne bildirim yolla
@@ -4475,14 +7135,17 @@ const StudentNotifier = {
       var students = await this._fetchStudents();
       var targets = students.filter(function (s) {
         if (departmentId && s.departmentId !== departmentId) return false;
-        if (excludeStudentNumber && String(s.studentNumber) === String(excludeStudentNumber)) return false;
+        if (excludeStudentNumber && String(s.studentNumber) === String(excludeStudentNumber))
+          return false;
         return true;
       });
-      await Promise.all(targets.map(function (s) {
-        return StudentNotifier._addNotification(s.studentNumber, payload);
-      }));
+      await Promise.all(
+        targets.map(function (s) {
+          return StudentNotifier._addNotification(s.studentNumber, payload);
+        })
+      );
     } catch (e) {
-      console.warn("StudentNotifier: bölüm bildirimi gönderilemedi", e);
+      console.warn('StudentNotifier: bölüm bildirimi gönderilemedi', e);
     }
   },
 };

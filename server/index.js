@@ -1,20 +1,36 @@
-const express = require("express");
-const http = require("http");
-const cors = require("cors");
-const cookieParser = require("cookie-parser");
-const { connect, disconnect } = require("./config/database");
-const healthRoutes = require("./routes/health");
-const authRoutes = require("./routes/auth");
-const dbRoutes = require("./routes/db");
-const fileRoutes = require("./routes/files");
-const akademisyenRoutes = require("./routes/akademisyen");
+const express = require('express');
+const http = require('http');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const { connect, disconnect } = require('./config/database');
+const healthRoutes = require('./routes/health');
+const authRoutes = require('./routes/auth');
+const dbRoutes = require('./routes/db');
+const fileRoutes = require('./routes/files');
+const akademisyenRoutes = require('./routes/akademisyen');
 const {
   helmetMiddleware,
   authRateLimiter,
   apiRateLimiter,
   corsOrigin,
-} = require("./middleware/security");
-const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
+} = require('./middleware/security');
+const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
+const { requestId } = require('./middleware/requestId');
+const { logger } = require('./lib/logger');
+const {
+  initSentry,
+  sentryRequestHandler,
+  sentryErrorHandler,
+  captureException,
+} = require('./lib/sentry');
+
+// NODE_ENV ayarlanmamışsa uyar (Express otomatik dev moduna düşer; stack
+// sızıntısı riski). Üretimde mutlaka set edin.
+if (!process.env.NODE_ENV) {
+  logger.warn("[startup] NODE_ENV ayarlı değil — 'development' varsayılacak");
+}
+
+initSentry();
 
 const PORT = process.env.PORT || 3001;
 const MAX_RETRIES = 10;
@@ -28,52 +44,60 @@ const httpServer = http.createServer(app);
 // istemci tarafı cache'i geçersiz kılar ve modüller dinleyebilir.
 let io = null;
 try {
-  const { Server } = require("socket.io");
+  const { Server } = require('socket.io');
   io = new Server(httpServer, {
     cors: { origin: corsOrigin(), credentials: true },
-    path: "/socket.io",
+    path: '/socket.io',
   });
-  app.set("io", io);
-  io.on("connection", (socket) => {
+  app.set('io', io);
+  io.on('connection', (socket) => {
     // bağlanmış istemci sayısını izlemek istersek burada loglarız
-    socket.on("subscribe", (rooms) => {
-      if (Array.isArray(rooms)) rooms.forEach(r => typeof r === "string" && socket.join(r));
+    socket.on('subscribe', (rooms) => {
+      if (Array.isArray(rooms)) rooms.forEach((r) => typeof r === 'string' && socket.join(r));
     });
   });
-  console.log("[Socket.IO] hazır (/socket.io)");
+  console.log('[Socket.IO] hazır (/socket.io)');
 } catch (e) {
-  console.warn("[Socket.IO] yüklenemedi — gerçek zamanlı devre dışı:", e.message);
+  console.warn('[Socket.IO] yüklenemedi — gerçek zamanlı devre dışı:', e.message);
 }
 
 // Reverse proxy (nginx) arkasında çalıştığı için gerçek client IP'yi al
 // express-rate-limit'in X-Forwarded-For header'ını doğru okuması için şart
-app.set("trust proxy", 1);
+app.set('trust proxy', 1);
 
 // Middleware
+app.use(sentryRequestHandler());
+app.use(requestId);
 app.use(helmetMiddleware());
 app.use(cors({ origin: corsOrigin(), credentials: true }));
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
-app.use("/api", apiRateLimiter());
+app.use('/api', apiRateLimiter());
 
 // Routes
-app.use("/api/health", healthRoutes);
-app.use("/api/auth", authRateLimiter(), authRoutes);
-app.use("/api/db", dbRoutes);
-app.use("/api/files", fileRoutes);
-app.use("/api/akademisyen", akademisyenRoutes);
+app.use('/api/health', healthRoutes);
+app.use('/api/auth', authRateLimiter(), authRoutes);
+app.use('/api/db', dbRoutes);
+app.use('/api/files', fileRoutes);
+app.use('/api/akademisyen', akademisyenRoutes);
 
 // 404 + merkezi hata yakalayıcı (route'lardan sonra mount edilmeli)
 app.use(notFoundHandler);
+app.use(sentryErrorHandler());
 app.use(errorHandler);
 
 // Yakalanmamış hataları logla ve sunucunun çökmesini engelle
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("[UNHANDLED REJECTION]", reason);
+process.on('unhandledRejection', (reason) => {
+  logger.error(
+    { reason: reason && (reason.stack || reason.message || String(reason)) },
+    'UNHANDLED REJECTION'
+  );
+  captureException(reason instanceof Error ? reason : new Error(String(reason)));
 });
 
-process.on("uncaughtException", (err) => {
-  console.error("[UNCAUGHT EXCEPTION]", err);
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err: err.stack || err.message }, 'UNCAUGHT EXCEPTION');
+  captureException(err);
   process.exit(1);
 });
 
@@ -87,13 +111,10 @@ async function start() {
       break; // Bağlantı başarılı — döngüden çık
     } catch (err) {
       retries++;
-      console.error(
-        `Sunucu başlatılamadı (deneme ${retries}/${MAX_RETRIES}):`,
-        err.message
-      );
+      console.error(`Sunucu başlatılamadı (deneme ${retries}/${MAX_RETRIES}):`, err.message);
 
       if (retries >= MAX_RETRIES) {
-        console.error("Maksimum deneme sayısına ulaşıldı. Çıkılıyor.");
+        console.error('Maksimum deneme sayısına ulaşıldı. Çıkılıyor.');
         process.exit(1);
       }
 
@@ -109,13 +130,13 @@ async function start() {
 }
 
 // Graceful shutdown
-process.on("SIGINT", async () => {
-  console.log("\nSunucu kapatılıyor...");
+process.on('SIGINT', async () => {
+  console.log('\nSunucu kapatılıyor...');
   await disconnect();
   process.exit(0);
 });
 
-process.on("SIGTERM", async () => {
+process.on('SIGTERM', async () => {
   await disconnect();
   process.exit(0);
 });

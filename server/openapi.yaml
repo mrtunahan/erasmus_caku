@@ -1,0 +1,189 @@
+openapi: 3.1.0
+info:
+  title: ÇAKÜ Yönetim Sistemi API
+  description: |
+    Çankırı Karatekin Üniversitesi Erasmus / yönetim sistemi REST API'si.
+    Bu dosya gerçeğin tek kaynağı değildir — kod ile senkron tutulmalıdır.
+    Eksik endpoint'ler eklenecek (yol haritası).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3001/api
+    description: Geliştirme
+  - url: https://erasmus.karatekin.edu.tr/api
+    description: Üretim
+
+tags:
+  - name: health
+  - name: auth
+  - name: db
+  - name: files
+  - name: akademisyen
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: caku_auth
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+    WriteOperation:
+      type: object
+      properties:
+        collection: { type: string }
+        type: { type: string, enum: [add, set, update, delete] }
+        docId: { type: string }
+        data: { type: object }
+        merge: { type: boolean }
+        parentDocId: { type: string }
+        subCollection: { type: string }
+      required: [collection, type]
+
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Sağlık kontrolü
+      security: []
+      responses:
+        '200': { description: OK }
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Kullanıcı girişi
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string }
+                password: { type: string }
+              required: [username, password]
+      responses:
+        '200':
+          description: Token httpOnly cookie olarak set edilir
+        '401':
+          description: Geçersiz kimlik
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Oturum kapatma
+      responses:
+        '200': { description: OK }
+
+  /db/write:
+    post:
+      tags: [db]
+      summary: Toplu yazma (add/set/update/delete)
+      description: |
+        Yazma denetimi `audit_logs` koleksiyonuna otomatik kaydedilir.
+        Tek istekte en fazla 20 silme, 50 güncelleme yapılabilir.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                operations:
+                  type: array
+                  items: { $ref: '#/components/schemas/WriteOperation' }
+              required: [operations]
+      responses:
+        '200': { description: Başarılı }
+        '400': { description: Geçersiz istek }
+        '403': { description: Koleksiyon izni yok / limit aşıldı }
+        '500': { description: Sunucu hatası }
+
+  /db/{collection}:
+    get:
+      tags: [db]
+      summary: Koleksiyon okuma
+      parameters:
+        - in: path
+          name: collection
+          required: true
+          schema: { type: string }
+        - in: query
+          name: where
+          schema:
+            type: array
+            items: { type: string }
+          description: 'field:op:value formatı (op: eq, ne, gt, gte, lt, lte)'
+        - in: query
+          name: orderBy
+          schema: { type: string }
+          description: 'field:direction (asc|desc)'
+        - in: query
+          name: limit
+          schema: { type: integer, maximum: 1000 }
+      responses:
+        '200': { description: OK }
+        '403': { description: Okuma izni yok }
+
+  /db/{collection}/{docId}:
+    get:
+      tags: [db]
+      summary: Tek doküman okuma
+      parameters:
+        - in: path
+          name: collection
+          required: true
+          schema: { type: string }
+        - in: path
+          name: docId
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+        '404': { description: Bulunamadı }
+
+  /files/upload:
+    post:
+      tags: [files]
+      summary: Dosya yükleme
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '200': { description: OK }
+
+  /files/download/{path}:
+    get:
+      tags: [files]
+      summary: Dosya indirme
+      parameters:
+        - in: path
+          name: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Dosya içeriği }
+        '404': { description: Bulunamadı }
