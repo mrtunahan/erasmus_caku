@@ -5,6 +5,16 @@
 import js from '@eslint/js';
 import globals from 'globals';
 
+// jsx-a11y opsiyonel olarak yüklenir; paket kurulu değilse plugin atlanır.
+let a11yPlugin = null;
+try {
+  // dinamik require ile flat-config içine al
+  const mod = await import('eslint-plugin-jsx-a11y');
+  a11yPlugin = mod.default || mod;
+} catch (_e) {
+  // kurulu değilse sessiz atla
+}
+
 export default [
   {
     ignores: [
@@ -38,6 +48,7 @@ export default [
         DOMPurify: 'readonly',
       },
     },
+    ...(a11yPlugin ? { plugins: { 'jsx-a11y': a11yPlugin } } : {}),
     rules: {
       'no-unused-vars': [
         'warn',
@@ -54,6 +65,17 @@ export default [
       'no-useless-escape': 'warn',
       'no-irregular-whitespace': 'warn',
       'no-misleading-character-class': 'warn',
+      // a11y — sadece uyarı seviyesinde, kademeli iyileştirme için
+      ...(a11yPlugin
+        ? {
+            'jsx-a11y/alt-text': 'warn',
+            'jsx-a11y/anchor-is-valid': 'warn',
+            'jsx-a11y/no-autofocus': 'warn',
+            'jsx-a11y/label-has-associated-control': 'warn',
+            'jsx-a11y/click-events-have-key-events': 'off',
+            'jsx-a11y/no-static-element-interactions': 'off',
+          }
+        : {}),
     },
   },
 
@@ -80,13 +102,33 @@ export default [
     },
   },
 
-  // CJS root configs
+  // CJS configs (postcss/tailwind/design-tokens)
   {
-    files: ['*.cjs', '*.config.js', 'postcss.config.cjs', 'design-tokens.cjs', 'tailwind.config.js'],
+    files: ['*.cjs', 'postcss.config.cjs', 'design-tokens.cjs', 'tailwind.config.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'commonjs',
       globals: { ...globals.node },
+    },
+  },
+
+  // ESM root configs (vite, eslint, vitest)
+  {
+    files: ['vite.config.js', 'eslint.config.js', 'vitest.config.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.node },
+    },
+    rules: {
+      'no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
     },
   },
 

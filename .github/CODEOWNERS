@@ -1,0 +1,20 @@
+# Bu dosya tüm değişikliklerin varsayılan inceleyicisini belirler.
+# Format: <yol> <@kullanıcı | @organizasyon/takım>
+# Detay: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+
+# Varsayılan
+*                       @mrtunahan
+
+# Backend
+/server/                @mrtunahan
+
+# Güvenlik kritik yollar
+/server/middleware/auth.js          @mrtunahan
+/server/middleware/security.js      @mrtunahan
+/server/middleware/auditLog.js      @mrtunahan
+/server/routes/db.js                @mrtunahan
+
+# CI / deploy
+/.github/               @mrtunahan
+/ssl-setup/             @mrtunahan
+/Dockerfile             @mrtunahan
