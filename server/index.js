@@ -68,6 +68,39 @@ app.set('trust proxy', 1);
 // Middleware
 app.use(sentryRequestHandler());
 app.use(requestId);
+
+// Opsiyonel: compression — yanıtları gzip'le (nginx zaten yapıyorsa idempotent)
+try {
+  const compression = require('compression');
+  app.use(compression());
+} catch (_e) {
+  logger.warn('[startup] compression bulunamadı — gzip devre dışı (nginx yapıyorsa sorun değil)');
+}
+
+// Opsiyonel: pino-http — yapılandırılmış istek log'u
+try {
+  const pinoHttp = require('pino-http');
+  app.use(
+    pinoHttp({
+      logger,
+      genReqId: (req) => req.id,
+      customLogLevel: (req, res, err) => {
+        if (err || res.statusCode >= 500) return 'error';
+        if (res.statusCode >= 400) return 'warn';
+        return 'info';
+      },
+      // Liveness probe'larını sessizleştir
+      autoLogging: { ignore: (req) => req.url === '/api/health/live' },
+      serializers: {
+        req: (req) => ({ method: req.method, url: req.url, id: req.id }),
+        res: (res) => ({ statusCode: res.statusCode }),
+      },
+    })
+  );
+} catch (_e) {
+  logger.warn("[startup] pino-http bulunamadı — istek log'u devre dışı");
+}
+
 app.use(helmetMiddleware());
 app.use(cors({ origin: corsOrigin(), credentials: true }));
 app.use(express.json({ limit: '10mb' }));
