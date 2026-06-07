@@ -1263,7 +1263,8 @@ async function apiRead(collection, params = {}) {
     })
     .catch((err) => {
       __apiInflight.delete(key);
-      throw err;
+      console.warn(`apiRead(${collection}) failed:`, err.message);
+      return []; // 502/500 veya diğer hatalarda çökmek yerine boş dizi dön
     });
   __apiInflight.set(key, p);
   return p;
