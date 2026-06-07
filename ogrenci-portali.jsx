@@ -64,6 +64,7 @@ const PBtn = window.Btn;
 const PInput = window.Input;
 const PModal = window.Modal;
 const PBadge = window.Badge;
+const PAdSenseBanner = window.AdSenseBanner;
 
 // ── Daisy Tema Renkleri ──
 const DY = {
@@ -5462,33 +5463,37 @@ function OgrenciPortaliApp({ currentUser }) {
             })}
 
             {/* Normal gönderiler */}
-            {regularPosts.slice(0, visibleCount).map(function (post) {
+            {regularPosts.slice(0, visibleCount).map(function (post, index) {
               return (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  userId={getUserId(currentUser)}
-                  currentUser={currentUser}
-                  onReact={handleReact}
-                  onVote={handleVote}
-                  onVotePost={handleVotePost}
-                  onDelete={handleDelete}
-                  onEdit={handleEdit}
-                  onTogglePin={handleTogglePin}
-                  onToggleBookmark={handleToggleBookmark}
-                  isBookmarked={bookmarks.indexOf(post.id) >= 0}
-                  isAdmin={isAdmin}
-                  onFilterAuthor={setAuthorFilter}
-                  onFilterTag={setTagFilter}
-                  allUsers={allUsers}
-                  onFollowUser={handleFollowUser}
-                  followedUsers={followData.users}
-                  onViewProfile={handleViewProfile}
-                  isModOrAdmin={isModOrAdmin}
-                  moderators={moderators}
-                  onApprove={handleApprovePost}
-                  onReject={handleRejectPost}
-                />
+                <React.Fragment key={post.id}>
+                  <PostCard
+                    post={post}
+                    userId={getUserId(currentUser)}
+                    currentUser={currentUser}
+                    onReact={handleReact}
+                    onVote={handleVote}
+                    onVotePost={handleVotePost}
+                    onDelete={handleDelete}
+                    onEdit={handleEdit}
+                    onTogglePin={handleTogglePin}
+                    onToggleBookmark={handleToggleBookmark}
+                    isBookmarked={bookmarks.indexOf(post.id) >= 0}
+                    isAdmin={isAdmin}
+                    onFilterAuthor={setAuthorFilter}
+                    onFilterTag={setTagFilter}
+                    allUsers={allUsers}
+                    onFollowUser={handleFollowUser}
+                    followedUsers={followData.users}
+                    onViewProfile={handleViewProfile}
+                    isModOrAdmin={isModOrAdmin}
+                    moderators={moderators}
+                    onApprove={handleApprovePost}
+                    onReject={handleRejectPost}
+                  />
+                  {(index + 1) % 4 === 0 && PAdSenseBanner && (
+                    <PAdSenseBanner key={"ad-feed-" + index} type="feed" />
+                  )}
+                </React.Fragment>
               );
             })}
             {regularPosts.length > visibleCount && (
@@ -5502,6 +5507,10 @@ function OgrenciPortaliApp({ currentUser }) {
           {isMobile ? (
             <MobileSidebarToggle>
               <UserProfileCard currentUser={currentUser} posts={posts} onViewProfile={handleViewProfile} />
+              
+              {/* Mobil Reklam */}
+              {PAdSenseBanner && <PAdSenseBanner type="sidebar" />}
+
               <TrendingSidebar posts={posts} />
               <FollowingSidebar followData={followData} onFollowUser={handleFollowUser} onFollowTag={handleFollowTag} allUsers={allUsers} posts={posts} />
               <TagCloud posts={posts} onFilterTag={setTagFilter} activeTag={tagFilter.replace(/^#/, "")} onFollowTag={handleFollowTag} followedTags={followData.tags} />
@@ -5537,6 +5546,10 @@ function OgrenciPortaliApp({ currentUser }) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: 88 }}>
               <UserProfileCard currentUser={currentUser} posts={posts} onViewProfile={handleViewProfile} />
+              
+              {/* Sidebar Reklamı */}
+              {PAdSenseBanner && <PAdSenseBanner type="sidebar" />}
+
               <TrendingSidebar posts={posts} />
               <FollowingSidebar followData={followData} onFollowUser={handleFollowUser} onFollowTag={handleFollowTag} allUsers={allUsers} posts={posts} />
               <TagCloud posts={posts} onFilterTag={setTagFilter} activeTag={tagFilter.replace(/^#/, "")} onFollowTag={handleFollowTag} followedTags={followData.tags} />

@@ -7181,3 +7181,58 @@ window.LoginModal = LoginModal;
 window.PasswordManagementModal = PasswordManagementModal;
 window.GradeConverter = GradeConverter;
 window.ChangePasswordModal = ChangePasswordModal;
+
+// ── Google AdSense Reklam Banner Bileşeni ──
+const AdSenseBanner = ({ type }) => {
+  const containerRef = window.React.useRef(null);
+  const pushed = window.React.useRef(false);
+
+  window.React.useEffect(() => {
+    if (pushed.current) return;
+    if (!containerRef.current) return;
+    const timer = setTimeout(() => {
+      try {
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+        pushed.current = true;
+      } catch (err) {
+        console.warn("AdSense push hatası:", err);
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Feed içi reklam (fluid)
+  if (!type || type === "feed") {
+    return (
+      <div ref={containerRef} style={{ overflow: 'hidden', margin: '4px 0', minHeight: 50 }}>
+        <ins
+          className="adsbygoogle"
+          style={{ display: 'block' }}
+          data-ad-format="fluid"
+          data-ad-layout-key="-fb+5w+4e-db+86"
+          data-ad-client="ca-pub-7694350832593138"
+          data-ad-slot="1362423408"
+        />
+      </div>
+    );
+  }
+
+  // Sidebar / yatay reklam (auto responsive)
+  if (type === "sidebar") {
+    return (
+      <div ref={containerRef} style={{ overflow: 'hidden', margin: '4px 0', minHeight: 90 }}>
+        <ins
+          className="adsbygoogle"
+          style={{ display: 'block' }}
+          data-ad-client="ca-pub-7694350832593138"
+          data-ad-slot="6879159724"
+          data-ad-format="auto"
+          data-full-width-responsive="true"
+        />
+      </div>
+    );
+  }
+
+  return null;
+};
+window.AdSenseBanner = AdSenseBanner;
