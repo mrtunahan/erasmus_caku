@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html dir="" id="html" lang="">
+ <head>
+  <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+  <title>
+   ÖĞRENCİ İŞLERİ DAİRE BAŞKANLIĞI - Çankırı Karatekin Üniversitesi
+  </title>
+  <link href="http://karatekin.edu.tr/rss" rel="alternate" title="RSS 2.0" type="application/rss+xml"/>
+  <meta content="width=device-width, initial-scale=1" name="viewport"/>
+  <meta content="5662 Sayılı Yükseköğretim Kurumları Teşkilatı Kanununda ve Yükseköğretim Kurumları Öğretim Elemanlarının Kadroları Hakkında Kanun Hükmünde Kararname ile Genel Kadro ve Usulü Hakkında Kanun Hükmünde Kararnameye Ekli Cetvellerde Değişiklik Yapılmasına Dair Kanunla kurulan ve 28 Mayıs 2007 tarihinde Ahmet Necdet Sezer tarafından onaylanan, 17 yeni üniversiteden biridir. Çankırı ilinde bulunmaktadır." name="description"/>
+  <link href="../img/favicon/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/>
+  <link href="../img/favicon/favicon-32x32.png" rel="icon" sizes="32x32" type="image/png"/>
+  <link href="../img/favicon/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png"/>
+  <link href="../img/favicon/site.webmanifest" rel="manifest"/>
+  <link href="../img/favicon/safari-pinned-tab.svg" rel="mask-icon"/>
+  <meta content="#da532c" name="msapplication-TileColor"/>
+  <meta content="#ffffff" name="theme-color"/>
+  <meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible"/>
+  <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+  <meta content="@karatekinuni" name="twitter:site"/>
+  <meta content="304292568" property="twitter:account_id"/>
+  <meta content="karatekin.edu.tr" property="fb:page_id"/>
+  <meta content="https://www.karatekin.edu.tr/img/odul.png" property="og:image"/>
+  <meta content="Çankırı Karatekin Üniversitesi" property="og:title"/>
+  <meta content="5662 Sayılı Yükseköğretim Kurumları Teşkilatı Kanununda ve Yükseköğretim Kurumları Öğretim Elemanlarının Kadroları Hakkında Kanun Hükmünde Kararname ile Genel Kadro ve Usulü Hakkında Kanun Hükmünde Kararnameye Ekli Cetvellerde Değişiklik Yapılmasına Dair Kanunla kurulan ve 28 Mayıs 2007 tarihinde Ahmet Necdet Sezer tarafından onaylanan, 17 yeni üniversiteden biridir. Çankırı ilinde bulunmaktadır." property="og:description"/>
+  <meta content="article" property="og:type"/>
+  <meta content="Karatekin Üniversitesi" property="og:site_name"/>
+  <link href="/semantic/semantic.min.css" rel="stylesheet"/>
+  <link href="/plugins/bxslider/jquery.bxslider.css" rel="stylesheet"/>
+  <link href="/plugins/animsition/css/animsition.min.css" rel="stylesheet"/>
+  <link href="/plugins/photoswipe/photoswipe.css" rel="stylesheet"/>
+  <link href="/plugins/photoswipe/default-skin/default-skin.css" rel="stylesheet"/>
+  <link href="/font-icon/iconfont-cn/iconfont.css" rel="stylesheet"/>
+  <link href="/plugins/PgwSlider-master/pgwslider.min.css" rel="stylesheet"/>
+  <link href="/plugins/fullcalendar/fullcalendar.min.css" rel="stylesheet"/>
+  <link href="/plugins/org-chart/jquery.orgchart.css" rel="stylesheet"/>
+  <link href="/css/style.min.css?v1.2" rel="stylesheet"/>
+  <link href="/plugins/lightGallery/css/lightgallery.min.css" rel="stylesheet"/>
+  <link href="/plugins/lightGallery/css/lg-transitions.min.css" rel="stylesheet"/>
+  <link href="/css/nazli.min.css?v1.0" rel="stylesheet"/>
+  <link href="/css/style2.min.css" rel="stylesheet"/>
+  <link href="/css/mobile/sablon5mobile.min.css" rel="stylesheet"/>
+  <link href="/plugins/iziToast-master/css/iziToast.min.css" rel="stylesheet"/>
+  <link href="/plugins/trumbowyg/trumbowyg.css" rel="stylesheet"/>
+  <link href="../css/teskilatsemasi.min.css" rel="stylesheet"/>
+  <script src="/js/jquery-3.3.1.min.js">
+  </script>
+  <script src="/plugins/fullcalendar/moment.min.js">
+  </script>
+  <script src="/plugins/fullcalendar/fullcalendar.min.js">
+  </script>
+  <script src="/plugins/fullcalendar/locale/tr.js">
+  </script>
+  <script src="/plugins/iziToast-master/js/iziToast.min.js">
+  </script>
+  <script src="/plugins/lightGallery/js/lightgallery.min.js">
+  </script>
+  <script src="/plugins/color-thief/color-thief.min.js">
+  </script>
+  <script>
+   var vcc = function (g_recaptcha_response) {
+            var $captcha = $('#recaptcha');
+
+            $('.msg-error').text('');
+            $captcha.removeClass("error");
+        };
+        var vcc = function (g_recaptcha_response) {
+            var $captcha = $('#recaptcha2');
+
+            $('.msg-error').text('');
+            $captcha.removeClass("error");
+        };
+  </script>
+  <script src="https://www.google.com/recaptcha/api.js">
+  </script>
+  <script>
+   var limitOne = 0;
+        var limitTwo = 10;
+        function getdata(tur) {
+            var url = "/jsondata/tumIcerikler.aspx?limitone=" + limitOne + "&limittwo=" + limitTwo + "&tur=" + tur + "";
+            if (tur == "12") {
+                url = "/jsondata/tumEgitimler.aspx?limitone=" + limitOne + "&limittwo=" + limitTwo + "&tur=" + tur + "";
+            }
+            $.ajax({
+                type: "GET",
+                url: url,
+                dataType: "json",
+                cache: false,
+                success: function (response) {
+
+                    for (var i = 0; i < response.length; i++) {
+
+                        $(".all-contents").append("" + response[i].paragraph + "");
+                    }
+                },
+                beforeSend: function () {
+                    $(document).bind("ajaxSend", function () {
+                        $("#loading").show();
+                    }).bind("ajaxComplete", function () {
+                        $("#loading").hide();
+                    });
+                },
+                complete: function () {
+
+
+
+                }
+            });
+        }
+  </script>
+  <style id="table_style" type="text/css">
+   body {
+            font-family: Arial;
+            font-size: 10pt;
+        }
+
+        table {
+            border: 1px solid #ccc;
+            border-collapse: collapse;
+        }
+
+            table th {
+                background-color: #F7F7F7;
+                color: #333;
+                font-weight: bold;
+            }
+
+            table th, table td {
+                padding: 5px;
+                border: 1px solid #ccc;
+            }
+  </style>
+ </head>
+ <body class="oidb" id="masterbody" style="direction:;">
+  <form action="./tum.duyurular-1-icerikleri.karatekin" id="form1" method="post">
+   <div class="aspNetHidden">
+    <input id="__VIEWSTATE" name="__VIEWSTATE" type="hidden" value="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"/>
+   </div>
+   <div class="aspNetHidden">
+    <input id="__VIEWSTATEGENERATOR" name="__VIEWSTATEGENERATOR" type="hidden" value="F8EDDEDC"/>
+   </div>
+   <div class="topColor" id="topColor" style="background:#192f59">
+   </div>
+   <div class="z-depth-0" id="PageContainer">
+    <div class="z-depth-0" id="PageHeader">
+     <div id="Header">
+      <div class="ui equal width center aligned padded grid banner1">
+       <div class="row bir" id="mavimenu">
+        <div class="column">
+         <div class="ui container stackable grid inverted tiny menu">
+          <div class="left menu" id="dilmenusu">
+           <a class="active item dilDegis" data-dil="T" data-flag="tr" id="dilactive">
+            <i class="tr flag">
+            </i>
+            Tr
+           </a>
+           <a class="item dilDegis" data-dil="E" data-flag="gb" id="dilactive">
+            <i class="gb flag">
+            </i>
+            En
+           </a>
+          </div>
+          <div id="menuicerik">
+           <div class="column" style="position: relative;float: left;">
+            <a class="item" href="https://cakubologna.karatekin.edu.tr/tr" target="_blank">
+             Bologna B.S.
+            </a>
+           </div>
+           <div class="column" style="position: relative;float: left;">
+            <a class="item" href="https://cakuavis.karatekin.edu.tr/" target="_blank">
+             ÇAKÜAVİS
+            </a>
+           </div>
+           <div class="column" style="position: relative;float: left;">
+            <a class="item" href="http://ubys.karatekin.edu.tr/" target="_blank">
+             UBYS
+            </a>
+           </div>
+           <div class="column" style="position: relative;float: left;">
+            <a class="item" href="https://mail.karatekin.edu.tr/" target="_blank">
+             E-Posta
+            </a>
+           </div>
+           <div class="column" style="position: relative;float: left;">
+            <a class="item" href="https://cakumedya.karatekin.edu.tr" target="_blank">
+             ÇAKÜ Medya
+            </a>
+           </div>
+           <div class="column" style="position: relative;float: left;">
+            <a class="item" href="https://kalite.karatekin.edu.tr/tr-anasayfa" target="_blank">
+             Kalite
+            </a>
+           </div>
+           <div class="column" style="position: relative;float: left;">
+            <a class="item" href="https://rehber.karatekin.edu.tr/" target="_blank">
+             Rehber
+            </a>
+           </div>
+           <div class="column" style="position: relative;float: left;">
+            <a class="item" href="https://www.karatekin.edu.tr/tr/uluslararasi-ogrenci-169-sayfasi-karatekin" target="_blank">
+             Uluslararası Öğrenci
+            </a>
+           </div>
+           <div class="column" style="position: relative;float: left;">
+            <a class="item" href="https://uzem.karatekin.edu.tr/tr-anasayfa" target="_blank">
+             Uzem
+            </a>
+           </div>
+           <div class="column" style="position: relative;float: left;background-color: #3db166;">
+            <a class="item" href="https://cakumer.karatekin.edu.tr/" style="color:white" target="_blank">
+             Rektöre Yaz
+            </a>
+           </div>
+          </div>
+         </div>
+        </div>
+       </div>
+       <div class="row iki kayanmenuheader overlay">
+        <div class="ui large container grid secondary menu overlay topnavmenu">
+         <div class="five wide column widthlogo" id="fivewidecolumn">
+          <h2 class="ui header">
+           <a class="sablon5_logo" href="https://karatekin.edu.tr" id="cakulogo" style="float: left" target="_blank">
+            <img alt="Çankırı Karatekin Üniversitesi Logosu" class="ui image header" src="../../img/logo.png"/>
+           </a>
+           <div class="content" style="margin-left: 3px;">
+            <span class="sub header cakubaslik" id="uniBaslik" title="ÇANKIRI KARATEKİN ÜNİVERSİTESİ">
+             ÇANKIRI KARATEKİN ÜNİVERSİTESİ
+            </span>
+            <span class="sub header ustbirimbaslik" id="baslik_1" style="margin-left: 1px;">
+            </span>
+            <span class="sub header birimbaslik" id="bBaslik" style="" title="ÖĞRENCİ İŞLERİ DAİRE BAŞKANLIĞI">
+             ÖĞRENCİ İŞLERİ DAİRE BAŞKANLIĞI
+            </span>
+            <span class="sub header" id="baslik_2">
+            </span>
+            <span class="sub header" id="baslik_3">
+            </span>
+           </div>
+          </h2>
+         </div>
+         <div class="eleven wide column widthmenu" id="elevenwidecolumn">
+          <div class="right menu">
+           <a class="toc item sidebar-item">
+            <i class="sidebar icon">
+            </i>
+           </a>
+           <div class="item" id="ustmenu">
+            <a class="item" href="/tr-anasayfa" target="_self" title="Ana Sayfa">
+             Ana Sayfa
+            </a>
+            <div class="ui dropdown item" title="Hakkımızda">
+             Hakkımızda
+             <i class="dropdown icon">
+             </i>
+             <div class="menu">
+              <a class="item" href="/tr/yonetim-26259-sayfasi.karatekin" target="_self" title="Yönetim">
+               Yönetim
+              </a>
+              <a class="item" href="/tr/tanitim-19839-sayfasi.karatekin" target="_self" title="Tanıtım">
+               Tanıtım
+              </a>
+              <a class="item" href="/tr/misyon--vizyon-2882-sayfasi.karatekin" target="_self" title="Misyon &amp; Vizyon">
+               Misyon &amp; Vizyon
+              </a>
+              <a class="item" href="/tr/organizasyon-semasi-19842-sayfasi.karatekin" target="_self" title="Organizasyon Şeması">
+               Organizasyon Şeması
+              </a>
+              <a class="item" href="/tr/birim-kalite-komisyonu-29907-sayfasi.karatekin" target="_self" title="Birim Kalite Komisyonu">
+               Birim Kalite Komisyonu
+              </a>
+              <div class="ui pointing item" title="Mevzuat">
+               <i class="dropdown icon">
+               </i>
+               <span class="text">
+                Mevzuat
+               </span>
+               <div class="menu">
+                <a class="item" href="https://kms.kaysis.gov.tr/Home/Kurum/47457363" target="_blank" title="Mevzuat Yeni">
+                 Mevzuat Yeni
+                </a>
+                <a class="item" href="/tr/yonetmelik-30550-sayfasi.karatekin" target="_self" title="Yönetmelik">
+                 Yönetmelik
+                </a>
+                <a class="item" href="/tr/yonerge-30551-sayfasi.karatekin" target="_self" title="Yönerge">
+                 Yönerge
+                </a>
+               </div>
+              </div>
+              <a class="item" href="/tr/ulasim-19844-sayfasi.karatekin" target="_self" title="Ulaşım">
+               Ulaşım
+              </a>
+             </div>
+            </div>
+            <a class="item" href="/tr/personel-24910-sayfasi.karatekin" target="_self" title="Personel">
+             Personel
+            </a>
+            <a class="item" href="https://www.karatekin.edu.tr/tr/akademik-5-sayfasi-karatekin" target="_blank" title="Akademik Birimler">
+             Akademik Birimler
+            </a>
+            <a class="item" href="/tr/akademik-takvim-30568-sayfasi.karatekin" target="_self" title="Akademik Takvim">
+             Akademik Takvim
+            </a>
+            <div class="ui dropdown item" title="Aday Öğrenci">
+             Aday Öğrenci
+             <i class="dropdown icon">
+             </i>
+             <div class="menu">
+              <div class="ui pointing item" title="Fakülteler">
+               <i class="dropdown icon">
+               </i>
+               <span class="text">
+                Fakülteler
+               </span>
+               <div class="menu">
+                <a class="item" href="https://dis.karatekin.edu.tr/tr/aday-ogrenciler-16413-sayfasi.karatekin" target="_blank" title="Diş Hekimliği Fakültesi">
+                 Diş Hekimliği Fakültesi
+                </a>
+                <a class="item" href="https://itbf.karatekin.edu.tr/tr/aday-ogrenciler-30348-sayfasi.karatekin" target="_blank" title="İnsan ve Toplum Bilimleri Fakültesi">
+                 İnsan ve Toplum Bilimleri Fakültesi
+                </a>
+                <a class="item" href="https://fen.karatekin.edu.tr/tr/aday-ogrenci-30393-sayfasi.karatekin" target="_blank" title="Fen Fakültesi">
+                 Fen Fakültesi
+                </a>
+                <a class="item" href="https://hukuk.karatekin.edu.tr/tr/genel-bilgiler-17850-sayfasi.karatekin" target="_blank" title="Hukuk Fakültesi">
+                 Hukuk Fakültesi
+                </a>
+                <a class="item" href="https://iibf.karatekin.edu.tr/tr/aday-ogrenci-30439-sayfasi.karatekin" target="_blank" title="İktisadi ve İdari Bilimler Fakültesi">
+                 İktisadi ve İdari Bilimler Fakültesi
+                </a>
+                <a class="item" href="https://islamiilimler.karatekin.edu.tr/tr/aday-ogrenci-22876-sayfasi.karatekin" target="_blank" title="İslami İlimler Fakültesi">
+                 İslami İlimler Fakültesi
+                </a>
+                <a class="item" href="https://mf.karatekin.edu.tr/tr/aday-ogrenciler-9752-sayfasi.karatekin" target="_blank" title="Mühendislik Fakültesi">
+                 Mühendislik Fakültesi
+                </a>
+                <a class="item" href="https://of.karatekin.edu.tr/tr/aday-ogrenciler-8991-sayfasi.karatekin" target="_blank" title="Orman Fakültesi">
+                 Orman Fakültesi
+                </a>
+                <a class="item" href="https://sbf.karatekin.edu.tr/tr/aday-ogrenci-27392-sayfasi.karatekin" target="_blank" title="Sağlık Bilimleri Fakültesi">
+                 Sağlık Bilimleri Fakültesi
+                </a>
+                <a class="item" href="https://stm.karatekin.edu.tr/tr/aday-ogrenci-28588-sayfasi.karatekin" target="_blank" title="Sanat Tasarım Ve Mimarlık Fakültesi">
+                 Sanat Tasarım Ve Mimarlık Fakültesi
+                </a>
+                <a class="item" href="https://ilgazto.karatekin.edu.tr/tr/aday-ogrenci--17123-sayfasi.karatekin" target="_blank" title="Turizm Fakültesi">
+                 Turizm Fakültesi
+                </a>
+               </div>
+              </div>
+              <div class="ui pointing item" title="Meslek Yüksekokulları">
+               <i class="dropdown icon">
+               </i>
+               <span class="text">
+                Meslek Yüksekokulları
+               </span>
+               <div class="menu">
+                <a class="item" href="https://sbmyo.karatekin.edu.tr/tr/aday-ogrenci-23470-sayfasi.karatekin" target="_blank" title="Sosyal Bilimler Meslek Yüksekokulu">
+                 Sosyal Bilimler Meslek Yüksekokulu
+                </a>
+                <a class="item" href="https://gidatarimmyo.karatekin.edu.tr/tr/aday-ogrenci-30322-sayfasi.karatekin" target="_blank" title="Gıda ve Tarım Meslek Yüksekokulu">
+                 Gıda ve Tarım Meslek Yüksekokulu
+                </a>
+                <a class="item" href="https://cerkesmyo.karatekin.edu.tr/tr/aday-ogrenci-16586-sayfasi.karatekin" target="_blank" title="Çerkeş Meslek Yüksekokulu">
+                 Çerkeş Meslek Yüksekokulu
+                </a>
+                <a class="item" href="https://eshmyo.karatekin.edu.tr/tr/aday-ogrenci-15895-sayfasi.karatekin" target="_blank" title="Eldivan Sağlık Hizmetleri Meslek Yüksekokulu">
+                 Eldivan Sağlık Hizmetleri Meslek Yüksekokulu
+                </a>
+                <a class="item" href="https://adaletmyo.karatekin.edu.tr/tr/aday-ogrenci-14481-sayfasi.karatekin" target="_blank" title="Kurşunlu Meslek Yüksekokulu">
+                 Kurşunlu Meslek Yüksekokulu
+                </a>
+                <a class="item" href="https://myo.karatekin.edu.tr/tr/aday-ogrenci-15935-sayfasi.karatekin" target="_blank" title="Meslek Yüksekokulu">
+                 Meslek Yüksekokulu
+                </a>
+                <a class="item" href="https://sabanozu.karatekin.edu.tr/tr/aday-ogrenciler-24044-sayfasi.karatekin" target="_blank" title="Şabanözü Meslek Yüksekokulu">
+                 Şabanözü Meslek Yüksekokulu
+                </a>
+               </div>
+              </div>
+             </div>
+            </div>
+            <a class="item" href="/tr/iletisim-19845-sayfasi.karatekin" target="_self" title="İletişim">
+             İletişim
+            </a>
+            <div class="right menu">
+            </div>
+           </div>
+          </div>
+         </div>
+        </div>
+       </div>
+      </div>
+     </div>
+     <div class="" id="Navbar">
+      <div id="sidebarMenu">
+       <div class="ui vertical inverted sidebar menu sidemenu" style="background:#192f59">
+        <button class="ui teal button" id="sidebarkapat" style="color:white;border-radius: 0;width: 100%;" type="ui button">
+         <i class="close icon">
+         </i>
+         Kapat
+        </button>
+        <a class="item" href="/tr-anasayfa">
+         Ana Sayfa
+        </a>
+        <div class="ui fluid accordion inverted">
+         <div class="title item">
+          Hakkımızda
+          <i class="dropdown icon sicon">
+          </i>
+         </div>
+         <div class="content">
+          <a class="item" href="/tr/yonetim-26259-sayfasi.karatekin">
+           Yönetim
+          </a>
+          <a class="item" href="/tr/tanitim-19839-sayfasi.karatekin">
+           Tanıtım
+          </a>
+          <a class="item" href="/tr/misyon--vizyon-2882-sayfasi.karatekin">
+           Misyon &amp; Vizyon
+          </a>
+          <a class="item" href="/tr/organizasyon-semasi-19842-sayfasi.karatekin">
+           Organizasyon Şeması
+          </a>
+          <a class="item" href="/tr/birim-kalite-komisyonu-29907-sayfasi.karatekin">
+           Birim Kalite Komisyonu
+          </a>
+          <div class="accordion secondaccordion">
+           <div class="title item">
+            Mevzuat
+            <i class="dropdown icon sicon">
+            </i>
+           </div>
+           <div class="content">
+            <a class="item" href="https://kms.kaysis.gov.tr/Home/Kurum/47457363">
+             Mevzuat Yeni
+            </a>
+            <a class="item" href="/tr/yonetmelik-30550-sayfasi.karatekin">
+             Yönetmelik
+            </a>
+            <a class="item" href="/tr/yonerge-30551-sayfasi.karatekin">
+             Yönerge
+            </a>
+           </div>
+          </div>
+          <a class="item" href="/tr/ulasim-19844-sayfasi.karatekin">
+           Ulaşım
+          </a>
+         </div>
+        </div>
+        <a class="item" href="/tr/personel-24910-sayfasi.karatekin">
+         Personel
+        </a>
+        <a class="item" href="https://www.karatekin.edu.tr/tr/akademik-5-sayfasi-karatekin">
+         Akademik Birimler
+        </a>
+        <a class="item" href="/tr/akademik-takvim-30568-sayfasi.karatekin">
+         Akademik Takvim
+        </a>
+        <div class="ui fluid accordion inverted">
+         <div class="title item">
+          Aday Öğrenci
+          <i class="dropdown icon sicon">
+          </i>
+         </div>
+         <div class="content">
+          <div class="accordion secondaccordion">
+           <div class="title item">
+            Fakülteler
+            <i class="dropdown icon sicon">
+            </i>
+           </div>
+           <div class="content">
+            <a class="item" href="https://dis.karatekin.edu.tr/tr/aday-ogrenciler-16413-sayfasi.karatekin">
+             Diş Hekimliği Fakültesi
+            </a>
+            <a class="item" href="https://itbf.karatekin.edu.tr/tr/aday-ogrenciler-30348-sayfasi.karatekin">
+             İnsan ve Toplum Bilimleri Fakültesi
+            </a>
+            <a class="item" href="https://fen.karatekin.edu.tr/tr/aday-ogrenci-30393-sayfasi.karatekin">
+             Fen Fakültesi
+            </a>
+            <a class="item" href="https://hukuk.karatekin.edu.tr/tr/genel-bilgiler-17850-sayfasi.karatekin">
+             Hukuk Fakültesi
+            </a>
+            <a class="item" href="https://iibf.karatekin.edu.tr/tr/aday-ogrenci-30439-sayfasi.karatekin">
+             İktisadi ve İdari Bilimler Fakültesi
+            </a>
+            <a class="item" href="https://islamiilimler.karatekin.edu.tr/tr/aday-ogrenci-22876-sayfasi.karatekin">
+             İslami İlimler Fakültesi
+            </a>
+            <a class="item" href="https://mf.karatekin.edu.tr/tr/aday-ogrenciler-9752-sayfasi.karatekin">
+             Mühendislik Fakültesi
+            </a>
+            <a class="item" href="https://of.karatekin.edu.tr/tr/aday-ogrenciler-8991-sayfasi.karatekin">
+             Orman Fakültesi
+            </a>
+            <a class="item" href="https://sbf.karatekin.edu.tr/tr/aday-ogrenci-27392-sayfasi.karatekin">
+             Sağlık Bilimleri Fakültesi
+            </a>
+            <a class="item" href="https://stm.karatekin.edu.tr/tr/aday-ogrenci-28588-sayfasi.karatekin">
+             Sanat Tasarım Ve Mimarlık Fakültesi
+            </a>
+            <a class="item" href="https://ilgazto.karatekin.edu.tr/tr/aday-ogrenci--17123-sayfasi.karatekin">
+             Turizm Fakültesi
+            </a>
+           </div>
+          </div>
+          <div class="accordion secondaccordion">
+           <div class="title item">
+            Meslek Yüksekokulları
+            <i class="dropdown icon sicon">
+            </i>
+           </div>
+           <div class="content">
+            <a class="item" href="https://sbmyo.karatekin.edu.tr/tr/aday-ogrenci-23470-sayfasi.karatekin">
+             Sosyal Bilimler Meslek Yüksekokulu
+            </a>
+            <a class="item" href="https://gidatarimmyo.karatekin.edu.tr/tr/aday-ogrenci-30322-sayfasi.karatekin">
+             Gıda ve Tarım Meslek Yüksekokulu
+            </a>
+            <a class="item" href="https://cerkesmyo.karatekin.edu.tr/tr/aday-ogrenci-16586-sayfasi.karatekin">
+             Çerkeş Meslek Yüksekokulu
+            </a>
+            <a class="item" href="https://eshmyo.karatekin.edu.tr/tr/aday-ogrenci-15895-sayfasi.karatekin">
+             Eldivan Sağlık Hizmetleri Meslek Yüksekokulu
+            </a>
+            <a class="item" href="https://adaletmyo.karatekin.edu.tr/tr/aday-ogrenci-14481-sayfasi.karatekin">
+             Kurşunlu Meslek Yüksekokulu
+            </a>
+            <a class="item" href="https://myo.karatekin.edu.tr/tr/aday-ogrenci-15935-sayfasi.karatekin">
+             Meslek Yüksekokulu
+            </a>
+            <a class="item" href="https://sabanozu.karatekin.edu.tr/tr/aday-ogrenciler-24044-sayfasi.karatekin">
+             Şabanözü Meslek Yüksekokulu
+            </a>
+           </div>
+          </div>
+         </div>
+        </div>
+        <a class="item" href="/tr/iletisim-19845-sayfasi.karatekin">
+         İletişim
+        </a>
+        <a class="item" href="https://cakubologna.karatekin.edu.tr/tr">
+         Bologna B.S.
+        </a>
+        <a class="item" href="https://cakuavis.karatekin.edu.tr/">
+         ÇAKÜAVİS
+        </a>
+        <a class="item" href="http://ubys.karatekin.edu.tr/">
+         UBYS
+        </a>
+        <a class="item" href="https://mail.karatekin.edu.tr/">
+         E-Posta
+        </a>
+        <a class="item" href="https://kalite.karatekin.edu.tr/tr-anasayfa">
+         Kalite
+        </a>
+        <a class="item" href="https://rehber.karatekin.edu.tr/">
+         Rehber
+        </a>
+        <a class="item" href="https://www.karatekin.edu.tr/tr/uluslararasi-ogrenci-169-sayfasi-karatekin">
+         Uluslararası Öğrenci
+        </a>
+        <a class="item" href="https://uzem.karatekin.edu.tr/tr-anasayfa">
+         Uzem
+        </a>
+        <a class="item" href="https://katalog.karatekin.edu.tr/">
+         Kütüphane Hesabım
+        </a>
+        <a class="item" href="https://cakumedya.karatekin.edu.tr/">
+         ÇAKÜ Medya
+        </a>
+        <a class="item" href="https://cakumer.karatekin.edu.tr/">
+         Rektöre Yaz
+        </a>
+        <a class="active item dilDegis" data-dil="T" data-flag="tr" id="dilactive">
+         <i class="tr flag">
+         </i>
+         Tr
+        </a>
+        <a class="item dilDegis" data-dil="E" data-flag="gb" id="dilactive">
+         <i class="gb flag">
+         </i>
+         En
+        </a>
+       </div>
+      </div>
+     </div>
+    </div>
+    <div class="ui container z-depth-0" id="Slider">
+    </div>
+    <div class="pusher ui container page-content2" id="MainContentDefault">
+     <div class="content-icerik" id="IcerikContent">
+      <div class="ui equal width left aligned grid stackable" id="siteIcerikGrid">
+       <div class="row">
+        <div class="column">
+         <div class="ui attached segment" id="iceriks">
+          <div class="all-contents">
+          </div>
+          <div class="ui large centered inline text loader yukle-icon" id="loading" visible="false">
+           Daha Fazla Yükle...
+          </div>
+          <a class="ui green button fluid load-more-content" style="margin:20px 0">
+           Daha Fazla Göster
+          </a>
+          <script>
+           getdata('1') 
+                    $('.load-more-content').on('click',function(){
+                        limitOne = parseInt(limitTwo) + 1,
+                            limitTwo = parseInt(limitTwo) + 5
+
+                            getdata('1');
+                    })
+          </script>
+         </div>
+        </div>
+       </div>
+      </div>
+     </div>
+    </div>
+    <div class="ui bottom blue overlay fixed cookie blue hide nag" style="visibility: hidden">
+     <div class="title">
+      Hizmetlerimizden en iyi şekilde faydalanabilmeniz için çerezler kullanıyoruz.
+      <br/>
+      Çerez politikamıza
+      <a href="cerezpolitikasi/karar.pdf" style="color: #0094ff" target="_blank">
+       buradan
+      </a>
+      ulaşabilirsiniz. KVKK detayları için
+      <strong>
+       <a href="https://kvkk.karatekin.edu.tr/tr/politikalar-23501-sayfasi.karatekin" style="color: #0094ff" target="_blank">
+        KVKK Sayfamızı
+       </a>
+      </strong>
+      ziyaret edebilirsiniz.
+      <br/>
+      <div class="ui blue cerez button">
+       Anladım, Kabul Ediyorum.
+      </div>
+      <div class="ui small button cerezkapat">
+       <i class="cerezkapat" style="margin-left: 3px">
+       </i>
+       Kapat
+      </div>
+     </div>
+    </div>
+   </div>
+   <div id="Footer">
+    <div id="footmenu">
+     <div class="ui stackable equal width center aligned padded grid">
+      <div class="row" style="background-color: #1b2434;color: #FFFFFF;">
+       <div class="column">
+        <div class="ui container equal width grid footmenurow1">
+         <div class="row">
+          <div class="column">
+           <div class="ui segment">
+            <a class="inline-a" href="https://www.tccb.gov.tr/" target="_blank">
+             <img class="ui middle vertical aligned image" height="50" src="../img/partners/cb.png"/>
+             CUMHURBAŞKANLIĞI
+            </a>
+           </div>
+          </div>
+          <div class="column">
+           <div class="ui segment">
+            <a class="inline-a" href="https://www.yok.gov.tr/" target="_blank">
+             <img class="ui middle vertical aligned image" height="50" src="../img/partners/yokLogo.png"/>
+             YÖK
+            </a>
+           </div>
+          </div>
+          <div class="column">
+           <div class="ui segment">
+            <a class="inline-a" href="https://www.tubitak.gov.tr/" target="_blank">
+             <img class="ui middle vertical aligned image" src="../img/partners/tubitaklogo.png"/>
+             TÜBİTAK
+            </a>
+           </div>
+          </div>
+          <div class="column">
+           <div class="ui segment">
+            <a class="inline-a" href="https://www.osym.gov.tr/" target="_blank">
+             <img class="ui middle vertical aligned image" src="../img/partners/osymLogo.png"/>
+             ÖSYM
+            </a>
+           </div>
+          </div>
+          <div class="column">
+           <div class="ui segment">
+            <a class="inline-a" href="https://www.cimer.gov.tr/" target="_blank">
+             <img class="ui middle vertical aligned image" src="../img/partners/cimer-logo.png"/>
+             CİMER
+            </a>
+           </div>
+          </div>
+         </div>
+        </div>
+       </div>
+      </div>
+      <div class="row" style="background-color: #1e1e1e;color: #FFFFFF;">
+       <div class="ui container" style="background: url(/img/tasmescit.svg) no-repeat #1e1e1e;background-size: cover;">
+        <div class="ui stackable four column grid footmenurow2">
+         <div class="column">
+          <div class="ui inverted vertical text menu">
+           <div class="header item" lang="tr">
+            Bize Ulaşın
+           </div>
+           <a class="item">
+            Adres: Uluyazı Kampüsü, Öğrenci İşleri Daire Başkanlığı Binası
+           </a>
+           <a class="item">
+            Telefon: 0 (376) 218 95 66
+           </a>
+           <a class="item">
+            Fax: 0 (376) 218 95 67
+           </a>
+           <a class="item">
+            E-Posta: oidb@karatekin.edu.tr
+           </a>
+          </div>
+         </div>
+         <div class="column">
+          <div class="ui inverted vertical text menu">
+           <div class="header item" lang="tr">
+            BİLGİ SİSTEMLERİ
+           </div>
+           <a class="item" href="https://cakumer.karatekin.edu.tr/">
+            Bize Ulaşın
+           </a>
+           <a class="item" href="https://cakubologna.karatekin.edu.tr/tr">
+            Bologna Eşgüdüm Komisyonu
+           </a>
+           <a class="item" href="https://cakuavis.karatekin.edu.tr/">
+            ÇAKÜAVİS
+           </a>
+           <a class="item" href="https://ubys.karatekin.edu.tr/">
+            Elektronik Belge Yönetim Sistemi
+           </a>
+           <a class="item" href="https://posta.karatekin.edu.tr/">
+            E-Posta Sistemi
+           </a>
+           <a class="item" href="https://etikkurul.karatekin.edu.tr/">
+            Etik Kurul Başvuru Sistemi
+           </a>
+           <a class="item" href="https://ubys.karatekin.edu.tr/">
+            Öğrenci Bilgi Sistemi  (UBYS)
+           </a>
+           <a class="item" href="https://websitem.karatekin.edu.tr/">
+            Websitem
+           </a>
+          </div>
+         </div>
+         <div class="column">
+          <div class="ui inverted vertical text menu">
+           <div class="header item" lang="tr">
+            İÇERİKLERİMİZ
+           </div>
+           <a class="item" href="https://www.karatekin.edu.tr/tr/tarihce-28-sayfasi-karatekin">
+            Tarihçe
+           </a>
+           <a class="item" href="https://kalite.karatekin.edu.tr/">
+            Kalite Komisyonu
+           </a>
+           <a class="item" href="https://www.karatekin.edu.tr/tr/tum-haberler">
+            Haberler
+           </a>
+           <a class="item" href="https://www.karatekin.edu.tr/tr/tum-etkinlikler">
+            Etkinlikler
+           </a>
+           <a class="item" href="https://www.karatekin.edu.tr/tr/tum-duyurular">
+            Duyurular
+           </a>
+           <a class="item" href="https://www.karatekin.edu.tr/tr/tum-sabit-ilanlar">
+            İhaleler ve Sürekli İlanlar
+           </a>
+           <a class="item" href="https://www.karatekin.edu.tr/tr/fotograf-galerisi">
+            Fotoğraflar
+           </a>
+           <a class="item" href="https://mezunlar.karatekin.edu.tr/">
+            Mezunlar
+           </a>
+           <a class="item" href="https://sosyaltranskript.karatekin.edu.tr/">
+            Sosyal Transkript
+           </a>
+          </div>
+         </div>
+         <div class="column">
+          <div class="ui inverted vertical text menu">
+           <div class="header item" lang="tr">
+            Hızlı Erişim
+           </div>
+           <a class="item" href="https://kutuphane.karatekin.edu.tr/">
+            Kütüphane
+           </a>
+           <a class="item" href="https://eduroam.karatekin.edu.tr/">
+            Eduroam-Kablosuz Ağ
+           </a>
+           <a class="item" href="https://oidb.karatekin.edu.tr/tr/akademik-takvim-30568-sayfasi.karatekin">
+            Akademik Takvim
+           </a>
+           <a class="item" href="https://uzem.karatekin.edu.tr/">
+            Uzaktan Eğitim
+           </a>
+           <a class="item" href="https://karatekin.edu.tr/tr/yemek-listesi">
+            Günün Menüsü
+           </a>
+           <a class="item" href="https://rehber.karatekin.edu.tr/">
+            Rehber
+           </a>
+           <a class="item" href="https://aday.karatekin.edu.tr/tr/">
+            Aday Öğrenci
+           </a>
+           <a class="item" href="https://www.karatekin.edu.tr/tr/mevzuat-437-sayfasi-karatekin">
+            Mevzuat
+           </a>
+           <a class="item" href="https://cakumedya.karatekin.edu.tr/">
+            Çakü Medya
+           </a>
+          </div>
+         </div>
+        </div>
+       </div>
+      </div>
+      <div class="row footmenurow3">
+       <div class="column">
+        <div class="row container" style="display: flex;align-items: center;justify-content: center;">
+         <img height="80px" src="../../img/BIDB-Logo.png" style="margin-right:5px" width="80px"/>
+         <p>
+          ÇAKÜ Bilgi İşlem Daire Başkanlığı 2024
+         </p>
+        </div>
+       </div>
+       <div class="column sosyalmedya">
+        <div class="item">
+         <div class="content">
+          <div class="description">
+           <a href="" target="_blank">
+            <i class="big facebook icon" style="color:#3db166">
+            </i>
+           </a>
+           <a href="" target="_blank">
+            <i class="big instagram icon">
+            </i>
+           </a>
+           <a href="" target="_blank">
+            <i class="big youtube icon">
+            </i>
+           </a>
+           <a href="" target="_blank">
+            <i class="big twitter icon">
+            </i>
+           </a>
+          </div>
+         </div>
+        </div>
+       </div>
+      </div>
+      <div class="row websorumlulari">
+       <div class="ui primary test5 button" id="websorumlusu" style="background-color:rgb(61, 177, 102);color:black">
+        Web Sorumluları
+       </div>
+       <div class="ui small modal" id="websorumlusugoster">
+       </div>
+      </div>
+     </div>
+    </div>
+   </div>
+  </form>
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async="" src="https://www.googletagmanager.com/gtag/js?id=UA-131760171-1">
+  </script>
+  <script>
+   window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+
+        gtag('config', 'UA-131760171-1');
+  </script>
+  <script src="/semantic/semantic.min.js">
+  </script>
+  <script src="/plugins/sharer/sharer.min.js">
+  </script>
+  <script src="/plugins/bxslider/jquery.bxslider.min.js">
+  </script>
+  <script src="/plugins/photoswipe/photoswipe.min.js">
+  </script>
+  <script src="/plugins/photoswipe/photoswipe-ui-default.min.js">
+  </script>
+  <script src="/plugins/photoswipe/photoswipe-init.js">
+  </script>
+  <script src="/plugins/PgwSlider-master/pgwslider.min.js">
+  </script>
+  <script src="/plugins/stackmotion/js/anime.min.js">
+  </script>
+  <script src="/plugins/nicescrool/jquery.nicescroll.min.js">
+  </script>
+  <script src="/plugins/org-chart/jquery.mockjax.min.js">
+  </script>
+  <script src="/plugins/org-chart/jquery.orgchart.js">
+  </script>
+  <script src="/plugins/stackmotion/js/main.js">
+  </script>
+  <script src="/js/main.js?v1.1">
+  </script>
+  <script src="/plugins/datepicker.js">
+  </script>
+  <script src="/plugins/trumbowyg/trumbowyg.js">
+  </script>
+  <script src="/plugins/slimscroll/jquery.slimscroll.min.js">
+  </script>
+  <script src="/plugins/lazyestload/lazyload.js">
+  </script>
+ </body>
+</html>

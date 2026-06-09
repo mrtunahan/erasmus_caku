@@ -34,3 +34,4 @@ npm-debug.log*
 # Test
 .nyc_output/
 *.lcov
+scripts/service-account-key.json

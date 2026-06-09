@@ -1,0 +1,9 @@
+{
+  "name": "firebase-mongodb-migration",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "firebase-admin": "^13.7.0",
+    "mongodb": "^6.12.0"
+  }
+}
