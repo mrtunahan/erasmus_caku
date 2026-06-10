@@ -23,64 +23,77 @@ const isErgunCinarUser = (currentUser) => {
   const n = currentUser && (currentUser.name || currentUser.identifier);
   if (!n) return false;
   const s = n.toLowerCase();
-  return (s.includes("ergün") || s.includes("ergun")) &&
-         (s.includes("çinar") || s.includes("çınar") || s.includes("cinar") || s.includes("cınar"));
+  return (
+    (s.includes('ergün') || s.includes('ergun')) &&
+    (s.includes('çinar') || s.includes('çınar') || s.includes('cinar') || s.includes('cınar'))
+  );
 };
 
 // Komisyon adından erişilebilecek modül id'sini çıkarır. Komisyon üyeleri
 // (akademisyenler dahil) üyesi oldukları komisyonun ilgili modülüne erişir.
 const commissionToModuleId = (name) => {
-  const n = (name || "").toLowerCase();
-  if (n.includes("erasmus")) return "erasmus";
-  if (n.includes("staj")) return "staj";
-  if (n.includes("muafiyet")) return "muafiyet";
-  if (n.includes("proje")) return "projeler";
-  if (n.includes("sınav") || n.includes("sinav")) return "sinav";
-  if (n.includes("ders program")) return "dersprogrami";
-  if (n.includes("performans")) return "performans";
+  const n = (name || '').toLowerCase();
+  if (n.includes('erasmus')) return 'erasmus';
+  if (n.includes('staj')) return 'staj';
+  if (n.includes('muafiyet')) return 'muafiyet';
+  if (n.includes('proje')) return 'projeler';
+  if (n.includes('sınav') || n.includes('sinav')) return 'sinav';
+  if (n.includes('ders program')) return 'dersprogrami';
+  if (n.includes('performans')) return 'performans';
   return null;
 };
 
 // ── Responsive Hook ──
 function useWindowWidth() {
-  const [width, setWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
+  const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   useEffect(() => {
     let raf;
     const handler = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => setWidth(window.innerWidth));
     };
-    window.addEventListener("resize", handler);
-    return () => { window.removeEventListener("resize", handler); cancelAnimationFrame(raf); };
+    window.addEventListener('resize', handler);
+    return () => {
+      window.removeEventListener('resize', handler);
+      cancelAnimationFrame(raf);
+    };
   }, []);
   return width;
 }
 
 // ── Hash Router Hook ──
-function useHashRoute(defaultRoute = "portal") {
+function useHashRoute(defaultRoute = 'portal') {
   const getHash = () => {
-    const hash = window.location.hash.replace("#", "");
+    const hash = window.location.hash.replace('#', '');
     return hash || defaultRoute;
   };
   const [route, setRoute] = useState(getHash);
   useEffect(() => {
     const handleHashChange = () => setRoute(getHash());
-    window.addEventListener("hashchange", handleHashChange);
+    window.addEventListener('hashchange', handleHashChange);
     if (!window.location.hash) {
-      window.location.hash = "#" + defaultRoute;
+      window.location.hash = '#' + defaultRoute;
     }
-    return () => window.removeEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
   const navigate = useCallback((newRoute) => {
-    window.location.hash = "#" + newRoute;
+    window.location.hash = '#' + newRoute;
   }, []);
   return [route, navigate];
 }
 
 // ── SVG Icon Helper ──
-const NavIcon = ({ path, size = 20, color = "currentColor" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-    stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const NavIcon = ({ path, size = 20, color = 'currentColor' }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d={path} />
   </svg>
 );
@@ -88,50 +101,93 @@ const NavIcon = ({ path, size = 20, color = "currentColor" }) => (
 // ══════════════════════════════════════════════════════════════
 // Top Header Bar
 // ══════════════════════════════════════════════════════════════
-const TopHeader = ({ currentUser, onLogout, isMobile, onToggleSidebar, sidebarOpen, activeDepartment, onNavigate }) => {
-  const dept = DEPARTMENTS.find(d => d.id === activeDepartment);
+const TopHeader = ({
+  currentUser,
+  onLogout,
+  isMobile,
+  onToggleSidebar,
+  sidebarOpen,
+  activeDepartment,
+  onNavigate,
+}) => {
+  const dept = DEPARTMENTS.find((d) => d.id === activeDepartment);
 
   return (
-    <header style={{
-      background: "linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)",
-      boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
-      position: "sticky",
-      top: 0,
-      zIndex: 1000,
-      height: isMobile ? 56 : 64,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: isMobile ? "0 12px" : "0 24px",
-    }}>
+    <header
+      style={{
+        background: 'linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 1000,
+        height: isMobile ? 56 : 64,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: isMobile ? '0 12px' : '0 24px',
+      }}
+    >
       {/* Left: Hamburger + Logo */}
-      <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
         {isMobile && (
-          <button onClick={onToggleSidebar} style={{
-            background: "none", border: "none", cursor: "pointer",
-            padding: 6, display: "flex", color: "white",
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              {sidebarOpen
-                ? <path d="M18 6L6 18M6 6l12 12" />
-                : <><path d="M3 12h18" /><path d="M3 6h18" /><path d="M3 18h18" /></>
-              }
+          <button
+            onClick={onToggleSidebar}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 6,
+              display: 'flex',
+              color: 'white',
+            }}
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              {sidebarOpen ? (
+                <path d="M18 6L6 18M6 6l12 12" />
+              ) : (
+                <>
+                  <path d="M3 12h18" />
+                  <path d="M3 6h18" />
+                  <path d="M3 18h18" />
+                </>
+              )}
             </svg>
           </button>
         )}
-        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
-          <img src="logo.png" alt="Logo" style={{
-            width: isMobile ? 36 : 44, height: isMobile ? 36 : 44, borderRadius: 8, objectFit: "cover"
-          }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12 }}>
+          <img
+            src="logo.png"
+            alt="Logo"
+            style={{
+              width: isMobile ? 36 : 44,
+              height: isMobile ? 36 : 44,
+              borderRadius: 8,
+              objectFit: 'cover',
+            }}
+          />
           <div>
-            <div style={{
-              color: "white", fontSize: isMobile ? 13 : 15, fontWeight: 700,
-              fontFamily: "'Playfair Display', serif", letterSpacing: "0.02em",
-              lineHeight: 1.2,
-            }}>
+            <div
+              style={{
+                color: 'white',
+                fontSize: isMobile ? 13 : 15,
+                fontWeight: 700,
+                fontFamily: "'Playfair Display', serif",
+                letterSpacing: '0.02em',
+                lineHeight: 1.2,
+              }}
+            >
               {FACULTY.name}
             </div>
-            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: isMobile ? 10 : 11 }}>
+            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: isMobile ? 10 : 11 }}>
               {FACULTY.university}
             </div>
           </div>
@@ -140,48 +196,85 @@ const TopHeader = ({ currentUser, onLogout, isMobile, onToggleSidebar, sidebarOp
 
       {/* Center: Active Department Badge (desktop) */}
       {!isMobile && dept && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 8,
-          padding: "6px 16px", borderRadius: 20,
-          background: `${dept.color}20`, border: `1px solid ${dept.color}40`,
-        }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: dept.color }} />
-          <span style={{ color: "white", fontSize: 13, fontWeight: 500 }}>{dept.name}</span>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '6px 16px',
+            borderRadius: 20,
+            background: `${dept.color}20`,
+            border: `1px solid ${dept.color}40`,
+          }}
+        >
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: dept.color }} />
+          <span style={{ color: 'white', fontSize: 13, fontWeight: 500 }}>{dept.name}</span>
         </div>
       )}
 
       {/* Right: Bildirim + User info + Logout */}
-      <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
         {window.BellMenu && currentUser && (
-          <window.BellMenu currentUser={currentUser} activeDepartment={activeDepartment} onNavigate={onNavigate} />
+          <window.BellMenu
+            currentUser={currentUser}
+            activeDepartment={activeDepartment}
+            onNavigate={onNavigate}
+          />
         )}
         {!isMobile && (
-          <div style={{ textAlign: "right" }}>
-            <div style={{ color: "white", fontSize: 13, fontWeight: 600 }}>
-              {currentUser?.name || "Kullanıcı"}
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ color: 'white', fontSize: 13, fontWeight: 600 }}>
+              {currentUser?.name || 'Kullanıcı'}
             </div>
-            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>
-              {currentUser?.role === "admin" ? "Fakülte Yöneticisi"
-                : currentUser?.role === "professor" ? "Akademisyen"
-                  : currentUser?.role === "bolum_yetkilisi" ? "Bölüm Yetkilisi"
+            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
+              {currentUser?.role === 'admin'
+                ? 'Fakülte Yöneticisi'
+                : currentUser?.role === 'professor'
+                  ? 'Akademisyen'
+                  : currentUser?.role === 'bolum_yetkilisi'
+                    ? 'Bölüm Yetkilisi'
                     : `Öğrenci`}
             </div>
           </div>
         )}
-        <button onClick={onLogout} style={{
-          padding: isMobile ? "6px 10px" : "7px 14px",
-          border: "1px solid rgba(255,255,255,0.25)",
-          background: "transparent", color: "rgba(255,255,255,0.8)",
-          borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 500,
-          transition: "all 0.2s", display: "flex", alignItems: "center", gap: 6,
-        }}
-          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+        <button
+          onClick={onLogout}
+          style={{
+            padding: isMobile ? '6px 10px' : '7px 14px',
+            border: '1px solid rgba(255,255,255,0.25)',
+            background: 'transparent',
+            color: 'rgba(255,255,255,0.8)',
+            borderRadius: 8,
+            cursor: 'pointer',
+            fontSize: 12,
+            fontWeight: 500,
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+          }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
           </svg>
-          {!isMobile && "Çıkış"}
+          {!isMobile && 'Çıkış'}
         </button>
       </div>
     </header>
@@ -192,118 +285,185 @@ const TopHeader = ({ currentUser, onLogout, isMobile, onToggleSidebar, sidebarOp
 // Sidebar Navigation
 // ══════════════════════════════════════════════════════════════
 const Sidebar = ({
-  activeDepartment, onDepartmentChange,
-  currentRoute, onNavigate,
-  currentUser, isMobile, isOpen, onClose, onRequestChangePassword,
+  activeDepartment,
+  onDepartmentChange,
+  currentRoute,
+  onNavigate,
+  currentUser,
+  isMobile,
+  isOpen,
+  onClose,
+  onRequestChangePassword,
   commissionModules = [],
   studentLocked = false,
 }) => {
-  const isAdmin = currentUser?.role === "admin";
-  const isDeptManager = currentUser?.role === "bolum_yetkilisi";
-  const isProfessor = currentUser?.role === "professor";
+  const isAdmin = currentUser?.role === 'admin';
+  const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
+  const isProfessor = currentUser?.role === 'professor';
   const isStudent = !isAdmin && !isDeptManager && !isProfessor;
 
-  const isErgunCinar = currentUser && currentUser.name && (
-    currentUser.name.toLowerCase().includes("ergün") ||
-    currentUser.name.toLowerCase().includes("ergun")
-  ) && (
-      currentUser.name.toLowerCase().includes("çinar") ||
-      currentUser.name.toLowerCase().includes("çınar") ||
-      currentUser.name.toLowerCase().includes("cinar") ||
-      currentUser.name.toLowerCase().includes("cınar")
-    );
+  const isErgunCinar =
+    currentUser &&
+    currentUser.name &&
+    (currentUser.name.toLowerCase().includes('ergün') ||
+      currentUser.name.toLowerCase().includes('ergun')) &&
+    (currentUser.name.toLowerCase().includes('çinar') ||
+      currentUser.name.toLowerCase().includes('çınar') ||
+      currentUser.name.toLowerCase().includes('cinar') ||
+      currentUser.name.toLowerCase().includes('cınar'));
 
   // Bölüm yetkilisi ve öğrenci sadece kendi bölümünü görebilir
-  const availableDepts = (isDeptManager || isStudent)
-    ? DEPARTMENTS.filter(d => d.id === currentUser?.departmentId)
-    : DEPARTMENTS;
+  const availableDepts =
+    isDeptManager || isStudent
+      ? DEPARTMENTS.filter((d) => d.id === currentUser?.departmentId)
+      : DEPARTMENTS;
 
   // Öğrenciler ve profesörler için erişilebilir modüller
   const getVisibleModules = () => {
-    if (isErgunCinar) return DEPARTMENT_MODULES.filter(m => m.id === "staj");
+    if (isErgunCinar) return DEPARTMENT_MODULES.filter((m) => m.id === 'staj');
     // Akademisyenler modülü sadece bölüm akademisyenlerine (professor) görünür
     // Benim Sayfam yalnızca öğrenciye gösterilir
-    if (isAdmin || isDeptManager) return DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen" && m.id !== "benim");
+    if (isAdmin || isDeptManager)
+      return DEPARTMENT_MODULES.filter((m) => m.id !== 'akademisyen' && m.id !== 'benim');
     // Komisyon üyeliği ile kazanılan modüller (örn. Erasmus komisyonu → erasmus)
     if (isProfessor) {
-      const base = ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj", "performans"];
+      const base = [
+        'sinav',
+        'formlar',
+        'dersprogrami',
+        'akademisyen',
+        'projeler',
+        'staj',
+        'performans',
+      ];
       const allowed = base.concat(commissionModules);
-      return DEPARTMENT_MODULES.filter(m => allowed.includes(m.id));
+      return DEPARTMENT_MODULES.filter((m) => allowed.includes(m.id));
     }
     // Öğrenci: ders seçimi yapılana kadar yalnızca "Benim Sayfam" görünür
-    if (studentLocked) return DEPARTMENT_MODULES.filter(m => m.id === "benim");
-    const stdBase = ["benim", "erasmus", "projeler", "formlar", "staj"];
+    if (studentLocked) return DEPARTMENT_MODULES.filter((m) => m.id === 'benim');
+    const stdBase = ['benim', 'erasmus', 'projeler', 'formlar', 'staj'];
     const stdAllowed = stdBase.concat(commissionModules);
-    return DEPARTMENT_MODULES.filter(m => stdAllowed.includes(m.id));
+    return DEPARTMENT_MODULES.filter((m) => stdAllowed.includes(m.id));
   };
 
   const visibleModules = getVisibleModules();
-  const activeDept = DEPARTMENTS.find(d => d.id === activeDepartment);
+  const activeDept = DEPARTMENTS.find((d) => d.id === activeDepartment);
 
   const sidebarWidth = 260;
 
   const sidebarContent = (
-    <div style={{
-      width: sidebarWidth,
-      height: "100%",
-      background: "#F8F9FB",
-      borderRight: "1px solid #E5E7EB",
-      display: "flex",
-      flexDirection: "column",
-      overflowY: "auto",
-    }}>
+    <div
+      style={{
+        width: sidebarWidth,
+        height: '100%',
+        background: '#F8F9FB',
+        borderRight: '1px solid #E5E7EB',
+        display: 'flex',
+        flexDirection: 'column',
+        overflowY: 'auto',
+      }}
+    >
       {/* Active Department Badge */}
       {activeDept && (
-        <div style={{ padding: "16px 12px 8px" }}>
-          <div style={{
-            padding: "10px 12px", borderRadius: 10,
-            background: `${activeDept.color}10`, border: `1.5px solid ${activeDept.color}25`,
-            display: "flex", alignItems: "center", gap: 10,
-          }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: `${activeDept.color}20`,
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-            }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke={activeDept.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <div style={{ padding: '16px 12px 8px' }}>
+          <div
+            style={{
+              padding: '10px 12px',
+              borderRadius: 10,
+              background: `${activeDept.color}10`,
+              border: `1.5px solid ${activeDept.color}25`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                background: `${activeDept.color}20`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={activeDept.color}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d={activeDept.icon} />
               </svg>
             </div>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: activeDept.color, lineHeight: 1.2 }}>{activeDept.shortName}</div>
-              <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 1 }}>Aktif Bölüm</div>
+              <div
+                style={{ fontSize: 12, fontWeight: 700, color: activeDept.color, lineHeight: 1.2 }}
+              >
+                {activeDept.shortName}
+              </div>
+              <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1 }}>Aktif Bölüm</div>
             </div>
           </div>
         </div>
       )}
 
       {/* Department Modules */}
-      <div style={{ padding: "8px 12px 4px" }}>
-        <div style={{
-          fontSize: 10, fontWeight: 700, color: "#9CA3AF",
-          textTransform: "uppercase", letterSpacing: "0.1em",
-          padding: "8px 4px 4px",
-        }}>Bölüm Modülleri</div>
-        {visibleModules.map(mod => {
+      <div style={{ padding: '8px 12px 4px' }}>
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: '#9CA3AF',
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            padding: '8px 4px 4px',
+          }}
+        >
+          Bölüm Modülleri
+        </div>
+        {visibleModules.map((mod) => {
           const isActive = currentRoute === mod.id;
           return (
             <button
               key={mod.id}
-              onClick={() => { onNavigate(mod.id); if (isMobile) onClose(); }}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 12px", marginBottom: 2, borderRadius: 8,
-                border: "none", cursor: "pointer",
-                background: isActive ? `${activeDept?.color || C.navy}15` : "transparent",
-                color: isActive ? (activeDept?.color || C.navy) : "#4B5563",
-                fontSize: 13, fontWeight: isActive ? 600 : 400,
-                fontFamily: "'Inter', sans-serif",
-                transition: "all 0.15s",
-                textAlign: "left",
+              onClick={() => {
+                onNavigate(mod.id);
+                if (isMobile) onClose();
               }}
-              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#F3F4F6"; }}
-              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? `${activeDept?.color || C.navy}15` : "transparent"; }}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 12px',
+                marginBottom: 2,
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                background: isActive ? `${activeDept?.color || C.navy}15` : 'transparent',
+                color: isActive ? activeDept?.color || C.navy : '#4B5563',
+                fontSize: 13,
+                fontWeight: isActive ? 600 : 400,
+                fontFamily: "'Inter', sans-serif",
+                transition: 'all 0.15s',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) e.currentTarget.style.background = '#F3F4F6';
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive)
+                  e.currentTarget.style.background = isActive
+                    ? `${activeDept?.color || C.navy}15`
+                    : 'transparent';
+              }}
             >
               <NavIcon path={mod.icon} size={18} />
               {mod.label}
@@ -313,35 +473,57 @@ const Sidebar = ({
       </div>
 
       {/* Divider */}
-      <div style={{ margin: "4px 16px", borderTop: "1px solid #E5E7EB" }} />
+      <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
 
       {/* Common Modules */}
       {!isErgunCinar && !studentLocked && (
-        <div style={{ padding: "4px 12px" }}>
-          <div style={{
-            fontSize: 10, fontWeight: 700, color: "#9CA3AF",
-            textTransform: "uppercase", letterSpacing: "0.1em",
-            padding: "8px 4px 4px",
-          }}>Ortak</div>
-          {COMMON_MODULES.map(mod => {
+        <div style={{ padding: '4px 12px' }}>
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              color: '#9CA3AF',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              padding: '8px 4px 4px',
+            }}
+          >
+            Ortak
+          </div>
+          {COMMON_MODULES.map((mod) => {
             const isActive = currentRoute === mod.id;
             return (
               <button
                 key={mod.id}
-                onClick={() => { onNavigate(mod.id); if (isMobile) onClose(); }}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", marginBottom: 2, borderRadius: 8,
-                  border: "none", cursor: "pointer",
-                  background: isActive ? "#3B82F615" : "transparent",
-                  color: isActive ? "#3B82F6" : "#4B5563",
-                  fontSize: 13, fontWeight: isActive ? 600 : 400,
-                  fontFamily: "'Inter', sans-serif",
-                  transition: "all 0.15s",
-                  textAlign: "left",
+                onClick={() => {
+                  onNavigate(mod.id);
+                  if (isMobile) onClose();
                 }}
-                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#F3F4F6"; }}
-                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? "#3B82F615" : "transparent"; }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 12px',
+                  marginBottom: 2,
+                  borderRadius: 8,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: isActive ? '#3B82F615' : 'transparent',
+                  color: isActive ? '#3B82F6' : '#4B5563',
+                  fontSize: 13,
+                  fontWeight: isActive ? 600 : 400,
+                  fontFamily: "'Inter', sans-serif",
+                  transition: 'all 0.15s',
+                  textAlign: 'left',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) e.currentTarget.style.background = '#F3F4F6';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive)
+                    e.currentTarget.style.background = isActive ? '#3B82F615' : 'transparent';
+                }}
               >
                 <NavIcon path={mod.icon} size={18} />
                 {mod.label}
@@ -355,32 +537,54 @@ const Sidebar = ({
       {/* Admin + Bölüm Yetkilisi: Yönetim Modülleri (komisyonlar) */}
       {!isErgunCinar && (isAdmin || isDeptManager) && (
         <>
-          <div style={{ margin: "4px 16px", borderTop: "1px solid #E5E7EB" }} />
-          <div style={{ padding: "4px 12px 16px" }}>
-            <div style={{
-              fontSize: 10, fontWeight: 700, color: "#9CA3AF",
-              textTransform: "uppercase", letterSpacing: "0.1em",
-              padding: "8px 4px 4px",
-            }}>Yönetim</div>
-            {ADMIN_MODULES.map(mod => {
+          <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
+          <div style={{ padding: '4px 12px 16px' }}>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#9CA3AF',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                padding: '8px 4px 4px',
+              }}
+            >
+              Yönetim
+            </div>
+            {ADMIN_MODULES.map((mod) => {
               const isActive = currentRoute === mod.id;
               return (
                 <button
                   key={mod.id}
-                  onClick={() => { onNavigate(mod.id); if (isMobile) onClose(); }}
-                  style={{
-                    width: "100%", display: "flex", alignItems: "center", gap: 10,
-                    padding: "10px 12px", marginBottom: 2, borderRadius: 8,
-                    border: "none", cursor: "pointer",
-                    background: isActive ? "#8B263515" : "transparent",
-                    color: isActive ? "#8B2635" : "#4B5563",
-                    fontSize: 13, fontWeight: isActive ? 600 : 400,
-                    fontFamily: "'Inter', sans-serif",
-                    transition: "all 0.15s",
-                    textAlign: "left",
+                  onClick={() => {
+                    onNavigate(mod.id);
+                    if (isMobile) onClose();
                   }}
-                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#F3F4F6"; }}
-                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? "#8B263515" : "transparent"; }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px 12px',
+                    marginBottom: 2,
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: isActive ? '#8B263515' : 'transparent',
+                    color: isActive ? '#8B2635' : '#4B5563',
+                    fontSize: 13,
+                    fontWeight: isActive ? 600 : 400,
+                    fontFamily: "'Inter', sans-serif",
+                    transition: 'all 0.15s',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.currentTarget.style.background = '#F3F4F6';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive)
+                      e.currentTarget.style.background = isActive ? '#8B263515' : 'transparent';
+                  }}
                 >
                   <NavIcon path={mod.icon} size={18} />
                   {mod.label}
@@ -392,20 +596,49 @@ const Sidebar = ({
       )}
 
       {/* Şifre Değiştir butonu (tüm roller) — sidebar altı */}
-      <div style={{ marginTop: "auto", padding: "8px 12px 16px" }}>
+      <div style={{ marginTop: 'auto', padding: '8px 12px 16px' }}>
         <button
-          onClick={() => { if (onRequestChangePassword) onRequestChangePassword(); if (isMobile) onClose(); }}
-          style={{
-            width: "100%", display: "flex", alignItems: "center", gap: 10,
-            padding: "10px 12px", borderRadius: 8, border: "1px solid #E5E7EB",
-            background: "white", color: "#6366F1", fontSize: 13, fontWeight: 500,
-            fontFamily: "'Inter', sans-serif", cursor: "pointer", transition: "all 0.15s",
+          onClick={() => {
+            if (onRequestChangePassword) onRequestChangePassword();
+            if (isMobile) onClose();
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = "#EEF2FF"; e.currentTarget.style.borderColor = "#C7D2FE"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "white"; e.currentTarget.style.borderColor = "#E5E7EB"; }}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 12px',
+            borderRadius: 8,
+            border: '1px solid #E5E7EB',
+            background: 'white',
+            color: '#6366F1',
+            fontSize: 13,
+            fontWeight: 500,
+            fontFamily: "'Inter', sans-serif",
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#EEF2FF';
+            e.currentTarget.style.borderColor = '#C7D2FE';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'white';
+            e.currentTarget.style.borderColor = '#E5E7EB';
+          }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0110 0v4" />
           </svg>
           Şifre Değiştir
         </button>
@@ -413,18 +646,24 @@ const Sidebar = ({
 
       {/* Mobile: User info at bottom */}
       {isMobile && (
-        <div style={{
-          padding: "12px 16px",
-          borderTop: "1px solid #E5E7EB", background: "#F3F4F6",
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#1F2937" }}>
-            {currentUser?.name || "Kullanıcı"}
+        <div
+          style={{
+            padding: '12px 16px',
+            borderTop: '1px solid #E5E7EB',
+            background: '#F3F4F6',
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#1F2937' }}>
+            {currentUser?.name || 'Kullanıcı'}
           </div>
-          <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>
-            {currentUser?.role === "admin" ? "Admin"
-              : currentUser?.role === "professor" ? "Akademisyen"
-                : currentUser?.role === "bolum_yetkilisi" ? "Bölüm Yetkilisi"
-                  : `Öğrenci (${currentUser?.studentNumber || ""})`}
+          <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+            {currentUser?.role === 'admin'
+              ? 'Admin'
+              : currentUser?.role === 'professor'
+                ? 'Akademisyen'
+                : currentUser?.role === 'bolum_yetkilisi'
+                  ? 'Bölüm Yetkilisi'
+                  : `Öğrenci (${currentUser?.studentNumber || ''})`}
           </div>
         </div>
       )}
@@ -436,23 +675,40 @@ const Sidebar = ({
     if (!isOpen) return null;
     return (
       <>
-        <div onClick={onClose} style={{
-          position: "fixed", top: 56, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.4)", zIndex: 998,
-        }} />
-        <div style={{
-          position: "fixed", top: 56, left: 0, bottom: 0,
-          zIndex: 999, width: sidebarWidth,
-          boxShadow: "4px 0 24px rgba(0,0,0,0.15)",
-          animation: "slideInLeft 0.2s ease-out",
-        }}>
-          <style dangerouslySetInnerHTML={{
-            __html: `
+        <div
+          onClick={onClose}
+          style={{
+            position: 'fixed',
+            top: 56,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 998,
+          }}
+        />
+        <div
+          style={{
+            position: 'fixed',
+            top: 56,
+            left: 0,
+            bottom: 0,
+            zIndex: 999,
+            width: sidebarWidth,
+            boxShadow: '4px 0 24px rgba(0,0,0,0.15)',
+            animation: 'slideInLeft 0.2s ease-out',
+          }}
+        >
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `
             @keyframes slideInLeft {
               from { transform: translateX(-100%); opacity: 0; }
               to { transform: translateX(0); opacity: 1; }
             }
-          `}} />
+          `,
+            }}
+          />
           {sidebarContent}
         </div>
       </>
@@ -461,14 +717,16 @@ const Sidebar = ({
 
   // Desktop: static sidebar
   return (
-    <div style={{
-      width: sidebarWidth,
-      flexShrink: 0,
-      height: "calc(100vh - 64px)",
-      position: "sticky",
-      top: 64,
-      overflowY: "auto",
-    }}>
+    <div
+      style={{
+        width: sidebarWidth,
+        flexShrink: 0,
+        height: 'calc(100vh - 64px)',
+        position: 'sticky',
+        top: 64,
+        overflowY: 'auto',
+      }}
+    >
       {sidebarContent}
     </div>
   );
@@ -478,111 +736,152 @@ const Sidebar = ({
 // Right Sidebar - Department Selector
 // ══════════════════════════════════════════════════════════════
 const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser }) => {
-  const isAdmin = currentUser?.role === "admin";
-  const isDeptManager = currentUser?.role === "bolum_yetkilisi";
-  const isStudent = !isAdmin && !isDeptManager && currentUser?.role !== "professor";
+  const isAdmin = currentUser?.role === 'admin';
+  const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
+  const isStudent = !isAdmin && !isDeptManager && currentUser?.role !== 'professor';
 
   // Ergün ÇINAR bölüm yetkilisi olsa da tüm bölümler arası geçiş yapabilir
   const isErgunCinar = isErgunCinarUser(currentUser);
-  const availableDepts = ((isDeptManager || isStudent) && !isErgunCinar)
-    ? DEPARTMENTS.filter(d => d.id === currentUser?.departmentId)
-    : DEPARTMENTS;
+  const availableDepts =
+    (isDeptManager || isStudent) && !isErgunCinar
+      ? DEPARTMENTS.filter((d) => d.id === currentUser?.departmentId)
+      : DEPARTMENTS;
 
   // Tek bölüm varsa sağ sidebar gösterme
   if (availableDepts.length <= 1) return null;
 
-  const activeDept = DEPARTMENTS.find(d => d.id === activeDepartment);
+  const activeDept = DEPARTMENTS.find((d) => d.id === activeDepartment);
   const sidebarWidth = 220;
 
   return (
-    <div style={{
-      width: sidebarWidth,
-      flexShrink: 0,
-      height: "calc(100vh - 64px)",
-      position: "sticky",
-      top: 64,
-      overflowY: "auto",
-    }}>
-      <div style={{
+    <div
+      style={{
         width: sidebarWidth,
-        height: "100%",
-        background: "#F8F9FB",
-        borderLeft: "1px solid #E5E7EB",
-        display: "flex",
-        flexDirection: "column",
-        padding: "20px 14px",
-        gap: 6,
-      }}>
+        flexShrink: 0,
+        height: 'calc(100vh - 64px)',
+        position: 'sticky',
+        top: 64,
+        overflowY: 'auto',
+      }}
+    >
+      <div
+        style={{
+          width: sidebarWidth,
+          height: '100%',
+          background: '#F8F9FB',
+          borderLeft: '1px solid #E5E7EB',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '20px 14px',
+          gap: 6,
+        }}
+      >
         {/* Header */}
-        <div style={{
-          fontSize: 10, fontWeight: 700, color: "#9CA3AF",
-          textTransform: "uppercase", letterSpacing: "0.12em",
-          marginBottom: 6, paddingLeft: 2,
-        }}>Bölümler</div>
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: '#9CA3AF',
+            textTransform: 'uppercase',
+            letterSpacing: '0.12em',
+            marginBottom: 6,
+            paddingLeft: 2,
+          }}
+        >
+          Bölümler
+        </div>
 
         {/* Department List */}
-        {availableDepts.map(d => {
+        {availableDepts.map((d) => {
           const isActive = d.id === activeDepartment;
           return (
             <button
               key={d.id}
               onClick={() => onDepartmentChange(d.id)}
               style={{
-                width: "100%",
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 12px", borderRadius: 10,
-                border: isActive ? `1.5px solid ${d.color}40` : "1.5px solid transparent",
-                background: isActive ? `${d.color}10` : "transparent",
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-                position: "relative",
-                textAlign: "left",
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 12px',
+                borderRadius: 10,
+                border: isActive ? `1.5px solid ${d.color}40` : '1.5px solid transparent',
+                background: isActive ? `${d.color}10` : 'transparent',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                position: 'relative',
+                textAlign: 'left',
               }}
-              onMouseEnter={e => {
+              onMouseEnter={(e) => {
                 if (!isActive) {
                   e.currentTarget.style.background = `${d.color}08`;
                   e.currentTarget.style.borderColor = `${d.color}25`;
                 }
               }}
-              onMouseLeave={e => {
+              onMouseLeave={(e) => {
                 if (!isActive) {
-                  e.currentTarget.style.background = "transparent";
-                  e.currentTarget.style.borderColor = "transparent";
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.borderColor = 'transparent';
                 }
               }}
             >
               {/* Active Indicator Bar */}
               {isActive && (
-                <div style={{
-                  position: "absolute", left: 0, top: "20%", bottom: "20%",
-                  width: 3, borderRadius: "0 3px 3px 0",
-                  background: d.color,
-                }} />
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: '20%',
+                    bottom: '20%',
+                    width: 3,
+                    borderRadius: '0 3px 3px 0',
+                    background: d.color,
+                  }}
+                />
               )}
               {/* Icon */}
-              <div style={{
-                width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                background: isActive ? `${d.color}20` : "#F0F1F3",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "all 0.2s ease",
-              }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke={isActive ? d.color : "#9CA3AF"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <div
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
+                  flexShrink: 0,
+                  background: isActive ? `${d.color}20` : '#F0F1F3',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={isActive ? d.color : '#9CA3AF'}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d={d.icon} />
                 </svg>
               </div>
               {/* Name */}
-              <span style={{
-                fontSize: 12, fontWeight: isActive ? 650 : 450,
-                color: isActive ? d.color : "#6B7280",
-                fontFamily: "'Inter', sans-serif",
-                transition: "all 0.2s ease",
-                lineHeight: 1.3,
-              }}>{d.shortName}</span>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: isActive ? 650 : 450,
+                  color: isActive ? d.color : '#6B7280',
+                  fontFamily: "'Inter', sans-serif",
+                  transition: 'all 0.2s ease',
+                  lineHeight: 1.3,
+                }}
+              >
+                {d.shortName}
+              </span>
             </button>
           );
         })}
-
       </div>
     </div>
   );
@@ -592,9 +891,9 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser }) => 
 // Main App Shell
 // ══════════════════════════════════════════════════════════════
 function AppShell() {
-  const [route, navigate] = useHashRoute("portal");
+  const [route, navigate] = useHashRoute('portal');
   const [currentUser, setCurrentUser] = useState(null);
-  const [activeDepartment, setActiveDepartment] = useState("bilgisayar");
+  const [activeDepartment, setActiveDepartment] = useState('bilgisayar');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [commissionModules, setCommissionModules] = useState([]);
@@ -603,21 +902,26 @@ function AppShell() {
 
   // Audit log ve merkezi bildirim helper'larının erişebilmesi için
   // mevcut kullanıcıyı global'e yansıt
-  useEffect(() => { window.__currentUser = currentUser; }, [currentUser]);
+  useEffect(() => {
+    window.__currentUser = currentUser;
+  }, [currentUser]);
 
   // Üyesi olunan komisyonlara göre erişilebilir modülleri belirle.
   // (Örn. Erasmus komisyonu üyesi akademisyen → Erasmus modülü)
   useEffect(() => {
     let cancelled = false;
     const loadCommissionAccess = async () => {
-      const uname = (currentUser?.name || currentUser?.identifier || "").toLowerCase().trim();
-      if (!currentUser || !uname) { setCommissionModules([]); return; }
+      const uname = (currentUser?.name || currentUser?.identifier || '').toLowerCase().trim();
+      if (!currentUser || !uname) {
+        setCommissionModules([]);
+        return;
+      }
       try {
-        const comms = await window.apiRead("commissions");
+        const comms = await window.apiRead('commissions');
         const ids = new Set();
-        (comms || []).forEach(c => {
-          const isMember = (c.members || []).some(m =>
-            m && m.name && m.name.toLowerCase().trim() === uname
+        (comms || []).forEach((c) => {
+          const isMember = (c.members || []).some(
+            (m) => m && m.name && m.name.toLowerCase().trim() === uname
           );
           if (!isMember) return;
           const mid = commissionToModuleId(c.name);
@@ -629,22 +933,24 @@ function AppShell() {
       }
     };
     loadCommissionAccess();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [currentUser]);
 
   // Restore session from localStorage + JWT auth state
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("caku_current_user");
+      const saved = localStorage.getItem('caku_current_user');
       if (saved) {
         const user = JSON.parse(saved);
         // Bölüm yetkilisi için: eski oturumda yanlış departmentId varsa düzelt
-        if (user.role === "bolum_yetkilisi" && user.departmentId && user.departmentName) {
-          const matchedDept = DEPARTMENTS.find(d => d.name === user.departmentName);
+        if (user.role === 'bolum_yetkilisi' && user.departmentId && user.departmentName) {
+          const matchedDept = DEPARTMENTS.find((d) => d.name === user.departmentName);
           if (matchedDept && user.departmentId !== matchedDept.id) {
             user.departmentId = matchedDept.id;
-            localStorage.setItem("caku_current_user", JSON.stringify(user));
-            localStorage.setItem("caku_active_department", matchedDept.id);
+            localStorage.setItem('caku_current_user', JSON.stringify(user));
+            localStorage.setItem('caku_active_department', matchedDept.id);
           }
         }
         setCurrentUser(user);
@@ -654,20 +960,20 @@ function AppShell() {
         }
       }
       // Kaydedilmiş bölüm tercihini yükle (sadece admin için, bölüm yetkilisi kendi bölümüne kilitli)
-      const savedDept = localStorage.getItem("caku_active_department");
+      const savedDept = localStorage.getItem('caku_active_department');
       if (saved) {
         const user = JSON.parse(saved);
         // Bölüm yetkilisi ise localStorage'daki eski tercihi yoksay, kendi bölümünde kalsın
-        if (user.role === "bolum_yetkilisi" && user.departmentId) {
+        if (user.role === 'bolum_yetkilisi' && user.departmentId) {
           setActiveDepartment(user.departmentId);
-        } else if (savedDept && DEPARTMENTS.find(d => d.id === savedDept)) {
+        } else if (savedDept && DEPARTMENTS.find((d) => d.id === savedDept)) {
           setActiveDepartment(savedDept);
         }
-      } else if (savedDept && DEPARTMENTS.find(d => d.id === savedDept)) {
+      } else if (savedDept && DEPARTMENTS.find((d) => d.id === savedDept)) {
         setActiveDepartment(savedDept);
       }
     } catch (e) {
-      console.error("Session restore error:", e);
+      console.error('Session restore error:', e);
     }
 
     // Oturum dinleyicisi: JWT token süresi dolmuşsa çıkış yap
@@ -693,63 +999,71 @@ function AppShell() {
   }, []);
 
   // Bölüm değiştiğinde kaydet (bölüm yetkilisi kendi bölümünden çıkamaz)
-  const handleDepartmentChange = useCallback((deptId) => {
-    // Ergün ÇINAR bölüm yetkilisi olsa da tüm bölümlere geçebilir
-    if (
-      (currentUser?.role === "bolum_yetkilisi" || currentUser?.role === "student") &&
-      deptId !== currentUser?.departmentId &&
-      !isErgunCinarUser(currentUser)
-    ) {
-      return; // Bölüm yetkilisi ve öğrenci sadece kendi bölümünü görebilir
-    }
-    setActiveDepartment(deptId);
-    localStorage.setItem("caku_active_department", deptId);
-  }, [currentUser]);
+  const handleDepartmentChange = useCallback(
+    (deptId) => {
+      // Ergün ÇINAR bölüm yetkilisi olsa da tüm bölümlere geçebilir
+      if (
+        (currentUser?.role === 'bolum_yetkilisi' || currentUser?.role === 'student') &&
+        deptId !== currentUser?.departmentId &&
+        !isErgunCinarUser(currentUser)
+      ) {
+        return; // Bölüm yetkilisi ve öğrenci sadece kendi bölümünü görebilir
+      }
+      setActiveDepartment(deptId);
+      localStorage.setItem('caku_active_department', deptId);
+    },
+    [currentUser]
+  );
 
-  const isAdmin = currentUser?.role === "admin";
-  const isProfessor = currentUser?.role === "professor";
-  const isDeptManager = currentUser?.role === "bolum_yetkilisi";
+  const isAdmin = currentUser?.role === 'admin';
+  const isProfessor = currentUser?.role === 'professor';
+  const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
   const isStudent = !isAdmin && !isProfessor && !isDeptManager;
 
   // All valid route IDs
   const ALL_MODULE_IDS = [
-    ...DEPARTMENT_MODULES.map(m => m.id),
-    ...COMMON_MODULES.map(m => m.id),
-    ...ADMIN_MODULES.map(m => m.id),
+    ...DEPARTMENT_MODULES.map((m) => m.id),
+    ...COMMON_MODULES.map((m) => m.id),
+    ...ADMIN_MODULES.map((m) => m.id),
   ];
 
   const handleLogin = (user) => {
     setCurrentUser(user);
     const safeUser = {
-      role: user.role, name: user.name,
+      role: user.role,
+      name: user.name,
       studentNumber: user.studentNumber || null,
       departmentId: user.departmentId || null,
       departmentName: user.departmentName || null,
       erasmusAccess: user.erasmusAccess || false,
     };
-    localStorage.setItem("caku_current_user", JSON.stringify(safeUser));
+    localStorage.setItem('caku_current_user', JSON.stringify(safeUser));
 
     // Bölüm yetkilisi ise kendi bölümünü aktif yap
     if (user.departmentId) {
       setActiveDepartment(user.departmentId);
-      localStorage.setItem("caku_active_department", user.departmentId);
+      localStorage.setItem('caku_active_department', user.departmentId);
     }
 
     // Redirect based on role
-    const userName = (user.name || "").toLowerCase();
-    const isErgun = (userName.includes("ergün") || userName.includes("ergun")) &&
-      (userName.includes("çinar") || userName.includes("çınar") || userName.includes("cinar") || userName.includes("cınar"));
+    const userName = (user.name || '').toLowerCase();
+    const isErgun =
+      (userName.includes('ergün') || userName.includes('ergun')) &&
+      (userName.includes('çinar') ||
+        userName.includes('çınar') ||
+        userName.includes('cinar') ||
+        userName.includes('cınar'));
     if (isErgun) {
-      navigate("staj");
+      navigate('staj');
     } else {
-      navigate("portal");
+      navigate('portal');
     }
   };
 
   const handleLogout = async () => {
     await Auth.signOut();
     setCurrentUser(null);
-    navigate("portal");
+    navigate('portal');
   };
 
   // ── Lazy Loading State ──
@@ -762,7 +1076,7 @@ function AppShell() {
 
   useEffect(() => {
     // Öğrenci dışı rollerde veya kullanıcı yoksa kontrol yok
-    if (!currentUser || currentUser.role !== "student") {
+    if (!currentUser || currentUser.role !== 'student') {
       setStudentCoursesChecked(true);
       setStudentHasCourses(true);
       return;
@@ -771,7 +1085,7 @@ function AppShell() {
     (async () => {
       try {
         const students = await window.FirebaseDB.fetchStudents();
-        const me = students.find(s => s.studentNumber === currentUser.studentNumber);
+        const me = students.find((s) => s.studentNumber === currentUser.studentNumber);
         const hasCourses = Array.isArray(me?.myCourseIds) && me.myCourseIds.length > 0;
         if (!cancelled) {
           setStudentHasCourses(hasCourses);
@@ -789,40 +1103,62 @@ function AppShell() {
     window.__onStudentCoursesSelected = () => {
       if (!cancelled) setStudentHasCourses(true);
     };
-    return () => { cancelled = true; delete window.__onStudentCoursesSelected; };
+    return () => {
+      cancelled = true;
+      delete window.__onStudentCoursesSelected;
+    };
   }, [currentUser?.studentNumber, currentUser?.role]);
 
   // Routing Protection
   useEffect(() => {
     if (!currentUser) return;
-    if (currentUser.role === "student" && !studentCoursesChecked) return;
+    if (currentUser.role === 'student' && !studentCoursesChecked) return;
 
     // Öğrenci ders seçimi yapmadıysa sadece "benim" rotası açık
-    if (currentUser.role === "student" && !studentHasCourses) {
-      if (route !== "benim") navigate("benim");
+    if (currentUser.role === 'student' && !studentHasCourses) {
+      if (route !== 'benim') navigate('benim');
       return;
     }
 
     // Akademisyenler modülü yalnızca professor rolüne açıktır
     const allowedDeptModules = isDeptManager
-      ? DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen" && m.id !== "benim").map(m => m.id)
+      ? DEPARTMENT_MODULES.filter((m) => m.id !== 'akademisyen' && m.id !== 'benim').map(
+          (m) => m.id
+        )
       : isProfessor
-        ? ["sinav", "formlar", "dersprogrami", "akademisyen", "projeler", "staj", "performans"]
+        ? ['sinav', 'formlar', 'dersprogrami', 'akademisyen', 'projeler', 'staj', 'performans']
         : isAdmin
-          ? DEPARTMENT_MODULES.filter(m => m.id !== "akademisyen" && m.id !== "benim").map(m => m.id)
-          : ["benim", "erasmus", "projeler", "formlar", "staj"]; // student
+          ? DEPARTMENT_MODULES.filter((m) => m.id !== 'akademisyen' && m.id !== 'benim').map(
+              (m) => m.id
+            )
+          : ['benim', 'erasmus', 'projeler', 'formlar', 'staj']; // student
 
-    const allowedCommon = COMMON_MODULES.map(m => m.id);
-    const allowedAdmin = (isAdmin || isDeptManager) ? ADMIN_MODULES.map(m => m.id) : [];
+    const allowedCommon = COMMON_MODULES.map((m) => m.id);
+    const allowedAdmin = isAdmin || isDeptManager ? ADMIN_MODULES.map((m) => m.id) : [];
     // Komisyon üyeliği ile kazanılan modül erişimleri
-    const allAllowed = [...allowedDeptModules, ...allowedCommon, ...allowedAdmin, ...commissionModules];
+    const allAllowed = [
+      ...allowedDeptModules,
+      ...allowedCommon,
+      ...allowedAdmin,
+      ...commissionModules,
+    ];
 
     if (!allAllowed.includes(route)) {
-      if (isAdmin || isDeptManager) navigate("erasmus");
-      else if (isProfessor) navigate("sinav");
-      else navigate("portal");
+      if (isAdmin || isDeptManager) navigate('erasmus');
+      else if (isProfessor) navigate('sinav');
+      else navigate('portal');
     }
-  }, [route, currentUser, isAdmin, isProfessor, isDeptManager, navigate, studentCoursesChecked, studentHasCourses, commissionModules]);
+  }, [
+    route,
+    currentUser,
+    isAdmin,
+    isProfessor,
+    isDeptManager,
+    navigate,
+    studentCoursesChecked,
+    studentHasCourses,
+    commissionModules,
+  ]);
 
   // Lazy load module
   useEffect(() => {
@@ -832,19 +1168,22 @@ function AppShell() {
     const componentName = lazyMod.component;
     if (window[componentName]) {
       if (!loadedModules[route]) {
-        setLoadedModules(prev => ({ ...prev, [route]: true }));
+        setLoadedModules((prev) => ({ ...prev, [route]: true }));
       }
       return;
     }
 
     setModuleLoading(true);
-    lazyMod.loader().then(() => {
-      setLoadedModules(prev => ({ ...prev, [route]: true }));
-      setModuleLoading(false);
-    }).catch(err => {
-      console.error("Module load error:", err);
-      setModuleLoading(false);
-    });
+    lazyMod
+      .loader()
+      .then(() => {
+        setLoadedModules((prev) => ({ ...prev, [route]: true }));
+        setModuleLoading(false);
+      })
+      .catch((err) => {
+        console.error('Module load error:', err);
+        setModuleLoading(false);
+      });
   }, [route]);
 
   // Close sidebar on route change (mobile)
@@ -855,7 +1194,7 @@ function AppShell() {
   // Show login if not authenticated
   if (!currentUser) {
     return (
-      <div style={{ minHeight: "100vh", background: C.bg }}>
+      <div style={{ minHeight: '100vh', background: C.bg }}>
         <style dangerouslySetInnerHTML={{ __html: sharedStyles.global }} />
         <LoginModal onLogin={handleLogin} />
       </div>
@@ -866,15 +1205,32 @@ function AppShell() {
   const renderModule = () => {
     if (moduleLoading) {
       return (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 20px" }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{
-              width: 36, height: 36, border: "3px solid #E5E1D8",
-              borderTopColor: C.navy, borderRadius: "50%",
-              animation: "spin 0.8s linear infinite", margin: "0 auto 16px",
-            }} />
-            <p style={{ color: "#666", fontSize: 14 }}>Modül yükleniyor...</p>
-            <style dangerouslySetInnerHTML={{ __html: "@keyframes spin { to { transform: rotate(360deg) } }" }} />
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '80px 20px',
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                border: '3px solid #E5E1D8',
+                borderTopColor: C.navy,
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite',
+                margin: '0 auto 16px',
+              }}
+            />
+            <p style={{ color: '#666', fontSize: 14 }}>Modül yükleniyor...</p>
+            <style
+              dangerouslySetInnerHTML={{
+                __html: '@keyframes spin { to { transform: rotate(360deg) } }',
+              }}
+            />
           </div>
         </div>
       );
@@ -900,15 +1256,17 @@ function AppShell() {
         komisyonlar: window.KomisyonlarModuluApp,
         benim: window.BenimSayfamApp,
         audit: window.AuditLogModuluApp,
+        kulupler: window.OgrenciKulupleriApp,
       };
       const FallbackComponent = fallback[route];
-      if (FallbackComponent) return React.createElement(FallbackComponent, {
-        currentUser,
-        activeDepartment,
-        departmentInfo: DEPARTMENTS.find(d => d.id === activeDepartment),
-      });
+      if (FallbackComponent)
+        return React.createElement(FallbackComponent, {
+          currentUser,
+          activeDepartment,
+          departmentInfo: DEPARTMENTS.find((d) => d.id === activeDepartment),
+        });
       return (
-        <div style={{ padding: "40px 16px", textAlign: "center", color: "#c00" }}>
+        <div style={{ padding: '40px 16px', textAlign: 'center', color: '#c00' }}>
           Modül yüklenemedi. Lütfen sayfayı yenileyin (Ctrl+Shift+R).
         </div>
       );
@@ -917,14 +1275,22 @@ function AppShell() {
     return React.createElement(Component, {
       currentUser,
       activeDepartment,
-      departmentInfo: DEPARTMENTS.find(d => d.id === activeDepartment),
+      departmentInfo: DEPARTMENTS.find((d) => d.id === activeDepartment),
     });
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F3F4F6", display: "flex", flexDirection: "column" }}>
-      <style dangerouslySetInnerHTML={{
-        __html: `
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#F3F4F6',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
         ${sharedStyles.global}
         @keyframes spin { to { transform: rotate(360deg) } }
         /* Sidebar scrollbar */
@@ -932,7 +1298,9 @@ function AppShell() {
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
-      `}} />
+      `,
+        }}
+      />
 
       <TopHeader
         currentUser={currentUser}
@@ -944,7 +1312,7 @@ function AppShell() {
         onNavigate={navigate}
       />
 
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <Sidebar
           activeDepartment={activeDepartment}
           onDepartmentChange={handleDepartmentChange}
@@ -956,18 +1324,18 @@ function AppShell() {
           onClose={() => setSidebarOpen(false)}
           onRequestChangePassword={() => setShowChangePassword(true)}
           commissionModules={commissionModules}
-          studentLocked={currentUser?.role === "student" && !studentHasCourses}
+          studentLocked={currentUser?.role === 'student' && !studentHasCourses}
         />
 
-        <main style={{
-          flex: 1,
-          minWidth: 0,
-          padding: isMobile ? 12 : 24,
-          overflowY: "auto",
-        }}>
-          <div style={{ maxWidth: 1400, margin: "0 auto" }}>
-            {renderModule()}
-          </div>
+        <main
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: isMobile ? 12 : 24,
+            overflowY: 'auto',
+          }}
+        >
+          <div style={{ maxWidth: 1400, margin: '0 auto' }}>{renderModule()}</div>
         </main>
 
         {!isMobile && (
