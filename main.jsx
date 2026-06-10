@@ -21,7 +21,9 @@ import './shared-components.jsx';
 (async () => {
   try {
     const { io } = await import('socket.io-client');
-    const socket = io({ path: '/socket.io', withCredentials: true, autoConnect: true, reconnection: true });
+    // transports: ['websocket'] — yalnızca WS kullan; WS koptuğunda eski sid
+    // ile polling fallback denenip 400 (unknown session) hatası üretmesini önler.
+    const socket = io({ path: '/socket.io', withCredentials: true, autoConnect: true, reconnection: true, transports: ['websocket'] });
     window.__socket = socket;
     socket.on('connect', () => { console.info('[realtime] bağlandı'); });
     socket.on('disconnect', () => { /* sessiz */ });
