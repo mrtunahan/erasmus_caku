@@ -59,7 +59,18 @@ function apiRateLimiter() {
 // (request origin'i yansıt) korunur — mevcut kurulumları kırmaz.
 function corsOrigin() {
   const raw = (process.env.ALLOWED_ORIGINS || "").trim();
-  if (!raw) return true; // eski varsayılan davranış
+  if (!raw) {
+    // Üretimde allowlist zorunlu: boşsa credential'lı CORS ile rastgele
+    // origin'i yansıtma. Same-origin (origin başlığı yok) ve health probe'lara
+    // izin verilir; cross-origin reddedilir.
+    if (process.env.NODE_ENV === "production") {
+      return (origin, cb) => {
+        if (!origin) return cb(null, true);
+        return cb(new Error("CORS reddedildi: ALLOWED_ORIGINS tanımlı değil"));
+      };
+    }
+    return true; // dev: eski davranış (request origin'i yansıt)
+  }
   const allowed = raw.split(",").map((s) => s.trim()).filter(Boolean);
   return (origin, cb) => {
     // origin yoksa same-origin/curl/health probe — izin ver

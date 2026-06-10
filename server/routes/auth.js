@@ -2,7 +2,7 @@ const express = require("express");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const { getDbSafe } = require("../config/database");
-const { generateToken, requireAuth, setTokenCookie, clearTokenCookie } = require("../middleware/auth");
+const { generateToken, requireAuth, verifyToken, setTokenCookie, clearTokenCookie } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -368,6 +368,23 @@ router.post("/change-password", async (req, res) => {
     return res.status(400).json({ error: "Şifre en az 6 karakter olmalıdır." });
   }
 
+  // Çağıranı kimlik doğrula (cookie veya Bearer). Anonim ilk-kurulum akışını
+  // bozmamak için zorunlu değil; yetkilendirme kararları için kullanılır.
+  let authUser = null;
+  const tok =
+    (req.cookies && req.cookies.caku_auth) ||
+    (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")
+      ? req.headers.authorization.split(" ")[1]
+      : null);
+  if (tok) {
+    try {
+      authUser = verifyToken(tok);
+    } catch (_) {
+      /* geçersiz/expired token — anonim muamelesi */
+    }
+  }
+  const isAdmin = authUser && authUser.role === "admin";
+
   try {
     const bcryptHash = await hashPassword(newPassword);
 
@@ -375,7 +392,13 @@ router.post("/change-password", async (req, res) => {
       if (!identifier) return res.status(400).json({ error: "Öğrenci numarası gerekli." });
       const doc = await getPasswordDoc("student_passwords");
 
-      if (currentPassword && doc[identifier]) {
+      // Şifre zaten belirlenmişse: admin reset hariç, mevcut şifre doğrulaması
+      // ZORUNLU. Bu, currentPassword göndermeden hesap ele geçirmeyi engeller.
+      // İlk kurulum (henüz şifre yok) anonim olarak izinli kalır.
+      if (doc[identifier] && !isAdmin) {
+        if (!currentPassword) {
+          return res.json({ success: false, error: "Mevcut şifre gerekli." });
+        }
         const valid = await verifyPassword(currentPassword, doc[identifier], identifier);
         if (!valid) {
           return res.json({ success: false, error: "Mevcut şifre hatalı." });
@@ -386,16 +409,33 @@ router.post("/change-password", async (req, res) => {
       return res.json({ success: true });
 
     } else if (role === "admin") {
+      // Admin şifresi yalnızca authenticated admin tarafından değiştirilebilir.
+      if (!isAdmin) {
+        return res.status(403).json({ error: "Bu işlem için admin yetkisi gerekli." });
+      }
       await setPasswordDoc("admin", { password: bcryptHash, updatedAt: new Date() });
       return res.json({ success: true });
 
     } else if (role === "professor") {
       if (!identifier) return res.status(400).json({ error: "Akademisyen adı gerekli." });
+      // Yalnızca authenticated kullanıcı (admin reset veya akademisyenin kendisi).
+      if (!authUser) {
+        return res.status(401).json({ error: "Bu işlem için giriş gerekli." });
+      }
+      if (!isAdmin && !(authUser.role === "professor" && authUser.identifier === identifier)) {
+        return res.status(403).json({ error: "Bu hesabın şifresini değiştirme yetkiniz yok." });
+      }
       await setPasswordDoc("professor_passwords", { [identifier]: bcryptHash }, true);
       return res.json({ success: true });
 
     } else if (role === "bolum_yetkilisi") {
       if (!identifier) return res.status(400).json({ error: "Yetkili adı gerekli." });
+      if (!authUser) {
+        return res.status(401).json({ error: "Bu işlem için giriş gerekli." });
+      }
+      if (!isAdmin && !(authUser.role === "bolum_yetkilisi" && authUser.identifier === identifier)) {
+        return res.status(403).json({ error: "Bu hesabın şifresini değiştirme yetkiniz yok." });
+      }
       await setPasswordDoc("department_manager_passwords", { [identifier]: bcryptHash }, true);
       return res.json({ success: true });
 
