@@ -2474,6 +2474,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Tüm fakülte başvuruları (yalnızca Ergün ÇINAR'ın fakülte geneli dışa
   // aktarımı için — bölüm filtresiz tüm kayıtlar)
   const [allFacultyApplications, setAllFacultyApplications] = useState([]);
+  // Tüm fakülte etapları (Ergün ÇINAR'ın dışa aktarım dropdown'ı için —
+  // bölüm filtresine takılmadan akademisyenlerin açtığı tüm etaplar)
+  const [allFacultyPeriods, setAllFacultyPeriods] = useState([]);
 
   // ── Öğrenci bildirimleri ──
   const [studentNotifs, setStudentNotifs] = useState([]);
@@ -2596,6 +2599,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       // Tüm etaplar çekilip bölüme göre istemci tarafında ayrılır.
       const allPeriods = await window.apiRead("internship_periods");
       setStajPeriods(allPeriods.filter(p => periodInDept(p, effectiveDept)));
+      // Ergün ÇINAR fakülte geneli dışa aktarır: tüm etapları filtresiz sakla.
+      if (isErgunCinar) setAllFacultyPeriods(allPeriods);
 
       // Eski internships koleksiyonunu yükle
       const internParams = effectiveDept ? { where: "departmentId:eq:s:" + effectiveDept } : {};
@@ -3093,6 +3098,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [exportPeriodId, setExportPeriodId] = useState("all");
   const [exporting, setExporting] = useState(false);
 
+  // Dışa aktarımda kullanılacak etap ve başvuru kümeleri. Ergün ÇINAR için
+  // bölüm filtresiz tüm fakülte; diğer roller için kendi bölümleri.
+  const exportPeriods = isErgunCinar ? allFacultyPeriods : stajPeriods;
+  const exportApplications = isErgunCinar ? allFacultyApplications : allApplications;
+
   // ── Deadline: Staj başlangıcından 10 gün önce = öğrenci kayıt son + komisyon onay son tarihi ──
   const getKayitDeadline = (period) => period?.baslangic ? addDays(period.baslangic, -10) : null;
   // ── Süreç açılış tarihi: staj başlangıcından 1 ay önce ──
@@ -3129,23 +3139,23 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     };
 
     if (exportPeriodId === "all") {
-      const etapsWithApps = stajPeriods.filter(p =>
-        allApplications.some(a => a.stajEtapId === p.id)
+      const etapsWithApps = exportPeriods.filter(p =>
+        exportApplications.some(a => a.stajEtapId === p.id)
       );
       if (etapsWithApps.length === 0) {
         alert("Dışa aktarılacak kayıt bulunamadı.");
         return;
       }
       etapsWithApps.forEach((p, i) => {
-        const apps = allApplications.filter(a => a.stajEtapId === p.id);
+        const apps = exportApplications.filter(a => a.stajEtapId === p.id);
         // Tarayıcının çoklu indirmeyi engellememesi için kademeli tetikle
         setTimeout(() => triggerDownload(generateXML(apps, p.label), p.label), i * 250);
       });
       return;
     }
 
-    const period = stajPeriods.find(p => p.id === exportPeriodId);
-    const apps = allApplications.filter(a => a.stajEtapId === exportPeriodId);
+    const period = exportPeriods.find(p => p.id === exportPeriodId);
+    const apps = exportApplications.filter(a => a.stajEtapId === exportPeriodId);
     const label = period?.label || exportPeriodId;
     if (apps.length === 0) { alert("Bu etap için kayıt bulunamadı."); return; }
     triggerDownload(generateXML(apps, label), label);
@@ -3189,8 +3199,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       };
 
       if (exportPeriodId === "all") {
-        const etapsWithApps = stajPeriods.filter(p =>
-          allApplications.some(a => a.stajEtapId === p.id)
+        const etapsWithApps = exportPeriods.filter(p =>
+          exportApplications.some(a => a.stajEtapId === p.id)
         );
         if (etapsWithApps.length === 0) {
           alert("Dışa aktarılacak kayıt bulunamadı.");
@@ -3198,7 +3208,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         }
         for (let i = 0; i < etapsWithApps.length; i++) {
           const p = etapsWithApps[i];
-          const apps = allApplications.filter(a => a.stajEtapId === p.id);
+          const apps = exportApplications.filter(a => a.stajEtapId === p.id);
           buildSheet(apps, p.label);
           // Tarayıcı indirmeleri arasında küçük bir bekleme (engellenme önleme)
           if (i < etapsWithApps.length - 1) await new Promise(r => setTimeout(r, 350));
@@ -3206,8 +3216,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         return;
       }
 
-      const period = stajPeriods.find(p => p.id === exportPeriodId);
-      const apps = allApplications.filter(a => a.stajEtapId === exportPeriodId);
+      const period = exportPeriods.find(p => p.id === exportPeriodId);
+      const apps = exportApplications.filter(a => a.stajEtapId === exportPeriodId);
       const label = period?.label || exportPeriodId;
       if (apps.length === 0) { alert("Bu etap için kayıt bulunamadı."); return; }
       buildSheet(apps, label);
@@ -4874,9 +4884,13 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         {isErgunCinar
                           ? <option value="all" disabled>Lütfen bir etap seçiniz</option>
                           : <option value="all">Tüm Etaplar — her etap ayrı dosya ({allApplications.length} öğrenci)</option>}
-                        {stajPeriods.map(p => {
-                          const count = allApplications.filter(a => a.stajEtapId === p.id).length;
-                          return <option key={p.id} value={p.id}>{p.label} ({count} öğrenci)</option>;
+                        {exportPeriods.map(p => {
+                          const count = exportApplications.filter(a => a.stajEtapId === p.id).length;
+                          const deptName = isErgunCinar
+                            ? (ALL_DEPARTMENTS.find(d => d.id === p.departmentId)?.name || "")
+                            : "";
+                          const labelText = deptName ? `${p.label} — ${deptName}` : p.label;
+                          return <option key={p.id} value={p.id}>{labelText} ({count} öğrenci)</option>;
                         })}
                       </select>
                     </div>
