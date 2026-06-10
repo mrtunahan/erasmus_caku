@@ -91,9 +91,10 @@ const ALLOWED_COLLECTIONS = [
   'notifications',
 ];
 
-// passwords salt-hash karşılaştırma için server tarafında okunur; UI'da
-// listelenmez ama izinli okuma listesinde tutulur.
-const READABLE_COLLECTIONS = [...ALLOWED_COLLECTIONS, 'passwords'];
+// passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
+// Generic /api/db okuma API'sinden ERİŞİLEMEZ — parola hash'lerinin
+// kimlik doğrulamasız sızmasını önlemek için izin listesinden çıkarıldı.
+const READABLE_COLLECTIONS = [...ALLOWED_COLLECTIONS];
 
 // Where/orderBy field adları için güvenlik allowlist'i —
 // Mongo operatör enjeksiyonu (örn. $where) ve prototip kirletmesini engeller.

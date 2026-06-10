@@ -234,9 +234,24 @@ router.get('/download/*', downloadLimiter, (req, res) => {
   const encodedName = encodeURIComponent(originalName);
 
   // ?download=true ise indirmeye zorla, aksi halde inline göster
-  const disposition = req.query.download === 'true' ? 'attachment' : 'inline';
+  let disposition = req.query.download === 'true' ? 'attachment' : 'inline';
 
-  res.setHeader('Content-Type', mimeType);
+  // Aktif içerik zararsızlaştırma: yüklenen HTML/XML/SVG app origin'inde
+  // inline servis edilirse stored-XSS'e yol açar. HTML/XML'i text/plain
+  // olarak veririz (script çalışmaz, /view önizlemesi düz metin gösterir);
+  // SVG'yi indirmeye zorlarız (<img> kullanımı disposition'ı yok sayıp
+  // güvenle render eder, doğrudan gezinme ise script çalıştıramaz).
+  const ext = path.extname(filePath).toLowerCase();
+  let contentType = mimeType;
+  if (['.html', '.htm', '.xhtml', '.xml', '.svg'].includes(ext)) {
+    if (ext === '.svg') {
+      disposition = 'attachment';
+    } else {
+      contentType = 'text/plain; charset=utf-8';
+    }
+  }
+
+  res.setHeader('Content-Type', contentType);
   res.setHeader(
     'Content-Disposition',
     `${disposition}; filename="${asciiName}"; filename*=UTF-8''${encodedName}`
