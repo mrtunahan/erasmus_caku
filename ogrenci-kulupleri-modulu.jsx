@@ -86,7 +86,12 @@ const KlpIcon = ({ path, size = 18, color = 'currentColor' }) => (
 function LogoAvatar({ club, size = 96, onClick, editable }) {
   const [g1, g2] = colorForName(club?.name || '');
   const initials = initialsOf(club?.name);
-  const hasLogo = !!club?.logoURL;
+  const [imgFailed, setImgFailed] = useState(false);
+  // Logo URL değişince hata bayrağını sıfırla (yeni yükleme sonrası tekrar dene)
+  useEffect(() => {
+    setImgFailed(false);
+  }, [club?.logoURL]);
+  const hasLogo = !!club?.logoURL && !imgFailed;
   return (
     <div
       onClick={onClick}
@@ -112,9 +117,7 @@ function LogoAvatar({ club, size = 96, onClick, editable }) {
           src={club.logoURL}
           alt={club.name}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-          }}
+          onError={() => setImgFailed(true)}
         />
       ) : (
         <span
@@ -1045,15 +1048,18 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
         return;
       }
       const form = new FormData();
-      // ÖNEMLİ: 'folder' alanı 'file'dan önce eklenmeli — multer destination
-      // callback'i dosya stream'i başladığında req.body.folder'ı okur.
+      // Klasörü query param olarak gönderiyoruz — multer destination'ı
+      // multipart body'den önce okuyabilsin (field sırasından bağımsız).
       form.append('folder', 'student_clubs/logos');
       form.append('file', file);
-      const res = await fetch('/api/files/upload', {
-        method: 'POST',
-        body: form,
-        credentials: 'include',
-      });
+      const res = await fetch(
+        '/api/files/upload?folder=' + encodeURIComponent('student_clubs/logos'),
+        {
+          method: 'POST',
+          body: form,
+          credentials: 'include',
+        }
+      );
       if (!res.ok) throw new Error('Yükleme başarısız (HTTP ' + res.status + ')');
       const json = await res.json();
       await window.DBWrite.set('student_clubs', club.id, { logoURL: json.downloadURL }, true);
@@ -1071,11 +1077,14 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
       const form = new FormData();
       form.append('folder', 'student_clubs/docs');
       form.append('file', file);
-      const res = await fetch('/api/files/upload', {
-        method: 'POST',
-        body: form,
-        credentials: 'include',
-      });
+      const res = await fetch(
+        '/api/files/upload?folder=' + encodeURIComponent('student_clubs/docs'),
+        {
+          method: 'POST',
+          body: form,
+          credentials: 'include',
+        }
+      );
       if (!res.ok) throw new Error('Yükleme başarısız (HTTP ' + res.status + ')');
       const json = await res.json();
       await window.DBWrite.add('club_documents', {

@@ -61,8 +61,12 @@ function sanitizeFolder(input) {
 // Multer ayarları
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Alt dizin desteği (forms/, portal_files/, resources/)
-    const safe = sanitizeFolder(req.body.folder);
+    // Alt dizin desteği (forms/, portal_files/, resources/).
+    // ÖNEMLİ: req.query.folder'ı tercih ederiz — query string, multipart body
+    // parse edilmeden önce hazır olduğundan, FormData içindeki 'folder' alanı
+    // 'file'dan sonra gelse bile klasör doğru çözülür. req.body.folder geriye
+    // dönük uyumluluk için fallback olarak kalır.
+    const safe = sanitizeFolder(req.query.folder || req.body.folder);
     if (!safe) {
       return cb(new Error('Geçersiz klasör adı'));
     }
@@ -90,7 +94,7 @@ router.post('/upload', uploadLimiter, softAuthMiddleware, upload.single('file'),
     return res.status(400).json({ error: 'Dosya gerekli.' });
   }
 
-  const folder = sanitizeFolder(req.body.folder) || 'general';
+  const folder = sanitizeFolder(req.query.folder || req.body.folder) || 'general';
 
   // Staj modülü yalnızca PDF kabul eder. Hatalı dosyayı diskte bırakmamak için
   // reddedilen dosyayı sileriz.
