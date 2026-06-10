@@ -387,6 +387,11 @@ const COMMON_MODULES = [
     label: 'Yol Haritaları',
     icon: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
   },
+  {
+    id: 'kulupler',
+    label: 'Öğrenci Kulüpleri',
+    icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
+  },
 ];
 
 // Admin-only modüller
@@ -7195,14 +7200,14 @@ const AdSenseBanner = ({ type }) => {
         (window.adsbygoogle = window.adsbygoogle || []).push({});
         pushed.current = true;
       } catch (err) {
-        console.warn("AdSense push hatası:", err);
+        console.warn('AdSense push hatası:', err);
       }
     }, 150);
     return () => clearTimeout(timer);
   }, []);
 
   // Feed içi reklam (fluid)
-  if (!type || type === "feed") {
+  if (!type || type === 'feed') {
     return (
       <div ref={containerRef} style={{ overflow: 'hidden', margin: '4px 0', minHeight: 50 }}>
         <ins
@@ -7218,7 +7223,7 @@ const AdSenseBanner = ({ type }) => {
   }
 
   // Sidebar / yatay reklam (auto responsive)
-  if (type === "sidebar") {
+  if (type === 'sidebar') {
     return (
       <div ref={containerRef} style={{ overflow: 'hidden', margin: '4px 0', minHeight: 90 }}>
         <ins
