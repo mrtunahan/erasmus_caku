@@ -304,14 +304,159 @@ const Field = ({ label, value }) => (
 );
 
 // ══════════════════════════════════════════════════════════════
-// ClubForm — Düzenleme/oluşturma modalı
+// SearchSelect — arama özellikli açılır liste (serbest metne de izin verir)
+//   options: [{ label, sub }]; value = seçilen/yazılan metin
 // ══════════════════════════════════════════════════════════════
-function ClubForm({ initial, lockedDepartment, onSave, onCancel }) {
+function SearchSelect({ value, onChange, options, placeholder, disabled, emptyHint }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const onDoc = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  const q = (value || '').trim().toLocaleLowerCase('tr');
+  const filtered = useMemo(() => {
+    if (!q) return options.slice(0, 60);
+    return options
+      .filter(
+        (o) =>
+          o.label.toLocaleLowerCase('tr').includes(q) ||
+          (o.sub || '').toLocaleLowerCase('tr').includes(q)
+      )
+      .slice(0, 60);
+  }, [q, options]);
+
+  const inputStyle = {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: 8,
+    border: '1px solid ' + KLP.border,
+    fontSize: 13,
+    outline: 'none',
+    fontFamily: "'Inter', sans-serif",
+    boxSizing: 'border-box',
+    background: disabled ? '#F3F4F6' : 'white',
+    cursor: disabled ? 'not-allowed' : 'text',
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <input
+        value={value}
+        disabled={disabled}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder={disabled ? emptyHint || placeholder : placeholder}
+        style={inputStyle}
+      />
+      {open && !disabled && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            background: 'white',
+            border: '1px solid ' + KLP.border,
+            borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            maxHeight: 220,
+            overflowY: 'auto',
+          }}
+        >
+          {filtered.length === 0 ? (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: KLP.textMuted }}>
+              Eşleşme yok — yazdığınız isim olduğu gibi kaydedilir.
+            </div>
+          ) : (
+            filtered.map((o, i) => (
+              <div
+                key={i}
+                onClick={() => {
+                  onChange(o.label);
+                  setOpen(false);
+                }}
+                style={{
+                  padding: '9px 12px',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  color: KLP.text,
+                  borderBottom: i < filtered.length - 1 ? '1px solid #F3F4F6' : 'none',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = KLP.accentLight)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
+              >
+                {o.label}
+                {o.sub ? (
+                  <span style={{ color: KLP.textMuted, fontSize: 11, marginLeft: 6 }}>{o.sub}</span>
+                ) : null}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// ClubForm — Düzenleme/oluşturma modalı
+//   • Bölüm: admin → açılır liste (fakültenin bölümleri); bölüm yetkilisi → kilitli
+//   • Danışman: seçili bölümün akademisyenleri (arama özellikli)
+//   • Başkan: seçili bölümün öğrencileri (arama özellikli)
+// ══════════════════════════════════════════════════════════════
+function ClubForm({
+  initial,
+  isAdmin,
+  lockedDepartmentId,
+  departments,
+  professors,
+  students,
+  onSave,
+  onCancel,
+}) {
   const [name, setName] = useState(initial?.name || '');
   const [advisor, setAdvisor] = useState(initial?.advisor || '');
   const [president, setPresident] = useState(initial?.president || '');
-  const [department, setDepartment] = useState(initial?.department || lockedDepartment || '');
+  const initialDeptId =
+    lockedDepartmentId ||
+    initial?.departmentId ||
+    (initial?.department ? departments.find((d) => d.name === initial.department)?.id || '' : '');
+  const [departmentId, setDepartmentId] = useState(initialDeptId);
   const [saving, setSaving] = useState(false);
+
+  const deptName =
+    departments.find((d) => d.id === departmentId)?.name || initial?.department || '';
+
+  // Seçili bölüme göre akademisyen / öğrenci seçenekleri
+  const advisorOptions = useMemo(
+    () =>
+      professors
+        .filter((p) => (p.departmentId || '') === departmentId)
+        .map((p) => ({ label: (p.name || '').trim(), sub: '' }))
+        .filter((o) => o.label),
+    [professors, departmentId]
+  );
+  const presidentOptions = useMemo(
+    () =>
+      students
+        .filter((s) => (s.departmentId || '') === departmentId)
+        .map((s) => ({
+          label: `${s.firstName || ''} ${s.lastName || ''}`.trim(),
+          sub: s.studentNumber || '',
+        }))
+        .filter((o) => o.label),
+    [students, departmentId]
+  );
 
   const inputStyle = {
     width: '100%',
@@ -329,13 +474,18 @@ function ClubForm({ initial, lockedDepartment, onSave, onCancel }) {
       alert('Topluluk adı zorunludur.');
       return;
     }
+    if (!departmentId) {
+      alert('Lütfen bir bölüm seçin.');
+      return;
+    }
     setSaving(true);
     try {
       await onSave({
         name: name.trim(),
         advisor: advisor.trim(),
         president: president.trim(),
-        department: department.trim(),
+        department: deptName,
+        departmentId,
       });
     } finally {
       setSaving(false);
@@ -380,32 +530,60 @@ function ClubForm({ initial, lockedDepartment, onSave, onCancel }) {
               autoFocus
             />
           </FormField>
+          <FormField label={lockedDepartmentId ? 'Bölüm (otomatik)' : 'Bölüm *'}>
+            {isAdmin && !lockedDepartmentId ? (
+              <select
+                value={departmentId}
+                onChange={(e) => {
+                  // Bölüm değişince eski bölümden seçilen danışman/başkan'ı temizle
+                  setDepartmentId(e.target.value);
+                  setAdvisor('');
+                  setPresident('');
+                }}
+                style={{ ...inputStyle, cursor: 'pointer' }}
+              >
+                <option value="">Bölüm seçin…</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={deptName}
+                disabled
+                style={{ ...inputStyle, background: '#F3F4F6' }}
+                placeholder="Bölümünüz"
+              />
+            )}
+          </FormField>
           <FormField label="Akademik Danışman">
-            <input
+            <SearchSelect
               value={advisor}
-              onChange={(e) => setAdvisor(e.target.value)}
-              style={inputStyle}
-              placeholder="Ünvan + Ad Soyad"
+              onChange={setAdvisor}
+              options={advisorOptions}
+              disabled={!departmentId}
+              placeholder={
+                advisorOptions.length
+                  ? 'Akademisyen ara veya seç…'
+                  : 'Bu bölümde kayıtlı akademisyen yok — isim yazabilirsiniz'
+              }
+              emptyHint="Önce bölüm seçin"
             />
           </FormField>
           <FormField label="Topluluk Başkanı">
-            <input
+            <SearchSelect
               value={president}
-              onChange={(e) => setPresident(e.target.value)}
-              style={inputStyle}
-              placeholder="Ad Soyad"
-            />
-          </FormField>
-          <FormField label={lockedDepartment ? 'Bölüm (otomatik)' : 'Bölüm'}>
-            <input
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              disabled={!!lockedDepartment}
-              style={{
-                ...inputStyle,
-                background: lockedDepartment ? '#F3F4F6' : 'white',
-              }}
-              placeholder="Örn: Bilgisayar Mühendisliği"
+              onChange={setPresident}
+              options={presidentOptions}
+              disabled={!departmentId}
+              placeholder={
+                presidentOptions.length
+                  ? 'Öğrenci ara veya seç…'
+                  : 'Bu bölümde kayıtlı öğrenci yok — isim yazabilirsiniz'
+              }
+              emptyHint="Önce bölüm seçin"
             />
           </FormField>
         </div>
@@ -729,11 +907,14 @@ function DocumentsPanel({ documents, canEdit, onUpload, onAddLink, onDelete }) {
 // ══════════════════════════════════════════════════════════════
 // Ana modül
 // ══════════════════════════════════════════════════════════════
-function OgrenciKulupleriApp({ currentUser }) {
+function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) {
   const responsive = window.useResponsive();
+  const FACULTY_DEPARTMENTS = window.DEPARTMENTS || [];
 
   const [clubs, setClubs] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [professors, setProfessors] = useState([]);
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterDept, setFilterDept] = useState('');
@@ -742,12 +923,17 @@ function OgrenciKulupleriApp({ currentUser }) {
 
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
-  // Bölüm yetkilisinin kendi bölüm adı; users koleksiyonunda department alanı varsa
-  const myDepartment = currentUser?.department || currentUser?.departmentName || '';
+  // Bölüm yetkilisinin bölümü = aktif bölüm (app-shell'den gelir)
+  const myDepartmentId = activeDepartment || '';
+  const myDepartmentName = departmentInfo?.name || '';
 
   const canEditClub = (club) => {
     if (isAdmin) return true;
-    if (isDeptManager && club && myDepartment && club.department === myDepartment) return true;
+    if (isDeptManager && club) {
+      // departmentId varsa onunla, yoksa (seed verisi) bölüm adıyla eşleştir
+      if (club.departmentId && myDepartmentId) return club.departmentId === myDepartmentId;
+      if (myDepartmentName && club.department === myDepartmentName) return true;
+    }
     return false;
   };
   const canCreate = isAdmin || isDeptManager;
@@ -762,14 +948,18 @@ function OgrenciKulupleriApp({ currentUser }) {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [c, d] = await Promise.all([
+      const [c, d, p, s] = await Promise.all([
         window.apiRead('student_clubs'),
         window.apiRead('club_documents'),
+        window.apiRead('professors'),
+        window.apiRead('students'),
       ]);
       setClubs((c || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr')));
       setDocuments(
         (d || []).slice().sort((a, b) => (a.title || '').localeCompare(b.title || '', 'tr'))
       );
+      setProfessors(p || []);
+      setStudents(s || []);
     } catch (e) {
       console.error('Kulüpler yüklenemedi:', e);
       showMsg('Veriler yüklenirken hata oluştu.', 'error');
@@ -1116,7 +1306,11 @@ function OgrenciKulupleriApp({ currentUser }) {
       {editing && (
         <ClubForm
           initial={editing.id ? editing : null}
-          lockedDepartment={isDeptManager && !isAdmin ? myDepartment : ''}
+          isAdmin={isAdmin}
+          lockedDepartmentId={isDeptManager && !isAdmin ? myDepartmentId : ''}
+          departments={FACULTY_DEPARTMENTS}
+          professors={professors}
+          students={students}
           onSave={handleSave}
           onCancel={() => setEditing(null)}
         />
