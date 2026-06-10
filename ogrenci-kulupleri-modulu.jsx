@@ -172,8 +172,8 @@ function ClubCard({ club, canEdit, onEdit, onDelete, onLogoChange }) {
     const file = e.target.files?.[0];
     e.target.value = ''; // aynı dosyayı tekrar seçebilmek için
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      alert('Lütfen bir resim dosyası seçin (PNG/JPG).');
+    if (!/^image\/(png|jpe?g)$/i.test(file.type)) {
+      alert('Topluluk logosu yalnızca PNG veya JPEG olabilir.');
       return;
     }
     await onLogoChange(file);
@@ -251,7 +251,7 @@ function ClubCard({ club, canEdit, onEdit, onDelete, onLogoChange }) {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg"
             style={{ display: 'none' }}
             onChange={handleLogoFile}
           />
@@ -1040,9 +1040,15 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
   // Logo upload
   const handleLogoChange = async (club, file) => {
     try {
+      if (!/^image\/(png|jpe?g)$/i.test(file.type)) {
+        showMsg('Logo yalnızca PNG veya JPEG olabilir.', 'error');
+        return;
+      }
       const form = new FormData();
-      form.append('file', file);
+      // ÖNEMLİ: 'folder' alanı 'file'dan önce eklenmeli — multer destination
+      // callback'i dosya stream'i başladığında req.body.folder'ı okur.
       form.append('folder', 'student_clubs/logos');
+      form.append('file', file);
       const res = await fetch('/api/files/upload', {
         method: 'POST',
         body: form,
@@ -1063,8 +1069,8 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
   const handleDocUpload = async (file) => {
     try {
       const form = new FormData();
-      form.append('file', file);
       form.append('folder', 'student_clubs/docs');
+      form.append('file', file);
       const res = await fetch('/api/files/upload', {
         method: 'POST',
         body: form,
