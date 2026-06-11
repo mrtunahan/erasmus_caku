@@ -1257,6 +1257,7 @@ function AppShell() {
         benim: window.BenimSayfamApp,
         audit: window.AuditLogModuluApp,
         kulupler: window.OgrenciKulupleriApp,
+        anket: window.AnketModulu,
       };
       const FallbackComponent = fallback[route];
       if (FallbackComponent)
