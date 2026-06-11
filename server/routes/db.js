@@ -91,6 +91,9 @@ const ALLOWED_COLLECTIONS = [
   'notifications',
   'student_clubs',
   'club_documents',
+  'surveys',
+  'survey_assignments',
+  'survey_responses',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.

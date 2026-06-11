@@ -103,6 +103,10 @@ window.__lazyModules = {
     loader: () => import('./ogrenci-kulupleri-modulu.jsx'),
     component: 'OgrenciKulupleriApp',
   },
+  anket: {
+    loader: () => import('./anket-modulu.jsx'),
+    component: 'AnketModulu',
+  },
 };
 
 // ── Phase 3: App Shell (routing & navigation) ──
