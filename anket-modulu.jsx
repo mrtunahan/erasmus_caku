@@ -50,9 +50,9 @@ const PRESET_SURVEYS = {
     title: 'AKTS İşyükü Değerlendirme Anketi',
     description: 'Derslerin kredi değerlerinin belirlenmesi amacıyla hazırlanmıştır.',
     infoFields: [
-      { key: 'bolum', label: 'Bölüm' },
-      { key: 'dersAdi', label: 'Dersin Adı' },
-      { key: 'dersKodu', label: 'Dersin Kodu' },
+      { key: 'bolum', label: 'Bölüm', source: 'department' },
+      { key: 'dersAdi', label: 'Dersin Adı', source: 'course', codeKey: 'dersKodu' },
+      { key: 'dersKodu', label: 'Dersin Kodu', source: 'courseCode' },
     ],
     questions: [
       { id: 'q1a', type: 'yesno', text: 'Bu derse dönem içinde devam ettiniz mi?' },
@@ -1128,6 +1128,7 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
           onSubmit={submit}
           onCancel={() => setActiveId(null)}
           responsive={responsive}
+          activeDepartment={activeDepartment}
         />
         {toast.node}
       </>
@@ -1243,12 +1244,137 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
 }
 
 // ─── Anket doldurma ekranı ─────────────────────────────────────────────────
-function AnketDoldurma({ survey, onSubmit, onCancel }) {
+// ─── Bilgi alanları (DB'den dropdown'lar) ──────────────────────────────────
+// source: 'department' → DEPARTMENTS açılır listesi
+//         'course'     → seçili bölümün dersleri (sinav_dersler); seçince
+//                        codeKey alanına ders kodunu da yazar
+//         'courseCode' → ders seçimiyle otomatik dolan, salt-okunur alan
+//         (tanımsız)   → düz metin girişi (cinsiyet, sınıf vb.)
+function InfoFieldsForm({ fields, values, onChange, activeDepartment }) {
+  const departments = window.DEPARTMENTS || [];
+  const [courses, setCourses] = useState([]);
+  const [deptId, setDeptId] = useState(activeDepartment || '');
+  const [courseId, setCourseId] = useState('');
+
+  // Dersleri yükle (sinav_dersler)
+  useEffect(() => {
+    let alive = true;
+    window
+      .apiRead('sinav_dersler')
+      .then((c) => {
+        if (alive) setCourses(c || []);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Aktif bölüm varsa "Bölüm" alanını otomatik doldur
+  useEffect(() => {
+    if (!activeDepartment) return;
+    const d = departments.find((x) => x.id === activeDepartment);
+    const deptField = fields.find((f) => f.source === 'department');
+    if (d && deptField && !values[deptField.key]) onChange(deptField.key, d.name);
+  }, []);
+
+  const deptCourses = useMemo(
+    () => courses.filter((c) => !deptId || (c.departmentId || '') === deptId),
+    [courses, deptId]
+  );
+
+  const selectStyle = { ...inputStyle, cursor: 'pointer' };
+  const fieldLabel = { fontSize: 12, color: ANK.textMuted, display: 'block', marginBottom: 4 };
+
+  const renderField = (f) => {
+    if (f.source === 'department') {
+      return (
+        <select
+          value={deptId}
+          onChange={(e) => {
+            const id = e.target.value;
+            setDeptId(id);
+            setCourseId('');
+            onChange(f.key, departments.find((d) => d.id === id)?.name || '');
+            // Bölüm değişince ders alanlarını temizle
+            fields
+              .filter((x) => x.source === 'course' || x.source === 'courseCode')
+              .forEach((x) => onChange(x.key, ''));
+          }}
+          style={selectStyle}
+        >
+          <option value="">— Bölüm seçin —</option>
+          {departments.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    if (f.source === 'course') {
+      return (
+        <select
+          value={courseId}
+          disabled={!deptId}
+          onChange={(e) => {
+            const id = e.target.value;
+            setCourseId(id);
+            const course = deptCourses.find((c) => c.id === id);
+            onChange(f.key, course?.name || '');
+            if (f.codeKey) onChange(f.codeKey, course?.code || '');
+          }}
+          style={{ ...selectStyle, background: deptId ? 'white' : '#F3F4F6' }}
+        >
+          <option value="">{deptId ? '— Ders seçin —' : 'Önce bölüm seçin'}</option>
+          {deptCourses.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.code ? c.code + ' — ' : ''}
+              {c.name}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    if (f.source === 'courseCode') {
+      return (
+        <input
+          value={values[f.key] || ''}
+          disabled
+          placeholder="Ders seçilince otomatik dolar"
+          style={{ ...inputStyle, background: '#F3F4F6' }}
+        />
+      );
+    }
+    return (
+      <input
+        value={values[f.key] || ''}
+        onChange={(e) => onChange(f.key, e.target.value)}
+        placeholder={f.label}
+        style={inputStyle}
+      />
+    );
+  };
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      {fields.map((f) => (
+        <div key={f.key}>
+          <label style={fieldLabel}>{f.label}</label>
+          {renderField(f)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment }) {
   const [answers, setAnswers] = useState({});
   const [info, setInfo] = useState({});
   const [saving, setSaving] = useState(false);
 
   const setAns = (id, v) => setAnswers((p) => ({ ...p, [id]: v }));
+  const setInfoField = (key, v) => setInfo((p) => ({ ...p, [key]: v }));
 
   const required = survey.questions.filter((q) => q.type !== 'textarea');
   const answered = required.filter((q) => answers[q.id] != null && answers[q.id] !== '').length;
@@ -1323,23 +1449,12 @@ function AnketDoldurma({ survey, onSubmit, onCancel }) {
         </div>
 
         {survey.infoFields?.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {survey.infoFields.map((f) => (
-              <div key={f.key}>
-                <label
-                  style={{ fontSize: 12, color: ANK.textMuted, display: 'block', marginBottom: 4 }}
-                >
-                  {f.label}
-                </label>
-                <input
-                  value={info[f.key] || ''}
-                  onChange={(e) => setInfo((p) => ({ ...p, [f.key]: e.target.value }))}
-                  placeholder={f.label}
-                  style={inputStyle}
-                />
-              </div>
-            ))}
-          </div>
+          <InfoFieldsForm
+            fields={survey.infoFields}
+            values={info}
+            onChange={setInfoField}
+            activeDepartment={activeDepartment}
+          />
         )}
 
         {survey.questions.map((q, i) => (
