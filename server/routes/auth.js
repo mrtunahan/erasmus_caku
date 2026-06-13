@@ -98,11 +98,16 @@ async function setPasswordDoc(docId, data, merge = false) {
   const db = await getDbSafe();
   const col = db.collection('passwords');
   if (merge) {
-    await col.updateOne(
-      { _id: docId },
-      { $set: { ...data, updatedAt: new Date() } },
-      { upsert: true }
-    );
+    // ÖNEMLİ: data anahtarları (akademisyen adları) nokta içerebilir.
+    // MongoDB $set noktaları nested alan yolu sanar ve düz anahtarı
+    // bozar. Bu yüzden dökümanı okuyup JS'te birleştirip replaceOne ile
+    // geri yazıyoruz — noktalı anahtarlar literal olarak saklanır.
+    const existing = (await col.findOne({ _id: docId })) || { _id: docId };
+    for (const [k, v] of Object.entries(data)) {
+      existing[k] = v;
+    }
+    existing.updatedAt = new Date();
+    await col.replaceOne({ _id: docId }, existing, { upsert: true });
   } else {
     await col.replaceOne(
       { _id: docId },
