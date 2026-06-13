@@ -1242,7 +1242,9 @@ function AppShell() {
           : ['benim', 'erasmus', 'projeler', 'formlar', 'staj']; // student
 
     const allowedCommon = COMMON_MODULES.map((m) => m.id);
-    const allowedAdmin = isAdmin || isDeptManager ? ADMIN_MODULES.map((m) => m.id) : [];
+    const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
+    const allowedAdmin =
+      isAdmin || isDeptManager || isHierarchyManager ? ADMIN_MODULES.map((m) => m.id) : [];
     // Hiyerarşi yönetim modülleri (yetki bayrağına göre)
     const allowedHierarchy = HIERARCHY_MODULES.filter(
       (m) => currentUser && currentUser[m.flag]
