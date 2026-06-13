@@ -2903,13 +2903,9 @@ const LoginModal = ({ onLogin }) => {
   const [selFaculty, setSelFaculty] = useState('');
   const [selDept, setSelDept] = useState('');
 
-  // URL'den admin girişi kontrolü (?admin veya #admin)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.has('admin') || window.location.hash === '#admin') {
-      setActiveTab('admin');
-    }
-  }, []);
+  // URL tabanlı admin girişi (?admin / #admin) KALDIRILDI.
+  // Üniversite/fakülte yetkilisi artık akademisyen girişinden (yetki
+  // bayraklarıyla) erişir; ayrı admin şifresi/sekmesi kullanılmaz.
 
   useEffect(() => {
     const loadProfessors = async () => {
