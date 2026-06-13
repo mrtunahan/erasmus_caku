@@ -960,8 +960,47 @@ function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [commissionModules, setCommissionModules] = useState([]);
+  const [, setDeptVersion] = useState(0); // DB bölümleri yüklenince re-render tetikler
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth <= 768;
+
+  // DB'deki bölümleri (Fakülte panelinden eklenenler dahil) sabit
+  // window.DEPARTMENTS dizisine yerinde ekle — tüm modüller bu referansı
+  // kullandığından, eklenenler uygulama genelinde görünür olur. Mevcut 6
+  // çekirdek bölüm (renk/ikon dolu) korunur; yalnızca eksik olanlar eklenir.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const dbDepts = await window.apiRead('departments');
+        if (cancelled || !Array.isArray(dbDepts) || !DEPARTMENTS) return;
+        const existingIds = new Set(DEPARTMENTS.map((d) => d.id));
+        let added = 0;
+        dbDepts.forEach((d) => {
+          const id = d.id || d._docId;
+          if (!id || existingIds.has(id)) return;
+          DEPARTMENTS.push({
+            id,
+            name: d.name || id,
+            shortName: d.shortName || d.name || id,
+            color: d.color || '#64748B',
+            icon:
+              d.icon ||
+              'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+            facultyId: d.facultyId || '',
+          });
+          existingIds.add(id);
+          added++;
+        });
+        if (added > 0) setDeptVersion((v) => v + 1);
+      } catch (e) {
+        console.warn('DB bölümleri yüklenemedi (sabit listeyle devam):', e?.message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Audit log ve merkezi bildirim helper'larının erişebilmesi için
   // mevcut kullanıcıyı global'e yansıt
