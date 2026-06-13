@@ -107,6 +107,14 @@ window.__lazyModules = {
     loader: () => import('./anket-modulu.jsx'),
     component: 'AnketModulu',
   },
+  univ: {
+    loader: () => import('./unv-yonetimi-modulu.jsx'),
+    component: 'UnvYonetimiApp',
+  },
+  fakulte: {
+    loader: () => import('./fak-yonetimi-modulu.jsx'),
+    component: 'FakYonetimiApp',
+  },
 };
 
 // ── Phase 3: App Shell (routing & navigation) ──
