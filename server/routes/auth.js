@@ -1,8 +1,14 @@
-const express = require("express");
-const crypto = require("crypto");
-const bcrypt = require("bcrypt");
-const { getDbSafe } = require("../config/database");
-const { generateToken, requireAuth, verifyToken, setTokenCookie, clearTokenCookie } = require("../middleware/auth");
+const express = require('express');
+const crypto = require('crypto');
+const bcrypt = require('bcrypt');
+const { getDbSafe } = require('../config/database');
+const {
+  generateToken,
+  requireAuth,
+  verifyToken,
+  setTokenCookie,
+  clearTokenCookie,
+} = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -10,23 +16,23 @@ const BCRYPT_ROUNDS = 12;
 
 // ── Eski SHA-256 hash (geriye dönük uyumluluk) ──
 function sha256(message) {
-  return crypto.createHash("sha256").update(message, "utf8").digest("hex");
+  return crypto.createHash('sha256').update(message, 'utf8').digest('hex');
 }
 
 function legacySha256Hash(password, salt) {
-  return sha256(salt + ":" + password);
+  return sha256(salt + ':' + password);
 }
 
 function isSha256Hash(password) {
-  return typeof password === "string" && /^[a-f0-9]{64}$/.test(password);
+  return typeof password === 'string' && /^[a-f0-9]{64}$/.test(password);
 }
 
 function isBcryptHash(password) {
-  return typeof password === "string" && password.startsWith("$2");
+  return typeof password === 'string' && password.startsWith('$2');
 }
 
 function constantTimeCompare(a, b) {
-  if (typeof a !== "string" || typeof b !== "string") return false;
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
@@ -82,7 +88,7 @@ function clearAttempts(key) {
 async function getPasswordDoc(docId) {
   const db = await getDbSafe();
   // Import edilen veriler _id: 'admin' (string) şeklinde geliyor
-  const doc = await db.collection("passwords").findOne({ _id: docId });
+  const doc = await db.collection('passwords').findOne({ _id: docId });
   if (!doc) return {};
   const { _id, _docId, ...rest } = doc;
   return rest;
@@ -90,7 +96,7 @@ async function getPasswordDoc(docId) {
 
 async function setPasswordDoc(docId, data, merge = false) {
   const db = await getDbSafe();
-  const col = db.collection("passwords");
+  const col = db.collection('passwords');
   if (merge) {
     await col.updateOne(
       { _id: docId },
@@ -110,26 +116,28 @@ async function setPasswordDoc(docId, data, merge = false) {
 // 1. Öğrenci Giriş
 // POST /api/auth/student
 // ══════════════════════════════════════════════
-router.post("/student", async (req, res) => {
+router.post('/student', async (req, res) => {
   const { studentNumber, password } = req.body;
   if (!studentNumber || !password) {
-    return res.status(400).json({ error: "Öğrenci numarası ve şifre gerekli." });
+    return res.status(400).json({ error: 'Öğrenci numarası ve şifre gerekli.' });
   }
 
   const trimmedId = studentNumber.trim();
   const rateLimitKey = `student:${trimmedId}`;
 
   if (!checkRateLimit(rateLimitKey)) {
-    return res.status(429).json({ error: "Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin." });
+    return res
+      .status(429)
+      .json({ error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' });
   }
 
   try {
-    const doc = await getPasswordDoc("student_passwords");
+    const doc = await getPasswordDoc('student_passwords');
     const storedPassword = doc[trimmedId];
 
     if (!storedPassword) {
       recordAttempt(rateLimitKey);
-      return res.json({ success: false, error: "Şifre bulunamadı." });
+      return res.json({ success: false, error: 'Şifre bulunamadı.' });
     }
 
     const isValid = await verifyPassword(password, storedPassword, trimmedId);
@@ -138,26 +146,26 @@ router.post("/student", async (req, res) => {
       clearAttempts(rateLimitKey);
       if (!isBcryptHash(storedPassword)) {
         const bcryptHash = await hashPassword(password);
-        await setPasswordDoc("student_passwords", { [trimmedId]: bcryptHash }, true);
+        await setPasswordDoc('student_passwords', { [trimmedId]: bcryptHash }, true);
       }
-      let departmentId = "bilgisayar";
+      let departmentId = 'bilgisayar';
       try {
         const db = await getDbSafe();
-        const studentDoc = await db.collection("students").findOne({ studentNumber: trimmedId });
+        const studentDoc = await db.collection('students').findOne({ studentNumber: trimmedId });
         if (studentDoc && studentDoc.departmentId) departmentId = studentDoc.departmentId;
       } catch (e) {
-        console.warn("Student departmentId lookup error:", e.message);
+        console.warn('Student departmentId lookup error:', e.message);
       }
-      const token = generateToken({ role: "student", identifier: trimmedId, departmentId });
+      const token = generateToken({ role: 'student', identifier: trimmedId, departmentId });
       setTokenCookie(res, token);
       return res.json({ success: true, token, departmentId });
     } else {
       recordAttempt(rateLimitKey);
-      return res.json({ success: false, error: "Giriş bilgileri hatalı!" });
+      return res.json({ success: false, error: 'Giriş bilgileri hatalı!' });
     }
   } catch (error) {
-    console.error("verifyStudentLogin error:", error);
-    return res.status(500).json({ error: "Sunucu hatası." });
+    console.error('verifyStudentLogin error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
   }
 });
 
@@ -165,42 +173,44 @@ router.post("/student", async (req, res) => {
 // 2. Admin Giriş
 // POST /api/auth/admin
 // ══════════════════════════════════════════════
-router.post("/admin", async (req, res) => {
+router.post('/admin', async (req, res) => {
   const { password } = req.body;
   if (!password) {
-    return res.status(400).json({ error: "Şifre gerekli." });
+    return res.status(400).json({ error: 'Şifre gerekli.' });
   }
 
-  const rateLimitKey = "admin";
+  const rateLimitKey = 'admin';
 
   if (!checkRateLimit(rateLimitKey)) {
-    return res.status(429).json({ error: "Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin." });
+    return res
+      .status(429)
+      .json({ error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' });
   }
 
   try {
-    const doc = await getPasswordDoc("admin");
+    const doc = await getPasswordDoc('admin');
     if (!doc.password) {
-      return res.json({ success: false, error: "Admin şifresi henüz belirlenmemiş." });
+      return res.json({ success: false, error: 'Admin şifresi henüz belirlenmemiş.' });
     }
 
-    const isValid = await verifyPassword(password, doc.password, "admin");
+    const isValid = await verifyPassword(password, doc.password, 'admin');
 
     if (isValid) {
       clearAttempts(rateLimitKey);
       if (!isBcryptHash(doc.password)) {
         const bcryptHash = await hashPassword(password);
-        await setPasswordDoc("admin", { password: bcryptHash, updatedAt: new Date() });
+        await setPasswordDoc('admin', { password: bcryptHash, updatedAt: new Date() });
       }
-      const token = generateToken({ role: "admin" });
+      const token = generateToken({ role: 'admin' });
       setTokenCookie(res, token);
       return res.json({ success: true, token });
     } else {
       recordAttempt(rateLimitKey);
-      return res.json({ success: false, error: "Giriş bilgileri hatalı!" });
+      return res.json({ success: false, error: 'Giriş bilgileri hatalı!' });
     }
   } catch (error) {
-    console.error("verifyAdminLogin error:", error);
-    return res.status(500).json({ error: "Sunucu hatası." });
+    console.error('verifyAdminLogin error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
   }
 });
 
@@ -208,42 +218,48 @@ router.post("/admin", async (req, res) => {
 // 3. Profesör Giriş
 // POST /api/auth/professor
 // ══════════════════════════════════════════════
-router.post("/professor", async (req, res) => {
+router.post('/professor', async (req, res) => {
   const { professorName, password } = req.body;
   if (!professorName || !password) {
-    return res.status(400).json({ error: "Akademisyen adı ve şifre gerekli." });
+    return res.status(400).json({ error: 'Akademisyen adı ve şifre gerekli.' });
   }
 
   const rateLimitKey = `professor:${professorName}`;
 
   if (!checkRateLimit(rateLimitKey)) {
-    return res.status(429).json({ error: "Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin." });
+    return res
+      .status(429)
+      .json({ error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' });
   }
 
   try {
-    const doc = await getPasswordDoc("professor_passwords");
+    const doc = await getPasswordDoc('professor_passwords');
     const storedPassword = doc[professorName];
 
     if (!storedPassword) {
-      const defaultDoc = await getPasswordDoc("defaults");
+      const defaultDoc = await getPasswordDoc('defaults');
       const defaultPassword = defaultDoc.professorDefault || null;
 
       if (!defaultPassword) {
         recordAttempt(rateLimitKey);
-        return res.json({ success: false, error: "Şifre henüz belirlenmemiş. Lütfen yönetici ile iletişime geçin." });
+        return res.json({
+          success: false,
+          error: 'Şifre henüz belirlenmemiş. Lütfen yönetici ile iletişime geçin.',
+        });
       }
 
-      const defaultValid = await verifyPassword(password, defaultPassword, "professor_default");
+      const defaultValid = await verifyPassword(password, defaultPassword, 'professor_default');
       if (defaultValid) {
         clearAttempts(rateLimitKey);
         const bcryptHash = await hashPassword(password);
-        await setPasswordDoc("professor_passwords", { [professorName]: bcryptHash }, true);
-        const token = generateToken({ role: "professor", identifier: professorName });
+        await setPasswordDoc('professor_passwords', { [professorName]: bcryptHash }, true);
+        const token = generateToken({ role: 'professor', identifier: professorName });
         setTokenCookie(res, token);
-        return res.json({ success: true, token });
+        const profile = await fetchProfessorProfile(professorName);
+        return res.json({ success: true, token, profile });
       } else {
         recordAttempt(rateLimitKey);
-        return res.json({ success: false, error: "Giriş bilgileri hatalı!" });
+        return res.json({ success: false, error: 'Giriş bilgileri hatalı!' });
       }
     }
 
@@ -253,74 +269,111 @@ router.post("/professor", async (req, res) => {
       clearAttempts(rateLimitKey);
       if (!isBcryptHash(storedPassword)) {
         const bcryptHash = await hashPassword(password);
-        await setPasswordDoc("professor_passwords", { [professorName]: bcryptHash }, true);
+        await setPasswordDoc('professor_passwords', { [professorName]: bcryptHash }, true);
       }
-      const token = generateToken({ role: "professor", identifier: professorName });
+      const token = generateToken({ role: 'professor', identifier: professorName });
       setTokenCookie(res, token);
-      return res.json({ success: true, token });
+      const profile = await fetchProfessorProfile(professorName);
+      return res.json({ success: true, token, profile });
     } else {
       recordAttempt(rateLimitKey);
-      return res.json({ success: false, error: "Giriş bilgileri hatalı!" });
+      return res.json({ success: false, error: 'Giriş bilgileri hatalı!' });
     }
   } catch (error) {
-    console.error("verifyProfessorLogin error:", error);
-    return res.status(500).json({ error: "Sunucu hatası." });
+    console.error('verifyProfessorLogin error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
   }
 });
+
+// Akademisyenin DB profilini çek — flag'leri ve hiyerarşi alanlarını döndürür.
+// LoginModal client'a verir; istemci buna göre effectiveRole hesaplar.
+async function fetchProfessorProfile(professorName) {
+  try {
+    const db = await getDbSafe();
+    const doc = await db.collection('professors').findOne({ name: professorName });
+    if (!doc) return null;
+    return {
+      name: doc.name,
+      department: doc.department || '',
+      departmentId: doc.departmentId || '',
+      facultyId: doc.facultyId || '',
+      universityId: doc.universityId || '',
+      isUniversityAdmin: !!doc.isUniversityAdmin,
+      isFacultyManager: !!doc.isFacultyManager,
+      isDeptManager: !!doc.isDeptManager,
+    };
+  } catch (e) {
+    console.error('fetchProfessorProfile error:', e.message);
+    return null;
+  }
+}
 
 // ══════════════════════════════════════════════
 // 4. Bölüm Yetkilisi Giriş
 // POST /api/auth/department-manager
 // ══════════════════════════════════════════════
-router.post("/department-manager", async (req, res) => {
+router.post('/department-manager', async (req, res) => {
   const { managerName, password } = req.body;
   if (!managerName || !password) {
-    return res.status(400).json({ error: "Yetkili adı ve şifre gerekli." });
+    return res.status(400).json({ error: 'Yetkili adı ve şifre gerekli.' });
   }
 
   const rateLimitKey = `dept_manager:${managerName}`;
 
   if (!checkRateLimit(rateLimitKey)) {
-    return res.status(429).json({ error: "Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin." });
+    return res
+      .status(429)
+      .json({ error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' });
   }
 
   try {
     const db = await getDbSafe();
     // managerNames array (yeni) veya managerName string (eski) her ikisini de destekle
-    const deptDoc = await db.collection("departments").findOne({
-      $or: [{ managerNames: managerName }, { managerName }]
+    const deptDoc = await db.collection('departments').findOne({
+      $or: [{ managerNames: managerName }, { managerName }],
     });
     if (!deptDoc) {
       recordAttempt(rateLimitKey);
-      return res.json({ success: false, error: "Bu isimle kayıtlı bir bölüm yetkilisi bulunamadı." });
+      return res.json({
+        success: false,
+        error: 'Bu isimle kayıtlı bir bölüm yetkilisi bulunamadı.',
+      });
     }
 
     const departmentId = deptDoc._docId || deptDoc._id.toString();
     const departmentName = deptDoc.name;
 
-    const doc = await getPasswordDoc("department_manager_passwords");
+    const doc = await getPasswordDoc('department_manager_passwords');
     const storedPassword = doc[managerName];
 
     if (!storedPassword) {
-      const defaultDoc = await getPasswordDoc("defaults");
+      const defaultDoc = await getPasswordDoc('defaults');
       const defaultPassword = defaultDoc.professorDefault || null;
 
       if (!defaultPassword) {
         recordAttempt(rateLimitKey);
-        return res.json({ success: false, error: "Şifre henüz belirlenmemiş. Lütfen yönetici ile iletişime geçin." });
+        return res.json({
+          success: false,
+          error: 'Şifre henüz belirlenmemiş. Lütfen yönetici ile iletişime geçin.',
+        });
       }
 
-      const defaultValid = await verifyPassword(password, defaultPassword, "dept_manager_default");
+      const defaultValid = await verifyPassword(password, defaultPassword, 'dept_manager_default');
       if (defaultValid) {
         clearAttempts(rateLimitKey);
         const bcryptHash = await hashPassword(password);
-        await setPasswordDoc("department_manager_passwords", { [managerName]: bcryptHash }, true);
-        const token = generateToken({ role: "bolum_yetkilisi", identifier: managerName, departmentId, departmentName });
+        await setPasswordDoc('department_manager_passwords', { [managerName]: bcryptHash }, true);
+        const token = generateToken({
+          role: 'bolum_yetkilisi',
+          identifier: managerName,
+          departmentId,
+          departmentName,
+        });
         setTokenCookie(res, token);
         return res.json({ success: true, token, departmentId, departmentName });
       } else {
         recordAttempt(rateLimitKey);
-        return res.json({ success: false, error: "Giriş bilgileri hatalı!" });
+        return res.json({ success: false, error: 'Giriş bilgileri hatalı!' });
       }
     }
 
@@ -330,18 +383,23 @@ router.post("/department-manager", async (req, res) => {
       clearAttempts(rateLimitKey);
       if (!isBcryptHash(storedPassword)) {
         const bcryptHash = await hashPassword(password);
-        await setPasswordDoc("department_manager_passwords", { [managerName]: bcryptHash }, true);
+        await setPasswordDoc('department_manager_passwords', { [managerName]: bcryptHash }, true);
       }
-      const token = generateToken({ role: "bolum_yetkilisi", identifier: managerName, departmentId, departmentName });
+      const token = generateToken({
+        role: 'bolum_yetkilisi',
+        identifier: managerName,
+        departmentId,
+        departmentName,
+      });
       setTokenCookie(res, token);
       return res.json({ success: true, token, departmentId, departmentName });
     } else {
       recordAttempt(rateLimitKey);
-      return res.json({ success: false, error: "Giriş bilgileri hatalı!" });
+      return res.json({ success: false, error: 'Giriş bilgileri hatalı!' });
     }
   } catch (error) {
-    console.error("verifyDepartmentManagerLogin error:", error);
-    return res.status(500).json({ error: "Sunucu hatası." });
+    console.error('verifyDepartmentManagerLogin error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
   }
 });
 
@@ -349,7 +407,7 @@ router.post("/department-manager", async (req, res) => {
 // 5. Logout (httpOnly cookie temizleme)
 // POST /api/auth/logout
 // ══════════════════════════════════════════════
-router.post("/logout", (req, res) => {
+router.post('/logout', (req, res) => {
   clearTokenCookie(res);
   return res.json({ success: true });
 });
@@ -358,14 +416,14 @@ router.post("/logout", (req, res) => {
 // 6. Şifre Değiştirme
 // POST /api/auth/change-password
 // ══════════════════════════════════════════════
-router.post("/change-password", async (req, res) => {
+router.post('/change-password', async (req, res) => {
   const { role, identifier, newPassword, currentPassword } = req.body;
 
   if (!role || !newPassword) {
-    return res.status(400).json({ error: "Eksik parametreler." });
+    return res.status(400).json({ error: 'Eksik parametreler.' });
   }
   if (newPassword.length < 6) {
-    return res.status(400).json({ error: "Şifre en az 6 karakter olmalıdır." });
+    return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır.' });
   }
 
   // Çağıranı kimlik doğrula (cookie veya Bearer). Anonim ilk-kurulum akışını
@@ -373,8 +431,8 @@ router.post("/change-password", async (req, res) => {
   let authUser = null;
   const tok =
     (req.cookies && req.cookies.caku_auth) ||
-    (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")
-      ? req.headers.authorization.split(" ")[1]
+    (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')
+      ? req.headers.authorization.split(' ')[1]
       : null);
   if (tok) {
     try {
@@ -383,99 +441,98 @@ router.post("/change-password", async (req, res) => {
       /* geçersiz/expired token — anonim muamelesi */
     }
   }
-  const isAdmin = authUser && authUser.role === "admin";
+  const isAdmin = authUser && authUser.role === 'admin';
 
   try {
     const bcryptHash = await hashPassword(newPassword);
 
-    if (role === "student") {
-      if (!identifier) return res.status(400).json({ error: "Öğrenci numarası gerekli." });
-      const doc = await getPasswordDoc("student_passwords");
+    if (role === 'student') {
+      if (!identifier) return res.status(400).json({ error: 'Öğrenci numarası gerekli.' });
+      const doc = await getPasswordDoc('student_passwords');
 
       // Şifre zaten belirlenmişse: admin reset hariç, mevcut şifre doğrulaması
       // ZORUNLU. Bu, currentPassword göndermeden hesap ele geçirmeyi engeller.
       // İlk kurulum (henüz şifre yok) anonim olarak izinli kalır.
       if (doc[identifier] && !isAdmin) {
         if (!currentPassword) {
-          return res.json({ success: false, error: "Mevcut şifre gerekli." });
+          return res.json({ success: false, error: 'Mevcut şifre gerekli.' });
         }
         const valid = await verifyPassword(currentPassword, doc[identifier], identifier);
         if (!valid) {
-          return res.json({ success: false, error: "Mevcut şifre hatalı." });
+          return res.json({ success: false, error: 'Mevcut şifre hatalı.' });
         }
       }
 
-      await setPasswordDoc("student_passwords", { [identifier]: bcryptHash }, true);
+      await setPasswordDoc('student_passwords', { [identifier]: bcryptHash }, true);
       return res.json({ success: true });
-
-    } else if (role === "admin") {
+    } else if (role === 'admin') {
       // Admin şifresi yalnızca authenticated admin tarafından değiştirilebilir.
       if (!isAdmin) {
-        return res.status(403).json({ error: "Bu işlem için admin yetkisi gerekli." });
+        return res.status(403).json({ error: 'Bu işlem için admin yetkisi gerekli.' });
       }
-      await setPasswordDoc("admin", { password: bcryptHash, updatedAt: new Date() });
+      await setPasswordDoc('admin', { password: bcryptHash, updatedAt: new Date() });
       return res.json({ success: true });
-
-    } else if (role === "professor") {
-      if (!identifier) return res.status(400).json({ error: "Akademisyen adı gerekli." });
+    } else if (role === 'professor') {
+      if (!identifier) return res.status(400).json({ error: 'Akademisyen adı gerekli.' });
       // Yalnızca authenticated kullanıcı (admin reset veya akademisyenin kendisi).
       if (!authUser) {
-        return res.status(401).json({ error: "Bu işlem için giriş gerekli." });
+        return res.status(401).json({ error: 'Bu işlem için giriş gerekli.' });
       }
-      if (!isAdmin && !(authUser.role === "professor" && authUser.identifier === identifier)) {
-        return res.status(403).json({ error: "Bu hesabın şifresini değiştirme yetkiniz yok." });
+      if (!isAdmin && !(authUser.role === 'professor' && authUser.identifier === identifier)) {
+        return res.status(403).json({ error: 'Bu hesabın şifresini değiştirme yetkiniz yok.' });
       }
-      await setPasswordDoc("professor_passwords", { [identifier]: bcryptHash }, true);
+      await setPasswordDoc('professor_passwords', { [identifier]: bcryptHash }, true);
       return res.json({ success: true });
-
-    } else if (role === "bolum_yetkilisi") {
-      if (!identifier) return res.status(400).json({ error: "Yetkili adı gerekli." });
+    } else if (role === 'bolum_yetkilisi') {
+      if (!identifier) return res.status(400).json({ error: 'Yetkili adı gerekli.' });
       if (!authUser) {
-        return res.status(401).json({ error: "Bu işlem için giriş gerekli." });
+        return res.status(401).json({ error: 'Bu işlem için giriş gerekli.' });
       }
-      if (!isAdmin && !(authUser.role === "bolum_yetkilisi" && authUser.identifier === identifier)) {
-        return res.status(403).json({ error: "Bu hesabın şifresini değiştirme yetkiniz yok." });
+      if (
+        !isAdmin &&
+        !(authUser.role === 'bolum_yetkilisi' && authUser.identifier === identifier)
+      ) {
+        return res.status(403).json({ error: 'Bu hesabın şifresini değiştirme yetkiniz yok.' });
       }
-      await setPasswordDoc("department_manager_passwords", { [identifier]: bcryptHash }, true);
+      await setPasswordDoc('department_manager_passwords', { [identifier]: bcryptHash }, true);
       return res.json({ success: true });
-
     } else {
-      return res.status(400).json({ error: "Geçersiz rol." });
+      return res.status(400).json({ error: 'Geçersiz rol.' });
     }
   } catch (error) {
-    console.error("changePassword error:", error);
-    return res.status(500).json({ error: "Sunucu hatası." });
+    console.error('changePassword error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
   }
 });
 
 // ══════════════════════════════════════════════
 // 6. Öğrenci şifre var mı kontrol
 // ══════════════════════════════════════════════
-router.post("/student-has-password-check", async (req, res) => {
+router.post('/student-has-password-check', async (req, res) => {
   const { studentNumber } = req.body;
   if (!studentNumber) {
-    return res.status(400).json({ error: "Öğrenci numarası gerekli." });
+    return res.status(400).json({ error: 'Öğrenci numarası gerekli.' });
   }
   try {
-    const doc = await getPasswordDoc("student_passwords");
+    const doc = await getPasswordDoc('student_passwords');
     return res.json({ hasPassword: !!doc[studentNumber.trim()] });
   } catch (error) {
-    console.error("checkStudentHasPassword error:", error);
-    return res.status(500).json({ error: "Sunucu hatası." });
+    console.error('checkStudentHasPassword error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
   }
 });
 
-router.get("/student-has-password/:studentNumber", async (req, res) => {
+router.get('/student-has-password/:studentNumber', async (req, res) => {
   const { studentNumber } = req.params;
   if (!studentNumber) {
-    return res.status(400).json({ error: "Öğrenci numarası gerekli." });
+    return res.status(400).json({ error: 'Öğrenci numarası gerekli.' });
   }
   try {
-    const doc = await getPasswordDoc("student_passwords");
+    const doc = await getPasswordDoc('student_passwords');
     return res.json({ hasPassword: !!doc[studentNumber.trim()] });
   } catch (error) {
-    console.error("checkStudentHasPassword error:", error);
-    return res.status(500).json({ error: "Sunucu hatası." });
+    console.error('checkStudentHasPassword error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
   }
 });
 
@@ -483,74 +540,73 @@ router.get("/student-has-password/:studentNumber", async (req, res) => {
 // 7. Admin şifre sıfırlama
 // POST /api/auth/admin-reset
 // ══════════════════════════════════════════════
-router.post("/admin-reset", async (req, res) => {
+router.post('/admin-reset', async (req, res) => {
   const { adminPassword, targetRole, targetIdentifier, newPassword } = req.body;
 
   if (!adminPassword || !targetRole || !newPassword) {
-    return res.status(400).json({ error: "Eksik parametreler." });
+    return res.status(400).json({ error: 'Eksik parametreler.' });
   }
 
   try {
-    const adminDoc = await getPasswordDoc("admin");
+    const adminDoc = await getPasswordDoc('admin');
     if (!adminDoc.password) {
-      return res.status(403).json({ error: "Admin şifresi belirlenmemiş." });
+      return res.status(403).json({ error: 'Admin şifresi belirlenmemiş.' });
     }
 
-    const adminValid = await verifyPassword(adminPassword, adminDoc.password, "admin");
+    const adminValid = await verifyPassword(adminPassword, adminDoc.password, 'admin');
     if (!adminValid) {
-      return res.status(403).json({ error: "Admin şifresi hatalı." });
+      return res.status(403).json({ error: 'Admin şifresi hatalı.' });
     }
 
     const bcryptHash = await hashPassword(newPassword);
 
-    if (targetRole === "student" && targetIdentifier) {
-      await setPasswordDoc("student_passwords", { [targetIdentifier]: bcryptHash }, true);
+    if (targetRole === 'student' && targetIdentifier) {
+      await setPasswordDoc('student_passwords', { [targetIdentifier]: bcryptHash }, true);
       return res.json({ success: true });
-    } else if (targetRole === "professor" && targetIdentifier) {
-      await setPasswordDoc("professor_passwords", { [targetIdentifier]: bcryptHash }, true);
+    } else if (targetRole === 'professor' && targetIdentifier) {
+      await setPasswordDoc('professor_passwords', { [targetIdentifier]: bcryptHash }, true);
       return res.json({ success: true });
     }
 
-    return res.status(400).json({ error: "Geçersiz hedef." });
+    return res.status(400).json({ error: 'Geçersiz hedef.' });
   } catch (error) {
-    console.error("adminResetPassword error:", error);
-    return res.status(500).json({ error: "Sunucu hatası." });
+    console.error('adminResetPassword error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
   }
 });
-
 
 // ══════════════════════════════════════════════
 // 9. Varsayılan Profesör Şifresi Ayarla
 // POST /api/auth/default-professor-password
 // ══════════════════════════════════════════════
-router.post("/default-professor-password", async (req, res) => {
+router.post('/default-professor-password', async (req, res) => {
   const { adminPassword, defaultPassword } = req.body;
 
   if (!adminPassword || !defaultPassword) {
-    return res.status(400).json({ error: "Eksik parametreler." });
+    return res.status(400).json({ error: 'Eksik parametreler.' });
   }
   if (defaultPassword.length < 6) {
-    return res.status(400).json({ error: "Şifre en az 6 karakter olmalıdır." });
+    return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır.' });
   }
 
   try {
-    const adminDoc = await getPasswordDoc("admin");
+    const adminDoc = await getPasswordDoc('admin');
     if (!adminDoc.password) {
-      return res.status(403).json({ error: "Admin şifresi belirlenmemiş." });
+      return res.status(403).json({ error: 'Admin şifresi belirlenmemiş.' });
     }
 
-    const adminValid = await verifyPassword(adminPassword, adminDoc.password, "admin");
+    const adminValid = await verifyPassword(adminPassword, adminDoc.password, 'admin');
     if (!adminValid) {
-      return res.status(403).json({ error: "Admin şifresi hatalı." });
+      return res.status(403).json({ error: 'Admin şifresi hatalı.' });
     }
 
     const bcryptHash = await hashPassword(defaultPassword);
-    await setPasswordDoc("defaults", { professorDefault: bcryptHash, updatedAt: new Date() }, true);
+    await setPasswordDoc('defaults', { professorDefault: bcryptHash, updatedAt: new Date() }, true);
 
     return res.json({ success: true });
   } catch (error) {
-    console.error("setDefaultProfessorPassword error:", error);
-    return res.status(500).json({ error: "Sunucu hatası." });
+    console.error('setDefaultProfessorPassword error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
   }
 });
 

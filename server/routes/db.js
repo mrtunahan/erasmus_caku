@@ -94,6 +94,8 @@ const ALLOWED_COLLECTIONS = [
   'surveys',
   'survey_assignments',
   'survey_responses',
+  'universities',
+  'faculties',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
