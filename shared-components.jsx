@@ -2895,6 +2895,13 @@ const LoginModal = ({ onLogin }) => {
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [profSearch, setProfSearch] = useState('');
   const [profDropdownOpen, setProfDropdownOpen] = useState(false);
+  // Hiyerarşi seçimi (Üniversite → Fakülte → Bölüm)
+  const [hierUniversities, setHierUniversities] = useState([]);
+  const [hierFaculties, setHierFaculties] = useState([]);
+  const [hierDepartments, setHierDepartments] = useState([]);
+  const [selUni, setSelUni] = useState('');
+  const [selFaculty, setSelFaculty] = useState('');
+  const [selDept, setSelDept] = useState('');
 
   // URL'den admin girişi kontrolü (?admin veya #admin)
   useEffect(() => {
@@ -2966,6 +2973,33 @@ const LoginModal = ({ onLogin }) => {
       }
     };
     loadProfessors();
+  }, []);
+
+  // Hiyerarşiyi yükle (Üniversite → Fakülte → Bölüm). Tek seçenek varsa
+  // otomatik seçilir; veri yoksa sabit DEPARTMENTS'a düşeriz (geriye uyum).
+  useEffect(() => {
+    const loadHierarchy = async () => {
+      try {
+        const [unis, facs, depts] = await Promise.all([
+          window.apiRead('universities').catch(() => []),
+          window.apiRead('faculties').catch(() => []),
+          window.apiRead('departments').catch(() => []),
+        ]);
+        const us = unis || [];
+        const fs = facs || [];
+        const ds = (depts && depts.length ? depts : window.DEPARTMENTS || []).slice();
+        ds.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
+        setHierUniversities(us);
+        setHierFaculties(fs);
+        setHierDepartments(ds);
+        if (us.length === 1) setSelUni(us[0].id);
+        if (fs.length === 1) setSelFaculty(fs[0].id);
+      } catch (e) {
+        console.warn('Hiyerarşi yüklenemedi, sabit listeye düşülüyor:', e?.message);
+        setHierDepartments((window.DEPARTMENTS || []).slice());
+      }
+    };
+    loadHierarchy();
   }, []);
 
   // Mevcut öğrenci/profesör/admin: şifre değiştirme + Auth hesabı oluşturma
@@ -4769,7 +4803,6 @@ const LoginModal = ({ onLogin }) => {
                   {[
                     { key: 'student', label: 'Öğrenci' },
                     { key: 'professor', label: 'Akademisyen' },
-                    { key: 'bolum_yetkilisi', label: 'Bölüm Yetkilisi' },
                   ].map((tab) => {
                     const active = activeTab === tab.key;
                     return (
@@ -4793,6 +4826,81 @@ const LoginModal = ({ onLogin }) => {
                       </button>
                     );
                   })}
+                </div>
+              )}
+
+            {/* Üniversite → Fakülte → Bölüm kademeli seçimi */}
+            {activeTab !== 'admin' &&
+              !registerMode &&
+              !setupPasswordMode &&
+              !(activeTab === 'student' && studentStep === 'password') && (
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}
+                >
+                  {hierUniversities.length > 0 && (
+                    <div>
+                      <label className="lg-label">Üniversite</label>
+                      <select
+                        value={selUni}
+                        onChange={(e) => {
+                          setSelUni(e.target.value);
+                          setSelFaculty('');
+                          setSelDept('');
+                        }}
+                        className="lg-input"
+                      >
+                        <option value="">Üniversite seçin…</option>
+                        {hierUniversities.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {hierFaculties.length > 0 && (
+                    <div>
+                      <label className="lg-label">Fakülte</label>
+                      <select
+                        value={selFaculty}
+                        disabled={!selUni && hierUniversities.length > 0}
+                        onChange={(e) => {
+                          setSelFaculty(e.target.value);
+                          setSelDept('');
+                        }}
+                        className="lg-input"
+                      >
+                        <option value="">Fakülte seçin…</option>
+                        {hierFaculties
+                          .filter((f) => !selUni || (f.universityId || '') === selUni)
+                          .map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="lg-label">Bölüm</label>
+                    <select
+                      value={selDept}
+                      disabled={hierFaculties.length > 0 && !selFaculty}
+                      onChange={(e) => setSelDept(e.target.value)}
+                      className="lg-input"
+                    >
+                      <option value="">Bölüm seçin…</option>
+                      {hierDepartments
+                        .filter(
+                          (d) => !selFaculty || (d.facultyId || '') === selFaculty || !d.facultyId
+                        )
+                        .map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
                 </div>
               )}
 
@@ -5518,13 +5626,19 @@ const LoginModal = ({ onLogin }) => {
                         </div>
                         <div className="lg-prof-list">
                           {(() => {
-                            const filtered = professorList.filter(
-                              (p) =>
+                            const filtered = professorList.filter((p) => {
+                              const matchesSearch =
                                 !profSearch ||
                                 (p.name || '')
                                   .toLocaleLowerCase('tr')
-                                  .indexOf(profSearch.toLocaleLowerCase('tr')) >= 0
-                            );
+                                  .indexOf(profSearch.toLocaleLowerCase('tr')) >= 0;
+                              // Bölüm seçiliyse yumuşak filtre: o bölümdekiler +
+                              // bölümü tanımsız akademisyenler (örn. fakülte/üni
+                              // yöneticisi) her zaman görünür.
+                              const matchesDept =
+                                !selDept || !p.departmentId || p.departmentId === selDept;
+                              return matchesSearch && matchesDept;
+                            });
                             if (filtered.length === 0)
                               return <div className="lg-prof-empty">Sonuç bulunamadı</div>;
                             return filtered.map((p) => (
