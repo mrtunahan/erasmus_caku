@@ -3243,8 +3243,25 @@ const LoginModal = ({ onLogin }) => {
 
         const profResult = await DB.verifyProfessorLogin(identifier, password);
 
+        // Sunucudan gelen DB profili (hiyerarşi + yetki bayrakları) — varsa
+        // user'a iliştir. app-shell bu bayraklara göre effectiveRole hesaplar.
+        const attachProfile = (u) => {
+          const p = profResult.profile;
+          if (!p) return u;
+          return {
+            ...u,
+            departmentId: p.departmentId || u.departmentId || '',
+            departmentName: p.department || u.departmentName || '',
+            facultyId: p.facultyId || '',
+            universityId: p.universityId || '',
+            isUniversityAdmin: !!p.isUniversityAdmin,
+            isFacultyManager: !!p.isFacultyManager,
+            isDeptManager: !!p.isDeptManager,
+          };
+        };
+
         if (profResult.needsSetup) {
-          setPendingUser(user);
+          setPendingUser(attachProfile(user));
           setSetupPasswordMode(true);
           setLoading(false);
           return;
@@ -3252,12 +3269,12 @@ const LoginModal = ({ onLogin }) => {
 
         if (profResult.success) {
           if (password.length < 6) {
-            setPendingUser(user);
+            setPendingUser(attachProfile(user));
             setSetupPasswordMode(true);
             setLoading(false);
             return;
           }
-          onLogin(user);
+          onLogin(attachProfile(user));
         } else {
           // Cloud Functions doğrulamadı - hata göster
           setError(profResult.error || 'Giriş bilgileri hatalı!');

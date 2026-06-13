@@ -298,7 +298,8 @@ const Sidebar = ({
   studentLocked = false,
 }) => {
   const isAdmin = currentUser?.role === 'admin';
-  const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
+  // Hiyerarşi: bölüm yetkilisi rolü VEYA isDeptManager bayraklı akademisyen
+  const isDeptManager = currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
   const isProfessor = currentUser?.role === 'professor';
   const isStudent = !isAdmin && !isDeptManager && !isProfessor;
 
@@ -737,7 +738,7 @@ const Sidebar = ({
 // ══════════════════════════════════════════════════════════════
 const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser }) => {
   const isAdmin = currentUser?.role === 'admin';
-  const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
+  const isDeptManager = currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
   const isStudent = !isAdmin && !isDeptManager && currentUser?.role !== 'professor';
 
   // Ergün ÇINAR bölüm yetkilisi olsa da tüm bölümler arası geçiş yapabilir
@@ -1017,7 +1018,7 @@ function AppShell() {
 
   const isAdmin = currentUser?.role === 'admin';
   const isProfessor = currentUser?.role === 'professor';
-  const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
+  const isDeptManager = currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
   const isStudent = !isAdmin && !isProfessor && !isDeptManager;
 
   // All valid route IDs
@@ -1036,6 +1037,12 @@ function AppShell() {
       departmentId: user.departmentId || null,
       departmentName: user.departmentName || null,
       erasmusAccess: user.erasmusAccess || false,
+      // Hiyerarşi yetki bayrakları (akademisyen profilinden)
+      facultyId: user.facultyId || null,
+      universityId: user.universityId || null,
+      isUniversityAdmin: user.isUniversityAdmin || false,
+      isFacultyManager: user.isFacultyManager || false,
+      isDeptManager: user.isDeptManager || false,
     };
     localStorage.setItem('caku_current_user', JSON.stringify(safeUser));
 
