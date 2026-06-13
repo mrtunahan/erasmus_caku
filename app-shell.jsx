@@ -15,6 +15,7 @@ const DEPARTMENTS = window.DEPARTMENTS;
 const DEPARTMENT_MODULES = window.DEPARTMENT_MODULES;
 const COMMON_MODULES = window.COMMON_MODULES;
 const ADMIN_MODULES = window.ADMIN_MODULES;
+const HIERARCHY_MODULES = window.HIERARCHY_MODULES || [];
 
 // Ergün ÇINAR (staj SGK onayı + fakülte geneli yetki) tespiti.
 // Bölüm yetkilisi olmasına rağmen fakültedeki tüm bölümler arası
@@ -553,6 +554,67 @@ const Sidebar = ({
               Yönetim
             </div>
             {ADMIN_MODULES.map((mod) => {
+              const isActive = currentRoute === mod.id;
+              return (
+                <button
+                  key={mod.id}
+                  onClick={() => {
+                    onNavigate(mod.id);
+                    if (isMobile) onClose();
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px 12px',
+                    marginBottom: 2,
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: isActive ? '#8B263515' : 'transparent',
+                    color: isActive ? '#8B2635' : '#4B5563',
+                    fontSize: 13,
+                    fontWeight: isActive ? 600 : 400,
+                    fontFamily: "'Inter', sans-serif",
+                    transition: 'all 0.15s',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.currentTarget.style.background = '#F3F4F6';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive)
+                      e.currentTarget.style.background = isActive ? '#8B263515' : 'transparent';
+                  }}
+                >
+                  <NavIcon path={mod.icon} size={18} />
+                  {mod.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Hiyerarşi Yönetimi: Üniversite / Fakülte yetkilileri */}
+      {!isErgunCinar && HIERARCHY_MODULES.some((m) => currentUser && currentUser[m.flag]) && (
+        <>
+          <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
+          <div style={{ padding: '4px 12px 16px' }}>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#9CA3AF',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                padding: '8px 4px 4px',
+              }}
+            >
+              Hiyerarşi
+            </div>
+            {HIERARCHY_MODULES.filter((m) => currentUser && currentUser[m.flag]).map((mod) => {
               const isActive = currentRoute === mod.id;
               return (
                 <button
@@ -1142,11 +1204,16 @@ function AppShell() {
 
     const allowedCommon = COMMON_MODULES.map((m) => m.id);
     const allowedAdmin = isAdmin || isDeptManager ? ADMIN_MODULES.map((m) => m.id) : [];
+    // Hiyerarşi yönetim modülleri (yetki bayrağına göre)
+    const allowedHierarchy = HIERARCHY_MODULES.filter(
+      (m) => currentUser && currentUser[m.flag]
+    ).map((m) => m.id);
     // Komisyon üyeliği ile kazanılan modül erişimleri
     const allAllowed = [
       ...allowedDeptModules,
       ...allowedCommon,
       ...allowedAdmin,
+      ...allowedHierarchy,
       ...commissionModules,
     ];
 
@@ -1265,6 +1332,8 @@ function AppShell() {
         audit: window.AuditLogModuluApp,
         kulupler: window.OgrenciKulupleriApp,
         anket: window.AnketModulu,
+        univ: window.UnvYonetimiApp,
+        fakulte: window.FakYonetimiApp,
       };
       const FallbackComponent = fallback[route];
       if (FallbackComponent)
