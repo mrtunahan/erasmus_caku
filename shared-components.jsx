@@ -3615,6 +3615,19 @@ const LoginModal = ({ onLogin }) => {
     }
     .lg-input.lg-input-icon { padding-left: 42px; }
     .lg-input.lg-input-eye { padding-right: 44px; }
+    /* select için: sağda chevron ikonu için yer aç, native ok'u görsel ile yedekle */
+    select.lg-input {
+      padding-right: 40px;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='1 1 6 6 11 1'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      cursor: pointer;
+    }
+    select.lg-input:disabled {
+      background-color: #F1F5F9;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
     .lg-input::placeholder { color: #94A3B8; opacity: 1; }
     .lg-input:-ms-input-placeholder { color: #94A3B8; }
     .lg-input::-ms-input-placeholder { color: #94A3B8; }
