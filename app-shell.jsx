@@ -303,6 +303,8 @@ const Sidebar = ({
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
   const isProfessor = currentUser?.role === 'professor';
   const isStudent = !isAdmin && !isDeptManager && !isProfessor;
+  // Üni/fakülte yetkilisi — modül görünürlüğünde admin gibi davranır
+  const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
 
   const isErgunCinar =
     currentUser &&
@@ -325,7 +327,7 @@ const Sidebar = ({
     if (isErgunCinar) return DEPARTMENT_MODULES.filter((m) => m.id === 'staj');
     // Akademisyenler modülü sadece bölüm akademisyenlerine (professor) görünür
     // Benim Sayfam yalnızca öğrenciye gösterilir
-    if (isAdmin || isDeptManager)
+    if (isAdmin || isDeptManager || isHierarchyManager)
       return DEPARTMENT_MODULES.filter((m) => m.id !== 'akademisyen' && m.id !== 'benim');
     // Komisyon üyeliği ile kazanılan modüller (örn. Erasmus komisyonu → erasmus)
     if (isProfessor) {
@@ -536,8 +538,8 @@ const Sidebar = ({
       )}
 
       {/* Admin + Bölüm Yetkilisi: Yönetim Modülleri (komisyonlar) */}
-      {/* Admin + Bölüm Yetkilisi: Yönetim Modülleri (komisyonlar) */}
-      {!isErgunCinar && (isAdmin || isDeptManager) && (
+      {/* Admin + Bölüm/Fakülte/Üni Yetkilisi: Yönetim Modülleri */}
+      {!isErgunCinar && (isAdmin || isDeptManager || isHierarchyManager) && (
         <>
           <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
           <div style={{ padding: '4px 12px 16px' }}>
@@ -1228,21 +1230,21 @@ function AppShell() {
       return;
     }
 
+    // Hiyerarşi yöneticisi (üni/fakülte yetkilisi) — yönetim açısından
+    // admin gibi davranır: tüm bölüm modüllerini ve yönetim modüllerini görür.
+    const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
+
     // Akademisyenler modülü yalnızca professor rolüne açıktır
-    const allowedDeptModules = isDeptManager
-      ? DEPARTMENT_MODULES.filter((m) => m.id !== 'akademisyen' && m.id !== 'benim').map(
-          (m) => m.id
-        )
-      : isProfessor
-        ? ['sinav', 'formlar', 'dersprogrami', 'akademisyen', 'projeler', 'staj', 'performans']
-        : isAdmin
-          ? DEPARTMENT_MODULES.filter((m) => m.id !== 'akademisyen' && m.id !== 'benim').map(
-              (m) => m.id
-            )
+    const allowedDeptModules =
+      isDeptManager || isAdmin || isHierarchyManager
+        ? DEPARTMENT_MODULES.filter((m) => m.id !== 'akademisyen' && m.id !== 'benim').map(
+            (m) => m.id
+          )
+        : isProfessor
+          ? ['sinav', 'formlar', 'dersprogrami', 'akademisyen', 'projeler', 'staj', 'performans']
           : ['benim', 'erasmus', 'projeler', 'formlar', 'staj']; // student
 
     const allowedCommon = COMMON_MODULES.map((m) => m.id);
-    const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
     const allowedAdmin =
       isAdmin || isDeptManager || isHierarchyManager ? ADMIN_MODULES.map((m) => m.id) : [];
     // Hiyerarşi yönetim modülleri (yetki bayrağına göre)
