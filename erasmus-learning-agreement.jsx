@@ -773,6 +773,21 @@ const CourseMatchCard = ({
           </span>
         )}
       </div>
+      {status === 'rejected' && match.rejectReason && (
+        <div
+          style={{
+            fontSize: 12,
+            color: '#991B1B',
+            background: '#FEF2F2',
+            border: '1px solid #FECACA',
+            borderRadius: 8,
+            padding: '8px 10px',
+            marginBottom: 12,
+          }}
+        >
+          <strong>Red sebebi:</strong> {match.rejectReason}
+        </div>
+      )}
       <div
         style={{
           display: 'flex',
@@ -3406,7 +3421,7 @@ const StudentDetailModal = ({
   });
   // Akademisyen (öğrenci olmayan) eşleştirmeyi onaylayabilir/reddedebilir.
   const canApprove = !!currentUser && currentUser.role !== 'student';
-  const reviewMatch = (matchType, matchId, decision) => {
+  const reviewMatch = (matchType, matchId, decision, reason) => {
     const key = matchType === 'outgoing' ? 'outgoingMatches' : 'returnMatches';
     setEditedStudent((prev) => ({
       ...prev,
@@ -3415,6 +3430,7 @@ const StudentDetailModal = ({
           ? {
               ...m,
               status: decision,
+              rejectReason: decision === 'rejected' ? reason || '' : '',
               reviewedBy: currentUser?.name || '',
               reviewedAt: new Date().toISOString(),
             }
@@ -3422,6 +3438,45 @@ const StudentDetailModal = ({
       ),
     }));
   };
+  // Toplu onay/red: tüm 'pending' eşleştirmelere uygular.
+  const bulkReview = (decision, reason) => {
+    const apply = (arr) =>
+      (arr || []).map((m) =>
+        (m.status || 'approved') === 'pending'
+          ? {
+              ...m,
+              status: decision,
+              rejectReason: decision === 'rejected' ? reason || '' : '',
+              reviewedBy: currentUser?.name || '',
+              reviewedAt: new Date().toISOString(),
+            }
+          : m
+      );
+    setEditedStudent((prev) => ({
+      ...prev,
+      outgoingMatches: apply(prev.outgoingMatches),
+      returnMatches: apply(prev.returnMatches),
+    }));
+  };
+  // Red sebebi modalı: { scope:'single'|'all', matchType, matchId }
+  const [rejectCtx, setRejectCtx] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const openReject = (scope, matchType, matchId) => {
+    setRejectReason('');
+    setRejectCtx({ scope, matchType, matchId });
+  };
+  const confirmReject = () => {
+    if (!rejectCtx) return;
+    if (rejectCtx.scope === 'all') bulkReview('rejected', rejectReason.trim());
+    else reviewMatch(rejectCtx.matchType, rejectCtx.matchId, 'rejected', rejectReason.trim());
+    setRejectCtx(null);
+    setRejectReason('');
+  };
+  // Bekleyen eşleştirme sayısı (toolbar için)
+  const pendingCount = [
+    ...(editedStudent.outgoingMatches || []),
+    ...(editedStudent.returnMatches || []),
+  ].filter((m) => (m.status || 'approved') === 'pending').length;
   const [activeTab, setActiveTab] = useState('outgoing');
   const [editingMatch, setEditingMatch] = useState(null);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
@@ -4038,6 +4093,57 @@ const StudentDetailModal = ({
         ))}
       </div>
 
+      {/* Toplu onay/red toolbar (akademisyen, bekleyen eşleştirme varsa) */}
+      {canApprove && pendingCount > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            padding: '12px 14px',
+            marginBottom: 16,
+            background: '#FFFBEB',
+            border: '1.5px solid #FCD34D',
+            borderRadius: 10,
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#92400E', flex: 1 }}>
+            {pendingCount} eşleştirme onay bekliyor
+          </span>
+          <button
+            onClick={() => bulkReview('approved')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#10B981',
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Tümünü Onayla
+          </button>
+          <button
+            onClick={() => openReject('all')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#EF4444',
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Tümünü Reddet
+          </button>
+        </div>
+      )}
+
       {/* Matches */}
       <div style={{ minHeight: 300, maxHeight: 400, overflowY: 'auto', marginBottom: 20 }}>
         {activeTab === 'outgoing' && (
@@ -4111,7 +4217,7 @@ const StudentDetailModal = ({
                 readOnly={readOnly}
                 canApprove={canApprove}
                 onApprove={(id) => reviewMatch('outgoing', id, 'approved')}
-                onReject={(id) => reviewMatch('outgoing', id, 'rejected')}
+                onReject={(id) => openReject('single', 'outgoing', id)}
               />
             ))}
             {!readOnly && (
@@ -4210,7 +4316,7 @@ const StudentDetailModal = ({
                 readOnly={readOnly}
                 canApprove={canApprove}
                 onApprove={(id) => reviewMatch('return', id, 'approved')}
-                onReject={(id) => reviewMatch('return', id, 'rejected')}
+                onReject={(id) => openReject('single', 'return', id)}
               />
             ))}
             {!readOnly && (
@@ -4243,6 +4349,92 @@ const StudentDetailModal = ({
           {!readOnly && <Btn onClick={() => onSave(editedStudent)}>Kaydet</Btn>}
         </div>
       </div>
+
+      {rejectCtx && (
+        <div
+          onClick={() => setRejectCtx(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1200,
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: 14,
+              padding: 24,
+              width: '100%',
+              maxWidth: 460,
+            }}
+          >
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: C.navy, margin: '0 0 6px' }}>
+              {rejectCtx.scope === 'all'
+                ? 'Tüm bekleyen eşleştirmeleri reddet'
+                : 'Eşleştirmeyi reddet'}
+            </h3>
+            <p style={{ fontSize: 13, color: C.textMuted, margin: '0 0 14px' }}>
+              Red sebebi öğrenciye bildirim olarak iletilecektir.
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Red sebebini yazın (örn. AKTS toplamı uyuşmuyor, ders içeriği yetersiz…)"
+              rows={4}
+              autoFocus
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: `1px solid ${C.border}`,
+                fontSize: 13,
+                outline: 'none',
+                fontFamily: "'Inter', sans-serif",
+                boxSizing: 'border-box',
+                resize: 'vertical',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button
+                onClick={() => setRejectCtx(null)}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: 8,
+                  border: `1px solid ${C.border}`,
+                  background: 'white',
+                  color: C.navy,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={confirmReject}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#EF4444',
+                  color: 'white',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Reddet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingMatch && (
         <CourseMatchEditModal
@@ -4745,7 +4937,10 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
             title: ok ? 'Erasmus eşleştirmen onaylandı' : 'Erasmus eşleştirmen reddedildi',
             body: ok
               ? `${m._t} ders eşleştirmen ${m.reviewedBy || 'koordinatör'} tarafından onaylandı.`
-              : `${m._t} ders eşleştirmen ${m.reviewedBy || 'koordinatör'} tarafından reddedildi. Lütfen koordinatörünüzle görüşün.`,
+              : `${m._t} ders eşleştirmen ${m.reviewedBy || 'koordinatör'} tarafından reddedildi.` +
+                (m.rejectReason
+                  ? ` Sebep: ${m.rejectReason}`
+                  : ' Lütfen koordinatörünüzle görüşün.'),
             link: '#erasmus',
           });
         });
