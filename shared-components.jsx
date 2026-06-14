@@ -324,6 +324,12 @@ const DEPARTMENTS = [
   },
 ];
 
+// Çekirdek 6 bölüm Mühendislik fakültesine aittir — fakülte kapsamı
+// filtrelemesi (sağ sidebar bölüm geçişi) bu alanı kullanır.
+DEPARTMENTS.forEach((d) => {
+  if (!d.facultyId) d.facultyId = 'muhendislik';
+});
+
 // Bölüm bazlı modüller (her bölüm yetkilisi bunlara erişir)
 const DEPARTMENT_MODULES = [
   {
@@ -3296,8 +3302,14 @@ const LoginModal = ({ onLogin }) => {
         const attachProfile = (u) => {
           const p = profResult.profile;
           if (!p) return u;
+          // Üni/fakülte yetkilisi modül düzeyinde tam (admin) yetkiye sahip
+          // olur; modüller role==='admin' ile düzenleme/silmeye izin verir.
+          // baseRole akademisyen kimliğini korur (gerekirse referans için).
+          const hierMgr = !!(p.isUniversityAdmin || p.isFacultyManager);
           return {
             ...u,
+            role: hierMgr ? 'admin' : u.role,
+            baseRole: 'professor',
             departmentId: p.departmentId || u.departmentId || '',
             departmentName: p.department || u.departmentName || '',
             facultyId: p.facultyId || '',

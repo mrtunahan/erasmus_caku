@@ -316,11 +316,14 @@ const Sidebar = ({
       currentUser.name.toLowerCase().includes('cinar') ||
       currentUser.name.toLowerCase().includes('cınar'));
 
-  // Bölüm yetkilisi ve öğrenci sadece kendi bölümünü görebilir
+  // Bölüm yetkilisi/öğrenci → yalnız kendi bölümü; fakülte/üni yetkilisi →
+  // yalnız kendi fakültesinin bölümleri; (eski) admin → tümü.
   const availableDepts =
     isDeptManager || isStudent
       ? DEPARTMENTS.filter((d) => d.id === currentUser?.departmentId)
-      : DEPARTMENTS;
+      : isHierarchyManager && currentUser?.facultyId
+        ? DEPARTMENTS.filter((d) => (d.facultyId || '') === currentUser.facultyId)
+        : DEPARTMENTS;
 
   // Öğrenciler ve profesörler için erişilebilir modüller
   const getVisibleModules = () => {
@@ -804,13 +807,17 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser }) => 
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
   const isStudent = !isAdmin && !isDeptManager && currentUser?.role !== 'professor';
+  const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
 
   // Ergün ÇINAR bölüm yetkilisi olsa da tüm bölümler arası geçiş yapabilir
   const isErgunCinar = isErgunCinarUser(currentUser);
+  // Fakülte/üni yetkilisi → yalnız kendi fakültesinin bölümleri arası geçiş
   const availableDepts =
     (isDeptManager || isStudent) && !isErgunCinar
       ? DEPARTMENTS.filter((d) => d.id === currentUser?.departmentId)
-      : DEPARTMENTS;
+      : isHierarchyManager && currentUser?.facultyId
+        ? DEPARTMENTS.filter((d) => (d.facultyId || '') === currentUser.facultyId)
+        : DEPARTMENTS;
 
   // Tek bölüm varsa sağ sidebar gösterme
   if (availableDepts.length <= 1) return null;
