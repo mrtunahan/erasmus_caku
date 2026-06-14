@@ -2098,20 +2098,26 @@ const DB = {
         ],
       });
 
-      // Build match signature for deduplication
-      const matchKey = (m) =>
+      // Build match signature for deduplication.
+      // ÖNEMLİ: type (gidiş/dönüş) anahtara dahil — aksi halde aynı dersleri
+      // içeren dönüş eşleştirmesi, gidiş ile aynı sanılıp geçmişe yazılmaz.
+      // homeCourses/hostCourses tanımsız olabilir → güvenli erişim.
+      const matchKey = (m, type) =>
         JSON.stringify({
-          home: m.homeCourses.map((c) => c.code).sort(),
-          host: m.hostCourses.map((c) => c.code).sort(),
+          type: type || m.type || '',
+          home: (m.homeCourses || []).map((c) => c.code).sort(),
+          host: (m.hostCourses || []).map((c) => c.code).sort(),
         });
 
-      const existingKeys = new Set(existingEntries.map((e) => matchKey(e)));
+      const existingKeys = new Set(existingEntries.map((e) => matchKey(e, e.type)));
       const ops = [];
 
       // Process outgoing matches
       (student.outgoingMatches || []).forEach((m) => {
-        if (m.homeCourses.length === 0 && m.hostCourses.length === 0) return;
-        const key = matchKey(m);
+        const home = m.homeCourses || [];
+        const host = m.hostCourses || [];
+        if (home.length === 0 && host.length === 0) return;
+        const key = matchKey(m, 'outgoing');
         if (!existingKeys.has(key)) {
           ops.push({
             collection: 'trip_history',
@@ -2120,8 +2126,8 @@ const DB = {
               hostInstitution: student.hostInstitution,
               hostCountry: student.hostCountry || '',
               type: 'outgoing',
-              homeCourses: m.homeCourses,
-              hostCourses: m.hostCourses,
+              homeCourses: home,
+              hostCourses: host,
               studentName: `${student.firstName} ${student.lastName}`,
               studentNumber: student.studentNumber,
               semester: student.semester || '',
@@ -2135,8 +2141,10 @@ const DB = {
 
       // Process return matches
       (student.returnMatches || []).forEach((m) => {
-        if (m.homeCourses.length === 0 && m.hostCourses.length === 0) return;
-        const key = matchKey(m);
+        const home = m.homeCourses || [];
+        const host = m.hostCourses || [];
+        if (home.length === 0 && host.length === 0) return;
+        const key = matchKey(m, 'return');
         if (!existingKeys.has(key)) {
           ops.push({
             collection: 'trip_history',
@@ -2145,8 +2153,8 @@ const DB = {
               hostInstitution: student.hostInstitution,
               hostCountry: student.hostCountry || '',
               type: 'return',
-              homeCourses: m.homeCourses,
-              hostCourses: m.hostCourses,
+              homeCourses: home,
+              hostCourses: host,
               hostGrade: m.hostGrade || '',
               homeGrade: m.homeGrade || '',
               hostGrades: m.hostGrades || {},
