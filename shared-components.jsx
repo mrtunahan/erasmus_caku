@@ -7240,6 +7240,10 @@ const StudentNotifier = {
     }
   },
   async _addNotification(studentNumber, payload) {
+    // Tekleştirilmiş bildirim: hem eski student_notifications (Benim Sayfam)
+    // hem de merkezi notifications koleksiyonuna (Notify → çan menüsü) yazar.
+    // Böylece tüm modüller tek sisteme (Notify) bağlanırken öğrenci paneli
+    // de bozulmaz. Yeni kodlar doğrudan window.Notify.send kullanabilir.
     try {
       var data = Object.assign(
         {
@@ -7252,6 +7256,23 @@ const StudentNotifier = {
       await FirestoreWrite.add('student_notifications', data);
     } catch (e) {
       console.warn('StudentNotifier: bildirim eklenemedi', studentNumber, e);
+    }
+    // Merkezi sisteme de yansıt (öğrencinin çan menüsünde görünsün)
+    try {
+      if (window.Notify && window.Notify.send) {
+        await window.Notify.send({
+          recipientType: 'user',
+          recipientId: String(studentNumber),
+          module: payload.module || 'sistem',
+          type: payload.type || 'bilgi',
+          title: payload.title || '',
+          body: payload.body || '',
+          link: payload.link || '',
+          meta: payload.meta || {},
+        });
+      }
+    } catch (e) {
+      /* merkezi yazım opsiyonel — sessiz geç */
     }
   },
   async fetchForStudent(studentNumber, limitN) {
