@@ -160,9 +160,40 @@
     }
   }
 
+  // Ergün ÇINAR yoksa OLUŞTUR — akademisyen giriş havuzuna (professors)
+  // eklenir; departmentId boş, isStajCoordinator=true → akademisyen
+  // listesinde her bölüm seçiminde görünür, sadece staj modülünü açar.
+  let ergunCreated = false;
+  if (ergunHits.length === 0) {
+    const ergunName = process.env.ERGUN_NAME || 'Ergün ÇINAR';
+    console.log(`Ergün ÇINAR kaydı yok → oluşturulacak: "${ergunName}"`);
+    if (!dry) {
+      const genId = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let id = '';
+        for (let i = 0; i < 20; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
+        return id;
+      };
+      await professors.insertOne({
+        _docId: genId(),
+        name: ergunName,
+        title: 'Memur',
+        department: '',
+        departmentId: '',
+        facultyId: FACULTY_ID,
+        universityId: UNIVERSITY_ID,
+        isStajCoordinator: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      ergunCreated = true;
+      console.log(`  ✓ "${ergunName}" oluşturuldu (staj koordinatörü)`);
+    }
+  }
+
   console.log(`\n${dry ? '[DRY RUN] hiçbir şey yazılmadı.' : '✓ Tamamlandı.'}`);
   console.log(
-    `Profesör güncellendi: ${profMigrated + (dry ? 0 : ergunHits.length)}, bölüm silindi: ${deptDeleted}`
+    `Profesör güncellendi: ${profMigrated + (dry ? 0 : ergunHits.length)}, oluşturulan: ${ergunCreated ? 1 : 0}, bölüm silindi: ${deptDeleted}`
   );
   process.exit(0);
 })().catch((e) => {
