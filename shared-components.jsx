@@ -3325,6 +3325,7 @@ const LoginModal = ({ onLogin }) => {
             isUniversityAdmin: !!p.isUniversityAdmin,
             isFacultyManager: !!p.isFacultyManager,
             isDeptManager: !!p.isDeptManager,
+            isStajCoordinator: !!p.isStajCoordinator,
           };
         };
 
