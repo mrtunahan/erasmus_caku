@@ -17,11 +17,13 @@ const COMMON_MODULES = window.COMMON_MODULES;
 const ADMIN_MODULES = window.ADMIN_MODULES;
 const HIERARCHY_MODULES = window.HIERARCHY_MODULES || [];
 
-// Ergün ÇINAR (staj SGK onayı + fakülte geneli yetki) tespiti.
-// Bölüm yetkilisi olmasına rağmen fakültedeki tüm bölümler arası
-// geçiş yapabilir.
+// Fakülte staj yetkilisi (SGK onayı + fakülte geneli staj erişimi) tespiti.
+// Yeni: isStajCoordinator bayrağı (Fakülte Yönetimi'nden atanır).
+// Geriye dönük: "Ergün ÇINAR" ismi de tanınır (eski hardcoded kullanıcı).
 const isErgunCinarUser = (currentUser) => {
-  const n = currentUser && (currentUser.name || currentUser.identifier);
+  if (!currentUser) return false;
+  if (currentUser.isStajCoordinator) return true;
+  const n = currentUser.name || currentUser.identifier;
   if (!n) return false;
   const s = n.toLowerCase();
   return (
@@ -306,15 +308,7 @@ const Sidebar = ({
   // Üni/fakülte yetkilisi — modül görünürlüğünde admin gibi davranır
   const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
 
-  const isErgunCinar =
-    currentUser &&
-    currentUser.name &&
-    (currentUser.name.toLowerCase().includes('ergün') ||
-      currentUser.name.toLowerCase().includes('ergun')) &&
-    (currentUser.name.toLowerCase().includes('çinar') ||
-      currentUser.name.toLowerCase().includes('çınar') ||
-      currentUser.name.toLowerCase().includes('cinar') ||
-      currentUser.name.toLowerCase().includes('cınar'));
+  const isErgunCinar = isErgunCinarUser(currentUser);
 
   // Bölüm yetkilisi/öğrenci → yalnız kendi bölümü; fakülte/üni yetkilisi →
   // yalnız kendi fakültesinin bölümleri; (eski) admin → tümü.
@@ -1153,6 +1147,7 @@ function AppShell() {
       isUniversityAdmin: user.isUniversityAdmin || false,
       isFacultyManager: user.isFacultyManager || false,
       isDeptManager: user.isDeptManager || false,
+      isStajCoordinator: user.isStajCoordinator || false,
     };
     localStorage.setItem('caku_current_user', JSON.stringify(safeUser));
 
