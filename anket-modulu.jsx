@@ -209,6 +209,12 @@ const TARGET_ROLES = [
     icon: 'M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z',
   },
   {
+    id: 'alumni',
+    label: 'Mezun Öğrenci',
+    sub: 'Bölüm mezunları',
+    icon: 'M22 10v6M2 10l10-5 10 5-10 5z M6 12v5c0 1 3 3 6 3s6-2 6-3v-5',
+  },
+  {
     id: 'professor',
     label: 'Akademisyen',
     sub: 'Öğretim üyesi / görevli',
@@ -217,6 +223,7 @@ const TARGET_ROLES = [
 ];
 const TARGET_GROUPS = {
   student: ['1. sınıf', '2. sınıf', '3. sınıf', '4. sınıf', 'Tüm öğrenciler'],
+  alumni: ['Son 1 yıl mezunları', 'Son 3 yıl mezunları', 'Son 5 yıl mezunları', 'Tüm mezunlar'],
   professor: [
     'Öğretim üyeleri',
     'Araştırma görevlileri',
@@ -224,7 +231,7 @@ const TARGET_GROUPS = {
     'Tüm akademik personel',
   ],
 };
-const ROLE_LABEL = { student: 'Öğrenci', professor: 'Akademisyen' };
+const ROLE_LABEL = { student: 'Öğrenci', alumni: 'Mezun Öğrenci', professor: 'Akademisyen' };
 
 // ══════════════════════════════════════════════════════════════
 // Ana bileşen — role göre yönetici / katılımcı görünümü
@@ -332,6 +339,16 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
     await load();
     toast.show(survey.title + ' yüklendi');
   };
+  const updateSurvey = async (id, survey) => {
+    await window.DBWrite.set(
+      'surveys',
+      id,
+      { ...survey, updatedBy: currentUser?.name || '' },
+      true
+    );
+    await load();
+    toast.show('Anket güncellendi');
+  };
   const removeSurvey = async (id) => {
     if (!confirm('Bu anket ve atamaları silinecek. Emin misiniz?')) return;
     await window.DBWrite.remove('surveys', id);
@@ -436,6 +453,7 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
               surveys={surveys}
               assignments={assignments}
               onAdd={addSurvey}
+              onUpdate={updateSurvey}
               onRemove={removeSurvey}
             />
           )}
@@ -505,18 +523,145 @@ function Spinner() {
 }
 
 // ─── Anketler paneli ───────────────────────────────────────────────────────
-function AnketlerPaneli({ surveys, assignments, onAdd, onRemove }) {
+// Soru tipini metne göre sezgi: "?" yesno; "Görüş"/uzun cümle textarea;
+// "düşünüyorum/katılıyorum" Likert; diğerleri text.
+function inferType(text) {
+  const t = (text || '').toLocaleLowerCase('tr');
+  if (!t) return 'text';
+  if (
+    t.includes('katılıyorum') ||
+    t.includes('düşünüyorum') ||
+    t.includes('yeterli') ||
+    t.includes('memnun')
+  )
+    return 'likert';
+  if (/(görüş|paylaşmak|belirt|düşünce|öner)/.test(t)) return 'textarea';
+  if (t.trim().endsWith('?')) return 'yesno';
+  return 'likert';
+}
+
+// DOCX dosyasını parse et → metin satırları → soru dizisi.
+// JSZip dinamik CDN'den yüklenir (CSP zaten jsdelivr'ı izinli).
+async function loadJSZip() {
+  if (window.JSZip) return window.JSZip;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+    s.onload = res;
+    s.onerror = rej;
+    document.head.appendChild(s);
+  });
+  return window.JSZip;
+}
+async function extractTextFromDocx(file) {
+  const JSZip = await loadJSZip();
+  const buf = await file.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+  const xml = await zip.file('word/document.xml').async('string');
+  // Paragrafları satıra çevir: <w:p> → satır; içindeki <w:t> içerikleri birleştir
+  const paragraphs = [];
+  const pRegex = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g;
+  const tRegex = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g;
+  let pm;
+  while ((pm = pRegex.exec(xml)) !== null) {
+    const inner = pm[1];
+    let line = '';
+    let tm;
+    while ((tm = tRegex.exec(inner)) !== null) {
+      line += tm[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    }
+    line = line.trim();
+    if (line) paragraphs.push(line);
+  }
+  return paragraphs;
+}
+// Satır dizisinden anket oluştur: ilk satır = başlık; geri kalanı sorulara çevir.
+function buildSurveyFromLines(lines, fallbackTitle) {
+  const title = (lines[0] || fallbackTitle || 'Yeni Anket').slice(0, 200);
+  let description = '';
+  let bodyStart = 1;
+  if (lines[1] && lines[1].length > 0 && lines[1].length < 200 && !/^\d+[\.\)]/.test(lines[1])) {
+    description = lines[1];
+    bodyStart = 2;
+  }
+  const questions = [];
+  for (let i = bodyStart; i < lines.length; i++) {
+    const raw = lines[i].replace(/^\s*(?:\d+[\.\)]|[-•·])\s*/, '').trim();
+    if (raw.length < 4) continue;
+    questions.push({ id: 'q' + (questions.length + 1), type: inferType(raw), text: raw });
+  }
+  if (questions.length === 0) {
+    questions.push({ id: 'c1', type: 'textarea', text: 'Görüşlerinizi belirtiniz.' });
+  }
+  return { title, description, infoFields: [], questions };
+}
+
+function AnketlerPaneli({ surveys, assignments, onAdd, onUpdate, onRemove }) {
   const addPreset = async (key) => {
     if (surveys.find((s) => s.presetKey === key)) return;
     await onAdd({ ...expandPreset(PRESET_SURVEYS[key]), presetKey: key });
   };
   const presetUsed = (key) => !!surveys.find((s) => s.presetKey === key);
+  const [editing, setEditing] = useState(null); // düzenlenmekte olan anket
+  const [importing, setImporting] = useState(false);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setImporting(true);
+    try {
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      let survey;
+      if (ext === 'json') {
+        const txt = await file.text();
+        const data = JSON.parse(txt);
+        survey = {
+          title: data.title || data.baslik || file.name.replace(/\.[^.]+$/, ''),
+          description: data.description || data.aciklama || '',
+          infoFields: data.infoFields || data.bilgiAlanlari || [],
+          questions: (data.questions || data.sorular || []).map((q, i) => ({
+            id: q.id || 'q' + (i + 1),
+            type: q.type || q.tip || inferType(q.text || q.metin),
+            text: q.text || q.metin || '',
+          })),
+        };
+      } else if (ext === 'docx') {
+        const lines = await extractTextFromDocx(file);
+        survey = buildSurveyFromLines(lines, file.name.replace(/\.[^.]+$/, ''));
+      } else if (ext === 'txt') {
+        const txt = await file.text();
+        const lines = txt
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter(Boolean);
+        survey = buildSurveyFromLines(lines, file.name.replace(/\.[^.]+$/, ''));
+      } else {
+        alert('Desteklenmeyen format. .docx / .json / .txt yükleyin.');
+        return;
+      }
+      // Yüklemeden önce kullanıcıya editörde göster
+      setEditing({ ...survey, _isNew: true });
+    } catch (e) {
+      console.error(e);
+      alert('Dosya okunamadı: ' + e.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const saveFromEditor = async (data) => {
+    if (editing && editing._isNew) {
+      await onAdd({ ...data });
+    } else if (editing && editing.id) {
+      await onUpdate(editing.id, data);
+    }
+    setEditing(null);
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={cardStyle}>
         <p style={labelStyle}>Hazır anket şablonları</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           {Object.entries(PRESET_SURVEYS).map(([key, s]) => {
             const used = presetUsed(key);
             return (
@@ -546,6 +691,70 @@ function AnketlerPaneli({ surveys, assignments, onAdd, onRemove }) {
             );
           })}
         </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px dashed ' + ANK.accent,
+              background: ANK.accentPale,
+              color: ANK.accent,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: importing ? 'wait' : 'pointer',
+              opacity: importing ? 0.6 : 1,
+            }}
+          >
+            <AIcon
+              path="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              size={14}
+            />
+            {importing ? 'İşleniyor…' : 'Özel anket yükle (.docx / .json / .txt)'}
+            <input
+              type="file"
+              accept=".docx,.json,.txt"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files && e.target.files[0];
+                e.target.value = '';
+                if (f) handleFile(f);
+              }}
+            />
+          </label>
+          <button
+            onClick={() =>
+              setEditing({
+                _isNew: true,
+                title: '',
+                description: '',
+                infoFields: [],
+                questions: [],
+              })
+            }
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px solid ' + ANK.border,
+              background: 'white',
+              color: ANK.primary,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <AIcon path="M12 5v14M5 12h14" size={14} /> Sıfırdan yeni
+          </button>
+        </div>
+        <p style={{ fontSize: 11, color: ANK.textMuted, margin: '10px 0 0' }}>
+          Word (.docx), JSON ya da düz metin (.txt) dosyalarındaki sorular otomatik tanınır. Yükleme
+          sonrası açılan düzenleyici ile inceleyip kaydedebilirsiniz.
+        </p>
       </div>
 
       <p style={labelStyle}>Yüklü anketler ({surveys.length})</p>
@@ -617,6 +826,17 @@ function AnketlerPaneli({ surveys, assignments, onAdd, onRemove }) {
                     )}
                   </p>
                 </div>
+                <button
+                  onClick={() => setEditing({ ...s, _isNew: false })}
+                  title="Düzenle"
+                  style={iconBtn(ANK.accent)}
+                >
+                  <AIcon
+                    path="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                    size={13}
+                    color={ANK.accent}
+                  />
+                </button>
                 <button onClick={() => onRemove(s.id)} title="Sil" style={iconBtn(ANK.red)}>
                   <AIcon
                     path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
@@ -629,6 +849,297 @@ function AnketlerPaneli({ surveys, assignments, onAdd, onRemove }) {
           })}
         </div>
       )}
+
+      {editing && (
+        <SurveyEditorModal
+          initial={editing}
+          isNew={!!editing._isNew}
+          onSave={saveFromEditor}
+          onCancel={() => setEditing(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Anket düzenleyici modalı ─────────────────────────────────────────────
+const QUESTION_TYPES = [
+  { v: 'likert', label: 'Likert (1-5)' },
+  { v: 'yesno', label: 'Evet / Hayır' },
+  { v: 'hours0to5', label: 'Saat (0-5)' },
+  { v: 'hoursRange', label: 'Saat aralığı (0, 1-2…)' },
+  { v: 'hoursExam', label: 'Sınav saati (0, 1-4…)' },
+  { v: 'textarea', label: 'Uzun metin' },
+  { v: 'text', label: 'Kısa metin' },
+];
+function SurveyEditorModal({ initial, isNew, onSave, onCancel }) {
+  const [title, setTitle] = useState(initial.title || '');
+  const [description, setDescription] = useState(initial.description || '');
+  const [questions, setQuestions] = useState(
+    (initial.questions || []).map((q, i) => ({
+      id: q.id || 'q' + (i + 1),
+      type: q.type || 'likert',
+      text: q.text || '',
+    }))
+  );
+  const [saving, setSaving] = useState(false);
+
+  const update = (i, patch) =>
+    setQuestions((prev) => prev.map((q, idx) => (idx === i ? { ...q, ...patch } : q)));
+  const remove = (i) => setQuestions((prev) => prev.filter((_, idx) => idx !== i));
+  const move = (i, dir) =>
+    setQuestions((prev) => {
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const arr = prev.slice();
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      return arr;
+    });
+  const add = () =>
+    setQuestions((prev) => [...prev, { id: 'q' + (prev.length + 1), type: 'likert', text: '' }]);
+
+  const handleSave = async () => {
+    if (!title.trim()) {
+      alert('Başlık zorunludur.');
+      return;
+    }
+    const cleaned = questions
+      .map((q) => ({ ...q, text: (q.text || '').trim() }))
+      .filter((q) => q.text);
+    if (cleaned.length === 0) {
+      alert('En az 1 soru olmalı.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({
+        title: title.trim(),
+        description: description.trim(),
+        infoFields: initial.infoFields || [],
+        questions: cleaned,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1200,
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'white',
+          borderRadius: 14,
+          padding: 24,
+          width: '100%',
+          maxWidth: 720,
+          maxHeight: '88vh',
+          overflowY: 'auto',
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: ANK.primary, margin: '0 0 16px' }}>
+          {isNew ? 'Yeni Anket' : 'Anketi Düzenle'}
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+          <div>
+            <label style={labelStyle}>Başlık *</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              style={inputStyle}
+              autoFocus
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Açıklama</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              style={{ ...inputStyle, resize: 'vertical' }}
+            />
+          </div>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 10,
+          }}
+        >
+          <p style={labelStyle}>Sorular ({questions.length})</p>
+          <button
+            onClick={add}
+            style={{
+              padding: '7px 14px',
+              borderRadius: 7,
+              border: '1px solid ' + ANK.border,
+              background: 'white',
+              color: ANK.accent,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <AIcon path="M12 5v14M5 12h14" size={13} /> Soru ekle
+          </button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {questions.map((q, i) => (
+            <div
+              key={i}
+              style={{
+                border: '1px solid ' + ANK.border,
+                borderRadius: 10,
+                padding: 10,
+                display: 'flex',
+                gap: 8,
+                alignItems: 'flex-start',
+              }}
+            >
+              <span
+                style={{
+                  flexShrink: 0,
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: ANK.accentPale,
+                  color: ANK.accent,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginTop: 4,
+                }}
+              >
+                {i + 1}
+              </span>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <input
+                  value={q.text}
+                  onChange={(e) => update(i, { text: e.target.value })}
+                  placeholder="Soru metni…"
+                  style={inputStyle}
+                />
+                <select
+                  value={q.type}
+                  onChange={(e) => update(i, { type: e.target.value })}
+                  style={{ ...inputStyle, width: 'auto', minWidth: 200 }}
+                >
+                  {QUESTION_TYPES.map((t) => (
+                    <option key={t.v} value={t.v}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <button
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  title="Yukarı"
+                  style={{
+                    ...iconBtn(),
+                    width: 26,
+                    height: 26,
+                    opacity: i === 0 ? 0.4 : 1,
+                    cursor: i === 0 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <AIcon path="M5 15l7-7 7 7" size={12} />
+                </button>
+                <button
+                  onClick={() => move(i, +1)}
+                  disabled={i === questions.length - 1}
+                  title="Aşağı"
+                  style={{
+                    ...iconBtn(),
+                    width: 26,
+                    height: 26,
+                    opacity: i === questions.length - 1 ? 0.4 : 1,
+                    cursor: i === questions.length - 1 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <AIcon path="M19 9l-7 7-7-7" size={12} />
+                </button>
+              </div>
+              <button onClick={() => remove(i)} title="Sil" style={iconBtn(ANK.red)}>
+                <AIcon
+                  path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
+                  size={13}
+                  color={ANK.red}
+                />
+              </button>
+            </div>
+          ))}
+          {questions.length === 0 && (
+            <p style={{ fontSize: 12, color: ANK.textMuted, padding: 14, textAlign: 'center' }}>
+              Henüz soru yok. "Soru ekle" ile başlayın.
+            </p>
+          )}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 8,
+            marginTop: 20,
+            borderTop: '1px solid #F3F4F6',
+            paddingTop: 16,
+          }}
+        >
+          <button
+            onClick={onCancel}
+            style={{
+              padding: '10px 18px',
+              borderRadius: 8,
+              border: '1px solid ' + ANK.border,
+              background: 'white',
+              color: ANK.text,
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            İptal
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              padding: '10px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: ANK.accent,
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: saving ? 'wait' : 'pointer',
+              opacity: saving ? 0.7 : 1,
+            }}
+          >
+            {saving ? 'Kaydediliyor…' : isNew ? 'Anketi Oluştur' : 'Değişiklikleri Kaydet'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
