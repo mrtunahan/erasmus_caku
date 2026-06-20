@@ -2135,7 +2135,7 @@ const DB = {
               studentName: `${student.firstName} ${student.lastName}`,
               studentNumber: student.studentNumber,
               semester: student.semester || '',
-              departmentId: student.departmentId || 'bilgisayar',
+              departmentId: student.departmentId || '',
               createdAt: new Date().toISOString(),
             },
           });
@@ -2168,7 +2168,7 @@ const DB = {
               studentName: `${student.firstName} ${student.lastName}`,
               studentNumber: student.studentNumber,
               semester: student.semester || '',
-              departmentId: student.departmentId || 'bilgisayar',
+              departmentId: student.departmentId || '',
               createdAt: new Date().toISOString(),
             },
           });
