@@ -2113,10 +2113,14 @@ const DB = {
       const ops = [];
 
       // Process outgoing matches
+      // ONAY KAPISI: yalnız akademisyen onayından geçmiş (status==='approved')
+      // eşleştirmeler geçmişe yazılır. status alanı olmayan eski kayıtlar
+      // (legacy) güvenli varsayım ile 'approved' kabul edilir.
       (student.outgoingMatches || []).forEach((m) => {
         const home = m.homeCourses || [];
         const host = m.hostCourses || [];
         if (home.length === 0 && host.length === 0) return;
+        if ((m.status || 'approved') !== 'approved') return;
         const key = matchKey(m, 'outgoing');
         if (!existingKeys.has(key)) {
           ops.push({
@@ -2140,10 +2144,12 @@ const DB = {
       });
 
       // Process return matches
+      // ONAY KAPISI: yalnız onaylanmış dönüş eşleştirmeleri geçmişe yazılır.
       (student.returnMatches || []).forEach((m) => {
         const home = m.homeCourses || [];
         const host = m.hostCourses || [];
         if (home.length === 0 && host.length === 0) return;
+        if ((m.status || 'approved') !== 'approved') return;
         const key = matchKey(m, 'return');
         if (!existingKeys.has(key)) {
           ops.push({
