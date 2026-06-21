@@ -2256,8 +2256,35 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false, activeDep
   const [expandedIdx, setExpandedIdx] = useState(null);
   const [searchText, setSearchText] = useState('');
   const [uniSearch, setUniSearch] = useState('');
+  const [extraUnis, setExtraUnis] = useState([]);
 
-  const uniList = Object.keys(universities || UNIVERSITY_CATALOGS);
+  // Dropdown'u beslemek için: UNIVERSITY_CATALOGS + öğrenci kayıtlarında
+  // gerçekten kullanılan kurumlar. Aksi halde kataloğa eklenmemiş yeni
+  // kurumlar (örn. POLITEHNICA Bucuresti) seçilebilir görünmüyor ve
+  // geçmiş erişilemiyor.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const students = await window.apiRead('students');
+        if (cancelled) return;
+        const set = new Set();
+        (students || []).forEach((s) => {
+          if (s.hostInstitution) set.add(s.hostInstitution);
+        });
+        setExtraUnis(Array.from(set));
+      } catch (e) {
+        console.warn('Trip history kurum listesi yüklenemedi:', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const uniList = Array.from(
+    new Set([...Object.keys(universities || UNIVERSITY_CATALOGS), ...extraUnis])
+  ).sort((a, b) => a.localeCompare(b, 'tr'));
   const filteredUniList = uniSearch
     ? uniList.filter((u) => u.toLowerCase().includes(uniSearch.toLowerCase()))
     : uniList;
