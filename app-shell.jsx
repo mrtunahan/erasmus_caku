@@ -112,8 +112,16 @@ const TopHeader = ({
   sidebarOpen,
   activeDepartment,
   onNavigate,
+  adminScope,
+  onScopeChange,
 }) => {
   const dept = DEPARTMENTS.find((d) => d.id === activeDepartment);
+  // Hem üniversite hem fakülte yetkisi olan kullanıcı için rol anahtarı.
+  const canSwitchScope = !!(currentUser?.isUniversityAdmin && currentUser?.isFacultyManager);
+  const facultyName =
+    (window.FACULTIES || []).find((f) => f.id === currentUser?.facultyId)?.name ||
+    FACULTY.name ||
+    'Fakülte';
 
   return (
     <header
@@ -215,8 +223,57 @@ const TopHeader = ({
         </div>
       )}
 
-      {/* Right: Bildirim + User info + Logout */}
+      {/* Right: Rol anahtarı + Bildirim + User info + Logout */}
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
+        {canSwitchScope && !isMobile && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: 3,
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              borderRadius: 999,
+            }}
+            title="Üniversite Yetkilisi ↔ Fakülte Yetkilisi"
+          >
+            <button
+              type="button"
+              onClick={() => onScopeChange && onScopeChange('university')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 999,
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                background: adminScope === 'university' ? '#FBBF24' : 'transparent',
+                color: adminScope === 'university' ? '#1B2A4A' : 'rgba(255,255,255,0.85)',
+                transition: 'all 0.18s',
+              }}
+            >
+              Üniversite
+            </button>
+            <button
+              type="button"
+              onClick={() => onScopeChange && onScopeChange('faculty')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 999,
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                background: adminScope === 'faculty' ? '#FBBF24' : 'transparent',
+                color: adminScope === 'faculty' ? '#1B2A4A' : 'rgba(255,255,255,0.85)',
+                transition: 'all 0.18s',
+              }}
+            >
+              {facultyName.replace(' Fakültesi', '')} Fak.
+            </button>
+          </div>
+        )}
         {window.BellMenu && currentUser && (
           <window.BellMenu
             currentUser={currentUser}
@@ -230,13 +287,21 @@ const TopHeader = ({
               {currentUser?.name || 'Kullanıcı'}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
-              {currentUser?.role === 'admin'
-                ? 'Fakülte Yöneticisi'
-                : currentUser?.role === 'professor'
-                  ? 'Akademisyen'
-                  : currentUser?.role === 'bolum_yetkilisi'
-                    ? 'Bölüm Yetkilisi'
-                    : `Öğrenci`}
+              {canSwitchScope
+                ? adminScope === 'university'
+                  ? 'Üniversite Yetkilisi'
+                  : 'Fakülte Yetkilisi'
+                : currentUser?.isUniversityAdmin
+                  ? 'Üniversite Yetkilisi'
+                  : currentUser?.isFacultyManager
+                    ? 'Fakülte Yetkilisi'
+                    : currentUser?.role === 'admin'
+                      ? 'Fakülte Yöneticisi'
+                      : currentUser?.role === 'professor'
+                        ? 'Akademisyen'
+                        : currentUser?.role === 'bolum_yetkilisi'
+                          ? 'Bölüm Yetkilisi'
+                          : `Öğrenci`}
             </div>
           </div>
         )}
@@ -299,6 +364,7 @@ const Sidebar = ({
   onRequestChangePassword,
   commissionModules = [],
   studentLocked = false,
+  adminScope,
 }) => {
   const isAdmin = currentUser?.role === 'admin';
   // Hiyerarşi: bölüm yetkilisi rolü VEYA isDeptManager bayraklı akademisyen
@@ -310,14 +376,22 @@ const Sidebar = ({
 
   const isErgunCinar = isErgunCinarUser(currentUser);
 
-  // Bölüm yetkilisi/öğrenci → yalnız kendi bölümü; fakülte/üni yetkilisi →
-  // yalnız kendi fakültesinin bölümleri; (eski) admin → tümü.
-  const availableDepts =
-    isDeptManager || isStudent
-      ? DEPARTMENTS.filter((d) => d.id === currentUser?.departmentId)
-      : isHierarchyManager && currentUser?.facultyId
-        ? DEPARTMENTS.filter((d) => (d.facultyId || '') === currentUser.facultyId)
-        : DEPARTMENTS;
+  // Bölüm yetkilisi/öğrenci → yalnız kendi bölümü.
+  // Hiyerarşi yetkilisi → adminScope='university' ise TÜM bölümler;
+  //   adminScope='faculty' ise yalnız kendi fakültesinin bölümleri.
+  let availableDepts;
+  if (isDeptManager || isStudent) {
+    availableDepts = DEPARTMENTS.filter((d) => d.id === currentUser?.departmentId);
+  } else if (isHierarchyManager) {
+    const effectiveScope = currentUser?.isUniversityAdmin ? adminScope || 'university' : 'faculty';
+    if (effectiveScope === 'faculty' && currentUser?.facultyId) {
+      availableDepts = DEPARTMENTS.filter((d) => (d.facultyId || '') === currentUser.facultyId);
+    } else {
+      availableDepts = DEPARTMENTS;
+    }
+  } else {
+    availableDepts = DEPARTMENTS;
+  }
 
   // Öğrenciler ve profesörler için erişilebilir modüller
   const getVisibleModules = () => {
@@ -797,7 +871,7 @@ const Sidebar = ({
 // ══════════════════════════════════════════════════════════════
 // Right Sidebar - Department Selector
 // ══════════════════════════════════════════════════════════════
-const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser }) => {
+const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, adminScope }) => {
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
   const isStudent = !isAdmin && !isDeptManager && currentUser?.role !== 'professor';
@@ -805,13 +879,23 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser }) => 
 
   // Ergün ÇINAR bölüm yetkilisi olsa da tüm bölümler arası geçiş yapabilir
   const isErgunCinar = isErgunCinarUser(currentUser);
-  // Fakülte/üni yetkilisi → yalnız kendi fakültesinin bölümleri arası geçiş
-  const availableDepts =
-    (isDeptManager || isStudent) && !isErgunCinar
-      ? DEPARTMENTS.filter((d) => d.id === currentUser?.departmentId)
-      : isHierarchyManager && currentUser?.facultyId
-        ? DEPARTMENTS.filter((d) => (d.facultyId || '') === currentUser.facultyId)
-        : DEPARTMENTS;
+  // Bölüm yetkilisi/öğrenci → yalnız kendi bölümü.
+  // Hiyerarşi yetkilisi → adminScope='university' ise TÜM bölümler;
+  //   adminScope='faculty' ise yalnız kendi fakültesinin bölümleri.
+  //   (Yalnız fakülte yetkilisi olanlarda kapsam zaten 'faculty' davranır.)
+  let availableDepts;
+  if ((isDeptManager || isStudent) && !isErgunCinar) {
+    availableDepts = DEPARTMENTS.filter((d) => d.id === currentUser?.departmentId);
+  } else if (isHierarchyManager) {
+    const effectiveScope = currentUser?.isUniversityAdmin ? adminScope || 'university' : 'faculty';
+    if (effectiveScope === 'faculty' && currentUser?.facultyId) {
+      availableDepts = DEPARTMENTS.filter((d) => (d.facultyId || '') === currentUser.facultyId);
+    } else {
+      availableDepts = DEPARTMENTS;
+    }
+  } else {
+    availableDepts = DEPARTMENTS;
+  }
 
   // Tek bölüm varsa sağ sidebar gösterme
   if (availableDepts.length <= 1) return null;
@@ -960,6 +1044,16 @@ function AppShell() {
   const [route, navigate] = useHashRoute('portal');
   const [currentUser, setCurrentUser] = useState(null);
   const [activeDepartment, setActiveDepartment] = useState('bilgisayar');
+  // Çift rolü olan yetkililer için aktif kapsam: 'university' (tüm fakülteler)
+  // veya 'faculty' (yalnız kendi fakültesi). TopHeader'daki rol anahtarıyla
+  // değişir; localStorage'da saklanır.
+  const [adminScope, setAdminScope] = useState(() => {
+    try {
+      return localStorage.getItem('adminScope') || 'university';
+    } catch {
+      return 'university';
+    }
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [commissionModules, setCommissionModules] = useState([]);
@@ -1103,21 +1197,66 @@ function AppShell() {
     };
   }, []);
 
-  // Bölüm değiştiğinde kaydet (bölüm yetkilisi kendi bölümünden çıkamaz)
+  // Bölüm değiştiğinde kaydet (bölüm yetkilisi kendi bölümünden çıkamaz).
+  // Fakülte yetkilisi kendi fakültesi dışına geçemez; üniversite yetkilisi
+  // 'university' kapsamında ise sınırsız, 'faculty' kapsamında ise yine
+  // fakültesi ile sınırlı.
   const handleDepartmentChange = useCallback(
     (deptId) => {
-      // Ergün ÇINAR bölüm yetkilisi olsa da tüm bölümlere geçebilir
       if (
         (currentUser?.role === 'bolum_yetkilisi' || currentUser?.role === 'student') &&
         deptId !== currentUser?.departmentId &&
         !isErgunCinarUser(currentUser)
       ) {
-        return; // Bölüm yetkilisi ve öğrenci sadece kendi bölümünü görebilir
+        return;
+      }
+      const hierMgr = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
+      if (hierMgr) {
+        const effectiveScope = currentUser?.isUniversityAdmin
+          ? adminScope || 'university'
+          : 'faculty';
+        if (effectiveScope === 'faculty' && currentUser?.facultyId) {
+          const allDepts = window.DEPARTMENTS || DEPARTMENTS;
+          const target = allDepts.find((d) => d.id === deptId);
+          if (target && (target.facultyId || '') !== currentUser.facultyId) {
+            return;
+          }
+        }
       }
       setActiveDepartment(deptId);
       localStorage.setItem('caku_active_department', deptId);
     },
-    [currentUser]
+    [currentUser, adminScope]
+  );
+
+  // Rol kapsamı değişimi: localStorage'a yaz; fakülte kapsamına geçildiğinde
+  // aktif bölüm o fakültenin bir bölümüne otomatik düşer (yetkisiz görünüm
+  // kalmasın).
+  const handleScopeChange = useCallback(
+    (nextScope) => {
+      setAdminScope(nextScope);
+      try {
+        localStorage.setItem('adminScope', nextScope);
+      } catch {
+        /* yok say */
+      }
+      if (nextScope === 'faculty' && currentUser?.facultyId) {
+        const facultyDepts = (window.DEPARTMENTS || DEPARTMENTS).filter(
+          (d) => (d.facultyId || '') === currentUser.facultyId
+        );
+        if (facultyDepts.length > 0 && !facultyDepts.some((d) => d.id === activeDepartment)) {
+          const preferred =
+            facultyDepts.find((d) => d.id === currentUser.departmentId) || facultyDepts[0];
+          setActiveDepartment(preferred.id);
+          try {
+            localStorage.setItem('caku_active_department', preferred.id);
+          } catch {
+            /* yok say */
+          }
+        }
+      }
+    },
+    [currentUser, activeDepartment]
   );
 
   const isAdmin = currentUser?.role === 'admin';
@@ -1432,6 +1571,8 @@ function AppShell() {
         sidebarOpen={sidebarOpen}
         activeDepartment={activeDepartment}
         onNavigate={navigate}
+        adminScope={adminScope}
+        onScopeChange={handleScopeChange}
       />
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -1447,6 +1588,7 @@ function AppShell() {
           onRequestChangePassword={() => setShowChangePassword(true)}
           commissionModules={commissionModules}
           studentLocked={currentUser?.role === 'student' && !studentHasCourses}
+          adminScope={adminScope}
         />
 
         <main
@@ -1465,6 +1607,7 @@ function AppShell() {
             activeDepartment={activeDepartment}
             onDepartmentChange={handleDepartmentChange}
             currentUser={currentUser}
+            adminScope={adminScope}
           />
         )}
       </div>

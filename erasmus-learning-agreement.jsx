@@ -2247,7 +2247,7 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect, activeDepartment }) =>
 };
 
 // ── Trip History Modal (Eşleştirme Geçmişi) ──
-const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
+const TripHistoryModal = ({ onClose, universities, isReadOnly = false, activeDepartment }) => {
   const r = useResponsive();
   const [selectedUni, setSelectedUni] = useState('');
   const [history, setHistory] = useState([]);
@@ -2274,11 +2274,10 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false }) => {
     }
     setLoading(true);
     try {
-      // Eşleştirme geçmişi KURUM bazlıdır; bölüm filtresi uygulanmaz. Aynı
-      // üniversiteye giden farklı bölüm/dönem öğrencilerinin ders
-      // eşleştirmeleri ortak referanstır ve eski kayıtların departmentId'si
-      // çoğunlukla boştur — bölüme göre süzmek kayıtları gizliyordu.
-      const entries = await DB.fetchTripHistory(uni);
+      // Eşleştirme geçmişi BÖLÜM bazlı süzülür. activeDepartment yoksa
+      // (üniversite yetkilisi tüm fakülteler kapsamında) kurumun TÜM
+      // kayıtları gelir.
+      const entries = await DB.fetchTripHistory(uni, activeDepartment);
       setHistory(entries);
     } catch (e) {
       console.error('Trip history load error:', e);
@@ -5393,6 +5392,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
             onClose={() => setShowTripHistory(false)}
             universities={UNIVERSITY_CATALOGS}
             isReadOnly={currentUser?.role !== 'admin'}
+            activeDepartment={activeDepartment}
           />
         )}
       </div>

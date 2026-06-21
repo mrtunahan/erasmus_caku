@@ -2136,6 +2136,7 @@ const DB = {
               studentNumber: student.studentNumber,
               semester: student.semester || '',
               departmentId: student.departmentId || '',
+              facultyId: student.facultyId || '',
               createdAt: new Date().toISOString(),
             },
           });
@@ -2169,6 +2170,7 @@ const DB = {
               studentNumber: student.studentNumber,
               semester: student.semester || '',
               departmentId: student.departmentId || '',
+              facultyId: student.facultyId || '',
               createdAt: new Date().toISOString(),
             },
           });
