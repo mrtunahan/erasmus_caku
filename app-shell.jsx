@@ -112,16 +112,12 @@ const TopHeader = ({
   sidebarOpen,
   activeDepartment,
   onNavigate,
-  adminScope,
-  onScopeChange,
+  availableDepts = [],
+  onDepartmentChange,
 }) => {
   const dept = DEPARTMENTS.find((d) => d.id === activeDepartment);
-  // Hem üniversite hem fakülte yetkisi olan kullanıcı için rol anahtarı.
-  const canSwitchScope = !!(currentUser?.isUniversityAdmin && currentUser?.isFacultyManager);
-  const facultyName =
-    (window.FACULTIES || []).find((f) => f.id === currentUser?.facultyId)?.name ||
-    FACULTY.name ||
-    'Fakülte';
+  const [deptMenuOpen, setDeptMenuOpen] = React.useState(false);
+  const canSwitchDept = availableDepts.length > 1;
 
   return (
     <header
@@ -205,75 +201,111 @@ const TopHeader = ({
         </div>
       </div>
 
-      {/* Center: Active Department Badge (desktop) */}
+      {/* Center: Aktif Bölüm rozeti — tıklanabilir bölüm seçici */}
       {!isMobile && dept && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '6px 16px',
-            borderRadius: 20,
-            background: `${dept.color}20`,
-            border: `1px solid ${dept.color}40`,
-          }}
-        >
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: dept.color }} />
-          <span style={{ color: 'white', fontSize: 13, fontWeight: 500 }}>{dept.name}</span>
-        </div>
-      )}
-
-      {/* Right: Rol anahtarı + Bildirim + User info + Logout */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
-        {canSwitchScope && !isMobile && (
-          <div
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => canSwitchDept && setDeptMenuOpen((v) => !v)}
+            onBlur={() => setTimeout(() => setDeptMenuOpen(false), 150)}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 4,
-              padding: 3,
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.18)',
-              borderRadius: 999,
+              gap: 8,
+              padding: '6px 16px',
+              borderRadius: 20,
+              background: `${dept.color}20`,
+              border: `1px solid ${dept.color}40`,
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: canSwitchDept ? 'pointer' : 'default',
             }}
-            title="Üniversite Yetkilisi ↔ Fakülte Yetkilisi"
+            title={canSwitchDept ? 'Bölüm değiştir' : ''}
           >
-            <button
-              type="button"
-              onClick={() => onScopeChange && onScopeChange('university')}
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: dept.color }} />
+            <span>{dept.name}</span>
+            {canSwitchDept && (
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                style={{
+                  transform: deptMenuOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.18s',
+                }}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            )}
+          </button>
+          {deptMenuOpen && canSwitchDept && (
+            <div
               style={{
-                padding: '5px 12px',
-                borderRadius: 999,
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 12,
-                fontWeight: 600,
-                background: adminScope === 'university' ? '#FBBF24' : 'transparent',
-                color: adminScope === 'university' ? '#1B2A4A' : 'rgba(255,255,255,0.85)',
-                transition: 'all 0.18s',
+                position: 'absolute',
+                top: 'calc(100% + 6px)',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'white',
+                border: '1px solid #E5E7EB',
+                borderRadius: 10,
+                boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+                minWidth: 240,
+                maxHeight: 360,
+                overflowY: 'auto',
+                zIndex: 1100,
+                padding: 6,
               }}
             >
-              Üniversite
-            </button>
-            <button
-              type="button"
-              onClick={() => onScopeChange && onScopeChange('faculty')}
-              style={{
-                padding: '5px 12px',
-                borderRadius: 999,
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 12,
-                fontWeight: 600,
-                background: adminScope === 'faculty' ? '#FBBF24' : 'transparent',
-                color: adminScope === 'faculty' ? '#1B2A4A' : 'rgba(255,255,255,0.85)',
-                transition: 'all 0.18s',
-              }}
-            >
-              {facultyName.replace(' Fakültesi', '')} Fak.
-            </button>
-          </div>
-        )}
+              {availableDepts.map((d) => {
+                const active = d.id === activeDepartment;
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onMouseDown={() => {
+                      if (onDepartmentChange) onDepartmentChange(d.id);
+                      setDeptMenuOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      width: '100%',
+                      padding: '9px 12px',
+                      border: 'none',
+                      background: active ? `${d.color}18` : 'transparent',
+                      color: active ? d.color : '#1F2937',
+                      fontSize: 13,
+                      fontWeight: active ? 600 : 500,
+                      borderRadius: 7,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: d.color,
+                        flexShrink: 0,
+                      }}
+                    />
+                    {d.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Right: Bildirim + User info + Logout */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
         {window.BellMenu && currentUser && (
           <window.BellMenu
             currentUser={currentUser}
@@ -287,21 +319,17 @@ const TopHeader = ({
               {currentUser?.name || 'Kullanıcı'}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
-              {canSwitchScope
-                ? adminScope === 'university'
-                  ? 'Üniversite Yetkilisi'
-                  : 'Fakülte Yetkilisi'
-                : currentUser?.isUniversityAdmin
-                  ? 'Üniversite Yetkilisi'
-                  : currentUser?.isFacultyManager
-                    ? 'Fakülte Yetkilisi'
-                    : currentUser?.role === 'admin'
-                      ? 'Fakülte Yöneticisi'
-                      : currentUser?.role === 'professor'
-                        ? 'Akademisyen'
-                        : currentUser?.role === 'bolum_yetkilisi'
-                          ? 'Bölüm Yetkilisi'
-                          : `Öğrenci`}
+              {currentUser?.isUniversityAdmin
+                ? 'Üniversite Yetkilisi'
+                : currentUser?.isFacultyManager
+                  ? 'Fakülte Yetkilisi'
+                  : currentUser?.role === 'admin'
+                    ? 'Fakülte Yöneticisi'
+                    : currentUser?.role === 'professor'
+                      ? 'Akademisyen'
+                      : currentUser?.role === 'bolum_yetkilisi'
+                        ? 'Bölüm Yetkilisi'
+                        : `Öğrenci`}
             </div>
           </div>
         )}
@@ -1459,6 +1487,26 @@ function AppShell() {
     );
   }
 
+  // TopHeader'daki bölüm seçici için kullanılabilir bölüm listesi.
+  // RightSidebar/Sidebar ile aynı kapsam mantığını paylaşır.
+  const topAvailableDepts = (() => {
+    const allDepts = window.DEPARTMENTS || DEPARTMENTS;
+    if (isStudent || isDeptManager) {
+      return allDepts.filter((d) => d.id === currentUser?.departmentId);
+    }
+    const hierMgr = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
+    if (hierMgr) {
+      const effectiveScope = currentUser?.isUniversityAdmin
+        ? adminScope || 'university'
+        : 'faculty';
+      if (effectiveScope === 'faculty' && currentUser?.facultyId) {
+        return allDepts.filter((d) => (d.facultyId || '') === currentUser.facultyId);
+      }
+      return allDepts;
+    }
+    return allDepts;
+  })();
+
   // Render active module
   const renderModule = () => {
     if (moduleLoading) {
@@ -1571,8 +1619,8 @@ function AppShell() {
         sidebarOpen={sidebarOpen}
         activeDepartment={activeDepartment}
         onNavigate={navigate}
-        adminScope={adminScope}
-        onScopeChange={handleScopeChange}
+        availableDepts={topAvailableDepts}
+        onDepartmentChange={handleDepartmentChange}
       />
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
