@@ -298,27 +298,6 @@ function FakYonetimiApp({ currentUser }) {
     }
   };
 
-  // Akademisyeni başka bölüme taşı (aynı fakülte içinde). isDeptManager dokunulmaz;
-  // taşıma sırasında eski bölüm yetkiliği kaybolsun istiyorsan ayrıca kaldır.
-  const moveProfToDept = async (prof, dept) => {
-    try {
-      await window.DBWrite.set(
-        'professors',
-        prof.id,
-        {
-          departmentId: dept.id,
-          department: dept.name,
-          facultyId: myFacultyId,
-        },
-        true
-      );
-      await load();
-      showMsg(`${prof.name} → ${dept.name} bölümüne taşındı.`);
-    } catch (e) {
-      showMsg('Taşıma hatası: ' + e.message, 'error');
-    }
-  };
-
   // Fakülte Staj Yetkilisi (SGK onayı + fakülte geneli staj erişimi).
   // Birden fazla kişi olabilir; her biri staj modülünü fakülte genelinde görür.
   const stajCoordinators = useMemo(
@@ -408,26 +387,6 @@ function FakYonetimiApp({ currentUser }) {
           <p style={{ fontSize: 13, color: FAK.textMuted, marginTop: 4 }}>
             {faculty?.name || 'Fakülte'} — bölümleri ve akademisyenleri yönet
           </p>
-          <div
-            style={{
-              marginTop: 10,
-              padding: '10px 14px',
-              borderRadius: 8,
-              background: FAK.accentPale,
-              border: '1px solid ' + FAK.border,
-              fontSize: 12,
-              color: FAK.text,
-              lineHeight: 1.6,
-              maxWidth: 720,
-            }}
-          >
-            <b>Akademi hiyerarşisi:</b> Bir akademisyeni bir bölüme bağlamak için
-            <i> "Bölüme akademisyen ekle…"</i>; doğrudan bölüm yetkilisi atamak için
-            <i> "Doğrudan bölüm yetkilisi yap…"</i>; halihazırda eklenmiş bir akademisyene yetki
-            vermek için satırın yanındaki <i>"Yetkili Yap"</i> butonunu kullan. Akademisyeni başka
-            bir bölüme taşımak için satırdaki <i>"Taşı…"</i> menüsünü kullan. Atanan bayraklar
-            kullanıcının bir sonraki girişinde etkinleşir.
-          </div>
         </div>
         <button
           onClick={openNew}
@@ -714,33 +673,6 @@ function FakYonetimiApp({ currentUser }) {
                               Yetkili Yap
                             </button>
                           )}
-                          <select
-                            value=""
-                            onChange={(e) => {
-                              const tgt = departments.find((x) => x.id === e.target.value);
-                              if (tgt && tgt.id !== d.id) moveProfToDept(p, tgt);
-                            }}
-                            title="Başka bölüme taşı"
-                            style={{
-                              border: '1px solid ' + FAK.border,
-                              background: 'white',
-                              color: FAK.textMuted,
-                              fontSize: 11,
-                              padding: '4px 6px',
-                              borderRadius: 7,
-                              cursor: 'pointer',
-                              maxWidth: 110,
-                            }}
-                          >
-                            <option value="">Taşı…</option>
-                            {departments
-                              .filter((x) => x.id !== d.id)
-                              .map((x) => (
-                                <option key={x.id} value={x.id}>
-                                  {x.shortName || x.name}
-                                </option>
-                              ))}
-                          </select>
                         </div>
                       ))}
                     </div>
