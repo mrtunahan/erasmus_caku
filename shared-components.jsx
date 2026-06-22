@@ -3322,9 +3322,14 @@ const LoginModal = ({ onLogin }) => {
           // olur; modüller role==='admin' ile düzenleme/silmeye izin verir.
           // baseRole akademisyen kimliğini korur (gerekirse referans için).
           const hierMgr = !!(p.isUniversityAdmin || p.isFacultyManager);
+          // Bayrak → istemci rolü çözümlemesi:
+          //   isUniversityAdmin / isFacultyManager → 'admin' (yönetim kabuğu)
+          //   isDeptManager → 'bolum_yetkilisi' (bölüm yetkilisi modülleri)
+          //   diğer durumda akademisyen rolü korunur.
+          const effectiveRole = hierMgr ? 'admin' : p.isDeptManager ? 'bolum_yetkilisi' : u.role;
           return {
             ...u,
-            role: hierMgr ? 'admin' : u.role,
+            role: effectiveRole,
             baseRole: 'professor',
             departmentId: p.departmentId || u.departmentId || '',
             departmentName: p.department || u.departmentName || '',

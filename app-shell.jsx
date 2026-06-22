@@ -654,7 +654,13 @@ const Sidebar = ({
             >
               Yönetim
             </div>
-            {ADMIN_MODULES.map((mod) => {
+            {ADMIN_MODULES.filter((mod) => {
+              // Bölüm yetkilisi: Audit Log dışında tüm yönetim modülleri
+              if (isDeptManager && !isAdmin && !isHierarchyManager) {
+                return mod.id !== 'audit';
+              }
+              return true;
+            }).map((mod) => {
               const isActive = currentRoute === mod.id;
               return (
                 <button
@@ -1414,8 +1420,13 @@ function AppShell() {
           : ['benim', 'erasmus', 'projeler', 'formlar', 'staj']; // student
 
     const allowedCommon = COMMON_MODULES.map((m) => m.id);
+    // Bölüm yetkilisi yönetim modülleri görür ama Audit Log hariç.
     const allowedAdmin =
-      isAdmin || isDeptManager || isHierarchyManager ? ADMIN_MODULES.map((m) => m.id) : [];
+      isAdmin || isHierarchyManager
+        ? ADMIN_MODULES.map((m) => m.id)
+        : isDeptManager
+          ? ADMIN_MODULES.filter((m) => m.id !== 'audit').map((m) => m.id)
+          : [];
     // Hiyerarşi yönetim modülleri (yetki bayrağına göre)
     const allowedHierarchy = HIERARCHY_MODULES.filter(
       (m) => currentUser && currentUser[m.flag]
