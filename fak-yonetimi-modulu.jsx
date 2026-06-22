@@ -107,7 +107,7 @@ function ProfPicker({ professors, onPick, placeholder }) {
         placeholder={placeholder || 'Akademisyen ara…'}
         style={fInput}
       />
-      {open && filtered.length > 0 && (
+      {open && (
         <div
           style={{
             position: 'absolute',
@@ -123,26 +123,36 @@ function ProfPicker({ professors, onPick, placeholder }) {
             overflowY: 'auto',
           }}
         >
-          {filtered.map((p) => (
-            <div
-              key={p.id}
-              onMouseDown={() => {
-                onPick(p);
-                setQ('');
-                setOpen(false);
-              }}
-              style={{ padding: '9px 12px', cursor: 'pointer', fontSize: 13, color: FAK.text }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = FAK.accentPale)}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
-            >
-              {p.name}
-              {p.department ? (
-                <span style={{ color: FAK.textMuted, fontSize: 11, marginLeft: 6 }}>
-                  {p.department}
-                </span>
-              ) : null}
+          {filtered.length === 0 ? (
+            <div style={{ padding: '12px 14px', fontSize: 12, color: FAK.textMuted }}>
+              {q ? 'Eşleşen akademisyen yok.' : 'Aday akademisyen yok.'}
             </div>
-          ))}
+          ) : (
+            filtered.map((p) => (
+              <div
+                key={p.id}
+                onMouseDown={() => {
+                  onPick(p);
+                  setQ('');
+                  setOpen(false);
+                }}
+                style={{ padding: '9px 12px', cursor: 'pointer', fontSize: 13, color: FAK.text }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = FAK.accentPale)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
+              >
+                {p.name}
+                {p.department ? (
+                  <span style={{ color: FAK.textMuted, fontSize: 11, marginLeft: 6 }}>
+                    {p.department}
+                  </span>
+                ) : p.facultyId ? null : (
+                  <span style={{ color: '#92400E', fontSize: 11, marginLeft: 6 }}>
+                    (fakültesiz)
+                  </span>
+                )}
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>
@@ -203,9 +213,11 @@ function FakYonetimiApp({ currentUser }) {
       ['departments', 'professors'].forEach((c) => window.removeEventListener('realtime:' + c, h));
   }, [load]);
 
-  // Bu fakültenin akademisyenleri (atama için aday havuzu)
-  const facultyProfs = useMemo(
-    () => professors.filter((p) => (p.facultyId || '') === myFacultyId),
+  // Atama için aday havuzu — kendi fakültesindekiler + fakülteye atanmamış
+  // akademisyenler. Başka fakültelerin akademisyenleri burada görünmez
+  // (yanlışlıkla başka fakülteden çekmeyi engeller).
+  const assignableProfs = useMemo(
+    () => professors.filter((p) => (p.facultyId || '') === myFacultyId || !p.facultyId),
     [professors, myFacultyId]
   );
 
@@ -254,16 +266,21 @@ function FakYonetimiApp({ currentUser }) {
     }
   };
 
-  const addProfToDept = async (dept, prof) => {
+  const addProfToDept = async (dept, prof, { makeManager = false } = {}) => {
     try {
-      await window.DBWrite.set(
-        'professors',
-        prof.id,
-        { departmentId: dept.id, department: dept.name, facultyId: myFacultyId },
-        true
-      );
+      const patch = {
+        departmentId: dept.id,
+        department: dept.name,
+        facultyId: myFacultyId,
+      };
+      if (makeManager) patch.isDeptManager = true;
+      await window.DBWrite.set('professors', prof.id, patch, true);
       await load();
-      showMsg(`${prof.name} → ${dept.name} bölümüne eklendi.`);
+      showMsg(
+        makeManager
+          ? `${prof.name} → ${dept.name} bölüm yetkilisi yapıldı.`
+          : `${prof.name} → ${dept.name} bölümüne eklendi.`
+      );
     } catch (e) {
       showMsg('Ekleme hatası: ' + e.message, 'error');
     }
@@ -278,6 +295,27 @@ function FakYonetimiApp({ currentUser }) {
       );
     } catch (e) {
       showMsg('İşlem hatası: ' + e.message, 'error');
+    }
+  };
+
+  // Akademisyeni başka bölüme taşı (aynı fakülte içinde). isDeptManager dokunulmaz;
+  // taşıma sırasında eski bölüm yetkiliği kaybolsun istiyorsan ayrıca kaldır.
+  const moveProfToDept = async (prof, dept) => {
+    try {
+      await window.DBWrite.set(
+        'professors',
+        prof.id,
+        {
+          departmentId: dept.id,
+          department: dept.name,
+          facultyId: myFacultyId,
+        },
+        true
+      );
+      await load();
+      showMsg(`${prof.name} → ${dept.name} bölümüne taşındı.`);
+    } catch (e) {
+      showMsg('Taşıma hatası: ' + e.message, 'error');
     }
   };
 
@@ -370,6 +408,26 @@ function FakYonetimiApp({ currentUser }) {
           <p style={{ fontSize: 13, color: FAK.textMuted, marginTop: 4 }}>
             {faculty?.name || 'Fakülte'} — bölümleri ve akademisyenleri yönet
           </p>
+          <div
+            style={{
+              marginTop: 10,
+              padding: '10px 14px',
+              borderRadius: 8,
+              background: FAK.accentPale,
+              border: '1px solid ' + FAK.border,
+              fontSize: 12,
+              color: FAK.text,
+              lineHeight: 1.6,
+              maxWidth: 720,
+            }}
+          >
+            <b>Akademi hiyerarşisi:</b> Bir akademisyeni bir bölüme bağlamak için
+            <i> "Bölüme akademisyen ekle…"</i>; doğrudan bölüm yetkilisi atamak için
+            <i> "Doğrudan bölüm yetkilisi yap…"</i>; halihazırda eklenmiş bir akademisyene yetki
+            vermek için satırın yanındaki <i>"Yetkili Yap"</i> butonunu kullan. Akademisyeni başka
+            bir bölüme taşımak için satırdaki <i>"Taşı…"</i> menüsünü kullan. Atanan bayraklar
+            kullanıcının bir sonraki girişinde etkinleşir.
+          </div>
         </div>
         <button
           onClick={openNew}
@@ -486,7 +544,7 @@ function FakYonetimiApp({ currentUser }) {
           </div>
         )}
         <ProfPicker
-          professors={facultyProfs.filter((p) => !p.isStajCoordinator)}
+          professors={assignableProfs.filter((p) => !p.isStajCoordinator)}
           placeholder="Staj yetkilisi eklemek için akademisyen ara…"
           onPick={(p) => assignStajCoordinator(p)}
         />
@@ -498,10 +556,52 @@ function FakYonetimiApp({ currentUser }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Bölüm kısayolları — sayfa içi atlama (sağ panel olmadan da gezinmek için) */}
+          {departments.length > 1 && (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 6,
+                padding: '10px 12px',
+                background: '#F9FAFB',
+                border: '1px solid ' + FAK.border,
+                borderRadius: 10,
+              }}
+            >
+              <span style={{ fontSize: 11, fontWeight: 700, color: FAK.textMuted, marginRight: 6 }}>
+                BÖLÜME ATLA:
+              </span>
+              {departments.map((d) => (
+                <a
+                  key={d.id}
+                  href={`#dept-${d.id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const el = document.getElementById(`dept-${d.id}`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    background: 'white',
+                    border: '1px solid ' + FAK.border,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: FAK.text,
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {d.shortName || d.name}
+                </a>
+              ))}
+            </div>
+          )}
           {departments.map((d) => {
             const deptProfs = profsOfDept(d.id, d.name);
             return (
-              <div key={d.id} style={fCard}>
+              <div key={d.id} id={`dept-${d.id}`} style={fCard}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                   <div
                     style={{
@@ -614,15 +714,53 @@ function FakYonetimiApp({ currentUser }) {
                               Yetkili Yap
                             </button>
                           )}
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const tgt = departments.find((x) => x.id === e.target.value);
+                              if (tgt && tgt.id !== d.id) moveProfToDept(p, tgt);
+                            }}
+                            title="Başka bölüme taşı"
+                            style={{
+                              border: '1px solid ' + FAK.border,
+                              background: 'white',
+                              color: FAK.textMuted,
+                              fontSize: 11,
+                              padding: '4px 6px',
+                              borderRadius: 7,
+                              cursor: 'pointer',
+                              maxWidth: 110,
+                            }}
+                          >
+                            <option value="">Taşı…</option>
+                            {departments
+                              .filter((x) => x.id !== d.id)
+                              .map((x) => (
+                                <option key={x.id} value={x.id}>
+                                  {x.shortName || x.name}
+                                </option>
+                              ))}
+                          </select>
                         </div>
                       ))}
                     </div>
                   )}
-                  <ProfPicker
-                    professors={facultyProfs.filter((p) => !deptProfs.some((dp) => dp.id === p.id))}
-                    placeholder="Bölüme akademisyen ekle…"
-                    onPick={(p) => addProfToDept(d, p)}
-                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <ProfPicker
+                      professors={assignableProfs.filter(
+                        (p) => !deptProfs.some((dp) => dp.id === p.id)
+                      )}
+                      placeholder="Bölüme akademisyen ekle…"
+                      onPick={(p) => addProfToDept(d, p)}
+                    />
+                    <ProfPicker
+                      professors={assignableProfs.filter(
+                        (p) => !deptProfs.some((dp) => dp.id === p.id && dp.isDeptManager)
+                      )}
+                      placeholder="Doğrudan bölüm yetkilisi yap…"
+                      onPick={(p) => addProfToDept(d, p, { makeManager: true })}
+                    />
+                  </div>
                 </div>
               </div>
             );
