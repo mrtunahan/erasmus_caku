@@ -246,6 +246,8 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
   const isMobile = responsive.val(true, false, false);
   const [expanded, setExpanded] = useState(null);
   const [myApplication, setMyApplication] = useState(null);
+  const [myApplications, setMyApplications] = useState([]);
+  const [selectedAppId, setSelectedAppId] = useState('');
   const [roadmapData, setRoadmapData] = useState({});
   const [loadingRoadmap, setLoadingRoadmap] = useState(true);
   const [uploads, setUploads] = useState({});
@@ -256,7 +258,7 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
     !['admin', 'bolum_yetkilisi', 'professor'].includes(currentUser?.role);
   const studentId = currentUser?.studentNumber || currentUser?.identifier || '';
 
-  // Öğrencinin onaylanmış başvurusunu ve roadmap verilerini yükle
+  // Öğrencinin TÜM başvurularını yükle; seçili etabı belirle.
   useEffect(() => {
     const loadData = async () => {
       setLoadingRoadmap(true);
@@ -265,30 +267,18 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
           setLoadingRoadmap(false);
           return;
         }
-
-        // Öğrencinin başvurularını yükle
         const apps = await window.apiRead('internship_applications', {
           where: 'ogrenciNo:eq:s:' + studentId,
         });
-        // Onaylanmış (devam) veya tamamlanmış başvuruyu bul, yoksa beklemede olanı al
-        const activeApp =
+        setMyApplications(apps);
+        const preferred =
           apps.find((a) => a.status === 'devam') ||
           apps.find((a) => a.status === 'tamamlandi') ||
           apps.find((a) => a.status === 'beklemede') ||
+          apps[0] ||
           null;
-        setMyApplication(activeApp);
-
-        // Roadmap verilerini yükle
-        if (activeApp) {
-          const roadmapResult = await window.apiReadDoc('internship_roadmap', activeApp.id);
-          if (roadmapResult.exists) {
-            setRoadmapData(roadmapResult.data || {});
-          }
-        }
-
-        // Yüklenen belgeleri yükle
-        const uploadResult = await window.apiReadDoc('internship_uploads', studentId);
-        if (uploadResult.exists) setUploads(uploadResult.data || {});
+        const current = apps.find((a) => a.id === selectedAppId) || preferred;
+        setSelectedAppId(current?.id || '');
       } catch (e) {
         console.error('Roadmap verileri yüklenirken hata:', e);
       } finally {
@@ -301,6 +291,33 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
       setLoadingRoadmap(false);
     }
   }, [studentId, isStudent]);
+
+  // Seçili etabın roadmap + belgelerini (başvuru bazlı) yükle.
+  useEffect(() => {
+    if (!selectedAppId) {
+      setMyApplication(null);
+      setRoadmapData({});
+      setUploads({});
+      return;
+    }
+    const app = myApplications.find((a) => a.id === selectedAppId) || null;
+    setMyApplication(app);
+    let cancelled = false;
+    (async () => {
+      try {
+        const roadmapResult = await window.apiReadDoc('internship_roadmap', selectedAppId);
+        if (!cancelled) setRoadmapData(roadmapResult.exists ? roadmapResult.data || {} : {});
+        // Belgeler başvuru (etap) bazlı: doküman id = başvuru id.
+        const uploadResult = await window.apiReadDoc('internship_uploads', selectedAppId);
+        if (!cancelled) setUploads(uploadResult.exists ? uploadResult.data || {} : {});
+      } catch (e) {
+        console.error('Etap verileri yüklenemedi:', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAppId, myApplications]);
 
   // Adım durumunu belirle
   const getStepStatus = (stepIdx) => {
@@ -877,6 +894,53 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
           </div>
         )}
       </div>
+
+      {/* Etap Seçici (birden fazla başvuru varsa) */}
+      {isStudent && myApplications.length > 1 && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: '12px 14px',
+            borderRadius: 10,
+            background: 'white',
+            border: '1.5px solid #E5E7EB',
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 700, color: STAJ.navy, marginBottom: 8 }}>
+            Staj Etabı (her etabın süreci ayrıdır)
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {myApplications.map((a) => {
+              const active = a.id === selectedAppId;
+              return (
+                <button
+                  key={a.id}
+                  onClick={() => setSelectedAppId(a.id)}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    border: `1.5px solid ${active ? STAJ.primary : '#E5E7EB'}`,
+                    background: active ? STAJ.primary : 'white',
+                    color: active ? 'white' : STAJ.navy,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {a.stajEtapLabel || 'Etap'} ·{' '}
+                  {a.status === 'devam'
+                    ? 'Onaylı'
+                    : a.status === 'tamamlandi'
+                      ? 'Tamamlandı'
+                      : a.status === 'reddedildi'
+                        ? 'Reddedildi'
+                        : 'Beklemede'}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Bilgilendirme mesajı */}
       {actionMsg && (
@@ -2874,6 +2938,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   const [changeRequests, setChangeRequests] = useState({});
   const [roadmapData, setRoadmapData] = useState(null);
   const [myApplication, setMyApplication] = useState(null);
+  const [myApplications, setMyApplications] = useState([]);
+  const [selectedAppId, setSelectedAppId] = useState('');
   const [loadingApp, setLoadingApp] = useState(true);
 
   // Track if component is mounted to prevent state updates on unmounted component
@@ -2885,16 +2951,20 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   }, []);
 
   const studentId = currentUser?.studentNumber || currentUser?.identifier || '';
+  // Belgeler ARTIK başvuru (etap) bazlı saklanır: doküman id = başvuru id.
+  // Böylece her staj etabının belgeleri birbirinden bağımsızdır.
+  const uploadDocId = selectedAppId || myApplication?.id || '';
 
   // Document visibility step constants
   // INITIAL_DOCUMENT_STEP: Application documents belong to step 2 (Belge Yükleme)
   const INITIAL_DOCUMENT_STEP = 2;
 
-  // Belge durumunu DB'den yükleyip state'e yaz
-  const loadUploadsFromDB = async () => {
-    if (!studentId || !mountedRef.current) return;
+  // Belge durumunu DB'den yükleyip state'e yaz (seçili başvuruya göre)
+  const loadUploadsFromDB = async (docId) => {
+    const key = docId || uploadDocId;
+    if (!key || !mountedRef.current) return;
     try {
-      const uploadResult = await window.apiReadDoc('internship_uploads', studentId);
+      const uploadResult = await window.apiReadDoc('internship_uploads', key);
       if (!mountedRef.current) return;
       if (uploadResult.exists) {
         const data = uploadResult.data || {};
@@ -2913,7 +2983,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     }
   };
 
-  // Yüklenen belgeleri, değişiklik taleplerini ve roadmap durumunu yükle
+  // Öğrencinin TÜM başvurularını yükle; seçili başvuruyu belirle.
   useEffect(() => {
     const loadData = async () => {
       if (!mountedRef.current) return;
@@ -2923,35 +2993,24 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
           if (mountedRef.current) setLoadingApp(false);
           return;
         }
-
-        // Öğrencinin staj başvurusunu yükle (ogrenciNo alanıyla sorgula)
         const apps = await window.apiRead('internship_applications', {
           where: 'ogrenciNo:eq:s:' + studentId,
         });
         if (!mountedRef.current) return;
-
+        setMyApplications(apps);
         if (apps.length > 0) {
-          // Onaylı (devam) > beklemede > diğer sırasıyla al
-          const app =
+          // Varsayılan seçim: devam > tamamlandi > beklemede > ilk.
+          const preferred =
             apps.find((a) => a.status === 'devam') ||
             apps.find((a) => a.status === 'tamamlandi') ||
             apps.find((a) => a.status === 'beklemede') ||
             apps[0];
-          setMyApplication(app);
-
-          // Roadmap ve belgeler bağımsız olarak yükle; birinin hatası diğerini etkilemesin
-          const [rmSettled, uploadsSettled] = await Promise.allSettled([
-            // Roadmap verisini yükle
-            window.apiReadDoc('internship_roadmap', app.id).then((rmResult) => {
-              if (mountedRef.current && rmResult.exists) setRoadmapData(rmResult.data);
-            }),
-            // Belgeleri yükle (başvurusu olanlar için)
-            loadUploadsFromDB(),
-          ]);
-          if (rmSettled.status === 'rejected')
-            console.error('Roadmap yüklenemedi:', rmSettled.reason);
-          if (uploadsSettled.status === 'rejected')
-            console.error('Belgeler yüklenemedi:', uploadsSettled.reason);
+          // Seçili başvuru hâlâ listedeyse koru, değilse tercih edileni seç.
+          const current = apps.find((a) => a.id === selectedAppId) || preferred;
+          setSelectedAppId(current.id);
+        } else {
+          setSelectedAppId('');
+          setMyApplication(null);
         }
       } catch (e) {
         console.error('Staj verileri yüklenirken hata:', e);
@@ -2961,6 +3020,32 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     };
     loadData();
   }, [studentId, activeDepartment]);
+
+  // Seçili başvuru değişince o etabın roadmap + belgelerini yükle.
+  useEffect(() => {
+    if (!selectedAppId) {
+      setRoadmapData(null);
+      setUploads({});
+      setChangeRequests({});
+      return;
+    }
+    const app = myApplications.find((a) => a.id === selectedAppId) || null;
+    setMyApplication(app);
+    let cancelled = false;
+    (async () => {
+      try {
+        const rmResult = await window.apiReadDoc('internship_roadmap', selectedAppId);
+        if (!cancelled && mountedRef.current && rmResult.exists) setRoadmapData(rmResult.data);
+        else if (!cancelled && mountedRef.current) setRoadmapData(null);
+      } catch (e) {
+        console.error('Roadmap yüklenemedi:', e);
+      }
+      await loadUploadsFromDB(selectedAppId);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAppId, myApplications]);
 
   const BELGE_ALANLARI = [
     {
@@ -3031,7 +3116,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
         },
       };
 
-      await window.DBWrite.set('internship_uploads', studentId, { [belgeId]: updatedData }, true);
+      await window.DBWrite.set('internship_uploads', uploadDocId, { [belgeId]: updatedData }, true);
 
       setUploads((prev) => ({ ...prev, [belgeId]: updatedData }));
       setChangeRequests((prev) => ({ ...prev, [belgeId]: updatedData.changeRequest }));
@@ -3208,7 +3293,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
         console.warn('Dosya sunucuya yüklenemedi, sadece kayıt tutulacak:', uploadErr);
       }
 
-      await window.DBWrite.set('internship_uploads', studentId, { [belgeId]: fileData }, true);
+      await window.DBWrite.set('internship_uploads', uploadDocId, { [belgeId]: fileData }, true);
 
       if (!mountedRef.current) return;
 
@@ -3410,6 +3495,53 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
             />
             Staj Başvurusu Yap
           </button>
+        </div>
+      )}
+
+      {/* ── Etap Seçici (birden fazla başvuru varsa) ── */}
+      {!loadingApp && myApplications.length > 1 && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: '12px 14px',
+            borderRadius: 10,
+            background: 'white',
+            border: '1.5px solid #E5E7EB',
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 700, color: STAJ.navy, marginBottom: 8 }}>
+            Staj Etabı Seçin (her etabın belgeleri ayrıdır)
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {myApplications.map((a) => {
+              const active = a.id === selectedAppId;
+              return (
+                <button
+                  key={a.id}
+                  onClick={() => setSelectedAppId(a.id)}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    border: `1.5px solid ${active ? STAJ.primary : '#E5E7EB'}`,
+                    background: active ? STAJ.primary : 'white',
+                    color: active ? 'white' : STAJ.navy,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {a.stajEtapLabel || 'Etap'} ·{' '}
+                  {a.status === 'devam'
+                    ? 'Onaylı'
+                    : a.status === 'tamamlandi'
+                      ? 'Tamamlandı'
+                      : a.status === 'reddedildi'
+                        ? 'Reddedildi'
+                        : 'Beklemede'}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -4241,9 +4373,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
     // Tamamlandı onayı vermeden önce belge kontrolü
     if (newStatus === 'tamamlandi') {
-      const app = allApplications.find((a) => a.id === appId);
-      const ogrNo = app?.ogrenciNo || selectedApp?.ogrenciNo;
-      const uploads = allUploads[ogrNo] || {};
+      // Belgeler başvuru (etap) bazlı saklanır → appId ile ara.
+      const uploads = allUploads[appId] || {};
       const requiredDocs = [
         'zorunlu_staj_formu',
         'staj_basvuru_formu_ek1',
@@ -4401,15 +4532,15 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       try {
         await window.DBWrite.remove('internship_roadmap', appId);
       } catch {}
-      // İlişkili yüklenen belgeleri de sil (öğrenci no ile kayıtlı)
-      if (app?.ogrenciNo) {
+      // İlişkili yüklenen belgeleri de sil (başvuru/etap id ile kayıtlı)
+      if (appId) {
         try {
-          await window.DBWrite.remove('internship_uploads', app.ogrenciNo);
+          await window.DBWrite.remove('internship_uploads', appId);
         } catch {}
         // allUploads state'inden de kaldır
         setAllUploads((prev) => {
           const newUploads = { ...prev };
-          delete newUploads[app.ogrenciNo];
+          delete newUploads[appId];
           return newUploads;
         });
       }
@@ -4699,8 +4830,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
-  // Admin: Belge değişiklik talebini onayla
-  const handleApproveDocChange = async (ogrenciNo, belgeId) => {
+  // Admin: Belge değişiklik talebini onayla (docId = başvuru/etap id)
+  const handleApproveDocChange = async (docId, belgeId) => {
     if (!canActOnDept) {
       denyCrossDept();
       return;
@@ -4708,10 +4839,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     try {
       await window.DBWrite.set(
         'internship_uploads',
-        ogrenciNo,
+        docId,
         {
           [belgeId]: {
-            ...allUploads[ogrenciNo]?.[belgeId],
+            ...allUploads[docId]?.[belgeId],
             changeRequest: {
               status: 'approved',
               approvedBy: currentUser?.name || currentUser?.identifier || '',
@@ -4736,8 +4867,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
-  // Admin: Belge değişiklik talebini reddet
-  const handleRejectDocChange = async (ogrenciNo, belgeId) => {
+  // Admin: Belge değişiklik talebini reddet (docId = başvuru/etap id)
+  const handleRejectDocChange = async (docId, belgeId) => {
     if (!canActOnDept) {
       denyCrossDept();
       return;
@@ -4745,10 +4876,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     try {
       await window.DBWrite.set(
         'internship_uploads',
-        ogrenciNo,
+        docId,
         {
           [belgeId]: {
-            ...allUploads[ogrenciNo]?.[belgeId],
+            ...allUploads[docId]?.[belgeId],
             changeRequest: {
               status: 'rejected',
               rejectedBy: currentUser?.name || currentUser?.identifier || '',
@@ -7409,7 +7540,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
                     {/* Yüklenen Belgeler */}
                     {(() => {
-                      const studentUploads = allUploads[selectedApp.ogrenciNo] || {};
+                      const studentUploads = allUploads[selectedApp.id] || {};
                       const BELGE_LABELS = {
                         zorunlu_staj_formu: 'Zorunlu Staj Formu',
                         staj_basvuru_formu_ek1: 'Staj Başvuru Formu (Ek-1)',
@@ -7500,12 +7631,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                         alignItems: 'center',
                                       }}
                                     >
-                                      {getFileUrl(selectedApp.ogrenciNo, key) ? (
+                                      {getFileUrl(selectedApp.id, key) ? (
                                         <>
                                           <button
-                                            onClick={() =>
-                                              handlePreviewFile(selectedApp.ogrenciNo, key)
-                                            }
+                                            onClick={() => handlePreviewFile(selectedApp.id, key)}
                                             style={{
                                               padding: '6px 12px',
                                               borderRadius: 6,
@@ -7527,9 +7656,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                             Görüntüle
                                           </button>
                                           <button
-                                            onClick={() =>
-                                              handleDownloadFile(selectedApp.ogrenciNo, key)
-                                            }
+                                            onClick={() => handleDownloadFile(selectedApp.id, key)}
                                             style={{
                                               padding: '6px 12px',
                                               borderRadius: 6,
@@ -7566,7 +7693,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                         <>
                                           <button
                                             onClick={() =>
-                                              handleApproveDocChange(selectedApp.ogrenciNo, key)
+                                              handleApproveDocChange(selectedApp.id, key)
                                             }
                                             style={{
                                               padding: '6px 12px',
@@ -7587,7 +7714,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                           </button>
                                           <button
                                             onClick={() =>
-                                              handleRejectDocChange(selectedApp.ogrenciNo, key)
+                                              handleRejectDocChange(selectedApp.id, key)
                                             }
                                             style={{
                                               padding: '6px 12px',
@@ -8399,7 +8526,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {filteredApplications.map((app) => {
                     const status = getAppStageBadge(app);
-                    const studentUploads = allUploads[app.ogrenciNo] || {};
+                    const studentUploads = allUploads[app.id] || {};
                     const VALID_DOC_KEYS = [
                       'zorunlu_staj_formu',
                       'staj_basvuru_formu_ek1',

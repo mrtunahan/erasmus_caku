@@ -738,38 +738,42 @@ const CourseMatchCard = ({
             {status === 'approved' ? 'Onaylayan' : 'Reddeden'}: {match.reviewedBy}
           </span>
         )}
-        {canApprove && status === 'pending' && (
+        {canApprove && (
           <span style={{ display: 'flex', gap: 6 }}>
-            <button
-              onClick={() => onApprove && onApprove(match.id)}
-              style={{
-                padding: '5px 12px',
-                borderRadius: 7,
-                border: 'none',
-                background: '#10B981',
-                color: 'white',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Onayla
-            </button>
-            <button
-              onClick={() => onReject && onReject(match.id)}
-              style={{
-                padding: '5px 12px',
-                borderRadius: 7,
-                border: 'none',
-                background: '#EF4444',
-                color: 'white',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Reddet
-            </button>
+            {status !== 'approved' && (
+              <button
+                onClick={() => onApprove && onApprove(match.id)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 7,
+                  border: 'none',
+                  background: '#10B981',
+                  color: 'white',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {status === 'rejected' ? 'Yeniden Onayla' : 'Onayla'}
+              </button>
+            )}
+            {status !== 'rejected' && (
+              <button
+                onClick={() => onReject && onReject(match.id)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 7,
+                  border: 'none',
+                  background: '#EF4444',
+                  color: 'white',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {status === 'approved' ? 'Onayı Geri Al' : 'Reddet'}
+              </button>
+            )}
           </span>
         )}
       </div>
