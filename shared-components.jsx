@@ -6936,9 +6936,16 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
 
     setLoading(true);
     try {
-      const role = currentUser.role;
-      const identifier =
-        role === 'student'
+      // Hierarchy yetkilileri (uni admin / fac manager / dept manager) akademisyen
+      // olarak giriş yapıyor; şifreleri 'professor_passwords' koleksiyonunda.
+      // ChangePassword isteğinde role=currentUser.role kullanmak şifreyi
+      // YANLIŞ koleksiyona yazıyordu (admin/department_manager_passwords).
+      // baseRole='professor' ise her zaman role='professor' + name gönderilir.
+      const isProfBased = currentUser.baseRole === 'professor';
+      const role = isProfBased ? 'professor' : currentUser.role;
+      const identifier = isProfBased
+        ? currentUser.name
+        : role === 'student'
           ? currentUser.studentNumber
           : role === 'professor'
             ? currentUser.name
