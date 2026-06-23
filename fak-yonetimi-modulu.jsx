@@ -223,8 +223,23 @@ function FakYonetimiApp({ currentUser }) {
     [professors, myFacultyId]
   );
 
-  const profsOfDept = (deptId, deptName) =>
-    professors.filter((p) => p.departmentId === deptId || (deptName && p.department === deptName));
+  // Bir bölümün akademisyenleri — id (öncelikli) veya ad eşleşmesi ile bulunur.
+  // Eski kayıtlarda departmentId boş ama department='Gıda Mühendisliği' olabilir;
+  // her iki durumu da yakalar, sonra id'ye göre benzersizleştirir (UI duplicate
+  // önlemi). Ayrıca eski 'department adı eşleşmiş ama departmentId boş' kayıtları
+  // tespit etmek için kullanılır.
+  const profsOfDept = (deptId, deptName) => {
+    const matched = professors.filter(
+      (p) => p.departmentId === deptId || (deptName && p.department === deptName)
+    );
+    const seen = new Set();
+    return matched.filter((p) => {
+      const k = p.id || p._docId || p.name;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  };
 
   const openNew = () => {
     setForm({ name: '', shortName: '' });
