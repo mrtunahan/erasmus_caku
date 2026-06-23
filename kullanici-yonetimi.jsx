@@ -10,11 +10,11 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   const DEPARTMENTS = window.DEPARTMENTS || [];
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
-  const [activeSection, setActiveSection] = useState("students"); // students, professors, passwords
+  const [activeSection, setActiveSection] = useState('students'); // students, professors, passwords
   const [students, setStudents] = useState([]);
   const [professors, setProfessors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
   const [editingStudent, setEditingStudent] = useState(null);
   const [editingProf, setEditingProf] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -23,19 +23,21 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   // Password states
   const [studentPasses, setStudentPasses] = useState({});
   const [professorPasses, setProfessorPasses] = useState({});
-  const [adminPass, setAdminPass] = useState("");
-  const [passwordTab, setPasswordTab] = useState("student");
-  const [defaultProfPass, setDefaultProfPass] = useState("");
-  const [defaultProfAdminPass, setDefaultProfAdminPass] = useState("");
+  const [adminPass, setAdminPass] = useState('');
+  const [passwordTab, setPasswordTab] = useState('student');
+  const [defaultProfPass, setDefaultProfPass] = useState('');
+  const [defaultProfAdminPass, setDefaultProfAdminPass] = useState('');
   const [savingDefault, setSavingDefault] = useState(false);
 
   // Bölümleri yükle (dropdown için)
   useEffect(() => {
     const loadDepts = async () => {
       try {
-        const depts = await window.apiRead("departments");
+        const depts = await window.apiRead('departments');
         setDbDepartments(depts);
-      } catch (e) { console.error("Bölümler yüklenemedi:", e); }
+      } catch (e) {
+        console.error('Bölümler yüklenemedi:', e);
+      }
     };
     loadDepts();
   }, []);
@@ -45,31 +47,53 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   }, [activeDepartment]);
 
   const loadData = async () => {
-    if (!DB.isReady()) { setLoading(false); return; }
+    if (!DB.isReady()) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const [fetchedStudents, fetchedProfs] = await Promise.all([
         DB.fetchStudents(),
-        DB.fetchProfessors()
+        DB.fetchProfessors(),
       ]);
-      // Bölüm filtresi: departmentId veya department adı eşleştirmesi
-      const deptInfo = DEPARTMENTS.find(d => d.id === activeDepartment);
-      const deptName = deptInfo?.name || "";
+      // Bölüm filtresi: departmentId OR department adı eşleştirmesi.
+      // Önemli: 'departmentId varsa sadece id'ye bak' kuralı YANLIŞTI; bir
+      // akademisyenin departmentId'si başka bir değere set edilmiş (eski/yanlış)
+      // ama department adı doğru ise, ad eşleşmesini de kabul etmek gerekir
+      // (aksi halde Fakülte Yönetimi'nde görünen akademisyen Kullanıcı
+      // Yönetimi'nde kayboluyor).
+      const deptInfo = DEPARTMENTS.find((d) => d.id === activeDepartment);
+      const deptName = deptInfo?.name || '';
+      const normName = (s) => (s || '').toLowerCase().replace(/\s+/g, '');
+      const target = normName(deptName);
+      const shortTarget = normName(deptInfo?.shortName);
       const filterByDept = (item) => {
         if (!activeDepartment) return true;
-        // departmentId varsa ona göre filtrele
-        if (item.departmentId) return item.departmentId === activeDepartment;
-        // yoksa department adını normalize edip eşleştir
-        const dept = (item.department || "").toLowerCase().replace(/\s+/g, "");
-        const target = deptName.toLowerCase().replace(/\s+/g, "");
-        const shortTarget = (deptInfo?.shortName || "").toLowerCase().replace(/\s+/g, "");
-        return dept === target || dept === shortTarget || dept.includes(shortTarget);
+        if (item.departmentId === activeDepartment) return true;
+        const dept = normName(item.department);
+        if (!dept) return false;
+        return (
+          dept === target ||
+          (shortTarget && dept === shortTarget) ||
+          (shortTarget && dept.includes(shortTarget))
+        );
       };
-      setStudents((fetchedStudents || []).filter(s => {
-        const deptId = s.departmentId || "bilgisayar";
-        return deptId === activeDepartment;
-      }));
-      setProfessors((fetchedProfs || []).filter(filterByDept).sort((a, b) => (a.name || "").localeCompare(b.name || "")));
+      // Öğrenciler için de aynı OR mantığı — eski 'departmentId yoksa bilgisayar'
+      // fallback'i kaldırıldı (yanlış bölüme düşürüyordu).
+      const filterStudentByDept = (s) => {
+        if (!activeDepartment) return true;
+        if (s.departmentId === activeDepartment) return true;
+        const dept = normName(s.department || s.departmentName);
+        if (!dept) return false;
+        return dept === target || (shortTarget && dept === shortTarget);
+      };
+      setStudents((fetchedStudents || []).filter(filterStudentByDept));
+      setProfessors(
+        (fetchedProfs || [])
+          .filter(filterByDept)
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      );
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -81,15 +105,15 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   const handleAddStudent = () => {
     const newStudent = {
       id: String(Date.now()),
-      studentNumber: "",
-      firstName: "",
-      lastName: "",
-      hostInstitution: "",
-      hostCountry: "",
-      semester: "Fall 2025",
+      studentNumber: '',
+      firstName: '',
+      lastName: '',
+      hostInstitution: '',
+      hostCountry: '',
+      semester: 'Fall 2025',
       outgoingMatches: [],
       returnMatches: [],
-      erasmusAccess: true
+      erasmusAccess: true,
     };
     setEditingStudent(newStudent);
   };
@@ -97,12 +121,12 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   const handleSaveStudent = async (student) => {
     setSaving(true);
     try {
-      if (students.find(s => s.id === student.id)) {
+      if (students.find((s) => s.id === student.id)) {
         await DB.updateStudent(student.id, student);
-        setStudents(prev => prev.map(s => s.id === student.id ? student : s));
+        setStudents((prev) => prev.map((s) => (s.id === student.id ? student : s)));
       } else {
         await DB.addStudent(student);
-        setStudents(prev => [...prev, student]);
+        setStudents((prev) => [...prev, student]);
       }
       setEditingStudent(null);
       alert('Öğrenci kaydedildi!');
@@ -115,14 +139,18 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   };
 
   const handleDeleteStudent = async (id) => {
-    if (!confirm("Bu öğrenciyi silmek istediğinizden emin misiniz?")) return;
+    if (!confirm('Bu öğrenciyi silmek istediğinizden emin misiniz?')) return;
     try {
-      const st = students.find(s => s.id === id);
+      const st = students.find((s) => s.id === id);
       await DB.deleteStudent(id);
-      if (window.audit) window.audit("student_delete", "students", id, {
-        meta: { studentNumber: st?.studentNumber, name: `${st?.firstName || ""} ${st?.lastName || ""}`.trim() },
-      });
-      setStudents(prev => prev.filter(s => s.id !== id));
+      if (window.audit)
+        window.audit('student_delete', 'students', id, {
+          meta: {
+            studentNumber: st?.studentNumber,
+            name: `${st?.firstName || ''} ${st?.lastName || ''}`.trim(),
+          },
+        });
+      setStudents((prev) => prev.filter((s) => s.id !== id));
     } catch (error) {
       console.error('Delete error:', error);
     }
@@ -132,10 +160,13 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     try {
       const newAccess = !student.erasmusAccess;
       await DB.updateStudent(student.id, { ...student, erasmusAccess: newAccess });
-      if (window.audit) window.audit("student_erasmus_access", "students", student.id, {
-        meta: { studentNumber: student.studentNumber, erasmusAccess: newAccess },
-      });
-      setStudents(prev => prev.map(s => s.id === student.id ? { ...s, erasmusAccess: newAccess } : s));
+      if (window.audit)
+        window.audit('student_erasmus_access', 'students', student.id, {
+          meta: { studentNumber: student.studentNumber, erasmusAccess: newAccess },
+        });
+      setStudents((prev) =>
+        prev.map((s) => (s.id === student.id ? { ...s, erasmusAccess: newAccess } : s))
+      );
     } catch (error) {
       console.error('Erasmus erişim güncelleme hatası:', error);
       alert('Erişim güncellenirken hata oluştu.');
@@ -144,27 +175,45 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
 
   // ── Professor Handlers ──
   const handleSaveProfessor = async () => {
-    if (!editingProf.name || !editingProf.departmentId) return alert("İsim ve Bölüm zorunludur.");
+    if (!editingProf.name || !editingProf.departmentId) return alert('İsim ve Bölüm zorunludur.');
     // departmentId'den department adını bul
-    const dept = DEPARTMENTS.find(d => d.id === editingProf.departmentId);
-    const profData = { ...editingProf, department: dept?.name || editingProf.department || "", departmentId: editingProf.departmentId };
+    const dept = DEPARTMENTS.find((d) => d.id === editingProf.departmentId);
+    const profData = {
+      ...editingProf,
+      department: dept?.name || editingProf.department || '',
+      departmentId: editingProf.departmentId,
+    };
     // Bölüm değişimini tespit et (kullanıcıya bilgilendirici mesaj göstermek için)
-    const originalDeptId = editingProf.id ? (professors.find(p => p.id === editingProf.id)?.departmentId || "bilgisayar") : null;
-    const isMovingAway = originalDeptId && originalDeptId !== editingProf.departmentId && activeDepartment && originalDeptId === activeDepartment;
+    const originalDeptId = editingProf.id
+      ? professors.find((p) => p.id === editingProf.id)?.departmentId || 'bilgisayar'
+      : null;
+    const isMovingAway =
+      originalDeptId &&
+      originalDeptId !== editingProf.departmentId &&
+      activeDepartment &&
+      originalDeptId === activeDepartment;
     setSaving(true);
     try {
       await DB.saveProfessor(profData);
-      if (window.audit) window.audit(editingProf.id ? "professor_update" : "professor_create", "professors", editingProf.id || "", {
-        meta: { name: profData.name, departmentId: profData.departmentId },
-      });
+      if (window.audit)
+        window.audit(
+          editingProf.id ? 'professor_update' : 'professor_create',
+          'professors',
+          editingProf.id || '',
+          {
+            meta: { name: profData.name, departmentId: profData.departmentId },
+          }
+        );
       setEditingProf(null);
       // Filtreyi yeniden uygula (bölüm değişmişse profesör bu listeden çıkar)
       await loadData();
       if (isMovingAway) {
-        alert(`${editingProf.name} artık ${dept?.name || editingProf.departmentId} bölümüne atandı. Bu bölüm listesinden kaldırıldı, fakülte genelinde yeni bölümünde görünür.`);
+        alert(
+          `${editingProf.name} artık ${dept?.name || editingProf.departmentId} bölümüne atandı. Bu bölüm listesinden kaldırıldı, fakülte genelinde yeni bölümünde görünür.`
+        );
       }
     } catch (e) {
-      alert("Hata: " + e.message);
+      alert('Hata: ' + e.message);
     } finally {
       setSaving(false);
     }
@@ -175,10 +224,10 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     setSaving(true);
     try {
       await DB.deleteProfessor(id);
-      if (window.audit) window.audit("professor_delete", "professors", id, { meta: { name } });
+      if (window.audit) window.audit('professor_delete', 'professors', id, { meta: { name } });
       await loadData();
     } catch (e) {
-      alert("Hata: " + e.message);
+      alert('Hata: ' + e.message);
     } finally {
       setSaving(false);
     }
@@ -188,30 +237,33 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   const handleSavePasswords = async () => {
     setSaving(true);
     try {
-      if (passwordTab === "student") {
+      if (passwordTab === 'student') {
         for (const [studentNo, pass] of Object.entries(studentPasses)) {
           if (pass && pass !== '••••••') {
             await DB.changePassword('student', studentNo, pass);
-            if (window.audit) window.audit("password_reset", "passwords", studentNo, { meta: { role: "student" } });
+            if (window.audit)
+              window.audit('password_reset', 'passwords', studentNo, { meta: { role: 'student' } });
           }
         }
-      } else if (passwordTab === "professor") {
+      } else if (passwordTab === 'professor') {
         for (const [name, pass] of Object.entries(professorPasses)) {
           if (pass && pass !== '••••••') {
             await DB.changePassword('professor', name, pass);
-            if (window.audit) window.audit("password_reset", "passwords", name, { meta: { role: "professor" } });
+            if (window.audit)
+              window.audit('password_reset', 'passwords', name, { meta: { role: 'professor' } });
           }
         }
-      } else if (passwordTab === "admin") {
+      } else if (passwordTab === 'admin') {
         if (adminPass && adminPass.length >= 6) {
           await DB.changePassword('admin', null, adminPass);
-          if (window.audit) window.audit("password_reset", "passwords", "admin", { meta: { role: "admin" } });
+          if (window.audit)
+            window.audit('password_reset', 'passwords', 'admin', { meta: { role: 'admin' } });
         }
       }
       alert('Şifreler kaydedildi!');
       setStudentPasses({});
       setProfessorPasses({});
-      setAdminPass("");
+      setAdminPass('');
     } catch (error) {
       console.error('Error saving passwords:', error);
       alert('Hata: ' + error.message);
@@ -225,7 +277,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
       <div className="portal-bg">
         <div className="portal-wrap">
           <Card>
-            <div style={{ padding: 40, textAlign: "center", color: C.textMuted }}>
+            <div style={{ padding: 40, textAlign: 'center', color: C.textMuted }}>
               Bu sayfaya erişim yetkiniz bulunmamaktadır.
             </div>
           </Card>
@@ -235,21 +287,27 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   }
 
   if (loading) {
-    return <div style={{ padding: 60, textAlign: "center", color: C.textMuted }}>Veriler yükleniyor...</div>;
+    return (
+      <div style={{ padding: 60, textAlign: 'center', color: C.textMuted }}>
+        Veriler yükleniyor...
+      </div>
+    );
   }
 
-  const filteredStudents = students.filter(s =>
-    `${s.firstName} ${s.lastName} ${s.studentNumber}`.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredStudents = students.filter((s) =>
+    `${s.firstName} ${s.lastName} ${s.studentNumber}`
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
   );
 
-  const filteredProfessors = professors.filter(p =>
+  const filteredProfessors = professors.filter((p) =>
     `${p.name} ${p.department || ''}`.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const sectionTabs = [
-    { id: "students", label: "Öğrenciler", count: students.length },
-    { id: "professors", label: "Akademisyenler", count: professors.length },
-    { id: "passwords", label: "Şifre Yönetimi" },
+    { id: 'students', label: 'Öğrenciler', count: students.length },
+    { id: 'professors', label: 'Akademisyenler', count: professors.length },
+    { id: 'passwords', label: 'Şifre Yönetimi' },
   ];
 
   return (
@@ -257,58 +315,127 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
       <div className="portal-wrap">
         {/* Section Tabs */}
         <Card>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {sectionTabs.map(tab => (
-                <Btn key={tab.id}
-                  variant={activeSection === tab.id ? "primary" : "secondary"}
-                  onClick={() => { setActiveSection(tab.id); setSearchTerm(""); }}
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {sectionTabs.map((tab) => (
+                <Btn
+                  key={tab.id}
+                  variant={activeSection === tab.id ? 'primary' : 'secondary'}
+                  onClick={() => {
+                    setActiveSection(tab.id);
+                    setSearchTerm('');
+                  }}
                 >
-                  {tab.label}{tab.count != null ? ` (${tab.count})` : ''}
+                  {tab.label}
+                  {tab.count != null ? ` (${tab.count})` : ''}
                 </Btn>
               ))}
             </div>
-            {(activeSection !== "passwords" || passwordTab !== "admin") && (
-              <div style={{ flex: 1, maxWidth: 400, minWidth: 220, position: "relative" }}>
+            {(activeSection !== 'passwords' || passwordTab !== 'admin') && (
+              <div style={{ flex: 1, maxWidth: 400, minWidth: 220, position: 'relative' }}>
                 {/* Search Icon */}
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                  style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", opacity: 0.6 }}>
-                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={C.textMuted}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    position: 'absolute',
+                    left: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    pointerEvents: 'none',
+                    opacity: 0.6,
+                  }}
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
                 <input
                   type="text"
                   value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  placeholder={activeSection === "students" ? "Ad, soyad veya öğrenci no ile ara..." : activeSection === "passwords" ? (passwordTab === "student" ? "Öğrenci no veya ad soyad ile ara..." : "Akademisyen adı ile ara...") : "İsim veya bölüm ile ara..."}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder={
+                    activeSection === 'students'
+                      ? 'Ad, soyad veya öğrenci no ile ara...'
+                      : activeSection === 'passwords'
+                        ? passwordTab === 'student'
+                          ? 'Öğrenci no veya ad soyad ile ara...'
+                          : 'Akademisyen adı ile ara...'
+                        : 'İsim veya bölüm ile ara...'
+                  }
                   style={{
-                    width: "100%",
-                    padding: "10px 36px 10px 38px",
+                    width: '100%',
+                    padding: '10px 36px 10px 38px',
                     borderRadius: 10,
                     border: `1.5px solid ${searchTerm ? C.gold : C.border}`,
                     fontSize: 14,
                     fontFamily: "'Source Sans 3', sans-serif",
-                    outline: "none",
-                    transition: "all 0.2s",
+                    outline: 'none',
+                    transition: 'all 0.2s',
                     background: C.card,
-                    boxShadow: searchTerm ? `0 0 0 3px ${C.gold}20` : "none",
+                    boxShadow: searchTerm ? `0 0 0 3px ${C.gold}20` : 'none',
                   }}
-                  onFocus={e => { e.target.style.borderColor = C.gold; e.target.style.boxShadow = `0 0 0 3px ${C.gold}20`; }}
-                  onBlur={e => { if (!searchTerm) { e.target.style.borderColor = C.border; e.target.style.boxShadow = "none"; } }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = C.gold;
+                    e.target.style.boxShadow = `0 0 0 3px ${C.gold}20`;
+                  }}
+                  onBlur={(e) => {
+                    if (!searchTerm) {
+                      e.target.style.borderColor = C.border;
+                      e.target.style.boxShadow = 'none';
+                    }
+                  }}
                 />
                 {/* Clear Button */}
                 {searchTerm && (
-                  <button onClick={() => setSearchTerm("")}
+                  <button
+                    onClick={() => setSearchTerm('')}
                     style={{
-                      position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-                      background: C.bg, border: "none", borderRadius: "50%", width: 22, height: 22,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", color: C.textMuted, fontSize: 14, fontWeight: 600, lineHeight: 1,
-                      transition: "all 0.15s",
+                      position: 'absolute',
+                      right: 8,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: C.bg,
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: 22,
+                      height: 22,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: C.textMuted,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      lineHeight: 1,
+                      transition: 'all 0.15s',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.background = C.border; e.currentTarget.style.color = C.navy; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.color = C.textMuted; }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = C.border;
+                      e.currentTarget.style.color = C.navy;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = C.bg;
+                      e.currentTarget.style.color = C.textMuted;
+                    }}
                     title="Aramayı temizle"
-                  >&times;</button>
+                  >
+                    &times;
+                  </button>
                 )}
               </div>
             )}
@@ -316,89 +443,231 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         </Card>
 
         {/* Search Results Info */}
-        {searchTerm && (activeSection !== "passwords" || passwordTab !== "admin") && (
-          <div style={{ padding: "8px 16px", fontSize: 13, color: C.textMuted, display: "flex", alignItems: "center", gap: 6 }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+        {searchTerm && (activeSection !== 'passwords' || passwordTab !== 'admin') && (
+          <div
+            style={{
+              padding: '8px 16px',
+              fontSize: 13,
+              color: C.textMuted,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
             <span>
-              <strong style={{ color: C.navy }}>"{searchTerm}"</strong> için {
-                activeSection === "students" ? `${filteredStudents.length} öğrenci` :
-                activeSection === "passwords" ? (passwordTab === "student" ? `${filteredStudents.length} öğrenci` : `${filteredProfessors.length} akademisyen`) :
-                `${filteredProfessors.length} akademisyen`
-              } bulundu
+              <strong style={{ color: C.navy }}>"{searchTerm}"</strong> için{' '}
+              {activeSection === 'students'
+                ? `${filteredStudents.length} öğrenci`
+                : activeSection === 'passwords'
+                  ? passwordTab === 'student'
+                    ? `${filteredStudents.length} öğrenci`
+                    : `${filteredProfessors.length} akademisyen`
+                  : `${filteredProfessors.length} akademisyen`}{' '}
+              bulundu
             </span>
           </div>
         )}
 
         {/* ══════ STUDENTS SECTION ══════ */}
-        {activeSection === "students" && (
+        {activeSection === 'students' && (
           <>
             {/* Stats */}
-            <div style={{ display: "grid", gridTemplateColumns: r.val("repeat(2, 1fr)", "repeat(3, 1fr)", "repeat(3, 1fr)"), gap: r.val(12, 16, 20), marginBottom: 24 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: r.val('repeat(2, 1fr)', 'repeat(3, 1fr)', 'repeat(3, 1fr)'),
+                gap: r.val(12, 16, 20),
+                marginBottom: 24,
+              }}
+            >
               {[
-                { label: "Toplam Öğrenci", value: students.length, color: C.navy },
-                { label: "Erasmus Yetkili", value: students.filter(s => s.erasmusAccess).length, color: C.green },
-                { label: "Erasmus Yetkisiz", value: students.filter(s => !s.erasmusAccess).length, color: C.accent },
+                { label: 'Toplam Öğrenci', value: students.length, color: C.navy },
+                {
+                  label: 'Erasmus Yetkili',
+                  value: students.filter((s) => s.erasmusAccess).length,
+                  color: C.green,
+                },
+                {
+                  label: 'Erasmus Yetkisiz',
+                  value: students.filter((s) => !s.erasmusAccess).length,
+                  color: C.accent,
+                },
               ].map((stat, i) => (
                 <Card key={i} noPadding>
-                  <div style={{ padding: r.val(16, 20, 24), textAlign: "center" }}>
-                    <div style={{ fontSize: r.val(12, 13, 14), color: C.textMuted, marginBottom: r.val(4, 6, 8) }}>{stat.label}</div>
-                    <div style={{ fontSize: r.val(24, 30, 36), fontWeight: 700, color: stat.color, fontFamily: "'Playfair Display', serif" }}>{stat.value}</div>
+                  <div style={{ padding: r.val(16, 20, 24), textAlign: 'center' }}>
+                    <div
+                      style={{
+                        fontSize: r.val(12, 13, 14),
+                        color: C.textMuted,
+                        marginBottom: r.val(4, 6, 8),
+                      }}
+                    >
+                      {stat.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: r.val(24, 30, 36),
+                        fontWeight: 700,
+                        color: stat.color,
+                        fontFamily: "'Playfair Display', serif",
+                      }}
+                    >
+                      {stat.value}
+                    </div>
                   </div>
                 </Card>
               ))}
             </div>
 
             <Card title="Öğrenci Listesi" noPadding>
-              <div style={{ padding: "12px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end" }}>
-                <Btn onClick={handleAddStudent} icon={<PlusIcon />}>Yeni Öğrenci Ekle</Btn>
+              <div
+                style={{
+                  padding: '12px 24px',
+                  borderBottom: `1px solid ${C.border}`,
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <Btn onClick={handleAddStudent} icon={<PlusIcon />}>
+                  Yeni Öğrenci Ekle
+                </Btn>
               </div>
-              <div className="responsive-table-wrap" style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: r.isMobile ? 600 : "auto" }}>
+              <div className="responsive-table-wrap" style={{ overflowX: 'auto' }}>
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    minWidth: r.isMobile ? 600 : 'auto',
+                  }}
+                >
                   <thead>
                     <tr style={{ background: C.bg, borderBottom: `2px solid ${C.border}` }}>
-                      {["Öğrenci No", "Ad Soyad", "Erasmus", "İşlemler"].map((h, i) => (
-                        <th key={i} style={{ padding: "14px 20px", textAlign: i === 3 ? "right" : "left", fontSize: 11, fontWeight: 700, color: C.navy, letterSpacing: "0.1em", textTransform: "uppercase" }}>{h}</th>
+                      {['Öğrenci No', 'Ad Soyad', 'Erasmus', 'İşlemler'].map((h, i) => (
+                        <th
+                          key={i}
+                          style={{
+                            padding: '14px 20px',
+                            textAlign: i === 3 ? 'right' : 'left',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: C.navy,
+                            letterSpacing: '0.1em',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {h}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredStudents.map(student => (
-                      <tr key={student.id} style={{ borderBottom: `1px solid ${C.border}`, transition: "all 0.15s" }}
-                        onMouseEnter={e => { e.currentTarget.style.background = C.bg; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = ""; }}>
-                        <td style={{ padding: "14px 20px" }}>
-                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: C.navy }}>{student.studentNumber}</span>
-                        </td>
-                        <td style={{ padding: "14px 20px", fontWeight: 500 }}>
-                          {student.firstName} {student.lastName}
-                          {student.hostInstitution && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{student.hostInstitution} - {student.hostCountry}</div>}
-                        </td>
-                        <td style={{ padding: "14px 20px" }}>
-                          <button onClick={() => handleToggleErasmusAccess(student)}
+                    {filteredStudents.map((student) => (
+                      <tr
+                        key={student.id}
+                        style={{ borderBottom: `1px solid ${C.border}`, transition: 'all 0.15s' }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = C.bg;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = '';
+                        }}
+                      >
+                        <td style={{ padding: '14px 20px' }}>
+                          <span
                             style={{
-                              padding: "4px 12px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
-                              background: student.erasmusAccess ? "#E6F4EA" : "#FEE2E2",
-                              color: student.erasmusAccess ? "#1E7E34" : "#DC2626",
-                            }}>
-                            {student.erasmusAccess ? "Yetkili" : "Yetkisiz"}
+                              fontFamily: "'JetBrains Mono', monospace",
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: C.navy,
+                            }}
+                          >
+                            {student.studentNumber}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px 20px', fontWeight: 500 }}>
+                          {student.firstName} {student.lastName}
+                          {student.hostInstitution && (
+                            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
+                              {student.hostInstitution} - {student.hostCountry}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '14px 20px' }}>
+                          <button
+                            onClick={() => handleToggleErasmusAccess(student)}
+                            style={{
+                              padding: '4px 12px',
+                              borderRadius: 20,
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              background: student.erasmusAccess ? '#E6F4EA' : '#FEE2E2',
+                              color: student.erasmusAccess ? '#1E7E34' : '#DC2626',
+                            }}
+                          >
+                            {student.erasmusAccess ? 'Yetkili' : 'Yetkisiz'}
                           </button>
                         </td>
-                        <td style={{ padding: "14px 20px", textAlign: "right" }}>
-                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                            <button onClick={() => setEditingStudent(student)} style={{
-                              padding: "6px", border: `1px solid ${C.border}`, borderRadius: 6,
-                              background: "white", cursor: "pointer", color: C.blue, display: "flex"
-                            }} title="Düzenle"><EditIcon /></button>
-                            <button onClick={() => handleDeleteStudent(student.id)} style={{
-                              padding: "6px", border: `1px solid ${C.border}`, borderRadius: 6,
-                              background: "white", cursor: "pointer", color: C.accent, display: "flex"
-                            }} title="Sil"><TrashIcon /></button>
+                        <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                            <button
+                              onClick={() => setEditingStudent(student)}
+                              style={{
+                                padding: '6px',
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 6,
+                                background: 'white',
+                                cursor: 'pointer',
+                                color: C.blue,
+                                display: 'flex',
+                              }}
+                              title="Düzenle"
+                            >
+                              <EditIcon />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteStudent(student.id)}
+                              style={{
+                                padding: '6px',
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 6,
+                                background: 'white',
+                                cursor: 'pointer',
+                                color: C.accent,
+                                display: 'flex',
+                              }}
+                              title="Sil"
+                            >
+                              <TrashIcon />
+                            </button>
                           </div>
                         </td>
                       </tr>
                     ))}
                     {filteredStudents.length === 0 && (
-                      <tr><td colSpan={4} style={{ padding: 40, textAlign: "center", color: C.textMuted }}>Öğrenci bulunamadı.</td></tr>
+                      <tr>
+                        <td
+                          colSpan={4}
+                          style={{ padding: 40, textAlign: 'center', color: C.textMuted }}
+                        >
+                          Öğrenci bulunamadı.
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
@@ -408,55 +677,151 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         )}
 
         {/* ══════ PROFESSORS SECTION ══════ */}
-        {activeSection === "professors" && (
+        {activeSection === 'professors' && (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: r.val(12, 16, 20), marginBottom: 24 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: r.val(12, 16, 20),
+                marginBottom: 24,
+              }}
+            >
               {[
-                { label: "Toplam Akademisyen", value: professors.length, color: C.navy },
-                { label: "Bölüm Sayısı", value: [...new Set(professors.map(p => p.department).filter(Boolean))].length, color: C.green },
+                { label: 'Toplam Akademisyen', value: professors.length, color: C.navy },
+                {
+                  label: 'Bölüm Sayısı',
+                  value: [...new Set(professors.map((p) => p.department).filter(Boolean))].length,
+                  color: C.green,
+                },
               ].map((stat, i) => (
                 <Card key={i} noPadding>
-                  <div style={{ padding: r.val(16, 20, 24), textAlign: "center" }}>
-                    <div style={{ fontSize: r.val(12, 13, 14), color: C.textMuted, marginBottom: r.val(4, 6, 8) }}>{stat.label}</div>
-                    <div style={{ fontSize: r.val(24, 30, 36), fontWeight: 700, color: stat.color, fontFamily: "'Playfair Display', serif" }}>{stat.value}</div>
+                  <div style={{ padding: r.val(16, 20, 24), textAlign: 'center' }}>
+                    <div
+                      style={{
+                        fontSize: r.val(12, 13, 14),
+                        color: C.textMuted,
+                        marginBottom: r.val(4, 6, 8),
+                      }}
+                    >
+                      {stat.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: r.val(24, 30, 36),
+                        fontWeight: 700,
+                        color: stat.color,
+                        fontFamily: "'Playfair Display', serif",
+                      }}
+                    >
+                      {stat.value}
+                    </div>
                   </div>
                 </Card>
               ))}
             </div>
 
             <Card title="Akademisyen Listesi" noPadding>
-              <div style={{ padding: "12px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end" }}>
-                <Btn onClick={() => setEditingProf({ name: "", department: departmentInfo?.name || "", departmentId: activeDepartment || "" })} icon={<PlusIcon />}>Yeni Akademisyen Ekle</Btn>
+              <div
+                style={{
+                  padding: '12px 24px',
+                  borderBottom: `1px solid ${C.border}`,
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <Btn
+                  onClick={() =>
+                    setEditingProf({
+                      name: '',
+                      department: departmentInfo?.name || '',
+                      departmentId: activeDepartment || '',
+                    })
+                  }
+                  icon={<PlusIcon />}
+                >
+                  Yeni Akademisyen Ekle
+                </Btn>
               </div>
-              <div className="responsive-table-wrap" style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <div className="responsive-table-wrap" style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: C.bg, borderBottom: `2px solid ${C.border}` }}>
-                      {["Unvan & İsim", "Bölüm", "İşlemler"].map((h, i) => (
-                        <th key={i} style={{ padding: "14px 20px", textAlign: i === 2 ? "right" : "left", fontSize: 11, fontWeight: 700, color: C.navy, letterSpacing: "0.1em", textTransform: "uppercase" }}>{h}</th>
+                      {['Unvan & İsim', 'Bölüm', 'İşlemler'].map((h, i) => (
+                        <th
+                          key={i}
+                          style={{
+                            padding: '14px 20px',
+                            textAlign: i === 2 ? 'right' : 'left',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: C.navy,
+                            letterSpacing: '0.1em',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {h}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {/* New professor form row */}
                     {editingProf && !editingProf.id && (
-                      <tr style={{ background: "rgba(0,255,135,0.05)", borderBottom: `1px solid ${C.border}` }}>
+                      <tr
+                        style={{
+                          background: 'rgba(0,255,135,0.05)',
+                          borderBottom: `1px solid ${C.border}`,
+                        }}
+                      >
                         <td style={{ padding: 14 }}>
-                          <Input autoFocus value={editingProf.name} onChange={e => setEditingProf({ ...editingProf, name: e.target.value })} placeholder="Örn: Dr. Ali Veli" />
+                          <Input
+                            autoFocus
+                            value={editingProf.name}
+                            onChange={(e) =>
+                              setEditingProf({ ...editingProf, name: e.target.value })
+                            }
+                            placeholder="Örn: Dr. Ali Veli"
+                          />
                         </td>
                         <td style={{ padding: 14 }}>
-                          <select value={editingProf.departmentId || ""} onChange={e => {
-                            const dept = DEPARTMENTS.find(d => d.id === e.target.value);
-                            setEditingProf({ ...editingProf, departmentId: e.target.value, department: dept?.name || "" });
-                          }} style={{ width: "100%", padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" }}>
+                          <select
+                            value={editingProf.departmentId || ''}
+                            onChange={(e) => {
+                              const dept = DEPARTMENTS.find((d) => d.id === e.target.value);
+                              setEditingProf({
+                                ...editingProf,
+                                departmentId: e.target.value,
+                                department: dept?.name || '',
+                              });
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              border: `1.5px solid ${C.border}`,
+                              borderRadius: 8,
+                              fontSize: 14,
+                              fontFamily: 'inherit',
+                              backgroundColor: 'white',
+                              cursor: 'pointer',
+                            }}
+                          >
                             <option value="">Bölüm Seçin</option>
-                            {DEPARTMENTS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                            {DEPARTMENTS.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name}
+                              </option>
+                            ))}
                           </select>
                         </td>
-                        <td style={{ padding: 14, textAlign: "right" }}>
-                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                            <Btn small onClick={handleSaveProfessor} disabled={saving}>Kaydet</Btn>
-                            <Btn small variant="secondary" onClick={() => setEditingProf(null)}>İptal</Btn>
+                        <td style={{ padding: 14, textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                            <Btn small onClick={handleSaveProfessor} disabled={saving}>
+                              Kaydet
+                            </Btn>
+                            <Btn small variant="secondary" onClick={() => setEditingProf(null)}>
+                              İptal
+                            </Btn>
                           </div>
                         </td>
                       </tr>
@@ -465,67 +830,166 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                     {filteredProfessors.map((prof, idx) => {
                       const isEditing = editingProf && editingProf.id === prof.id;
                       return isEditing ? (
-                        <tr key={prof.id} style={{ background: "rgba(0,255,135,0.05)", borderBottom: `1px solid ${C.border}` }}>
+                        <tr
+                          key={prof.id}
+                          style={{
+                            background: 'rgba(0,255,135,0.05)',
+                            borderBottom: `1px solid ${C.border}`,
+                          }}
+                        >
                           <td style={{ padding: 14 }}>
-                            <Input value={editingProf.name} onChange={e => setEditingProf({ ...editingProf, name: e.target.value })} />
+                            <Input
+                              value={editingProf.name}
+                              onChange={(e) =>
+                                setEditingProf({ ...editingProf, name: e.target.value })
+                              }
+                            />
                           </td>
                           <td style={{ padding: 14 }}>
-                            <select value={editingProf.departmentId || ""} onChange={e => {
-                              const dept = DEPARTMENTS.find(d => d.id === e.target.value);
-                              setEditingProf({ ...editingProf, departmentId: e.target.value, department: dept?.name || "" });
-                            }} style={{ width: "100%", padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" }}>
+                            <select
+                              value={editingProf.departmentId || ''}
+                              onChange={(e) => {
+                                const dept = DEPARTMENTS.find((d) => d.id === e.target.value);
+                                setEditingProf({
+                                  ...editingProf,
+                                  departmentId: e.target.value,
+                                  department: dept?.name || '',
+                                });
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '10px 12px',
+                                border: `1.5px solid ${C.border}`,
+                                borderRadius: 8,
+                                fontSize: 14,
+                                fontFamily: 'inherit',
+                                backgroundColor: 'white',
+                                cursor: 'pointer',
+                              }}
+                            >
                               <option value="">Bölüm Seçin</option>
-                              {DEPARTMENTS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                              {DEPARTMENTS.map((d) => (
+                                <option key={d.id} value={d.id}>
+                                  {d.name}
+                                </option>
+                              ))}
                             </select>
                           </td>
-                          <td style={{ padding: 14, textAlign: "right" }}>
-                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              <Btn small onClick={handleSaveProfessor} disabled={saving}>Kaydet</Btn>
-                              <Btn small variant="secondary" onClick={() => setEditingProf(null)}>İptal</Btn>
+                          <td style={{ padding: 14, textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                              <Btn small onClick={handleSaveProfessor} disabled={saving}>
+                                Kaydet
+                              </Btn>
+                              <Btn small variant="secondary" onClick={() => setEditingProf(null)}>
+                                İptal
+                              </Btn>
                             </div>
                           </td>
                         </tr>
                       ) : (
                         <tr key={prof.id || idx} style={{ borderBottom: `1px solid ${C.border}` }}>
-                          <td style={{ padding: "14px 20px", fontWeight: 600, color: C.navy }}>{prof.name}</td>
-                          <td style={{ padding: "14px 20px" }}>
+                          <td style={{ padding: '14px 20px', fontWeight: 600, color: C.navy }}>
+                            {prof.name}
+                          </td>
+                          <td style={{ padding: '14px 20px' }}>
                             {(() => {
-                              const dept = prof.departmentId ? DEPARTMENTS.find(d => d.id === prof.departmentId) : null;
-                              const deptColor = dept?.color || "#6b7280";
+                              const dept = prof.departmentId
+                                ? DEPARTMENTS.find((d) => d.id === prof.departmentId)
+                                : null;
+                              const deptColor = dept?.color || '#6b7280';
                               return (
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 6, background: `${deptColor}12`, border: `1px solid ${deptColor}30`, fontSize: 13, fontWeight: 500, color: deptColor }}>
-                                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: deptColor }} />
-                                  {dept?.name || prof.department || "Belirtilmemiş"}
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '4px 10px',
+                                    borderRadius: 6,
+                                    background: `${deptColor}12`,
+                                    border: `1px solid ${deptColor}30`,
+                                    fontSize: 13,
+                                    fontWeight: 500,
+                                    color: deptColor,
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      width: 7,
+                                      height: 7,
+                                      borderRadius: '50%',
+                                      background: deptColor,
+                                    }}
+                                  />
+                                  {dept?.name || prof.department || 'Belirtilmemiş'}
                                 </span>
                               );
                             })()}
                           </td>
-                          <td style={{ padding: "14px 20px", textAlign: "right" }}>
-                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              <button onClick={() => {
-                                // departmentId yoksa department adından çıkar
-                                let deptId = prof.departmentId || "";
-                                if (!deptId && prof.department) {
-                                  const deptNorm = prof.department.toLowerCase().replace(/\s+/g, "");
-                                  const match = DEPARTMENTS.find(d => d.name.toLowerCase().replace(/\s+/g, "") === deptNorm || d.shortName.toLowerCase().replace(/\s+/g, "") === deptNorm || deptNorm.includes(d.shortName.toLowerCase().replace(/\s+/g, "")));
-                                  if (match) deptId = match.id;
-                                }
-                                setEditingProf({ ...prof, departmentId: deptId });
-                              }} style={{
-                                padding: "6px", border: `1px solid ${C.border}`, borderRadius: 6,
-                                background: "white", cursor: "pointer", color: C.blue, display: "flex"
-                              }} title="Düzenle"><EditIcon /></button>
-                              <button onClick={() => handleDeleteProf(prof.id, prof.name)} style={{
-                                padding: "6px", border: `1px solid ${C.border}`, borderRadius: 6,
-                                background: "white", cursor: "pointer", color: C.accent, display: "flex"
-                              }} title="Sil"><TrashIcon /></button>
+                          <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                              <button
+                                onClick={() => {
+                                  // departmentId yoksa department adından çıkar
+                                  let deptId = prof.departmentId || '';
+                                  if (!deptId && prof.department) {
+                                    const deptNorm = prof.department
+                                      .toLowerCase()
+                                      .replace(/\s+/g, '');
+                                    const match = DEPARTMENTS.find(
+                                      (d) =>
+                                        d.name.toLowerCase().replace(/\s+/g, '') === deptNorm ||
+                                        d.shortName.toLowerCase().replace(/\s+/g, '') ===
+                                          deptNorm ||
+                                        deptNorm.includes(
+                                          d.shortName.toLowerCase().replace(/\s+/g, '')
+                                        )
+                                    );
+                                    if (match) deptId = match.id;
+                                  }
+                                  setEditingProf({ ...prof, departmentId: deptId });
+                                }}
+                                style={{
+                                  padding: '6px',
+                                  border: `1px solid ${C.border}`,
+                                  borderRadius: 6,
+                                  background: 'white',
+                                  cursor: 'pointer',
+                                  color: C.blue,
+                                  display: 'flex',
+                                }}
+                                title="Düzenle"
+                              >
+                                <EditIcon />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProf(prof.id, prof.name)}
+                                style={{
+                                  padding: '6px',
+                                  border: `1px solid ${C.border}`,
+                                  borderRadius: 6,
+                                  background: 'white',
+                                  cursor: 'pointer',
+                                  color: C.accent,
+                                  display: 'flex',
+                                }}
+                                title="Sil"
+                              >
+                                <TrashIcon />
+                              </button>
                             </div>
                           </td>
                         </tr>
                       );
                     })}
                     {filteredProfessors.length === 0 && (
-                      <tr><td colSpan={3} style={{ padding: 40, textAlign: "center", color: C.textMuted }}>Akademisyen bulunamadı.</td></tr>
+                      <tr>
+                        <td
+                          colSpan={3}
+                          style={{ padding: 40, textAlign: 'center', color: C.textMuted }}
+                        >
+                          Akademisyen bulunamadı.
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
@@ -535,17 +999,21 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         )}
 
         {/* ══════ PASSWORDS SECTION ══════ */}
-        {activeSection === "passwords" && (
+        {activeSection === 'passwords' && (
           <Card title="Şifre Yönetimi">
-            <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
               {[
-                { id: "student", label: "Öğrenciler" },
-                { id: "professor", label: "Akademisyenler" },
-                ...(isAdmin ? [{ id: "admin", label: "Admin" }] : []),
-              ].map(tab => (
-                <Btn key={tab.id}
-                  variant={passwordTab === tab.id ? "primary" : "secondary"}
-                  onClick={() => { setPasswordTab(tab.id); setSearchTerm(""); }}
+                { id: 'student', label: 'Öğrenciler' },
+                { id: 'professor', label: 'Akademisyenler' },
+                ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
+              ].map((tab) => (
+                <Btn
+                  key={tab.id}
+                  variant={passwordTab === tab.id ? 'primary' : 'secondary'}
+                  onClick={() => {
+                    setPasswordTab(tab.id);
+                    setSearchTerm('');
+                  }}
                   small
                 >
                   {tab.label}
@@ -554,35 +1022,92 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
             </div>
 
             <div style={{ maxHeight: 500, overflowY: 'auto', marginBottom: 24, paddingRight: 8 }}>
-              {passwordTab === "student" && (
+              {passwordTab === 'student' && (
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: C.bg }}>
-                      <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Öğrenci No</th>
-                      <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Ad Soyad</th>
-                      <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Yeni Şifre</th>
-                      <th style={{ padding: 12, textAlign: 'center', borderBottom: `2px solid ${C.border}` }}>İşlem</th>
+                      <th
+                        style={{
+                          padding: 12,
+                          textAlign: 'left',
+                          borderBottom: `2px solid ${C.border}`,
+                        }}
+                      >
+                        Öğrenci No
+                      </th>
+                      <th
+                        style={{
+                          padding: 12,
+                          textAlign: 'left',
+                          borderBottom: `2px solid ${C.border}`,
+                        }}
+                      >
+                        Ad Soyad
+                      </th>
+                      <th
+                        style={{
+                          padding: 12,
+                          textAlign: 'left',
+                          borderBottom: `2px solid ${C.border}`,
+                        }}
+                      >
+                        Yeni Şifre
+                      </th>
+                      <th
+                        style={{
+                          padding: 12,
+                          textAlign: 'center',
+                          borderBottom: `2px solid ${C.border}`,
+                        }}
+                      >
+                        İşlem
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredStudents.map(student => (
-                      <tr key={student.studentNumber} style={{ borderBottom: `1px solid ${C.border}` }}>
-                        <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{student.studentNumber}</td>
-                        <td style={{ padding: 12 }}>{student.firstName} {student.lastName}</td>
+                    {filteredStudents.map((student) => (
+                      <tr
+                        key={student.studentNumber}
+                        style={{ borderBottom: `1px solid ${C.border}` }}
+                      >
+                        <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>
+                          {student.studentNumber}
+                        </td>
                         <td style={{ padding: 12 }}>
-                          <Input type="password" value={studentPasses[student.studentNumber] || ''}
+                          {student.firstName} {student.lastName}
+                        </td>
+                        <td style={{ padding: 12 }}>
+                          <Input
+                            type="password"
+                            value={studentPasses[student.studentNumber] || ''}
                             placeholder="Yeni şifre girin"
-                            onChange={e => setStudentPasses(p => ({ ...p, [student.studentNumber]: e.target.value }))} />
+                            onChange={(e) =>
+                              setStudentPasses((p) => ({
+                                ...p,
+                                [student.studentNumber]: e.target.value,
+                              }))
+                            }
+                          />
                         </td>
                         <td style={{ padding: 12, textAlign: 'center' }}>
-                          <button onClick={() => {
-                            if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz?')) {
-                              setStudentPasses(p => ({ ...p, [student.studentNumber]: '' }));
-                            }
-                          }} style={{
-                            padding: "6px 12px", fontSize: 12, border: `1px solid ${C.border}`,
-                            borderRadius: 6, background: "white", cursor: "pointer", color: C.accent,
-                          }}>Sıfırla</button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz?')) {
+                                setStudentPasses((p) => ({ ...p, [student.studentNumber]: '' }));
+                              }
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: 12,
+                              border: `1px solid ${C.border}`,
+                              borderRadius: 6,
+                              background: 'white',
+                              cursor: 'pointer',
+                              color: C.accent,
+                            }}
+                          >
+                            Sıfırla
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -590,13 +1115,37 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                 </table>
               )}
 
-              {passwordTab === "professor" && (
+              {passwordTab === 'professor' && (
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: C.bg }}>
-                      <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Unvan & İsim</th>
-                      <th style={{ padding: 12, textAlign: 'left', borderBottom: `2px solid ${C.border}` }}>Yeni Şifre</th>
-                      <th style={{ padding: 12, textAlign: 'center', borderBottom: `2px solid ${C.border}` }}>İşlem</th>
+                      <th
+                        style={{
+                          padding: 12,
+                          textAlign: 'left',
+                          borderBottom: `2px solid ${C.border}`,
+                        }}
+                      >
+                        Unvan & İsim
+                      </th>
+                      <th
+                        style={{
+                          padding: 12,
+                          textAlign: 'left',
+                          borderBottom: `2px solid ${C.border}`,
+                        }}
+                      >
+                        Yeni Şifre
+                      </th>
+                      <th
+                        style={{
+                          padding: 12,
+                          textAlign: 'center',
+                          borderBottom: `2px solid ${C.border}`,
+                        }}
+                      >
+                        İşlem
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -604,19 +1153,34 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                       <tr key={prof.id || idx} style={{ borderBottom: `1px solid ${C.border}` }}>
                         <td style={{ padding: 12, fontWeight: 600, color: C.navy }}>{prof.name}</td>
                         <td style={{ padding: 12 }}>
-                          <Input type="password" value={professorPasses[prof.name] || ''}
+                          <Input
+                            type="password"
+                            value={professorPasses[prof.name] || ''}
                             placeholder="Yeni şifre girin"
-                            onChange={e => setProfessorPasses(p => ({ ...p, [prof.name]: e.target.value }))} />
+                            onChange={(e) =>
+                              setProfessorPasses((p) => ({ ...p, [prof.name]: e.target.value }))
+                            }
+                          />
                         </td>
                         <td style={{ padding: 12, textAlign: 'center' }}>
-                          <button onClick={() => {
-                            if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz?')) {
-                              setProfessorPasses(p => ({ ...p, [prof.name]: '' }));
-                            }
-                          }} style={{
-                            padding: "6px 12px", fontSize: 12, border: `1px solid ${C.border}`,
-                            borderRadius: 6, background: "white", cursor: "pointer", color: C.accent,
-                          }}>Şifre Sıfırla</button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Şifreyi sıfırlamak istediğinizden emin misiniz?')) {
+                                setProfessorPasses((p) => ({ ...p, [prof.name]: '' }));
+                              }
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: 12,
+                              border: `1px solid ${C.border}`,
+                              borderRadius: 6,
+                              background: 'white',
+                              cursor: 'pointer',
+                              color: C.accent,
+                            }}
+                          >
+                            Şifre Sıfırla
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -624,97 +1188,263 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                 </table>
               )}
 
-              {passwordTab === "admin" && isAdmin && (
+              {passwordTab === 'admin' && isAdmin && (
                 <div style={{ padding: 20 }}>
                   <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                    <div style={{ marginBottom: 16, fontWeight: 600, color: C.navy }}>Admin Giriş Şifresi</div>
+                    <div style={{ marginBottom: 16, fontWeight: 600, color: C.navy }}>
+                      Admin Giriş Şifresi
+                    </div>
                     <div style={{ maxWidth: 300, margin: '0 auto' }}>
-                      <Input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} placeholder="Yeni admin şifresi" style={{ textAlign: 'center', fontSize: 18, letterSpacing: 2 }} />
+                      <Input
+                        type="password"
+                        value={adminPass}
+                        onChange={(e) => setAdminPass(e.target.value)}
+                        placeholder="Yeni admin şifresi"
+                        style={{ textAlign: 'center', fontSize: 18, letterSpacing: 2 }}
+                      />
                     </div>
                     <div style={{ marginTop: 12, fontSize: 13, color: C.textMuted }}>
                       Bu şifre ile Admin paneline erişim sağlanır.
                     </div>
                   </div>
 
-                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 24, textAlign: 'center' }}>
-                    <div style={{ marginBottom: 16, fontWeight: 600, color: C.navy }}>Varsayılan Akademisyen Şifresi</div>
+                  <div
+                    style={{
+                      borderTop: `1px solid ${C.border}`,
+                      paddingTop: 24,
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div style={{ marginBottom: 16, fontWeight: 600, color: C.navy }}>
+                      Varsayılan Akademisyen Şifresi
+                    </div>
                     <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 16 }}>
                       Şifresi olmayan akademisyenler ilk girişte bu şifreyi kullanır.
                     </div>
-                    <div style={{ maxWidth: 300, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <Input type="password" value={defaultProfAdminPass} onChange={e => setDefaultProfAdminPass(e.target.value)} placeholder="Admin şifreniz (doğrulama)" />
-                      <Input type="password" value={defaultProfPass} onChange={e => setDefaultProfPass(e.target.value)} placeholder="Yeni varsayılan akademisyen şifresi" />
-                      <Btn small onClick={async () => {
-                        if (!defaultProfAdminPass || !defaultProfPass) return alert('Lütfen tüm alanları doldurun.');
-                        if (defaultProfPass.length < 6) return alert('Şifre en az 6 karakter olmalıdır.');
-                        setSavingDefault(true);
-                        try {
-                          const result = await DB.setDefaultProfessorPassword(defaultProfAdminPass, defaultProfPass);
-                          if (result.success) {
-                            alert('Varsayılan akademisyen şifresi güncellendi!');
-                            setDefaultProfPass('');
-                            setDefaultProfAdminPass('');
+                    <div
+                      style={{
+                        maxWidth: 300,
+                        margin: '0 auto',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                      }}
+                    >
+                      <Input
+                        type="password"
+                        value={defaultProfAdminPass}
+                        onChange={(e) => setDefaultProfAdminPass(e.target.value)}
+                        placeholder="Admin şifreniz (doğrulama)"
+                      />
+                      <Input
+                        type="password"
+                        value={defaultProfPass}
+                        onChange={(e) => setDefaultProfPass(e.target.value)}
+                        placeholder="Yeni varsayılan akademisyen şifresi"
+                      />
+                      <Btn
+                        small
+                        onClick={async () => {
+                          if (!defaultProfAdminPass || !defaultProfPass)
+                            return alert('Lütfen tüm alanları doldurun.');
+                          if (defaultProfPass.length < 6)
+                            return alert('Şifre en az 6 karakter olmalıdır.');
+                          setSavingDefault(true);
+                          try {
+                            const result = await DB.setDefaultProfessorPassword(
+                              defaultProfAdminPass,
+                              defaultProfPass
+                            );
+                            if (result.success) {
+                              alert('Varsayılan akademisyen şifresi güncellendi!');
+                              setDefaultProfPass('');
+                              setDefaultProfAdminPass('');
+                            }
+                          } catch (error) {
+                            alert('Hata: ' + (error.message || 'Bilinmeyen hata'));
+                          } finally {
+                            setSavingDefault(false);
                           }
-                        } catch (error) {
-                          alert('Hata: ' + (error.message || 'Bilinmeyen hata'));
-                        } finally {
-                          setSavingDefault(false);
-                        }
-                      }} disabled={savingDefault}>{savingDefault ? 'Kaydediliyor...' : 'Varsayılan Şifreyi Kaydet'}</Btn>
+                        }}
+                        disabled={savingDefault}
+                      >
+                        {savingDefault ? 'Kaydediliyor...' : 'Varsayılan Şifreyi Kaydet'}
+                      </Btn>
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-              <Btn onClick={handleSavePasswords} disabled={saving}>{saving ? 'Kaydediliyor...' : 'Şifreleri Kaydet'}</Btn>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 12,
+                paddingTop: 20,
+                borderTop: `1px solid ${C.border}`,
+              }}
+            >
+              <Btn onClick={handleSavePasswords} disabled={saving}>
+                {saving ? 'Kaydediliyor...' : 'Şifreleri Kaydet'}
+              </Btn>
             </div>
           </Card>
         )}
 
         {/* Student Edit Modal */}
         {editingStudent && (
-          <Modal open={true} onClose={() => setEditingStudent(null)} title={editingStudent.studentNumber ? "Öğrenci Düzenle" : "Yeni Öğrenci"} width={600}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Modal
+            open={true}
+            onClose={() => setEditingStudent(null)}
+            title={editingStudent.studentNumber ? 'Öğrenci Düzenle' : 'Yeni Öğrenci'}
+            width={600}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.navy, marginBottom: 6 }}>Öğrenci Numarası</label>
-                <Input value={editingStudent.studentNumber} onChange={e => setEditingStudent({ ...editingStudent, studentNumber: e.target.value })} placeholder="9 haneli öğrenci numarası" />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.navy, marginBottom: 6 }}>Ad</label>
-                  <Input value={editingStudent.firstName} onChange={e => setEditingStudent({ ...editingStudent, firstName: e.target.value })} placeholder="Ad" />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.navy, marginBottom: 6 }}>Soyad</label>
-                  <Input value={editingStudent.lastName} onChange={e => setEditingStudent({ ...editingStudent, lastName: e.target.value })} placeholder="Soyad" />
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.navy, marginBottom: 6 }}>Karşı Kurum</label>
-                  <Input value={editingStudent.hostInstitution || ""} onChange={e => setEditingStudent({ ...editingStudent, hostInstitution: e.target.value })} placeholder="Üniversite adı" />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.navy, marginBottom: 6 }}>Ülke</label>
-                  <Input value={editingStudent.hostCountry || ""} onChange={e => setEditingStudent({ ...editingStudent, hostCountry: e.target.value })} placeholder="Ülke" />
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: C.navy }}>Erasmus Erişimi:</label>
-                <button onClick={() => setEditingStudent({ ...editingStudent, erasmusAccess: !editingStudent.erasmusAccess })}
+                <label
                   style={{
-                    padding: "4px 16px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600,
-                    background: editingStudent.erasmusAccess ? "#E6F4EA" : "#FEE2E2",
-                    color: editingStudent.erasmusAccess ? "#1E7E34" : "#DC2626",
-                  }}>
-                  {editingStudent.erasmusAccess ? "Yetkili" : "Yetkisiz"}
+                    display: 'block',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: C.navy,
+                    marginBottom: 6,
+                  }}
+                >
+                  Öğrenci Numarası
+                </label>
+                <Input
+                  value={editingStudent.studentNumber}
+                  onChange={(e) =>
+                    setEditingStudent({ ...editingStudent, studentNumber: e.target.value })
+                  }
+                  placeholder="9 haneli öğrenci numarası"
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: C.navy,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Ad
+                  </label>
+                  <Input
+                    value={editingStudent.firstName}
+                    onChange={(e) =>
+                      setEditingStudent({ ...editingStudent, firstName: e.target.value })
+                    }
+                    placeholder="Ad"
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: C.navy,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Soyad
+                  </label>
+                  <Input
+                    value={editingStudent.lastName}
+                    onChange={(e) =>
+                      setEditingStudent({ ...editingStudent, lastName: e.target.value })
+                    }
+                    placeholder="Soyad"
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: C.navy,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Karşı Kurum
+                  </label>
+                  <Input
+                    value={editingStudent.hostInstitution || ''}
+                    onChange={(e) =>
+                      setEditingStudent({ ...editingStudent, hostInstitution: e.target.value })
+                    }
+                    placeholder="Üniversite adı"
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: C.navy,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Ülke
+                  </label>
+                  <Input
+                    value={editingStudent.hostCountry || ''}
+                    onChange={(e) =>
+                      setEditingStudent({ ...editingStudent, hostCountry: e.target.value })
+                    }
+                    placeholder="Ülke"
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: C.navy }}>
+                  Erasmus Erişimi:
+                </label>
+                <button
+                  onClick={() =>
+                    setEditingStudent({
+                      ...editingStudent,
+                      erasmusAccess: !editingStudent.erasmusAccess,
+                    })
+                  }
+                  style={{
+                    padding: '4px 16px',
+                    borderRadius: 20,
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    background: editingStudent.erasmusAccess ? '#E6F4EA' : '#FEE2E2',
+                    color: editingStudent.erasmusAccess ? '#1E7E34' : '#DC2626',
+                  }}
+                >
+                  {editingStudent.erasmusAccess ? 'Yetkili' : 'Yetkisiz'}
                 </button>
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
-                <Btn onClick={() => setEditingStudent(null)} variant="secondary">İptal</Btn>
-                <Btn onClick={() => handleSaveStudent(editingStudent)} disabled={saving}>{saving ? 'Kaydediliyor...' : 'Kaydet'}</Btn>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 12,
+                  paddingTop: 16,
+                  borderTop: `1px solid ${C.border}`,
+                }}
+              >
+                <Btn onClick={() => setEditingStudent(null)} variant="secondary">
+                  İptal
+                </Btn>
+                <Btn onClick={() => handleSaveStudent(editingStudent)} disabled={saving}>
+                  {saving ? 'Kaydediliyor...' : 'Kaydet'}
+                </Btn>
               </div>
             </div>
           </Modal>
