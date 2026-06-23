@@ -4757,6 +4757,47 @@ const ExemptionHistory = ({ records, loading, onDelete, onExportWord, onUpdateDe
                       >
                         {matchCount} ders
                       </span>
+                      {(() => {
+                        const ms = rec.matches || [];
+                        const a =
+                          rec.approvedCount ?? ms.filter((m) => m.tier === 'approved').length;
+                        const rj =
+                          rec.rejectedCount ?? ms.filter((m) => m.tier === 'rejected').length;
+                        return (
+                          <>
+                            {a > 0 && (
+                              <span
+                                style={{
+                                  background: DS.greenBg,
+                                  color: DS.green,
+                                  padding: '1px 8px',
+                                  borderRadius: 12,
+                                  fontWeight: 600,
+                                  fontSize: 11,
+                                }}
+                                title="Otomatik muaf"
+                              >
+                                ✓ {a} muaf
+                              </span>
+                            )}
+                            {rj > 0 && (
+                              <span
+                                style={{
+                                  background: DS.redLight,
+                                  color: DS.red,
+                                  padding: '1px 8px',
+                                  borderRadius: 12,
+                                  fontWeight: 600,
+                                  fontSize: 11,
+                                }}
+                                title="Reddedildi"
+                              >
+                                ✗ {rj} red
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
                       {rec.pendingReviewCount > 0 && (
                         <span
                           style={{
@@ -5116,6 +5157,8 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
   const [rows, setRows] = useState([emptyManualRow()]);
   const [processing, setProcessing] = useState(false);
   const [msg, setMsg] = useState({ text: '', kind: '' });
+  // Kayıt sonrası gösterilen sonuç paneli — özet + her ders için skor kırılımı.
+  const [resultPanel, setResultPanel] = useState(null);
 
   const tr = (v) => (typeof v === 'string' ? v.toLocaleUpperCase('tr-TR') : v);
   const updateSide = (rowId, side, field, value) => {
@@ -5185,7 +5228,23 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
     setProcessing(true);
     try {
       const matches = rows.map((r) => {
-        const score = combinedSimilarity(r.src.content, r.cak.content);
+        // multiFactorScore: ad(%35) + içerik(%55) + kod(%10) ağırlıklı skor.
+        // İçerik metni boşsa otomatik ad(%75) + kod(%25)'e döner.
+        const factor = multiFactorScore(
+          {
+            name: r.src.name,
+            code: r.src.code,
+            weeklyContent: r.src.content,
+            content: r.src.content,
+          },
+          {
+            name: r.cak.name,
+            code: r.cak.code,
+            weeklyContent: r.cak.content,
+            content: r.cak.content,
+          }
+        );
+        const score = factor.total;
         let tier,
           rejectReason = '';
         if (score >= THRESHOLD_AUTO_APPROVE) {
@@ -5214,9 +5273,9 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
             grade: '',
           },
           score,
-          contentScore: score,
-          nameScore: courseNameSimilarity(r.src.name, r.cak.name),
-          codeScore: courseCodeSimilarity(r.src.code, r.cak.code),
+          contentScore: factor.contScore,
+          nameScore: factor.nameScore,
+          codeScore: factor.codeScore,
           tier,
           matched: tier === 'approved',
           aktsPass: true,
@@ -5244,19 +5303,15 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
         createdBy: currentUser?.identifier || currentUser?.name || '',
       });
 
-      setMsg({
-        text:
-          'Kaydedildi: ' +
-          approvedCount +
-          ' otomatik muaf, ' +
-          reviewCount +
-          ' akademisyen onayında, ' +
-          rejectedCount +
-          ' red.',
-        kind: 'success',
+      // Sonuç panelini doldur — kullanıcı her dersin skorunu ve kararını görür
+      setResultPanel({
+        approvedCount,
+        reviewCount,
+        rejectedCount,
+        matches,
       });
+      setMsg({ text: '', kind: '' });
       if (onSave) onSave(record);
-      setRows([emptyManualRow()]);
     } catch (e) {
       setMsg({ text: 'Kayıt hatası: ' + e.message, kind: 'error' });
     } finally {
@@ -5397,6 +5452,247 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
       </div>
     );
   };
+
+  // ── Sonuç Paneli (kayıt sonrası) ──
+  if (resultPanel) {
+    const tierMeta = {
+      approved: {
+        label: 'OTOMATİK MUAF',
+        color: DS.green,
+        bg: DS.greenBg,
+        border: DS.greenLight,
+        explain: 'Skor ≥ %80 — sistem otomatik onayladı, geçmişe işlendi.',
+      },
+      review: {
+        label: 'AKADEMİSYEN ONAYINDA',
+        color: DS.amber,
+        bg: DS.amberLight,
+        border: '#FCD34D',
+        explain: 'Skor %70–%79 — akademisyen kararını verecek.',
+      },
+      rejected: {
+        label: 'REDDEDİLDİ',
+        color: DS.red,
+        bg: DS.redLight,
+        border: '#FECACA',
+        explain: 'Skor %70 altı — yeterli benzerlik yok.',
+      },
+    };
+    return (
+      <div>
+        {/* Üst bilgi şeridi */}
+        <div
+          style={{
+            background: 'white',
+            border: '1px solid ' + DS.border,
+            borderRadius: 12,
+            padding: 18,
+            marginBottom: 18,
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: DS.navy }}>
+            Muafiyet Talebiniz Alındı
+          </h3>
+          <p style={{ margin: '6px 0 0', fontSize: 13, color: DS.textSecondary, lineHeight: 1.6 }}>
+            Sistem her ders için <b>ad (%35) + içerik (%55) + kod (%10)</b> ağırlıklı bir skor
+            hesapladı. <b>%80+</b> otomatik muaf, <b>%70–%79</b> akademisyen kararına gider,{' '}
+            <b>%70 altı</b> reddedilir. Detaylar aşağıda; akademisyen onayı bekleyen kayıtlar
+            geçmişinizde sarı renkle görünür.
+          </p>
+        </div>
+
+        {/* Özet kartları */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 12,
+            marginBottom: 18,
+          }}
+        >
+          {[
+            {
+              key: 'approved',
+              label: 'Otomatik Muaf',
+              count: resultPanel.approvedCount,
+              meta: tierMeta.approved,
+            },
+            {
+              key: 'review',
+              label: 'Akademisyen Onayında',
+              count: resultPanel.reviewCount,
+              meta: tierMeta.review,
+            },
+            {
+              key: 'rejected',
+              label: 'Red',
+              count: resultPanel.rejectedCount,
+              meta: tierMeta.rejected,
+            },
+          ].map((s) => (
+            <div
+              key={s.key}
+              style={{
+                background: s.meta.bg,
+                border: '1px solid ' + s.meta.border,
+                borderRadius: 10,
+                padding: 14,
+              }}
+            >
+              <div style={{ fontSize: 28, fontWeight: 800, color: s.meta.color, lineHeight: 1 }}>
+                {s.count}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: s.meta.color, marginTop: 6 }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Her ders için detaylı kart */}
+        {resultPanel.matches.map((m, idx) => {
+          const meta = tierMeta[m.tier];
+          return (
+            <div
+              key={idx}
+              style={{
+                background: 'white',
+                border: '1.5px solid ' + meta.border,
+                borderLeft: '5px solid ' + meta.color,
+                borderRadius: 10,
+                padding: 16,
+                marginBottom: 12,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  marginBottom: 10,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 700, color: DS.navy }}>
+                  Ders {idx + 1}: {m.sourceCourse.name}{' '}
+                  <span style={{ color: DS.textSecondary, fontWeight: 500 }}>
+                    ↔ {m.localCourse.name}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    background: meta.color,
+                    color: 'white',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  {meta.label}
+                </span>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: 10,
+                  marginBottom: 10,
+                }}
+              >
+                {[
+                  { label: 'Toplam Skor', val: m.score, big: true },
+                  { label: 'Ad Benzerliği (35%)', val: m.nameScore },
+                  { label: 'İçerik Benzerliği (55%)', val: m.contentScore },
+                  { label: 'Kod Benzerliği (10%)', val: m.codeScore },
+                ].map((b) => (
+                  <div
+                    key={b.label}
+                    style={{
+                      background: DS.bg,
+                      borderRadius: 8,
+                      padding: '8px 10px',
+                      border: '1px solid ' + DS.borderLight,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: DS.textSecondary,
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      {b.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: b.big ? 22 : 16,
+                        fontWeight: 700,
+                        color: b.big ? meta.color : DS.navy,
+                        marginTop: 4,
+                      }}
+                    >
+                      %{Math.round((b.val || 0) * 100)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: DS.textSecondary, lineHeight: 1.6 }}>
+                {meta.explain}
+                {m.tier === 'rejected' && (
+                  <div style={{ marginTop: 6, color: DS.red }}>
+                    <b>Olası nedenler:</b> ders adı çok farklı, içerik metinleri farklı konular
+                    içeriyor, veya PDF'den çıkarılan metin yetersiz. Daha açık bir içerik dosyası
+                    (haftalık konu başlıklı) deneyebilirsiniz.
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 18 }}>
+          <button
+            onClick={() => {
+              setResultPanel(null);
+              setRows([emptyManualRow()]);
+            }}
+            style={{
+              padding: '11px 20px',
+              background: 'white',
+              color: DS.navy,
+              border: '1px solid ' + DS.border,
+              borderRadius: 8,
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            + Yeni Muafiyet Talebi Oluştur
+          </button>
+          <button
+            onClick={() => setResultPanel(null)}
+            style={{
+              padding: '11px 20px',
+              background: DS.accent,
+              color: 'white',
+              border: 'none',
+              borderRadius: 8,
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            Tamam
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
