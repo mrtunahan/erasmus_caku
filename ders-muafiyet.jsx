@@ -5189,6 +5189,17 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
       const cleaned = (text || '').replace(/\s+/g, ' ').trim();
       const charCount = cleaned.length;
       console.log('[Muafiyet] PDF/DOCX okundu:', file.name, '→', charCount, 'karakter');
+      console.log('[Muafiyet] İlk 300 karakter:', cleaned.slice(0, 300));
+      // Token kümesi sıhhati: kaç token, ilk 30 token
+      const tokens = tokenize(cleaned);
+      console.log(
+        '[Muafiyet]',
+        file.name,
+        'tokenize edildi →',
+        tokens.length,
+        'token, örnekler:',
+        tokens.slice(0, 30)
+      );
       if (charCount < 50) {
         setMsg({
           text:
@@ -5289,6 +5300,18 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
             content: r.cak.content,
           }
         );
+        // Debug: skor kırılımı + alt benzerlikler
+        console.log('[Muafiyet] Skor kırılımı:', {
+          src: { name: r.src.name, code: r.src.code, contentLen: (r.src.content || '').length },
+          cak: { name: r.cak.name, code: r.cak.code, contentLen: (r.cak.content || '').length },
+          nameScore: factor.nameScore,
+          contScore: factor.contScore,
+          codeScore: factor.codeScore,
+          total: factor.total,
+          jaccard: jaccardSimilarity(r.src.content, r.cak.content),
+          tfidf: tfidfCosineSimilarity(r.src.content, r.cak.content),
+          ngram: ngramSimilarity(r.src.content, r.cak.content),
+        });
         const score = factor.total;
         let tier,
           rejectReason = '';
