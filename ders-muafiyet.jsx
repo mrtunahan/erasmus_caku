@@ -707,15 +707,15 @@ function parsePetitionRows(text, targetCourses) {
 
 function normalizeText(text) {
   if (!text) return '';
+  // ÖNEMLİ: JS standart .toLowerCase() Türkçe duyarlı değildir.
+  //   "İ" → "i" + combining-dot (U+0307) → kelime bozulur
+  //   "I" → "i" (büyük noktasız I, küçük noktalı i'ye dönüşür, bilgi kaybı)
+  // Türkçe locale-aware toLocaleLowerCase kullanılır, ayrıca combining
+  // diakritik işaretler temizlenir (NFD + diacritic strip değil, sadece
+  // kalan combining dot above 0x0307 hedefli).
   return text
-    .toLowerCase()
-    .replace(/İ/g, 'i')
-    .replace(/I/g, 'ı')
-    .replace(/Ğ/g, 'ğ')
-    .replace(/Ü/g, 'ü')
-    .replace(/Ş/g, 'ş')
-    .replace(/Ö/g, 'ö')
-    .replace(/Ç/g, 'ç')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/̇/g, '') // combining dot above (İ → i̇ kalıntısı)
     .replace(/[^a-zçğıöşü0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
