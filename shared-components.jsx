@@ -453,6 +453,28 @@ const HIERARCHY_MODULES = [
 
 window.FACULTY = FACULTY;
 window.DEPARTMENTS = DEPARTMENTS;
+
+// Akademisyen-bölüm eşleşme kontrolü — modüllerin ortak kullanımı için.
+// Bir akademisyen aşağıdaki durumlardan herhangi birinde belirtilen bölümde
+// sayılır:
+//   1. ana bölümü: prof.departmentId === deptId
+//   2. ek bölüm listesi: prof.additionalDepartments içerir deptId'yi
+//   3. eski/ham veride sadece ad eşleşmesi (departmentId hiç yoksa)
+// Modüller (proje, sınav otomasyonu, ders programı, anketler, kullanıcı
+// yönetimi) bu fonksiyonu kullanarak çapraz-bölüm akademisyen atamalarını
+// otomatik destekler.
+window.profMatchesDept = function (prof, deptId, deptName) {
+  if (!prof || !deptId) return false;
+  if (prof.departmentId === deptId) return true;
+  const extras = Array.isArray(prof.additionalDepartments) ? prof.additionalDepartments : [];
+  if (extras.includes(deptId)) return true;
+  // Ham veri fallback: departmentId boşsa ad ile dene
+  if (!prof.departmentId && deptName && prof.department) {
+    const norm = (s) => (s || '').toLocaleLowerCase('tr-TR').replace(/\s+/g, '');
+    if (norm(prof.department) === norm(deptName)) return true;
+  }
+  return false;
+};
 window.DEPARTMENT_MODULES = DEPARTMENT_MODULES;
 window.COMMON_MODULES = COMMON_MODULES;
 window.ADMIN_MODULES = ADMIN_MODULES;
