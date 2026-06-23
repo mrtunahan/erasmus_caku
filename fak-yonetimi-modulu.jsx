@@ -170,6 +170,8 @@ function FakYonetimiApp({ currentUser }) {
   const [msg, setMsg] = useState({ text: '', kind: '' });
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', shortName: '' });
+  // Yeni akademisyen oluşturma formu — hangi bölüme açıldığı dept id'siyle takip edilir.
+  const [newProfForm, setNewProfForm] = useState(null); // { deptId, deptName, name, title, makeManager }
 
   const isFacultyManager = !!currentUser?.isFacultyManager;
 
@@ -283,6 +285,39 @@ function FakYonetimiApp({ currentUser }) {
       );
     } catch (e) {
       showMsg('Ekleme hatası: ' + e.message, 'error');
+    }
+  };
+
+  // Yeni akademisyen oluştur + bölüme bağla (opsiyonel olarak yetkili yap).
+  // Kullanıcı Yönetimi modülüne gitmeden, Fakülte Yönetimi içinden hızlı atama.
+  const createProfAndAssign = async () => {
+    if (!newProfForm || !newProfForm.name?.trim()) {
+      showMsg('Akademisyen adı zorunludur.', 'error');
+      return;
+    }
+    try {
+      const fullName = newProfForm.title?.trim()
+        ? `${newProfForm.title.trim()} ${newProfForm.name.trim()}`
+        : newProfForm.name.trim();
+      const data = {
+        name: fullName,
+        department: newProfForm.deptName || '',
+        departmentId: newProfForm.deptId || '',
+        facultyId: myFacultyId,
+        universityId: currentUser?.universityId || 'caku',
+        isDeptManager: !!newProfForm.makeManager,
+        createdAt: new Date(),
+      };
+      await window.DBWrite.add('professors', data);
+      setNewProfForm(null);
+      await load();
+      showMsg(
+        newProfForm.makeManager
+          ? `${fullName} → ${newProfForm.deptName} bölüm yetkilisi olarak eklendi.`
+          : `${fullName} → ${newProfForm.deptName} bölümüne eklendi.`
+      );
+    } catch (e) {
+      showMsg('Akademisyen oluşturulamadı: ' + e.message, 'error');
     }
   };
 
@@ -682,16 +717,41 @@ function FakYonetimiApp({ currentUser }) {
                       professors={assignableProfs.filter(
                         (p) => !deptProfs.some((dp) => dp.id === p.id)
                       )}
-                      placeholder="Bölüme akademisyen ekle…"
+                      placeholder="Mevcut akademisyenden ekle…"
                       onPick={(p) => addProfToDept(d, p)}
                     />
                     <ProfPicker
                       professors={assignableProfs.filter(
                         (p) => !deptProfs.some((dp) => dp.id === p.id && dp.isDeptManager)
                       )}
-                      placeholder="Doğrudan bölüm yetkilisi yap…"
+                      placeholder="Mevcut akademisyeni doğrudan bölüm yetkilisi yap…"
                       onPick={(p) => addProfToDept(d, p, { makeManager: true })}
                     />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNewProfForm({
+                          deptId: d.id,
+                          deptName: d.name,
+                          name: '',
+                          title: '',
+                          makeManager: false,
+                        })
+                      }
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: '1px dashed ' + FAK.accent,
+                        background: 'white',
+                        color: FAK.accent,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      + Bu bölüme yeni akademisyen oluştur
+                    </button>
                   </div>
                 </div>
               </div>
@@ -779,6 +839,118 @@ function FakYonetimiApp({ currentUser }) {
                 }}
               >
                 Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yeni Akademisyen Oluştur Modalı */}
+      {newProfForm && (
+        <div
+          onClick={() => setNewProfForm(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: 14,
+              padding: 22,
+              width: '100%',
+              maxWidth: 460,
+              boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+            }}
+          >
+            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: FAK.primary }}>
+              Yeni Akademisyen — {newProfForm.deptName}
+            </h3>
+            <p style={{ margin: '6px 0 18px', fontSize: 12, color: FAK.textMuted }}>
+              Bu akademisyen sisteme kaydedilecek ve doğrudan bu bölüme atanacak.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={fLabel}>Unvan (Opsiyonel)</label>
+                <input
+                  value={newProfForm.title}
+                  onChange={(e) => setNewProfForm({ ...newProfForm, title: e.target.value })}
+                  placeholder="Örn: Prof. Dr. / Dr. Öğr. Üyesi / Arş. Gör."
+                  style={fInput}
+                />
+              </div>
+              <div>
+                <label style={fLabel}>Ad Soyad *</label>
+                <input
+                  autoFocus
+                  value={newProfForm.name}
+                  onChange={(e) => setNewProfForm({ ...newProfForm, name: e.target.value })}
+                  placeholder="Örn: A. Tunahan KORKMAZ"
+                  style={fInput}
+                />
+              </div>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '10px 12px',
+                  background: FAK.accentPale,
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: FAK.text,
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!newProfForm.makeManager}
+                  onChange={(e) =>
+                    setNewProfForm({ ...newProfForm, makeManager: e.target.checked })
+                  }
+                />
+                Aynı zamanda <b style={{ marginLeft: 4 }}>bölüm yetkilisi</b> olarak da ata
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
+              <button
+                type="button"
+                onClick={() => setNewProfForm(null)}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: 8,
+                  border: '1px solid ' + FAK.border,
+                  background: 'white',
+                  color: FAK.textMuted,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                İptal
+              </button>
+              <button
+                type="button"
+                onClick={createProfAndAssign}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: FAK.accent,
+                  color: 'white',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Oluştur ve Ata
               </button>
             </div>
           </div>
