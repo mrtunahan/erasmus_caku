@@ -19,9 +19,9 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   const [editingProf, setEditingProf] = useState(null);
   const [saving, setSaving] = useState(false);
   const [dbDepartments, setDbDepartments] = useState([]);
-  // Var olan akademisyenden ekleme modalı (çapraz-bölüm)
-  const [crossPickOpen, setCrossPickOpen] = useState(false);
-  const [crossPickDeptId, setCrossPickDeptId] = useState('');
+  // Çapraz-bölüm "Yeni Akademisyen Ekle" formu için akademisyen havuzu.
+  // Kullanıcı kaynak bölüm seçtiğinde o bölümün akademisyenleri buraya yüklenir;
+  // ad dropdown'unu bu liste besler.
   const [crossPickProfs, setCrossPickProfs] = useState([]);
   const [crossPickLoading, setCrossPickLoading] = useState(false);
 
@@ -186,14 +186,9 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   };
 
   // ── Çapraz-bölüm akademisyen ekleme ──
-  // Seçilen bölümün akademisyenlerini yükle (sol panel için)
-  const openCrossPick = () => {
-    setCrossPickDeptId('');
-    setCrossPickProfs([]);
-    setCrossPickOpen(true);
-  };
+  // Kaynak bölümün akademisyenlerini yükle — "Yeni Akademisyen Ekle" form satırı
+  // bunları ad dropdown'unda gösterir.
   const loadCrossPickProfs = async (deptId) => {
-    setCrossPickDeptId(deptId);
     if (!deptId) {
       setCrossPickProfs([]);
       return;
@@ -249,7 +244,6 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         });
       }
       alert(prof.name + ' artık bu bölüme de erişebilir.');
-      setCrossPickOpen(false);
       loadData(); // Listeyi tazele
     } catch (e) {
       alert('Atama hatası: ' + e.message);
@@ -850,9 +844,6 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                   flexWrap: 'wrap',
                 }}
               >
-                <Btn variant="secondary" onClick={openCrossPick}>
-                  + Var Olan Akademisyenden Ekle
-                </Btn>
                 <Btn
                   onClick={() =>
                     setEditingProf({
@@ -889,7 +880,9 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                     </tr>
                   </thead>
                   <tbody>
-                    {/* New professor form row */}
+                    {/* New professor form row — bölüm seç → o bölümün akademisyenleri ad
+                        olarak listelenir → seçilen akademisyen aktif bölüme additionalDepartments
+                        olarak eklenir (çapraz-bölüm akademisyen ataması). */}
                     {editingProf && !editingProf.id && (
                       <tr
                         style={{
@@ -898,25 +891,62 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                         }}
                       >
                         <td style={{ padding: 14 }}>
-                          <Input
+                          <select
                             autoFocus
-                            value={editingProf.name}
-                            onChange={(e) =>
-                              setEditingProf({ ...editingProf, name: e.target.value })
-                            }
-                            placeholder="Örn: Dr. Ali Veli"
-                          />
+                            value={editingProf.selectedProfId || ''}
+                            onChange={(e) => {
+                              const sel = crossPickProfs.find(
+                                (p) => (p.id || p._docId) === e.target.value
+                              );
+                              setEditingProf({
+                                ...editingProf,
+                                selectedProfId: e.target.value,
+                                name: sel?.name || '',
+                              });
+                            }}
+                            disabled={!editingProf.departmentId || crossPickLoading}
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              border: `1.5px solid ${C.border}`,
+                              borderRadius: 8,
+                              fontSize: 14,
+                              fontFamily: 'inherit',
+                              backgroundColor: editingProf.departmentId ? 'white' : '#F3F4F6',
+                              cursor: editingProf.departmentId ? 'pointer' : 'not-allowed',
+                            }}
+                          >
+                            <option value="">
+                              {!editingProf.departmentId
+                                ? 'Önce kaynak bölüm seçin'
+                                : crossPickLoading
+                                  ? 'Yükleniyor…'
+                                  : crossPickProfs.length === 0
+                                    ? 'Bu bölümde akademisyen yok'
+                                    : 'Akademisyen seçin'}
+                            </option>
+                            {crossPickProfs.map((p) => {
+                              const k = p.id || p._docId;
+                              return (
+                                <option key={k} value={k}>
+                                  {p.name}
+                                  {p.department ? ` — ${p.department}` : ''}
+                                </option>
+                              );
+                            })}
+                          </select>
                         </td>
                         <td style={{ padding: 14 }}>
                           <select
                             value={editingProf.departmentId || ''}
                             onChange={(e) => {
-                              const dept = DEPARTMENTS.find((d) => d.id === e.target.value);
                               setEditingProf({
                                 ...editingProf,
                                 departmentId: e.target.value,
-                                department: dept?.name || '',
+                                selectedProfId: '',
+                                name: '',
                               });
+                              loadCrossPickProfs(e.target.value);
                             }}
                             style={{
                               width: '100%',
@@ -929,18 +959,34 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                               cursor: 'pointer',
                             }}
                           >
-                            <option value="">Bölüm Seçin</option>
-                            {DEPARTMENTS.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {d.name}
-                              </option>
-                            ))}
+                            <option value="">Kaynak Bölüm Seçin</option>
+                            {(window.DEPARTMENTS || [])
+                              .filter((d) => d.id !== activeDepartment)
+                              .map((d) => (
+                                <option key={d.id} value={d.id}>
+                                  {d.name}
+                                </option>
+                              ))}
                           </select>
                         </td>
                         <td style={{ padding: 14, textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                            <Btn small onClick={handleSaveProfessor} disabled={saving}>
-                              Kaydet
+                            <Btn
+                              small
+                              disabled={!editingProf.selectedProfId || saving}
+                              onClick={async () => {
+                                const picked = crossPickProfs.find(
+                                  (p) => (p.id || p._docId) === editingProf.selectedProfId
+                                );
+                                if (!picked) {
+                                  alert('Önce bir akademisyen seçin.');
+                                  return;
+                                }
+                                await addProfToActiveDept(picked);
+                                setEditingProf(null);
+                              }}
+                            >
+                              Bu Bölüme Ekle
                             </Btn>
                             <Btn small variant="secondary" onClick={() => setEditingProf(null)}>
                               İptal
@@ -1574,123 +1620,6 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         )}
 
         {/* Çapraz-bölüm akademisyen ekleme modalı */}
-        {crossPickOpen && (
-          <Modal
-            title={`Var Olan Akademisyenden Ekle — ${departmentInfo?.name || 'Bu Bölüm'}`}
-            onClose={() => setCrossPickOpen(false)}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 480 }}>
-              <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
-                Sağdan bir bölüm seçin; soldaki listede o bölümün akademisyenleri görünür.
-                Seçtiğiniz akademisyen <b>{departmentInfo?.name || 'bu bölüm'}</b> erişimine de
-                eklenir (proje, sınav, ders programı, anketler vb. modülleri kullanabilir).
-                Akademisyenin ana bölümü değişmez.
-              </div>
-
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: C.navy,
-                    letterSpacing: '0.05em',
-                    textTransform: 'uppercase',
-                    marginBottom: 6,
-                  }}
-                >
-                  Kaynak Bölüm
-                </label>
-                <select
-                  value={crossPickDeptId}
-                  onChange={(e) => loadCrossPickProfs(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: `1.5px solid ${C.border}`,
-                    borderRadius: 8,
-                    fontSize: 14,
-                    backgroundColor: 'white',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <option value="">Bölüm Seçin</option>
-                  {(window.DEPARTMENTS || [])
-                    .filter((d) => d.id !== activeDepartment)
-                    .map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div
-                style={{
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 8,
-                  maxHeight: 360,
-                  overflowY: 'auto',
-                  background: '#FAFBFC',
-                }}
-              >
-                {crossPickLoading ? (
-                  <div
-                    style={{ padding: 20, textAlign: 'center', color: C.textMuted, fontSize: 13 }}
-                  >
-                    Yükleniyor…
-                  </div>
-                ) : !crossPickDeptId ? (
-                  <div
-                    style={{ padding: 20, textAlign: 'center', color: C.textMuted, fontSize: 13 }}
-                  >
-                    Listelenecek akademisyen için önce yukarıdan bölüm seçin.
-                  </div>
-                ) : crossPickProfs.length === 0 ? (
-                  <div
-                    style={{ padding: 20, textAlign: 'center', color: C.textMuted, fontSize: 13 }}
-                  >
-                    Bu bölümde eklenebilecek akademisyen yok (ya boş ya da hepsi zaten bu bölümde).
-                  </div>
-                ) : (
-                  crossPickProfs.map((p) => (
-                    <div
-                      key={p.id || p._docId}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '10px 14px',
-                        borderBottom: `1px solid ${C.border}`,
-                        gap: 8,
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.navy }}>{p.name}</div>
-                        <div style={{ fontSize: 11, color: C.textMuted }}>
-                          Ana bölüm: {p.department || p.departmentId || '-'}
-                          {Array.isArray(p.additionalDepartments) &&
-                            p.additionalDepartments.length > 0 && (
-                              <span> · Ek: {p.additionalDepartments.join(', ')}</span>
-                            )}
-                        </div>
-                      </div>
-                      <Btn small onClick={() => addProfToActiveDept(p)}>
-                        Bu Bölüme Ekle
-                      </Btn>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <Btn variant="secondary" onClick={() => setCrossPickOpen(false)}>
-                  Kapat
-                </Btn>
-              </div>
-            </div>
-          </Modal>
-        )}
       </div>
     </div>
   );
