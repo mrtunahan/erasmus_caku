@@ -5045,17 +5045,27 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             setGradingSystem={setGradingSystem}
           />
         )}
-        {activeTab === 'yeni' && (
-          <NewExemption
-            courseContents={courseContents}
-            gradingSystem={gradingSystem}
-            onSave={function (saved) {
-              setRecords(function (prev) {
-                return [saved, ...prev];
-              });
-            }}
-          />
-        )}
+        {activeTab === 'yeni' &&
+          (currentUser?.role === 'student' ? (
+            <ManualExemptionForm
+              currentUser={currentUser}
+              onSave={function (saved) {
+                setRecords(function (prev) {
+                  return [saved, ...prev];
+                });
+              }}
+            />
+          ) : (
+            <NewExemption
+              courseContents={courseContents}
+              gradingSystem={gradingSystem}
+              onSave={function (saved) {
+                setRecords(function (prev) {
+                  return [saved, ...prev];
+                });
+              }}
+            />
+          ))}
         {activeTab === 'gecmis' && (
           <ExemptionHistory
             records={records}
@@ -5071,6 +5081,456 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
     </div>
   );
 }
+
+// ══════════════════════════════════════════════════════════════
+// Manuel Muafiyet Formu (Öğrenci için satır-bazlı akış)
+//   Her satırda iki yan: Karşı kurum dersi + ÇAKÜ dersi.
+//   Her yan için: ad, kod, AKTS, statü (Z/S), içerik dosyası (PDF/DOCX).
+//   Dosyalardan metin çıkar → NLP combinedSimilarity → tier kararı.
+//     ≥0.80 → otomatik muaf, 0.70–0.79 → akademisyen onayı, <0.70 → red.
+// ══════════════════════════════════════════════════════════════
+const emptyManualRow = function () {
+  return {
+    id: 'r' + Math.random().toString(36).slice(2, 9),
+    src: {
+      uni: '',
+      faculty: '',
+      dept: '',
+      name: '',
+      code: '',
+      akts: '',
+      statu: 'Z',
+      file: null,
+      fileName: '',
+      content: '',
+    },
+    cak: { name: '', code: '', akts: '', statu: 'Z', file: null, fileName: '', content: '' },
+  };
+};
+
+const ManualExemptionForm = ({ currentUser, onSave }) => {
+  const [studentName, setStudentName] = useState(currentUser?.name || '');
+  const [studentNo, setStudentNo] = useState(
+    currentUser?.studentNumber || currentUser?.identifier || ''
+  );
+  const [rows, setRows] = useState([emptyManualRow()]);
+  const [processing, setProcessing] = useState(false);
+  const [msg, setMsg] = useState({ text: '', kind: '' });
+
+  const tr = (v) => (typeof v === 'string' ? v.toLocaleUpperCase('tr-TR') : v);
+  const updateSide = (rowId, side, field, value) => {
+    setRows((prev) =>
+      prev.map((r) => (r.id === rowId ? { ...r, [side]: { ...r[side], [field]: tr(value) } } : r))
+    );
+  };
+  const updateNumeric = (rowId, side, field, value) => {
+    const v = String(value || '').replace(/\D/g, '');
+    setRows((prev) =>
+      prev.map((r) => (r.id === rowId ? { ...r, [side]: { ...r[side], [field]: v } } : r))
+    );
+  };
+  const handleFile = async (rowId, side, file) => {
+    if (!file) return;
+    try {
+      let text = '';
+      if (file.name.toLowerCase().endsWith('.pdf')) {
+        text = await extractTextFromPDF(file);
+      } else if (file.name.toLowerCase().match(/\.docx?$/)) {
+        text = await extractTextFromDOCX(file);
+      } else {
+        setMsg({ text: 'Sadece PDF ve Word (.docx) destekleniyor.', kind: 'error' });
+        return;
+      }
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === rowId
+            ? { ...r, [side]: { ...r[side], file, fileName: file.name, content: text } }
+            : r
+        )
+      );
+    } catch (e) {
+      setMsg({ text: 'Dosya okunamadı: ' + e.message, kind: 'error' });
+    }
+  };
+
+  const addRow = () => setRows((prev) => [...prev, emptyManualRow()]);
+  const removeRow = (rowId) =>
+    setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.id !== rowId) : prev));
+
+  const validate = () => {
+    if (!studentName.trim() || !studentNo.trim()) {
+      setMsg({ text: 'Öğrenci adı ve numarası zorunlu.', kind: 'error' });
+      return false;
+    }
+    for (const r of rows) {
+      if (!r.src.name.trim() || !r.cak.name.trim()) {
+        setMsg({ text: 'Her ders için iki yan da ders adı zorunlu.', kind: 'error' });
+        return false;
+      }
+      if (!r.src.content || !r.cak.content) {
+        setMsg({
+          text: 'Her ders için iki yan da içerik dosyası (PDF/Word) zorunlu.',
+          kind: 'error',
+        });
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const processAndSave = async () => {
+    if (!validate()) return;
+    setProcessing(true);
+    try {
+      const matches = rows.map((r) => {
+        const score = combinedSimilarity(r.src.content, r.cak.content);
+        let tier,
+          rejectReason = '';
+        if (score >= THRESHOLD_AUTO_APPROVE) {
+          tier = 'approved';
+        } else if (score >= THRESHOLD_REVIEW) {
+          tier = 'review';
+          rejectReason = 'Akademisyen onayı bekliyor (%' + Math.round(score * 100) + ')';
+        } else {
+          tier = 'rejected';
+          rejectReason = 'Benzerlik düşük (%' + Math.round(score * 100) + ')';
+        }
+        return {
+          localCourse: {
+            code: r.cak.code,
+            name: r.cak.name,
+            akts: r.cak.akts,
+            statu: r.cak.statu,
+            weeklyContent: r.cak.content,
+          },
+          sourceCourse: {
+            code: r.src.code,
+            name: r.src.name,
+            akts: r.src.akts,
+            statu: r.src.statu,
+            weeklyContent: r.src.content,
+            grade: '',
+          },
+          score,
+          contentScore: score,
+          nameScore: courseNameSimilarity(r.src.name, r.cak.name),
+          codeScore: courseCodeSimilarity(r.src.code, r.cak.code),
+          tier,
+          matched: tier === 'approved',
+          aktsPass: true,
+          rejectReason,
+        };
+      });
+
+      const approvedCount = matches.filter((m) => m.tier === 'approved').length;
+      const reviewCount = matches.filter((m) => m.tier === 'review').length;
+      const rejectedCount = matches.filter((m) => m.tier === 'rejected').length;
+
+      const record = await MuafiyetDB.saveRecord(null, {
+        studentName,
+        studentNo,
+        otherUni: rows[0]?.src.uni || '',
+        otherFaculty: rows[0]?.src.faculty || '',
+        otherDept: rows[0]?.src.dept || '',
+        localDept: currentUser?.departmentName || '',
+        departmentId: currentUser?.departmentId || '',
+        matches,
+        approvedCount,
+        pendingReviewCount: reviewCount,
+        rejectedCount,
+        manualEntry: true,
+        createdBy: currentUser?.identifier || currentUser?.name || '',
+      });
+
+      setMsg({
+        text:
+          'Kaydedildi: ' +
+          approvedCount +
+          ' otomatik muaf, ' +
+          reviewCount +
+          ' akademisyen onayında, ' +
+          rejectedCount +
+          ' red.',
+        kind: 'success',
+      });
+      if (onSave) onSave(record);
+      setRows([emptyManualRow()]);
+    } catch (e) {
+      setMsg({ text: 'Kayıt hatası: ' + e.message, kind: 'error' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const inputStyle = {
+    width: '100%',
+    padding: '8px 10px',
+    borderRadius: 6,
+    border: '1px solid ' + DS.border,
+    fontSize: 13,
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
+  const labelStyle = {
+    display: 'block',
+    fontSize: 10,
+    fontWeight: 700,
+    color: DS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    marginBottom: 4,
+  };
+
+  const renderSide = (row, side, title, color) => {
+    const v = row[side];
+    return (
+      <div
+        style={{
+          flex: 1,
+          background: 'white',
+          border: '1px solid ' + DS.border,
+          borderTop: '3px solid ' + color,
+          borderRadius: 8,
+          padding: 14,
+        }}
+      >
+        <h4 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: DS.navy }}>
+          {title}
+        </h4>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {side === 'src' && (
+            <>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={labelStyle}>Üniversite</label>
+                <input
+                  value={v.uni}
+                  onChange={(e) => updateSide(row.id, side, 'uni', e.target.value)}
+                  style={inputStyle}
+                  placeholder="ÖRN: BURSA ULUDAĞ ÜNİVERSİTESİ"
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Fakülte</label>
+                <input
+                  value={v.faculty}
+                  onChange={(e) => updateSide(row.id, side, 'faculty', e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Bölüm</label>
+                <input
+                  value={v.dept}
+                  onChange={(e) => updateSide(row.id, side, 'dept', e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            </>
+          )}
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={labelStyle}>Ders Adı *</label>
+            <input
+              value={v.name}
+              onChange={(e) => updateSide(row.id, side, 'name', e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Ders Kodu</label>
+            <input
+              value={v.code}
+              onChange={(e) => updateSide(row.id, side, 'code', e.target.value)}
+              style={inputStyle}
+              placeholder="ÖRN: BIL307"
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>AKTS</label>
+            <input
+              value={v.akts}
+              onChange={(e) => updateNumeric(row.id, side, 'akts', e.target.value)}
+              style={inputStyle}
+              inputMode="numeric"
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Statü</label>
+            <select
+              value={v.statu}
+              onChange={(e) => updateSide(row.id, side, 'statu', e.target.value)}
+              style={{ ...inputStyle, cursor: 'pointer' }}
+            >
+              <option value="Z">Z (Zorunlu)</option>
+              <option value="S">S (Seçmeli)</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>İçerik Dosyası *</label>
+            <label
+              style={{
+                display: 'block',
+                padding: '8px 10px',
+                borderRadius: 6,
+                border: '1px dashed ' + color,
+                background: v.fileName ? color + '12' : 'white',
+                color: v.fileName ? color : DS.textSecondary,
+                fontSize: 12,
+                cursor: 'pointer',
+                textAlign: 'center',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {v.fileName || 'PDF/DOCX seç'}
+              <input
+                type="file"
+                accept=".pdf,.docx,.doc"
+                onChange={(e) => handleFile(row.id, side, e.target.files?.[0])}
+                style={{ display: 'none' }}
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      {/* Öğrenci bilgileri */}
+      <div
+        style={{
+          background: 'white',
+          border: '1px solid ' + DS.border,
+          borderRadius: 10,
+          padding: 16,
+          marginBottom: 18,
+          display: 'flex',
+          gap: 12,
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Öğrenci Adı Soyadı *</label>
+          <input
+            value={studentName}
+            onChange={(e) => setStudentName(tr(e.target.value))}
+            style={inputStyle}
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Öğrenci No *</label>
+          <input
+            value={studentNo}
+            onChange={(e) => setStudentNo(e.target.value.replace(/\D/g, ''))}
+            style={inputStyle}
+          />
+        </div>
+      </div>
+
+      {/* Ders satırları */}
+      {rows.map((row, idx) => (
+        <div
+          key={row.id}
+          style={{
+            background: DS.bg,
+            border: '1px solid ' + DS.borderLight,
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 14,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 12,
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 700, color: DS.textSecondary }}>
+              DERS {idx + 1}
+            </span>
+            {rows.length > 1 && (
+              <button
+                onClick={() => removeRow(row.id)}
+                style={{
+                  background: 'none',
+                  border: '1px solid ' + DS.border,
+                  color: DS.red,
+                  fontSize: 11,
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                Bu dersi kaldır
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {renderSide(row, 'src', 'KARŞI KURUM (Alınan Ders)', '#0EA5E9')}
+            {renderSide(row, 'cak', 'ÇAKÜ (Muaf Olunacak Ders)', '#10B981')}
+          </div>
+        </div>
+      ))}
+
+      <button
+        onClick={addRow}
+        style={{
+          width: '100%',
+          padding: 14,
+          border: '2px dashed ' + DS.border,
+          background: 'white',
+          color: DS.accent,
+          borderRadius: 10,
+          fontWeight: 600,
+          fontSize: 13,
+          cursor: 'pointer',
+          marginBottom: 16,
+        }}
+      >
+        + Yeni Ders Eşleştirmesi Ekle
+      </button>
+
+      {msg.text && (
+        <div
+          style={{
+            padding: '10px 14px',
+            borderRadius: 8,
+            marginBottom: 12,
+            background: msg.kind === 'error' ? DS.redLight : DS.greenBg,
+            color: msg.kind === 'error' ? DS.red : DS.green,
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
+          {msg.text}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <button
+          onClick={processAndSave}
+          disabled={processing}
+          style={{
+            padding: '11px 22px',
+            background: DS.accent,
+            color: 'white',
+            border: 'none',
+            borderRadius: 8,
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: processing ? 'wait' : 'pointer',
+            opacity: processing ? 0.7 : 1,
+          }}
+        >
+          {processing ? 'Eşleştiriliyor…' : 'Eşleştir ve Kaydet'}
+        </button>
+      </div>
+    </div>
+  );
+};
 
 // ── Window'a export ──
 window.DersMuafiyetApp = DersMuafiyetApp;
