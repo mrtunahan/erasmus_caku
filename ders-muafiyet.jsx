@@ -5132,6 +5132,8 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
   const handleFile = async (rowId, side, file) => {
     if (!file) return;
     try {
+      // pdfjs / mammoth CDN'leri ilk dosya yüklemede tek seferlik indirilir.
+      await ensureLibsLoaded();
       let text = '';
       if (file.name.toLowerCase().endsWith('.pdf')) {
         text = await extractTextFromPDF(file);
