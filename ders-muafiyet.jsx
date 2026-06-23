@@ -943,11 +943,14 @@ function combinedSimilarity(text1, text2) {
 }
 
 function multiFactorScore(srcCourse, tgtCourse) {
-  var nameScore = courseNameSimilarity(srcCourse.name, tgtCourse.name);
-  var codeScore = courseCodeSimilarity(srcCourse.code, tgtCourse.code);
+  var safe = function (v) {
+    return typeof v === 'number' && !isNaN(v) ? v : 0;
+  };
+  var nameScore = safe(courseNameSimilarity(srcCourse.name, tgtCourse.name));
+  var codeScore = safe(courseCodeSimilarity(srcCourse.code, tgtCourse.code));
   var srcText = srcCourse.weeklyContent || srcCourse.content || '';
   var tgtText = tgtCourse.weeklyContent || tgtCourse.content || '';
-  var contScore = srcText && tgtText ? contentSimilarity(srcText, tgtText) : 0;
+  var contScore = srcText && tgtText ? safe(contentSimilarity(srcText, tgtText)) : 0;
   var wName = W_NAME,
     wContent = W_CONTENT,
     wCode = W_CODE;
@@ -957,7 +960,7 @@ function multiFactorScore(srcCourse, tgtCourse) {
     wCode = 0.25;
   }
   return {
-    total: wName * nameScore + wContent * contScore + wCode * codeScore,
+    total: safe(wName * nameScore + wContent * contScore + wCode * codeScore),
     nameScore: nameScore,
     contentScore: contScore,
     codeScore: codeScore,
@@ -5200,6 +5203,28 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
         'token, örnekler:',
         tokens.slice(0, 30)
       );
+      // PDF font encoding tespiti: metinde Türkçe diakritik (ç ğ ı ş ö ü) oranı
+      // çok düşükse veya rakam-yoğun anlamsız token'lar yüksekse bozuk font
+      // varsayılır. Bu durumda kullanıcıya OCR önerisi yapılır.
+      const diacriticChars = (cleaned.match(/[çğıöşüÇĞİÖŞÜ]/g) || []).length;
+      const turkishRatio = charCount > 0 ? diacriticChars / charCount : 0;
+      const garbageRatio = (() => {
+        if (tokens.length === 0) return 1;
+        // Türkçede ünlü harf içermeyen token (örn. "huvlq", "gqnr", "xox")
+        const gibberish = tokens.filter((t) => !/[aeıioöuü]/.test(t)).length;
+        return gibberish / tokens.length;
+      })();
+      const encodingBroken = charCount > 200 && turkishRatio < 0.005 && garbageRatio > 0.2;
+      console.log(
+        '[Muafiyet] Encoding sağlığı:',
+        file.name,
+        'turkishRatio=',
+        turkishRatio.toFixed(3),
+        'garbageRatio=',
+        garbageRatio.toFixed(3),
+        'broken=',
+        encodingBroken
+      );
       if (charCount < 50) {
         setMsg({
           text:
@@ -5209,6 +5234,16 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
             file.name +
             '). Bu PDF büyük ihtimalle taranmış görüntü tabanlı — pdf.js metin çıkaramıyor. ' +
             'Lütfen seçilebilir metinli (text-based) bir PDF veya Word (.docx) dosyası yükleyin.',
+          kind: 'error',
+        });
+      } else if (encodingBroken) {
+        setMsg({
+          text:
+            file.name +
+            " okundu ama metin OKUNABİLİR DEĞİL — PDF'in font haritası eksik " +
+            '(gömülü olmayan font veya custom encoding). pdf.js ham unicode kodlarını ' +
+            'döküyor (örn. "0ø.52øù"). Çözüm: bu PDF\'i Word\'e dönüştürüp .docx olarak yükleyin, ' +
+            'veya kaynak kurumdan metinli bir kopya isteyin. NLP karşılaştırması yapılamaz.',
           kind: 'error',
         });
       } else {
@@ -5228,6 +5263,7 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
                   fileName: file.name,
                   content: cleaned,
                   contentChars: charCount,
+                  encodingBroken,
                 },
               }
             : r
@@ -5275,6 +5311,20 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
         });
         return false;
       }
+      if (r.src.encodingBroken || r.cak.encodingBroken) {
+        const which = [];
+        if (r.src.encodingBroken) which.push('Karşı kurum');
+        if (r.cak.encodingBroken) which.push('ÇAKÜ');
+        setMsg({
+          text:
+            which.join(' + ') +
+            ' dosyasının metni okunabilir değil (font haritası bozuk). ' +
+            "Bu PDF'i Word/.docx olarak yükleyin veya kaynak kurumdan metinli kopya alın. " +
+            'Aksi halde içerik karşılaştırması anlamlı sonuç vermez.',
+          kind: 'error',
+        });
+        return false;
+      }
     }
     return true;
   };
@@ -5305,7 +5355,7 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
           src: { name: r.src.name, code: r.src.code, contentLen: (r.src.content || '').length },
           cak: { name: r.cak.name, code: r.cak.code, contentLen: (r.cak.content || '').length },
           nameScore: factor.nameScore,
-          contScore: factor.contScore,
+          contentScore: factor.contentScore,
           codeScore: factor.codeScore,
           total: factor.total,
           jaccard: jaccardSimilarity(r.src.content, r.cak.content),
@@ -5341,7 +5391,7 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
             grade: '',
           },
           score,
-          contentScore: factor.contScore,
+          contentScore: factor.contentScore,
           nameScore: factor.nameScore,
           codeScore: factor.codeScore,
           tier,
