@@ -5186,14 +5186,44 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
         setMsg({ text: 'Sadece PDF ve Word (.docx) destekleniyor.', kind: 'error' });
         return;
       }
+      const cleaned = (text || '').replace(/\s+/g, ' ').trim();
+      const charCount = cleaned.length;
+      console.log('[Muafiyet] PDF/DOCX okundu:', file.name, '→', charCount, 'karakter');
+      if (charCount < 50) {
+        setMsg({
+          text:
+            'Dosyadan yalnızca ' +
+            charCount +
+            ' karakter okunabildi (' +
+            file.name +
+            '). Bu PDF büyük ihtimalle taranmış görüntü tabanlı — pdf.js metin çıkaramıyor. ' +
+            'Lütfen seçilebilir metinli (text-based) bir PDF veya Word (.docx) dosyası yükleyin.',
+          kind: 'error',
+        });
+      } else {
+        setMsg({
+          text: file.name + ' yüklendi (' + charCount + ' karakter metin çıkarıldı).',
+          kind: 'success',
+        });
+      }
       setRows((prev) =>
         prev.map((r) =>
           r.id === rowId
-            ? { ...r, [side]: { ...r[side], file, fileName: file.name, content: text } }
+            ? {
+                ...r,
+                [side]: {
+                  ...r[side],
+                  file,
+                  fileName: file.name,
+                  content: cleaned,
+                  contentChars: charCount,
+                },
+              }
             : r
         )
       );
     } catch (e) {
+      console.error('[Muafiyet] Dosya okuma hatası:', e);
       setMsg({ text: 'Dosya okunamadı: ' + e.message, kind: 'error' });
     }
   };
@@ -5215,6 +5245,21 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
       if (!r.src.content || !r.cak.content) {
         setMsg({
           text: 'Her ders için iki yan da içerik dosyası (PDF/Word) zorunlu.',
+          kind: 'error',
+        });
+        return false;
+      }
+      const srcLen = (r.src.contentChars ?? r.src.content.length) || 0;
+      const cakLen = (r.cak.contentChars ?? r.cak.content.length) || 0;
+      if (srcLen < 50 || cakLen < 50) {
+        setMsg({
+          text:
+            'Bir dosyadan yeterli metin çıkarılamadı (karşı=' +
+            srcLen +
+            ' ks, ÇAKÜ=' +
+            cakLen +
+            ' ks). Taranmış görüntü tabanlı PDF olabilir — seçilebilir metinli ' +
+            'PDF/Word yükleyin, aksi halde içerik karşılaştırması yapılamaz.',
           kind: 'error',
         });
         return false;
@@ -5643,11 +5688,28 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
               </div>
               <div style={{ fontSize: 12, color: DS.textSecondary, lineHeight: 1.6 }}>
                 {meta.explain}
-                {m.tier === 'rejected' && (
+                {(m.contentScore || 0) < 0.05 && (
+                  <div
+                    style={{
+                      marginTop: 6,
+                      padding: '8px 10px',
+                      background: '#FEF3C7',
+                      border: '1px solid #FCD34D',
+                      borderRadius: 6,
+                      color: '#92400E',
+                    }}
+                  >
+                    <b>Uyarı:</b> İçerik karşılaştırması %0 — bir veya iki PDF'ten metin
+                    çıkarılamamış (büyük ihtimalle taranmış görüntü tabanlı). Skor yalnız ders adı +
+                    koddan hesaplandı. Daha doğru sonuç için seçilebilir metinli PDF veya Word
+                    (.docx) yükleyin.
+                  </div>
+                )}
+                {m.tier === 'rejected' && (m.contentScore || 0) >= 0.05 && (
                   <div style={{ marginTop: 6, color: DS.red }}>
                     <b>Olası nedenler:</b> ders adı çok farklı, içerik metinleri farklı konular
                     içeriyor, veya PDF'den çıkarılan metin yetersiz. Daha açık bir içerik dosyası
-                    (haftalık konu başlıklı) deneyebilirsiniz.
+                    (haftalık konu başlıklı, kaynakça dahil) deneyebilirsiniz.
                   </div>
                 )}
               </div>
