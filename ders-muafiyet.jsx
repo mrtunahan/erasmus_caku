@@ -5228,7 +5228,7 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
       const reviewCount = matches.filter((m) => m.tier === 'review').length;
       const rejectedCount = matches.filter((m) => m.tier === 'rejected').length;
 
-      const record = await MuafiyetDB.saveRecord(null, {
+      const record = await MuafiyetDB.saveRecord({
         studentName,
         studentNo,
         otherUni: rows[0]?.src.uni || '',
