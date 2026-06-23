@@ -444,7 +444,7 @@ const Sidebar = ({
     }
     // Öğrenci: ders seçimi yapılana kadar yalnızca "Benim Sayfam" görünür
     if (studentLocked) return DEPARTMENT_MODULES.filter((m) => m.id === 'benim');
-    const stdBase = ['benim', 'erasmus', 'projeler', 'formlar', 'staj'];
+    const stdBase = ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet'];
     const stdAllowed = stdBase.concat(commissionModules);
     return DEPARTMENT_MODULES.filter((m) => stdAllowed.includes(m.id));
   };
@@ -1417,7 +1417,7 @@ function AppShell() {
           )
         : isProfessor
           ? ['sinav', 'formlar', 'dersprogrami', 'akademisyen', 'projeler', 'staj', 'performans']
-          : ['benim', 'erasmus', 'projeler', 'formlar', 'staj']; // student
+          : ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet']; // student
 
     const allowedCommon = COMMON_MODULES.map((m) => m.id);
     // Bölüm yetkilisi yönetim modülleri görür ama Audit Log hariç.
