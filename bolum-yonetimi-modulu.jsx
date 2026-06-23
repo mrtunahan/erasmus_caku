@@ -67,10 +67,15 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
       });
       setClassrooms(cls.map((d) => ({ id: d.id, ...d })));
 
-      // Profesörler (bölüm bazlı) — gözetmenler bunlardan filtrelenir
-      const profs = await window.apiRead('professors', {
-        where: `departmentId:eq:${activeDepartment}`,
-      });
+      // Profesörler (bölüm bazlı) — gözetmenler bunlardan filtrelenir.
+      // Çapraz-bölüm: additionalDepartments ile atananları da dahil et.
+      const allProfs = await window.apiRead('professors');
+      const dept = (window.DEPARTMENTS || []).find((x) => x.id === activeDepartment);
+      const profs = (allProfs || []).filter((p) =>
+        window.profMatchesDept
+          ? window.profMatchesDept(p, activeDepartment, dept?.name)
+          : p.departmentId === activeDepartment
+      );
       setProfessors(profs.map((d) => ({ id: d.id, ...d })));
     } catch (e) {
       console.error(e);
@@ -90,12 +95,16 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     setEditingItem(d || 'new');
     setForm({ name: d?.name || '', managerNames: existingManagers });
     setEditDeptProfs([]);
-    // Düzenlemede ise o bölümdeki akademisyenleri çek (dropdown için)
+    // Düzenlemede ise o bölümdeki akademisyenleri çek (dropdown için).
+    // Çapraz-bölüm: ek bölüm listesinde bu bölüm geçenleri de dahil et.
     if (d && d.id) {
       try {
-        const profs = await window.apiRead('professors', { where: `departmentId:eq:${d.id}` });
+        const all = await window.apiRead('professors');
+        const profs = (all || []).filter((p) =>
+          window.profMatchesDept ? window.profMatchesDept(p, d.id, d.name) : p.departmentId === d.id
+        );
         setEditDeptProfs(
-          (profs || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'))
+          profs.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'))
         );
       } catch (e) {
         console.warn('Bölüm akademisyenleri yüklenemedi:', e?.message);
