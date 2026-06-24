@@ -845,16 +845,32 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                 }}
               >
                 <Btn
+                  variant="secondary"
                   onClick={() =>
                     setEditingProf({
+                      mode: 'cross',
                       name: '',
+                      department: '',
+                      departmentId: '',
+                    })
+                  }
+                  icon={<PlusIcon />}
+                >
+                  Var Olan Akademisyenden Ekle
+                </Btn>
+                <Btn
+                  onClick={() =>
+                    setEditingProf({
+                      mode: 'new',
+                      name: '',
+                      title: '',
                       department: departmentInfo?.name || '',
                       departmentId: activeDepartment || '',
                     })
                   }
                   icon={<PlusIcon />}
                 >
-                  Yeni Akademisyen Ekle
+                  Yepyeni Akademisyen Oluştur
                 </Btn>
               </div>
               <div className="responsive-table-wrap" style={{ overflowX: 'auto' }}>
@@ -880,10 +896,101 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                     </tr>
                   </thead>
                   <tbody>
+                    {/* Yepyeni akademisyen oluştur — kendi bölümüne sıfırdan kayıt.
+                        İsim + opsiyonel unvan; bu bölüm yetkilisinin aktif bölümüne
+                        eklenir. */}
+                    {editingProf && editingProf.mode === 'new' && !editingProf.id && (
+                      <tr
+                        style={{
+                          background: 'rgba(0,150,255,0.05)',
+                          borderBottom: `1px solid ${C.border}`,
+                        }}
+                      >
+                        <td style={{ padding: 14 }}>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <Input
+                              value={editingProf.title || ''}
+                              onChange={(e) =>
+                                setEditingProf({ ...editingProf, title: e.target.value })
+                              }
+                              placeholder="Unvan (Prof. Dr., Doç. Dr. vb.)"
+                            />
+                            <Input
+                              autoFocus
+                              value={editingProf.name}
+                              onChange={(e) =>
+                                setEditingProf({ ...editingProf, name: e.target.value })
+                              }
+                              placeholder="Ad Soyad (Örn: Ahmet YILMAZ)"
+                            />
+                          </div>
+                        </td>
+                        <td style={{ padding: 14 }}>
+                          <div
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: 8,
+                              background: C.bg,
+                              fontSize: 13,
+                              color: C.navy,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {departmentInfo?.name || activeDepartment}
+                          </div>
+                        </td>
+                        <td style={{ padding: 14, textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                            <Btn
+                              small
+                              disabled={!editingProf.name?.trim() || saving}
+                              onClick={async () => {
+                                if (!editingProf.name?.trim()) {
+                                  alert('Ad zorunlu.');
+                                  return;
+                                }
+                                setSaving(true);
+                                try {
+                                  const fullName = editingProf.title?.trim()
+                                    ? `${editingProf.title.trim()} ${editingProf.name.trim()}`
+                                    : editingProf.name.trim();
+                                  await DB.saveProfessor({
+                                    name: fullName,
+                                    departmentId: activeDepartment,
+                                    department: departmentInfo?.name || '',
+                                    facultyId: currentUser?.facultyId || '',
+                                    universityId: currentUser?.universityId || 'caku',
+                                  });
+                                  if (window.audit)
+                                    window.audit('professor_create', 'professors', '', {
+                                      meta: {
+                                        name: fullName,
+                                        departmentId: activeDepartment,
+                                      },
+                                    });
+                                  setEditingProf(null);
+                                  loadData();
+                                } catch (e) {
+                                  alert('Kayıt hatası: ' + e.message);
+                                } finally {
+                                  setSaving(false);
+                                }
+                              }}
+                            >
+                              Kaydet
+                            </Btn>
+                            <Btn small variant="secondary" onClick={() => setEditingProf(null)}>
+                              İptal
+                            </Btn>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
                     {/* New professor form row — bölüm seç → o bölümün akademisyenleri ad
                         olarak listelenir → seçilen akademisyen aktif bölüme additionalDepartments
                         olarak eklenir (çapraz-bölüm akademisyen ataması). */}
-                    {editingProf && !editingProf.id && (
+                    {editingProf && editingProf.mode === 'cross' && !editingProf.id && (
                       <tr
                         style={{
                           background: 'rgba(0,255,135,0.05)',
