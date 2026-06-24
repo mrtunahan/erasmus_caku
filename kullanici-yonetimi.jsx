@@ -83,13 +83,13 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         ) {
           return true;
         }
+        // Yalnız TAM AD veya kısa ad eşleşmesi — substring eşleşmesi (includes)
+        // kaldırıldı. Çünkü "kimya" "kimyamühendisliği" içinde de geçer ve
+        // Kimya Bölümü aktifken Kimya Mühendisliği akademisyenleri de listeye
+        // yanlış pozitif olarak giriyordu.
         const dept = normName(item.department);
         if (!dept) return false;
-        return (
-          dept === target ||
-          (shortTarget && dept === shortTarget) ||
-          (shortTarget && dept.includes(shortTarget))
-        );
+        return dept === target || (shortTarget && dept === shortTarget);
       };
       // Öğrenciler için de aynı OR mantığı — eski 'departmentId yoksa bilgisayar'
       // fallback'i kaldırıldı (yanlış bölüme düşürüyordu).
