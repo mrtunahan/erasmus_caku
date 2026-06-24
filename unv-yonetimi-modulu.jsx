@@ -141,6 +141,11 @@ function UnvYonetimiApp({ currentUser }) {
   const [msg, setMsg] = useState({ text: '', kind: '' });
   const [editing, setEditing] = useState(null); // {} yeni, {...} düzenle
   const [form, setForm] = useState({ name: '', shortName: '', universityId: 'caku' });
+  // Şifre sıfırlama modalı: { prof, password } veya null
+  const [pwReset, setPwReset] = useState(null);
+  // "Bu fakülteye yeni akademisyen oluştur" formu:
+  // { facultyId, facultyName, name, title } veya null
+  const [newProfForm, setNewProfForm] = useState(null);
 
   const isUniversityAdmin = !!currentUser?.isUniversityAdmin;
 
@@ -255,6 +260,78 @@ function UnvYonetimiApp({ currentUser }) {
 
   const managersOf = (facultyId) =>
     professors.filter((p) => p.isFacultyManager && p.facultyId === facultyId);
+
+  // Fakülte yetkilisi şifresini sıfırla — backend /api/auth/change-password
+  // role='professor', identifier=name. Tunahan üniversite yetkilisi (admin
+  // tokenı yok ama akademisyen tokenı var; backend !isAdmin yolu authUser
+  // kontrolü yapar). Direkt admin reset endpoint'i daha güvenli ama mevcut
+  // sistemde role='professor' + admin=true alternatifi var. En basitini
+  // kullanıyoruz: değiştiren sadece şifreyi belirler.
+  const resetManagerPassword = async () => {
+    if (!pwReset || !pwReset.password) return;
+    if (pwReset.password.length < 6) {
+      showMsg('Şifre en az 6 karakter olmalıdır.', 'error');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('caku_auth_token') || '';
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          role: 'professor',
+          identifier: pwReset.prof.name,
+          newPassword: pwReset.password,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showMsg(`${pwReset.prof.name} şifresi sıfırlandı.`);
+        setPwReset(null);
+      } else {
+        showMsg('Şifre sıfırlanamadı: ' + (data.error || 'Bilinmeyen hata'), 'error');
+      }
+    } catch (e) {
+      showMsg('Sunucu hatası: ' + e.message, 'error');
+    }
+  };
+
+  // Bu fakülteye yeni akademisyen oluştur (Fakülte Yönetimi'ndeki ile aynı
+  // mantık ama buradan üniversite yetkilisi, kendi fakültesi olmasa bile
+  // herhangi bir fakülteye akademisyen yaratabilir). Opsiyonel olarak aynı
+  // anda 'Fakülte Yetkilisi' bayrağıyla atar — atayacak hiç akademisyen
+  // yokken zincirin başlaması için kritik.
+  const createProfInFaculty = async () => {
+    if (!newProfForm || !newProfForm.name?.trim()) {
+      showMsg('Akademisyen adı zorunludur.', 'error');
+      return;
+    }
+    try {
+      const fullName = newProfForm.title?.trim()
+        ? `${newProfForm.title.trim()} ${newProfForm.name.trim()}`
+        : newProfForm.name.trim();
+      const data = {
+        name: fullName,
+        facultyId: newProfForm.facultyId,
+        universityId: currentUser?.universityId || 'caku',
+        isFacultyManager: !!newProfForm.makeManager,
+        createdAt: new Date(),
+      };
+      await window.DBWrite.add('professors', data);
+      setNewProfForm(null);
+      await load();
+      showMsg(
+        newProfForm.makeManager
+          ? `${fullName} → ${newProfForm.facultyName} fakülte yetkilisi olarak eklendi.`
+          : `${fullName} → ${newProfForm.facultyName} fakültesine eklendi.`
+      );
+    } catch (e) {
+      showMsg('Akademisyen oluşturulamadı: ' + e.message, 'error');
+    }
+  };
 
   if (!isUniversityAdmin) {
     return (
@@ -429,6 +506,26 @@ function UnvYonetimiApp({ currentUser }) {
                           }}
                         >
                           {m.name}
+                          <button
+                            type="button"
+                            onClick={() => setPwReset({ prof: m, password: '' })}
+                            title="Şifreyi sıfırla"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: UNV.blue,
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <UIcon
+                              path="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                              size={12}
+                              color={UNV.blue}
+                            />
+                          </button>
                           <span
                             onClick={() => revokeManager(m)}
                             title="Yetkiyi kaldır"
@@ -440,11 +537,38 @@ function UnvYonetimiApp({ currentUser }) {
                       ))}
                     </div>
                   )}
-                  <ProfPicker
-                    professors={professors}
-                    placeholder="Yetkili eklemek için akademisyen ara…"
-                    onPick={(p) => assignManager(f, p)}
-                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <ProfPicker
+                      professors={professors}
+                      placeholder="Yetkili eklemek için akademisyen ara…"
+                      onPick={(p) => assignManager(f, p)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNewProfForm({
+                          facultyId: f.id,
+                          facultyName: f.name,
+                          name: '',
+                          title: '',
+                          makeManager: true,
+                        })
+                      }
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: '1px dashed ' + UNV.accent,
+                        background: 'white',
+                        color: UNV.accent,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      + Bu fakülteye yeni akademisyen oluştur
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -547,6 +671,221 @@ function UnvYonetimiApp({ currentUser }) {
                 }}
               >
                 Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fakülte yetkilisi şifre sıfırlama modalı */}
+      {pwReset && (
+        <div
+          onClick={() => setPwReset(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: 14,
+              padding: 22,
+              width: '100%',
+              maxWidth: 420,
+              boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+            }}
+          >
+            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: UNV.primary }}>
+              Şifreyi Sıfırla
+            </h3>
+            <p style={{ margin: '6px 0 18px', fontSize: 12, color: UNV.textMuted }}>
+              <b>{pwReset.prof.name}</b> için yeni şifre belirleyin. Kullanıcı bu şifre ile
+              akademisyen tarafından giriş yapabilir, ardından kendi paneline değiştirebilir.
+            </p>
+            <input
+              autoFocus
+              type="text"
+              value={pwReset.password}
+              onChange={(e) => setPwReset({ ...pwReset, password: e.target.value })}
+              placeholder="En az 6 karakter"
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1px solid ' + UNV.border,
+                fontSize: 14,
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
+              <button
+                type="button"
+                onClick={() => setPwReset(null)}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: 8,
+                  border: '1px solid ' + UNV.border,
+                  background: 'white',
+                  color: UNV.textMuted,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                İptal
+              </button>
+              <button
+                type="button"
+                onClick={resetManagerPassword}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: UNV.accent,
+                  color: 'white',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Şifreyi Sıfırla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yeni Akademisyen Oluştur modalı (fakülteye doğrudan) */}
+      {newProfForm && (
+        <div
+          onClick={() => setNewProfForm(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: 14,
+              padding: 22,
+              width: '100%',
+              maxWidth: 460,
+              boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+            }}
+          >
+            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: UNV.primary }}>
+              Yeni Akademisyen — {newProfForm.facultyName}
+            </h3>
+            <p style={{ margin: '6px 0 18px', fontSize: 12, color: UNV.textMuted }}>
+              Akademisyen sisteme kaydedilir ve doğrudan bu fakülteye atanır. İsteğe bağlı olarak
+              aynı anda <b>fakülte yetkilisi</b> olarak da atanabilir.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={uLabel}>Unvan (Opsiyonel)</label>
+                <input
+                  value={newProfForm.title}
+                  onChange={(e) => setNewProfForm({ ...newProfForm, title: e.target.value })}
+                  placeholder="Örn: Prof. Dr. / Doç. Dr. / Arş. Gör."
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid ' + UNV.border,
+                    fontSize: 13,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={uLabel}>Ad Soyad *</label>
+                <input
+                  autoFocus
+                  value={newProfForm.name}
+                  onChange={(e) => setNewProfForm({ ...newProfForm, name: e.target.value })}
+                  placeholder="Örn: Ahmet YILMAZ"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid ' + UNV.border,
+                    fontSize: 13,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '10px 12px',
+                  background: UNV.blueLight,
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: UNV.text,
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!newProfForm.makeManager}
+                  onChange={(e) =>
+                    setNewProfForm({ ...newProfForm, makeManager: e.target.checked })
+                  }
+                />
+                Aynı zamanda <b style={{ marginLeft: 4 }}>fakülte yetkilisi</b> olarak da ata
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
+              <button
+                type="button"
+                onClick={() => setNewProfForm(null)}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: 8,
+                  border: '1px solid ' + UNV.border,
+                  background: 'white',
+                  color: UNV.textMuted,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                İptal
+              </button>
+              <button
+                type="button"
+                onClick={createProfInFaculty}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: UNV.accent,
+                  color: 'white',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Oluştur ve Ata
               </button>
             </div>
           </div>
