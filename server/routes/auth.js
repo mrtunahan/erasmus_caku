@@ -307,6 +307,9 @@ async function fetchProfessorProfile(professorName) {
       isFacultyManager: !!doc.isFacultyManager,
       isDeptManager: !!doc.isDeptManager,
       isStajCoordinator: !!doc.isStajCoordinator,
+      additionalDepartments: Array.isArray(doc.additionalDepartments)
+        ? doc.additionalDepartments
+        : [],
     };
   } catch (e) {
     console.error('fetchProfessorProfile error:', e.message);

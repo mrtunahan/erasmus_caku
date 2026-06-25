@@ -17,6 +17,75 @@ const COMMON_MODULES = window.COMMON_MODULES;
 const ADMIN_MODULES = window.ADMIN_MODULES;
 const HIERARCHY_MODULES = window.HIERARCHY_MODULES || [];
 
+// Sidebar/RightSidebar/route-guard için ortak: kullanıcının erişebileceği
+// bölümler. Kurallar:
+//   • Öğrenci → yalnız kendi bölümü
+//   • Ergün ÇINAR (fakülte staj koordinatörü) → tüm bölümler
+//   • Üniversite yetkilisi → adminScope'a göre tüm fakülteler veya kendi fakültesi
+//   • Fakülte yetkilisi → kendi fakültesi + ek bölümler (additionalDepartments)
+//   • Bölüm yetkilisi / akademisyen → ana bölüm + ek bölümler
+function computeAvailableDepts(currentUser, adminScope) {
+  const allDepts = window.DEPARTMENTS || DEPARTMENTS || [];
+  if (!currentUser) return allDepts;
+
+  const isAdmin = currentUser.role === 'admin';
+  const isDeptManager = currentUser.role === 'bolum_yetkilisi' || !!currentUser.isDeptManager;
+  const isProfessor = currentUser.role === 'professor';
+  const isStudent = currentUser.role === 'student' || (!isAdmin && !isDeptManager && !isProfessor);
+  const isUniAdmin = !!currentUser.isUniversityAdmin;
+  const isFacMgr = !!currentUser.isFacultyManager;
+  const isErgun = isErgunCinarUser(currentUser);
+  const extras = Array.isArray(currentUser.additionalDepartments)
+    ? currentUser.additionalDepartments
+    : [];
+  const mainDept = currentUser.departmentId;
+  const myFaculty = currentUser.facultyId;
+
+  // Ergün ÇINAR — tüm bölümler (fakülte geneli staj erişimi)
+  if (isErgun) return allDepts;
+
+  // Öğrenci — yalnız kendi bölümü
+  if (isStudent) {
+    return allDepts.filter((d) => d.id === mainDept);
+  }
+
+  // Bölüm listesi birleştirici (id'ye göre tekilleştir)
+  const merge = (...lists) => {
+    const seen = new Set();
+    const out = [];
+    lists.forEach((list) =>
+      (list || []).forEach((d) => {
+        if (d && !seen.has(d.id)) {
+          seen.add(d.id);
+          out.push(d);
+        }
+      })
+    );
+    return out;
+  };
+  const extraDepts = allDepts.filter((d) => extras.includes(d.id));
+
+  // Üniversite yetkilisi
+  if (isUniAdmin) {
+    const scope = adminScope || 'university';
+    if (scope === 'faculty' && myFaculty) {
+      const facDepts = allDepts.filter((d) => (d.facultyId || '') === myFaculty);
+      return merge(facDepts, extraDepts);
+    }
+    return allDepts;
+  }
+
+  // Fakülte yetkilisi (üni admin değil)
+  if (isFacMgr && myFaculty) {
+    const facDepts = allDepts.filter((d) => (d.facultyId || '') === myFaculty);
+    return merge(facDepts, extraDepts);
+  }
+
+  // Bölüm yetkilisi veya akademisyen — ana bölüm + ek bölümler
+  const mainList = mainDept ? allDepts.filter((d) => d.id === mainDept) : [];
+  return merge(mainList, extraDepts);
+}
+
 // Fakülte staj yetkilisi (SGK onayı + fakülte geneli staj erişimi) tespiti.
 // Yeni: isStajCoordinator bayrağı (Fakülte Yönetimi'nden atanır).
 // Geriye dönük: "Ergün ÇINAR" ismi de tanınır (eski hardcoded kullanıcı).
@@ -404,22 +473,8 @@ const Sidebar = ({
 
   const isErgunCinar = isErgunCinarUser(currentUser);
 
-  // Bölüm yetkilisi/öğrenci → yalnız kendi bölümü.
-  // Hiyerarşi yetkilisi → adminScope='university' ise TÜM bölümler;
-  //   adminScope='faculty' ise yalnız kendi fakültesinin bölümleri.
-  let availableDepts;
-  if (isDeptManager || isStudent) {
-    availableDepts = DEPARTMENTS.filter((d) => d.id === currentUser?.departmentId);
-  } else if (isHierarchyManager) {
-    const effectiveScope = currentUser?.isUniversityAdmin ? adminScope || 'university' : 'faculty';
-    if (effectiveScope === 'faculty' && currentUser?.facultyId) {
-      availableDepts = DEPARTMENTS.filter((d) => (d.facultyId || '') === currentUser.facultyId);
-    } else {
-      availableDepts = DEPARTMENTS;
-    }
-  } else {
-    availableDepts = DEPARTMENTS;
-  }
+  // Ortak helper: rol + bayrak + additionalDepartments hepsini birden yönetir.
+  const availableDepts = computeAvailableDepts(currentUser, adminScope);
 
   // Öğrenciler ve profesörler için erişilebilir modüller
   const getVisibleModules = () => {
@@ -906,30 +961,8 @@ const Sidebar = ({
 // Right Sidebar - Department Selector
 // ══════════════════════════════════════════════════════════════
 const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, adminScope }) => {
-  const isAdmin = currentUser?.role === 'admin';
-  const isDeptManager = currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
-  const isStudent = !isAdmin && !isDeptManager && currentUser?.role !== 'professor';
-  const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
-
-  // Ergün ÇINAR bölüm yetkilisi olsa da tüm bölümler arası geçiş yapabilir
-  const isErgunCinar = isErgunCinarUser(currentUser);
-  // Bölüm yetkilisi/öğrenci → yalnız kendi bölümü.
-  // Hiyerarşi yetkilisi → adminScope='university' ise TÜM bölümler;
-  //   adminScope='faculty' ise yalnız kendi fakültesinin bölümleri.
-  //   (Yalnız fakülte yetkilisi olanlarda kapsam zaten 'faculty' davranır.)
-  let availableDepts;
-  if ((isDeptManager || isStudent) && !isErgunCinar) {
-    availableDepts = DEPARTMENTS.filter((d) => d.id === currentUser?.departmentId);
-  } else if (isHierarchyManager) {
-    const effectiveScope = currentUser?.isUniversityAdmin ? adminScope || 'university' : 'faculty';
-    if (effectiveScope === 'faculty' && currentUser?.facultyId) {
-      availableDepts = DEPARTMENTS.filter((d) => (d.facultyId || '') === currentUser.facultyId);
-    } else {
-      availableDepts = DEPARTMENTS;
-    }
-  } else {
-    availableDepts = DEPARTMENTS;
-  }
+  // Ortak helper — Sidebar ile aynı kuralları kullanır.
+  const availableDepts = computeAvailableDepts(currentUser, adminScope);
 
   // Tek bölüm varsa sağ sidebar gösterme
   if (availableDepts.length <= 1) return null;
@@ -1231,34 +1264,17 @@ function AppShell() {
     };
   }, []);
 
-  // Bölüm değiştiğinde kaydet (bölüm yetkilisi kendi bölümünden çıkamaz).
-  // Fakülte yetkilisi kendi fakültesi dışına geçemez; üniversite yetkilisi
-  // 'university' kapsamında ise sınırsız, 'faculty' kapsamında ise yine
-  // fakültesi ile sınırlı.
+  // Bölüm değiştiğinde kaydet. Kapsam mantığı computeAvailableDepts ile birebir;
+  // hedef bölüm kullanıcının erişebileceği listede yoksa değişimi reddet.
+  // (Akademisyenin additionalDepartments'tan gelen ek bölümlerine geçişe izin
+  // verir; sırf 'faculty' filtresi geçmişte engelliyordu.)
   const handleDepartmentChange = useCallback(
     (deptId) => {
-      if (
-        (currentUser?.role === 'bolum_yetkilisi' || currentUser?.role === 'student') &&
-        deptId !== currentUser?.departmentId &&
-        !isErgunCinarUser(currentUser)
-      ) {
-        return;
+      const allowed = computeAvailableDepts(currentUser, adminScope);
+      if (allowed.length === 0 || allowed.some((d) => d.id === deptId)) {
+        setActiveDepartment(deptId);
+        localStorage.setItem('caku_active_department', deptId);
       }
-      const hierMgr = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
-      if (hierMgr) {
-        const effectiveScope = currentUser?.isUniversityAdmin
-          ? adminScope || 'university'
-          : 'faculty';
-        if (effectiveScope === 'faculty' && currentUser?.facultyId) {
-          const allDepts = window.DEPARTMENTS || DEPARTMENTS;
-          const target = allDepts.find((d) => d.id === deptId);
-          if (target && (target.facultyId || '') !== currentUser.facultyId) {
-            return;
-          }
-        }
-      }
-      setActiveDepartment(deptId);
-      localStorage.setItem('caku_active_department', deptId);
     },
     [currentUser, adminScope]
   );
@@ -1499,24 +1515,8 @@ function AppShell() {
   }
 
   // TopHeader'daki bölüm seçici için kullanılabilir bölüm listesi.
-  // RightSidebar/Sidebar ile aynı kapsam mantığını paylaşır.
-  const topAvailableDepts = (() => {
-    const allDepts = window.DEPARTMENTS || DEPARTMENTS;
-    if (isStudent || isDeptManager) {
-      return allDepts.filter((d) => d.id === currentUser?.departmentId);
-    }
-    const hierMgr = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
-    if (hierMgr) {
-      const effectiveScope = currentUser?.isUniversityAdmin
-        ? adminScope || 'university'
-        : 'faculty';
-      if (effectiveScope === 'faculty' && currentUser?.facultyId) {
-        return allDepts.filter((d) => (d.facultyId || '') === currentUser.facultyId);
-      }
-      return allDepts;
-    }
-    return allDepts;
-  })();
+  // Ortak computeAvailableDepts helper'ı (Sidebar/RightSidebar ile aynı kurallar).
+  const topAvailableDepts = computeAvailableDepts(currentUser, adminScope);
 
   // Render active module
   const renderModule = () => {

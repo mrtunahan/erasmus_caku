@@ -3361,6 +3361,9 @@ const LoginModal = ({ onLogin }) => {
             isFacultyManager: !!p.isFacultyManager,
             isDeptManager: !!p.isDeptManager,
             isStajCoordinator: !!p.isStajCoordinator,
+            additionalDepartments: Array.isArray(p.additionalDepartments)
+              ? p.additionalDepartments
+              : [],
           };
         };
 
