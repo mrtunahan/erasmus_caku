@@ -478,9 +478,9 @@ const Sidebar = ({
 
   // Aktif bölüm bir EK BÖLÜM mü? (kullanıcı buraya çapraz-bölüm olarak atanmış
   // — ana bölümü değil.) Eğer öyle ise yetkili modüllerine değil, sadece
-  // dersle ilgili modüllere (Ders Programı/Proje/Sınav/Anket/Akademisyenler)
-  // erişebilir. Örn. Celalettin KAYA (Fen Fak. Matematik) Bilgisayar'a çapraz
-  // eklendiyse Bilgisayar'da Staj/Erasmus/Muafiyet modüllerini GÖRMEZ.
+  // KENDİ DERSİYLE ilgili 3 modüle erişebilir: Ders Programı, Sınav, Proje.
+  // Akademisyenler/Staj/Erasmus/Muafiyet/Formlar/Performans/Anketler ve TÜM
+  // yönetim modülleri (Kullanıcı/Bölüm/Ders Yönetimi/Komisyon/Audit) gizlenir.
   const extras = Array.isArray(currentUser?.additionalDepartments)
     ? currentUser.additionalDepartments
     : [];
@@ -493,9 +493,10 @@ const Sidebar = ({
     if (isErgunCinar) return DEPARTMENT_MODULES.filter((m) => m.id === 'staj');
 
     // Çapraz-bölümde (ana bölümü değil ek bölüm) — yetkili/admin olsa bile
-    // sadece DERSE BAĞLI modüller. 'Benim Sayfam' (öğrenci) hariç tutulur.
+    // sadece DERSE BAĞLI 3 modül: kendi dersini ders programına ekler, sınav
+    // programına yerleştirir, proje modülünde kendi dersi için işlem yapar.
     if (isOnExtraDept) {
-      const crossAllowed = ['dersprogrami', 'sinav', 'projeler', 'akademisyen'];
+      const crossAllowed = ['dersprogrami', 'sinav', 'projeler'];
       return DEPARTMENT_MODULES.filter((m) => crossAllowed.includes(m.id));
     }
 
@@ -656,8 +657,8 @@ const Sidebar = ({
       {/* Divider */}
       <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
 
-      {/* Common Modules */}
-      {!isErgunCinar && !studentLocked && (
+      {/* Common Modules — çapraz bölümde tamamen gizli (sadece ders modülleri) */}
+      {!isErgunCinar && !studentLocked && !isOnExtraDept && (
         <div style={{ padding: '4px 12px' }}>
           <div
             style={{
@@ -715,8 +716,9 @@ const Sidebar = ({
       )}
 
       {/* Admin + Bölüm Yetkilisi: Yönetim Modülleri (komisyonlar) */}
-      {/* Admin + Bölüm/Fakülte/Üni Yetkilisi: Yönetim Modülleri */}
-      {!isErgunCinar && (isAdmin || isDeptManager || isHierarchyManager) && (
+      {/* Admin + Bölüm/Fakülte/Üni Yetkilisi: Yönetim Modülleri.
+          Çapraz-bölüm aktifken (kullanıcının kendi yetki alanı değil) gizlenir. */}
+      {!isErgunCinar && !isOnExtraDept && (isAdmin || isDeptManager || isHierarchyManager) && (
         <>
           <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
           <div style={{ padding: '4px 12px 16px' }}>
@@ -782,66 +784,69 @@ const Sidebar = ({
         </>
       )}
 
-      {/* Hiyerarşi Yönetimi: Üniversite / Fakülte yetkilileri */}
-      {!isErgunCinar && HIERARCHY_MODULES.some((m) => currentUser && currentUser[m.flag]) && (
-        <>
-          <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
-          <div style={{ padding: '4px 12px 16px' }}>
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: '#9CA3AF',
-                textTransform: 'uppercase',
-                letterSpacing: '0.1em',
-                padding: '8px 4px 4px',
-              }}
-            >
-              Hiyerarşi
+      {/* Hiyerarşi Yönetimi: Üniversite / Fakülte yetkilileri.
+          Çapraz-bölüm aktifken kullanıcı oranın yetkilisi değil → gizlenir. */}
+      {!isErgunCinar &&
+        !isOnExtraDept &&
+        HIERARCHY_MODULES.some((m) => currentUser && currentUser[m.flag]) && (
+          <>
+            <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
+            <div style={{ padding: '4px 12px 16px' }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#9CA3AF',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  padding: '8px 4px 4px',
+                }}
+              >
+                Hiyerarşi
+              </div>
+              {HIERARCHY_MODULES.filter((m) => currentUser && currentUser[m.flag]).map((mod) => {
+                const isActive = currentRoute === mod.id;
+                return (
+                  <button
+                    key={mod.id}
+                    onClick={() => {
+                      onNavigate(mod.id);
+                      if (isMobile) onClose();
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '10px 12px',
+                      marginBottom: 2,
+                      borderRadius: 8,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: isActive ? '#8B263515' : 'transparent',
+                      color: isActive ? '#8B2635' : '#4B5563',
+                      fontSize: 13,
+                      fontWeight: isActive ? 600 : 400,
+                      fontFamily: "'Inter', sans-serif",
+                      transition: 'all 0.15s',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) e.currentTarget.style.background = '#F3F4F6';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive)
+                        e.currentTarget.style.background = isActive ? '#8B263515' : 'transparent';
+                    }}
+                  >
+                    <NavIcon path={mod.icon} size={18} />
+                    {mod.label}
+                  </button>
+                );
+              })}
             </div>
-            {HIERARCHY_MODULES.filter((m) => currentUser && currentUser[m.flag]).map((mod) => {
-              const isActive = currentRoute === mod.id;
-              return (
-                <button
-                  key={mod.id}
-                  onClick={() => {
-                    onNavigate(mod.id);
-                    if (isMobile) onClose();
-                  }}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 12px',
-                    marginBottom: 2,
-                    borderRadius: 8,
-                    border: 'none',
-                    cursor: 'pointer',
-                    background: isActive ? '#8B263515' : 'transparent',
-                    color: isActive ? '#8B2635' : '#4B5563',
-                    fontSize: 13,
-                    fontWeight: isActive ? 600 : 400,
-                    fontFamily: "'Inter', sans-serif",
-                    transition: 'all 0.15s',
-                    textAlign: 'left',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) e.currentTarget.style.background = '#F3F4F6';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive)
-                      e.currentTarget.style.background = isActive ? '#8B263515' : 'transparent';
-                  }}
-                >
-                  <NavIcon path={mod.icon} size={18} />
-                  {mod.label}
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
+          </>
+        )}
 
       {/* Şifre Değiştir butonu (tüm roller) — sidebar altı */}
       <div style={{ marginTop: 'auto', padding: '8px 12px 16px' }}>
@@ -1470,25 +1475,27 @@ function AppShell() {
     //   • Saf akademisyen → eski set
     //   • Öğrenci → eski set
     const allowedDeptModules = isOnExtraDept
-      ? ['dersprogrami', 'sinav', 'projeler', 'akademisyen']
+      ? ['dersprogrami', 'sinav', 'projeler']
       : isDeptManager || isAdmin || isHierarchyManager
         ? DEPARTMENT_MODULES.filter((m) => m.id !== 'benim').map((m) => m.id)
         : isProfessor
           ? ['sinav', 'formlar', 'dersprogrami', 'akademisyen', 'projeler', 'staj', 'performans']
           : ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet']; // student
 
-    const allowedCommon = COMMON_MODULES.map((m) => m.id);
+    // Çapraz-bölümde Ortak/Yönetim/Hiyerarşi modülleri tamamen gizli.
+    const allowedCommon = isOnExtraDept ? [] : COMMON_MODULES.map((m) => m.id);
     // Bölüm yetkilisi yönetim modülleri görür ama Audit Log hariç.
-    const allowedAdmin =
-      isAdmin || isHierarchyManager
+    const allowedAdmin = isOnExtraDept
+      ? []
+      : isAdmin || isHierarchyManager
         ? ADMIN_MODULES.map((m) => m.id)
         : isDeptManager
           ? ADMIN_MODULES.filter((m) => m.id !== 'audit').map((m) => m.id)
           : [];
     // Hiyerarşi yönetim modülleri (yetki bayrağına göre)
-    const allowedHierarchy = HIERARCHY_MODULES.filter(
-      (m) => currentUser && currentUser[m.flag]
-    ).map((m) => m.id);
+    const allowedHierarchy = isOnExtraDept
+      ? []
+      : HIERARCHY_MODULES.filter((m) => currentUser && currentUser[m.flag]).map((m) => m.id);
     // Komisyon üyeliği ile kazanılan modül erişimleri
     const allAllowed = [
       ...allowedDeptModules,
