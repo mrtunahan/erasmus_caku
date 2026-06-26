@@ -476,14 +476,37 @@ const Sidebar = ({
   // Ortak helper: rol + bayrak + additionalDepartments hepsini birden yönetir.
   const availableDepts = computeAvailableDepts(currentUser, adminScope);
 
+  // Aktif bölüm bir EK BÖLÜM mü? (kullanıcı buraya çapraz-bölüm olarak atanmış
+  // — ana bölümü değil.) Eğer öyle ise yetkili modüllerine değil, sadece
+  // dersle ilgili modüllere (Ders Programı/Proje/Sınav/Anket/Akademisyenler)
+  // erişebilir. Örn. Celalettin KAYA (Fen Fak. Matematik) Bilgisayar'a çapraz
+  // eklendiyse Bilgisayar'da Staj/Erasmus/Muafiyet modüllerini GÖRMEZ.
+  const extras = Array.isArray(currentUser?.additionalDepartments)
+    ? currentUser.additionalDepartments
+    : [];
+  const mainDept = currentUser?.departmentId;
+  const isOnExtraDept =
+    activeDepartment && activeDepartment !== mainDept && extras.includes(activeDepartment);
+
   // Öğrenciler ve profesörler için erişilebilir modüller
   const getVisibleModules = () => {
     if (isErgunCinar) return DEPARTMENT_MODULES.filter((m) => m.id === 'staj');
-    // Akademisyenler modülü sadece bölüm akademisyenlerine (professor) görünür
-    // Benim Sayfam yalnızca öğrenciye gösterilir
-    if (isAdmin || isDeptManager || isHierarchyManager)
-      return DEPARTMENT_MODULES.filter((m) => m.id !== 'akademisyen' && m.id !== 'benim');
-    // Komisyon üyeliği ile kazanılan modüller (örn. Erasmus komisyonu → erasmus)
+
+    // Çapraz-bölümde (ana bölümü değil ek bölüm) — yetkili/admin olsa bile
+    // sadece DERSE BAĞLI modüller. 'Benim Sayfam' (öğrenci) hariç tutulur.
+    if (isOnExtraDept) {
+      const crossAllowed = ['dersprogrami', 'sinav', 'projeler', 'akademisyen'];
+      return DEPARTMENT_MODULES.filter((m) => crossAllowed.includes(m.id));
+    }
+
+    // Yetkililer (admin / bölüm yetkilisi / hierarchy yetkilisi) — yetkili oldukları
+    // bölümde TÜM bölüm modüllerini görürler. AKADEMISYENLER modülünü de görürler
+    // (kendisi de akademisyen, bilgi amaçlı). 'Benim Sayfam' hariç.
+    if (isAdmin || isDeptManager || isHierarchyManager) {
+      return DEPARTMENT_MODULES.filter((m) => m.id !== 'benim');
+    }
+
+    // Saf akademisyen
     if (isProfessor) {
       const base = [
         'sinav',
@@ -1139,10 +1162,16 @@ function AppShell() {
         const dbDepts = await window.apiRead('departments');
         if (cancelled || !Array.isArray(dbDepts) || !DEPARTMENTS) return;
         const existingIds = new Set(DEPARTMENTS.map((d) => d.id));
+        // Türkçe-locale-aware ad normalize. Aynı isimle hem sabit listede
+        // hem DB'de iki kayıt varsa duplicate görünüyordu (ör. 'Gıda Mühendisliği').
+        const norm = (s) =>
+          (s || '').toString().toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
+        const existingNames = new Set(DEPARTMENTS.map((d) => norm(d.name)));
         let added = 0;
         dbDepts.forEach((d) => {
           const id = d.id || d._docId;
           if (!id || existingIds.has(id)) return;
+          if (existingNames.has(norm(d.name))) return; // ad bazlı dedup
           DEPARTMENTS.push({
             id,
             name: d.name || id,
@@ -1154,6 +1183,7 @@ function AppShell() {
             facultyId: d.facultyId || '',
           });
           existingIds.add(id);
+          existingNames.add(norm(d.name));
           added++;
         });
         if (added > 0) setDeptVersion((v) => v + 1);
@@ -1425,12 +1455,24 @@ function AppShell() {
     // admin gibi davranır: tüm bölüm modüllerini ve yönetim modüllerini görür.
     const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
 
-    // Akademisyenler modülü yalnızca professor rolüne açıktır
-    const allowedDeptModules =
-      isDeptManager || isAdmin || isHierarchyManager
-        ? DEPARTMENT_MODULES.filter((m) => m.id !== 'akademisyen' && m.id !== 'benim').map(
-            (m) => m.id
-          )
+    // Aktif bölüm bir EK BÖLÜM mü — yetkili olsa bile kısıtlı modül seti.
+    const extras = Array.isArray(currentUser?.additionalDepartments)
+      ? currentUser.additionalDepartments
+      : [];
+    const isOnExtraDept =
+      activeDepartment &&
+      activeDepartment !== currentUser?.departmentId &&
+      extras.includes(activeDepartment);
+
+    // Modül izin listesi:
+    //   • Çapraz-bölüm (ek) → sadece ders-bağlı modüller (Staj/Erasmus/Muafiyet yok)
+    //   • Yetkili (admin/dept mgr/hier mgr) → akademisyen modülü dahil tümü (benim hariç)
+    //   • Saf akademisyen → eski set
+    //   • Öğrenci → eski set
+    const allowedDeptModules = isOnExtraDept
+      ? ['dersprogrami', 'sinav', 'projeler', 'akademisyen']
+      : isDeptManager || isAdmin || isHierarchyManager
+        ? DEPARTMENT_MODULES.filter((m) => m.id !== 'benim').map((m) => m.id)
         : isProfessor
           ? ['sinav', 'formlar', 'dersprogrami', 'akademisyen', 'projeler', 'staj', 'performans']
           : ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet']; // student
