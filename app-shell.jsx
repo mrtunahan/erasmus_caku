@@ -1568,6 +1568,30 @@ function AppShell() {
   const topAvailableDepts = computeAvailableDepts(currentUser, adminScope);
 
   // Render active module
+  // Çapraz-bölümde modüllere AKADEMİSYEN olarak görünür: tüm yetki bayrakları
+  // bu bölüm için geçici olarak temizlenir, role='professor' yapılır. Modüller
+  // role/admin kontrolüne göre düğmeleri (silme/herkes-düzenleme/yetkili
+  // işlemleri) gizler. Sonuç: çapraz akademisyen sadece KENDİ dersi/projesi/
+  // sınavıyla işlem yapar; başkasının verisine müdahale edemez.
+  const extrasUser = Array.isArray(currentUser?.additionalDepartments)
+    ? currentUser.additionalDepartments
+    : [];
+  const isOnExtraDeptForModule =
+    !!currentUser &&
+    activeDepartment &&
+    activeDepartment !== currentUser.departmentId &&
+    extrasUser.includes(activeDepartment);
+  const effectiveUser = isOnExtraDeptForModule
+    ? {
+        ...currentUser,
+        role: 'professor',
+        isAdmin: false,
+        isDeptManager: false,
+        isFacultyManager: false,
+        isUniversityAdmin: false,
+      }
+    : currentUser;
+
   const renderModule = () => {
     if (moduleLoading) {
       return (
@@ -1630,7 +1654,7 @@ function AppShell() {
       const FallbackComponent = fallback[route];
       if (FallbackComponent)
         return React.createElement(FallbackComponent, {
-          currentUser,
+          currentUser: effectiveUser,
           activeDepartment,
           departmentInfo: DEPARTMENTS.find((d) => d.id === activeDepartment),
         });
@@ -1642,7 +1666,7 @@ function AppShell() {
     }
 
     return React.createElement(Component, {
-      currentUser,
+      currentUser: effectiveUser,
       activeDepartment,
       departmentInfo: DEPARTMENTS.find((d) => d.id === activeDepartment),
     });
