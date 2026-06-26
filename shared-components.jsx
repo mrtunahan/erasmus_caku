@@ -4926,7 +4926,11 @@ const LoginModal = ({ onLogin }) => {
                       </select>
                     </div>
                   )}
-                  {hierFaculties.length > 0 && (
+                  {/* Öğrenci girişinde Fakülte+Bölüm seçimine gerek YOK —
+                      öğrenci numarası üniversite içinde unique. Bu seçimler
+                      yalnızca akademisyen girişinde (ad listesini daraltmak
+                      için) gösterilir. */}
+                  {activeTab !== 'student' && hierFaculties.length > 0 && (
                     <div>
                       <label className="lg-label">Fakülte</label>
                       <select
@@ -4949,26 +4953,28 @@ const LoginModal = ({ onLogin }) => {
                       </select>
                     </div>
                   )}
-                  <div>
-                    <label className="lg-label">Bölüm</label>
-                    <select
-                      value={selDept}
-                      disabled={hierFaculties.length > 0 && !selFaculty}
-                      onChange={(e) => setSelDept(e.target.value)}
-                      className="lg-input"
-                    >
-                      <option value="">Bölüm seçin…</option>
-                      {hierDepartments
-                        .filter(
-                          (d) => !selFaculty || (d.facultyId || '') === selFaculty || !d.facultyId
-                        )
-                        .map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
+                  {activeTab !== 'student' && (
+                    <div>
+                      <label className="lg-label">Bölüm</label>
+                      <select
+                        value={selDept}
+                        disabled={hierFaculties.length > 0 && !selFaculty}
+                        onChange={(e) => setSelDept(e.target.value)}
+                        className="lg-input"
+                      >
+                        <option value="">Bölüm seçin…</option>
+                        {hierDepartments
+                          .filter(
+                            (d) => !selFaculty || (d.facultyId || '') === selFaculty || !d.facultyId
+                          )
+                          .map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               )}
 
