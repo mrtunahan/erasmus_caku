@@ -120,13 +120,31 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       const mine = all.filter((c) => c.departmentId === studentDeptId);
       setAllCourses(mine);
 
-      // Akademik takvim (opsiyonel koleksiyon). departmentId yoksa genel
-      // (üniversite geneli) etkinlik kabul edilir; bölüme özel olanlar
-      // yalnızca o bölüme gösterilir.
+      // Akademik takvim (opsiyonel koleksiyon). Kapsam mantığı:
+      //   • Bölüm kapsamı (departmentId)  → yalnızca o bölümün öğrencileri
+      //   • Fakülte kapsamı (facultyId)   → yalnızca o fakültenin öğrencileri
+      //   • Üniversite geneli (kapsam yok) → tüm öğrenciler
+      // Öğrencinin fakültesi bölüm→fakülte haritasından çözülür.
       try {
-        const calRaw = await window.apiRead('akademik_takvim');
+        const [calRaw, deptsRaw] = await Promise.all([
+          window.apiRead('akademik_takvim'),
+          window.apiRead('departments'),
+        ]);
         const cal = Array.isArray(calRaw) ? calRaw : [];
-        const relevant = cal.filter((ev) => !ev.departmentId || ev.departmentId === studentDeptId);
+        const dmap = {};
+        (deptsRaw || []).forEach((d) => {
+          const id = d.id || d._docId;
+          if (id) dmap[id] = d.facultyId || '';
+        });
+        (window.DEPARTMENTS || []).forEach((d) => {
+          if (d.id && dmap[d.id] === undefined) dmap[d.id] = d.facultyId || '';
+        });
+        const myFacultyId = dmap[studentDeptId] || '';
+        const relevant = cal.filter((ev) => {
+          if (ev.departmentId) return ev.departmentId === studentDeptId;
+          if (ev.facultyId) return !!myFacultyId && ev.facultyId === myFacultyId;
+          return true; // üniversite geneli
+        });
         setCalendar(relevant);
       } catch (_) {
         setCalendar([]);
