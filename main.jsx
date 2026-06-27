@@ -99,6 +99,10 @@ window.__lazyModules = {
     component: 'PerformansBilgileriApp',
   },
   audit: { loader: () => import('./audit-log-modulu.jsx'), component: 'AuditLogModuluApp' },
+  akademiktakvim: {
+    loader: () => import('./akademik-takvim-modulu.jsx'),
+    component: 'AkademikTakvimApp',
+  },
   kulupler: {
     loader: () => import('./ogrenci-kulupleri-modulu.jsx'),
     component: 'OgrenciKulupleriApp',
