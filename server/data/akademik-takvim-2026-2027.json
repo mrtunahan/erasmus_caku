@@ -1,1 +1,461 @@
-[]
+[
+  {
+    "title": "Derslerin Açılması ve Ders Programlarının Oluşturulması",
+    "date": "2026-08-17",
+    "endDate": "2026-08-30",
+    "kind": "takvim",
+    "category": "Güz Dönemi",
+    "description": "Derslerin açılması, şubelere bölünmesi, kontenjan ve öğretim elemanı tanımlama."
+  },
+  {
+    "title": "Tek (Üç) Ders / Ek Sınav",
+    "date": "2026-09-02",
+    "endDate": "2026-09-04",
+    "kind": "sinav",
+    "category": "Güz Dönemi"
+  },
+  {
+    "title": "Tek (Üç) Ders / Ek Sınav Not Girişleri",
+    "date": "2026-09-02",
+    "endDate": "2026-09-06",
+    "kind": "sinav",
+    "category": "Güz Dönemi"
+  },
+  {
+    "title": "Katkı Payı/Öğrenim Ücreti Ödemeleri ve Ders Kayıtları",
+    "date": "2026-09-07",
+    "endDate": "2026-09-11",
+    "kind": "takvim",
+    "category": "Güz Dönemi"
+  },
+  {
+    "title": "Danışman Onayı",
+    "date": "2026-09-07",
+    "endDate": "2026-09-13",
+    "kind": "takvim",
+    "category": "Güz Dönemi"
+  },
+  {
+    "title": "Derslerin Başlaması",
+    "date": "2026-09-14",
+    "kind": "takvim",
+    "category": "Güz Dönemi"
+  },
+  {
+    "title": "Yeterli Olmayan Seçmeli Derslerin/Şubelerin Kapatılması",
+    "date": "2026-09-14",
+    "kind": "takvim",
+    "category": "Güz Dönemi"
+  },
+  {
+    "title": "Zorunlu İngilizce Hazırlık Muafiyet Sınavı",
+    "date": "2026-09-14",
+    "kind": "sinav",
+    "category": "Güz Dönemi",
+    "description": "Saat 10.00"
+  },
+  {
+    "title": "İsteğe Bağlı İngilizce Hazırlık Öğrenci Seçme Sınavı",
+    "date": "2026-09-14",
+    "kind": "sinav",
+    "category": "Güz Dönemi",
+    "description": "Saat 10.00"
+  },
+  {
+    "title": "Ortak Dersler Muafiyet Sınavı",
+    "date": "2026-09-15",
+    "kind": "sinav",
+    "category": "Güz Dönemi",
+    "description": "ATA-101/102, TDİ-101/102, YDİ-101/102, TBT-191/192, YDA-101/102"
+  },
+  {
+    "title": "İslami İlimler Fak. Zorunlu Arapça Hazırlık Yeterlik/Muafiyet Sınavı",
+    "date": "2026-09-17",
+    "kind": "sinav",
+    "category": "Güz Dönemi",
+    "description": "Saat 10.00"
+  },
+  {
+    "title": "Mazeret Kayıtları (Ders Ekleme/Bırakma)",
+    "date": "2026-09-21",
+    "endDate": "2026-09-25",
+    "kind": "takvim",
+    "category": "Güz Dönemi"
+  },
+  { "title": "Derslerin Bitişi", "date": "2026-12-25", "kind": "takvim", "category": "Güz Dönemi" },
+  {
+    "title": "Yarıyıl Sonu Sınavları",
+    "date": "2026-12-28",
+    "endDate": "2027-01-08",
+    "kind": "sinav",
+    "category": "Güz Dönemi",
+    "description": "Yıllık müfredat (Hukuk ve Diş Hekimliği) için arasınav"
+  },
+  {
+    "title": "Yarıyıl Sonu Sınavları Not Girişleri",
+    "date": "2026-12-28",
+    "endDate": "2027-01-10",
+    "kind": "sinav",
+    "category": "Güz Dönemi"
+  },
+  {
+    "title": "Bütünleme Sınavları",
+    "date": "2027-01-18",
+    "endDate": "2027-01-22",
+    "kind": "sinav",
+    "category": "Güz Dönemi"
+  },
+  {
+    "title": "Bütünleme Sınavları Not Girişleri",
+    "date": "2027-01-18",
+    "endDate": "2027-01-24",
+    "kind": "sinav",
+    "category": "Güz Dönemi"
+  },
+
+  {
+    "title": "Derslerin Açılması ve Ders Programlarının Oluşturulması",
+    "date": "2027-01-11",
+    "endDate": "2027-01-31",
+    "kind": "takvim",
+    "category": "Bahar Dönemi",
+    "description": "Derslerin açılması, şubelere bölünmesi, kontenjan ve öğretim elemanı tanımlama."
+  },
+  {
+    "title": "Tek (Üç) Ders / Ek Sınav",
+    "date": "2027-02-03",
+    "endDate": "2027-02-05",
+    "kind": "sinav",
+    "category": "Bahar Dönemi"
+  },
+  {
+    "title": "Tek (Üç) Ders / Ek Sınav Not Girişleri",
+    "date": "2027-02-03",
+    "endDate": "2027-02-07",
+    "kind": "sinav",
+    "category": "Bahar Dönemi"
+  },
+  {
+    "title": "Katkı Payı/Öğrenim Ücreti Ödemeleri ve Ders Kayıtları",
+    "date": "2027-02-08",
+    "endDate": "2027-02-12",
+    "kind": "takvim",
+    "category": "Bahar Dönemi"
+  },
+  {
+    "title": "Danışman Onayı",
+    "date": "2027-02-08",
+    "endDate": "2027-02-14",
+    "kind": "takvim",
+    "category": "Bahar Dönemi"
+  },
+  {
+    "title": "Derslerin Başlaması",
+    "date": "2027-02-15",
+    "kind": "takvim",
+    "category": "Bahar Dönemi"
+  },
+  {
+    "title": "Yeterli Olmayan Seçmeli Derslerin/Şubelerin Kapatılması",
+    "date": "2027-02-15",
+    "kind": "takvim",
+    "category": "Bahar Dönemi"
+  },
+  {
+    "title": "Mazeret Kayıtları (Ders Ekleme/Bırakma)",
+    "date": "2027-02-22",
+    "endDate": "2027-02-26",
+    "kind": "takvim",
+    "category": "Bahar Dönemi"
+  },
+  {
+    "title": "Derslerin Bitişi",
+    "date": "2027-06-04",
+    "kind": "takvim",
+    "category": "Bahar Dönemi"
+  },
+  {
+    "title": "Yarıyıl Sonu Sınavları",
+    "date": "2027-06-07",
+    "endDate": "2027-06-18",
+    "kind": "sinav",
+    "category": "Bahar Dönemi",
+    "description": "Yıllık müfredat (Hukuk ve Diş Hekimliği) için yılsonu sınavı"
+  },
+  {
+    "title": "Yarıyıl Sonu Sınavları Not Girişleri",
+    "date": "2027-06-07",
+    "endDate": "2027-06-20",
+    "kind": "sinav",
+    "category": "Bahar Dönemi"
+  },
+  {
+    "title": "Bütünleme Sınavları",
+    "date": "2027-06-28",
+    "endDate": "2027-07-02",
+    "kind": "sinav",
+    "category": "Bahar Dönemi"
+  },
+  {
+    "title": "Bütünleme Sınavları Not Girişleri",
+    "date": "2027-06-28",
+    "endDate": "2027-07-04",
+    "kind": "sinav",
+    "category": "Bahar Dönemi"
+  },
+
+  {
+    "title": "Derslerin Açılması ve Ders Programlarının Oluşturulması",
+    "date": "2027-06-28",
+    "endDate": "2027-07-09",
+    "kind": "takvim",
+    "category": "Yaz Dönemi",
+    "description": "Derslerin açılması, öğretim elemanı tanımlama ve ders programlarının oluşturulması."
+  },
+  {
+    "title": "Ders Ücreti Ödemeleri ve Ders Kayıtları",
+    "date": "2027-07-12",
+    "endDate": "2027-07-16",
+    "kind": "takvim",
+    "category": "Yaz Dönemi"
+  },
+  {
+    "title": "Derslerin Başlaması",
+    "date": "2027-07-19",
+    "kind": "takvim",
+    "category": "Yaz Dönemi"
+  },
+  { "title": "Derslerin Bitişi", "date": "2027-08-20", "kind": "takvim", "category": "Yaz Dönemi" },
+  {
+    "title": "Yarıyıl Sonu Sınavları",
+    "date": "2027-08-23",
+    "endDate": "2027-08-25",
+    "kind": "sinav",
+    "category": "Yaz Dönemi"
+  },
+  {
+    "title": "Yarıyıl Sonu Sınavları Not Girişleri",
+    "date": "2027-08-23",
+    "endDate": "2027-08-27",
+    "kind": "sinav",
+    "category": "Yaz Dönemi"
+  },
+
+  {
+    "title": "Özel Yetenek Sınavı Başvuruları",
+    "date": "2026-08-03",
+    "endDate": "2026-08-14",
+    "kind": "takvim",
+    "category": "Özel Yetenek",
+    "description": "İnternet üzerinden"
+  },
+  {
+    "title": "Özel Yetenek Sınavı",
+    "date": "2026-08-24",
+    "endDate": "2026-08-25",
+    "kind": "sinav",
+    "category": "Özel Yetenek"
+  },
+  {
+    "title": "Özel Yetenek Sınav Sonuçlarının Açıklanması",
+    "date": "2026-08-27",
+    "kind": "takvim",
+    "category": "Özel Yetenek"
+  },
+  {
+    "title": "Özel Yetenek — Asil Listeden Kayıtlar",
+    "date": "2026-08-31",
+    "endDate": "2026-09-01",
+    "kind": "takvim",
+    "category": "Özel Yetenek"
+  },
+  {
+    "title": "Özel Yetenek — Yedek Liste Açıklanması",
+    "date": "2026-09-02",
+    "kind": "takvim",
+    "category": "Özel Yetenek"
+  },
+  {
+    "title": "Özel Yetenek — Yedek Listeden Kayıtlar",
+    "date": "2026-09-03",
+    "endDate": "2026-09-04",
+    "kind": "takvim",
+    "category": "Özel Yetenek"
+  },
+  {
+    "title": "Özel Yetenek — Yedek Liste (İsim Okuma) Kayıtları",
+    "date": "2026-09-07",
+    "kind": "takvim",
+    "category": "Özel Yetenek"
+  },
+
+  {
+    "title": "Ek Madde-1 Yatay Geçiş — Başvuru (Güz)",
+    "date": "2026-08-03",
+    "endDate": "2026-08-14",
+    "kind": "takvim",
+    "category": "Merkezi Yerleştirme (Ek Madde-1) ile Yatay Geçiş"
+  },
+  {
+    "title": "Ek Madde-1 Yatay Geçiş — Sonuçların İlanı (Güz)",
+    "date": "2026-08-21",
+    "kind": "takvim",
+    "category": "Merkezi Yerleştirme (Ek Madde-1) ile Yatay Geçiş"
+  },
+  {
+    "title": "Ek Madde-1 Yatay Geçiş — Kayıt (Güz)",
+    "date": "2026-08-24",
+    "endDate": "2026-08-25",
+    "kind": "takvim",
+    "category": "Merkezi Yerleştirme (Ek Madde-1) ile Yatay Geçiş"
+  },
+  {
+    "title": "Ek Madde-1 Yatay Geçiş — Başvuru (Bahar)",
+    "date": "2027-02-01",
+    "endDate": "2027-02-02",
+    "kind": "takvim",
+    "category": "Merkezi Yerleştirme (Ek Madde-1) ile Yatay Geçiş"
+  },
+  {
+    "title": "Ek Madde-1 Yatay Geçiş — Sonuçların İlanı (Bahar)",
+    "date": "2027-02-05",
+    "kind": "takvim",
+    "category": "Merkezi Yerleştirme (Ek Madde-1) ile Yatay Geçiş"
+  },
+  {
+    "title": "Ek Madde-1 Yatay Geçiş — Kayıt (Bahar)",
+    "date": "2027-02-08",
+    "endDate": "2027-02-09",
+    "kind": "takvim",
+    "category": "Merkezi Yerleştirme (Ek Madde-1) ile Yatay Geçiş"
+  },
+
+  {
+    "title": "Kurumlararası Yatay Geçiş — Başvuru (Güz)",
+    "date": "2026-08-03",
+    "endDate": "2026-08-07",
+    "kind": "takvim",
+    "category": "Kurumlararası Yatay Geçiş"
+  },
+  {
+    "title": "Kurumlararası Yatay Geçiş — Sonuçların İlanı (Güz)",
+    "date": "2026-08-14",
+    "kind": "takvim",
+    "category": "Kurumlararası Yatay Geçiş"
+  },
+  {
+    "title": "Kurumlararası Yatay Geçiş — Kayıt / Asil Liste (Güz)",
+    "date": "2026-08-17",
+    "endDate": "2026-08-18",
+    "kind": "takvim",
+    "category": "Kurumlararası Yatay Geçiş"
+  },
+  {
+    "title": "Kurumlararası Yatay Geçiş — Yedek Liste Kontenjan İlanı (Güz)",
+    "date": "2026-08-21",
+    "kind": "takvim",
+    "category": "Kurumlararası Yatay Geçiş"
+  },
+  {
+    "title": "Kurumlararası Yatay Geçiş — Kayıt / Yedek Liste (Güz)",
+    "date": "2026-08-24",
+    "endDate": "2026-08-25",
+    "kind": "takvim",
+    "category": "Kurumlararası Yatay Geçiş"
+  },
+  {
+    "title": "Kurumlararası Yatay Geçiş — Başvuru (Bahar)",
+    "date": "2027-02-01",
+    "endDate": "2027-02-02",
+    "kind": "takvim",
+    "category": "Kurumlararası Yatay Geçiş"
+  },
+  {
+    "title": "Kurumlararası Yatay Geçiş — Sonuçların İlanı (Bahar)",
+    "date": "2027-02-05",
+    "kind": "takvim",
+    "category": "Kurumlararası Yatay Geçiş"
+  },
+  {
+    "title": "Kurumlararası Yatay Geçiş — Kayıt / Asil Liste (Bahar)",
+    "date": "2027-02-08",
+    "endDate": "2027-02-09",
+    "kind": "takvim",
+    "category": "Kurumlararası Yatay Geçiş"
+  },
+  {
+    "title": "Kurumlararası Yatay Geçiş — Yedek Liste Kontenjan İlanı (Bahar)",
+    "date": "2027-02-10",
+    "kind": "takvim",
+    "category": "Kurumlararası Yatay Geçiş"
+  },
+  {
+    "title": "Kurumlararası Yatay Geçiş — Kayıt / Yedek Liste (Bahar)",
+    "date": "2027-02-12",
+    "endDate": "2027-02-15",
+    "kind": "takvim",
+    "category": "Kurumlararası Yatay Geçiş"
+  },
+
+  {
+    "title": "Kurumiçi Yatay Geçiş — Başvuru (Güz)",
+    "date": "2026-08-03",
+    "endDate": "2026-08-07",
+    "kind": "takvim",
+    "category": "Kurumiçi Yatay Geçiş"
+  },
+  {
+    "title": "Kurumiçi Yatay Geçiş — Sonuçların İlanı (Güz)",
+    "date": "2026-08-14",
+    "kind": "takvim",
+    "category": "Kurumiçi Yatay Geçiş"
+  },
+  {
+    "title": "Kurumiçi Yatay Geçiş — Kayıt (Güz)",
+    "date": "2026-08-17",
+    "endDate": "2026-08-18",
+    "kind": "takvim",
+    "category": "Kurumiçi Yatay Geçiş"
+  },
+  {
+    "title": "Kurumiçi Yatay Geçiş — Başvuru (Bahar)",
+    "date": "2027-02-01",
+    "endDate": "2027-02-02",
+    "kind": "takvim",
+    "category": "Kurumiçi Yatay Geçiş"
+  },
+  {
+    "title": "Kurumiçi Yatay Geçiş — Sonuçların İlanı (Bahar)",
+    "date": "2027-02-05",
+    "kind": "takvim",
+    "category": "Kurumiçi Yatay Geçiş"
+  },
+  {
+    "title": "Kurumiçi Yatay Geçiş — Kayıt (Bahar)",
+    "date": "2027-02-08",
+    "endDate": "2027-02-09",
+    "kind": "takvim",
+    "category": "Kurumiçi Yatay Geçiş"
+  },
+
+  {
+    "title": "Çift Anadal / Yandal — Başvuru",
+    "date": "2026-08-03",
+    "endDate": "2026-08-07",
+    "kind": "takvim",
+    "category": "Çift Anadal / Yandal"
+  },
+  {
+    "title": "Çift Anadal / Yandal — Sonuçların İlanı",
+    "date": "2026-08-14",
+    "kind": "takvim",
+    "category": "Çift Anadal / Yandal"
+  },
+  {
+    "title": "Çift Anadal / Yandal — Kayıt",
+    "date": "2026-08-17",
+    "endDate": "2026-08-18",
+    "kind": "takvim",
+    "category": "Çift Anadal / Yandal"
+  }
+]
