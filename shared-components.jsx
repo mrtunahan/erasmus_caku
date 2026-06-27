@@ -2983,22 +2983,19 @@ const LoginModal = ({ onLogin }) => {
           }
           return n;
         };
-        // Soyadını çıkar (sondaki tamamı büyük harf kelime(ler))
+        // Tekilleştirme anahtarı = unvanı soyulmuş TAM ad (normalize edilmiş).
+        // ÖNEMLİ: Eski sürüm anahtarı "ilk ad + BÜYÜK-HARF soyadı" ile
+        // üretiyordu; soyadı büyük harf değilse (ör. "Ahmet Tunahan Korkmaz")
+        // anahtar yalnızca ilk ada düşüyor ("AHMET") ve farklı kişiler
+        // birbirine karışıp listeden GİZLENİYORDU. Artık tam ad kullanılır:
+        // yalnızca gerçekten aynı ad (farklı unvanlı kayıtlar) birleşir,
+        // farklı kişiler asla gizlenmez.
         const getKey = (name) => {
-          const bare = stripTitle(name);
-          const parts = bare.split(/\s+/);
-          // Sondaki büyük harfli kelimeler = soyadı
-          const surnames = [];
-          for (let i = parts.length - 1; i >= 0; i--) {
-            if (parts[i] === parts[i].toUpperCase() && parts[i].length > 1)
-              surnames.unshift(parts[i]);
-            else break;
-          }
-          const surname = surnames.join(' ');
-          // İlk ad = soyadı hariç ilk kelime
-          const firstName =
-            parts.length > surnames.length ? parts[0].replace(/\./g, '').toUpperCase() : '';
-          return (firstName + ' ' + surname).trim().toUpperCase();
+          return stripTitle(name)
+            .toLocaleLowerCase('tr')
+            .replace(/\./g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
         };
         const seen = new Map();
         (profs || []).forEach((p) => {
