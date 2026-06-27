@@ -4897,11 +4897,13 @@ const LoginModal = ({ onLogin }) => {
                 </div>
               )}
 
-            {/* Üniversite → Fakülte → Bölüm kademeli seçimi */}
-            {activeTab !== 'admin' &&
+            {/* Üniversite seçimi — yalnızca ÖĞRENCİ girişinde.
+                Akademisyen girişinde Üniversite/Fakülte/Bölüm seçimine GEREK YOK:
+                akademisyen adıyla giriş yapar ve doğrudan kendi ekranına yönlenir. */}
+            {activeTab === 'student' &&
               !registerMode &&
               !setupPasswordMode &&
-              !(activeTab === 'student' && studentStep === 'password') && (
+              studentStep !== 'password' && (
                 <div
                   style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}
                 >
@@ -4923,55 +4925,6 @@ const LoginModal = ({ onLogin }) => {
                             {u.name}
                           </option>
                         ))}
-                      </select>
-                    </div>
-                  )}
-                  {/* Öğrenci girişinde Fakülte+Bölüm seçimine gerek YOK —
-                      öğrenci numarası üniversite içinde unique. Bu seçimler
-                      yalnızca akademisyen girişinde (ad listesini daraltmak
-                      için) gösterilir. */}
-                  {activeTab !== 'student' && hierFaculties.length > 0 && (
-                    <div>
-                      <label className="lg-label">Fakülte</label>
-                      <select
-                        value={selFaculty}
-                        disabled={!selUni && hierUniversities.length > 0}
-                        onChange={(e) => {
-                          setSelFaculty(e.target.value);
-                          setSelDept('');
-                        }}
-                        className="lg-input"
-                      >
-                        <option value="">Fakülte seçin…</option>
-                        {hierFaculties
-                          .filter((f) => !selUni || (f.universityId || '') === selUni)
-                          .map((f) => (
-                            <option key={f.id} value={f.id}>
-                              {f.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  )}
-                  {activeTab !== 'student' && (
-                    <div>
-                      <label className="lg-label">Bölüm</label>
-                      <select
-                        value={selDept}
-                        disabled={hierFaculties.length > 0 && !selFaculty}
-                        onChange={(e) => setSelDept(e.target.value)}
-                        className="lg-input"
-                      >
-                        <option value="">Bölüm seçin…</option>
-                        {hierDepartments
-                          .filter(
-                            (d) => !selFaculty || (d.facultyId || '') === selFaculty || !d.facultyId
-                          )
-                          .map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name}
-                            </option>
-                          ))}
                       </select>
                     </div>
                   )}

@@ -2251,7 +2251,13 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect, activeDepartment }) =>
 };
 
 // ── Trip History Modal (Eşleştirme Geçmişi) ──
-const TripHistoryModal = ({ onClose, universities, isReadOnly = false, activeDepartment }) => {
+const TripHistoryModal = ({
+  onClose,
+  universities,
+  isReadOnly = false,
+  activeDepartment,
+  currentUser,
+}) => {
   const r = useResponsive();
   const [selectedUni, setSelectedUni] = useState('');
   const [history, setHistory] = useState([]);
@@ -2261,6 +2267,49 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false, activeDep
   const [searchText, setSearchText] = useState('');
   const [uniSearch, setUniSearch] = useState('');
   const [extraUnis, setExtraUnis] = useState([]);
+  // bölümId → fakülteId haritası (çekirdek bölümler sabit listede facultyId
+  // taşımadığından 'departments' koleksiyonundan tam harita çıkarılır)
+  const [deptFacultyMap, setDeptFacultyMap] = useState({});
+
+  // FAKÜLTE BAZLI ERİŞİM: Erasmus geçmişi fakülteye özeldir. Bir fakültenin
+  // yetkilileri yalnızca kendi fakültesine ait kayıtları görür; başka fakülte
+  // (ör. Mühendislik Fakültesi'ne ait Bilgisayar Müh.) kayıtlarını göremez.
+  // Üniversite yetkilisi tüm fakülteleri görür.
+  const seeAllFaculties = !!(currentUser && currentUser.isUniversityAdmin);
+  const myFacultyId =
+    (currentUser && currentUser.facultyId) || deptFacultyMap[activeDepartment] || '';
+  const facultyDeptIds = React.useMemo(() => {
+    const set = new Set();
+    if (myFacultyId) {
+      Object.keys(deptFacultyMap).forEach((dId) => {
+        if (deptFacultyMap[dId] === myFacultyId) set.add(dId);
+      });
+    }
+    if (activeDepartment) set.add(activeDepartment);
+    return set;
+  }, [deptFacultyMap, myFacultyId, activeDepartment]);
+
+  // bölüm → fakülte haritasını yükle
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const depts = await window.apiRead('departments');
+        if (cancelled) return;
+        const map = {};
+        (depts || []).forEach((d) => {
+          const id = d.id || d._docId;
+          if (id) map[id] = d.facultyId || '';
+        });
+        setDeptFacultyMap(map);
+      } catch (e) {
+        console.warn('Bölüm→fakülte haritası yüklenemedi:', e?.message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Dropdown'u beslemek için: UNIVERSITY_CATALOGS + öğrenci kayıtlarında
   // gerçekten kullanılan kurumlar. Aksi halde kataloğa eklenmemiş yeni
@@ -2305,10 +2354,10 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false, activeDep
     }
     setLoading(true);
     try {
-      // Eşleştirme geçmişi BÖLÜM bazlı süzülür. activeDepartment yoksa
-      // (üniversite yetkilisi tüm fakülteler kapsamında) kurumun TÜM
-      // kayıtları gelir.
-      const entries = await DB.fetchTripHistory(uni, activeDepartment);
+      // Kurumun TÜM kayıtları çekilir; FAKÜLTE bazlı süzme istemci tarafında
+      // (filteredHistory içinde) yapılır. Böylece çekirdek bölümlerde eksik
+      // olan facultyId, bölüm→fakülte haritası ile telafi edilir.
+      const entries = await DB.fetchTripHistory(uni);
       setHistory(entries);
     } catch (e) {
       console.error('Trip history load error:', e);
@@ -2318,6 +2367,21 @@ const TripHistoryModal = ({ onClose, universities, isReadOnly = false, activeDep
   };
 
   const filteredHistory = history.filter((h) => {
+    // FAKÜLTE BAZLI ERİŞİM süzgeci: üniversite yetkilisi hepsini görür;
+    // diğer yetkililer yalnızca kendi fakültesinin kayıtlarını görür.
+    if (!seeAllFaculties) {
+      const recFaculty = h.facultyId || deptFacultyMap[h.departmentId] || '';
+      const inFaculty =
+        (myFacultyId && recFaculty && recFaculty === myFacultyId) ||
+        (h.departmentId && facultyDeptIds.has(h.departmentId));
+      // Fakülte bağlamı hiç çözülemiyorsa (myFacultyId yok) güvenli taraf:
+      // yalnızca aktif bölümün kayıtları gösterilir.
+      if (myFacultyId) {
+        if (!inFaculty) return false;
+      } else if (activeDepartment && h.departmentId && h.departmentId !== activeDepartment) {
+        return false;
+      }
+    }
     if (filterType !== 'all' && h.type !== filterType) return false;
     if (searchText) {
       const q = searchText.toLowerCase();
@@ -5424,6 +5488,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
             universities={UNIVERSITY_CATALOGS}
             isReadOnly={currentUser?.role !== 'admin'}
             activeDepartment={activeDepartment}
+            currentUser={currentUser}
           />
         )}
       </div>

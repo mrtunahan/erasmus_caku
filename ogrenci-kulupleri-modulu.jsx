@@ -285,8 +285,78 @@ function ClubCard({ club, canEdit, onEdit, onDelete, onLogoChange }) {
         <Field label="Başkan" value={club.president} />
         <Field label="Bölüm" value={club.department} />
       </div>
+
+      {(club.whatsapp || club.instagram) && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 10,
+            marginTop: 12,
+            paddingTop: 12,
+            borderTop: `1px solid ${KLP.border}`,
+          }}
+        >
+          {club.whatsapp && (
+            <a
+              href={normalizeSocialUrl(club.whatsapp)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="WhatsApp"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 8,
+                background: '#25D366',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textDecoration: 'none',
+              }}
+            >
+              <KlpIcon
+                path="M12 2a10 10 0 00-8.6 15.05L2 22l5.1-1.34A10 10 0 1012 2zm0 18a8 8 0 01-4.08-1.12l-.29-.17-3.03.8.81-2.95-.19-.3A8 8 0 1112 20zm4.4-5.98c-.24-.12-1.42-.7-1.64-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.92-1.19-.71-.63-1.19-1.41-1.33-1.65-.14-.24-.01-.37.11-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.47-.39-.4-.54-.41h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.57.18 1.1.16 1.51.1.46-.07 1.42-.58 1.62-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28z"
+                size={17}
+                color="white"
+              />
+            </a>
+          )}
+          {club.instagram && (
+            <a
+              href={normalizeSocialUrl(club.instagram)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Instagram"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 8,
+                background: 'linear-gradient(45deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textDecoration: 'none',
+              }}
+            >
+              <KlpIcon
+                path="M12 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41a3.7 3.7 0 01-1.38-.9 3.7 3.7 0 01-.9-1.38c-.16-.42-.36-1.06-.41-2.23-.06-1.27-.07-1.65-.07-4.85s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41 1.27-.06 1.65-.07 4.85-.07zM12 0C8.74 0 8.33.01 7.05.07 5.78.13 4.9.33 4.14.63c-.79.31-1.46.72-2.12 1.38C1.36 2.67.95 3.34.63 4.13.33 4.9.13 5.77.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.06 1.28.26 2.15.56 2.92.31.79.72 1.46 1.38 2.12.66.66 1.33 1.07 2.12 1.38.77.3 1.64.5 2.92.56C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c1.28-.06 2.15-.26 2.92-.56a5.7 5.7 0 002.12-1.38 5.7 5.7 0 001.38-2.12c.3-.77.5-1.64.56-2.92.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.06-1.28-.26-2.15-.56-2.92a5.7 5.7 0 00-1.38-2.12A5.7 5.7 0 0019.87.63c-.77-.3-1.64-.5-2.92-.56C15.67.01 15.26 0 12 0zm0 5.84A6.16 6.16 0 1018.16 12 6.16 6.16 0 0012 5.84zM12 16a4 4 0 114-4 4 4 0 01-4 4zm6.41-10.85a1.44 1.44 0 11-1.44-1.44 1.44 1.44 0 011.44 1.44z"
+                size={17}
+                color="white"
+              />
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
+}
+
+// Sosyal medya bağlantısını normalize et — http(s) eksikse ekle
+function normalizeSocialUrl(url) {
+  const u = (url || '').trim();
+  if (!u) return '#';
+  if (/^https?:\/\//i.test(u)) return u;
+  return 'https://' + u;
 }
 
 const Field = ({ label, value }) => (
@@ -430,6 +500,8 @@ function ClubForm({
   const [name, setName] = useState(initial?.name || '');
   const [advisor, setAdvisor] = useState(initial?.advisor || '');
   const [president, setPresident] = useState(initial?.president || '');
+  const [whatsapp, setWhatsapp] = useState(initial?.whatsapp || '');
+  const [instagram, setInstagram] = useState(initial?.instagram || '');
   const initialDeptId =
     lockedDepartmentId ||
     initial?.departmentId ||
@@ -489,6 +561,8 @@ function ClubForm({
         president: president.trim(),
         department: deptName,
         departmentId,
+        whatsapp: whatsapp.trim(),
+        instagram: instagram.trim(),
       });
     } finally {
       setSaving(false);
@@ -587,6 +661,22 @@ function ClubForm({
                   : 'Bu bölümde kayıtlı öğrenci yok — isim yazabilirsiniz'
               }
               emptyHint="Önce bölüm seçin"
+            />
+          </FormField>
+          <FormField label="WhatsApp Bağlantısı">
+            <input
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+              style={inputStyle}
+              placeholder="https://chat.whatsapp.com/…"
+            />
+          </FormField>
+          <FormField label="Instagram Bağlantısı">
+            <input
+              value={instagram}
+              onChange={(e) => setInstagram(e.target.value)}
+              style={inputStyle}
+              placeholder="https://instagram.com/…"
             />
           </FormField>
         </div>
@@ -940,7 +1030,10 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
     return false;
   };
   const canCreate = isAdmin || isDeptManager;
-  const canEditDocuments = isAdmin || isDeptManager;
+  // Topluluk dokümanları: ekleme/silme/güncelleme YALNIZCA üniversite yetkilisinde.
+  // (role==='admin' fakülte/bölüm yöneticilerini de kapsadığından isUniversityAdmin bayrağı kullanılır.)
+  const isUniversityAdmin = !!currentUser?.isUniversityAdmin;
+  const canEditDocuments = isUniversityAdmin;
 
   const showMsg = (text, kind = 'info') => {
     setMsg({ text, kind });

@@ -10,57 +10,102 @@ const BS_FirebaseDB = window.DB;
 const BS_Notifier = window.StudentNotifier;
 
 const BS_SINIF_COLORS = {
-  1: { bg: "#DBEAFE", text: "#1E40AF", label: "1. Sınıf" },
-  2: { bg: "#DCFCE7", text: "#166534", label: "2. Sınıf" },
-  3: { bg: "#FFEDD5", text: "#9A3412", label: "3. Sınıf" },
-  4: { bg: "#FCE7F3", text: "#9D174D", label: "4. Sınıf" },
-  5: { bg: "#EDE9FE", text: "#5B21B6", label: "Seçmeli" },
+  1: { bg: '#DBEAFE', text: '#1E40AF', label: '1. Sınıf' },
+  2: { bg: '#DCFCE7', text: '#166534', label: '2. Sınıf' },
+  3: { bg: '#FFEDD5', text: '#9A3412', label: '3. Sınıf' },
+  4: { bg: '#FCE7F3', text: '#9D174D', label: '4. Sınıf' },
+  5: { bg: '#EDE9FE', text: '#5B21B6', label: 'Seçmeli' },
 };
 
-const BS_DONEM_LABEL = { guz: "Güz", bahar: "Bahar", yaz: "Yaz", genel: "Genel" };
+const BS_DONEM_LABEL = { guz: 'Güz', bahar: 'Bahar', yaz: 'Yaz', genel: 'Genel' };
 
 function bsTimeAgo(iso) {
-  if (!iso) return "";
+  if (!iso) return '';
   try {
     var d = new Date(iso);
     var diff = Date.now() - d.getTime();
     var mins = Math.floor(diff / 60000);
-    if (mins < 1) return "Az önce";
-    if (mins < 60) return mins + " dk önce";
+    if (mins < 1) return 'Az önce';
+    if (mins < 60) return mins + ' dk önce';
     var hours = Math.floor(mins / 60);
-    if (hours < 24) return hours + " saat önce";
+    if (hours < 24) return hours + ' saat önce';
     var days = Math.floor(hours / 24);
-    if (days < 30) return days + " gün önce";
-    return d.toLocaleDateString("tr-TR");
-  } catch (_) { return ""; }
+    if (days < 30) return days + ' gün önce';
+    return d.toLocaleDateString('tr-TR');
+  } catch (_) {
+    return '';
+  }
+}
+
+// Akademik takvim tarih yardımcıları
+function bsFormatDate(iso) {
+  try {
+    return new Date(iso).toLocaleDateString('tr-TR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+  } catch (_) {
+    return iso || '';
+  }
+}
+function bsDaysUntil(iso) {
+  try {
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var d = new Date(iso);
+    d.setHours(0, 0, 0, 0);
+    return Math.round((d.getTime() - today.getTime()) / 86400000);
+  } catch (_) {
+    return null;
+  }
+}
+function bsDaysUntilLabel(days) {
+  if (days === null) return '';
+  if (days < 0) return 'Geçti';
+  if (days === 0) return 'Bugün';
+  if (days === 1) return 'Yarın';
+  return days + ' gün kaldı';
+}
+
+// Sosyal/dış bağlantı normalize
+function bsNormalizeUrl(url) {
+  var u = (url || '').trim();
+  if (!u) return '';
+  if (/^https?:\/\//i.test(u)) return u;
+  return 'https://' + u;
 }
 
 function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [studentRecord, setStudentRecord] = useState(null);
   const [allCourses, setAllCourses] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [editMode, setEditMode] = useState(false);
-  const [filterSinif, setFilterSinif] = useState("all");
-  const [filterDonem, setFilterDonem] = useState("all");
-  const [search, setSearch] = useState("");
+  const [filterSinif, setFilterSinif] = useState('all');
+  const [filterDonem, setFilterDonem] = useState('all');
+  const [search, setSearch] = useState('');
   const [notifications, setNotifications] = useState([]);
   const [notifLoading, setNotifLoading] = useState(false);
+  const [calendar, setCalendar] = useState([]);
 
-  const isStudent = currentUser?.role === "student";
+  const isStudent = currentUser?.role === 'student';
   const studentDeptId = currentUser?.departmentId || activeDepartment;
 
   const loadData = useCallback(async () => {
-    if (!isStudent) { setLoading(false); return; }
+    if (!isStudent) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    setError("");
+    setError('');
     try {
       const students = await BS_FirebaseDB.fetchStudents();
-      const me = students.find(s => s.studentNumber === currentUser.studentNumber);
+      const me = students.find((s) => s.studentNumber === currentUser.studentNumber);
       if (!me) {
-        setError("Öğrenci kaydınız bulunamadı. Lütfen yöneticinizle iletişime geçin.");
+        setError('Öğrenci kaydınız bulunamadı. Lütfen yöneticinizle iletişime geçin.');
         setLoading(false);
         return;
       }
@@ -70,19 +115,33 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       // Seçim yalnızca ilk kez yapılır; bir kez kaydedildiyse tekrar düzenlenemez
       setEditMode(myIds.length === 0);
 
-      const allRaw = await window.apiRead("sinav_dersler");
+      const allRaw = await window.apiRead('sinav_dersler');
       const all = Array.isArray(allRaw) ? allRaw : [];
-      const mine = all.filter(c => c.departmentId === studentDeptId);
+      const mine = all.filter((c) => c.departmentId === studentDeptId);
       setAllCourses(mine);
+
+      // Akademik takvim (opsiyonel koleksiyon). departmentId yoksa genel
+      // (üniversite geneli) etkinlik kabul edilir; bölüme özel olanlar
+      // yalnızca o bölüme gösterilir.
+      try {
+        const calRaw = await window.apiRead('akademik_takvim');
+        const cal = Array.isArray(calRaw) ? calRaw : [];
+        const relevant = cal.filter((ev) => !ev.departmentId || ev.departmentId === studentDeptId);
+        setCalendar(relevant);
+      } catch (_) {
+        setCalendar([]);
+      }
     } catch (e) {
-      console.error("Benim Sayfam yüklenirken hata:", e);
-      setError("Veriler yüklenemedi: " + (e.message || "bilinmeyen hata"));
+      console.error('Benim Sayfam yüklenirken hata:', e);
+      setError('Veriler yüklenemedi: ' + (e.message || 'bilinmeyen hata'));
     } finally {
       setLoading(false);
     }
   }, [currentUser?.studentNumber, studentDeptId, isStudent]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Bildirimleri yükle (yalnızca seçim tamamlanmışsa anlamlı)
   const loadNotifications = useCallback(async () => {
@@ -92,7 +151,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       const items = await BS_Notifier.fetchForStudent(currentUser.studentNumber, 30);
       setNotifications(items);
     } catch (e) {
-      console.warn("Bildirimler alınamadı:", e);
+      console.warn('Bildirimler alınamadı:', e);
     } finally {
       setNotifLoading(false);
     }
@@ -103,42 +162,70 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   }, [editMode, selectedIds.length, loadNotifications]);
 
   const myCourseDetails = useMemo(() => {
-    const map = new Map(allCourses.map(c => [c.id, c]));
-    return selectedIds.map(id => map.get(id)).filter(Boolean);
+    const map = new Map(allCourses.map((c) => [c.id, c]));
+    return selectedIds.map((id) => map.get(id)).filter(Boolean);
   }, [allCourses, selectedIds]);
 
-  const filteredCourses = useMemo(() => {
-    return allCourses.filter(c => {
-      if (filterSinif !== "all" && String(c.sinif) !== String(filterSinif)) return false;
-      if (filterDonem !== "all" && c.donem !== filterDonem) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        const hay = `${c.code || ""} ${c.name || ""} ${c.professor || ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    }).sort((a, b) => {
-      const sa = parseInt(a.sinif) || 99;
-      const sb = parseInt(b.sinif) || 99;
-      if (sa !== sb) return sa - sb;
-      return (a.code || "").localeCompare(b.code || "");
+  // Akademik takvim: tarihe göre sıralı + yaklaşan (bugün ve sonrası) etkinlikler
+  const sortedCalendar = useMemo(() => {
+    return calendar
+      .filter((ev) => ev.date)
+      .slice()
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [calendar]);
+
+  const upcomingEvents = useMemo(() => {
+    return sortedCalendar.filter((ev) => {
+      const days = bsDaysUntil(ev.date);
+      return days !== null && days >= 0;
     });
+  }, [sortedCalendar]);
+
+  // Yaklaşan tarihler bildirimi: önümüzdeki 30 gün içindeki etkinlikler
+  const upcomingSoon = useMemo(() => {
+    return upcomingEvents.filter((ev) => {
+      const days = bsDaysUntil(ev.date);
+      return days !== null && days <= 30;
+    });
+  }, [upcomingEvents]);
+
+  const filteredCourses = useMemo(() => {
+    return allCourses
+      .filter((c) => {
+        if (filterSinif !== 'all' && String(c.sinif) !== String(filterSinif)) return false;
+        if (filterDonem !== 'all' && c.donem !== filterDonem) return false;
+        if (search) {
+          const q = search.toLowerCase();
+          const hay = `${c.code || ''} ${c.name || ''} ${c.professor || ''}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const sa = parseInt(a.sinif) || 99;
+        const sb = parseInt(b.sinif) || 99;
+        if (sa !== sb) return sa - sb;
+        return (a.code || '').localeCompare(b.code || '');
+      });
   }, [allCourses, filterSinif, filterDonem, search]);
 
   const toggleCourse = (id) => {
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const handleSave = async () => {
     if (!studentRecord) return;
     if (selectedIds.length === 0) {
-      alert("En az bir ders seçmelisiniz.");
+      alert('En az bir ders seçmelisiniz.');
       return;
     }
-    if (!confirm(
-      "Seçimleriniz kaydedildikten sonra bir daha değiştirilemez.\n\n" +
-      selectedIds.length + " ders seçtiniz. Kaydetmek istediğinize emin misiniz?"
-    )) {
+    if (
+      !confirm(
+        'Seçimleriniz kaydedildikten sonra bir daha değiştirilemez.\n\n' +
+          selectedIds.length +
+          ' ders seçtiniz. Kaydetmek istediğinize emin misiniz?'
+      )
+    ) {
       return;
     }
     setSaving(true);
@@ -150,17 +237,19 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       await BS_FirebaseDB.updateStudent(studentRecord.id, updated);
       setStudentRecord(updated);
       try {
-        const saved = JSON.parse(localStorage.getItem("caku_current_user") || "{}");
+        const saved = JSON.parse(localStorage.getItem('caku_current_user') || '{}');
         saved.hasSelectedCourses = true;
-        localStorage.setItem("caku_current_user", JSON.stringify(saved));
-        if (typeof window.__onStudentCoursesSelected === "function") {
+        localStorage.setItem('caku_current_user', JSON.stringify(saved));
+        if (typeof window.__onStudentCoursesSelected === 'function') {
           window.__onStudentCoursesSelected();
         }
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
       setEditMode(false);
     } catch (e) {
       console.error(e);
-      alert("Kaydedilemedi: " + (e.message || "bilinmeyen hata"));
+      alert('Kaydedilemedi: ' + (e.message || 'bilinmeyen hata'));
     } finally {
       setSaving(false);
     }
@@ -170,7 +259,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     if (!currentUser?.studentNumber) return;
     try {
       await BS_Notifier.markAllRead(currentUser.studentNumber);
-      setNotifications(prev => prev.map(n => Object.assign({}, n, { read: true })));
+      setNotifications((prev) => prev.map((n) => Object.assign({}, n, { read: true })));
     } catch (_) {}
   };
 
@@ -178,32 +267,40 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     try {
       if (!n.read) {
         await BS_Notifier.markRead(n.id);
-        setNotifications(prev => prev.map(x => x.id === n.id ? Object.assign({}, x, { read: true }) : x));
+        setNotifications((prev) =>
+          prev.map((x) => (x.id === n.id ? Object.assign({}, x, { read: true }) : x))
+        );
       }
     } catch (_) {}
-    if (n.link && typeof n.link === "string") {
-      window.location.hash = "#" + n.link.replace(/^#/, "");
+    if (n.link && typeof n.link === 'string') {
+      window.location.hash = '#' + n.link.replace(/^#/, '');
     }
   };
 
   if (!isStudent) {
     return (
-      <div style={{ padding: 40, textAlign: "center", fontFamily: "'Inter', sans-serif" }}>
-        <h2 style={{ color: "#DC2626", fontSize: 22, marginBottom: 8 }}>Erişim Reddedildi</h2>
-        <p style={{ color: "#6B7280" }}>Bu sayfa yalnızca öğrenci hesaplarına açıktır.</p>
+      <div style={{ padding: 40, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
+        <h2 style={{ color: '#DC2626', fontSize: 22, marginBottom: 8 }}>Erişim Reddedildi</h2>
+        <p style={{ color: '#6B7280' }}>Bu sayfa yalnızca öğrenci hesaplarına açıktır.</p>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div style={{ padding: 60, textAlign: "center", fontFamily: "'Inter', sans-serif" }}>
-        <div style={{
-          width: 40, height: 40, margin: "0 auto 16px",
-          border: "3px solid #E5E7EB", borderTopColor: "#6366F1",
-          borderRadius: "50%", animation: "spin 0.8s linear infinite",
-        }} />
-        <p style={{ color: "#6B7280" }}>Sayfa yükleniyor…</p>
+      <div style={{ padding: 60, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            margin: '0 auto 16px',
+            border: '3px solid #E5E7EB',
+            borderTopColor: '#6366F1',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+          }}
+        />
+        <p style={{ color: '#6B7280' }}>Sayfa yükleniyor…</p>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -211,29 +308,42 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
 
   if (error) {
     return (
-      <div style={{ padding: 40, textAlign: "center", fontFamily: "'Inter', sans-serif" }}>
-        <h3 style={{ color: "#DC2626", marginBottom: 8 }}>Hata</h3>
-        <p style={{ color: "#6B7280" }}>{error}</p>
+      <div style={{ padding: 40, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
+        <h3 style={{ color: '#DC2626', marginBottom: 8 }}>Hata</h3>
+        <p style={{ color: '#6B7280' }}>{error}</p>
       </div>
     );
   }
 
-  const hasSelected = Array.isArray(studentRecord?.myCourseIds) && studentRecord.myCourseIds.length > 0;
-  const deptName = departmentInfo?.name || studentRecord?.departmentName || "—";
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const hasSelected =
+    Array.isArray(studentRecord?.myCourseIds) && studentRecord.myCourseIds.length > 0;
+  const deptName = departmentInfo?.name || studentRecord?.departmentName || '—';
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   // ══════════════════════════════════════════════════════════════
   // SEÇİM MODU
   // ══════════════════════════════════════════════════════════════
   if (editMode) {
     return (
-      <div style={{ fontFamily: "'Inter', sans-serif", color: "#1F2937" }}>
-        <div style={{
-          background: "linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)",
-          padding: "24px 28px", borderRadius: 14, color: "white", marginBottom: 20,
-          boxShadow: "0 6px 20px rgba(27,42,74,0.15)",
-        }}>
-          <div style={{ fontSize: 12, opacity: 0.75, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+      <div style={{ fontFamily: "'Inter', sans-serif", color: '#1F2937' }}>
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)',
+            padding: '24px 28px',
+            borderRadius: 14,
+            color: 'white',
+            marginBottom: 20,
+            boxShadow: '0 6px 20px rgba(27,42,74,0.15)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              opacity: 0.75,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}
+          >
             Benim Sayfam · Ders Seçimi
           </div>
           <div style={{ fontSize: 26, fontWeight: 700, marginTop: 4 }}>
@@ -244,32 +354,59 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           </div>
         </div>
 
-        <div style={{
-          background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E",
-          padding: "14px 18px", borderRadius: 10, marginBottom: 16, fontSize: 14,
-        }}>
-          <strong>Ders seçimi yapmanız gerekiyor.</strong> Bölümünüze ait derslerden
-          aldığınız dersleri seçip kaydedin. Seçim tamamlanmadan diğer modüllere
-          erişemezsiniz. <strong>Kaydettikten sonra seçimleriniz kilitlenir ve
-          bir daha değiştirilemez.</strong>
+        <div
+          style={{
+            background: '#FEF3C7',
+            border: '1px solid #FCD34D',
+            color: '#92400E',
+            padding: '14px 18px',
+            borderRadius: 10,
+            marginBottom: 16,
+            fontSize: 14,
+          }}
+        >
+          <strong>Ders seçimi yapmanız gerekiyor.</strong> Bölümünüze ait derslerden aldığınız
+          dersleri seçip kaydedin. Seçim tamamlanmadan diğer modüllere erişemezsiniz.{' '}
+          <strong>Kaydettikten sonra seçimleriniz kilitlenir ve bir daha değiştirilemez.</strong>
         </div>
 
-        <div style={{
-          background: "white", border: "1px solid #E5E7EB", borderRadius: 12,
-          padding: 16, marginBottom: 16, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center",
-        }}>
+        <div
+          style={{
+            background: 'white',
+            border: '1px solid #E5E7EB',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 16,
+            display: 'flex',
+            gap: 12,
+            flexWrap: 'wrap',
+            alignItems: 'center',
+          }}
+        >
           <input
             type="text"
             placeholder="Ders kodu, adı veya akademisyen ara…"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
             style={{
-              flex: "1 1 240px", padding: "10px 12px", borderRadius: 8,
-              border: "1px solid #D1D5DB", fontSize: 14, fontFamily: "inherit",
+              flex: '1 1 240px',
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid #D1D5DB',
+              fontSize: 14,
+              fontFamily: 'inherit',
             }}
           />
-          <select value={filterSinif} onChange={e => setFilterSinif(e.target.value)}
-            style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 14 }}>
+          <select
+            value={filterSinif}
+            onChange={(e) => setFilterSinif(e.target.value)}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid #D1D5DB',
+              fontSize: 14,
+            }}
+          >
             <option value="all">Tüm Sınıflar</option>
             <option value="1">1. Sınıf</option>
             <option value="2">2. Sınıf</option>
@@ -277,47 +414,73 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             <option value="4">4. Sınıf</option>
             <option value="5">Seçmeli</option>
           </select>
-          <select value={filterDonem} onChange={e => setFilterDonem(e.target.value)}
-            style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 14 }}>
+          <select
+            value={filterDonem}
+            onChange={(e) => setFilterDonem(e.target.value)}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid #D1D5DB',
+              fontSize: 14,
+            }}
+          >
             <option value="all">Tüm Dönemler</option>
             <option value="guz">Güz</option>
             <option value="bahar">Bahar</option>
             <option value="yaz">Yaz</option>
           </select>
-          <div style={{
-            padding: "8px 14px", borderRadius: 999, background: "#EEF2FF",
-            color: "#4338CA", fontSize: 13, fontWeight: 600,
-          }}>
+          <div
+            style={{
+              padding: '8px 14px',
+              borderRadius: 999,
+              background: '#EEF2FF',
+              color: '#4338CA',
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
             Seçili: {selectedIds.length}
           </div>
         </div>
 
         {allCourses.length === 0 ? (
-          <div style={{
-            background: "white", border: "1px dashed #D1D5DB", borderRadius: 12,
-            padding: "40px 24px", textAlign: "center", color: "#6B7280",
-          }}>
-            <p style={{ fontSize: 15, marginBottom: 4 }}>
-              Bölümünüze tanımlı ders bulunamadı.
-            </p>
+          <div
+            style={{
+              background: 'white',
+              border: '1px dashed #D1D5DB',
+              borderRadius: 12,
+              padding: '40px 24px',
+              textAlign: 'center',
+              color: '#6B7280',
+            }}
+          >
+            <p style={{ fontSize: 15, marginBottom: 4 }}>Bölümünüze tanımlı ders bulunamadı.</p>
             <p style={{ fontSize: 13 }}>
               Akademisyenler ders tanımladıktan sonra bu sayfadan seçim yapabilirsiniz.
             </p>
           </div>
         ) : filteredCourses.length === 0 ? (
-          <div style={{
-            background: "white", border: "1px solid #E5E7EB", borderRadius: 12,
-            padding: 32, textAlign: "center", color: "#6B7280",
-          }}>
+          <div
+            style={{
+              background: 'white',
+              border: '1px solid #E5E7EB',
+              borderRadius: 12,
+              padding: 32,
+              textAlign: 'center',
+              color: '#6B7280',
+            }}
+          >
             Filtrelere uyan ders bulunamadı.
           </div>
         ) : (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-            gap: 12,
-          }}>
-            {filteredCourses.map(c => {
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: 12,
+            }}
+          >
+            {filteredCourses.map((c) => {
               const isSelected = selectedIds.includes(c.id);
               const sinifInfo = BS_SINIF_COLORS[c.sinif] || BS_SINIF_COLORS[5];
               return (
@@ -325,44 +488,82 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                   key={c.id}
                   onClick={() => toggleCourse(c.id)}
                   style={{
-                    background: isSelected ? "#EEF2FF" : "white",
-                    border: `2px solid ${isSelected ? "#6366F1" : "#E5E7EB"}`,
-                    borderRadius: 12, padding: 14, cursor: "pointer",
-                    transition: "all 0.15s", position: "relative",
+                    background: isSelected ? '#EEF2FF' : 'white',
+                    border: `2px solid ${isSelected ? '#6366F1' : '#E5E7EB'}`,
+                    borderRadius: 12,
+                    padding: 14,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    position: 'relative',
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                    <div style={{
-                      padding: "3px 10px", borderRadius: 999,
-                      background: sinifInfo.bg, color: sinifInfo.text,
-                      fontSize: 11, fontWeight: 600,
-                    }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: '3px 10px',
+                        borderRadius: 999,
+                        background: sinifInfo.bg,
+                        color: sinifInfo.text,
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }}
+                    >
                       {sinifInfo.label}
                     </div>
-                    <div style={{
-                      width: 22, height: 22, borderRadius: "50%",
-                      border: `2px solid ${isSelected ? "#6366F1" : "#D1D5DB"}`,
-                      background: isSelected ? "#6366F1" : "white",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
+                    <div
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        border: `2px solid ${isSelected ? '#6366F1' : '#D1D5DB'}`,
+                        background: isSelected ? '#6366F1' : 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
                       {isSelected && (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       )}
                     </div>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#4338CA", marginBottom: 2 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#4338CA', marginBottom: 2 }}>
                     {c.code}
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "#1F2937", marginBottom: 6, lineHeight: 1.3 }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: '#1F2937',
+                      marginBottom: 6,
+                      lineHeight: 1.3,
+                    }}
+                  >
                     {c.name}
                   </div>
-                  <div style={{ fontSize: 12, color: "#6B7280" }}>
-                    {c.professor || "Akademisyen belirtilmemiş"}
+                  <div style={{ fontSize: 12, color: '#6B7280' }}>
+                    {c.professor || 'Akademisyen belirtilmemiş'}
                   </div>
-                  <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
-                    Dönem: {BS_DONEM_LABEL[c.donem] || c.donem || "—"}
+                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+                    Dönem: {BS_DONEM_LABEL[c.donem] || c.donem || '—'}
                   </div>
                 </div>
               );
@@ -370,27 +571,42 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           </div>
         )}
 
-        <div style={{
-          position: "sticky", bottom: 0, marginTop: 20,
-          background: "white", border: "1px solid #E5E7EB", borderRadius: 12,
-          padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center",
-          boxShadow: "0 -4px 12px rgba(0,0,0,0.05)", gap: 10, flexWrap: "wrap",
-        }}>
-          <div style={{ fontSize: 13, color: "#6B7280" }}>
-            <strong style={{ color: "#1F2937" }}>{selectedIds.length}</strong> ders seçtiniz
+        <div
+          style={{
+            position: 'sticky',
+            bottom: 0,
+            marginTop: 20,
+            background: 'white',
+            border: '1px solid #E5E7EB',
+            borderRadius: 12,
+            padding: 14,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: '0 -4px 12px rgba(0,0,0,0.05)',
+            gap: 10,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ fontSize: 13, color: '#6B7280' }}>
+            <strong style={{ color: '#1F2937' }}>{selectedIds.length}</strong> ders seçtiniz
           </div>
           <button
             onClick={handleSave}
             disabled={saving || selectedIds.length === 0}
             style={{
-              padding: "10px 22px", borderRadius: 8,
-              background: saving || selectedIds.length === 0 ? "#9CA3AF" : "#1B2A4A",
-              color: "white", border: "none", fontWeight: 600, fontSize: 14,
-              cursor: saving || selectedIds.length === 0 ? "not-allowed" : "pointer",
-              fontFamily: "inherit",
+              padding: '10px 22px',
+              borderRadius: 8,
+              background: saving || selectedIds.length === 0 ? '#9CA3AF' : '#1B2A4A',
+              color: 'white',
+              border: 'none',
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: saving || selectedIds.length === 0 ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
             }}
           >
-            {saving ? "Kaydediliyor…" : "Kaydet ve Kilitle"}
+            {saving ? 'Kaydediliyor…' : 'Kaydet ve Kilitle'}
           </button>
         </div>
       </div>
@@ -401,13 +617,25 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   // GÖSTERİM MODU (Ders listesi + bildirimler)
   // ══════════════════════════════════════════════════════════════
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif", color: "#1F2937" }}>
-      <div style={{
-        background: "linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)",
-        padding: "24px 28px", borderRadius: 14, color: "white", marginBottom: 20,
-        boxShadow: "0 6px 20px rgba(27,42,74,0.15)",
-      }}>
-        <div style={{ fontSize: 12, opacity: 0.75, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+    <div style={{ fontFamily: "'Inter', sans-serif", color: '#1F2937' }}>
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)',
+          padding: '24px 28px',
+          borderRadius: 14,
+          color: 'white',
+          marginBottom: 20,
+          boxShadow: '0 6px 20px rgba(27,42,74,0.15)',
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            opacity: 0.75,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+          }}
+        >
           Benim Sayfam
         </div>
         <div style={{ fontSize: 26, fontWeight: 700, marginTop: 4 }}>
@@ -416,37 +644,84 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         <div style={{ fontSize: 13, opacity: 0.85, marginTop: 6 }}>
           {studentRecord?.studentNumber} · {deptName}
         </div>
-        <div style={{
-          marginTop: 12, padding: "8px 14px", borderRadius: 8,
-          background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
-          fontSize: 12, color: "rgba(255,255,255,0.9)", display: "inline-flex", alignItems: "center", gap: 8,
-        }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+        <div
+          style={{
+            marginTop: 12,
+            padding: '8px 14px',
+            borderRadius: 8,
+            background: 'rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            fontSize: 12,
+            color: 'rgba(255,255,255,0.9)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0110 0v4" />
           </svg>
           Ders seçiminiz kilitlendi. Değişiklik için bölüm yetkilisi ile iletişime geçin.
         </div>
       </div>
 
       {/* Bildirimler */}
-      <div style={{
-        background: "white", border: "1px solid #E5E7EB", borderRadius: 14,
-        padding: 18, marginBottom: 20,
-      }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              width: 34, height: 34, borderRadius: 10,
-              background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4338CA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <div
+        style={{
+          background: 'white',
+          border: '1px solid #E5E7EB',
+          borderRadius: 14,
+          padding: 18,
+          marginBottom: 20,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: '#EEF2FF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#4338CA"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
               </svg>
             </div>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#1F2937" }}>Bildirimler</div>
-              <div style={{ fontSize: 12, color: "#6B7280" }}>
-                {unreadCount > 0 ? `${unreadCount} okunmamış` : "Tüm bildirimler okundu"}
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>Bildirimler</div>
+              <div style={{ fontSize: 12, color: '#6B7280' }}>
+                {unreadCount > 0 ? `${unreadCount} okunmamış` : 'Tüm bildirimler okundu'}
               </div>
             </div>
           </div>
@@ -454,9 +729,14 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             <button
               onClick={handleMarkAllRead}
               style={{
-                background: "white", border: "1px solid #D1D5DB",
-                padding: "6px 12px", borderRadius: 8, fontSize: 12,
-                cursor: "pointer", fontFamily: "inherit", color: "#4B5563",
+                background: 'white',
+                border: '1px solid #D1D5DB',
+                padding: '6px 12px',
+                borderRadius: 8,
+                fontSize: 12,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                color: '#4B5563',
               }}
             >
               Tümünü okundu işaretle
@@ -465,59 +745,92 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         </div>
 
         {notifLoading ? (
-          <p style={{ color: "#6B7280", fontSize: 13, textAlign: "center", padding: 16 }}>
+          <p style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', padding: 16 }}>
             Bildirimler yükleniyor…
           </p>
         ) : notifications.length === 0 ? (
-          <p style={{ color: "#6B7280", fontSize: 13, textAlign: "center", padding: 16 }}>
+          <p style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', padding: 16 }}>
             Henüz bir bildiriminiz yok.
           </p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {notifications.slice(0, 10).map(n => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {notifications.slice(0, 10).map((n) => (
               <div
                 key={n.id}
                 onClick={() => handleNotificationClick(n)}
                 style={{
-                  display: "flex", gap: 12, alignItems: "flex-start",
-                  padding: 12, borderRadius: 10, cursor: "pointer",
-                  background: n.read ? "#F9FAFB" : "#EEF2FF",
-                  border: `1px solid ${n.read ? "#E5E7EB" : "#C7D2FE"}`,
-                  transition: "all 0.15s",
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'flex-start',
+                  padding: 12,
+                  borderRadius: 10,
+                  cursor: 'pointer',
+                  background: n.read ? '#F9FAFB' : '#EEF2FF',
+                  border: `1px solid ${n.read ? '#E5E7EB' : '#C7D2FE'}`,
+                  transition: 'all 0.15s',
                 }}
               >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                  background: n.type === "project_group" ? "#DBEAFE" : "#FCE7F3",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: n.type === "project_group" ? "#1E40AF" : "#9D174D",
-                }}>
-                  {n.type === "project_group" ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    flexShrink: 0,
+                    background: n.type === 'project_group' ? '#DBEAFE' : '#FCE7F3',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: n.type === 'project_group' ? '#1E40AF' : '#9D174D',
+                  }}
+                >
+                  {n.type === 'project_group' ? (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
                     </svg>
                   ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <path d="M3 11l18-8-5 18-3-7-7-3z" />
                     </svg>
                   )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "#1F2937", marginBottom: 2 }}>
-                    {n.title || "Bildirim"}
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#1F2937', marginBottom: 2 }}>
+                    {n.title || 'Bildirim'}
                   </div>
-                  <div style={{ fontSize: 13, color: "#4B5563", lineHeight: 1.4 }}>
-                    {n.message}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
+                  <div style={{ fontSize: 13, color: '#4B5563', lineHeight: 1.4 }}>{n.message}</div>
+                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
                     {bsTimeAgo(n.createdAt)}
                   </div>
                 </div>
                 {!n.read && (
-                  <div style={{
-                    width: 8, height: 8, borderRadius: "50%",
-                    background: "#6366F1", flexShrink: 0, marginTop: 8,
-                  }} />
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: '#6366F1',
+                      flexShrink: 0,
+                      marginTop: 8,
+                    }}
+                  />
                 )}
               </div>
             ))}
@@ -525,56 +838,386 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         )}
       </div>
 
+      {/* Yaklaşan Tarihler */}
+      {upcomingSoon.length > 0 && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg,#FFF7ED,#FFEDD5)',
+            border: '1px solid #FED7AA',
+            borderRadius: 14,
+            padding: 18,
+            marginBottom: 20,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: '#FFEDD5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#C2410C"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 6v6l4 2" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#9A3412' }}>
+                Yaklaşan Tarihler
+              </div>
+              <div style={{ fontSize: 12, color: '#C2410C' }}>Önümüzdeki 30 gün</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {upcomingSoon.map((ev, i) => {
+              const days = bsDaysUntil(ev.date);
+              return (
+                <div
+                  key={ev.id || i}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: 'white',
+                    border: '1px solid #FED7AA',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#1F2937' }}>
+                      {ev.title || ev.name || 'Etkinlik'}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                      {bsFormatDate(ev.date)}
+                      {ev.description ? ` · ${ev.description}` : ''}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      flexShrink: 0,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      background: days <= 3 ? '#FEE2E2' : '#FFEDD5',
+                      color: days <= 3 ? '#B91C1C' : '#9A3412',
+                    }}
+                  >
+                    {bsDaysUntilLabel(days)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Akademik Takvim */}
+      <div
+        style={{
+          background: 'white',
+          border: '1px solid #E5E7EB',
+          borderRadius: 14,
+          padding: 18,
+          marginBottom: 20,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              background: '#EEF2FF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#4338CA"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>Akademik Takvim</div>
+            <div style={{ fontSize: 12, color: '#6B7280' }}>
+              {upcomingEvents.length > 0
+                ? `${upcomingEvents.length} yaklaşan etkinlik`
+                : 'Yaklaşan etkinlik yok'}
+            </div>
+          </div>
+        </div>
+        {upcomingEvents.length === 0 ? (
+          <p style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', padding: 16 }}>
+            Henüz tanımlanmış akademik takvim etkinliği yok.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {upcomingEvents.slice(0, 12).map((ev, i) => {
+              const days = bsDaysUntil(ev.date);
+              return (
+                <div
+                  key={ev.id || i}
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    alignItems: 'center',
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: '#F9FAFB',
+                    border: '1px solid #E5E7EB',
+                  }}
+                >
+                  <div
+                    style={{
+                      flexShrink: 0,
+                      width: 52,
+                      textAlign: 'center',
+                      padding: '6px 0',
+                      borderRadius: 8,
+                      background: '#EEF2FF',
+                    }}
+                  >
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#4338CA', lineHeight: 1 }}>
+                      {(() => {
+                        try {
+                          return new Date(ev.date).getDate();
+                        } catch (_) {
+                          return '—';
+                        }
+                      })()}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#6366F1', textTransform: 'uppercase' }}>
+                      {(() => {
+                        try {
+                          return new Date(ev.date).toLocaleDateString('tr-TR', { month: 'short' });
+                        } catch (_) {
+                          return '';
+                        }
+                      })()}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#1F2937' }}>
+                      {ev.title || ev.name || 'Etkinlik'}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                      {bsFormatDate(ev.date)}
+                      {ev.description ? ` · ${ev.description}` : ''}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      flexShrink: 0,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: '#6B7280',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {bsDaysUntilLabel(days)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Ders listesi */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: "#1F2937" }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#1F2937' }}>
           Derslerim ({myCourseDetails.length})
         </div>
       </div>
       {myCourseDetails.length === 0 ? (
-        <div style={{
-          background: "white", border: "1px dashed #D1D5DB", borderRadius: 12,
-          padding: "40px 24px", textAlign: "center", color: "#6B7280",
-        }}>
+        <div
+          style={{
+            background: 'white',
+            border: '1px dashed #D1D5DB',
+            borderRadius: 12,
+            padding: '40px 24px',
+            textAlign: 'center',
+            color: '#6B7280',
+          }}
+        >
           Kayıtlı dersiniz bulunmuyor. "Dersleri Düzenle" butonuna tıklayarak dersleri seçin.
         </div>
       ) : (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-          gap: 12,
-        }}>
-          {myCourseDetails.map(c => {
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: 12,
+          }}
+        >
+          {myCourseDetails.map((c) => {
             const sinifInfo = BS_SINIF_COLORS[c.sinif] || BS_SINIF_COLORS[5];
             return (
               <div
                 key={c.id}
                 style={{
-                  background: "white",
-                  border: "1px solid #E5E7EB",
-                  borderLeft: "4px solid #6366F1",
-                  borderRadius: 12, padding: 14,
+                  background: 'white',
+                  border: '1px solid #E5E7EB',
+                  borderLeft: '4px solid #6366F1',
+                  borderRadius: 12,
+                  padding: 14,
                 }}
               >
-                <div style={{
-                  display: "inline-block",
-                  padding: "3px 10px", borderRadius: 999,
-                  background: sinifInfo.bg, color: sinifInfo.text,
-                  fontSize: 11, fontWeight: 600, marginBottom: 8,
-                }}>
+                <div
+                  style={{
+                    display: 'inline-block',
+                    padding: '3px 10px',
+                    borderRadius: 999,
+                    background: sinifInfo.bg,
+                    color: sinifInfo.text,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    marginBottom: 8,
+                  }}
+                >
                   {sinifInfo.label}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#4338CA", marginBottom: 2 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#4338CA', marginBottom: 2 }}>
                   {c.code}
                 </div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: "#1F2937", marginBottom: 6, lineHeight: 1.3 }}>
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: '#1F2937',
+                    marginBottom: 8,
+                    lineHeight: 1.3,
+                  }}
+                >
                   {c.name}
                 </div>
-                <div style={{ fontSize: 12, color: "#6B7280" }}>
-                  {c.professor || "Akademisyen belirtilmemiş"}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6B7280' }}>
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    {c.professor || 'Öğretim üyesi belirtilmemiş'}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6B7280' }}>
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                      <path d="M6 12v5c3 3 9 3 12 0v-5" />
+                    </svg>
+                    {c.akts || c.kredi ? `${c.akts || c.kredi} AKTS / Kredi` : 'AKTS belirtilmemiş'}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9CA3AF' }}>
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    Dönem: {BS_DONEM_LABEL[c.donem] || c.donem || '—'}
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
-                  Dönem: {BS_DONEM_LABEL[c.donem] || c.donem || "—"}
+
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
+                  {c.bolognaLink ? (
+                    <a
+                      href={bsNormalizeUrl(c.bolognaLink)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: '#4338CA',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+                      </svg>
+                      Ders Bologna Sayfası
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: 11, color: '#D1D5DB' }}>
+                      Bologna linki tanımlı değil
+                    </span>
+                  )}
                 </div>
               </div>
             );
