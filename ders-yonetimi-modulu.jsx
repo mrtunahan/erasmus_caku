@@ -36,6 +36,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
     professor: '',
     donem: 'guz',
     akts: 6,
+    bolognaLink: '',
   });
   const [saving, setSaving] = useState(false);
   const [filterClass, setFilterClass] = useState('all');
@@ -92,16 +93,28 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
       professor: c.professor || '',
       donem: c.donem || 'guz',
       akts: c.akts || 6,
+      bolognaLink: c.bolognaLink || '',
     });
   };
 
   const startNew = () => {
     setEditingCourse('new');
-    setForm({ code: '', name: '', sinif: 1, duration: 30, professor: '', donem: 'guz', akts: 6 });
+    setForm({
+      code: '',
+      name: '',
+      sinif: 1,
+      duration: 30,
+      professor: '',
+      donem: 'guz',
+      akts: 6,
+      bolognaLink: '',
+    });
   };
 
   const handleSave = async () => {
     if (!form.code.trim() || !form.name.trim()) return alert('Ders kodu ve adı zorunludur.');
+    const bolognaLink = (form.bolognaLink || '').trim();
+    if (!bolognaLink) return alert('Ders Bologna linki zorunludur.');
     setSaving(true);
     try {
       const dataToSave = {
@@ -112,6 +125,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
         akts: parseInt(form.akts) || 6,
         professor: form.professor || '',
         donem: form.donem,
+        bolognaLink: bolognaLink,
         departmentId: activeDepartment || 'bilgisayar',
         updatedAt: new Date().toISOString(),
       };
@@ -600,6 +614,13 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                     <option key={i} value={p.name} />
                   ))}
                 </datalist>
+              </FormField>
+              <FormField label="Ders Bologna Linki *">
+                <Input
+                  value={form.bolognaLink}
+                  onChange={(e) => setForm({ ...form, bolognaLink: e.target.value })}
+                  placeholder="https://bologna.cankiri.edu.tr/..."
+                />
               </FormField>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
