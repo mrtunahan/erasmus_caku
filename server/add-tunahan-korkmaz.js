@@ -1,6 +1,7 @@
 // ══════════════════════════════════════════════════════════════
 // Arş. Gör. A. Tunahan KORKMAZ akademisyenini ekle / güncelle
 //   • Bilgisayar Mühendisliği akademisyeni (departmentId: 'bilgisayar')
+//   • Bilgisayar Mühendisliği bölüm yetkilisi (isDeptManager)
 //   • Mühendislik Fakültesi yetkilisi  (isFacultyManager)
 //   • Çankırı Karatekin Ünv. yetkilisi (isUniversityAdmin)
 //
@@ -26,7 +27,7 @@ const PROF = {
   departmentId: 'bilgisayar',
   isUniversityAdmin: true,
   isFacultyManager: true,
-  isDeptManager: false,
+  isDeptManager: true,
   isStajCoordinator: false,
   additionalDepartments: [],
 };
@@ -122,15 +123,20 @@ const norm = (s) => (s || '').toString().toLocaleLowerCase('tr').replace(/\s+/g,
   }
 
   // Şifre belirle (passwords/professor_passwords; noktalı anahtar için read-merge-write)
-  const hash = await bcrypt.hash(TEMP_PASSWORD, 10);
+  // ÖNEMLİ: Yalnızca henüz şifresi YOKSA belirle — böylece bayrak güncellemek
+  // için scripti tekrar çalıştırmak, kullanıcının değiştirdiği şifreyi EZMEZ.
   const col = db.collection('passwords');
   const existingPw = (await col.findOne({ _id: 'professor_passwords' })) || {
     _id: 'professor_passwords',
   };
-  existingPw[PROF.name] = hash;
-  existingPw.updatedAt = new Date();
-  await col.replaceOne({ _id: 'professor_passwords' }, existingPw, { upsert: true });
-  console.log(`✓ Geçici şifre belirlendi: "${TEMP_PASSWORD}"`);
+  if (existingPw[PROF.name]) {
+    console.log('• Şifre zaten mevcut — korunuyor (sıfırlanmadı).');
+  } else {
+    existingPw[PROF.name] = await bcrypt.hash(TEMP_PASSWORD, 10);
+    existingPw.updatedAt = new Date();
+    await col.replaceOne({ _id: 'professor_passwords' }, existingPw, { upsert: true });
+    console.log(`✓ Geçici şifre belirlendi: "${TEMP_PASSWORD}"`);
+  }
 
   console.log('\nTamamlandı. Akademisyen girişinde isim görünür olmalı.\n');
   await disconnect();
