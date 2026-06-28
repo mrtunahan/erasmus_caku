@@ -2498,7 +2498,43 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
             ÇAKUAVİS entegrasyonu ile akademisyen profilleri
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {canManage && viewMode === 'list' && filtered.length > 0 && (
+            <a
+              href={
+                '/api/akademisyen/export.csv' +
+                (deptId ? '?departmentId=' + encodeURIComponent(deptId) : '')
+              }
+              style={{
+                padding: '8px 14px',
+                border: '1px solid #16A34A',
+                background: 'white',
+                color: '#15803D',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 8,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+              title="Aktif bölümün akademisyenlerini Excel uyumlu CSV olarak indir"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              Excel İndir
+            </a>
+          )}
           {canManage && viewMode === 'list' && (
             <Btn
               onClick={function () {
