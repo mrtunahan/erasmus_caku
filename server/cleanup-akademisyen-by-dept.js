@@ -50,11 +50,19 @@ const norm = (s) => (s || '').toString().toLocaleLowerCase('tr').replace(/\s+/g,
   if (EXTRA.length) console.log(`Extra silinecek username'ler: ${EXTRA.join(', ')}`);
   console.log('');
 
+  // Bazı eski kayıtlarda _docId olmayabilir (sadece _id var) — güvenli ID al.
+  const safeId = (d) => {
+    if (d._docId) return String(d._docId);
+    if (d._id) return String(d._id);
+    return '(idsiz)';
+  };
+  const pad = (s, n) => String(s == null ? '' : s).padEnd(n);
+
   const keepNorm = norm(KEEP);
   const toKeep = [];
   const toDelete = [];
   for (const d of docs) {
-    const usr = (d._docId || '').toLocaleLowerCase('tr');
+    const usr = safeId(d).toLocaleLowerCase('tr');
     const depName = norm(d.data && d.data.department);
     const inExtra = EXTRA.includes(usr);
     let drop = false;
@@ -64,7 +72,7 @@ const norm = (s) => (s || '').toString().toLocaleLowerCase('tr').replace(/\s+/g,
       reason = 'EXTRA_DELETE listesinde';
     } else if (KEEP && depName !== keepNorm) {
       drop = true;
-      reason = `data.department="${d.data && d.data.department}" ≠ "${KEEP}"`;
+      reason = `data.department="${(d.data && d.data.department) || '(boş)'}" ≠ "${KEEP}"`;
     }
     if (drop) toDelete.push({ doc: d, reason });
     else toKeep.push(d);
@@ -73,13 +81,13 @@ const norm = (s) => (s || '').toString().toLocaleLowerCase('tr').replace(/\s+/g,
   console.log(`★ Korunacak: ${toKeep.length}`);
   toKeep.forEach((d) =>
     console.log(
-      `   ✓ ${d._docId.padEnd(28)}  "${(d.data && d.data.fullName) || ''}"  [${(d.data && d.data.department) || '—'}]`
+      `   ✓ ${pad(safeId(d), 28)}  "${(d.data && d.data.fullName) || ''}"  [${(d.data && d.data.department) || '—'}]`
     )
   );
   console.log(`\n× Silinecek: ${toDelete.length}`);
   toDelete.forEach((x) =>
     console.log(
-      `   ✕ ${x.doc._docId.padEnd(28)}  "${(x.doc.data && x.doc.data.fullName) || ''}"  → ${x.reason}`
+      `   ✕ ${pad(safeId(x.doc), 28)}  "${(x.doc.data && x.doc.data.fullName) || ''}"  → ${x.reason}`
     )
   );
 
