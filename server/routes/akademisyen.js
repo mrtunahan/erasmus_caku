@@ -419,6 +419,76 @@ router.get('/', readLimiter, async function (req, res) {
   }
 });
 
+// ══════════════════════════════════════════════════════════════
+// TOPLU CSV/EXCEL DIŞA AKTARMA — bölüm yetkilisi için
+// /api/akademisyen/export.csv?departmentId=…
+// UTF-8 BOM eklenir → Türkçe karakterler Excel'de doğru görünür.
+// ══════════════════════════════════════════════════════════════
+router.get('/export.csv', readLimiter, async function (req, res) {
+  try {
+    var db = await getDbSafe();
+    var filter = {};
+    var deptId = asPlainString(req.query.departmentId);
+    if (deptId) filter.departmentId = deptId;
+    var docs = await db.collection('akademisyen_cache').find(filter).toArray();
+
+    // CSV başlığı
+    var headers = [
+      'Kullanıcı Adı',
+      'Ad Soyad',
+      'E-posta',
+      'Bölüm',
+      'Telefon',
+      'Web',
+      'Scholar Atıf',
+      'Scholar H-Index',
+      'WoS Atıf',
+      'WoS H-Index',
+      'YÖKSİS Proje',
+      'Son Güncelleme',
+    ];
+    var csvEscape = function (v) {
+      var s = v == null ? '' : String(v);
+      if (s.indexOf('"') >= 0 || s.indexOf(',') >= 0 || s.indexOf('\n') >= 0) {
+        s = '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    };
+    var lines = [headers.map(csvEscape).join(',')];
+    docs.forEach(function (d) {
+      var data = d.data || {};
+      var stats = data.stats || {};
+      lines.push(
+        [
+          d._docId || (d._id && d._id.toString()),
+          data.fullName || '',
+          data.email || '',
+          data.department || '',
+          data.phone || '',
+          data.web || '',
+          stats['Scholar Atıf'] || '',
+          stats['Scholar H-Index'] || '',
+          stats['WoS Atıf'] || '',
+          stats['WoS H-Index'] || '',
+          stats['YÖKSİS Proje'] || '',
+          d.fetchedAt ? new Date(d.fetchedAt).toISOString().slice(0, 10) : '',
+        ]
+          .map(csvEscape)
+          .join(',')
+      );
+    });
+
+    // UTF-8 BOM → Excel doğru kod çözer
+    var body = '﻿' + lines.join('\r\n');
+    var fname = 'akademisyenler' + (deptId ? '-' + deptId : '') + '.csv';
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + fname + '"');
+    res.send(body);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/:username/assign', writeLimiter, softAuthMiddleware, async function (req, res) {
   var username = normalizeUsername(req.params.username);
   // NoSQL injection önlemi — body'den gelen değeri stringe zorla
@@ -471,6 +541,46 @@ router.get('/:username', scrapeLimiter, async function (req, res) {
 
     // REAL DATA FETCHING CALL
     var data = await fetchAllRealData(username);
+
+    // ── BÖLÜM EŞLEŞME DOĞRULAMASI ──
+    // Bölüm yetkilisi yalnızca KENDİ bölümündeki akademisyenleri ekleyebilir.
+    // Bu kontrol, kazıma sırasında (data.department) görünen bölüm adının
+    // istek yapan kapsamla eşleşmesini gerektirir. Eşleşme yoksa kayıt
+    // kaydedilmeden 403 dönülür.
+    //
+    // forceRefresh=true durumunda (mevcut kayıt yenileniyor) zorlamayız —
+    // sadece ekleme (yeni kayıt) akışında uygulanır.
+    if (departmentId && !cached) {
+      try {
+        var targetDept = await db
+          .collection('departments')
+          .findOne({ $or: [{ _docId: departmentId }, { id: departmentId }] });
+        var scrapedName = (data.department || '').toString().toLocaleLowerCase('tr').trim();
+        var targetName = (targetDept && (targetDept.name || ''))
+          .toString()
+          .toLocaleLowerCase('tr')
+          .trim();
+        // Bölümün tam adı kazımada görünmelidir. Bilgi yetersizse (kazıma boş)
+        // ekleyene güveniriz (yetki kontrolü zaten softAuth ile yapıldı varsayımı).
+        if (
+          scrapedName &&
+          targetName &&
+          scrapedName.indexOf(targetName) < 0 &&
+          targetName.indexOf(scrapedName) < 0
+        ) {
+          return res.status(403).json({
+            error:
+              'Bu akademisyen "' +
+              (data.department || 'farklı') +
+              '" bölümünde görünüyor; yalnızca KENDİ bölümünüzdeki akademisyenleri ekleyebilirsiniz.',
+            scrapedDepartment: data.department || '',
+            targetDepartment: targetDept ? targetDept.name : departmentId,
+          });
+        }
+      } catch (_) {
+        /* hata olsa bile kazımayı engelleme */
+      }
+    }
 
     var updateData = { data: data, fetchedAt: new Date() };
     if (departmentId) updateData.departmentId = departmentId;
