@@ -99,12 +99,28 @@ const fieldScore = (d) =>
       canonical = arr.slice().sort((a, b) => fieldScore(b) - fieldScore(a))[0];
     }
 
-    // Kanonik dışındakileri sil; kanonik departmentId yanlışsa düzelt
+    // Kanonik dışındakileri sil; kanonik için bölüm doğrulaması yap
+    const canonicalDept = norm(canonical.data && canonical.data.department);
+    const canonicalMatchesKeep = !KEEP || canonicalDept === keepNorm;
     for (const d of arr) {
       if (d._id.toString() === canonical._id.toString()) {
-        if (d.departmentId !== DEPT) {
+        // KANONİK belge: data.department === KEEP_DEPT_NAME değilse SİL
+        // (tekil olsa bile — eski stub yalnız başına da olsa silinir).
+        if (!canonicalMatchesKeep) {
+          toDelete.push({
+            doc: d,
+            reason:
+              'tekil/eski stub (data.department="' +
+              ((d.data && d.data.department) || '(boş)') +
+              '" ≠ "' +
+              KEEP +
+              '")',
+          });
+        } else if (d.departmentId !== DEPT) {
+          // KEEP_DEPT_NAME'e uyuyor ama departmentId yanlış → reassign
           reassign.push({ doc: d, fromDept: d.departmentId || '(boş)', toDept: DEPT });
         } else {
+          // KEEP_DEPT_NAME'e uyuyor ve departmentId zaten doğru
           keepAsIs.push(d);
         }
       } else {
