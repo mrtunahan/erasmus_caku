@@ -124,7 +124,14 @@ function generateAvatarDataUrl(name) {
 
 function normalizeUsername(input) {
   if (!input) return '';
-  return input
+  var s = input.toString().trim();
+  // E-POSTA destekle: "seda.sahin@karatekin.edu.tr" → "seda.sahin"
+  // ÇAKUAVİS API zaten email parametresi olarak username (kullanıcı adı kısaltması)
+  // bekliyor, gerçek emaili değil. Bu nedenle @'ten önceki kısmı alırız.
+  // (Email DEĞİLSE dokunulmaz — boşluklu ad-soyad da desteklenir.)
+  var atIdx = s.indexOf('@');
+  if (atIdx > 0) s = s.slice(0, atIdx);
+  return s
     .replace(/İ/g, 'i')
     .replace(/I/g, 'ı')
     .replace(/\s+/g, '')
