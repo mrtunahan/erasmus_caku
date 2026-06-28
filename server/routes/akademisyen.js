@@ -844,6 +844,28 @@ router.get('/:username', scrapeLimiter, async function (req, res) {
     // REAL DATA FETCHING CALL
     var data = await fetchAllRealData(username);
 
+    // ── ÇAKUAVİS DOĞRULAMASI (yeni kayıt ekleme akışı) ──
+    // departmentId verildiyse + cache'de yoksa = bu bir EKLEME isteği.
+    // ÇAKUAVİS'te bulunamayan kullanıcıyı (data.departmentChain boşsa)
+    // REDDET — aksi halde "Sedasahin" gibi stub kart oluşur.
+    if (departmentId && !cached) {
+      var chainCheck = data.departmentChain || {};
+      var hasAnyChain = !!(
+        chainCheck.bolum ||
+        chainCheck.abd ||
+        chainCheck.fakulte ||
+        data.department
+      );
+      if (!hasAnyChain) {
+        return res.status(404).json({
+          error:
+            '"' +
+            username +
+            '" ÇAKUAVİS\'te bulunamadı. Lütfen ÇAKUAVİS kullanıcı adını doğru girdiğinizden emin olun.',
+        });
+      }
+    }
+
     // ── BÖLÜM EŞLEŞME DOĞRULAMASI ──
     // Bölüm yetkilisi yalnızca KENDİ bölümündeki akademisyenleri ekleyebilir.
     // Bu kontrol, kazıma sırasında (data.department) görünen bölüm adının
