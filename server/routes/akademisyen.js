@@ -87,6 +87,41 @@ function stripTags(html) {
     .trim();
 }
 
+// Foto gelmediği durumda harici istek YAPMADAN data-URL avatar üret.
+// CSP (img-src) kısıtlamasına takılmaz, ui-avatars.com'a bağımlılık kalkar.
+function generateAvatarDataUrl(name) {
+  const initials = (name || 'A')
+    .split(/\s+/)
+    .map((s) => (s ? s.charAt(0) : ''))
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toLocaleUpperCase('tr');
+  const colors = [
+    '#3b82f6',
+    '#10b981',
+    '#f59e0b',
+    '#ef4444',
+    '#8b5cf6',
+    '#06b6d4',
+    '#ec4899',
+    '#14b8a6',
+  ];
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i++) hash = (hash + name.charCodeAt(i)) | 0;
+  const bg = colors[Math.abs(hash) % colors.length];
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">' +
+    '<rect width="200" height="200" fill="' +
+    bg +
+    '"/>' +
+    '<text x="100" y="100" font-family="sans-serif" font-size="78" font-weight="700" ' +
+    'fill="white" text-anchor="middle" dominant-baseline="central">' +
+    initials.replace(/[<>&"']/g, '') +
+    '</text></svg>';
+  return 'data:image/svg+xml;base64,' + Buffer.from(svg, 'utf-8').toString('base64');
+}
+
 function normalizeUsername(input) {
   if (!input) return '';
   return input
@@ -538,9 +573,7 @@ async function fetchAllRealData(username) {
     title: cakuavis.title || '',
     firstName: cakuavis.firstName || '',
     lastName: cakuavis.lastName || '',
-    photo:
-      cakuavis.photo ||
-      'https://ui-avatars.com/api/?name=' + encodeURIComponent(name) + '&background=random',
+    photo: cakuavis.photo || generateAvatarDataUrl(name),
     email: cakuavis.email || `${username}@karatekin.edu.tr`,
     department: caBolum || yoksis.university || '',
     departmentChain: cakuavis.departmentChain || {

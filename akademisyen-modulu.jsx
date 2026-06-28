@@ -1589,10 +1589,11 @@ function AnalyticsDashboard({ deptId, isAdmin }) {
     [metricsData, cutoffDate]
   );
 
-  // Toplu istatistikler
+  // Toplu istatistikler — ÇAKUAVİS stats + legacy publicationMetrics
   var totals = useMemo(
     function () {
       var t = {
+        // Legacy (eski publicationMetrics, dönem filtresine bağlı)
         sci: 0,
         uak: 0,
         ulakbim: 0,
@@ -1602,6 +1603,20 @@ function AnalyticsDashboard({ deptId, isAdmin }) {
         project2209: 0,
         citations: 0,
         wosCitations: 0,
+        // ÇAKUAVİS (sayısal stat string'leri — m.stats)
+        yoksisArticle: 0,
+        scholarArticle: 0,
+        wosArticle: 0,
+        bildiri: 0,
+        kitap: 0,
+        proje: 0,
+        patent: 0,
+        tasarim: 0,
+        tez: 0,
+      };
+      var parseN = function (v) {
+        var n = parseInt(v, 10);
+        return isNaN(n) ? 0 : n;
       };
       processedData.forEach(function (m) {
         t.sci += m.filtered.sci || 0;
@@ -1612,18 +1627,26 @@ function AnalyticsDashboard({ deptId, isAdmin }) {
         t.scholar += m.filtered.scholar || 0;
         t.project2209 += m.project2209Count || 0;
         if (m.stats) {
-          // En yüksek atıfı (Scholar veya Wos) ana atıf olarak al
-          let maxCit = 0;
-          let wosCit = 0;
-          Object.keys(m.stats).forEach(function (k) {
-            if (
-              k.toLowerCase().includes('atıf') ||
-              k.toLowerCase().includes('atif') ||
-              k.toLowerCase().includes('citation')
-            ) {
-              let val = parseInt(m.stats[k]) || 0;
+          // ÇAKUAVİS stats anahtarları (büyük/küçük harf esnek)
+          var s = m.stats;
+          t.yoksisArticle += parseN(s['YÖKSİS Makale']);
+          t.scholarArticle += parseN(s['Scholar Makale']);
+          t.wosArticle += parseN(s['WoS Makale']);
+          t.bildiri += parseN(s['Bildiri']);
+          t.kitap += parseN(s['Kitap']);
+          t.proje += parseN(s['Proje']);
+          t.patent += parseN(s['Patent']);
+          t.tasarim += parseN(s['Tasarım']);
+          t.tez += parseN(s['Tez']);
+          // Atıflar — en yüksek atıf "ana atıf"; WoS atıf ayrı
+          var maxCit = 0;
+          var wosCit = 0;
+          Object.keys(s).forEach(function (k) {
+            var lk = k.toLocaleLowerCase('tr');
+            if (lk.indexOf('atıf') >= 0 || lk.indexOf('atif') >= 0 || lk.indexOf('citation') >= 0) {
+              var val = parseN(s[k]);
               if (val > maxCit) maxCit = val;
-              if (k.toLowerCase().includes('wos')) wosCit = val;
+              if (lk.indexOf('wos') >= 0) wosCit = val;
             }
           });
           t.citations += maxCit;
@@ -1789,19 +1812,54 @@ function AnalyticsDashboard({ deptId, isAdmin }) {
     return d.value > 0;
   });
 
-  // Metric cards
+  // ÇAKÜAVİS tarzı renkli metric kartları — 9 kart, büyük rakam beyaz.
+  // İlk sayı: ÇAKUAVİS varsa onu, yoksa legacy filtered fallback (eski cache).
   var metricCards = [
     {
-      label: 'Toplam Yayın',
-      value:
-        totals.sci + totals.scholar + totals.uak + totals.ulakbim + totals.book + totals.conference,
-      color: '#2563EB',
+      label: 'PROJE',
+      value: totals.proje || totals.project2209,
+      bg: '#7C3AED',
     },
-    { label: 'SCI/SSCI (WoS)', value: totals.sci, color: '#7C3AED' },
-    { label: 'Google Scholar', value: totals.scholar, color: '#DC2626' },
-    { label: 'Atıf Sayısı', value: totals.citations, color: '#0891B2' },
-    { label: 'WoS Atıf', value: totals.wosCitations, color: '#4F46E5' },
-    { label: '2209 Proje', value: totals.project2209, color: '#BE185D' },
+    {
+      label: 'MAKALE (YÖKSİS)',
+      value: totals.yoksisArticle || totals.sci + totals.uak + totals.ulakbim,
+      bg: '#D97706',
+    },
+    {
+      label: 'MAKALE (SCHOLAR)',
+      value: totals.scholarArticle || totals.scholar,
+      bg: '#0EA5E9',
+    },
+    {
+      label: 'MAKALE (WOS)',
+      value: totals.wosArticle || totals.sci,
+      bg: '#2563EB',
+    },
+    {
+      label: 'BİLDİRİ',
+      value: totals.bildiri || totals.conference,
+      bg: '#DB2777',
+    },
+    {
+      label: 'KİTAP',
+      value: totals.kitap || totals.book,
+      bg: '#16A34A',
+    },
+    {
+      label: 'PATENT',
+      value: totals.patent,
+      bg: '#CA8A04',
+    },
+    {
+      label: 'TEZ',
+      value: totals.tez,
+      bg: '#14B8A6',
+    },
+    {
+      label: 'ATIF (WOS)',
+      value: totals.wosCitations,
+      bg: '#DC2626',
+    },
   ];
 
   return React.createElement(
@@ -1929,14 +1987,14 @@ function AnalyticsDashboard({ deptId, isAdmin }) {
       )
     ),
 
-    // Özet Metrik Kartları
+    // Özet Metrik Kartları — ÇAKÜAVİS tarzı renkli büyük kutucuklar
     React.createElement(
       'div',
       {
         style: {
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-          gap: 10,
+          gap: 14,
         },
       },
       metricCards.map(function (mc, i) {
@@ -1945,21 +2003,59 @@ function AnalyticsDashboard({ deptId, isAdmin }) {
           {
             key: i,
             style: {
-              background: COLORS.cardBg,
-              borderRadius: 10,
-              padding: '14px 16px',
-              border: '1px solid ' + COLORS.border,
-              borderLeft: '3px solid ' + mc.color,
+              background: mc.bg,
+              borderRadius: 14,
+              padding: '20px 18px 18px',
+              color: 'white',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 110,
+              position: 'relative',
+              overflow: 'hidden',
             },
           },
+          // Hafif dekor (sağ üst köşede saydam daire — ÇAKÜAVİS dokusu)
+          React.createElement('div', {
+            style: {
+              position: 'absolute',
+              top: -20,
+              right: -20,
+              width: 80,
+              height: 80,
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,0.08)',
+            },
+          }),
           React.createElement(
             'div',
-            { style: { fontSize: 22, fontWeight: 700, color: mc.color } },
-            mc.value
+            {
+              style: {
+                fontSize: 38,
+                fontWeight: 900,
+                color: '#fff',
+                lineHeight: 1,
+                letterSpacing: '-0.02em',
+                zIndex: 1,
+              },
+            },
+            String(mc.value)
           ),
           React.createElement(
             'div',
-            { style: { fontSize: 11, color: COLORS.textLight, marginTop: 2, lineHeight: 1.3 } },
+            {
+              style: {
+                fontSize: 11,
+                fontWeight: 700,
+                color: 'rgba(255,255,255,0.92)',
+                marginTop: 10,
+                letterSpacing: '0.08em',
+                textAlign: 'center',
+                zIndex: 1,
+              },
+            },
             mc.label
           )
         );
