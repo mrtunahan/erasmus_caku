@@ -103,8 +103,9 @@ function normalizeUsername(input) {
     .trim();
 }
 
-// Custom Fetch with Browser mimic
-function fetchHtml(urlStr, method = 'GET', data = null, headers = {}) {
+// Custom Fetch with Browser mimic + zaman aşımı.
+// Tek bir scraper'ın yavaşlığı tüm akademisyen detay isteğini bloklamasın.
+function fetchHtml(urlStr, method = 'GET', data = null, headers = {}, timeoutMs = 8000) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(urlStr);
     const opts = {
@@ -132,6 +133,9 @@ function fetchHtml(urlStr, method = 'GET', data = null, headers = {}) {
       res.on('end', () => resolve({ body, status: res.statusCode, headers: res.headers }));
     });
     req.on('error', reject);
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error('timeout (' + timeoutMs + 'ms)'));
+    });
     if (data) req.write(data);
     req.end();
   });
@@ -474,14 +478,56 @@ async function scrapeCakuavisReal(username) {
 async function fetchAllRealData(username) {
   const name = username.replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 
-  // ÇAKUAVİS önce → kimlik bilgisi (ad, unvan, bölüm, foto, e-posta)
-  // sonra YÖKSİS/Scholar/WoS → ek metrikler (paralel; metrikleri zenginleştirir).
-  const [cakuavis, scholar, yoksis, wos] = await Promise.all([
+  // ÇAKUAVİS önce → kimlik bilgisi (ad, unvan, bölüm, foto, e-posta).
+  // YÖKSİS/Scholar/WoS → ek metrikler. Promise.allSettled ile: BİRİ ÇÖKSE
+  // diğerleri akışı durdurmaz; reverse-proxy 504 olasılığını azaltır.
+  const settled = await Promise.allSettled([
     scrapeCakuavisReal(username),
     scrapeScholarReal(name),
     scrapeYoksisReal(name),
     scrapeWoSReal(name),
   ]);
+  const fallback = (def) => (r) => (r.status === 'fulfilled' ? r.value : def);
+  const cakuavis = fallback({
+    source: 'ÇAKUAVİS',
+    found: false,
+    fullName: '',
+    title: '',
+    firstName: '',
+    lastName: '',
+    photo: '',
+    email: '',
+    department: '',
+    departmentChain: { abd: '', bolum: '', fakulte: '', universite: '' },
+    contact: { phone: '', mobile: '', fax: '', web: '', address: '' },
+    links: { yoksis: '', orcid: '', researcherId: '' },
+    stats: {},
+    researchFields: [],
+    error: settled[0].reason ? String(settled[0].reason.message || settled[0].reason) : '',
+  })(settled[0]);
+  const scholar = fallback({
+    source: 'Google Scholar',
+    stats: { 'Toplam Atıf': '0', 'h-endeksi': '0', 'i10-endeksi': '0' },
+    publications: [],
+    profileUrl: '',
+    error: settled[1].reason ? String(settled[1].reason.message || settled[1].reason) : '',
+  })(settled[1]);
+  const yoksis = fallback({
+    source: 'YÖKSİS Akademik',
+    profileUrl: '',
+    fullName: name,
+    university: '',
+    department: '',
+    projects: [],
+    theses: [],
+    error: settled[2].reason ? String(settled[2].reason.message || settled[2].reason) : '',
+  })(settled[2]);
+  const wos = fallback({
+    source: 'Web of Science',
+    stats: { Citations: '0', 'H-Index': '0' },
+    researcherId: '',
+    error: settled[3].reason ? String(settled[3].reason.message || settled[3].reason) : '',
+  })(settled[3]);
 
   // ÇAKUAVİS başarılıysa onu kimlik kaynağı kabul et; metrikleri diğer
   // kaynaklarla birleştir. Aksi halde eski mantığa düş.
