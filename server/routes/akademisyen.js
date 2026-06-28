@@ -45,6 +45,7 @@ function asPlainString(v) {
 var ALLOWED_REDIRECT_HOSTS = new Set([
   'karatekin.edu.tr',
   'www.karatekin.edu.tr',
+  'cakuavis.karatekin.edu.tr',
   'akademik.yok.gov.tr',
   'scholar.google.com',
   'scholar.googleusercontent.com',
@@ -272,38 +273,259 @@ async function scrapeWoSReal(fullName) {
   return result;
 }
 
+// ══════════════════════════════════════════════════════════════
+// ÇAKUAVİS scraping — gerçek profil verisi
+// SPA (Next.js) JSON API'den çekiyor: /api/proxy?path=/api/Staff/...
+// Bu fonksiyon o JSON'ları doğrudan çağırır.
+// ══════════════════════════════════════════════════════════════
+const CAKUAVIS_HOST = 'cakuavis.karatekin.edu.tr';
+function cakuavisUrl(apiPath) {
+  // Onlar URL-encoded path bekliyor (örn. %2Fapi%2FStaff%2F...)
+  return `https://${CAKUAVIS_HOST}/api/proxy?path=${encodeURIComponent(apiPath)}`;
+}
+async function cakuavisGet(apiPath) {
+  const res = await fetchHtml(cakuavisUrl(apiPath), 'GET', null, {
+    Accept: 'application/json',
+    Referer: `https://${CAKUAVIS_HOST}/`,
+  });
+  if (res.status !== 200) return null;
+  try {
+    const j = JSON.parse(res.body);
+    if (j && j.IsSuccessful === true) return j.Data;
+    return null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+// Bölüm/fakülte/üniversite zincirinden anlamlı seviyeleri ayıkla.
+// Institutions[0].Institution = en alt seviye (Ana Bilim Dalı veya Bölüm)
+// .BaseInstitution = bir üst seviye … ta üniversiteye kadar.
+function extractInstitutionChain(rootInst) {
+  const chain = [];
+  let cur = rootInst;
+  let safety = 10;
+  while (cur && safety-- > 0) {
+    chain.push((cur.Name || '').trim());
+    cur = cur.BaseInstitution;
+  }
+  // chain[0] = en alt (ABD veya Bölüm), chain[son] = Üniversite
+  // Bölüm: ".... Bölümü" ile biten ad; yoksa en alttaki "Bölümü"sü olmayan ilk parent
+  let bolum = '';
+  let fakulte = '';
+  let universite = '';
+  for (const name of chain) {
+    if (!bolum && /\bBölüm/i.test(name) && !/Ana\s*Bilim\s*Dal/i.test(name)) {
+      bolum = name;
+    } else if (
+      !fakulte &&
+      /Fakülte|Yüksekokul|Enstitü|Konservatuvar|Meslek\s*Yüksekokul/i.test(name)
+    ) {
+      fakulte = name;
+    } else if (!universite && /Üniversitesi$/i.test(name)) {
+      universite = name;
+    }
+  }
+  // ABD seviyesi en alttaysa: anaBolum'u en altın hemen bir üstüsü kabul et
+  if (!bolum && chain.length >= 2 && /Ana\s*Bilim\s*Dal/i.test(chain[0])) {
+    bolum = chain[1];
+  }
+  if (!bolum && chain.length >= 1) bolum = chain[0]; // son çare
+  return {
+    chain,
+    abd: chain[0] || '',
+    bolum,
+    fakulte,
+    universite,
+  };
+}
+
+async function scrapeCakuavisReal(username) {
+  const result = {
+    source: 'ÇAKUAVİS',
+    found: false,
+    firstName: '',
+    lastName: '',
+    title: '',
+    fullName: '',
+    photo: '',
+    email: '',
+    gender: '',
+    department: '',
+    departmentChain: { abd: '', bolum: '', fakulte: '', universite: '' },
+    contact: { phone: '', mobile: '', fax: '', web: '', address: '' },
+    links: { yoksis: '', orcid: '', researcherId: '' },
+    stats: {},
+    researchFields: [],
+    error: '',
+  };
+  try {
+    // Sırayla 4 API çağrısı (paralel)
+    const [info, stats, links, fields] = await Promise.all([
+      cakuavisGet(`/api/Staff/GetStaffInfoByEmail?email=${encodeURIComponent(username)}`),
+      cakuavisGet(
+        `/api/StaffStatistic/GetStaffStatisticsByEmail?email=${encodeURIComponent(username)}`
+      ),
+      cakuavisGet(`/api/StaffData/GetStaffLinksByEmail?email=${encodeURIComponent(username)}`),
+      cakuavisGet(
+        `/api/StaffData/GetStaffResearchFieldsByEmail?email=${encodeURIComponent(username)}`
+      ),
+    ]);
+
+    if (!info) {
+      result.error = 'ÇAKUAVİS profili bulunamadı (' + username + ').';
+      return result;
+    }
+
+    result.found = true;
+    result.firstName = info.Name || '';
+    result.lastName = info.Surname || '';
+    result.title = info.Title || '';
+    result.gender = info.Gender || '';
+    result.email = (info.Email || username) + '@karatekin.edu.tr';
+    result.photo = info.PhotoURL
+      ? info.PhotoURL.startsWith('http')
+        ? info.PhotoURL
+        : `https://${CAKUAVIS_HOST}${info.PhotoURL}`
+      : '';
+    // "Arş. Gör. Gamze ECİK ERDEM" gibi BÜYÜK harfli ve unvanlı tam ad
+    const surnameUp = result.lastName ? result.lastName.toLocaleUpperCase('tr') : '';
+    const nameCap = result.firstName ? result.firstName : '';
+    result.fullName = [result.title, nameCap, surnameUp].filter(Boolean).join(' ').trim();
+
+    // Bölüm zinciri (Institutions[0].Institution.BaseInstitution …)
+    const inst = (Array.isArray(info.Institutions) && info.Institutions[0]) || null;
+    if (inst && inst.Institution) {
+      const chain = extractInstitutionChain(inst.Institution);
+      result.departmentChain = {
+        abd: chain.abd,
+        bolum: chain.bolum,
+        fakulte: chain.fakulte,
+        universite: chain.universite,
+      };
+      // 'department' = BÖLÜM (sistemimiz bölüm bazlı). Yoksa fakülte.
+      result.department = chain.bolum || chain.fakulte || chain.abd || '';
+    }
+
+    if (info.Contact) {
+      result.contact = {
+        phone: info.Contact.InstitutionPhone === '-' ? '' : info.Contact.InstitutionPhone || '',
+        mobile: info.Contact.MobilePhone === '-' ? '' : info.Contact.MobilePhone || '',
+        fax: info.Contact.FaxPhone === '-' ? '' : info.Contact.FaxPhone || '',
+        web: info.Contact.WebPageUrl === '-' ? '' : info.Contact.WebPageUrl || '',
+        address:
+          info.Contact.InstitutionAddress === '-' ? '' : info.Contact.InstitutionAddress || '',
+      };
+    }
+
+    if (Array.isArray(links)) {
+      const yoksisL = links.find((l) => l && l.DataSource === 'YOKSIS');
+      if (yoksisL && yoksisL.StaffLink) {
+        result.links.yoksis = yoksisL.StaffLink.YOKAKADEMIK_LINK || '';
+        if (yoksisL.StaffLink.ORCID) {
+          result.links.orcid = 'https://orcid.org/' + yoksisL.StaffLink.ORCID;
+        }
+        if (yoksisL.StaffLink.RESEARCHER_ID) {
+          result.links.researcherId = yoksisL.StaffLink.RESEARCHER_ID;
+        }
+      }
+    }
+
+    if (stats) {
+      const numOrDash = (v) => (v === '-' || v == null ? '' : String(v));
+      result.stats = {
+        'YÖKSİS Makale': numOrDash(stats.ArticleYOKSIS),
+        'Scholar Makale': numOrDash(stats.ArticleGOOGLESCHOLAR),
+        'WoS Makale': numOrDash(stats.ArticleWos),
+        Bildiri: numOrDash(stats.Paper),
+        Kitap: numOrDash(stats.Book),
+        Proje: numOrDash(stats.Project),
+        Patent: numOrDash(stats.Patent),
+        Tasarım: numOrDash(stats.Design),
+        Tez: numOrDash(stats.Theses),
+        'Scholar Atıf': numOrDash(stats.CitationsGScholar),
+        'Scholar H-Index': numOrDash(stats.hIndexGScholar),
+        'Scholar i10-Index': numOrDash(stats.i10IndexGScholar),
+        'WoS Atıf': numOrDash(stats.CitationsWos),
+        'WoS H-Index': numOrDash(stats.hIndexWos),
+      };
+    }
+
+    if (Array.isArray(fields)) {
+      result.researchFields = fields
+        .map((f) => f && f.researchField)
+        .filter(Boolean)
+        .map((rf) => ({
+          temelAlan: rf.TEMEL_ALAN_AD || '',
+          bilimAlan: rf.BILIM_ALAN_AD || '',
+          anahtarKelimeler: [
+            rf.ANAHTARKELIME1_AD,
+            rf.ANAHTARKELIME2_AD,
+            rf.ANAHTARKELIME3_AD,
+          ].filter(Boolean),
+        }));
+    }
+  } catch (e) {
+    result.error = e.message;
+  }
+  return result;
+}
+
 async function fetchAllRealData(username) {
   const name = username.replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 
-  const [scholar, yoksis, wos] = await Promise.all([
+  // ÇAKUAVİS önce → kimlik bilgisi (ad, unvan, bölüm, foto, e-posta)
+  // sonra YÖKSİS/Scholar/WoS → ek metrikler (paralel; metrikleri zenginleştirir).
+  const [cakuavis, scholar, yoksis, wos] = await Promise.all([
+    scrapeCakuavisReal(username),
     scrapeScholarReal(name),
     scrapeYoksisReal(name),
     scrapeWoSReal(name),
   ]);
 
+  // ÇAKUAVİS başarılıysa onu kimlik kaynağı kabul et; metrikleri diğer
+  // kaynaklarla birleştir. Aksi halde eski mantığa düş.
+  var caBolum = cakuavis.found ? cakuavis.department : '';
   var result = {
     username: username,
-    fullName: name,
-    photo: 'https://ui-avatars.com/api/?name=' + encodeURIComponent(name) + '&background=random',
-    email: `${username}@karatekin.edu.tr`,
-    department: yoksis.university || 'Mühendislik Fakültesi',
-    phone: '',
-    web: scholar.profileUrl || yoksis.profileUrl,
-    address: '',
+    fullName: cakuavis.found && cakuavis.fullName ? cakuavis.fullName : name,
+    title: cakuavis.title || '',
+    firstName: cakuavis.firstName || '',
+    lastName: cakuavis.lastName || '',
+    photo:
+      cakuavis.photo ||
+      'https://ui-avatars.com/api/?name=' + encodeURIComponent(name) + '&background=random',
+    email: cakuavis.email || `${username}@karatekin.edu.tr`,
+    department: caBolum || yoksis.university || '',
+    departmentChain: cakuavis.departmentChain || {
+      abd: '',
+      bolum: '',
+      fakulte: '',
+      universite: '',
+    },
+    phone: (cakuavis.contact && (cakuavis.contact.phone || cakuavis.contact.mobile)) || '',
+    web: (cakuavis.contact && cakuavis.contact.web) || scholar.profileUrl || yoksis.profileUrl,
+    address: (cakuavis.contact && cakuavis.contact.address) || '',
     links: {
-      yoksis: yoksis.profileUrl,
+      yoksis: (cakuavis.links && cakuavis.links.yoksis) || yoksis.profileUrl,
       scholar: scholar.profileUrl,
+      orcid: (cakuavis.links && cakuavis.links.orcid) || '',
       wos: wos.researcherId
         ? `https://www.webofscience.com/wos/author/record/${wos.researcherId}`
         : '',
     },
-    stats: {
-      'Scholar Atıf': scholar.stats['Toplam Atıf'],
-      'Scholar H-Index': scholar.stats['h-endeksi'],
-      'WoS Atıf': wos.stats['Citations'],
-      'WoS H-Index': wos.stats['H-Index'],
-      'YÖKSİS Proje': yoksis.projects.length,
-    },
+    researchFields: cakuavis.researchFields || [],
+    stats: Object.assign(
+      {
+        'Scholar Atıf': scholar.stats['Toplam Atıf'],
+        'Scholar H-Index': scholar.stats['h-endeksi'],
+        'WoS Atıf': wos.stats['Citations'],
+        'WoS H-Index': wos.stats['H-Index'],
+        'YÖKSİS Proje': yoksis.projects.length,
+      },
+      // ÇAKUAVİS istatistikleri ÜZERİNE yazar — onlar daha güvenilir.
+      cakuavis.stats && Object.keys(cakuavis.stats).length ? cakuavis.stats : {}
+    ),
     sections: {
       publications: {
         label: 'Scholar Yayınları',
@@ -318,6 +540,7 @@ async function fetchAllRealData(username) {
       error: {
         label: 'Kazıma Logları (Gerçek Zamanlı)',
         items: [
+          `ÇAKUAVİS Log: ${cakuavis.error || (cakuavis.found ? 'Başarılı' : 'Profil bulunamadı')}`,
           `Scholar Log: ${scholar.error || 'Başarılı'}`,
           `Yöksis Log: ${yoksis.error || 'Başarılı'}`,
           `WoS Log: ${wos.error || 'Başarılı'}`,
@@ -555,25 +778,34 @@ router.get('/:username', scrapeLimiter, async function (req, res) {
         var targetDept = await db
           .collection('departments')
           .findOne({ $or: [{ _docId: departmentId }, { id: departmentId }] });
-        var scrapedName = (data.department || '').toString().toLocaleLowerCase('tr').trim();
         var targetName = (targetDept && (targetDept.name || ''))
           .toString()
           .toLocaleLowerCase('tr')
+          .replace(/\s+/g, ' ')
           .trim();
-        // Bölümün tam adı kazımada görünmelidir. Bilgi yetersizse (kazıma boş)
-        // ekleyene güveniriz (yetki kontrolü zaten softAuth ile yapıldı varsayımı).
-        if (
-          scrapedName &&
-          targetName &&
-          scrapedName.indexOf(targetName) < 0 &&
-          targetName.indexOf(scrapedName) < 0
-        ) {
+        // "Bilgisayar Mühendisliği Bölümü" → "bilgisayar mühendisliği"
+        var hedef = targetName.replace(/\s*bölümü\s*$/i, '').trim();
+        // ÇAKUAVİS bölüm zinciri: bolum + abd + fakulte hepsi denenir.
+        var chain = data.departmentChain || {};
+        var cands = [chain.bolum, chain.abd, chain.fakulte, data.department]
+          .filter(Boolean)
+          .map(function (s) {
+            return s.toString().toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim();
+          });
+        var matched =
+          !hedef ||
+          cands.length === 0 ||
+          cands.some(function (c) {
+            return c.indexOf(hedef) >= 0 || hedef.indexOf(c) >= 0;
+          });
+        if (!matched) {
           return res.status(403).json({
             error:
               'Bu akademisyen "' +
-              (data.department || 'farklı') +
+              (chain.bolum || data.department || 'farklı') +
               '" bölümünde görünüyor; yalnızca KENDİ bölümünüzdeki akademisyenleri ekleyebilirsiniz.',
-            scrapedDepartment: data.department || '',
+            scrapedDepartment: chain.bolum || data.department || '',
+            scrapedFaculty: chain.fakulte || '',
             targetDepartment: targetDept ? targetDept.name : departmentId,
           });
         }
