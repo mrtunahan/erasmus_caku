@@ -2438,15 +2438,34 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
     var token = localStorage.getItem('caku_auth_token');
     var headers = {};
     if (token) headers['Authorization'] = 'Bearer ' + token;
+    // İyimser güncelleme: response beklenmeden karttan kaldır.
+    setProfessors(function (prev) {
+      return prev.filter(function (x) {
+        return x.username !== prof.username;
+      });
+    });
     fetch('/api/akademisyen/' + encodeURIComponent(prof.username), {
       method: 'DELETE',
       headers: headers,
     })
-      .then(function () {
+      .then(function (r) {
+        if (!r.ok) {
+          return r
+            .json()
+            .catch(function () {
+              return {};
+            })
+            .then(function (j) {
+              throw new Error(j.error || 'HTTP ' + r.status);
+            });
+        }
+        // Başarılı — listeyi server'dan tazele (silinen gerçekten gitti mi).
         loadProfessors();
       })
       .catch(function (err) {
-        alert('Hata: ' + err.message);
+        alert('Silinemedi: ' + err.message);
+        // Hatadaysa geri yükle
+        loadProfessors();
       });
   };
 
