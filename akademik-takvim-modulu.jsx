@@ -52,7 +52,20 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
   const [facultyNames, setFacultyNames] = useState({}); // facultyId → name
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // null | 'new' | event
-  const [form, setForm] = useState({ title: '', date: '', kind: 'takvim', description: '' });
+  const [form, setForm] = useState({
+    title: '',
+    date: '',
+    endDate: '',
+    kind: 'takvim',
+    description: '',
+  });
+
+  // Kapsam → "tek yetkili" etiketi (kapsam bilgi kutusunda gösterilir)
+  const SCOPE_MANAGER_LABEL = {
+    university: 'Üniversite Yetkilisi',
+    faculty: 'Fakülte Yetkilisi',
+    department: 'Bölüm Yetkilisi',
+  };
   const [saving, setSaving] = useState(false);
 
   // ── Rol çözümü (öncelik: üni > fakülte > bölüm) ──
@@ -160,6 +173,7 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
     setForm({
       title: '',
       date: '',
+      endDate: '',
       kind: isDeptMgr ? 'duyuru' : 'takvim',
       description: '',
     });
@@ -170,6 +184,7 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
     setForm({
       title: ev.title || '',
       date: ev.date || '',
+      endDate: ev.endDate || '',
       kind: ev.kind || 'takvim',
       description: ev.description || '',
     });
@@ -177,12 +192,17 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const handleSave = async () => {
     if (!form.title.trim()) return alert('Etkinlik başlığı zorunludur.');
-    if (!form.date) return alert('Tarih zorunludur.');
+    if (!form.date) return alert('Başlangıç tarihi zorunludur.');
+    if (form.endDate && form.endDate < form.date)
+      return alert('Bitiş tarihi başlangıçtan önce olamaz.');
     setSaving(true);
     try {
+      // Tek günlük etkinlikte endDate boş tutulur (start === end konvansiyonu).
+      const endDate = form.endDate && form.endDate !== form.date ? form.endDate : '';
       const base = {
         title: form.title.trim(),
         date: form.date,
+        endDate,
         kind: form.kind,
         description: (form.description || '').trim(),
         updatedAt: new Date().toISOString(),
@@ -399,6 +419,7 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
                   </div>
                   <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 4 }}>
                     {atFormatDate(ev.date)}
+                    {ev.endDate && ev.endDate !== ev.date ? ` – ${atFormatDate(ev.endDate)}` : ''}
                     {ev.description ? ` · ${ev.description}` : ''}
                   </div>
                 </div>
@@ -442,33 +463,70 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
               placeholder="Örn: Güz Dönemi Final Sınavları"
             />
           </ATFormField>
-          <ATFormField label="Tarih *">
-            <ATInput
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm({ ...form, date: e.target.value })}
-            />
-          </ATFormField>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <ATFormField label="Başlangıç Tarihi *">
+              <ATInput
+                type="date"
+                value={form.date}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // Bitiş boşsa veya başlangıçtan önceyse otomatik eşitle
+                  setForm((f) => ({
+                    ...f,
+                    date: v,
+                    endDate: !f.endDate || f.endDate < v ? v : f.endDate,
+                  }));
+                }}
+              />
+            </ATFormField>
+            <ATFormField label="Bitiş Tarihi *">
+              <ATInput
+                type="date"
+                value={form.endDate || form.date}
+                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+              />
+            </ATFormField>
+          </div>
           <ATFormField label="Tür">
-            <select
-              value={form.kind}
-              onChange={(e) => setForm({ ...form, kind: e.target.value })}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: 8,
-                border: '1px solid #D1D5DB',
-                fontSize: 14,
-                fontFamily: "'Inter', sans-serif",
-                boxSizing: 'border-box',
-              }}
-            >
-              <option value="takvim">Akademik Takvim</option>
-              <option value="duyuru">Duyuru</option>
-              <option value="etkinlik">Etkinlik</option>
-              <option value="sinav">Sınav</option>
-              <option value="tatil">Tatil</option>
-            </select>
+            {isUniAdmin ? (
+              // Üniversite yetkilisi: tür sabit (Akademik Takvim) — salt okunur kutu.
+              // Mevcut bir kayıt düzenleniyorsa o kaydın gerçek türü gösterilir.
+              <div
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  border: '1px solid #D1D5DB',
+                  background: '#F8FAFC',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: '#334155',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {AT_KIND_LABEL[form.kind] || 'Akademik Takvim'}
+              </div>
+            ) : (
+              <select
+                value={form.kind}
+                onChange={(e) => setForm({ ...form, kind: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  border: '1px solid #D1D5DB',
+                  fontSize: 14,
+                  fontFamily: "'Inter', sans-serif",
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="takvim">Akademik Takvim</option>
+                <option value="duyuru">Duyuru</option>
+                <option value="etkinlik">Etkinlik</option>
+                <option value="sinav">Sınav</option>
+                <option value="tatil">Tatil</option>
+              </select>
+            )}
           </ATFormField>
           <ATFormField label="Açıklama">
             <textarea
@@ -505,6 +563,9 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
                 ? 'fakültenizdeki tüm öğrencilere'
                 : 'bölümünüzdeki öğrencilere'}{' '}
             görünür.
+            <span style={{ display: 'block', fontSize: 11, marginTop: 4 }}>
+              Tek yetkili: <strong>{SCOPE_MANAGER_LABEL[myScope]}</strong>
+            </span>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <ATBtn variant="secondary" onClick={() => setEditing(null)} disabled={saving}>
