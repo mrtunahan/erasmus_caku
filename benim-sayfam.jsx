@@ -90,6 +90,45 @@ function bsMonthLabel(d) {
     return '';
   }
 }
+function bsMonthShort(d) {
+  // Türkçe kısa ay (Oca, Şub, Mar, ...) — TR locale veriyor, baş harf büyük
+  try {
+    var s = d.toLocaleDateString('tr-TR', { month: 'short' }).replace(/\./g, '');
+    return s.charAt(0).toLocaleUpperCase('tr') + s.slice(1).toLocaleLowerCase('tr');
+  } catch (_) {
+    return '';
+  }
+}
+// Mini takvim için: 6×7 hücre, ay başlangıç ve bitişi
+function bsMiniMonth(d) {
+  var first = new Date(d.getFullYear(), d.getMonth(), 1);
+  var dow = (first.getDay() + 6) % 7;
+  var start = new Date(first);
+  start.setDate(first.getDate() - dow);
+  var cells = [];
+  for (var i = 0; i < 42; i++) {
+    var x = new Date(start);
+    x.setDate(start.getDate() + i);
+    cells.push(x);
+  }
+  return cells;
+}
+// Bir hücrenin (gün) renk önceliği: 'soon' | 'future' | 'past' | null
+function bsCellPriority(events) {
+  var hasSoon = false,
+    hasFuture = false,
+    hasPast = false;
+  for (var i = 0; i < events.length; i++) {
+    var st = bsEventState(events[i]);
+    if (st.isSoon) hasSoon = true;
+    else if (!st.isPast) hasFuture = true;
+    else hasPast = true;
+  }
+  if (hasSoon) return 'soon';
+  if (hasFuture) return 'future';
+  if (hasPast) return 'past';
+  return null;
+}
 // Etkinlik durumunu çöz: { isPast, isSoon, accent }
 function bsEventState(ev) {
   var today = new Date();
@@ -128,6 +167,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   });
   // Hover popover: { ev, rect } — etkinlik çubuğunun üzerine gelinince doldurulur
   const [hoverInfo, setHoverInfo] = useState(null);
+  // Takvim için responsive: geniş ekranda 2 sütun (sol panel + grid), dar ekranda tek sütun
+  const _bsResp = window.useResponsive ? window.useResponsive() : { width: 1200 };
+  const bsCalLayout = { isWide: _bsResp.width > 880 };
 
   const isStudent = currentUser?.role === 'student';
   const studentDeptId = currentUser?.departmentId || activeDepartment;
@@ -786,450 +828,382 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         </div>
       </div>
 
-      {/* Bildirimler */}
+      {/* Akademik Takvim — Chronos tarzı minimalist aylık görünüm */}
       <div
         style={{
           background: 'white',
-          border: '1px solid #E5E7EB',
-          borderRadius: 14,
-          padding: 18,
+          border: '1px solid #1F2937',
+          borderRadius: 4,
+          padding: 0,
           marginBottom: 20,
+          overflow: 'hidden',
+          maxWidth: '100%',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 10,
-                background: '#EEF2FF',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#4338CA"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>Bildirimler</div>
-              <div style={{ fontSize: 12, color: '#6B7280' }}>
-                {unreadCount > 0 ? `${unreadCount} okunmamış` : 'Tüm bildirimler okundu'}
-              </div>
-            </div>
-          </div>
-          {unreadCount > 0 && (
-            <button
-              onClick={handleMarkAllRead}
-              style={{
-                background: 'white',
-                border: '1px solid #D1D5DB',
-                padding: '6px 12px',
-                borderRadius: 8,
-                fontSize: 12,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                color: '#4B5563',
-              }}
-            >
-              Tümünü okundu işaretle
-            </button>
-          )}
-        </div>
-
-        {notifLoading ? (
-          <p style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', padding: 16 }}>
-            Bildirimler yükleniyor…
-          </p>
-        ) : notifications.length === 0 ? (
-          <p style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', padding: 16 }}>
-            Henüz bir bildiriminiz yok.
-          </p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {notifications.slice(0, 10).map((n) => (
-              <div
-                key={n.id}
-                onClick={() => handleNotificationClick(n)}
-                style={{
-                  display: 'flex',
-                  gap: 12,
-                  alignItems: 'flex-start',
-                  padding: 12,
-                  borderRadius: 10,
-                  cursor: 'pointer',
-                  background: n.read ? '#F9FAFB' : '#EEF2FF',
-                  border: `1px solid ${n.read ? '#E5E7EB' : '#C7D2FE'}`,
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 8,
-                    flexShrink: 0,
-                    background: n.type === 'project_group' ? '#DBEAFE' : '#FCE7F3',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: n.type === 'project_group' ? '#1E40AF' : '#9D174D',
-                  }}
-                >
-                  {n.type === 'project_group' ? (
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-                    </svg>
-                  ) : (
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M3 11l18-8-5 18-3-7-7-3z" />
-                    </svg>
-                  )}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#1F2937', marginBottom: 2 }}>
-                    {n.title || 'Bildirim'}
-                  </div>
-                  <div style={{ fontSize: 13, color: '#4B5563', lineHeight: 1.4 }}>{n.message}</div>
-                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
-                    {bsTimeAgo(n.createdAt)}
-                  </div>
-                </div>
-                {!n.read && (
-                  <div
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      background: '#6366F1',
-                      flexShrink: 0,
-                      marginTop: 8,
-                    }}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Akademik Takvim — Aylık Görünüm */}
-      <div
-        style={{
-          background: 'white',
-          border: '1px solid #E5E7EB',
-          borderRadius: 14,
-          padding: 18,
-          marginBottom: 20,
-        }}
-      >
-        {/* Başlık + ay navigasyonu */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            flexWrap: 'wrap',
-            marginBottom: 14,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 10,
-                background: '#EEF2FF',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#4338CA"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>Akademik Takvim</div>
-              <div style={{ fontSize: 12, color: '#6B7280', textTransform: 'capitalize' }}>
-                {bsMonthLabel(displayMonth)}
-              </div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <button
-              onClick={goPrevMonth}
-              aria-label="Önceki ay"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: '1px solid #E5E7EB',
-                background: 'white',
-                cursor: 'pointer',
-                fontSize: 16,
-                color: '#374151',
-                fontFamily: 'inherit',
-              }}
-            >
-              ‹
-            </button>
-            <button
-              onClick={goToday}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 8,
-                border: '1px solid #E5E7EB',
-                background: 'white',
-                cursor: 'pointer',
-                fontSize: 12,
-                fontWeight: 600,
-                color: '#374151',
-                fontFamily: 'inherit',
-              }}
-            >
-              Bugün
-            </button>
-            <button
-              onClick={goNextMonth}
-              aria-label="Sonraki ay"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: '1px solid #E5E7EB',
-                background: 'white',
-                cursor: 'pointer',
-                fontSize: 16,
-                color: '#374151',
-                fontFamily: 'inherit',
-              }}
-            >
-              ›
-            </button>
-          </div>
-        </div>
-
-        {/* Renk göstergeleri */}
-        <div
-          style={{
-            display: 'flex',
-            gap: 14,
-            marginBottom: 10,
-            fontSize: 11,
-            color: '#6B7280',
-            flexWrap: 'wrap',
-          }}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: '#DC2626' }} />
-            Yaklaşan (≤15 gün)
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: '#16A34A' }} />
-            Gelecek etkinlik
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: '#D1D5DB' }} />
-            Geçmiş
-          </span>
-        </div>
-
-        {/* Gün başlıkları */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(7, 1fr)',
-            gap: 4,
-            marginBottom: 4,
+            gridTemplateColumns: bsCalLayout.isWide ? '220px minmax(0, 1fr)' : 'minmax(0, 1fr)',
+            gap: 0,
           }}
         >
-          {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((d) => (
-            <div
-              key={d}
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                textAlign: 'center',
-                color: '#6B7280',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                padding: '6px 0',
-              }}
-            >
-              {d}
-            </div>
-          ))}
-        </div>
-
-        {/* Takvim grid'i */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-          {monthCells.map((d) => {
-            const iso = bsToISO(d);
-            const inMonth = d.getMonth() === displayMonth.getMonth();
-            const isToday = iso === bsToISO(new Date());
-            const evs = eventsByDate.get(iso) || [];
-            return (
-              <div
-                key={iso}
+          {/* SOL: Ay başlığı + mini takvimler + ÖNCELİKLİ */}
+          <div
+            style={{
+              padding: bsCalLayout.isWide ? '28px 20px 24px 24px' : '20px 18px 16px',
+              borderRight: bsCalLayout.isWide ? '1px solid #1F2937' : 'none',
+              borderBottom: bsCalLayout.isWide ? 'none' : '1px solid #1F2937',
+              display: 'flex',
+              flexDirection: 'column',
+              minWidth: 0,
+            }}
+          >
+            {/* Büyük ay etiketi */}
+            <div style={{ marginBottom: 18 }}>
+              <h2
                 style={{
-                  background: inMonth ? 'white' : '#FAFAFA',
-                  border: `1px solid ${isToday ? '#6366F1' : '#E5E7EB'}`,
-                  borderRadius: 8,
-                  padding: 6,
-                  minHeight: 84,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  opacity: inMonth ? 1 : 0.5,
-                  boxShadow: isToday ? '0 0 0 2px rgba(99,102,241,0.2)' : 'none',
+                  fontSize: bsCalLayout.isWide ? 64 : 44,
+                  lineHeight: 0.95,
+                  fontWeight: 900,
+                  letterSpacing: '-0.04em',
+                  margin: 0,
+                  color: '#000',
                 }}
               >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: isToday ? '#4338CA' : '#374151',
-                  }}
-                >
-                  <span>{d.getDate()}</span>
-                  {isToday && (
-                    <span
+                {bsMonthShort(displayMonth)}
+              </h2>
+              <p
+                style={{
+                  fontSize: bsCalLayout.isWide ? 22 : 18,
+                  fontWeight: 700,
+                  color: '#6B7280',
+                  margin: '2px 0 0',
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                {displayMonth.getFullYear()}
+              </p>
+            </div>
+
+            {/* Navigasyon */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 18 }}>
+              <button
+                onClick={goPrevMonth}
+                aria-label="Önceki ay"
+                style={{
+                  width: 28,
+                  height: 28,
+                  border: '1px solid #1F2937',
+                  background: 'white',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontFamily: 'inherit',
+                  borderRadius: 0,
+                }}
+              >
+                ‹
+              </button>
+              <button
+                onClick={goToday}
+                style={{
+                  padding: '4px 10px',
+                  border: '1px solid #1F2937',
+                  background: 'white',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  fontFamily: 'inherit',
+                  borderRadius: 0,
+                }}
+              >
+                Bugün
+              </button>
+              <button
+                onClick={goNextMonth}
+                aria-label="Sonraki ay"
+                style={{
+                  width: 28,
+                  height: 28,
+                  border: '1px solid #1F2937',
+                  background: 'white',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontFamily: 'inherit',
+                  borderRadius: 0,
+                }}
+              >
+                ›
+              </button>
+            </div>
+
+            {/* Mini takvimler (önceki/sonraki ay) */}
+            {bsCalLayout.isWide &&
+              [-1, 1].map((delta) => {
+                const m = new Date(displayMonth);
+                m.setMonth(m.getMonth() + delta);
+                const cells = bsMiniMonth(m);
+                return (
+                  <div key={delta} style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+                    <div
                       style={{
-                        fontSize: 9,
+                        writingMode: 'vertical-rl',
+                        transform: 'rotate(180deg)',
+                        fontSize: 10,
                         fontWeight: 700,
-                        color: '#4338CA',
-                        letterSpacing: '0.04em',
+                        color: '#000',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.16em',
+                        textAlign: 'center',
                       }}
                     >
-                      BUGÜN
-                    </span>
-                  )}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
-                  {evs.slice(0, 2).map((ev, i) => {
+                      {bsMonthShort(m)}
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(7, 1fr)',
+                        gap: 1,
+                        flex: 1,
+                        minWidth: 0,
+                        fontSize: 8.5,
+                        lineHeight: '12px',
+                      }}
+                    >
+                      {['P', 'S', 'Ç', 'P', 'C', 'C', 'P'].map((d, i) => (
+                        <span
+                          key={i}
+                          style={{
+                            fontWeight: 700,
+                            color: '#000',
+                            textAlign: 'center',
+                          }}
+                        >
+                          {d}
+                        </span>
+                      ))}
+                      {cells.map((c, i) => {
+                        const inM = c.getMonth() === m.getMonth();
+                        const has = (eventsByDate.get(bsToISO(c)) || []).length > 0;
+                        return (
+                          <span
+                            key={i}
+                            style={{
+                              color: inM ? '#374151' : 'transparent',
+                              textAlign: 'center',
+                              fontWeight: has ? 700 : 400,
+                              background: has && inM ? '#FEE2E2' : 'transparent',
+                            }}
+                          >
+                            {c.getDate()}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+
+            {/* ÖNCELİKLİ (yaklaşan etkinlikler — başlık listesi) */}
+            <div
+              style={{
+                marginTop: bsCalLayout.isWide ? 'auto' : 12,
+                paddingTop: 14,
+                borderTop: '1px solid #1F2937',
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#000',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.2em',
+                  margin: '0 0 8px',
+                }}
+              >
+                Öncelikli
+              </p>
+              {upcomingSoon.length === 0 ? (
+                <p style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic', margin: 0 }}>
+                  Yaklaşan etkinlik yok.
+                </p>
+              ) : (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {upcomingSoon.slice(0, 4).map((ev, i) => {
                     const st = bsEventState(ev);
-                    const bg = st.isPast ? '#E5E7EB' : st.isSoon ? '#DC2626' : '#16A34A';
-                    const fg = st.isPast ? '#6B7280' : 'white';
                     return (
-                      <div
-                        key={(ev.id || ev.title) + ':' + i}
-                        onMouseEnter={(e) =>
-                          setHoverInfo({
-                            ev,
-                            rect: e.currentTarget.getBoundingClientRect(),
-                          })
-                        }
-                        onMouseLeave={() => setHoverInfo(null)}
+                      <li
+                        key={i}
                         style={{
-                          background: bg,
-                          color: fg,
-                          fontSize: 9.5,
-                          fontWeight: 700,
-                          padding: '2px 5px',
-                          borderRadius: 3,
-                          letterSpacing: '0.02em',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          cursor: 'pointer',
+                          fontSize: 11.5,
+                          color: '#1F2937',
+                          padding: '4px 0',
+                          borderBottom:
+                            i < Math.min(3, upcomingSoon.length - 1)
+                              ? '1px dashed #E5E7EB'
+                              : 'none',
+                          lineHeight: 1.35,
                         }}
-                        title={ev.title}
                       >
-                        {ev.title}
-                      </div>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: st.accent,
+                            marginRight: 6,
+                            verticalAlign: 'middle',
+                          }}
+                        />
+                        <span style={{ fontWeight: 600 }}>{ev.title}</span>
+                        <span
+                          style={{
+                            display: 'block',
+                            fontSize: 10,
+                            color: '#6B7280',
+                            marginLeft: 12,
+                            marginTop: 2,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                          }}
+                        >
+                          {bsDaysUntilLabel(st.daysToStart)}
+                        </span>
+                      </li>
                     );
                   })}
-                  {evs.length > 2 && (
-                    <div
-                      onMouseEnter={(e) =>
-                        setHoverInfo({
-                          ev: { __extra: true, items: evs, date: iso },
-                          rect: e.currentTarget.getBoundingClientRect(),
-                        })
-                      }
-                      onMouseLeave={() => setHoverInfo(null)}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {/* SAĞ: Takvim grid'i */}
+          <div style={{ padding: bsCalLayout.isWide ? '24px 20px' : '16px 12px', minWidth: 0 }}>
+            {/* Gün başlıkları */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+                borderTop: '1px solid #1F2937',
+                borderLeft: '1px solid #1F2937',
+              }}
+            >
+              {['PZT', 'SAL', 'ÇAR', 'PER', 'CUM', 'CMT', 'PAZ'].map((d) => (
+                <div
+                  key={d}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    letterSpacing: '0.16em',
+                    textAlign: 'center',
+                    padding: '8px 0',
+                    borderRight: '1px solid #1F2937',
+                    borderBottom: '1px solid #1F2937',
+                    color: '#000',
+                  }}
+                >
+                  {d}
+                </div>
+              ))}
+            </div>
+
+            {/* 6 hafta × 7 gün */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+                borderLeft: '1px solid #1F2937',
+              }}
+            >
+              {monthCells.map((d) => {
+                const iso = bsToISO(d);
+                const inMonth = d.getMonth() === displayMonth.getMonth();
+                const isToday = iso === bsToISO(new Date());
+                const evs = eventsByDate.get(iso) || [];
+                const prio = bsCellPriority(evs);
+                let bg = 'white';
+                if (prio === 'soon')
+                  bg = '#FECACA'; // kırmızı arka plan
+                else if (prio === 'future')
+                  bg = '#BBF7D0'; // yeşil arka plan
+                else if (prio === 'past') bg = '#F3F4F6'; // gri (geçmiş)
+                if (!inMonth) bg = '#FAFAFA';
+
+                return (
+                  <div
+                    key={iso}
+                    onMouseEnter={
+                      evs.length
+                        ? (e) =>
+                            setHoverInfo({
+                              ev: { __extra: true, items: evs, date: iso },
+                              rect: e.currentTarget.getBoundingClientRect(),
+                            })
+                        : undefined
+                    }
+                    onMouseLeave={evs.length ? () => setHoverInfo(null) : undefined}
+                    style={{
+                      borderRight: '1px solid #1F2937',
+                      borderBottom: '1px solid #1F2937',
+                      background: bg,
+                      minHeight: bsCalLayout.isWide ? 80 : 56,
+                      padding: '8px 10px',
+                      position: 'relative',
+                      cursor: evs.length ? 'pointer' : 'default',
+                      // Bugün hücresi kalın siyah ring (mockup)
+                      boxShadow: isToday ? 'inset 0 0 0 3px #000' : 'none',
+                      opacity: inMonth ? 1 : 0.55,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <span
                       style={{
-                        fontSize: 9.5,
-                        color: '#6B7280',
-                        fontWeight: 600,
-                        cursor: 'pointer',
+                        fontSize: 14,
+                        fontWeight: isToday ? 800 : 500,
+                        color: inMonth ? '#000' : '#9CA3AF',
                       }}
                     >
-                      +{evs.length - 2} daha
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                      {d.getDate()}
+                    </span>
+                    {isToday && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: 6,
+                          left: 10,
+                          fontSize: 8.5,
+                          fontWeight: 800,
+                          letterSpacing: '0.06em',
+                          color: '#000',
+                        }}
+                      >
+                        BUGÜN
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Hover popover — etkinlik çubuğunun üzerine gelince detay büyür */}
+      {/* Hover popover — gün hücresine gelince o günün etkinlikleri detaylı listelenir */}
       {hoverInfo &&
         (() => {
           const hov = hoverInfo;
-          const isExtra = hov.ev && hov.ev.__extra;
-          // Popover konumu: çubuğun üstünde, ekran sınırlarını aşmasın
+          const items = hov.ev && hov.ev.__extra ? hov.ev.items : hov.ev ? [hov.ev] : [];
+          if (!items.length) return null;
+          const firstAccent = bsEventState(items[0]).accent;
           const W = 320;
           let left = hov.rect.left + hov.rect.width / 2 - W / 2;
           if (typeof window !== 'undefined') {
             left = Math.max(8, Math.min(window.innerWidth - W - 8, left));
           }
           const top = hov.rect.top - 10;
-          const accent = isExtra ? '#4338CA' : bsEventState(hov.ev).accent;
           return (
             <div
               style={{
@@ -1239,116 +1213,97 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 transform: 'translateY(-100%)',
                 width: W,
                 background: 'white',
-                borderRadius: 12,
+                borderRadius: 4,
                 boxShadow: '0 16px 40px rgba(0,0,0,0.18)',
-                border: `2px solid ${accent}`,
+                border: '1px solid #1F2937',
+                borderLeft: '4px solid ' + firstAccent,
                 padding: 14,
                 zIndex: 1000,
                 pointerEvents: 'none',
                 animation: 'bsPopIn 0.15s ease-out',
               }}
             >
-              {isExtra ? (
-                <>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: accent,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                      marginBottom: 8,
-                    }}
-                  >
-                    {hov.ev.items.length} etkinlik · {bsFormatDate(hov.ev.date)}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {hov.ev.items.map((ev, i) => {
-                      const st = bsEventState(ev);
-                      return (
-                        <div
-                          key={i}
-                          style={{
-                            display: 'flex',
-                            gap: 8,
-                            alignItems: 'flex-start',
-                            fontSize: 12,
-                            color: '#1F2937',
-                          }}
-                        >
-                          <span
-                            style={{
-                              flexShrink: 0,
-                              marginTop: 5,
-                              width: 8,
-                              height: 8,
-                              borderRadius: '50%',
-                              background: st.accent,
-                            }}
-                          />
-                          <span style={{ fontWeight: 600 }}>{ev.title}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    <span
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  color: '#000',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.16em',
+                  marginBottom: 8,
+                }}
+              >
+                {bsFormatDate(hov.ev.date || items[0].date)} · {items.length} etkinlik
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {items.map((ev, i) => {
+                  const st = bsEventState(ev);
+                  return (
+                    <div
+                      key={i}
                       style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        background: accent,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        color: accent,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
+                        display: 'flex',
+                        gap: 8,
+                        alignItems: 'flex-start',
+                        paddingBottom: i < items.length - 1 ? 8 : 0,
+                        borderBottom: i < items.length - 1 ? '1px dashed #E5E7EB' : 'none',
                       }}
                     >
-                      {bsEventState(hov.ev).isPast
-                        ? 'Geçmiş etkinlik'
-                        : bsEventState(hov.ev).isSoon
-                          ? bsDaysUntilLabel(bsEventState(hov.ev).daysToStart) + ' · YAKLAŞAN'
-                          : bsDaysUntilLabel(bsEventState(hov.ev).daysToStart)}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 15,
-                      fontWeight: 700,
-                      color: '#1F2937',
-                      marginBottom: 6,
-                      lineHeight: 1.3,
-                    }}
-                  >
-                    {hov.ev.title}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: '#6B7280',
-                      marginBottom: hov.ev.description ? 8 : 0,
-                    }}
-                  >
-                    {bsFormatDate(hov.ev.date)}
-                    {hov.ev.endDate && hov.ev.endDate !== hov.ev.date
-                      ? ' – ' + bsFormatDate(hov.ev.endDate)
-                      : ''}
-                  </div>
-                  {hov.ev.description && (
-                    <div style={{ fontSize: 12.5, color: '#374151', lineHeight: 1.5 }}>
-                      {hov.ev.description}
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          marginTop: 6,
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: st.accent,
+                        }}
+                      />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: '#1F2937',
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {ev.title}
+                        </div>
+                        {ev.endDate && ev.endDate !== ev.date && (
+                          <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+                            {bsFormatDate(ev.date)} – {bsFormatDate(ev.endDate)}
+                          </div>
+                        )}
+                        {ev.description && (
+                          <div
+                            style={{
+                              fontSize: 11.5,
+                              color: '#4B5563',
+                              marginTop: 3,
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            {ev.description}
+                          </div>
+                        )}
+                        <div
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: st.accent,
+                            marginTop: 4,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.06em',
+                          }}
+                        >
+                          {st.isPast ? 'Geçmiş' : bsDaysUntilLabel(st.daysToStart)}
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </>
-              )}
+                  );
+                })}
+              </div>
             </div>
           );
         })()}
