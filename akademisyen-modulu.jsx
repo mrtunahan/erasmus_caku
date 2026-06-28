@@ -2470,9 +2470,14 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
 
   // Yeni akademisyen ekle (bölüme atayarak)
   var handleAdd = function () {
-    if (!newUsername.trim()) return alert('ÇAKUAVİS kullanıcı adı gerekli');
-    // Boşlukları sil, küçük harf yap (kullanıcı "taha etem" yazsa "tahaetem" olsun)
-    var username = newUsername
+    if (!newUsername.trim()) return alert('ÇAKUAVİS kullanıcı adı veya e-posta gerekli');
+    // E-posta verildiyse @karatekin.edu.tr kısmını at; sadece username kısmını al.
+    // Ardından Türkçe → ASCII normalize: "Taha Etem" → "tahaetem",
+    // "Seda.Sahin@karatekin.edu.tr" → "seda.sahin"
+    var raw = newUsername.toString().trim();
+    var atIdx = raw.indexOf('@');
+    if (atIdx > 0) raw = raw.slice(0, atIdx);
+    var username = raw
       .replace(/İ/g, 'i')
       .replace(/I/g, 'ı')
       .replace(/\s+/g, '')
@@ -2484,7 +2489,7 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
       .replace(/ç/g, 'c')
       .replace(/ğ/g, 'g')
       .trim();
-    if (!username) return alert('Geçerli bir kullanıcı adı girin');
+    if (!username) return alert('Geçerli bir kullanıcı adı veya e-posta girin');
     var assignDeptId = deptId;
     setAddModal(false);
     setNewUsername('');
@@ -2855,36 +2860,41 @@ function AkademisyenModuluApp({ currentUser, activeDepartment, departmentInfo })
           width={450}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <FormField label="ÇAKUAVİS Kullanıcı Adı">
+            <FormField label="ÇAKUAVİS Kullanıcı Adı veya E-posta">
               <Input
                 value={newUsername}
                 onChange={function (e) {
                   setNewUsername(e.target.value);
                 }}
-                placeholder="Örn: aliegi, ksenturk"
+                placeholder="Örn: aliegi  veya  seda.sahin@karatekin.edu.tr"
               />
               <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 4 }}>
-                cakuavis.karatekin.edu.tr/
+                cakuavis.karatekin.edu.tr/akademisyen/
                 <strong>
-                  {newUsername
-                    ? newUsername
-                        .replace(/İ/g, 'i')
-                        .replace(/I/g, 'ı')
-                        .replace(/\s+/g, '')
-                        .toLocaleLowerCase('tr')
-                        .replace(/ı/g, 'i')
-                        .replace(/ü/g, 'u')
-                        .replace(/ö/g, 'o')
-                        .replace(/ş/g, 's')
-                        .replace(/ç/g, 'c')
-                        .replace(/ğ/g, 'g')
-                        .trim()
-                    : 'kullaniciadi'}
+                  {(function () {
+                    if (!newUsername) return 'kullaniciadi';
+                    var raw = newUsername.toString().trim();
+                    var at = raw.indexOf('@');
+                    if (at > 0) raw = raw.slice(0, at);
+                    return raw
+                      .replace(/İ/g, 'i')
+                      .replace(/I/g, 'ı')
+                      .replace(/\s+/g, '')
+                      .toLocaleLowerCase('tr')
+                      .replace(/ı/g, 'i')
+                      .replace(/ü/g, 'u')
+                      .replace(/ö/g, 'o')
+                      .replace(/ş/g, 's')
+                      .replace(/ç/g, 'c')
+                      .replace(/ğ/g, 'g')
+                      .trim();
+                  })()}
                 </strong>{' '}
-                adresindeki kullanıcı adı
+                — bu URL ile sorgulanacak
               </div>
               <div style={{ fontSize: 11, color: COLORS.warning, marginTop: 2 }}>
-                Ad soyad girerseniz otomatik olarak boşluklar silinir (ör: "taha etem" → "tahaetem")
+                E-posta verirseniz @karatekin.edu.tr otomatik atılır. Ad soyad verirseniz boşluklar
+                silinir (ör: "taha etem" → "tahaetem").
               </div>
             </FormField>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
