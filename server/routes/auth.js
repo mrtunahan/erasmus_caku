@@ -94,6 +94,36 @@ async function getPasswordDoc(docId) {
   return rest;
 }
 
+// Şifre değişikliklerini audit_logs koleksiyonuna yaz (kim, kime, ne zaman).
+async function auditPasswordChange(
+  authUser,
+  targetRole,
+  targetIdentifier,
+  wasAdmin,
+  isUniFlag,
+  isFacFlag
+) {
+  try {
+    const db = await getDbSafe();
+    await db.collection('audit_logs').insertOne({
+      kind: 'password_change',
+      at: new Date(),
+      actor: authUser
+        ? {
+            role: authUser.role,
+            identifier: authUser.identifier || null,
+            isUniversityAdmin: !!isUniFlag,
+            isFacultyManager: !!isFacFlag,
+            wasAdmin: !!wasAdmin,
+          }
+        : null,
+      target: { role: targetRole, identifier: targetIdentifier || null },
+    });
+  } catch (_) {
+    /* audit hatası ana akışı bozmasın */
+  }
+}
+
 async function setPasswordDoc(docId, data, merge = false) {
   const db = await getDbSafe();
   const col = db.collection('passwords');
@@ -450,7 +480,25 @@ router.post('/change-password', async (req, res) => {
       /* geçersiz/expired token — anonim muamelesi */
     }
   }
-  const isAdmin = authUser && authUser.role === 'admin';
+  // JWT'de role='professor' olsa bile profile bayrakları (isUniversityAdmin,
+  // isFacultyManager) "admin yetkisi" verir — hierarchy yöneticilerinin
+  // öğrenci/akademisyen şifresi reset edebilmesi için.
+  let isAdmin = !!(authUser && authUser.role === 'admin');
+  let isUniAdminFlag = false;
+  let isFacultyMgrFlag = false;
+  if (authUser && authUser.role === 'professor' && authUser.identifier) {
+    try {
+      const db = await getDbSafe();
+      const prof = await db.collection('professors').findOne({ name: authUser.identifier });
+      if (prof) {
+        isUniAdminFlag = !!prof.isUniversityAdmin;
+        isFacultyMgrFlag = !!prof.isFacultyManager;
+        if (isUniAdminFlag) isAdmin = true; // üniversite yetkilisi = tam admin
+      }
+    } catch (_) {
+      /* profil okunamasa engelleme — fallback varsayılan akış */
+    }
+  }
 
   try {
     const bcryptHash = await hashPassword(newPassword);
@@ -473,6 +521,14 @@ router.post('/change-password', async (req, res) => {
       }
 
       await setPasswordDoc('student_passwords', { [identifier]: bcryptHash }, true);
+      await auditPasswordChange(
+        authUser,
+        'student',
+        identifier,
+        isAdmin,
+        isUniAdminFlag,
+        isFacultyMgrFlag
+      );
       return res.json({ success: true });
     } else if (role === 'admin') {
       // Admin şifresi yalnızca authenticated admin tarafından değiştirilebilir.
@@ -480,6 +536,14 @@ router.post('/change-password', async (req, res) => {
         return res.status(403).json({ error: 'Bu işlem için admin yetkisi gerekli.' });
       }
       await setPasswordDoc('admin', { password: bcryptHash, updatedAt: new Date() });
+      await auditPasswordChange(
+        authUser,
+        'admin',
+        'admin',
+        isAdmin,
+        isUniAdminFlag,
+        isFacultyMgrFlag
+      );
       return res.json({ success: true });
     } else if (role === 'professor') {
       if (!identifier) return res.status(400).json({ error: 'Akademisyen adı gerekli.' });
@@ -491,6 +555,14 @@ router.post('/change-password', async (req, res) => {
         return res.status(403).json({ error: 'Bu hesabın şifresini değiştirme yetkiniz yok.' });
       }
       await setPasswordDoc('professor_passwords', { [identifier]: bcryptHash }, true);
+      await auditPasswordChange(
+        authUser,
+        'professor',
+        identifier,
+        isAdmin,
+        isUniAdminFlag,
+        isFacultyMgrFlag
+      );
       return res.json({ success: true });
     } else if (role === 'bolum_yetkilisi') {
       if (!identifier) return res.status(400).json({ error: 'Yetkili adı gerekli.' });
@@ -504,6 +576,14 @@ router.post('/change-password', async (req, res) => {
         return res.status(403).json({ error: 'Bu hesabın şifresini değiştirme yetkiniz yok.' });
       }
       await setPasswordDoc('department_manager_passwords', { [identifier]: bcryptHash }, true);
+      await auditPasswordChange(
+        authUser,
+        'bolum_yetkilisi',
+        identifier,
+        isAdmin,
+        isUniAdminFlag,
+        isFacultyMgrFlag
+      );
       return res.json({ success: true });
     } else {
       return res.status(400).json({ error: 'Geçersiz rol.' });
