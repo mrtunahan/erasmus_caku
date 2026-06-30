@@ -103,6 +103,10 @@ window.__lazyModules = {
     loader: () => import('./akademik-takvim-modulu.jsx'),
     component: 'AkademikTakvimApp',
   },
+  sablonlar: {
+    loader: () => import('./sablonlar-modulu.jsx'),
+    component: 'SablonlarApp',
+  },
   kulupler: {
     loader: () => import('./ogrenci-kulupleri-modulu.jsx'),
     component: 'OgrenciKulupleriApp',
