@@ -995,8 +995,75 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
   // Tek bölüm varsa sağ sidebar gösterme
   if (availableDepts.length <= 1) return null;
 
-  const activeDept = DEPARTMENTS.find((d) => d.id === activeDepartment);
-  const sidebarWidth = 220;
+  // ── FAKÜLTE BAZLI GRUPLAMA ──
+  // departments koleksiyonundan veya DEPARTMENTS sabit listesinden facultyId
+  // okunur. faculties koleksiyonundan fakülte adları çekilir (lazy state).
+  const [facultyNames, setFacultyNames] = React.useState({});
+  const [openFaculties, setOpenFaculties] = React.useState(() => new Set());
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const facs = await window.apiRead('faculties');
+        if (cancelled) return;
+        const map = {};
+        (facs || []).forEach((f) => {
+          const id = f._docId || f.id || (f._id && f._id.toString());
+          if (id) map[id] = f.name || id;
+        });
+        setFacultyNames(map);
+      } catch (_) {
+        /* yok say */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Fakülte → bölümler haritası
+  const facultyGroups = React.useMemo(() => {
+    const groups = new Map();
+    for (const d of availableDepts) {
+      const fId = d.facultyId || '(bagimsiz)';
+      if (!groups.has(fId)) groups.set(fId, []);
+      groups.get(fId).push(d);
+    }
+    // Fakülte adına göre sırala (en üstte bilinen ad, sonda bağımsız)
+    return [...groups.entries()].sort((a, b) => {
+      if (a[0] === '(bagimsiz)') return 1;
+      if (b[0] === '(bagimsiz)') return -1;
+      const an = facultyNames[a[0]] || a[0];
+      const bn = facultyNames[b[0]] || b[0];
+      return an.localeCompare(bn, 'tr');
+    });
+  }, [availableDepts, facultyNames]);
+
+  // Aktif bölümün fakültesini varsayılan açık tut
+  React.useEffect(() => {
+    if (!activeDepartment) return;
+    const dep = availableDepts.find((d) => d.id === activeDepartment);
+    if (!dep) return;
+    const fId = dep.facultyId || '(bagimsiz)';
+    setOpenFaculties((prev) => {
+      if (prev.has(fId)) return prev;
+      const next = new Set(prev);
+      next.add(fId);
+      return next;
+    });
+  }, [activeDepartment, availableDepts]);
+
+  const toggleFaculty = (fId) => {
+    setOpenFaculties((prev) => {
+      const next = new Set(prev);
+      if (next.has(fId)) next.delete(fId);
+      else next.add(fId);
+      return next;
+    });
+  };
+
+  const sidebarWidth = 240;
 
   return (
     <div
@@ -1033,98 +1100,210 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
             paddingLeft: 2,
           }}
         >
-          Bölümler
+          Fakülteler
         </div>
 
-        {/* Department List */}
-        {availableDepts.map((d) => {
-          const isActive = d.id === activeDepartment;
+        {/* Fakülte-Bazlı Açılır Menüler */}
+        {facultyGroups.map(([fId, depts]) => {
+          const isOpen = openFaculties.has(fId);
+          const facName = fId === '(bagimsiz)' ? 'Diğer Bölümler' : facultyNames[fId] || fId;
+          const hasActive = depts.some((d) => d.id === activeDepartment);
+
           return (
-            <button
-              key={d.id}
-              onClick={() => onDepartmentChange(d.id)}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 12px',
-                borderRadius: 10,
-                border: isActive ? `1.5px solid ${d.color}40` : '1.5px solid transparent',
-                background: isActive ? `${d.color}10` : 'transparent',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                position: 'relative',
-                textAlign: 'left',
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.background = `${d.color}08`;
-                  e.currentTarget.style.borderColor = `${d.color}25`;
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.borderColor = 'transparent';
-                }
-              }}
-            >
-              {/* Active Indicator Bar */}
-              {isActive && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: '20%',
-                    bottom: '20%',
-                    width: 3,
-                    borderRadius: '0 3px 3px 0',
-                    background: d.color,
-                  }}
-                />
-              )}
-              {/* Icon */}
-              <div
+            <div key={fId} style={{ marginBottom: 4 }}>
+              {/* Fakülte başlığı (açılır menü tetikleyici) */}
+              <button
+                onClick={() => toggleFaculty(fId)}
                 style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 8,
-                  flexShrink: 0,
-                  background: isActive ? `${d.color}20` : '#F0F1F3',
+                  width: '100%',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: hasActive ? '1.5px solid #6366F140' : '1.5px solid transparent',
+                  background: hasActive ? '#EEF2FF' : isOpen ? '#F0F1F3' : 'transparent',
+                  cursor: 'pointer',
                   transition: 'all 0.2s ease',
-                }}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={isActive ? d.color : '#9CA3AF'}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d={d.icon} />
-                </svg>
-              </div>
-              {/* Name */}
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: isActive ? 650 : 450,
-                  color: isActive ? d.color : '#6B7280',
+                  textAlign: 'left',
                   fontFamily: "'Inter', sans-serif",
-                  transition: 'all 0.2s ease',
-                  lineHeight: 1.3,
+                }}
+                onMouseEnter={(e) => {
+                  if (!hasActive && !isOpen) e.currentTarget.style.background = '#F0F1F3';
+                }}
+                onMouseLeave={(e) => {
+                  if (!hasActive && !isOpen) e.currentTarget.style.background = 'transparent';
                 }}
               >
-                {d.shortName}
-              </span>
-            </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke={hasActive ? '#4338CA' : '#6B7280'}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ flexShrink: 0 }}
+                  >
+                    <path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3" />
+                  </svg>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: hasActive ? 700 : 600,
+                      color: hasActive ? '#4338CA' : '#1F2937',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                    title={facName}
+                  >
+                    {facName}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    flexShrink: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: '#9CA3AF',
+                      background: '#FFFFFF',
+                      padding: '1px 6px',
+                      borderRadius: 999,
+                      border: '1px solid #E5E7EB',
+                    }}
+                  >
+                    {depts.length}
+                  </span>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#6B7280"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s ease',
+                    }}
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </div>
+              </button>
+
+              {/* Bölüm Listesi (açıkken) */}
+              {isOpen && (
+                <div
+                  style={{
+                    paddingLeft: 8,
+                    marginTop: 4,
+                    marginBottom: 4,
+                    borderLeft: '2px solid #E5E7EB',
+                    marginLeft: 12,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                  }}
+                >
+                  {depts.map((d) => {
+                    const isActive = d.id === activeDepartment;
+                    return (
+                      <button
+                        key={d.id}
+                        onClick={() => onDepartmentChange(d.id)}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '7px 10px',
+                          borderRadius: 8,
+                          border: 'none',
+                          background: isActive ? `${d.color}15` : 'transparent',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          textAlign: 'left',
+                          position: 'relative',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive) e.currentTarget.style.background = `${d.color}08`;
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        {isActive && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              left: -10,
+                              top: 6,
+                              bottom: 6,
+                              width: 2,
+                              background: d.color,
+                              borderRadius: 1,
+                            }}
+                          />
+                        )}
+                        <div
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 6,
+                            flexShrink: 0,
+                            background: isActive ? `${d.color}25` : '#F0F1F3',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <svg
+                            width="11"
+                            height="11"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke={isActive ? d.color : '#9CA3AF'}
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d={d.icon} />
+                          </svg>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: isActive ? 650 : 450,
+                            color: isActive ? d.color : '#4B5563',
+                            fontFamily: "'Inter', sans-serif",
+                            lineHeight: 1.3,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                          title={d.shortName || d.name}
+                        >
+                          {d.shortName || d.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
