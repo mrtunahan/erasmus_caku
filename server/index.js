@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const dbRoutes = require('./routes/db');
 const fileRoutes = require('./routes/files');
 const akademisyenRoutes = require('./routes/akademisyen');
+const templateRoutes = require('./routes/templates');
 const {
   helmetMiddleware,
   authRateLimiter,
@@ -118,6 +119,7 @@ app.use('/api/auth', authRateLimiter(), authRoutes);
 app.use('/api/db', dbRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/akademisyen', akademisyenRoutes);
+app.use('/api/templates', templateRoutes);
 
 // 404 + merkezi hata yakalayıcı (route'lardan sonra mount edilmeli)
 app.use(notFoundHandler);

@@ -97,6 +97,7 @@ const ALLOWED_COLLECTIONS = [
   'universities',
   'faculties',
   'akademik_takvim',
+  'document_templates',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
