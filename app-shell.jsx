@@ -509,15 +509,7 @@ const Sidebar = ({
 
     // Saf akademisyen
     if (isProfessor) {
-      const base = [
-        'sinav',
-        'formlar',
-        'dersprogrami',
-        'akademisyen',
-        'projeler',
-        'staj',
-        'performans',
-      ];
+      const base = ['sinav', 'formlar', 'dersprogrami', 'projeler', 'staj', 'performans'];
       const allowed = base.concat(commissionModules);
       return DEPARTMENT_MODULES.filter((m) => allowed.includes(m.id));
     }
@@ -1658,7 +1650,7 @@ function AppShell() {
       : isDeptManager || isAdmin || isHierarchyManager
         ? DEPARTMENT_MODULES.filter((m) => m.id !== 'benim').map((m) => m.id)
         : isProfessor
-          ? ['sinav', 'formlar', 'dersprogrami', 'akademisyen', 'projeler', 'staj', 'performans']
+          ? ['sinav', 'formlar', 'dersprogrami', 'projeler', 'staj', 'performans']
           : ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet']; // student
 
     // Çapraz-bölümde Ortak/Yönetim/Hiyerarşi modülleri tamamen gizli.

@@ -40,11 +40,6 @@ async function setupIndexes(database) {
       .createIndex({ departmentId: 1, createdAt: -1 }, { background: true });
     await database.collection('portal_posts').createIndex({ authorId: 1 }, { background: true });
 
-    // Akademisyen cache
-    await database
-      .collection('akademisyen_cache')
-      .createIndex({ departmentId: 1 }, { background: true });
-
     // Sınav modülü
     await database
       .collection('sinav_dersler')

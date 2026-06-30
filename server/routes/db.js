@@ -80,7 +80,6 @@ const ALLOWED_COLLECTIONS = [
   'unides_courses',
   'tubitak2209_projects',
   'tubitak2209_courses',
-  'akademisyen_cache',
   'erasmus_universities',
   'student_notifications',
   'performance_indicators',
