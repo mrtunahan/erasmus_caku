@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
 
 // ═══════════════════════════════════════════════════════════════
-// ÇAKÜ ERASMUS+ — PERFORMANS BİLGİLERİ MODÜLÜ
+// ÇAKÜ — PERFORMANS BİLGİLERİ MODÜLÜ
 // 3 Katmanlı: Akademisyen → Bölüm Yetkilisi → Fakülte Yetkilisi
-// Sarı göstergeler (13 adet) + 4 çıktı formatı entegrasyonu
+// Sadece Gösterge İzleme: Yıl bazlı, 12 ay yan yana
 // ═══════════════════════════════════════════════════════════════
 
 const GOSTERGELER = [
@@ -72,40 +72,25 @@ const GOSTERGELER = [
   },
 ];
 
-const HEDEFLER = [
-  {
-    hedef: 'YÜKSEKÖĞRETİMDE BİLİMSEL ARAŞTIRMA VE GELİŞTİRME',
-    alt: 'Yükseköğretim Kurumlarında inovasyon amaçlı bilimsel çalışmaların arttırılması',
-  },
-  {
-    hedef: 'YÜKSEKÖĞRETİM KURUMLARI SÜREKLİ EĞİTİM FAALİYETLERİ',
-    alt: 'Toplumun tüm kesimlerine ihtiyaç duyduğu alanlarda eğitimler verilmesi',
-  },
-  {
-    hedef: 'ÖĞRETİM ELEMANLARINA SAĞLANAN BURS VE DESTEKLER',
-    alt: 'Alanında yetkin araştırmacı bilgi üreten ve aktaran akademisyenler yetiştirilmesi',
-  },
-  {
-    hedef: 'ÖNLİSANS EĞİTİMİ LİSANS EĞİTİMİ VE LİSANSÜSTÜ EĞİTİMİ',
-    alt: 'Mesleki yeterlilik sahibi ve gelişime açık mezunlar yetiştirilmesi',
-  },
-  {
-    hedef: 'YÜKSEKÖĞRETİMDE ÖĞRENCİ YAŞAMI',
-    alt: 'Öğrencilere sunulan beslenme ve barınma hizmetlerinin kalitesinin arttırılması',
-  },
+// 12 ay — tabloda sütun olarak yan yana
+const AYLAR = [
+  'OCAK',
+  'ŞUBAT',
+  'MART',
+  'NİSAN',
+  'MAYIS',
+  'HAZİRAN',
+  'TEMMUZ',
+  'AĞUSTOS',
+  'EYLÜL',
+  'EKİM',
+  'KASIM',
+  'ARALIK',
 ];
 
-const DONEMLER_DETAY = [
-  { id: 'I', label: 'I. Dönem', aylar: ['OCAK', 'ŞUBAT', 'MART'] },
-  { id: 'II', label: 'II. Dönem', aylar: ['NİSAN', 'MAYIS', 'HAZİRAN'] },
-  { id: 'III', label: 'III. Dönem', aylar: ['TEMMUZ', 'AĞUSTOS', 'EYLÜL'] },
-  { id: 'IV', label: 'IV. Dönem', aylar: ['EKİM', 'KASIM', 'ARALIK'] },
-];
-const DONEMLER = DONEMLER_DETAY.map((d) => d.label);
-const monthToDonemId = (m) => (m <= 3 ? 'I' : m <= 6 ? 'II' : m <= 9 ? 'III' : 'IV');
-const GOSTERGE_TURLERI = ['Girdi', 'Çıktı', 'Verimlilik', 'Ekonomiklik', 'Etkililik', 'Sonuç'];
+// Yıl seçici için sabit aralık: 2026–2031
+const YILLAR = ['2026', '2027', '2028', '2029', '2030', '2031'];
 
-const ALL_GOSTERGE_IDS = GOSTERGELER.flatMap((k) => k.gostergeler.map((g) => g.id));
 const findGosterge = (id) => {
   for (const k of GOSTERGELER) for (const g of k.gostergeler) if (g.id === id) return g;
   return null;
@@ -159,32 +144,23 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
           : 'akademisyen';
 
   const [selectedBolum, setSelectedBolum] = useState('');
-  const [tab, setTab] = useState(0);
 
-  // Yıl ve dönem seçimi (gösterge verileri için)
-  const _now = new Date();
-  const [selectedYil, setSelectedYil] = useState(String(_now.getFullYear()));
-  const [selectedDonem, setSelectedDonem] = useState(monthToDonemId(_now.getMonth() + 1));
-  const currentDonemDetay = DONEMLER_DETAY.find((d) => d.id === selectedDonem) || DONEMLER_DETAY[0];
-  const currentAylar = currentDonemDetay.aylar;
-  const periodKey = `${selectedYil}_${selectedDonem}`;
+  // Yıl seçimi (dönem YOK — 12 ay yan yana)
+  const _thisYear = String(new Date().getFullYear());
+  const [selectedYil, setSelectedYil] = useState(
+    YILLAR.includes(_thisYear) ? _thisYear : YILLAR[0]
+  );
+  // periodKey: yalnızca Yıl + Ay
+  const pKey = (yil, gId, ay) => `${yil}_${gId}_${ay}`;
 
-  // Akademisyen verileri: { [akademisyenId]: { [gostergeId_AY]: value } }
+  // Akademisyen verileri: { [akademisyenId]: { [yil_gostergeId_AY]: value } }
   const [akademisyenData, setAkademisyenData] = useState({});
-  // Hedef verileri: { [akademisyenId]: { [hedefIdx]: text } }
-  const [hedefData, setHedefData] = useState({});
-  // Performans formu: { [akademisyenId]: { ...fields } }
-  const [perfData, setPerfData] = useState({});
-  // Rapor: { [akademisyenId]: { ...fields } }
-  const [raporData, setRaporData] = useState({});
 
   // Bölüm yetkilisi: toplama kuralları (sum/fixed override)
   const [aggOverrides, setAggOverrides] = useState({}); // { [gostergeId]: "sum" | "fixed" }
 
-  // Gönderim durumu: { [tabIndex]: true }
-  const [submittedTabs, setSubmittedTabs] = useState({});
-
   const [toast, setToast] = useState('');
+  const [submitted, setSubmitted] = useState(false);
   const flash = (m) => {
     setToast(m);
     setTimeout(() => setToast(''), 3000);
@@ -197,10 +173,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
       if (saved) {
         const d = JSON.parse(saved);
         if (d.akademisyenData) setAkademisyenData(d.akademisyenData);
-        if (d.hedefData) setHedefData(d.hedefData);
-        if (d.perfData) setPerfData(d.perfData);
-        if (d.raporData) setRaporData(d.raporData);
-        if (d.submittedTabs) setSubmittedTabs(d.submittedTabs);
+        if (d.aggOverrides) setAggOverrides(d.aggOverrides);
       }
     } catch (e) {
       console.error('Veri yüklenemedi:', e);
@@ -210,8 +183,10 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   // ── Kaydet (localStorage) ──
   const handleSave = () => {
     try {
-      const d = { akademisyenData, hedefData, perfData, raporData, submittedTabs };
-      localStorage.setItem('performans_saved_data', JSON.stringify(d));
+      localStorage.setItem(
+        'performans_saved_data',
+        JSON.stringify({ akademisyenData, aggOverrides })
+      );
       flash('Veriler kaydedildi');
     } catch (e) {
       console.error('Kaydetme hatası:', e);
@@ -219,29 +194,10 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     }
   };
 
-  // ── Gönder ──
-  const handleSubmit = (tabIdx) => {
+  const handleSubmit = () => {
     handleSave();
-    setSubmittedTabs((p) => ({ ...p, [tabIdx]: true }));
-    try {
-      const d = {
-        akademisyenData,
-        hedefData,
-        perfData,
-        raporData,
-        submittedTabs: { ...submittedTabs, [tabIdx]: true },
-      };
-      localStorage.setItem('performans_saved_data', JSON.stringify(d));
-    } catch (e) {
-      /* ignore */
-    }
-    const tabNames = [
-      'Gösterge İzleme',
-      'Hedef Değerlendirme',
-      'Performans Formu',
-      'Rapor Formatı',
-    ];
-    flash(`${tabNames[tabIdx]} verileri gönderildi`);
+    setSubmitted(true);
+    flash('Gösterge verileri gönderildi');
   };
 
   // ── Akademisyen listesini API'den yükle ──
@@ -249,9 +205,6 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     const load = async () => {
       setLoadingAkad(true);
       try {
-        // Akademisyenler modülü kaldırıldı — veriyi doğrudan 'professors'
-        // koleksiyonundan çekiyoruz. Bölüm/fakülte adları için departments
-        // + faculties koleksiyonlarıyla zenginleştirilir.
         const [profs, depts, facs] = await Promise.all([
           window.apiRead('professors'),
           window.apiRead('departments').catch(() => []),
@@ -298,7 +251,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     load();
   }, []);
 
-  // Uyumlu referanslar (mevcut kodla uyum için)
+  // Uyumlu referanslar
   const AKADEMISYENLER = akademisyenlerList;
   const BOLUMLER = useMemo(
     () => [...new Set(akademisyenlerList.map((a) => a.bolum))].filter(Boolean),
@@ -310,7 +263,6 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   );
 
   // Giriş yapan akademisyeni bul (professor rolü için)
-  // Çoklu strateji: isim eşleme → username türetme → soyadı eşleme
   const TITLES = [
     'Prof. Dr.',
     'Prof.Dr.',
@@ -358,7 +310,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     const bare = stripTitle(currentUser.name);
     if (!bare) return null;
 
-    // 1) Tam isim eşleme (unvan/harf toleranslı)
+    // 1) Tam isim eşleme
     const nameKey = bare.replace(/\s+/g, ' ').trim().toLocaleLowerCase('tr');
     const nameMatch = AKADEMISYENLER.find((a) => {
       const aKey = stripTitle(a.ad).replace(/\s+/g, ' ').trim().toLocaleLowerCase('tr');
@@ -366,12 +318,12 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     });
     if (nameMatch) return nameMatch;
 
-    // 2) Username türetme (tam ad birleşik → "selimbuyrukoglu")
+    // 2) Username türetme
     const fullSlug = toAsciiSlug(bare);
     const slugMatch = AKADEMISYENLER.find((a) => a.id === fullSlug);
     if (slugMatch) return slugMatch;
 
-    // 3) Soyadı + ad baş harfi eşleme ("sbuyrukoglu", "sbuyrukoğlu" vb.)
+    // 3) Soyadı + ad baş harfi eşleme
     const parts = bare.trim().split(/\s+/);
     if (parts.length >= 2) {
       const surname = toAsciiSlug(parts[parts.length - 1]);
@@ -383,12 +335,9 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
         if (partialMatch) return partialMatch;
       }
     }
-
     return null;
   }, [AKADEMISYENLER, currentUser?.name]);
   const selectedAkademisyen = matchedAkademisyen?.id || '';
-
-  // ── Hesaplamalar ──
   const currentAkad = matchedAkademisyen;
 
   const bolumAkademisyenleri = useMemo(() => {
@@ -400,7 +349,6 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
 
   const fakulteBolumleri = useMemo(() => {
     if (role !== 'fakulteYetkilisi') return [];
-    // Tüm Mühendislik Fakültesi bölümlerini window.DEPARTMENTS'tan al (6 bölüm)
     const allDepts =
       typeof window !== 'undefined' && Array.isArray(window.DEPARTMENTS) ? window.DEPARTMENTS : [];
     if (allDepts.length > 0) return allDepts.map((d) => d.name);
@@ -409,13 +357,13 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     return [...new Set(AKADEMISYENLER.filter((a) => a.fakulte === fak).map((a) => a.bolum))];
   }, [role, AKADEMISYENLER, FAKULTELER]);
 
-  // Bölüm toplamı hesapla (seçili yıl/dönem)
+  // Bölüm toplamı (seçili yıl + ay)
   const calcBolumToplam = (gostergeId, ay) => {
     const g = findGosterge(gostergeId);
     const aggType = aggOverrides[gostergeId] || g?.aggType || 'sum';
     const vals = bolumAkademisyenleri
       .map((a) => {
-        const v = akademisyenData[a.id]?.[`${periodKey}_${gostergeId}_${ay}`];
+        const v = akademisyenData[a.id]?.[pKey(selectedYil, gostergeId, ay)];
         return v ? parseFloat(v) : 0;
       })
       .filter((v) => !isNaN(v));
@@ -424,14 +372,14 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     return vals.reduce((a, b) => a + b, 0);
   };
 
-  // Fakülte toplamı (tüm bölümlerden — seçili yıl/dönem)
+  // Fakülte toplamı
   const calcFakulteToplam = (gostergeId, ay) => {
     const g = findGosterge(gostergeId);
     const aggType = aggOverrides[gostergeId] || g?.aggType || 'sum';
     const allAkads = AKADEMISYENLER.filter((a) => a.fakulte === FAKULTELER[0]);
     const vals = allAkads
       .map((a) => {
-        const v = akademisyenData[a.id]?.[`${periodKey}_${gostergeId}_${ay}`];
+        const v = akademisyenData[a.id]?.[pKey(selectedYil, gostergeId, ay)];
         return v ? parseFloat(v) : 0;
       })
       .filter((v) => !isNaN(v));
@@ -439,241 +387,6 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     if (aggType === 'fixed') return vals[0] || '—';
     return vals.reduce((a, b) => a + b, 0);
   };
-
-  // ── Export yardımcıları ──
-  const downloadFile = (content, filename, mimeType) => {
-    const b = new Blob([content], { type: mimeType });
-    const u = URL.createObjectURL(b);
-    Object.assign(document.createElement('a'), { href: u, download: filename }).click();
-    URL.revokeObjectURL(u);
-  };
-
-  // SheetJS dinamik yükleyici (gerçek .xlsx üretmek için)
-  const loadSheetJS = () =>
-    new Promise((resolve, reject) => {
-      if (window.XLSX) {
-        resolve(window.XLSX);
-        return;
-      }
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-      s.onload = () => resolve(window.XLSX);
-      s.onerror = () => reject(new Error('SheetJS yüklenemedi'));
-      document.head.appendChild(s);
-    });
-
-  // Verilen HTML tablosunu geçici DOM'a yerleştirip gerçek xlsx olarak indir
-  const downloadTableAsXlsx = async (tableHtml, filename, sheetName = 'Sayfa1') => {
-    try {
-      const XLSX = await loadSheetJS();
-      const wrap = document.createElement('div');
-      wrap.style.cssText = 'position:absolute;left:-99999px;top:-99999px;visibility:hidden';
-      wrap.innerHTML = tableHtml;
-      document.body.appendChild(wrap);
-      const tableEl = wrap.querySelector('table');
-      const wb = XLSX.utils.table_to_book(tableEl, { sheet: sheetName.slice(0, 31), raw: false });
-      XLSX.writeFile(wb, filename);
-      document.body.removeChild(wrap);
-    } catch (e) {
-      alert('XLSX oluşturulamadı: ' + e.message);
-    }
-  };
-
-  const xlsxStyles = `<style>
-    body{font-family:Calibri,Arial,sans-serif;font-size:10pt}
-    table{border-collapse:collapse;width:100%;table-layout:fixed}
-    td,th{border:1px solid #000;padding:6px 8px;vertical-align:middle;word-wrap:break-word}
-    .sec{background:#1F3864;color:#fff;font-weight:bold;text-align:center;font-size:11pt}
-    .sub{background:#D9E1F2;color:#1F3864;font-weight:bold;font-size:10pt}
-    .lbl{background:#F2F2F2;font-weight:bold}
-    .val{background:#FFF2CC;text-align:center;font-weight:bold}
-    .month{background:#1F3864;color:#fff;font-weight:bold;text-align:center}
-    .center{text-align:center}
-    .title{background:#1F3864;color:#fff;font-weight:bold;font-size:14pt;text-align:center;padding:10px}
-  </style>`;
-
-  const xlsxWrap = (
-    tableHtml
-  ) => `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8">${xlsxStyles}<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Sayfa1</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${tableHtml}</body></html>`;
-
-  const docxWrap = (
-    bodyHtml
-  ) => `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8"><style>body{font-family:Calibri,sans-serif;font-size:11pt}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:6px 8px}th{background:#1B2A4A;color:#fff}</style><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--></head><body>${bodyHtml}</body></html>`;
-
-  // 1) Gösterge_İzleme.xlsx — Resmi format: Bölüm/Alt-hedef başlıkları + aylık değer matrisi
-  const exportGostergeIzleme = () => {
-    const akadId = role === 'akademisyen' ? selectedAkademisyen : null;
-    const totalCols = currentAylar.length + 3; // Gösterge + Birim + Plan + aylar
-    let rows = '';
-    // Üst başlık
-    rows += `<tr><td colspan="${totalCols}" class="title">GÖSTERGE İZLEME TABLOSU — ${selectedYil} / ${currentDonemDetay.label}</td></tr>`;
-    // Sütun başlıkları
-    rows += `<tr><th class="month" style="width:42%">GÖSTERGE</th><th class="month" style="width:8%">BİRİM</th><th class="month" style="width:10%">PLAN/HEDEF</th>`;
-    currentAylar.forEach((a) => {
-      rows += `<th class="month">${a}</th>`;
-    });
-    rows += `</tr>`;
-
-    GOSTERGELER.forEach((kat) => {
-      rows += `<tr><td colspan="${totalCols}" class="sec">${kat.kategori}</td></tr>`;
-      if (kat.hedef) rows += `<tr><td colspan="${totalCols}" class="sub">${kat.hedef}</td></tr>`;
-      kat.gostergeler.forEach((g) => {
-        rows += `<tr><td>${g.ad}</td><td class="center">${g.birim}</td><td class="center"></td>`;
-        currentAylar.forEach((a) => {
-          let v = '';
-          if (role === 'akademisyen')
-            v = akademisyenData[akadId]?.[`${periodKey}_${g.id}_${a}`] || '';
-          else {
-            const t = calcBolumToplam(g.id, a);
-            v = t === '—' ? '' : t;
-          }
-          rows += `<td class="${v ? 'val' : 'center'}">${v}</td>`;
-        });
-        rows += `</tr>`;
-      });
-    });
-    const html = `<table>${rows}</table>`;
-    downloadTableAsXlsx(
-      html,
-      `Gösterge_İzleme_${selectedYil}_${selectedDonem}.xlsx`,
-      'Gosterge Izleme'
-    );
-    flash('Gösterge_İzleme.xlsx indirildi');
-  };
-
-  // 2) Hedef_Değerlendirmeler.xlsx — 2 sütun: HEDEF | DÖNEM DEĞERLENDİRMESİ
-  const exportHedefDegerlendirmeler = () => {
-    const akadId = role === 'akademisyen' ? selectedAkademisyen : null;
-    const donemAdi = raporData[akadId]?.donem || 'VI. Dönem';
-    let rows = '';
-    rows += `<tr><td colspan="2" class="title">HEDEF DEĞERLENDİRMELERİ</td></tr>`;
-    rows += `<tr><th class="month" style="width:50%">HEDEF</th><th class="month" style="width:50%">${donemAdi.toLocaleUpperCase('tr')} DEĞERLENDİRMESİ</th></tr>`;
-    HEDEFLER.forEach((h, i) => {
-      // Hedef başlık satırı (koyu)
-      rows += `<tr><td class="sub" style="vertical-align:top"><div style="font-weight:bold;color:#1F3864">${h.hedef}</div><div style="font-size:9pt;color:#444;margin-top:4px;font-weight:normal">${h.alt}</div></td>`;
-      let val = '';
-      if (role === 'akademisyen') {
-        val = hedefData[akadId]?.[i] || '';
-      } else {
-        const akads =
-          role === 'bolumYetkilisi'
-            ? bolumAkademisyenleri
-            : AKADEMISYENLER.filter((a) => a.fakulte === FAKULTELER[0]);
-        const parts = akads
-          .map((a) => {
-            const v = hedefData[a.id]?.[i];
-            return v ? `<div style="margin-bottom:6px"><strong>${a.ad}:</strong> ${v}</div>` : '';
-          })
-          .filter(Boolean);
-        val = parts.join('');
-      }
-      rows += `<td style="vertical-align:top;min-height:60px">${val}</td></tr>`;
-    });
-    const html = `<table>${rows}</table>`;
-    downloadTableAsXlsx(
-      html,
-      `Hedef_Değerlendirmeler_${selectedYil}_${selectedDonem}.xlsx`,
-      'Hedef Degerlendirmeler'
-    );
-    flash('Hedef_Değerlendirmeler.xlsx indirildi');
-  };
-
-  // 3) Performans_Göstergesi_Tablosu.xlsx — Performans Göstergesi Nitelikleri Formu
-  const exportPerformansTablosu = () => {
-    const akadId = role === 'akademisyen' ? selectedAkademisyen : null;
-    let rows = '';
-    const renderForm = (d) => {
-      let s = '';
-      // Performans Göstergesi
-      s += `<tr><td class="lbl" style="width:35%">Performans Göstergesi</td><td colspan="6">${d.gosterge || ''}</td></tr>`;
-      // Stratejik Yapılandırma (Dönem)
-      s += `<tr><td class="lbl">Stratejik Yapılandırma</td><td colspan="6">${d.donem || ''}</td></tr>`;
-      // Gösterge Türü (6 hücre tek satır)
-      s += `<tr><td class="lbl" rowspan="2">Performans Göstergesinin Hangi Yönünü Açıkladığı</td>`;
-      GOSTERGE_TURLERI.forEach((t) => {
-        s += `<td class="lbl center" style="font-size:9pt">${t}</td>`;
-      });
-      s += `</tr><tr>`;
-      GOSTERGE_TURLERI.forEach((t) => {
-        s += `<td class="${d.tur === t ? 'val' : ''} center">${d.tur === t ? '✓' : ''}</td>`;
-      });
-      s += `</tr>`;
-      // Diğer alanlar
-      s += `<tr><td class="lbl">Performans Göstergesini Oluşturmak Esas Tahminler İçin Önemli Olduğu Bilinen Dışsal Unsurlar</td><td colspan="6">${d.dissal || ''}</td></tr>`;
-      s += `<tr><td class="lbl">Performans Göstergesinin İzlenmesinde Karşılaşılan Sorunlar</td><td colspan="6">${d.sorunlar || ''}</td></tr>`;
-      s += `<tr><td class="lbl">Performans Göstergesinin Maliyetleri</td><td colspan="6">${d.maliyetler || ''}</td></tr>`;
-      s += `<tr><td class="lbl">Performans Göstergesinin Kıyaslama Kaynakları</td><td colspan="6">${d.kiyaslama || ''}</td></tr>`;
-      s += `<tr><td class="lbl">Ölçüm Tarihi</td><td colspan="6">${d.olcumTarihi || ''}</td></tr>`;
-      s += `<tr><td class="lbl">Sonra Ölçüm Tarihi</td><td colspan="6">${d.sonrakiOlcum || ''}</td></tr>`;
-      s += `<tr><td class="lbl">Ölçüm Yapılmadıysa Gerekçeleri</td><td colspan="6">${d.gerekceler || ''}</td></tr>`;
-      return s;
-    };
-    rows += `<tr><td colspan="7" class="title">Performans Göstergesi Nitelikleri Formu</td></tr>`;
-    if (role === 'akademisyen') {
-      rows += renderForm(perfData[akadId] || {});
-    } else {
-      const akads =
-        role === 'bolumYetkilisi'
-          ? bolumAkademisyenleri
-          : AKADEMISYENLER.filter((a) => a.fakulte === FAKULTELER[0]);
-      akads.forEach((a) => {
-        const d = perfData[a.id];
-        if (d && d.gosterge) {
-          rows += `<tr><td colspan="7" class="sec">${a.ad} — ${a.bolum}</td></tr>`;
-          rows += renderForm(d);
-        }
-      });
-    }
-    const html = `<table>${rows}</table>`;
-    downloadTableAsXlsx(
-      html,
-      `Performans_Göstergesi_Tablosu_${selectedYil}_${selectedDonem}.xlsx`,
-      'Performans Tablosu'
-    );
-    flash('Performans_Göstergesi_Tablosu.xlsx indirildi');
-  };
-
-  // 4) Gösterge_Rapor_Formatı.docx
-  const exportRaporFormati = () => {
-    const akadId = role === 'akademisyen' ? selectedAkademisyen : null;
-    let body = '';
-    const renderRapor = (d, name) => {
-      let s = name ? `<h2>${name}</h2>` : '';
-      s += `<p><strong>Yıl:</strong> ${d.yil || ''} &nbsp; <strong>İdare:</strong> ${d.idare || ''} &nbsp; <strong>Merci:</strong> ${d.merci || ''} &nbsp; <strong>Dönem:</strong> ${d.donem || ''}</p>`;
-      s += `<h3>I. Tespitler</h3>`;
-      s += `<p><strong>Genel Bilgiler:</strong><br/>${(d.genelBilgiler || '').replace(/\n/g, '<br/>')}</p>`;
-      s += `<p><strong>Gerçekleşme Durumu:</strong><br/>${(d.gerceklesmeDurumu || '').replace(/\n/g, '<br/>')}</p>`;
-      s += `<p><strong>Değerlendirme:</strong><br/>${(d.degerlendirme || '').replace(/\n/g, '<br/>')}</p>`;
-      s += `<h3>II. Sonuç ve Öneriler</h3>`;
-      s += `<p>${(d.sonucOneriler || '').replace(/\n/g, '<br/>')}</p><hr/>`;
-      return s;
-    };
-    if (role === 'akademisyen') {
-      const d = raporData[akadId] || {};
-      body = `<h1>Gösterge Rapor Formatı</h1>` + renderRapor(d);
-    } else {
-      body = `<h1>Gösterge Rapor Formatı — ${role === 'bolumYetkilisi' ? 'Bölüm Özeti' : 'Fakülte Özeti'}</h1>`;
-      const akads =
-        role === 'bolumYetkilisi'
-          ? bolumAkademisyenleri
-          : AKADEMISYENLER.filter((a) => a.fakulte === FAKULTELER[0]);
-      akads.forEach((a) => {
-        const d = raporData[a.id];
-        if (d && d.genelBilgiler) body += renderRapor(d, a.ad);
-      });
-    }
-    downloadFile(docxWrap(body), 'Gösterge_Rapor_Formatı.docx', 'application/msword');
-    flash('Gösterge_Rapor_Formatı.docx indirildi');
-  };
-
-  const tabs = [
-    { label: 'Gösterge İzleme' },
-    { label: 'Hedef Değerlendirme' },
-    { label: 'Performans Formu' },
-    { label: 'Rapor Formatı' },
-  ];
 
   // ═══════════════════════════════════════════════════════
   return (
@@ -728,11 +441,10 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                 Performans Modülü
               </h1>
               <p style={{ margin: '2px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
-                Performans Bilgileri
+                Gösterge İzleme
               </p>
             </div>
           </div>
-          {/* Rol Göstergesi */}
           <div
             style={{
               padding: '6px 14px',
@@ -763,7 +475,6 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
           </div>
         )}
 
-        {/* Bölüm bilgisi (bölüm yetkilisi rolünde) */}
         {role === 'bolumYetkilisi' && (
           <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Bölüm:</span>
@@ -788,45 +499,8 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
         )}
       </div>
 
-      {/* ── Tab Bar ── */}
-      <div
-        style={{
-          display: 'flex',
-          background: C.surface,
-          borderBottom: `1px solid ${C.border}`,
-          overflowX: 'auto',
-        }}
-      >
-        {tabs.map((t, i) => (
-          <button
-            key={i}
-            onClick={() => setTab(i)}
-            style={{
-              flex: '1 1 0',
-              padding: '12px 8px',
-              border: 'none',
-              background: tab === i ? C.bg : 'transparent',
-              color: tab === i ? C.accent : C.textMuted,
-              fontSize: 11.5,
-              fontWeight: tab === i ? 700 : 500,
-              cursor: 'pointer',
-              borderBottom: tab === i ? `3px solid ${C.accent}` : '3px solid transparent',
-              transition: 'all 0.2s',
-              fontFamily: F,
-              whiteSpace: 'nowrap',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4,
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       {/* ── Content ── */}
-      <div style={{ padding: '20px 16px 40px', maxWidth: 1200, margin: '0 auto' }}>
+      <div style={{ padding: '20px 16px 40px', maxWidth: 1400, margin: '0 auto' }}>
         {loadingAkad ? (
           <div
             style={{
@@ -881,675 +555,332 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                 lineHeight: 1.6,
               }}
             >
-              Bu modülü kullanabilmek için öncelikle{' '}
-              <span style={{ color: C.accent, fontWeight: 600 }}>Akademisyenler</span> modülüne
-              kayıtlı olmanız gerekmektedir. Lütfen bölüm yetkilinizle iletişime geçin.
+              Bu modülü kullanabilmek için sistemde akademisyen olarak kayıtlı olmanız
+              gerekmektedir. Lütfen bölüm yetkilinizle iletişime geçin.
             </div>
           </div>
         ) : (
-          <>
-            {/* ════════ TAB 0: GÖSTERGE İZLEME ════════ */}
-            {tab === 0 && (
-              <div>
-                {/* ── Yıl ve Dönem Seçici (tüm roller) ── */}
-                <PeriodSelector
-                  yil={selectedYil}
-                  setYil={setSelectedYil}
-                  donem={selectedDonem}
-                  setDonem={setSelectedDonem}
-                  aylar={currentAylar}
+          <div>
+            {/* ── Yıl Seçici ── */}
+            <YearSelector yil={selectedYil} setYil={setSelectedYil} />
+
+            {/* ── AKADEMİSYEN GÖRÜNÜMÜ ── */}
+            {role === 'akademisyen' && (
+              <>
+                <Hdr
+                  title="Gösterge Verilerini Girin"
+                  sub={`${currentAkad?.ad} — ${currentAkad?.bolum} • ${selectedYil} yılı`}
+                />
+                <InfoBar
+                  color={C.yellow}
+                  text={`Seçili yılın (${selectedYil}) 12 aylık gösterge verilerinizi giriniz. Her yıl ayrı kaydedilir.`}
+                />
+                <ScrollWrap>
+                  {GOSTERGELER.map((kat, ki) => (
+                    <GostergeTable
+                      key={ki}
+                      kat={kat}
+                      aylar={AYLAR}
+                      getValue={(gId, ay) =>
+                        akademisyenData[selectedAkademisyen]?.[pKey(selectedYil, gId, ay)] || ''
+                      }
+                      setValue={(gId, ay, val) =>
+                        setAkademisyenData((p) => ({
+                          ...p,
+                          [selectedAkademisyen]: {
+                            ...(p[selectedAkademisyen] || {}),
+                            [pKey(selectedYil, gId, ay)]: val,
+                          },
+                        }))
+                      }
+                      editable
+                      inputStyle={inp}
+                    />
+                  ))}
+                </ScrollWrap>
+                <SaveSubmitBar onSave={handleSave} onSubmit={handleSubmit} submitted={submitted} />
+              </>
+            )}
+
+            {/* ── BÖLÜM YETKİLİSİ GÖRÜNÜMÜ ── */}
+            {role === 'bolumYetkilisi' && (
+              <>
+                <Hdr
+                  title="Bölüm Gösterge Özeti"
+                  sub={`${departmentInfo?.name || selectedBolum} — ${selectedYil} yılı`}
+                />
+                <InfoBar
+                  color={C.warning}
+                  text="Akademisyenlerin girdiği değerler toplanarak gösterilmektedir. Her gösterge için toplama kuralını (Topla/Sabit) ayarlayabilirsiniz."
                 />
 
-                {/* ── AKADEMİSYEN GÖRÜNÜMÜ ── */}
-                {role === 'akademisyen' && (
-                  <>
-                    <Hdr
-                      title="Gösterge Verilerini Girin"
-                      sub={`${currentAkad?.ad} — ${currentAkad?.bolum} • ${selectedYil} / ${currentDonemDetay.label}`}
-                    />
-                    <InfoBar
-                      color={C.yellow}
-                      text={`Seçili dönemin (${currentDonemDetay.label}) aylık gösterge verilerinizi giriniz. Her dönem ayrı kaydedilir.`}
-                    />
-                    {GOSTERGELER.map((kat, ki) => (
-                      <GostergeTable
-                        key={ki}
-                        kat={kat}
-                        aylar={currentAylar}
-                        getValue={(gId, ay) =>
-                          akademisyenData[selectedAkademisyen]?.[`${periodKey}_${gId}_${ay}`] || ''
-                        }
-                        setValue={(gId, ay, val) =>
-                          setAkademisyenData((p) => ({
-                            ...p,
-                            [selectedAkademisyen]: {
-                              ...(p[selectedAkademisyen] || {}),
-                              [`${periodKey}_${gId}_${ay}`]: val,
-                            },
-                          }))
-                        }
-                        editable
-                        inputStyle={inp}
-                      />
-                    ))}
-                    <SaveSubmitBar
-                      onSave={handleSave}
-                      onSubmit={() => handleSubmit(0)}
-                      submitted={submittedTabs[0]}
-                    />
-                  </>
-                )}
-
-                {/* ── BÖLÜM YETKİLİSİ GÖRÜNÜMÜ ── */}
-                {role === 'bolumYetkilisi' && (
-                  <>
-                    <Hdr
-                      title="Bölüm Gösterge Özeti"
-                      sub={`${selectedBolum} — ${selectedYil} / ${currentDonemDetay.label}`}
-                    />
-                    <InfoBar
-                      color={C.warning}
-                      text="Akademisyenlerin girdiği değerler toplanarak gösterilmektedir. Her gösterge için toplama kuralını (Topla/Sabit) ayarlayabilirsiniz."
-                    />
-
-                    {/* Akademisyen bazlı detay */}
-                    {bolumAkademisyenleri.map((akad) => (
-                      <div key={akad.id} style={{ marginBottom: 18 }}>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: C.accent,
-                            padding: '8px 12px',
-                            background: C.accentGlow,
-                            borderRadius: 8,
-                            marginBottom: 4,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                          }}
-                        >
-                          {akad.ad}
-                        </div>
-                        {GOSTERGELER.map((kat, ki) => (
-                          <GostergeTable
-                            key={ki}
-                            kat={kat}
-                            aylar={currentAylar}
-                            compact
-                            getValue={(gId, ay) =>
-                              akademisyenData[akad.id]?.[`${periodKey}_${gId}_${ay}`] || ''
-                            }
-                            editable={false}
-                          />
-                        ))}
-                      </div>
-                    ))}
-
-                    {/* Toplam satırı */}
-                    <div
-                      style={{ marginTop: 20, borderTop: `2px solid ${C.warning}`, paddingTop: 16 }}
-                    >
+                {/* Akademisyen bazlı detay */}
+                <ScrollWrap>
+                  {bolumAkademisyenleri.map((akad) => (
+                    <div key={akad.id} style={{ marginBottom: 18 }}>
                       <div
                         style={{
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color: C.warning,
-                          marginBottom: 12,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: C.accent,
+                          padding: '8px 12px',
+                          background: C.accentGlow,
+                          borderRadius: 8,
+                          marginBottom: 4,
                         }}
                       >
-                        BÖLÜM TOPLAM DEĞERLERİ
+                        {akad.ad}
                       </div>
                       {GOSTERGELER.map((kat, ki) => (
-                        <div key={ki} style={{ marginBottom: 16 }}>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              color: C.accent,
-                              textTransform: 'uppercase',
-                              marginBottom: 4,
-                              padding: '6px 10px',
-                              background: C.accentGlow,
-                              borderRadius: 6,
-                            }}
-                          >
-                            {kat.kategori}
-                          </div>
-                          <table
-                            style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}
-                          >
-                            <thead>
-                              <tr>
-                                <th style={th}>Gösterge</th>
-                                <th style={{ ...th, width: 50, textAlign: 'center' }}>Birim</th>
-                                <th style={{ ...th, width: 75, textAlign: 'center' }}>Kural</th>
-                                {currentAylar.map((a) => (
-                                  <th key={a} style={{ ...th, width: 90, textAlign: 'center' }}>
-                                    {a}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {kat.gostergeler.map((g) => {
-                                const currentAgg = aggOverrides[g.id] || g.aggType;
-                                return (
-                                  <tr key={g.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                                    <td style={{ ...td, paddingLeft: 8 }}>
-                                      <div
-                                        style={{ display: 'flex', alignItems: 'center', gap: 5 }}
-                                      >
-                                        <span
-                                          style={{
-                                            width: 7,
-                                            height: 7,
-                                            borderRadius: 2,
-                                            background: C.yellow,
-                                            display: 'inline-block',
-                                            flexShrink: 0,
-                                          }}
-                                        />
-                                        {g.ad}
-                                      </div>
-                                    </td>
-                                    <td
-                                      style={{
-                                        ...td,
-                                        textAlign: 'center',
-                                        fontSize: 10,
-                                        color: C.textDim,
-                                      }}
-                                    >
-                                      {g.birim}
-                                    </td>
-                                    <td style={{ ...td, textAlign: 'center', padding: 3 }}>
-                                      <select
-                                        value={currentAgg}
-                                        onChange={(e) =>
-                                          setAggOverrides((p) => ({ ...p, [g.id]: e.target.value }))
-                                        }
-                                        style={{
-                                          ...inpF,
-                                          padding: '3px 4px',
-                                          fontSize: 10,
-                                          width: '100%',
-                                          textAlign: 'center',
-                                        }}
-                                      >
-                                        <option value="sum">Topla</option>
-                                        <option value="fixed">Sabit</option>
-                                      </select>
-                                    </td>
-                                    {currentAylar.map((a) => (
-                                      <td
-                                        key={a}
-                                        style={{
-                                          ...td,
-                                          textAlign: 'center',
-                                          fontWeight: 700,
-                                          color: C.warning,
-                                          fontSize: 13,
-                                        }}
-                                      >
-                                        {calcBolumToplam(g.id, a)}
-                                      </td>
-                                    ))}
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
+                        <GostergeTable
+                          key={ki}
+                          kat={kat}
+                          aylar={AYLAR}
+                          compact
+                          getValue={(gId, ay) =>
+                            akademisyenData[akad.id]?.[pKey(selectedYil, gId, ay)] || ''
+                          }
+                          editable={false}
+                        />
                       ))}
                     </div>
-                  </>
-                )}
+                  ))}
+                </ScrollWrap>
 
-                {/* ── FAKÜLTE YETKİLİSİ GÖRÜNÜMÜ ── */}
-                {role === 'fakulteYetkilisi' && (
-                  <>
-                    <Hdr
-                      title="Fakülte Genel Toplam"
-                      sub={`Tüm bölümlerden gelen toplam değerler — ${selectedYil} / ${currentDonemDetay.label}`}
-                    />
-                    <InfoBar
-                      color={C.purple}
-                      text="Her bölümden gelen toplam değerler fakülte düzeyinde birleştirilmiştir."
-                    />
-
-                    {/* Fakülte toplam */}
-                    <div
-                      style={{ marginTop: 16, borderTop: `2px solid ${C.purple}`, paddingTop: 14 }}
-                    >
-                      <div
-                        style={{ fontSize: 14, fontWeight: 700, color: C.purple, marginBottom: 10 }}
-                      >
-                        FAKÜLTE GENEL TOPLAM
-                      </div>
-                      {GOSTERGELER.map((kat, ki) => (
-                        <div key={ki} style={{ marginBottom: 10 }}>
-                          <div
-                            style={{
-                              fontSize: 10.5,
-                              fontWeight: 700,
-                              color: C.accent,
-                              textTransform: 'uppercase',
-                              marginBottom: 3,
-                              padding: '5px 8px',
-                              background: C.accentGlow,
-                              borderRadius: 5,
-                            }}
-                          >
-                            {kat.kategori}
-                          </div>
-                          <table
-                            style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}
-                          >
-                            <thead>
-                              <tr>
-                                <th style={th}>Gösterge</th>
-                                {currentAylar.map((a) => (
-                                  <th key={a} style={{ ...th, width: 90, textAlign: 'center' }}>
-                                    {a}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {kat.gostergeler.map((g) => (
+                {/* Toplam satırı */}
+                <div style={{ marginTop: 20, borderTop: `2px solid ${C.warning}`, paddingTop: 16 }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: C.warning,
+                      marginBottom: 12,
+                    }}
+                  >
+                    BÖLÜM TOPLAM DEĞERLERİ — {selectedYil}
+                  </div>
+                  <ScrollWrap>
+                    {GOSTERGELER.map((kat, ki) => (
+                      <div key={ki} style={{ marginBottom: 16 }}>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: C.accent,
+                            textTransform: 'uppercase',
+                            marginBottom: 4,
+                            padding: '6px 10px',
+                            background: C.accentGlow,
+                            borderRadius: 6,
+                          }}
+                        >
+                          {kat.kategori}
+                        </div>
+                        <table
+                          style={{
+                            width: '100%',
+                            borderCollapse: 'collapse',
+                            fontSize: 12,
+                            minWidth: 1100,
+                          }}
+                        >
+                          <thead>
+                            <tr>
+                              <th style={{ ...th, minWidth: 220 }}>Gösterge</th>
+                              <th style={{ ...th, width: 50, textAlign: 'center' }}>Birim</th>
+                              <th style={{ ...th, width: 75, textAlign: 'center' }}>Kural</th>
+                              {AYLAR.map((a) => (
+                                <th key={a} style={{ ...th, width: 62, textAlign: 'center' }}>
+                                  {a.slice(0, 3)}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {kat.gostergeler.map((g) => {
+                              const currentAgg = aggOverrides[g.id] || g.aggType;
+                              return (
                                 <tr key={g.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                                  <td style={{ ...td, paddingLeft: 8 }}>{g.ad}</td>
-                                  {currentAylar.map((a) => (
+                                  <td style={{ ...td, paddingLeft: 8 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                      <span
+                                        style={{
+                                          width: 7,
+                                          height: 7,
+                                          borderRadius: 2,
+                                          background: C.yellow,
+                                          display: 'inline-block',
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                      {g.ad}
+                                    </div>
+                                  </td>
+                                  <td
+                                    style={{
+                                      ...td,
+                                      textAlign: 'center',
+                                      fontSize: 10,
+                                      color: C.textDim,
+                                    }}
+                                  >
+                                    {g.birim}
+                                  </td>
+                                  <td style={{ ...td, textAlign: 'center', padding: 3 }}>
+                                    <select
+                                      value={currentAgg}
+                                      onChange={(e) =>
+                                        setAggOverrides((p) => ({ ...p, [g.id]: e.target.value }))
+                                      }
+                                      style={{
+                                        ...inpF,
+                                        padding: '3px 4px',
+                                        fontSize: 10,
+                                        width: '100%',
+                                        textAlign: 'center',
+                                      }}
+                                    >
+                                      <option value="sum">Topla</option>
+                                      <option value="fixed">Sabit</option>
+                                    </select>
+                                  </td>
+                                  {AYLAR.map((a) => (
                                     <td
                                       key={a}
                                       style={{
                                         ...td,
                                         textAlign: 'center',
                                         fontWeight: 700,
-                                        color: C.purple,
-                                        fontSize: 13,
+                                        color: C.warning,
+                                        fontSize: 12,
                                       }}
                                     >
-                                      {calcFakulteToplam(g.id, a)}
+                                      {calcBolumToplam(g.id, a)}
                                     </td>
                                   ))}
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </ScrollWrap>
+                </div>
+              </>
             )}
 
-            {/* ════════ TAB 1: HEDEF DEĞERLENDİRME ════════ */}
-            {tab === 1 && (
-              <div>
-                {role === 'akademisyen' && (
-                  <>
-                    <Hdr title="Hedef Değerlendirmeleri" sub={`${currentAkad?.ad}`} />
-                    {HEDEFLER.map((h, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          background: C.surface,
-                          border: `1px solid ${C.border}`,
-                          borderRadius: 10,
-                          padding: 16,
-                          marginBottom: 12,
-                        }}
-                      >
+            {/* ── FAKÜLTE YETKİLİSİ GÖRÜNÜMÜ ── */}
+            {role === 'fakulteYetkilisi' && (
+              <>
+                <Hdr
+                  title="Fakülte Genel Toplam"
+                  sub={`Tüm bölümlerden gelen toplam değerler — ${selectedYil} yılı`}
+                />
+                <InfoBar
+                  color={C.purple}
+                  text="Her bölümden gelen toplam değerler fakülte düzeyinde birleştirilmiştir."
+                />
+
+                <div style={{ marginTop: 16, borderTop: `2px solid ${C.purple}`, paddingTop: 14 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.purple, marginBottom: 10 }}>
+                    FAKÜLTE GENEL TOPLAM — {selectedYil}
+                  </div>
+                  <ScrollWrap>
+                    {GOSTERGELER.map((kat, ki) => (
+                      <div key={ki} style={{ marginBottom: 10 }}>
                         <div
                           style={{
-                            fontSize: 11.5,
+                            fontSize: 10.5,
                             fontWeight: 700,
                             color: C.accent,
                             textTransform: 'uppercase',
+                            marginBottom: 3,
+                            padding: '5px 8px',
+                            background: C.accentGlow,
+                            borderRadius: 5,
                           }}
                         >
-                          {h.hedef}
+                          {kat.kategori}
                         </div>
-                        <div
+                        <table
                           style={{
-                            fontSize: 11,
-                            color: C.textMuted,
-                            marginBottom: 10,
-                            marginTop: 2,
+                            width: '100%',
+                            borderCollapse: 'collapse',
+                            fontSize: 12,
+                            minWidth: 1000,
                           }}
                         >
-                          {h.alt}
-                        </div>
-                        <textarea
-                          value={hedefData[selectedAkademisyen]?.[i] || ''}
-                          onChange={(e) =>
-                            setHedefData((p) => ({
-                              ...p,
-                              [selectedAkademisyen]: {
-                                ...(p[selectedAkademisyen] || {}),
-                                [i]: e.target.value,
-                              },
-                            }))
-                          }
-                          rows={3}
-                          placeholder="Değerlendirmenizi yazınız..."
-                          style={txa}
-                        />
+                          <thead>
+                            <tr>
+                              <th style={{ ...th, minWidth: 220 }}>Gösterge</th>
+                              {AYLAR.map((a) => (
+                                <th key={a} style={{ ...th, width: 62, textAlign: 'center' }}>
+                                  {a.slice(0, 3)}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {kat.gostergeler.map((g) => (
+                              <tr key={g.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                                <td style={{ ...td, paddingLeft: 8 }}>{g.ad}</td>
+                                {AYLAR.map((a) => (
+                                  <td
+                                    key={a}
+                                    style={{
+                                      ...td,
+                                      textAlign: 'center',
+                                      fontWeight: 700,
+                                      color: C.purple,
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    {calcFakulteToplam(g.id, a)}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     ))}
-                    <SaveSubmitBar
-                      onSave={handleSave}
-                      onSubmit={() => handleSubmit(1)}
-                      submitted={submittedTabs[1]}
-                    />
-                  </>
-                )}
-                {(role === 'bolumYetkilisi' || role === 'fakulteYetkilisi') && (
-                  <>
-                    <Hdr
-                      title={`Hedef Değerlendirmeleri — ${role === 'bolumYetkilisi' ? 'Bölüm Özeti' : 'Fakülte Özeti'}`}
-                      sub="Akademisyenlerin girdiği değerlendirmeler"
-                    />
-                    {HEDEFLER.map((h, i) => {
-                      const akads =
-                        role === 'bolumYetkilisi'
-                          ? bolumAkademisyenleri
-                          : AKADEMISYENLER.filter((a) => a.fakulte === FAKULTELER[0]);
-                      return (
-                        <div
-                          key={i}
-                          style={{
-                            background: C.surface,
-                            border: `1px solid ${C.border}`,
-                            borderRadius: 10,
-                            padding: 16,
-                            marginBottom: 12,
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 11.5,
-                              fontWeight: 700,
-                              color: C.accent,
-                              textTransform: 'uppercase',
-                            }}
-                          >
-                            {h.hedef}
-                          </div>
-                          {akads.map((a) => {
-                            const val = hedefData[a.id]?.[i];
-                            if (!val) return null;
-                            return (
-                              <div
-                                key={a.id}
-                                style={{
-                                  marginTop: 8,
-                                  padding: '8px 10px',
-                                  background: C.surfaceAlt,
-                                  borderRadius: 6,
-                                  border: `1px solid ${C.border}`,
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    color: C.accent,
-                                    marginBottom: 3,
-                                  }}
-                                >
-                                  {a.ad}
-                                </div>
-                                <div style={{ fontSize: 12, color: C.text, lineHeight: 1.4 }}>
-                                  {val}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* ════════ TAB 2: PERFORMANS FORMU ════════ */}
-            {tab === 2 && (
-              <div>
-                {role === 'akademisyen' && (
-                  <>
-                    <Hdr title="Performans Göstergesi Nitelikleri" sub={`${currentAkad?.ad}`} />
-                    <PerfForm
-                      data={perfData[selectedAkademisyen] || {}}
-                      setData={(d) => setPerfData((p) => ({ ...p, [selectedAkademisyen]: d }))}
-                    />
-                    <SaveSubmitBar
-                      onSave={handleSave}
-                      onSubmit={() => handleSubmit(2)}
-                      submitted={submittedTabs[2]}
-                    />
-                  </>
-                )}
-                {(role === 'bolumYetkilisi' || role === 'fakulteYetkilisi') && (
-                  <>
-                    <Hdr
-                      title={`Performans Formları — ${role === 'bolumYetkilisi' ? 'Bölüm' : 'Fakülte'}`}
-                      sub="Akademisyenlerin doldurduğu formlar"
-                    />
-                    {(role === 'bolumYetkilisi'
-                      ? bolumAkademisyenleri
-                      : AKADEMISYENLER.filter((a) => a.fakulte === FAKULTELER[0])
-                    ).map((a) => {
-                      const d = perfData[a.id];
-                      if (!d || !d.gosterge) return null;
-                      return (
-                        <div
-                          key={a.id}
-                          style={{
-                            background: C.surface,
-                            border: `1px solid ${C.border}`,
-                            borderRadius: 10,
-                            padding: 16,
-                            marginBottom: 12,
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: C.accent,
-                              marginBottom: 8,
-                            }}
-                          >
-                            {a.ad} — {a.bolum}
-                          </div>
-                          <div
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: '1fr 1fr',
-                              gap: 8,
-                              fontSize: 12,
-                            }}
-                          >
-                            <div>
-                              <span style={{ color: C.textDim }}>Gösterge:</span> {d.gosterge}
-                            </div>
-                            <div>
-                              <span style={{ color: C.textDim }}>Dönem:</span> {d.donem}
-                            </div>
-                            <div>
-                              <span style={{ color: C.textDim }}>Tür:</span> {d.tur}
-                            </div>
-                            <div>
-                              <span style={{ color: C.textDim }}>Ölçüm Tarihi:</span>{' '}
-                              {d.olcumTarihi}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* ════════ TAB 3: RAPOR FORMATI ════════ */}
-            {tab === 3 && (
-              <div>
-                {role === 'akademisyen' && (
-                  <>
-                    <Hdr title="Rapor Formatı" sub={`${currentAkad?.ad}`} />
-                    <RaporForm
-                      data={raporData[selectedAkademisyen] || { yil: '2026', donem: 'I. Dönem' }}
-                      setData={(d) => setRaporData((p) => ({ ...p, [selectedAkademisyen]: d }))}
-                    />
-                    <SaveSubmitBar
-                      onSave={handleSave}
-                      onSubmit={() => handleSubmit(3)}
-                      submitted={submittedTabs[3]}
-                    />
-                  </>
-                )}
-                {(role === 'bolumYetkilisi' || role === 'fakulteYetkilisi') && (
-                  <>
-                    <Hdr
-                      title={`Raporlar — ${role === 'bolumYetkilisi' ? 'Bölüm' : 'Fakülte'}`}
-                      sub="Akademisyenlerin doldurduğu raporlar"
-                    />
-                    {(role === 'bolumYetkilisi'
-                      ? bolumAkademisyenleri
-                      : AKADEMISYENLER.filter((a) => a.fakulte === FAKULTELER[0])
-                    ).map((a) => {
-                      const d = raporData[a.id];
-                      if (!d || !d.genelBilgiler) return null;
-                      return (
-                        <div
-                          key={a.id}
-                          style={{
-                            background: C.surface,
-                            border: `1px solid ${C.border}`,
-                            borderRadius: 10,
-                            padding: 16,
-                            marginBottom: 12,
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: C.accent,
-                              marginBottom: 6,
-                            }}
-                          >
-                            {a.ad} — {a.bolum}
-                          </div>
-                          <div style={{ fontSize: 11, color: C.textDim }}>
-                            Yıl: {d.yil} | Dönem: {d.donem} | İdare: {d.idare}
-                          </div>
-                          <div
-                            style={{
-                              marginTop: 6,
-                              fontSize: 12,
-                              color: C.text,
-                              lineHeight: 1.4,
-                              maxHeight: 80,
-                              overflow: 'hidden',
-                            }}
-                          >
-                            {d.genelBilgiler?.substring(0, 200)}
-                            {d.genelBilgiler?.length > 200 ? '...' : ''}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Export bar — yalnızca bölüm/fakülte yetkililerine açık */}
-            {(role === 'bolumYetkilisi' || role === 'fakulteYetkilisi') && (
-              <div style={{ marginTop: 24, padding: '16px 0', borderTop: `1px solid ${C.border}` }}>
-                {toast && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: C.success,
-                      fontWeight: 600,
-                      marginBottom: 10,
-                      textAlign: 'center',
-                    }}
-                  >
-                    {toast}
-                  </div>
-                )}
-                <div
-                  style={{
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    color: C.textMuted,
-                    marginBottom: 10,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.3,
-                  }}
-                >
-                  Dışa Aktar
+                  </ScrollWrap>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <button onClick={exportGostergeIzleme} style={exportBtn}>
-                    Gösterge_İzleme.xlsx
-                  </button>
-                  <button onClick={exportHedefDegerlendirmeler} style={exportBtn}>
-                    Hedef_Değerlendirmeler.xlsx
-                  </button>
-                  <button onClick={exportPerformansTablosu} style={exportBtn}>
-                    Performans_Göstergesi_Tablosu.xlsx
-                  </button>
-                  <button
-                    onClick={exportRaporFormati}
-                    style={{
-                      ...exportBtn,
-                      background: `linear-gradient(135deg, ${C.success}, #1B5E3B)`,
-                    }}
-                  >
-                    Gösterge_Rapor_Formatı.docx
-                  </button>
-                </div>
-              </div>
+              </>
             )}
-            {/* Akademisyen için sadece toast bildirimi */}
-            {role === 'akademisyen' && toast && (
-              <div
-                style={{
-                  marginTop: 16,
-                  padding: '10px 14px',
-                  background: C.successDim,
-                  border: `1px solid ${C.success}`,
-                  borderRadius: 8,
-                  fontSize: 12,
-                  color: C.success,
-                  fontWeight: 600,
-                  textAlign: 'center',
-                }}
-              >
-                {toast}
-              </div>
-            )}
-          </>
+          </div>
         )}
       </div>
+
+      {/* Toast */}
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: C.accent,
+            color: '#fff',
+            padding: '10px 22px',
+            borderRadius: 8,
+            fontSize: 12.5,
+            fontWeight: 600,
+            zIndex: 1000,
+            fontFamily: F,
+            boxShadow: '0 6px 20px rgba(0,0,0,0.15)',
+          }}
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
 
-// ── Alt Bileşenler ──
+// ═════════════ Alt Bileşenler ═════════════
+
 function Hdr({ title, sub }) {
   return (
     <div style={{ marginBottom: 16 }}>
@@ -1588,6 +919,23 @@ function InfoBar({ color, text }) {
   );
 }
 
+// 12 sütun geniş olduğu için tabloları saran yatay-scroll kutusu
+function ScrollWrap({ children }) {
+  return (
+    <div
+      style={{
+        overflowX: 'auto',
+        border: `1px solid ${C.borderLight}`,
+        borderRadius: 8,
+        background: C.surface,
+        padding: 10,
+      }}
+    >
+      <div style={{ minWidth: 1100 }}>{children}</div>
+    </div>
+  );
+}
+
 function GostergeTable({
   kat,
   aylar,
@@ -1597,10 +945,6 @@ function GostergeTable({
   inputStyle,
   compact = false,
 }) {
-  // Sabit sütun genişlikleri — tüm akademisyenlerde aynı hizalama için
-  const adW = compact ? '60%' : '55%';
-  const birimW = compact ? null : '70px';
-  const ayW = compact ? `${Math.floor(40 / aylar.length)}%` : '100px';
   return (
     <div style={{ marginBottom: compact ? 6 : 20 }}>
       {!compact && (
@@ -1638,10 +982,10 @@ function GostergeTable({
         }}
       >
         <colgroup>
-          <col style={{ width: adW }} />
-          {!compact && <col style={{ width: birimW }} />}
+          <col style={{ width: compact ? 260 : 240 }} />
+          {!compact && <col style={{ width: 55 }} />}
           {aylar.map((a) => (
-            <col key={a} style={{ width: ayW }} />
+            <col key={a} style={{ width: 62 }} />
           ))}
         </colgroup>
         {!compact && (
@@ -1651,7 +995,7 @@ function GostergeTable({
               <th style={{ ...th, textAlign: 'center' }}>Birim</th>
               {aylar.map((a) => (
                 <th key={a} style={{ ...th, textAlign: 'center' }}>
-                  {a}
+                  {a.slice(0, 3)}
                 </th>
               ))}
             </tr>
@@ -1666,7 +1010,6 @@ function GostergeTable({
                   paddingLeft: 8,
                   fontSize: compact ? 11 : 12,
                   overflow: 'hidden',
-                  textOverflow: 'ellipsis',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -1680,11 +1023,7 @@ function GostergeTable({
                       flexShrink: 0,
                     }}
                   />
-                  <span
-                    style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  >
-                    {g.ad}
-                  </span>
+                  <span style={{ whiteSpace: 'normal', lineHeight: 1.3 }}>{g.ad}</span>
                 </div>
               </td>
               {!compact && (
@@ -1707,9 +1046,6 @@ function GostergeTable({
                       style={{
                         color: getValue(g.id, a) ? C.text : C.textDim,
                         fontWeight: getValue(g.id, a) ? 600 : 400,
-                        display: 'inline-block',
-                        minWidth: 30,
-                        textAlign: 'center',
                       }}
                     >
                       {getValue(g.id, a) || '—'}
@@ -1725,222 +1061,7 @@ function GostergeTable({
   );
 }
 
-function PerfForm({ data, setData }) {
-  const up = (k, v) => setData({ ...data, [k]: v });
-  return (
-    <div
-      style={{
-        background: C.surface,
-        border: `1px solid ${C.border}`,
-        borderRadius: 10,
-        padding: 20,
-      }}
-    >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-        <div>
-          <label style={lbl}>Performans Göstergesi</label>
-          <input
-            type="text"
-            value={data.gosterge || ''}
-            onChange={(e) => up('gosterge', e.target.value)}
-            style={inpF}
-            placeholder="Gösterge adını yazın"
-          />
-        </div>
-        <div>
-          <label style={lbl}>Değerlendirme Dönemi</label>
-          <select
-            value={data.donem || ''}
-            onChange={(e) => up('donem', e.target.value)}
-            style={inpF}
-          >
-            <option value="">Seçiniz</option>
-            {DONEMLER.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <label style={lbl}>Gösterge Türü</label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 14 }}>
-        {GOSTERGE_TURLERI.map((t) => (
-          <button
-            key={t}
-            onClick={() => up('tur', t)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              border: `1px solid ${data.tur === t ? C.accent : C.border}`,
-              background: data.tur === t ? C.accentGlow : 'transparent',
-              color: data.tur === t ? C.accent : C.textMuted,
-              fontSize: 11.5,
-              cursor: 'pointer',
-              fontFamily: F,
-              fontWeight: data.tur === t ? 600 : 400,
-            }}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-      {[
-        { k: 'dissal', l: 'Dışsal Unsurlar' },
-        { k: 'sorunlar', l: 'Sorunlar/Zorluklar' },
-        { k: 'maliyetler', l: 'Maliyetler' },
-        { k: 'kiyaslama', l: 'Kıyaslama Kaynakları' },
-      ].map((f) => (
-        <div key={f.k} style={{ marginBottom: 12 }}>
-          <label style={lbl}>{f.l}</label>
-          <textarea
-            value={data[f.k] || ''}
-            onChange={(e) => up(f.k, e.target.value)}
-            rows={2}
-            style={txa}
-            placeholder="Bilgi giriniz..."
-          />
-        </div>
-      ))}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-        <div>
-          <label style={lbl}>Ölçüm Tarihi</label>
-          <input
-            type="date"
-            value={data.olcumTarihi || ''}
-            onChange={(e) => up('olcumTarihi', e.target.value)}
-            style={inpF}
-          />
-        </div>
-        <div>
-          <label style={lbl}>Sonraki Ölçüm</label>
-          <input
-            type="date"
-            value={data.sonrakiOlcum || ''}
-            onChange={(e) => up('sonrakiOlcum', e.target.value)}
-            style={inpF}
-          />
-        </div>
-      </div>
-      <label style={lbl}>Ölçüm Yapılmadıysa Gerekçeleri</label>
-      <textarea
-        value={data.gerekceler || ''}
-        onChange={(e) => up('gerekceler', e.target.value)}
-        rows={2}
-        style={txa}
-        placeholder="Gerekçeleri yazınız..."
-      />
-    </div>
-  );
-}
-
-function RaporForm({ data, setData }) {
-  const up = (k, v) => setData({ ...data, [k]: v });
-  return (
-    <div
-      style={{
-        background: C.surface,
-        border: `1px solid ${C.border}`,
-        borderRadius: 10,
-        padding: 20,
-      }}
-    >
-      <div
-        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}
-      >
-        <div>
-          <label style={lbl}>Yıl</label>
-          <input
-            type="text"
-            value={data.yil || '2026'}
-            onChange={(e) => up('yil', e.target.value)}
-            style={inpF}
-          />
-        </div>
-        <div>
-          <label style={lbl}>İdare Adı</label>
-          <input
-            type="text"
-            value={data.idare || ''}
-            onChange={(e) => up('idare', e.target.value)}
-            style={inpF}
-            placeholder="İdare adı"
-          />
-        </div>
-        <div>
-          <label style={lbl}>Merci</label>
-          <input
-            type="text"
-            value={data.merci || ''}
-            onChange={(e) => up('merci', e.target.value)}
-            style={inpF}
-            placeholder="Merci"
-          />
-        </div>
-      </div>
-      <label style={lbl}>Dönem</label>
-      <div style={{ display: 'flex', gap: 5, marginBottom: 18 }}>
-        {DONEMLER.map((d) => (
-          <button
-            key={d}
-            onClick={() => up('donem', d)}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 6,
-              border: `1px solid ${data.donem === d ? C.accent : C.border}`,
-              background: data.donem === d ? C.accentGlow : 'transparent',
-              color: data.donem === d ? C.accent : C.textMuted,
-              fontSize: 11.5,
-              cursor: 'pointer',
-              fontFamily: F,
-              fontWeight: data.donem === d ? 600 : 400,
-            }}
-          >
-            {d}
-          </button>
-        ))}
-      </div>
-      <div style={{ borderLeft: `3px solid ${C.accent}`, paddingLeft: 12, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 10 }}>
-          I. Tespitler
-        </div>
-        {[
-          { k: 'genelBilgiler', l: 'Genel Bilgiler' },
-          { k: 'gerceklesmeDurumu', l: 'Gerçekleşme Durumu' },
-          { k: 'degerlendirme', l: 'Değerlendirme' },
-        ].map((f) => (
-          <div key={f.k} style={{ marginBottom: 10 }}>
-            <label style={lbl}>{f.l}</label>
-            <textarea
-              value={data[f.k] || ''}
-              onChange={(e) => up(f.k, e.target.value)}
-              rows={3}
-              style={txa}
-              placeholder="Bilgi giriniz..."
-            />
-          </div>
-        ))}
-      </div>
-      <div style={{ borderLeft: `3px solid ${C.success}`, paddingLeft: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 8 }}>
-          II. Sonuç ve Öneriler
-        </div>
-        <textarea
-          value={data.sonucOneriler || ''}
-          onChange={(e) => up('sonucOneriler', e.target.value)}
-          rows={4}
-          style={txa}
-          placeholder="Sonuç ve önerilerinizi yazınız..."
-        />
-      </div>
-    </div>
-  );
-}
-
-function PeriodSelector({ yil, setYil, donem, setDonem, aylar }) {
-  const currentYear = new Date().getFullYear();
-  const yillar = [];
-  for (let y = currentYear - 2; y <= currentYear + 2; y++) yillar.push(String(y));
+function YearSelector({ yil, setYil }) {
   return (
     <div
       style={{
@@ -1971,61 +1092,27 @@ function PeriodSelector({ yil, setYil, donem, setDonem, aylar }) {
           value={yil}
           onChange={(e) => setYil(e.target.value)}
           style={{
-            padding: '6px 10px',
+            padding: '6px 12px',
             borderRadius: 6,
             border: `1px solid ${C.border}`,
             background: C.surfaceAlt,
             color: C.accent,
-            fontSize: 12.5,
-            fontWeight: 600,
+            fontSize: 13,
+            fontWeight: 700,
             fontFamily: F,
             outline: 'none',
             cursor: 'pointer',
           }}
         >
-          {yillar.map((y) => (
+          {YILLAR.map((y) => (
             <option key={y} value={y}>
               {y}
             </option>
           ))}
         </select>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            color: C.textMuted,
-            textTransform: 'uppercase',
-            letterSpacing: 0.4,
-            marginRight: 4,
-          }}
-        >
-          Dönem
-        </span>
-        {DONEMLER_DETAY.map((d) => (
-          <button
-            key={d.id}
-            onClick={() => setDonem(d.id)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              border: `1px solid ${donem === d.id ? C.accent : C.border}`,
-              background: donem === d.id ? C.accent : 'transparent',
-              color: donem === d.id ? '#fff' : C.textMuted,
-              fontSize: 11.5,
-              fontWeight: donem === d.id ? 700 : 500,
-              cursor: 'pointer',
-              fontFamily: F,
-              transition: 'all 0.15s',
-            }}
-          >
-            {d.label}
-          </button>
-        ))}
-      </div>
       <div style={{ marginLeft: 'auto', fontSize: 11, color: C.textDim, fontStyle: 'italic' }}>
-        {aylar.join(' • ')}
+        12 aylık gösterge tablosu ({AYLAR.map((a) => a.slice(0, 3)).join(' • ')})
       </div>
     </div>
   );
@@ -2099,18 +1186,9 @@ const th = {
   background: C.surface,
 };
 const td = { padding: '6px', fontSize: 12, color: C.text, lineHeight: 1.3 };
-const lbl = {
-  display: 'block',
-  fontSize: 11,
-  fontWeight: 600,
-  color: C.textMuted,
-  marginBottom: 4,
-  textTransform: 'uppercase',
-  letterSpacing: 0.3,
-};
 const inp = {
   width: '100%',
-  padding: '5px 6px',
+  padding: '5px 4px',
   borderRadius: 5,
   border: `1px solid ${C.yellowBorder}`,
   background: C.yellowDim,
@@ -2132,32 +1210,6 @@ const inpF = {
   fontFamily: F,
   outline: 'none',
   boxSizing: 'border-box',
-};
-const txa = {
-  width: '100%',
-  padding: '8px 10px',
-  borderRadius: 6,
-  border: `1px solid ${C.border}`,
-  background: C.surfaceAlt,
-  color: C.text,
-  fontSize: 12,
-  fontFamily: F,
-  outline: 'none',
-  resize: 'vertical',
-  boxSizing: 'border-box',
-  lineHeight: 1.5,
-};
-const exportBtn = {
-  padding: '9px 16px',
-  borderRadius: 8,
-  border: 'none',
-  background: `linear-gradient(135deg, ${C.accent}, ${C.accentDark})`,
-  color: '#fff',
-  fontSize: 11.5,
-  fontWeight: 600,
-  cursor: 'pointer',
-  fontFamily: F,
-  whiteSpace: 'nowrap',
 };
 
 // ── Global window export (app-shell lazy loader için) ──
