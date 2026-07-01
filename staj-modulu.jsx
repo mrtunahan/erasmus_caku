@@ -328,6 +328,9 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
     const stepData = roadmapData?.steps?.[stepIdx];
     if (stepData?.status === 'completed') return 'completed';
     if (stepData?.status === 'pending_approval') return 'pending_approval';
+    // REDDEDİLDİ: öğrenci belgeyi düzeltip adımı yeniden tamamlayabilmeli.
+    // Adım 'current' konumuna geri döner (buton aktif).
+    if (stepData?.status === 'rejected') return 'current';
 
     // İlk adım her zaman current (onay sonrası)
     if (stepIdx === 0 && !stepData?.status) return 'current';
@@ -629,6 +632,44 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
                   color="#1E40AF"
                 />
                 Yetkili onayı bekleniyor...
+              </div>
+            )}
+
+            {/* Reddedildi — öğrenci yeniden yükleyip tamamlayabilir */}
+            {step._stepData?.status === 'rejected' && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: '8px 12px',
+                  borderRadius: 6,
+                  background: '#FEE2E2',
+                  border: '1px solid #FCA5A5',
+                  fontSize: 12,
+                  color: '#991B1B',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 6,
+                }}
+              >
+                <StajIcon
+                  path="M12 9v2m0 4h.01M4.93 19h14.14c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.2 16c-.77 1.33.19 3 1.73 3z"
+                  size={14}
+                  color="#991B1B"
+                />
+                <div>
+                  <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                    Adım reddedildi
+                    {step._stepData.rejectedBy ? ' — ' + step._stepData.rejectedBy : ''}
+                    {step._stepData.rejectedAt
+                      ? ' · ' + new Date(step._stepData.rejectedAt).toLocaleDateString('tr-TR')
+                      : ''}
+                  </div>
+                  <div style={{ fontWeight: 400 }}>
+                    Doğru belge(leri) yükledikten sonra <b>"Adımı Tamamla"</b> butonuna tekrar
+                    basın.
+                  </div>
+                </div>
               </div>
             )}
 
