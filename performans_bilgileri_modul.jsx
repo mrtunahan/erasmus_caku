@@ -511,21 +511,34 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     return [];
   }, [AKADEMISYENLER, deptForSummary, selectedBolum]);
 
-  const fakulteBolumleri = useMemo(() => {
-    if (!capFaculty) return [];
-    const allDepts =
-      typeof window !== 'undefined' && Array.isArray(window.DEPARTMENTS) ? window.DEPARTMENTS : [];
-    if (allDepts.length > 0) return allDepts.map((d) => d.name);
-    if (FAKULTELER.length === 0) return [];
-    const fak = FAKULTELER[0];
-    return [...new Set(AKADEMISYENLER.filter((a) => a.fakulte === fak).map((a) => a.bolum))];
-  }, [capFaculty, AKADEMISYENLER, FAKULTELER]);
-
-  // Fakülte scope id'si — fakülte adı stabil bir kimlik olarak kullanılır
-  const facultyIdForSummary = useMemo(
+  // Kullanıcının kendi fakültesi — üniversite yetkilisi hariç herkesin
+  // kapsamı buraya sınırlıdır (fakülte yetkilisi kendi fakültesinin dışını
+  // göremez, bölüm yetkilisi zaten kendi bölümüne sıkışıktır).
+  const userFacultyName = useMemo(
     () => matchedAkademisyen?.fakulte || FAKULTELER[0] || '',
     [matchedAkademisyen, FAKULTELER]
   );
+
+  const fakulteBolumleri = useMemo(() => {
+    if (!capFaculty) return [];
+    // Fakülte yetkilisi yalnızca kendi fakültesinin bölümlerini görür.
+    // Üniversite yetkilisi tüm bölümleri görebilir.
+    if (isUniAdmin) {
+      const allDepts =
+        typeof window !== 'undefined' && Array.isArray(window.DEPARTMENTS)
+          ? window.DEPARTMENTS
+          : [];
+      if (allDepts.length > 0) return allDepts.map((d) => d.name);
+    }
+    // AKADEMISYENLER'in fakulte alanı bölüm adları için tek gerçek kaynağıdır
+    return [
+      ...new Set(AKADEMISYENLER.filter((a) => a.fakulte === userFacultyName).map((a) => a.bolum)),
+    ].filter(Boolean);
+  }, [capFaculty, isUniAdmin, AKADEMISYENLER, userFacultyName]);
+
+  // Fakülte scope id'si — fakülte adı stabil bir kimlik olarak kullanılır.
+  // Faculty yetkilisi/üniversite yetkilisi kendi fakültesi için kural belirler.
+  const facultyIdForSummary = useMemo(() => userFacultyName, [userFacultyName]);
 
   // Kurallara scope-aware erişim: önce ilgili scope'ta ayar ara, bulamazsa default
   const getAggType = (gostergeId, scope, scopeId) => {
@@ -555,10 +568,12 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   // Fakülte toplamı — birim ile formatlanmış.
   // Fakülte içindeki her bölümün "bölüm toplamı"nı hesaplayıp onları toplama
   // kuralına göre birleştirir (topla/sabit/ortalama/maks.).
+  // NOT: Yalnızca kullanıcının kendi fakültesindeki bölümler dâhil edilir;
+  // fakülte yetkilisi başka fakülteden veri göremez.
   const calcFakulteToplam = (gostergeId, ay) => {
     const g = findGosterge(gostergeId);
     const aggType = getAggType(gostergeId, 'faculty', facultyIdForSummary);
-    const fak = FAKULTELER[0];
+    const fak = userFacultyName;
     if (!fak) return '—';
 
     // Fakültedeki bölümleri gruplandır ve her bölümün toplamını al
