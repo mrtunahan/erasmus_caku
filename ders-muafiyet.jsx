@@ -392,14 +392,26 @@ function turkishStem(word) {
   return stemmed;
 }
 
-const SIMILARITY_THRESHOLD = 0.7;
-const THRESHOLD_AUTO_APPROVE = 0.8; // %80+ → Otomatik Muaf
-const THRESHOLD_REVIEW = 0.7; // %70-79 → Akademisyen onayı bekliyor
-// %70 altı → Otomatik Red
+// ── KARAR KURALLARI ──
+// İsim benzerliği ŞART DEĞİL — muafiyet kararı yalnızca iki kritere bakar:
+//   1. AKTS uyumu: kaynak dersin AKTS'si hedefin en az %70'i olmalı
+//   2. İçerik uyumu: ders içerikleri en az %70 benzeşmeli
+// %60–69 arası sınır bölgesi akademisyen onayına düşer (PDF metin
+// çıkarma gürültüsüne tampon), %60 altı otomatik red.
+const THRESHOLD_AUTO_APPROVE = 0.7; // içerik ≥ %70 → Otomatik Muaf
+const THRESHOLD_REVIEW = 0.6; // %60–69 → Akademisyen onayı bekliyor
 const AKTS_CHECK_ENABLED = true;
-const W_NAME = 0.35;
-const W_CONTENT = 0.55;
-const W_CODE = 0.1;
+const AKTS_MIN_RATIO = 0.7; // kaynak AKTS ≥ hedef AKTS × 0.7
+
+// AKTS kapısı — kaynak dersin kredisi hedefin en az %70'i mi?
+// Hedef AKTS bilinmiyorsa (0) kapı geçilir; kaynak bilinmiyorsa geçilmez.
+function aktsCompatible(srcAkts, tgtAkts) {
+  if (!AKTS_CHECK_ENABLED) return true;
+  var tgt = parseInt(tgtAkts, 10) || 0;
+  if (tgt === 0) return true;
+  var src = parseInt(srcAkts, 10) || 0;
+  return src >= tgt * AKTS_MIN_RATIO;
+}
 
 // ══════════════════════════════════════════════════════════════
 // KÜTÜPHANELERİ YÜKLEME
@@ -771,12 +783,6 @@ function charNgrams(text, n) {
   return grams;
 }
 
-function wordBigrams(tokens) {
-  var bigrams = new Set();
-  for (var i = 0; i < tokens.length - 1; i++) bigrams.add(tokens[i] + ' ' + tokens[i + 1]);
-  return bigrams;
-}
-
 function levenshteinDistance(a, b) {
   if (a.length === 0) return b.length;
   if (b.length === 0) return a.length;
@@ -938,90 +944,98 @@ function contentSimilarity(text1, text2) {
   );
 }
 
-function combinedSimilarity(text1, text2) {
-  return contentSimilarity(text1, text2);
-}
-
+// ── SKOR: yalnızca İÇERİK ──
+// İsim ve kod benzerliği KARARA GİRMEZ (isim benzerliği şart değil).
+// İçerik metni iki yanda da yoksa skor hesaplanamaz → noContent bayrağı
+// döner; karar mekanizması bunu akademisyen incelemesine yönlendirir.
 function multiFactorScore(srcCourse, tgtCourse) {
   var safe = function (v) {
     return typeof v === 'number' && !isNaN(v) ? v : 0;
   };
-  var nameScore = safe(courseNameSimilarity(srcCourse.name, tgtCourse.name));
-  var codeScore = safe(courseCodeSimilarity(srcCourse.code, tgtCourse.code));
   var srcText = srcCourse.weeklyContent || srcCourse.content || '';
   var tgtText = tgtCourse.weeklyContent || tgtCourse.content || '';
-  var contScore = srcText && tgtText ? safe(contentSimilarity(srcText, tgtText)) : 0;
-  var wName = W_NAME,
-    wContent = W_CONTENT,
-    wCode = W_CODE;
-  if (!srcText || !tgtText) {
-    wName = 0.75;
-    wContent = 0;
-    wCode = 0.25;
-  }
+  var hasContent = !!(srcText && tgtText);
+  var contScore = hasContent ? safe(contentSimilarity(srcText, tgtText)) : 0;
   return {
-    total: safe(wName * nameScore + wContent * contScore + wCode * codeScore),
-    nameScore: nameScore,
+    total: contScore,
     contentScore: contScore,
-    codeScore: codeScore,
+    noContent: !hasContent,
   };
 }
 
-function autoMatchCourses(sourceCourses, targetCourses, threshold) {
-  if (!threshold) threshold = SIMILARITY_THRESHOLD;
+// ── KARAR: AKTS kapısı + içerik eşiği ──
+// Tek yerden karar — akademisyen sihirbazı ve öğrenci formu aynı kuralı kullanır.
+function decideTier(aktsPass, scores) {
+  if (!aktsPass) {
+    return { tier: 'rejected', matched: false, reason: 'AKTS yetersiz (en az %70 uyum gerekli)' };
+  }
+  if (scores.noContent) {
+    return {
+      tier: 'review',
+      matched: false,
+      reason: 'İçerik dosyası eksik — akademisyen incelemesi gerekli',
+    };
+  }
+  if (scores.total >= THRESHOLD_AUTO_APPROVE) {
+    return { tier: 'approved', matched: true, reason: '' };
+  }
+  if (scores.total >= THRESHOLD_REVIEW) {
+    return {
+      tier: 'review',
+      matched: false,
+      reason: 'İnceleme gerekiyor (içerik %' + Math.round(scores.total * 100) + ')',
+    };
+  }
+  return {
+    tier: 'rejected',
+    matched: false,
+    reason: 'İçerik uyumu düşük (%' + Math.round(scores.total * 100) + ')',
+  };
+}
+
+// Aday sıralama skoru — SADECE hedef ders seçiminde kullanılır, karara girmez.
+// İçerik varsa içerik belirleyicidir; isim/kod yalnızca içeriği olmayan veya
+// eşit skorlu adayları ayırt etmek için küçük ağırlıkla eklenir.
+function candidateRank(src, tgt, scores) {
+  return (
+    scores.total +
+    courseNameSimilarity(src.name, tgt.name) * 0.05 +
+    courseCodeSimilarity(src.code, tgt.code) * 0.05
+  );
+}
+
+function autoMatchCourses(sourceCourses, targetCourses) {
   var matches = [];
   sourceCourses.forEach(function (src) {
     var bestMatch = null,
-      bestTotalScore = 0;
-    var bestScoreDetails = { total: 0, nameScore: 0, contentScore: 0, codeScore: 0 };
-    var bestAktsPass = false,
-      bestRejectReason = '';
+      bestRank = -1;
+    var bestScores = { total: 0, contentScore: 0, noContent: true };
+    var bestAktsPass = false;
     targetCourses.forEach(function (tgt) {
-      var srcAkts = parseInt(src.akts) || 0,
-        tgtAkts = parseInt(tgt.akts) || 0;
-      var aktsPass = !AKTS_CHECK_ENABLED || srcAkts >= tgtAkts;
+      var aktsPass = aktsCompatible(src.akts, tgt.akts);
       var scores = multiFactorScore(src, tgt);
-      var isBetter =
-        (aktsPass && !bestAktsPass) || (aktsPass === bestAktsPass && scores.total > bestTotalScore);
+      var rank = candidateRank(src, tgt, scores);
+      var isBetter = (aktsPass && !bestAktsPass) || (aktsPass === bestAktsPass && rank > bestRank);
       if (isBetter) {
-        bestTotalScore = scores.total;
-        bestScoreDetails = scores;
+        bestRank = rank;
+        bestScores = scores;
         bestAktsPass = aktsPass;
         bestMatch = tgt;
       }
     });
 
-    // ── 3-Katmanlı Karar Mekanizması ──
-    // AKTS yetersizse direk red; değilse skora göre tier belirlenir
-    var tier, isMatched;
-    if (!bestAktsPass) {
-      tier = 'rejected';
-      isMatched = false;
-      bestRejectReason = 'AKTS yetersiz';
-    } else if (bestTotalScore >= THRESHOLD_AUTO_APPROVE) {
-      tier = 'approved'; // %80+ → otomatik muaf
-      isMatched = true;
-    } else if (bestTotalScore >= THRESHOLD_REVIEW) {
-      tier = 'review'; // %70-79 → akademisyen onayı bekliyor
-      isMatched = false;
-      bestRejectReason = 'İnceleme gerekiyor (%' + Math.round(bestTotalScore * 100) + ')';
-    } else {
-      tier = 'rejected'; // %70 altı → otomatik red
-      isMatched = false;
-      bestRejectReason = 'Benzerlik düşük (%' + Math.round(bestTotalScore * 100) + ')';
-    }
+    // Karar: yalnızca AKTS kapısı + içerik eşiği (isim/kod karara girmez)
+    var decision = decideTier(bestAktsPass, bestScores);
 
     matches.push({
       source: src,
       target: bestMatch,
       aktsPass: bestAktsPass,
-      contentScore: bestTotalScore,
-      nameScore: bestScoreDetails.nameScore,
-      detailContentScore: bestScoreDetails.contentScore,
-      codeScore: bestScoreDetails.codeScore,
-      matched: isMatched,
-      tier: tier,
-      rejectReason: bestRejectReason,
+      contentScore: bestScores.total,
+      detailContentScore: bestScores.contentScore,
+      matched: decision.matched,
+      tier: decision.tier,
+      rejectReason: decision.reason,
     });
   });
   return matches;
@@ -1056,82 +1070,57 @@ function buildCourseIndex(courses) {
 }
 
 // İndeks tabanlı eşleştirme — targetCourses yerine pre-built index alır
-function autoMatchCoursesWithIndex(sourceCourses, courseIndex, threshold) {
-  if (!threshold) threshold = SIMILARITY_THRESHOLD;
+function autoMatchCoursesWithIndex(sourceCourses, courseIndex) {
   // İndeksten flat array oluştur (sıra garantisi için)
   var targetEntries = Array.from(courseIndex.values());
   var matches = [];
 
   sourceCourses.forEach(function (src) {
     var bestMatch = null,
-      bestTotalScore = 0;
-    var bestScoreDetails = { total: 0, nameScore: 0, contentScore: 0, codeScore: 0 };
+      bestRank = -1;
+    var bestScores = { total: 0, contentScore: 0, noContent: true };
     var bestAktsPass = false;
 
-    // Önce tam kod eşleşmesi dene (O(1))
+    // Önce tam kod eşleşmesi dene (O(1)) — aday seçimi için hızlı yol
     var srcCodeKey = (src.code || '').replace(/[\s*]/g, '').toUpperCase();
     var exactEntry = courseIndex.get(srcCodeKey);
     if (exactEntry) {
-      var srcAkts = parseInt(src.akts) || 0,
-        tgtAkts = parseInt(exactEntry.course.akts) || 0;
-      bestAktsPass = !AKTS_CHECK_ENABLED || srcAkts >= tgtAkts;
-      var scores = multiFactorScore(src, exactEntry.course);
-      bestTotalScore = scores.total;
-      bestScoreDetails = scores;
+      bestAktsPass = aktsCompatible(src.akts, exactEntry.course.akts);
+      bestScores = multiFactorScore(src, exactEntry.course);
+      bestRank = candidateRank(src, exactEntry.course, bestScores);
       bestMatch = exactEntry.course;
     }
 
-    // Tam eşleşme yoksa veya skoru düşükse tüm indeksi tara
-    if (!bestMatch || bestTotalScore < THRESHOLD_AUTO_APPROVE) {
+    // Tam kod eşleşmesi yoksa veya içerik skoru eşiğin altındaysa tüm indeksi tara
+    if (!bestMatch || bestScores.total < THRESHOLD_AUTO_APPROVE) {
       targetEntries.forEach(function (entry) {
         if (entry === exactEntry) return; // zaten denendi
         var tgt = entry.course;
-        var srcAkts = parseInt(src.akts) || 0,
-          tgtAkts = parseInt(tgt.akts) || 0;
-        var aktsPass = !AKTS_CHECK_ENABLED || srcAkts >= tgtAkts;
+        var aktsPass = aktsCompatible(src.akts, tgt.akts);
         var scores = multiFactorScore(src, tgt);
+        var rank = candidateRank(src, tgt, scores);
         var isBetter =
-          (aktsPass && !bestAktsPass) ||
-          (aktsPass === bestAktsPass && scores.total > bestTotalScore);
+          (aktsPass && !bestAktsPass) || (aktsPass === bestAktsPass && rank > bestRank);
         if (isBetter) {
-          bestTotalScore = scores.total;
-          bestScoreDetails = scores;
+          bestRank = rank;
+          bestScores = scores;
           bestAktsPass = aktsPass;
           bestMatch = tgt;
         }
       });
     }
 
-    var tier,
-      isMatched,
-      bestRejectReason = '';
-    if (!bestAktsPass) {
-      tier = 'rejected';
-      isMatched = false;
-      bestRejectReason = 'AKTS yetersiz';
-    } else if (bestTotalScore >= THRESHOLD_AUTO_APPROVE) {
-      tier = 'approved';
-      isMatched = true;
-    } else if (bestTotalScore >= THRESHOLD_REVIEW) {
-      tier = 'review';
-      isMatched = false;
-      bestRejectReason = 'İnceleme gerekiyor (%' + Math.round(bestTotalScore * 100) + ')';
-    } else {
-      tier = 'rejected';
-      isMatched = false;
-      bestRejectReason = 'Benzerlik düşük (%' + Math.round(bestTotalScore * 100) + ')';
-    }
+    // Karar: yalnızca AKTS kapısı + içerik eşiği (isim/kod karara girmez)
+    var decision = decideTier(bestAktsPass, bestScores);
     matches.push({
       source: src,
       target: bestMatch,
       aktsPass: bestAktsPass,
-      contentScore: bestTotalScore,
-      nameScore: bestScoreDetails.nameScore,
-      detailContentScore: bestScoreDetails.contentScore,
-      codeScore: bestScoreDetails.codeScore,
-      matched: isMatched,
-      tier: tier,
-      rejectReason: bestRejectReason,
+      contentScore: bestScores.total,
+      detailContentScore: bestScores.contentScore,
+      matched: decision.matched,
+      tier: decision.tier,
+      rejectReason: decision.reason,
     });
   });
   return matches;
@@ -2930,8 +2919,10 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
             matchedCount +
             '/' +
             enriched.length +
-            ' ders eşleştirildi (Eşik: %' +
-            Math.round(SIMILARITY_THRESHOLD * 100) +
+            ' ders eşleştirildi (İçerik eşiği: %' +
+            Math.round(THRESHOLD_AUTO_APPROVE * 100) +
+            ', AKTS uyumu: %' +
+            Math.round(AKTS_MIN_RATIO * 100) +
             ')',
           type: 'success',
         },
@@ -4100,7 +4091,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                 value: matchedCount,
                 color: DS.green,
                 bg: DS.greenBg,
-                sub: '≥%80 eşleşme',
+                sub: 'içerik ≥%70 + AKTS',
               },
               {
                 label: 'İnceleme Bekliyor',
@@ -4109,7 +4100,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                 }).length,
                 color: DS.amber,
                 bg: DS.amberLight,
-                sub: '%70–79 eşleşme',
+                sub: 'içerik %60–69',
               },
               {
                 label: 'Red',
@@ -4118,7 +4109,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                 }).length,
                 color: DS.red,
                 bg: DS.redLight,
-                sub: '<%70 eşleşme',
+                sub: '<%60 veya AKTS yetersiz',
               },
             ].map(function (stat, i) {
               return (
@@ -4164,8 +4155,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
             icon={<Icons.search />}
             headerRight={
               <span style={{ fontSize: 11, color: DS.textMuted }}>
-                Ad:{Math.round(W_NAME * 100)}% + İçerik:{Math.round(W_CONTENT * 100)}% + Kod:
-                {Math.round(W_CODE * 100)}%
+                Karar: İçerik uyumu ≥ %70 + AKTS uyumu ≥ %70 (isim benzerliği şart değil)
               </span>
             }
           >
@@ -4371,9 +4361,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                         </div>
                         <span style={{ fontSize: 9, color: DS.textMuted }}>AKTS</span>
                       </div>
-                      <ScoreBadge value={m.nameScore || 0} size="sm" label="Ad" />
-                      <ScoreBadge value={m.detailContentScore || 0} size="sm" label="İçerik" />
-                      <ScoreBadge value={m.contentScore} size="lg" label="Toplam" />
+                      <ScoreBadge value={m.contentScore} size="lg" label="İçerik" />
                     </div>
 
                     {/* Sonuç */}
@@ -5130,8 +5118,10 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
 // Manuel Muafiyet Formu (Öğrenci için satır-bazlı akış)
 //   Her satırda iki yan: Karşı kurum dersi + ÇAKÜ dersi.
 //   Her yan için: ad, kod, AKTS, statü (Z/S), içerik dosyası (PDF/DOCX).
-//   Dosyalardan metin çıkar → NLP combinedSimilarity → tier kararı.
-//     ≥0.80 → otomatik muaf, 0.70–0.79 → akademisyen onayı, <0.70 → red.
+//   Karar kuralı (akademisyen sihirbazıyla ortak — decideTier):
+//     • İsim benzerliği ŞART DEĞİL
+//     • AKTS kapısı: kaynak AKTS ≥ hedef AKTS × 0.7
+//     • İçerik ≥ %70 → otomatik muaf, %60–69 → akademisyen onayı, <%60 → red
 // ══════════════════════════════════════════════════════════════
 const emptyManualRow = function () {
   return {
@@ -5191,18 +5181,7 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
       }
       const cleaned = (text || '').replace(/\s+/g, ' ').trim();
       const charCount = cleaned.length;
-      console.log('[Muafiyet] PDF/DOCX okundu:', file.name, '→', charCount, 'karakter');
-      console.log('[Muafiyet] İlk 300 karakter:', cleaned.slice(0, 300));
-      // Token kümesi sıhhati: kaç token, ilk 30 token
       const tokens = tokenize(cleaned);
-      console.log(
-        '[Muafiyet]',
-        file.name,
-        'tokenize edildi →',
-        tokens.length,
-        'token, örnekler:',
-        tokens.slice(0, 30)
-      );
       // PDF font encoding tespiti: metinde Türkçe diakritik (ç ğ ı ş ö ü) oranı
       // çok düşükse veya rakam-yoğun anlamsız token'lar yüksekse bozuk font
       // varsayılır. Bu durumda kullanıcıya OCR önerisi yapılır.
@@ -5215,16 +5194,6 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
         return gibberish / tokens.length;
       })();
       const encodingBroken = charCount > 200 && turkishRatio < 0.005 && garbageRatio > 0.2;
-      console.log(
-        '[Muafiyet] Encoding sağlığı:',
-        file.name,
-        'turkishRatio=',
-        turkishRatio.toFixed(3),
-        'garbageRatio=',
-        garbageRatio.toFixed(3),
-        'broken=',
-        encodingBroken
-      );
       if (charCount < 50) {
         setMsg({
           text:
@@ -5289,6 +5258,13 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
         setMsg({ text: 'Her ders için iki yan da ders adı zorunlu.', kind: 'error' });
         return false;
       }
+      if (!r.src.akts || !r.cak.akts) {
+        setMsg({
+          text: 'Her ders için iki yan da AKTS zorunlu — muafiyet kararı AKTS uyumuna bakar.',
+          kind: 'error',
+        });
+        return false;
+      }
       if (!r.src.content || !r.cak.content) {
         setMsg({
           text: 'Her ders için iki yan da içerik dosyası (PDF/Word) zorunlu.',
@@ -5334,46 +5310,14 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
     setProcessing(true);
     try {
       const matches = rows.map((r) => {
-        // multiFactorScore: ad(%35) + içerik(%55) + kod(%10) ağırlıklı skor.
-        // İçerik metni boşsa otomatik ad(%75) + kod(%25)'e döner.
+        // Karar iki kritere bakar: AKTS uyumu (≥%70) + içerik uyumu (≥%70).
+        // İsim benzerliği karara girmez — akademisyen sihirbazıyla aynı kural.
         const factor = multiFactorScore(
-          {
-            name: r.src.name,
-            code: r.src.code,
-            weeklyContent: r.src.content,
-            content: r.src.content,
-          },
-          {
-            name: r.cak.name,
-            code: r.cak.code,
-            weeklyContent: r.cak.content,
-            content: r.cak.content,
-          }
+          { name: r.src.name, weeklyContent: r.src.content, content: r.src.content },
+          { name: r.cak.name, weeklyContent: r.cak.content, content: r.cak.content }
         );
-        // Debug: skor kırılımı + alt benzerlikler
-        console.log('[Muafiyet] Skor kırılımı:', {
-          src: { name: r.src.name, code: r.src.code, contentLen: (r.src.content || '').length },
-          cak: { name: r.cak.name, code: r.cak.code, contentLen: (r.cak.content || '').length },
-          nameScore: factor.nameScore,
-          contentScore: factor.contentScore,
-          codeScore: factor.codeScore,
-          total: factor.total,
-          jaccard: jaccardSimilarity(r.src.content, r.cak.content),
-          tfidf: tfidfCosineSimilarity(r.src.content, r.cak.content),
-          ngram: ngramSimilarity(r.src.content, r.cak.content),
-        });
-        const score = factor.total;
-        let tier,
-          rejectReason = '';
-        if (score >= THRESHOLD_AUTO_APPROVE) {
-          tier = 'approved';
-        } else if (score >= THRESHOLD_REVIEW) {
-          tier = 'review';
-          rejectReason = 'Akademisyen onayı bekliyor (%' + Math.round(score * 100) + ')';
-        } else {
-          tier = 'rejected';
-          rejectReason = 'Benzerlik düşük (%' + Math.round(score * 100) + ')';
-        }
+        const aktsPass = aktsCompatible(r.src.akts, r.cak.akts);
+        const decision = decideTier(aktsPass, factor);
         return {
           localCourse: {
             code: r.cak.code,
@@ -5390,14 +5334,12 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
             weeklyContent: r.src.content,
             grade: '',
           },
-          score,
+          score: factor.total,
           contentScore: factor.contentScore,
-          nameScore: factor.nameScore,
-          codeScore: factor.codeScore,
-          tier,
-          matched: tier === 'approved',
-          aktsPass: true,
-          rejectReason,
+          tier: decision.tier,
+          matched: decision.matched,
+          aktsPass,
+          rejectReason: decision.reason,
         };
       });
 
@@ -5520,7 +5462,7 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
             />
           </div>
           <div>
-            <label style={labelStyle}>AKTS</label>
+            <label style={labelStyle}>AKTS *</label>
             <input
               value={v.akts}
               onChange={(e) => updateNumeric(row.id, side, 'akts', e.target.value)}
@@ -5579,21 +5521,21 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
         color: DS.green,
         bg: DS.greenBg,
         border: DS.greenLight,
-        explain: 'Skor ≥ %80 — sistem otomatik onayladı, geçmişe işlendi.',
+        explain: 'İçerik uyumu ≥ %70 ve AKTS uyumlu — sistem otomatik onayladı, geçmişe işlendi.',
       },
       review: {
         label: 'AKADEMİSYEN ONAYINDA',
         color: DS.amber,
         bg: DS.amberLight,
         border: '#FCD34D',
-        explain: 'Skor %70–%79 — akademisyen kararını verecek.',
+        explain: 'İçerik uyumu %60–69 (sınır bölgesi) — akademisyen kararını verecek.',
       },
       rejected: {
         label: 'REDDEDİLDİ',
         color: DS.red,
         bg: DS.redLight,
         border: '#FECACA',
-        explain: 'Skor %70 altı — yeterli benzerlik yok.',
+        explain: 'İçerik uyumu %60 altı veya AKTS yetersiz.',
       },
     };
     return (
@@ -5612,10 +5554,11 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
             Muafiyet Talebiniz Alındı
           </h3>
           <p style={{ margin: '6px 0 0', fontSize: 13, color: DS.textSecondary, lineHeight: 1.6 }}>
-            Sistem her ders için <b>ad (%35) + içerik (%55) + kod (%10)</b> ağırlıklı bir skor
-            hesapladı. <b>%80+</b> otomatik muaf, <b>%70–%79</b> akademisyen kararına gider,{' '}
-            <b>%70 altı</b> reddedilir. Detaylar aşağıda; akademisyen onayı bekleyen kayıtlar
-            geçmişinizde sarı renkle görünür.
+            <b>Ders adının aynı olması gerekmez.</b> Sistem yalnızca iki kritere bakar:{' '}
+            <b>AKTS uyumu</b> (alınan dersin kredisi, muaf olunacak dersin en az %70'i) ve{' '}
+            <b>içerik uyumu</b>. İçerik uyumu <b>%70 ve üzeriyse</b> otomatik muaf, <b>%60–%69</b>{' '}
+            arası akademisyen kararına gider, <b>%60 altı</b> reddedilir. Akademisyen onayı bekleyen
+            kayıtlar geçmişinizde sarı renkle görünür.
           </p>
         </div>
 
@@ -5715,16 +5658,24 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
                   gap: 10,
                   marginBottom: 10,
                 }}
               >
                 {[
-                  { label: 'Toplam Skor', val: m.score, big: true },
-                  { label: 'Ad Benzerliği (35%)', val: m.nameScore },
-                  { label: 'İçerik Benzerliği (55%)', val: m.contentScore },
-                  { label: 'Kod Benzerliği (10%)', val: m.codeScore },
+                  {
+                    label: 'İçerik Uyumu (karar kriteri)',
+                    text: '%' + Math.round((m.contentScore || 0) * 100),
+                    color: meta.color,
+                  },
+                  {
+                    label: 'AKTS Uyumu',
+                    text: m.aktsPass
+                      ? '✓ Uyumlu (' + m.sourceCourse.akts + ' → ' + m.localCourse.akts + ')'
+                      : '✗ Yetersiz (' + m.sourceCourse.akts + ' → ' + m.localCourse.akts + ')',
+                    color: m.aktsPass ? DS.green : DS.red,
+                  },
                 ].map((b) => (
                   <div
                     key={b.label}
@@ -5748,13 +5699,13 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
                     </div>
                     <div
                       style={{
-                        fontSize: b.big ? 22 : 16,
+                        fontSize: 20,
                         fontWeight: 700,
-                        color: b.big ? meta.color : DS.navy,
+                        color: b.color,
                         marginTop: 4,
                       }}
                     >
-                      %{Math.round((b.val || 0) * 100)}
+                      {b.text}
                     </div>
                   </div>
                 ))}
@@ -5772,16 +5723,16 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
                       color: '#92400E',
                     }}
                   >
-                    <b>Uyarı:</b> İçerik karşılaştırması %0 — bir veya iki PDF'ten metin
-                    çıkarılamamış (büyük ihtimalle taranmış görüntü tabanlı). Skor yalnız ders adı +
-                    koddan hesaplandı. Daha doğru sonuç için seçilebilir metinli PDF veya Word
-                    (.docx) yükleyin.
+                    <b>Uyarı:</b> İçerik karşılaştırması %0'a yakın — bir veya iki PDF'ten anlamlı
+                    metin çıkarılamamış olabilir (taranmış görüntü tabanlı PDF). Karar kriteri
+                    içerik uyumu olduğu için bu sonuç güvenilir değil; seçilebilir metinli PDF veya
+                    Word (.docx) yükleyip yeniden deneyin.
                   </div>
                 )}
                 {m.tier === 'rejected' && (m.contentScore || 0) >= 0.05 && (
                   <div style={{ marginTop: 6, color: DS.red }}>
-                    <b>Olası nedenler:</b> ders adı çok farklı, içerik metinleri farklı konular
-                    içeriyor, veya PDF'den çıkarılan metin yetersiz. Daha açık bir içerik dosyası
+                    <b>Olası nedenler:</b> içerik metinleri farklı konular içeriyor, AKTS kredisi
+                    yetersiz, veya PDF'den çıkarılan metin eksik. Daha kapsamlı bir içerik dosyası
                     (haftalık konu başlıklı, kaynakça dahil) deneyebilirsiniz.
                   </div>
                 )}
@@ -5980,14 +5931,14 @@ window.MuafiyetUtils = {
   ngramSimilarity,
   tfidfCosineSimilarity,
   contentSimilarity,
-  combinedSimilarity,
   courseNameSimilarity,
   courseCodeSimilarity,
   multiFactorScore,
+  decideTier,
+  aktsCompatible,
   levenshteinDistance,
   wordSimilarity,
   charNgrams,
-  wordBigrams,
   autoMatchCourses,
   autoMatchCoursesWithIndex,
   buildCourseIndex,
@@ -6002,10 +5953,7 @@ window.MuafiyetUtils = {
   MultiFileDropZone,
   TR_STOPWORDS,
   DOMAIN_SYNONYMS,
-  SIMILARITY_THRESHOLD,
   THRESHOLD_AUTO_APPROVE,
   THRESHOLD_REVIEW,
-  W_NAME,
-  W_CONTENT,
-  W_CODE,
+  AKTS_MIN_RATIO,
 };
