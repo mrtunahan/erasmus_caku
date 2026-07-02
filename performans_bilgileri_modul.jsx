@@ -91,10 +91,39 @@ const AYLAR = [
 // Yıl seçici için sabit aralık: 2026–2031
 const YILLAR = ['2026', '2027', '2028', '2029', '2030', '2031'];
 
+// Toplama tipleri — bölüm/fakülte özetinde her gösterge için ayarlanabilir
+const AGG_TYPES = [
+  { id: 'sum', label: 'Topla' },
+  { id: 'fixed', label: 'Sabit' },
+  { id: 'avg', label: 'Ortalama' },
+  { id: 'max', label: 'Maks.' },
+];
+
 const findGosterge = (id) => {
   for (const k of GOSTERGELER) for (const g of k.gostergeler) if (g.id === id) return g;
   return null;
 };
+
+// Sayısal değeri göstergenin birimine göre biçimlendir.
+// Örn birim='Oran' → "%15", birim='m²' → "15 m²"
+function formatValue(v, birim) {
+  if (v == null || v === '—' || v === '') return '—';
+  const num = typeof v === 'number' ? v : parseFloat(v);
+  if (isNaN(num)) return v;
+  const rounded = Number.isInteger(num) ? num : Math.round(num * 100) / 100;
+  if (birim === 'Oran') return `%${rounded}`;
+  if (birim === 'm²') return `${rounded} m²`;
+  return rounded;
+}
+
+// Aggregation uygulaması — sum/fixed/avg/max
+function aggregate(vals, aggType) {
+  if (!vals || vals.length === 0) return null;
+  if (aggType === 'fixed') return vals[0];
+  if (aggType === 'avg') return vals.reduce((a, b) => a + b, 0) / vals.length;
+  if (aggType === 'max') return Math.max(...vals);
+  return vals.reduce((a, b) => a + b, 0); // sum
+}
 
 // ── Akademisyen verileri 'professors' koleksiyonundan yüklenir ──
 
@@ -133,15 +162,21 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   const [akademisyenlerList, setAkademisyenlerList] = useState([]);
   const [loadingAkad, setLoadingAkad] = useState(true);
 
-  // Rol currentUser'dan otomatik belirlenir
-  const role =
-    currentUser?.role === 'professor'
-      ? 'akademisyen'
-      : currentUser?.role === 'bolum_yetkilisi'
-        ? 'bolumYetkilisi'
-        : currentUser?.role === 'admin'
-          ? 'fakulteYetkilisi'
-          : 'akademisyen';
+  // ── YETKİ MANTIĞI ──
+  // Bir kullanıcı AYNI ANDA akademisyen + bölüm yetkilisi + fakülte yetkilisi
+  // olabilir. Her yetki katmanı için ayrı bayrak; görünüm sekmesi buna göre.
+  const isUniAdmin = !!currentUser?.isUniversityAdmin;
+  const isFacMgr = !!currentUser?.isFacultyManager;
+  const isDeptMgr = currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
+
+  // Rol etiketi (header rozeti için)
+  const roleLabel = isUniAdmin
+    ? 'Üniversite Yetkilisi'
+    : isFacMgr
+      ? 'Fakülte Yetkilisi'
+      : isDeptMgr
+        ? 'Bölüm Yetkilisi'
+        : 'Akademisyen';
 
   const [selectedBolum, setSelectedBolum] = useState('');
 
@@ -340,52 +375,103 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   const selectedAkademisyen = matchedAkademisyen?.id || '';
   const currentAkad = matchedAkademisyen;
 
-  const bolumAkademisyenleri = useMemo(() => {
-    if (role === 'bolumYetkilisi' && activeDepartment) {
-      return AKADEMISYENLER.filter((a) => a.departmentId === activeDepartment);
+  // ── YETKİLER ──
+  // Yetkiler artık matched akademisyen ve rol bayraklarına göre çoklu.
+  const capOwn = !!matchedAkademisyen; // sistemde akademisyen olarak varsa
+  const capDept = isDeptMgr || isFacMgr || isUniAdmin; // bölüm özeti
+  const capFaculty = isFacMgr || isUniAdmin; // fakülte özeti
+
+  // Aktif görünüm: 'own' | 'dept' | 'faculty'
+  const [activeView, setActiveView] = useState(() =>
+    capOwn ? 'own' : capDept ? 'dept' : 'faculty'
+  );
+  useEffect(() => {
+    // Kullanıcı sistemde akademisyen değilse 'own' sekmesinden kaç.
+    if (activeView === 'own' && !capOwn) {
+      setActiveView(capDept ? 'dept' : 'faculty');
     }
-    return AKADEMISYENLER.filter((a) => a.bolum === selectedBolum);
-  }, [AKADEMISYENLER, role, activeDepartment, selectedBolum]);
+  }, [capOwn, capDept, activeView]);
+
+  // Bölüm özeti için hangi bölüm gösterilecek:
+  //   - Bölüm yetkilisi: activeDepartment (kendi bölümü)
+  //   - Fakülte/Üni yetkilisi: dropdown ile kendi seçtiği
+  //   - Akademisyen (sadece): matched akademisyenin bölümü
+  const deptForSummary = useMemo(() => {
+    if (isDeptMgr && activeDepartment) return activeDepartment;
+    if (selectedBolum) {
+      // selectedBolum bir bölüm ADI — id'ye çevir
+      const first = AKADEMISYENLER.find((a) => a.bolum === selectedBolum);
+      return first?.departmentId || '';
+    }
+    return matchedAkademisyen?.departmentId || activeDepartment || '';
+  }, [isDeptMgr, activeDepartment, selectedBolum, AKADEMISYENLER, matchedAkademisyen]);
+
+  const bolumAkademisyenleri = useMemo(() => {
+    if (deptForSummary) {
+      return AKADEMISYENLER.filter((a) => a.departmentId === deptForSummary);
+    }
+    if (selectedBolum) return AKADEMISYENLER.filter((a) => a.bolum === selectedBolum);
+    return [];
+  }, [AKADEMISYENLER, deptForSummary, selectedBolum]);
 
   const fakulteBolumleri = useMemo(() => {
-    if (role !== 'fakulteYetkilisi') return [];
+    if (!capFaculty) return [];
     const allDepts =
       typeof window !== 'undefined' && Array.isArray(window.DEPARTMENTS) ? window.DEPARTMENTS : [];
     if (allDepts.length > 0) return allDepts.map((d) => d.name);
     if (FAKULTELER.length === 0) return [];
     const fak = FAKULTELER[0];
     return [...new Set(AKADEMISYENLER.filter((a) => a.fakulte === fak).map((a) => a.bolum))];
-  }, [role, AKADEMISYENLER, FAKULTELER]);
+  }, [capFaculty, AKADEMISYENLER, FAKULTELER]);
 
-  // Bölüm toplamı (seçili yıl + ay)
+  // Bölüm toplamı (seçili yıl + ay) — birim ile formatlanmış
   const calcBolumToplam = (gostergeId, ay) => {
     const g = findGosterge(gostergeId);
     const aggType = aggOverrides[gostergeId] || g?.aggType || 'sum';
     const vals = bolumAkademisyenleri
       .map((a) => {
         const v = akademisyenData[a.id]?.[pKey(selectedYil, gostergeId, ay)];
-        return v ? parseFloat(v) : 0;
+        return v ? parseFloat(v) : null;
       })
-      .filter((v) => !isNaN(v));
+      .filter((v) => v !== null && !isNaN(v));
     if (vals.length === 0) return '—';
-    if (aggType === 'fixed') return vals[0] || '—';
-    return vals.reduce((a, b) => a + b, 0);
+    const out = aggregate(vals, aggType);
+    return formatValue(out, g?.birim);
   };
 
-  // Fakülte toplamı
+  // Fakülte toplamı — birim ile formatlanmış.
+  // Fakülte içindeki her bölümün "bölüm toplamı"nı hesaplayıp onları toplama
+  // kuralına göre birleştirir (topla/sabit/ortalama/maks.).
   const calcFakulteToplam = (gostergeId, ay) => {
     const g = findGosterge(gostergeId);
     const aggType = aggOverrides[gostergeId] || g?.aggType || 'sum';
-    const allAkads = AKADEMISYENLER.filter((a) => a.fakulte === FAKULTELER[0]);
-    const vals = allAkads
-      .map((a) => {
-        const v = akademisyenData[a.id]?.[pKey(selectedYil, gostergeId, ay)];
-        return v ? parseFloat(v) : 0;
-      })
-      .filter((v) => !isNaN(v));
-    if (vals.length === 0) return '—';
-    if (aggType === 'fixed') return vals[0] || '—';
-    return vals.reduce((a, b) => a + b, 0);
+    const fak = FAKULTELER[0];
+    if (!fak) return '—';
+
+    // Fakültedeki bölümleri gruplandır ve her bölümün toplamını al
+    const akadsInFak = AKADEMISYENLER.filter((a) => a.fakulte === fak);
+    const byDept = new Map();
+    akadsInFak.forEach((a) => {
+      if (!byDept.has(a.departmentId || a.bolum)) byDept.set(a.departmentId || a.bolum, []);
+      byDept.get(a.departmentId || a.bolum).push(a);
+    });
+
+    const deptTotals = [];
+    for (const [, akads] of byDept.entries()) {
+      const dv = akads
+        .map((a) => {
+          const v = akademisyenData[a.id]?.[pKey(selectedYil, gostergeId, ay)];
+          return v ? parseFloat(v) : null;
+        })
+        .filter((v) => v !== null && !isNaN(v));
+      if (dv.length > 0) {
+        // Bölüm içi toplama zaten aggType ile yapılır → sonuç fakülte için hazır
+        deptTotals.push(aggregate(dv, aggType));
+      }
+    }
+    if (deptTotals.length === 0) return '—';
+    const out = aggregate(deptTotals, aggType);
+    return formatValue(out, g?.birim);
   };
 
   // ═══════════════════════════════════════════════════════
@@ -457,16 +543,12 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
               fontFamily: F,
             }}
           >
-            {role === 'akademisyen'
-              ? 'Akademisyen'
-              : role === 'bolumYetkilisi'
-                ? 'Bölüm Yetkilisi'
-                : 'Fakülte Yetkilisi'}
+            {roleLabel}
           </div>
         </div>
 
-        {/* Akademisyen bilgisi */}
-        {role === 'akademisyen' && matchedAkademisyen && (
+        {/* Akademisyen bilgisi — bölüm/fakülte yetkilisi olsa bile gösterilir */}
+        {matchedAkademisyen && (
           <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Giriş yapan:</span>
             <span style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>
@@ -474,30 +556,48 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
             </span>
           </div>
         )}
-
-        {role === 'bolumYetkilisi' && (
-          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Bölüm:</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>
-              {departmentInfo?.name || selectedBolum}
-            </span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>
-              ({bolumAkademisyenleri.length} akademisyen)
-            </span>
-          </div>
-        )}
-
-        {role === 'fakulteYetkilisi' && (
-          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
-              Tüm bölümlerden gelen toplam değerler gösterilmektedir
-            </span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
-              ({FAKULTELER[0]} — {fakulteBolumleri.length} bölüm)
-            </span>
-          </div>
-        )}
       </div>
+
+      {/* ── Görünüm Sekmesi (yetkiye göre) ── */}
+      {(capOwn ? 1 : 0) + (capDept ? 1 : 0) + (capFaculty ? 1 : 0) > 1 && (
+        <div
+          style={{
+            display: 'flex',
+            background: C.surface,
+            borderBottom: `1px solid ${C.border}`,
+            padding: '0 16px',
+            gap: 4,
+          }}
+        >
+          {[
+            { id: 'own', label: 'Verilerim', enabled: capOwn },
+            { id: 'dept', label: 'Bölüm Özeti', enabled: capDept },
+            { id: 'faculty', label: 'Fakülte Özeti', enabled: capFaculty },
+          ]
+            .filter((v) => v.enabled)
+            .map((v) => (
+              <button
+                key={v.id}
+                onClick={() => setActiveView(v.id)}
+                style={{
+                  padding: '11px 20px',
+                  border: 'none',
+                  background: activeView === v.id ? C.bg : 'transparent',
+                  color: activeView === v.id ? C.accent : C.textMuted,
+                  fontSize: 12,
+                  fontWeight: activeView === v.id ? 700 : 500,
+                  cursor: 'pointer',
+                  borderBottom:
+                    activeView === v.id ? `3px solid ${C.accent}` : '3px solid transparent',
+                  transition: 'all 0.2s',
+                  fontFamily: F,
+                }}
+              >
+                {v.label}
+              </button>
+            ))}
+        </div>
+      )}
 
       {/* ── Content ── */}
       <div style={{ padding: '20px 16px 40px', maxWidth: 1400, margin: '0 auto' }}>
@@ -514,7 +614,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
               Akademisyen listesi yükleniyor...
             </span>
           </div>
-        ) : role === 'akademisyen' && !matchedAkademisyen ? (
+        ) : !capOwn && !capDept && !capFaculty ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div
               style={{
@@ -555,8 +655,8 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                 lineHeight: 1.6,
               }}
             >
-              Bu modülü kullanabilmek için sistemde akademisyen olarak kayıtlı olmanız
-              gerekmektedir. Lütfen bölüm yetkilinizle iletişime geçin.
+              Bu modülü kullanabilmek için sistemde akademisyen olarak kayıtlı olmanız veya bölüm/
+              fakülte yetkilisi olmanız gerekmektedir.
             </div>
           </div>
         ) : (
@@ -564,8 +664,8 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
             {/* ── Yıl Seçici ── */}
             <YearSelector yil={selectedYil} setYil={setSelectedYil} />
 
-            {/* ── AKADEMİSYEN GÖRÜNÜMÜ ── */}
-            {role === 'akademisyen' && (
+            {/* ── VERİLERİM: kullanıcı sistemde akademisyense değer girer ── */}
+            {activeView === 'own' && (
               <>
                 <Hdr
                   title="Gösterge Verilerini Girin"
@@ -602,16 +702,66 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
               </>
             )}
 
-            {/* ── BÖLÜM YETKİLİSİ GÖRÜNÜMÜ ── */}
-            {role === 'bolumYetkilisi' && (
+            {/* ── BÖLÜM ÖZETİ ── */}
+            {activeView === 'dept' && (
               <>
+                {/* Fakülte/Üni yetkilisi için bölüm seçici */}
+                {(isFacMgr || isUniAdmin) && (
+                  <div
+                    style={{
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      padding: '10px 14px',
+                      marginBottom: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: C.textMuted,
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.4,
+                      }}
+                    >
+                      Bölüm
+                    </span>
+                    <select
+                      value={selectedBolum}
+                      onChange={(e) => setSelectedBolum(e.target.value)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: `1px solid ${C.border}`,
+                        background: C.surfaceAlt,
+                        color: C.accent,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        fontFamily: F,
+                        outline: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {(fakulteBolumleri.length ? fakulteBolumleri : BOLUMLER).map((b) => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <Hdr
                   title="Bölüm Gösterge Özeti"
-                  sub={`${departmentInfo?.name || selectedBolum} — ${selectedYil} yılı`}
+                  sub={`${departmentInfo?.name || selectedBolum || bolumAkademisyenleri[0]?.bolum || ''} — ${selectedYil} yılı`}
                 />
                 <InfoBar
                   color={C.warning}
-                  text="Akademisyenlerin girdiği değerler toplanarak gösterilmektedir. Her gösterge için toplama kuralını (Topla/Sabit) ayarlayabilirsiniz."
+                  text="Bölümdeki tüm akademisyenlerin girdiği değerler toplanır. Her gösterge için toplama kuralını (Topla / Sabit / Ortalama / Maks.) ayarlayabilirsiniz."
                 />
 
                 {/* Akademisyen bazlı detay */}
@@ -740,8 +890,11 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                                         textAlign: 'center',
                                       }}
                                     >
-                                      <option value="sum">Topla</option>
-                                      <option value="fixed">Sabit</option>
+                                      {AGG_TYPES.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                          {t.label}
+                                        </option>
+                                      ))}
                                     </select>
                                   </td>
                                   {AYLAR.map((a) => (
@@ -770,8 +923,8 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
               </>
             )}
 
-            {/* ── FAKÜLTE YETKİLİSİ GÖRÜNÜMÜ ── */}
-            {role === 'fakulteYetkilisi' && (
+            {/* ── FAKÜLTE ÖZETİ ── */}
+            {activeView === 'faculty' && (
               <>
                 <Hdr
                   title="Fakülte Genel Toplam"
@@ -779,7 +932,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                 />
                 <InfoBar
                   color={C.purple}
-                  text="Her bölümden gelen toplam değerler fakülte düzeyinde birleştirilmiştir."
+                  text="Her bölümden gelen toplam değerler fakülte düzeyinde birleştirilmiştir. Bölüm özetinde ayarladığınız toplama kuralı burada da geçerlidir."
                 />
 
                 <div style={{ marginTop: 16, borderTop: `2px solid ${C.purple}`, paddingTop: 14 }}>
