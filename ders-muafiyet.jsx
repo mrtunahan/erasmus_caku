@@ -398,10 +398,24 @@ function turkishStem(word) {
 //   2. İçerik uyumu: ders içerikleri en az %70 benzeşmeli
 // %60–69 arası sınır bölgesi akademisyen onayına düşer (PDF metin
 // çıkarma gürültüsüne tampon), %60 altı otomatik red.
-const THRESHOLD_AUTO_APPROVE = 0.7; // içerik ≥ %70 → Otomatik Muaf
-const THRESHOLD_REVIEW = 0.6; // %60–69 → Akademisyen onayı bekliyor
+const THRESHOLD_AUTO_APPROVE = 0.7; // içerik ≥ %70 → Otomatik Muaf (varsayılan)
+const THRESHOLD_REVIEW = 0.6; // %60–69 → Akademisyen onayı bekliyor (varsayılan)
 const AKTS_CHECK_ENABLED = true;
 const AKTS_MIN_RATIO = 0.7; // kaynak AKTS ≥ hedef AKTS × 0.7
+
+// Kalibre edilebilir eşikler — muafiyet_settings/thresholds dokümanından
+// yüklenir (Ayarlar → Eşik Kalibrasyonu). Yüklenmezse varsayılanlar geçerli.
+// decideTier ve tüm UI metinleri bu objeyi okur; modül genelinde tek kaynak.
+var CALIBRATION = { autoApprove: THRESHOLD_AUTO_APPROVE, review: THRESHOLD_REVIEW };
+
+function applyCalibration(t) {
+  if (t && typeof t.autoApprove === 'number' && t.autoApprove > 0 && t.autoApprove < 1) {
+    CALIBRATION.autoApprove = t.autoApprove;
+  }
+  if (t && typeof t.review === 'number' && t.review > 0 && t.review < CALIBRATION.autoApprove) {
+    CALIBRATION.review = t.review;
+  }
+}
 
 // AKTS kapısı — kaynak dersin kredisi hedefin en az %70'i mi?
 // Hedef AKTS bilinmiyorsa (0) kapı geçilir; kaynak bilinmiyorsa geçilmez.
@@ -1058,10 +1072,10 @@ function decideTier(aktsPass, scores) {
       reason: 'İçerik dosyası eksik — akademisyen incelemesi gerekli',
     };
   }
-  if (scores.total >= THRESHOLD_AUTO_APPROVE) {
+  if (scores.total >= CALIBRATION.autoApprove) {
     return { tier: 'approved', matched: true, reason: '' };
   }
-  if (scores.total >= THRESHOLD_REVIEW) {
+  if (scores.total >= CALIBRATION.review) {
     return {
       tier: 'review',
       matched: false,
@@ -1231,7 +1245,7 @@ function autoMatchCoursesWithIndex(sourceCourses, courseIndex) {
     }
 
     // Tam kod eşleşmesi yoksa veya içerik skoru eşiğin altındaysa tüm indeksi tara
-    if (!bestMatch || bestScores.total < THRESHOLD_AUTO_APPROVE) {
+    if (!bestMatch || bestScores.total < CALIBRATION.autoApprove) {
       targetEntries.forEach(function (entry) {
         if (entry === exactEntry) return; // zaten denendi
         var tgt = entry.course;
@@ -1327,6 +1341,26 @@ var MuafiyetDB = {
     try {
       var result = await window.apiReadDoc('muafiyet_settings', 'grading_system');
       return result.exists ? result.data.grades || null : null;
+    } catch (e) {
+      return null;
+    }
+  },
+  async saveThresholds(t) {
+    await window.DBWrite.set('muafiyet_settings', 'thresholds', {
+      autoApprove: t.autoApprove,
+      review: t.review,
+      updatedAt: new Date().toISOString(),
+      updatedBy: t.updatedBy || '',
+    });
+    if (window.audit)
+      window.audit('muafiyet_thresholds_update', 'muafiyet_settings', 'thresholds', {
+        meta: { autoApprove: t.autoApprove, review: t.review },
+      });
+  },
+  async fetchThresholds() {
+    try {
+      var result = await window.apiReadDoc('muafiyet_settings', 'thresholds');
+      return result.exists ? result.data : null;
     } catch (e) {
       return null;
     }
@@ -3061,7 +3095,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
             '/' +
             enriched.length +
             ' ders eşleştirildi (İçerik eşiği: %' +
-            Math.round(THRESHOLD_AUTO_APPROVE * 100) +
+            Math.round(CALIBRATION.autoApprove * 100) +
             ', AKTS uyumu: %' +
             Math.round(AKTS_MIN_RATIO * 100) +
             ', ' +
@@ -4234,7 +4268,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                 value: matchedCount,
                 color: DS.green,
                 bg: DS.greenBg,
-                sub: 'içerik ≥%70 + AKTS',
+                sub: 'içerik ≥%' + Math.round(CALIBRATION.autoApprove * 100) + ' + AKTS',
               },
               {
                 label: 'İnceleme Bekliyor',
@@ -4243,7 +4277,11 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                 }).length,
                 color: DS.amber,
                 bg: DS.amberLight,
-                sub: 'içerik %60–69',
+                sub:
+                  'içerik %' +
+                  Math.round(CALIBRATION.review * 100) +
+                  '–' +
+                  (Math.round(CALIBRATION.autoApprove * 100) - 1),
               },
               {
                 label: 'Red',
@@ -4252,7 +4290,7 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
                 }).length,
                 color: DS.red,
                 bg: DS.redLight,
-                sub: '<%60 veya AKTS yetersiz',
+                sub: '<%' + Math.round(CALIBRATION.review * 100) + ' veya AKTS yetersiz',
               },
             ].map(function (stat, i) {
               return (
@@ -4298,7 +4336,8 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
             icon={<Icons.search />}
             headerRight={
               <span style={{ fontSize: 11, color: DS.textMuted }}>
-                Karar: İçerik uyumu ≥ %70 + AKTS uyumu ≥ %70 (isim benzerliği şart değil)
+                Karar: İçerik uyumu ≥ %{Math.round(CALIBRATION.autoApprove * 100)} + AKTS uyumu ≥ %
+                {Math.round(AKTS_MIN_RATIO * 100)} (isim benzerliği şart değil)
               </span>
             }
           >
@@ -5006,15 +5045,370 @@ const ExemptionHistory = ({ records, loading, onDelete, onExportWord, onUpdateDe
 };
 
 // ══════════════════════════════════════════════════════════════
+// EŞİK KALİBRASYON PANELİ (Ayarlar sekmesi)
+//   Akademisyen kararlarını (review → confirmed/rejected) etiketli veri
+//   olarak toplar, skor dağılımını gösterir ve Youden-J ile optimal
+//   eşik önerir. Eşikler muafiyet_settings/thresholds'a kaydedilir.
+// ══════════════════════════════════════════════════════════════
+
+const CALIB_MIN_LABELS = 20; // öneri için gereken asgari etiketli karar
+
+// Etiketli (skor, karar) çiftleri üzerinde Youden-J (TPR - FPR) maksimize
+// eden eşiği tara. labeled: [{ score: 0-1, approved: boolean }]
+function suggestThreshold(labeled) {
+  var best = null;
+  for (var t = 0.3; t <= 0.9; t += 0.01) {
+    var tp = 0,
+      fp = 0,
+      tn = 0,
+      fn = 0;
+    labeled.forEach(function (l) {
+      var predicted = l.score >= t;
+      if (predicted && l.approved) tp++;
+      else if (predicted && !l.approved) fp++;
+      else if (!predicted && !l.approved) tn++;
+      else fn++;
+    });
+    var tpr = tp + fn > 0 ? tp / (tp + fn) : 0;
+    var fpr = fp + tn > 0 ? fp / (fp + tn) : 0;
+    var j = tpr - fpr;
+    if (!best || j > best.j) best = { threshold: Math.round(t * 100) / 100, j: j };
+  }
+  return best;
+}
+
+const CalibrationPanel = ({ records, thresholds, onSaveThresholds }) => {
+  const [autoPct, setAutoPct] = useState(Math.round(thresholds.autoApprove * 100));
+  const [reviewPct, setReviewPct] = useState(Math.round(thresholds.review * 100));
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    setAutoPct(Math.round(thresholds.autoApprove * 100));
+    setReviewPct(Math.round(thresholds.review * 100));
+  }, [thresholds]);
+
+  // ── Etiketli veri: akademisyenin karar verdiği tüm eşleşmeler ──
+  const analysis = useMemo(() => {
+    const labeled = [];
+    let totalMatches = 0,
+      approvedAuto = 0,
+      reviewPending = 0,
+      rejectedAuto = 0;
+    (records || []).forEach((r) => {
+      (r.matches || []).forEach((m) => {
+        totalMatches++;
+        const score = typeof m.contentScore === 'number' ? m.contentScore : m.score;
+        if (m.tier === 'approved') approvedAuto++;
+        else if (m.tier === 'rejected') rejectedAuto++;
+        else if (m.tier === 'review' && !m.adminDecision) reviewPending++;
+        if (m.adminDecision && typeof score === 'number') {
+          labeled.push({ score, approved: m.adminDecision === 'confirmed' });
+        }
+      });
+    });
+    // Histogram: 10 kova (0-10, 10-20, ... 90-100)
+    const bins = Array.from({ length: 10 }, (_, i) => ({
+      label: i * 10 + '–' + (i + 1) * 10,
+      confirmed: 0,
+      rejected: 0,
+    }));
+    labeled.forEach((l) => {
+      const bi = Math.min(9, Math.floor(l.score * 10));
+      if (l.approved) bins[bi].confirmed++;
+      else bins[bi].rejected++;
+    });
+    const suggestion = labeled.length >= CALIB_MIN_LABELS ? suggestThreshold(labeled) : null;
+    return { labeled, totalMatches, approvedAuto, reviewPending, rejectedAuto, bins, suggestion };
+  }, [records]);
+
+  const handleSave = async (aPct, rPct) => {
+    const a = aPct / 100,
+      r = rPct / 100;
+    if (!(r > 0 && a < 1 && r < a)) {
+      setMsg('Geçersiz eşikler: inceleme eşiği, muafiyet eşiğinden küçük olmalı (0–100 arası).');
+      return;
+    }
+    setSaving(true);
+    setMsg('');
+    try {
+      await onSaveThresholds({ autoApprove: a, review: r });
+      setMsg('Eşikler kaydedildi — yeni eşleştirmelerde geçerli.');
+    } catch (e) {
+      setMsg('Kaydedilemedi: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const maxBin = Math.max(1, ...analysis.bins.map((b) => b.confirmed + b.rejected));
+
+  const statCards = [
+    { label: 'Toplam Eşleşme', value: analysis.totalMatches, color: DS.navy },
+    { label: 'Otomatik Muaf', value: analysis.approvedAuto, color: DS.green },
+    { label: 'Karar Bekleyen', value: analysis.reviewPending, color: DS.amber },
+    { label: 'Etiketli Karar', value: analysis.labeled.length, color: DS.accent },
+  ];
+
+  return (
+    <SectionCard
+      title="Eşik Kalibrasyonu"
+      subtitle="Akademisyen kararlarından öğrenilen skor dağılımı ve eşik ayarı"
+      icon={<Icons.settings />}
+    >
+      {/* Özet istatistikler */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 10,
+          marginBottom: 16,
+        }}
+      >
+        {statCards.map((s) => (
+          <div
+            key={s.label}
+            style={{
+              background: DS.bg,
+              border: '1px solid ' + DS.borderLight,
+              borderRadius: 8,
+              padding: '10px 12px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 10, color: DS.textSecondary, fontWeight: 600, marginTop: 2 }}>
+              {s.label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Skor dağılımı — akademisyen kararı verilmiş eşleşmeler */}
+      {analysis.labeled.length > 0 ? (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: DS.textSecondary, marginBottom: 8 }}>
+            SKOR DAĞILIMI (yeşil: akademisyen muaf dedi, kırmızı: red dedi)
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 90 }}>
+            {analysis.bins.map((b) => (
+              <div
+                key={b.label}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-end',
+                  gap: 1,
+                  height: '100%',
+                }}
+                title={b.label + '%: muaf ' + b.confirmed + ', red ' + b.rejected}
+              >
+                {b.confirmed > 0 && (
+                  <div
+                    style={{
+                      background: DS.green,
+                      borderRadius: 2,
+                      height: Math.max(3, (b.confirmed / maxBin) * 70) + 'px',
+                    }}
+                  />
+                )}
+                {b.rejected > 0 && (
+                  <div
+                    style={{
+                      background: DS.red,
+                      borderRadius: 2,
+                      height: Math.max(3, (b.rejected / maxBin) * 70) + 'px',
+                    }}
+                  />
+                )}
+                <div style={{ fontSize: 8, color: DS.textMuted, textAlign: 'center' }}>
+                  {b.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            padding: '12px 14px',
+            background: DS.bg,
+            borderRadius: 8,
+            fontSize: 12,
+            color: DS.textSecondary,
+            marginBottom: 16,
+          }}
+        >
+          Henüz etiketli karar yok. Akademisyenler "inceleme bekliyor" kayıtlarına muaf/red kararı
+          verdikçe skor dağılımı burada birikir ve eşik önerisi oluşur.
+        </div>
+      )}
+
+      {/* Öneri */}
+      {analysis.suggestion ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '10px 14px',
+            background: DS.greenBg,
+            border: '1px solid ' + DS.greenLight,
+            borderRadius: 8,
+            marginBottom: 16,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ fontSize: 12.5, color: DS.green, fontWeight: 600 }}>
+            Önerilen muafiyet eşiği: %{Math.round(analysis.suggestion.threshold * 100)} (
+            {analysis.labeled.length} karara dayalı Youden-J analizi)
+          </span>
+          <button
+            onClick={() =>
+              handleSave(
+                Math.round(analysis.suggestion.threshold * 100),
+                Math.max(1, Math.round(analysis.suggestion.threshold * 100) - 10)
+              )
+            }
+            disabled={saving}
+            style={{
+              padding: '6px 14px',
+              background: DS.green,
+              color: 'white',
+              border: 'none',
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Öneriyi Uygula
+          </button>
+        </div>
+      ) : (
+        analysis.labeled.length > 0 && (
+          <div style={{ fontSize: 11.5, color: DS.textMuted, marginBottom: 16 }}>
+            Eşik önerisi için en az {CALIB_MIN_LABELS} etiketli karar gerekir (şu an{' '}
+            {analysis.labeled.length}). Not: etiketler ağırlıkla inceleme bandından geldiği için
+            öneri o bandın sınırlarını hassaslaştırır.
+          </div>
+        )
+      )}
+
+      {/* Manuel eşik ayarı */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <label
+            style={{
+              display: 'block',
+              fontSize: 10,
+              fontWeight: 700,
+              color: DS.textSecondary,
+              textTransform: 'uppercase',
+              marginBottom: 4,
+            }}
+          >
+            Otomatik Muafiyet Eşiği (%)
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={99}
+            value={autoPct}
+            onChange={(e) => setAutoPct(parseInt(e.target.value, 10) || 0)}
+            style={{
+              width: 110,
+              padding: '8px 10px',
+              borderRadius: 6,
+              border: '1px solid ' + DS.border,
+              fontSize: 13,
+            }}
+          />
+        </div>
+        <div>
+          <label
+            style={{
+              display: 'block',
+              fontSize: 10,
+              fontWeight: 700,
+              color: DS.textSecondary,
+              textTransform: 'uppercase',
+              marginBottom: 4,
+            }}
+          >
+            İnceleme Alt Eşiği (%)
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={99}
+            value={reviewPct}
+            onChange={(e) => setReviewPct(parseInt(e.target.value, 10) || 0)}
+            style={{
+              width: 110,
+              padding: '8px 10px',
+              borderRadius: 6,
+              border: '1px solid ' + DS.border,
+              fontSize: 13,
+            }}
+          />
+        </div>
+        <button
+          onClick={() => handleSave(autoPct, reviewPct)}
+          disabled={saving}
+          style={{
+            padding: '9px 18px',
+            background: DS.accent,
+            color: 'white',
+            border: 'none',
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: saving ? 'wait' : 'pointer',
+          }}
+        >
+          {saving ? 'Kaydediliyor…' : 'Eşikleri Kaydet'}
+        </button>
+        <span style={{ fontSize: 11, color: DS.textMuted }}>
+          Geçerli: muaf ≥ %{Math.round(thresholds.autoApprove * 100)}, inceleme %
+          {Math.round(thresholds.review * 100)}–{Math.round(thresholds.autoApprove * 100) - 1}
+        </span>
+      </div>
+
+      {msg && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: '8px 12px',
+            borderRadius: 6,
+            fontSize: 12,
+            background: msg.includes('kaydedildi') ? DS.greenBg : DS.redLight,
+            color: msg.includes('kaydedildi') ? DS.green : DS.red,
+          }}
+        >
+          {msg}
+        </div>
+      )}
+    </SectionCard>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════
 // ANA MODÜL
 // ══════════════════════════════════════════════════════════════
 
 function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
+  const isStudent = currentUser?.role === 'student';
   const [activeTab, setActiveTab] = useState('yeni');
   const [courseContents, setCourseContents] = useState([]);
   const [gradingSystem, setGradingSystem] = useState(null);
   const [records, setRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
+  const [thresholds, setThresholds] = useState({
+    autoApprove: CALIBRATION.autoApprove,
+    review: CALIBRATION.review,
+  });
 
   useEffect(
     function () {
@@ -5024,6 +5418,15 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
           if (contents.length > 0) setCourseContents(contents);
           var grading = await MuafiyetDB.fetchGradingSystem();
           if (grading) setGradingSystem(grading);
+          // Kalibre edilmiş eşikler (varsa) — decideTier bu değerleri kullanır
+          var savedThresholds = await MuafiyetDB.fetchThresholds();
+          if (savedThresholds) {
+            applyCalibration(savedThresholds);
+            setThresholds({
+              autoApprove: CALIBRATION.autoApprove,
+              review: CALIBRATION.review,
+            });
+          }
           var allRecs = await MuafiyetDB.fetchRecords();
           // Bölüm bazlı filtreleme: departmentId'si olmayan veriler bilgisayar bölümüne ait
           var recs = allRecs.filter(function (r) {
@@ -5040,6 +5443,14 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
     },
     [activeDepartment]
   );
+
+  const handleSaveThresholds = async function (t) {
+    await MuafiyetDB.saveThresholds(
+      Object.assign({}, t, { updatedBy: currentUser?.identifier || currentUser?.name || '' })
+    );
+    applyCalibration(t);
+    setThresholds({ autoApprove: CALIBRATION.autoApprove, review: CALIBRATION.review });
+  };
 
   const handleDeleteRecord = async function (id) {
     try {
@@ -5141,7 +5552,10 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             borderBottom: '2px solid ' + DS.borderLight,
           }}
         >
-          {MUAFIYET_TABS.map(function (tab) {
+          {MUAFIYET_TABS.filter(function (tab) {
+            // Ayarlar (katalog + eşik kalibrasyonu) yalnızca akademisyen/yetkili görür
+            return !(isStudent && tab.id === 'ayarlar');
+          }).map(function (tab) {
             var isActive = activeTab === tab.id;
             return (
               <button
@@ -5212,13 +5626,22 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         </div>
 
         {/* Tab İçeriği */}
-        {activeTab === 'ayarlar' && (
-          <SettingsPanel
-            courseContents={courseContents}
-            setCourseContents={setCourseContents}
-            gradingSystem={gradingSystem}
-            setGradingSystem={setGradingSystem}
-          />
+        {activeTab === 'ayarlar' && !isStudent && (
+          <>
+            <div style={{ marginBottom: 20 }}>
+              <CalibrationPanel
+                records={records}
+                thresholds={thresholds}
+                onSaveThresholds={handleSaveThresholds}
+              />
+            </div>
+            <SettingsPanel
+              courseContents={courseContents}
+              setCourseContents={setCourseContents}
+              gradingSystem={gradingSystem}
+              setGradingSystem={setGradingSystem}
+            />
+          </>
         )}
         {activeTab === 'yeni' &&
           (currentUser?.role === 'student' ? (
@@ -5671,27 +6094,37 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
 
   // ── Sonuç Paneli (kayıt sonrası) ──
   if (resultPanel) {
+    const pctA = Math.round(CALIBRATION.autoApprove * 100);
+    const pctR = Math.round(CALIBRATION.review * 100);
     const tierMeta = {
       approved: {
         label: 'OTOMATİK MUAF',
         color: DS.green,
         bg: DS.greenBg,
         border: DS.greenLight,
-        explain: 'İçerik uyumu ≥ %70 ve AKTS uyumlu — sistem otomatik onayladı, geçmişe işlendi.',
+        explain:
+          'İçerik uyumu ≥ %' +
+          pctA +
+          ' ve AKTS uyumlu — sistem otomatik onayladı, geçmişe işlendi.',
       },
       review: {
         label: 'AKADEMİSYEN ONAYINDA',
         color: DS.amber,
         bg: DS.amberLight,
         border: '#FCD34D',
-        explain: 'İçerik uyumu %60–69 (sınır bölgesi) — akademisyen kararını verecek.',
+        explain:
+          'İçerik uyumu %' +
+          pctR +
+          '–' +
+          (pctA - 1) +
+          ' (sınır bölgesi) — akademisyen kararını verecek.',
       },
       rejected: {
         label: 'REDDEDİLDİ',
         color: DS.red,
         bg: DS.redLight,
         border: '#FECACA',
-        explain: 'İçerik uyumu %60 altı veya AKTS yetersiz.',
+        explain: 'İçerik uyumu %' + pctR + ' altı veya AKTS yetersiz.',
       },
     };
     return (
@@ -5712,9 +6145,12 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
           <p style={{ margin: '6px 0 0', fontSize: 13, color: DS.textSecondary, lineHeight: 1.6 }}>
             <b>Ders adının aynı olması gerekmez.</b> Sistem yalnızca iki kritere bakar:{' '}
             <b>AKTS uyumu</b> (alınan dersin kredisi, muaf olunacak dersin en az %70'i) ve{' '}
-            <b>içerik uyumu</b>. İçerik uyumu <b>%70 ve üzeriyse</b> otomatik muaf, <b>%60–%69</b>{' '}
-            arası akademisyen kararına gider, <b>%60 altı</b> reddedilir. Akademisyen onayı bekleyen
-            kayıtlar geçmişinizde sarı renkle görünür.
+            <b>içerik uyumu</b>. İçerik uyumu <b>%{pctA} ve üzeriyse</b> otomatik muaf,{' '}
+            <b>
+              %{pctR}–%{pctA - 1}
+            </b>{' '}
+            arası akademisyen kararına gider, <b>%{pctR} altı</b> reddedilir. Akademisyen onayı
+            bekleyen kayıtlar geçmişinizde sarı renkle görünür.
           </p>
         </div>
 
@@ -6120,4 +6556,7 @@ window.MuafiyetUtils = {
   THRESHOLD_AUTO_APPROVE,
   THRESHOLD_REVIEW,
   AKTS_MIN_RATIO,
+  CALIBRATION,
+  applyCalibration,
+  suggestThreshold,
 };
