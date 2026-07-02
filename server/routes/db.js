@@ -86,6 +86,8 @@ const ALLOWED_COLLECTIONS = [
   'performance_targets',
   'performance_forms',
   'performance_reports',
+  'performance_data',
+  'performance_agg_rules',
   'audit_logs',
   'notifications',
   'student_clubs',

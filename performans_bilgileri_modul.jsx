@@ -196,43 +196,140 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
 
   const [toast, setToast] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // Sunucudan yüklenen "temel" durum — kaydet öncesi diff için karşılaştırma zemini.
+  // Kaydet çağrıldığında sadece değişen hücreler backend'e yazılır.
+  const [baselineData, setBaselineData] = useState({});
   const flash = (m) => {
     setToast(m);
     setTimeout(() => setToast(''), 3000);
   };
 
-  // ── localStorage'dan veri yükle ──
+  // ── Backend'den veri yükle (performance_data + performance_agg_rules) ──
+  // localStorage yerine artık MongoDB'de saklanıyor. Bir akademisyenin girdiği
+  // değeri bölüm/fakülte yetkilisi kendi tarayıcısında görebilsin diye
+  // her kullanıcı tüm ilgili veriyi çeker.
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('performans_saved_data');
-      if (saved) {
-        const d = JSON.parse(saved);
-        if (d.akademisyenData) setAkademisyenData(d.akademisyenData);
-        if (d.aggOverrides) setAggOverrides(d.aggOverrides);
+    const load = async () => {
+      try {
+        const [rows, rules] = await Promise.all([
+          window.apiRead('performance_data').catch(() => []),
+          window.apiRead('performance_agg_rules').catch(() => []),
+        ]);
+        // Rows → akademisyenData şekline dönüştür
+        const nested = {};
+        (Array.isArray(rows) ? rows : []).forEach((r) => {
+          if (!r || !r.akademisyenId || !r.gostergeId || !r.yil || !r.ay) return;
+          const k = `${r.yil}_${r.gostergeId}_${r.ay}`;
+          if (!nested[r.akademisyenId]) nested[r.akademisyenId] = {};
+          nested[r.akademisyenId][k] = r.value == null ? '' : String(r.value);
+        });
+        setAkademisyenData(nested);
+        setBaselineData(nested);
+
+        // Kurallar → aggOverrides (şu an kullanıcının aktif scope'una göre)
+        // NOT: view değiştiğinde ayrıca override map yeniden hesaplanır.
+        const flat = {};
+        (Array.isArray(rules) ? rules : []).forEach((r) => {
+          if (!r || !r.gostergeId || !r.aggType) return;
+          // Basit indeks: scope+scopeId+gostergeId → aggType.
+          // Runtime'da scopeKey ile filtreleyip aggregate uygulanır.
+          flat[`${r.scope}::${r.scopeId}::${r.gostergeId}`] = r.aggType;
+        });
+        setAggOverrides(flat);
+      } catch (e) {
+        console.error('Performans verileri yüklenemedi:', e);
       }
-    } catch (e) {
-      console.error('Veri yüklenemedi:', e);
-    }
+    };
+    load();
   }, []);
 
-  // ── Kaydet (localStorage) ──
-  const handleSave = () => {
+  // Diff hesapla — sadece değişen (akademisyenId, gostergeId, yil, ay) hücrelerini yaz
+  const collectChangedOps = () => {
+    if (!selectedAkademisyen) return [];
+    const ops = [];
+    const own = akademisyenData[selectedAkademisyen] || {};
+    const base = baselineData[selectedAkademisyen] || {};
+    const keys = new Set([...Object.keys(own), ...Object.keys(base)]);
+    keys.forEach((k) => {
+      const v = (own[k] || '').toString().trim();
+      const b = (base[k] || '').toString().trim();
+      if (v === b) return;
+      const [yil, gostergeId, ay] = k.split('_');
+      if (!yil || !gostergeId || !ay) return;
+      const g = findGosterge(gostergeId);
+      const docId = `${selectedAkademisyen}_${yil}_${gostergeId}_${ay}`;
+      ops.push({
+        collection: 'performance_data',
+        type: 'set',
+        docId,
+        merge: true,
+        data: {
+          akademisyenId: selectedAkademisyen,
+          departmentId: matchedAkademisyen?.departmentId || '',
+          gostergeId,
+          birim: g?.birim || '',
+          yil,
+          ay,
+          value: v,
+        },
+      });
+    });
+    return ops;
+  };
+
+  // ── Kaydet: değişen değerleri backend'e yaz ──
+  const handleSave = async () => {
+    if (saving) return;
+    const ops = collectChangedOps();
+    if (ops.length === 0) {
+      flash('Kaydedilecek değişiklik yok');
+      return;
+    }
+    setSaving(true);
     try {
-      localStorage.setItem(
-        'performans_saved_data',
-        JSON.stringify({ akademisyenData, aggOverrides })
-      );
-      flash('Veriler kaydedildi');
+      // 50 kayıt sınırı aşılırsa gruplandırarak gönder
+      for (let i = 0; i < ops.length; i += 40) {
+        const chunk = ops.slice(i, i + 40);
+        await window.DBWrite.batch(chunk);
+      }
+      // Baseline güncelle — yeniden diff için
+      setBaselineData((prev) => ({
+        ...prev,
+        [selectedAkademisyen]: { ...(akademisyenData[selectedAkademisyen] || {}) },
+      }));
+      window.apiInvalidate && window.apiInvalidate('performance_data');
+      flash(`${ops.length} değer kaydedildi`);
     } catch (e) {
       console.error('Kaydetme hatası:', e);
       flash('Kaydetme sırasında hata oluştu');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleSubmit = () => {
-    handleSave();
+  const handleSubmit = async () => {
+    await handleSave();
     setSubmitted(true);
     flash('Gösterge verileri gönderildi');
+  };
+
+  // ── Toplama kuralını backend'e yaz (bölüm/fakülte yetkilisi ayarı) ──
+  const persistAggRule = async (scope, scopeId, gostergeId, aggType) => {
+    if (!scope || !scopeId || !gostergeId || !aggType) return;
+    const docId = `${scope}_${scopeId}_${gostergeId}`;
+    try {
+      await window.DBWrite.set(
+        'performance_agg_rules',
+        docId,
+        { scope, scopeId, gostergeId, aggType },
+        true
+      );
+      window.apiInvalidate && window.apiInvalidate('performance_agg_rules');
+    } catch (e) {
+      console.error('Kural kaydedilemedi:', e);
+      flash('Kural kaydedilemedi');
+    }
   };
 
   // ── Akademisyen listesini API'den yükle ──
@@ -424,10 +521,26 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     return [...new Set(AKADEMISYENLER.filter((a) => a.fakulte === fak).map((a) => a.bolum))];
   }, [capFaculty, AKADEMISYENLER, FAKULTELER]);
 
+  // Fakülte scope id'si — fakülte adı stabil bir kimlik olarak kullanılır
+  const facultyIdForSummary = useMemo(
+    () => matchedAkademisyen?.fakulte || FAKULTELER[0] || '',
+    [matchedAkademisyen, FAKULTELER]
+  );
+
+  // Kurallara scope-aware erişim: önce ilgili scope'ta ayar ara, bulamazsa default
+  const getAggType = (gostergeId, scope, scopeId) => {
+    const g = findGosterge(gostergeId);
+    if (scope && scopeId) {
+      const v = aggOverrides[`${scope}::${scopeId}::${gostergeId}`];
+      if (v) return v;
+    }
+    return g?.aggType || 'sum';
+  };
+
   // Bölüm toplamı (seçili yıl + ay) — birim ile formatlanmış
   const calcBolumToplam = (gostergeId, ay) => {
     const g = findGosterge(gostergeId);
-    const aggType = aggOverrides[gostergeId] || g?.aggType || 'sum';
+    const aggType = getAggType(gostergeId, 'department', deptForSummary);
     const vals = bolumAkademisyenleri
       .map((a) => {
         const v = akademisyenData[a.id]?.[pKey(selectedYil, gostergeId, ay)];
@@ -444,7 +557,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   // kuralına göre birleştirir (topla/sabit/ortalama/maks.).
   const calcFakulteToplam = (gostergeId, ay) => {
     const g = findGosterge(gostergeId);
-    const aggType = aggOverrides[gostergeId] || g?.aggType || 'sum';
+    const aggType = getAggType(gostergeId, 'faculty', facultyIdForSummary);
     const fak = FAKULTELER[0];
     if (!fak) return '—';
 
@@ -457,7 +570,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     });
 
     const deptTotals = [];
-    for (const [, akads] of byDept.entries()) {
+    for (const [deptKey, akads] of byDept.entries()) {
       const dv = akads
         .map((a) => {
           const v = akademisyenData[a.id]?.[pKey(selectedYil, gostergeId, ay)];
@@ -465,8 +578,9 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
         })
         .filter((v) => v !== null && !isNaN(v));
       if (dv.length > 0) {
-        // Bölüm içi toplama zaten aggType ile yapılır → sonuç fakülte için hazır
-        deptTotals.push(aggregate(dv, aggType));
+        // Bölüm içi toplama o bölümün kendi kuralı ile → fakülte için hazır ara toplam
+        const deptAgg = getAggType(gostergeId, 'department', deptKey);
+        deptTotals.push(aggregate(dv, deptAgg));
       }
     }
     if (deptTotals.length === 0) return '—';
@@ -848,7 +962,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                           </thead>
                           <tbody>
                             {kat.gostergeler.map((g) => {
-                              const currentAgg = aggOverrides[g.id] || g.aggType;
+                              const currentAgg = getAggType(g.id, 'department', deptForSummary);
                               return (
                                 <tr key={g.id} style={{ borderBottom: `1px solid ${C.border}` }}>
                                   <td style={{ ...td, paddingLeft: 8 }}>
@@ -879,9 +993,14 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                                   <td style={{ ...td, textAlign: 'center', padding: 3 }}>
                                     <select
                                       value={currentAgg}
-                                      onChange={(e) =>
-                                        setAggOverrides((p) => ({ ...p, [g.id]: e.target.value }))
-                                      }
+                                      onChange={(e) => {
+                                        const newAgg = e.target.value;
+                                        setAggOverrides((p) => ({
+                                          ...p,
+                                          [`department::${deptForSummary}::${g.id}`]: newAgg,
+                                        }));
+                                        persistAggRule('department', deptForSummary, g.id, newAgg);
+                                      }}
                                       style={{
                                         ...inpF,
                                         padding: '3px 4px',
@@ -961,12 +1080,13 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                             width: '100%',
                             borderCollapse: 'collapse',
                             fontSize: 12,
-                            minWidth: 1000,
+                            minWidth: 1100,
                           }}
                         >
                           <thead>
                             <tr>
                               <th style={{ ...th, minWidth: 220 }}>Gösterge</th>
+                              <th style={{ ...th, width: 75, textAlign: 'center' }}>Kural</th>
                               {AYLAR.map((a) => (
                                 <th key={a} style={{ ...th, width: 62, textAlign: 'center' }}>
                                   {a.slice(0, 3)}
@@ -975,25 +1095,59 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                             </tr>
                           </thead>
                           <tbody>
-                            {kat.gostergeler.map((g) => (
-                              <tr key={g.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                                <td style={{ ...td, paddingLeft: 8 }}>{g.ad}</td>
-                                {AYLAR.map((a) => (
-                                  <td
-                                    key={a}
-                                    style={{
-                                      ...td,
-                                      textAlign: 'center',
-                                      fontWeight: 700,
-                                      color: C.purple,
-                                      fontSize: 12,
-                                    }}
-                                  >
-                                    {calcFakulteToplam(g.id, a)}
+                            {kat.gostergeler.map((g) => {
+                              const currentAgg = getAggType(g.id, 'faculty', facultyIdForSummary);
+                              return (
+                                <tr key={g.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                                  <td style={{ ...td, paddingLeft: 8 }}>{g.ad}</td>
+                                  <td style={{ ...td, textAlign: 'center', padding: 3 }}>
+                                    <select
+                                      value={currentAgg}
+                                      onChange={(e) => {
+                                        const newAgg = e.target.value;
+                                        setAggOverrides((p) => ({
+                                          ...p,
+                                          [`faculty::${facultyIdForSummary}::${g.id}`]: newAgg,
+                                        }));
+                                        persistAggRule(
+                                          'faculty',
+                                          facultyIdForSummary,
+                                          g.id,
+                                          newAgg
+                                        );
+                                      }}
+                                      style={{
+                                        ...inpF,
+                                        padding: '3px 4px',
+                                        fontSize: 10,
+                                        width: '100%',
+                                        textAlign: 'center',
+                                      }}
+                                    >
+                                      {AGG_TYPES.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                          {t.label}
+                                        </option>
+                                      ))}
+                                    </select>
                                   </td>
-                                ))}
-                              </tr>
-                            ))}
+                                  {AYLAR.map((a) => (
+                                    <td
+                                      key={a}
+                                      style={{
+                                        ...td,
+                                        textAlign: 'center',
+                                        fontWeight: 700,
+                                        color: C.purple,
+                                        fontSize: 12,
+                                      }}
+                                    >
+                                      {calcFakulteToplam(g.id, a)}
+                                    </td>
+                                  ))}
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>

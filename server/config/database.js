@@ -53,6 +53,18 @@ async function setupIndexes(database) {
       .collection('student_notifications')
       .createIndex({ studentNumber: 1, createdAt: -1 }, { background: true });
 
+    // Performans modülü — akademisyen gösterge değerleri
+    await database
+      .collection('performance_data')
+      .createIndex({ akademisyenId: 1, yil: 1 }, { background: true });
+    await database
+      .collection('performance_data')
+      .createIndex({ departmentId: 1, yil: 1 }, { background: true });
+    // Performans modülü — bölüm/fakülte yetkilisi toplama kuralları
+    await database
+      .collection('performance_agg_rules')
+      .createIndex({ scope: 1, scopeId: 1 }, { background: true });
+
     // Audit log koleksiyonu (yazma denetimi)
     // - at: -1 → kronolojik sorgular için
     // - actor.userId + at → kullanıcı bazlı tarama
