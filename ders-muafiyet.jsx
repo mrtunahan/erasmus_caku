@@ -944,6 +944,88 @@ function contentSimilarity(text1, text2) {
   );
 }
 
+// ── BÖLÜM-BAZLI İÇERİK ANALİZİ ──
+// Ders tanıtım formları düz paragraf değil; haftalık konular, öğrenme
+// çıktıları ve kaynakça blokları taşır. Her blok ayrı skorlanıp ağırlıklı
+// harmanlanır — düz metin karşılaştırmasındaki gürültüyü azaltır.
+
+// E-posta / URL / telefon gibi içerik dışı gürültüyü temizle
+function cleanCourseNoise(text) {
+  return (text || '')
+    .replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi, ' ')
+    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/\b0?\s*\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}\b/g, ' ');
+}
+
+// Metni başlık kalıplarına göre bölümlere ayır.
+// Başlık bulunamazsa tüm metin 'general' altında kalır.
+function splitCourseSections(rawText) {
+  var text = (rawText || '').replace(/\s+/g, ' ').trim();
+  var out = { weekly: '', outcomes: '', resources: '', general: '' };
+  if (!text) return out;
+  var lower = text.toLocaleLowerCase('tr-TR');
+
+  var markers = [
+    {
+      key: 'weekly',
+      re: /hafta(?:lık)?\s*(?:ders\s*)?(?:içeri[kğ]i?|konular[ıi]?|plan[ıi]?|program[ıi]?)/,
+    },
+    { key: 'outcomes', re: /(?:öğrenme|ders(?:in)?)\s*(?:çıktı|kazanım)[a-zçğıöşü]*/ },
+    { key: 'resources', re: /kaynak(?:ça|lar)?\b|ders kitab[ıi]|önerilen kaynak|textbook/ },
+  ];
+  var hits = [];
+  markers.forEach(function (m) {
+    var idx = lower.search(m.re);
+    if (idx >= 0) hits.push({ key: m.key, idx: idx });
+  });
+  // Başlık olmasa da "1. hafta … 14. hafta" listesi haftalık bölüm sayılır
+  if (
+    !hits.some(function (h) {
+      return h.key === 'weekly';
+    })
+  ) {
+    var weekItems = lower.match(/\b\d{1,2}\s*\.?\s*hafta\b/g) || [];
+    if (weekItems.length >= 5) {
+      var firstWeek = lower.search(/\b\d{1,2}\s*\.?\s*hafta\b/);
+      if (firstWeek >= 0) hits.push({ key: 'weekly', idx: firstWeek });
+    }
+  }
+  if (hits.length === 0) {
+    out.general = text;
+    return out;
+  }
+  hits.sort(function (a, b) {
+    return a.idx - b.idx;
+  });
+  out.general = text.slice(0, hits[0].idx).trim();
+  hits.forEach(function (h, i) {
+    var end = i + 1 < hits.length ? hits[i + 1].idx : text.length;
+    out[h.key] = (out[h.key] ? out[h.key] + ' ' : '') + text.slice(h.idx, end).trim();
+  });
+  return out;
+}
+
+var SECTION_WEIGHTS = { weekly: 0.5, outcomes: 0.3, resources: 0.1, general: 0.1 };
+
+// İki içerik metnini bölüm-bazlı karşılaştır. Her iki yanda da bulunan
+// bölümler kendi ağırlığıyla skorlanır; eksik bölümlerin ağırlığı kalanlara
+// dağıtılır. Ortak bölüm kapsamı zayıfsa düz karşılaştırmaya geri döner.
+function sectionAwareContentSimilarity(text1, text2) {
+  if (!text1 || !text2) return 0;
+  var a = splitCourseSections(cleanCourseNoise(text1));
+  var b = splitCourseSections(cleanCourseNoise(text2));
+  var acc = 0,
+    totalW = 0;
+  Object.keys(SECTION_WEIGHTS).forEach(function (k) {
+    if (a[k] && b[k] && a[k].length >= 30 && b[k].length >= 30) {
+      acc += contentSimilarity(a[k], b[k]) * SECTION_WEIGHTS[k];
+      totalW += SECTION_WEIGHTS[k];
+    }
+  });
+  if (totalW < 0.5) return contentSimilarity(text1, text2);
+  return acc / totalW;
+}
+
 // ── SKOR: yalnızca İÇERİK ──
 // İsim ve kod benzerliği KARARA GİRMEZ (isim benzerliği şart değil).
 // İçerik metni iki yanda da yoksa skor hesaplanamaz → noContent bayrağı
@@ -955,7 +1037,7 @@ function multiFactorScore(srcCourse, tgtCourse) {
   var srcText = srcCourse.weeklyContent || srcCourse.content || '';
   var tgtText = tgtCourse.weeklyContent || tgtCourse.content || '';
   var hasContent = !!(srcText && tgtText);
-  var contScore = hasContent ? safe(contentSimilarity(srcText, tgtText)) : 0;
+  var contScore = hasContent ? safe(sectionAwareContentSimilarity(srcText, tgtText)) : 0;
   return {
     total: contScore,
     contentScore: contScore,
@@ -991,6 +1073,63 @@ function decideTier(aktsPass, scores) {
     matched: false,
     reason: 'İçerik uyumu düşük (%' + Math.round(scores.total * 100) + ')',
   };
+}
+
+// ── SEMANTİK SKOR (opsiyonel sunucu servisi) ──
+// /api/semantic/similarity ayaktaysa içerik skoru embedding cosine ile
+// yeniden hesaplanır ("retrieval sözcüksel → rerank semantik").
+// Servis yoksa/ulaşılamazsa null döner ve sözcüksel skor geçerli kalır.
+async function fetchSemanticScores(pairs) {
+  try {
+    var token = localStorage.getItem('caku_auth_token');
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    var res = await fetch('/api/semantic/similarity', {
+      method: 'POST',
+      headers: headers,
+      credentials: 'include',
+      body: JSON.stringify({ pairs: pairs }),
+    });
+    if (!res.ok) return null;
+    var data = await res.json();
+    return data && data.available && Array.isArray(data.scores) ? data.scores : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+// Eşleşme listesini (autoMatch çıktısı: {source, target, aktsPass, ...})
+// semantik skorla yeniden derecelendir. Servis yoksa liste aynen döner.
+async function refineMatchesSemantic(matches) {
+  var eligible = [];
+  matches.forEach(function (m, i) {
+    var a = m.source && (m.source.weeklyContent || m.source.content);
+    var b = m.target && (m.target.weeklyContent || m.target.content);
+    if (a && b) eligible.push({ index: i, a: a, b: b });
+  });
+  if (eligible.length === 0) return { matches: matches, semantic: false };
+  var scores = await fetchSemanticScores(
+    eligible.map(function (e) {
+      return { a: e.a, b: e.b };
+    })
+  );
+  if (!scores) return { matches: matches, semantic: false };
+  var updated = matches.slice();
+  eligible.forEach(function (e, k) {
+    var s = scores[k];
+    if (typeof s !== 'number') return;
+    var m = updated[e.index];
+    var decision = decideTier(m.aktsPass, { total: s, contentScore: s, noContent: false });
+    updated[e.index] = Object.assign({}, m, {
+      contentScore: s,
+      detailContentScore: s,
+      matched: decision.matched,
+      tier: decision.tier,
+      rejectReason: decision.reason,
+      scoreMethod: 'semantic',
+    });
+  });
+  return { matches: updated, semantic: true };
 }
 
 // Aday sıralama skoru — SADECE hedef ders seçiminde kullanılır, karara girmez.
@@ -2900,10 +3039,12 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
     if (studentCourses.length === 0 || courseIndex.size === 0) return;
     dispatch({ type: 'SET_LOADING', key: 'matching', value: true });
     dispatch({ type: 'SET_MSG', payload: null });
-    setTimeout(function () {
+    setTimeout(async function () {
       // Pre-built indeks kullan — tek tek tokenizasyon yok
       var autoMatches = autoMatchCoursesWithIndex(studentCourses, courseIndex);
-      var enriched = autoMatches.map(function (m) {
+      // Semantik servis ayaktaysa içerik skorunu embedding ile yeniden hesapla
+      var refined = await refineMatchesSemantic(autoMatches);
+      var enriched = refined.matches.map(function (m) {
         return Object.assign({}, m, {
           convertedGrade: m.source.grade ? convertGradeLocal(m.source.grade) : '',
         });
@@ -2923,6 +3064,8 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
             Math.round(THRESHOLD_AUTO_APPROVE * 100) +
             ', AKTS uyumu: %' +
             Math.round(AKTS_MIN_RATIO * 100) +
+            ', ' +
+            (refined.semantic ? 'semantik analiz' : 'sözcüksel analiz') +
             ')',
           type: 'success',
         },
@@ -5309,15 +5452,27 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
     if (!validate()) return;
     setProcessing(true);
     try {
-      const matches = rows.map((r) => {
+      // Semantik servis ayaktaysa embedding cosine kullanılır; yoksa sözcüksel.
+      const semScores = await fetchSemanticScores(
+        rows.map((r) => ({ a: r.src.content, b: r.cak.content }))
+      );
+
+      const matches = rows.map((r, i) => {
         // Karar iki kritere bakar: AKTS uyumu (≥%70) + içerik uyumu (≥%70).
         // İsim benzerliği karara girmez — akademisyen sihirbazıyla aynı kural.
         const factor = multiFactorScore(
           { name: r.src.name, weeklyContent: r.src.content, content: r.src.content },
           { name: r.cak.name, weeklyContent: r.cak.content, content: r.cak.content }
         );
+        const sem = semScores && typeof semScores[i] === 'number' ? semScores[i] : null;
+        const finalScore = sem != null ? sem : factor.total;
+        const scoreMethod = sem != null ? 'semantic' : 'lexical';
         const aktsPass = aktsCompatible(r.src.akts, r.cak.akts);
-        const decision = decideTier(aktsPass, factor);
+        const decision = decideTier(aktsPass, {
+          total: finalScore,
+          contentScore: finalScore,
+          noContent: factor.noContent && sem == null,
+        });
         return {
           localCourse: {
             code: r.cak.code,
@@ -5334,8 +5489,9 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
             weeklyContent: r.src.content,
             grade: '',
           },
-          score: factor.total,
-          contentScore: factor.contentScore,
+          score: finalScore,
+          contentScore: finalScore,
+          scoreMethod,
           tier: decision.tier,
           matched: decision.matched,
           aktsPass,
@@ -5665,7 +5821,10 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
               >
                 {[
                   {
-                    label: 'İçerik Uyumu (karar kriteri)',
+                    label:
+                      'İçerik Uyumu (' +
+                      (m.scoreMethod === 'semantic' ? 'semantik analiz' : 'sözcüksel analiz') +
+                      ')',
                     text: '%' + Math.round((m.contentScore || 0) * 100),
                     color: meta.color,
                   },
@@ -5931,11 +6090,16 @@ window.MuafiyetUtils = {
   ngramSimilarity,
   tfidfCosineSimilarity,
   contentSimilarity,
+  sectionAwareContentSimilarity,
+  splitCourseSections,
+  cleanCourseNoise,
   courseNameSimilarity,
   courseCodeSimilarity,
   multiFactorScore,
   decideTier,
   aktsCompatible,
+  fetchSemanticScores,
+  refineMatchesSemantic,
   levenshteinDistance,
   wordSimilarity,
   charNgrams,
