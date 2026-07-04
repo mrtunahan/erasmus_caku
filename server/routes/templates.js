@@ -331,8 +331,11 @@ router.post('/', writeLimiter, softAuthMiddleware, upload.single('file'), async 
   }
 });
 
-// ── PATCH: meta güncelle (name/description/isActive/isDefault) ──
-router.patch('/:id', writeLimiter, softAuthMiddleware, async (req, res) => {
+// ── Meta güncelle (name/description/isActive/isDefault/fields) ──
+// Hem PATCH /:id hem POST /:id/update olarak sunulur — bazı nginx
+// yapılandırmaları PATCH/DELETE metodlarına 405 döndürdüğü için POST
+// takma rotaları güvenli yoldur (istemci POST kullanır).
+async function updateTemplateHandler(req, res) {
   if (!ensureAuth(req, res)) return;
   try {
     const id = req.params.id;
@@ -368,10 +371,12 @@ router.patch('/:id', writeLimiter, softAuthMiddleware, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}
+router.patch('/:id', writeLimiter, softAuthMiddleware, updateTemplateHandler);
+router.post('/:id/update', writeLimiter, softAuthMiddleware, updateTemplateHandler);
 
-// ── DELETE ──
-router.delete('/:id', writeLimiter, softAuthMiddleware, async (req, res) => {
+// ── Sil (DELETE /:id ve nginx-uyumlu POST /:id/delete) ──
+async function deleteTemplateHandler(req, res) {
   if (!ensureAuth(req, res)) return;
   try {
     const id = req.params.id;
@@ -399,7 +404,9 @@ router.delete('/:id', writeLimiter, softAuthMiddleware, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}
+router.delete('/:id', writeLimiter, softAuthMiddleware, deleteTemplateHandler);
+router.post('/:id/delete', writeLimiter, softAuthMiddleware, deleteTemplateHandler);
 
 // ── İndir ──
 router.get('/:id/download', readLimiter, softAuthMiddleware, async (req, res) => {

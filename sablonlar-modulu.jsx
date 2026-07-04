@@ -106,8 +106,9 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
   const handleDelete = async (tpl) => {
     if (!confirm('"' + tpl.name + '" şablonu silinsin mi?')) return;
     try {
-      const r = await fetch('/api/templates/' + tpl._id, {
-        method: 'DELETE',
+      // POST takma rotası — bazı nginx yapılandırmaları DELETE'e 405 döner
+      const r = await fetch('/api/templates/' + tpl._id + '/delete', {
+        method: 'POST',
         headers: headers(),
       });
       const d = await r.json().catch(() => ({}));
@@ -121,8 +122,9 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const handleToggle = async (tpl, field) => {
     try {
-      const r = await fetch('/api/templates/' + tpl._id, {
-        method: 'PATCH',
+      // POST takma rotası — bazı nginx yapılandırmaları PATCH'e 405 döner
+      const r = await fetch('/api/templates/' + tpl._id + '/update', {
+        method: 'POST',
         headers: { ...headers(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: !tpl[field] }),
       });
@@ -795,12 +797,21 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
   const update = (i, patch) =>
     setFields((prev) => prev.map((f, idx) => (idx === i ? { ...f, ...patch } : f)));
 
+  // Aynı token'ın (örn. aynı sayının) diğer tekrarlarına da bu eşlemeyi uygula
+  const applyToAll = (i) =>
+    setFields((prev) => {
+      const src = prev[i];
+      return prev.map((f) =>
+        f.token === src.token ? { ...f, variable: src.variable, value: src.value } : f
+      );
+    });
+
   const save = async () => {
     setSaving(true);
     setError('');
     try {
-      const r = await fetch('/api/templates/' + tpl._id, {
-        method: 'PATCH',
+      const r = await fetch('/api/templates/' + tpl._id + '/update', {
+        method: 'POST',
         headers: { ...headers(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fields: fields.map(({ token, tokenOccurrence, context, variable, value }) => ({
@@ -950,6 +961,26 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
                     style={{ ...selStyle, marginTop: 5 }}
                   />
                 )}
+                {f.variable &&
+                  fields.filter((x) => x.token === f.token).length > 1 &&
+                  fields.some((x) => x.token === f.token && x.variable !== f.variable) && (
+                    <button
+                      type="button"
+                      onClick={() => applyToAll(i)}
+                      style={{
+                        marginTop: 5,
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#7C3AED',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                    >
+                      ⧉ "{f.token}" tekrarlarının tümüne uygula
+                    </button>
+                  )}
               </div>
             </div>
           ))}
