@@ -124,6 +124,27 @@ async function setupIndexes(database) {
       }
     }
 
+    // Muafiyet eşleştirme geçmişi (Erasmus trip_history'den BAĞIMSIZ) —
+    // onaylanan her ders eşleştirmesi bir kez yazılır; sigKey unique bariyeri
+    // mükerrer onay yazımını fiziksel olarak engeller.
+    try {
+      await database.collection('muafiyet_history').createIndex(
+        { sigKey: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { sigKey: { $type: 'string' } },
+          background: true,
+        }
+      );
+    } catch (err) {
+      if (!/already exists|equivalent index/i.test(err.message)) {
+        console.warn('[indexes] muafiyet_history sigKey unique:', err.message);
+      }
+    }
+    await database
+      .collection('muafiyet_history')
+      .createIndex({ departmentId: 1, approvedAt: -1 }, { background: true });
+
     // Performans modülü — akademisyen gösterge değerleri
     await database
       .collection('performance_data')
