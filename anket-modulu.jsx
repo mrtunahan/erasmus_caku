@@ -201,18 +201,13 @@ function expandPreset(preset) {
 }
 
 // Katılımcı hedef rolleri (proje rolleri)
+// NOT: "Mezun" ayrı bir rol değil — öğrenci rolü içinde bir hedef gruptur.
 const TARGET_ROLES = [
   {
     id: 'student',
     label: 'Öğrenci',
-    sub: 'Lisans / ön lisans',
+    sub: 'Lisans / ön lisans / mezun',
     icon: 'M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z',
-  },
-  {
-    id: 'alumni',
-    label: 'Mezun Öğrenci',
-    sub: 'Bölüm mezunları',
-    icon: 'M22 10v6M2 10l10-5 10 5-10 5z M6 12v5c0 1 3 3 6 3s6-2 6-3v-5',
   },
   {
     id: 'professor',
@@ -222,8 +217,7 @@ const TARGET_ROLES = [
   },
 ];
 const TARGET_GROUPS = {
-  student: ['1. sınıf', '2. sınıf', '3. sınıf', '4. sınıf', 'Tüm öğrenciler'],
-  alumni: ['Son 1 yıl mezunları', 'Son 3 yıl mezunları', 'Son 5 yıl mezunları', 'Tüm mezunlar'],
+  student: ['1. sınıf', '2. sınıf', '3. sınıf', '4. sınıf', 'Mezun', 'Tüm öğrenciler'],
   professor: [
     'Öğretim üyeleri',
     'Araştırma görevlileri',
@@ -231,6 +225,7 @@ const TARGET_GROUPS = {
     'Tüm akademik personel',
   ],
 };
+// alumni: eski atama kayıtlarının rozetleri için geriye dönük etiket
 const ROLE_LABEL = { student: 'Öğrenci', alumni: 'Mezun Öğrenci', professor: 'Akademisyen' };
 
 // ══════════════════════════════════════════════════════════════
@@ -358,6 +353,20 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
     await load();
     toast.show('Anket silindi');
   };
+  // Anketi kopyala — sorular ve ders eşleştirmesiyle; atamalar kopyalanmaz
+  const duplicateSurvey = async (s) => {
+    const copy = {
+      title: (s.title || 'Anket') + ' (Kopya)',
+      description: s.description || '',
+      infoFields: s.infoFields || [],
+      questions: s.questions || [],
+      linkedCourses: s.linkedCourses || [],
+      createdBy: currentUser?.name || '',
+    };
+    await window.DBWrite.add('surveys', copy);
+    await load();
+    toast.show('Anket çoğaltıldı');
+  };
   const saveAssignment = async (data) => {
     await window.DBWrite.add('survey_assignments', {
       ...data,
@@ -455,6 +464,9 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
               onAdd={addSurvey}
               onUpdate={updateSurvey}
               onRemove={removeSurvey}
+              onDuplicate={duplicateSurvey}
+              activeDepartment={activeDepartment}
+              isAdmin={isAdmin}
             />
           )}
           {tab === 'atama' && (
@@ -596,12 +608,31 @@ function buildSurveyFromLines(lines, fallbackTitle) {
   return { title, description, infoFields: [], questions };
 }
 
-function AnketlerPaneli({ surveys, assignments, onAdd, onUpdate, onRemove }) {
+function AnketlerPaneli({
+  surveys,
+  assignments,
+  onAdd,
+  onUpdate,
+  onRemove,
+  onDuplicate,
+  activeDepartment,
+  isAdmin,
+}) {
+  // Doğrudan yükle — aynı şablon birden çok kez eklenebilir (kopya sayısı gösterilir)
   const addPreset = async (key) => {
-    if (surveys.find((s) => s.presetKey === key)) return;
-    await onAdd({ ...expandPreset(PRESET_SURVEYS[key]), presetKey: key });
+    const count = surveys.filter((s) => s.presetKey === key).length;
+    const preset = expandPreset(PRESET_SURVEYS[key]);
+    await onAdd({
+      ...preset,
+      title: count > 0 ? preset.title + ' (' + (count + 1) + ')' : preset.title,
+      presetKey: key,
+    });
   };
-  const presetUsed = (key) => !!surveys.find((s) => s.presetKey === key);
+  // Düzenleyerek yükle — şablon editörde açılır, kaydedince eklenir
+  const editPreset = (key) => {
+    setEditing({ ...expandPreset(PRESET_SURVEYS[key]), presetKey: key, _isNew: true });
+  };
+  const presetCount = (key) => surveys.filter((s) => s.presetKey === key).length;
   const [editing, setEditing] = useState(null); // düzenlenmekte olan anket
   const [importing, setImporting] = useState(false);
 
@@ -661,33 +692,111 @@ function AnketlerPaneli({ surveys, assignments, onAdd, onUpdate, onRemove }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={cardStyle}>
         <p style={labelStyle}>Hazır anket şablonları</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: 10,
+            marginBottom: 12,
+          }}
+        >
           {Object.entries(PRESET_SURVEYS).map(([key, s]) => {
-            const used = presetUsed(key);
+            const count = presetCount(key);
             return (
-              <button
+              <div
                 key={key}
-                onClick={() => addPreset(key)}
-                disabled={used}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '8px 14px',
-                  borderRadius: 8,
                   border: '1px solid ' + ANK.border,
-                  background: used ? '#F9FAFB' : 'white',
-                  color: used ? ANK.textMuted : ANK.primary,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: used ? 'not-allowed' : 'pointer',
-                  opacity: used ? 0.6 : 1,
-                  fontFamily: "'Inter', sans-serif",
+                  borderRadius: 10,
+                  padding: 12,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  background: 'white',
                 }}
               >
-                <AIcon path={used ? 'M5 13l4 4L19 7' : 'M12 5v14M5 12h14'} size={14} />
-                {s.title.split(' ').slice(0, 2).join(' ')}
-              </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <p
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: ANK.primary,
+                      margin: 0,
+                      flex: 1,
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {s.title}
+                  </p>
+                  {count > 0 && (
+                    <span
+                      style={{
+                        padding: '1px 8px',
+                        borderRadius: 10,
+                        background: ANK.greenLight,
+                        color: ANK.green,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {count} yüklü
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontSize: 11, color: ANK.textMuted, margin: 0 }}>
+                  {(expandPreset(s).questions || []).length} soru
+                </p>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={() => addPreset(key)}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 5,
+                      padding: '7px 10px',
+                      borderRadius: 7,
+                      border: 'none',
+                      background: ANK.accent,
+                      color: 'white',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    <AIcon path="M12 5v14M5 12h14" size={12} /> Yükle
+                  </button>
+                  <button
+                    onClick={() => editPreset(key)}
+                    title="Düzenleyerek yükle"
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 5,
+                      padding: '7px 10px',
+                      borderRadius: 7,
+                      border: '1px solid ' + ANK.border,
+                      background: 'white',
+                      color: ANK.accent,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    <AIcon
+                      path="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                      size={12}
+                    />
+                    Düzenle
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>
@@ -824,6 +933,35 @@ function AnketlerPaneli({ surveys, assignments, onAdd, onUpdate, onRemove }) {
                         {ac} atama
                       </span>
                     )}
+                    {(s.linkedCourses || []).slice(0, 3).map((c) => (
+                      <span
+                        key={c.code || c.name}
+                        title={c.name}
+                        style={{
+                          marginLeft: 6,
+                          padding: '1px 8px',
+                          borderRadius: 10,
+                          background: ANK.tealLight,
+                          color: ANK.teal,
+                          fontSize: 11,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {c.code || c.name}
+                      </span>
+                    ))}
+                    {(s.linkedCourses || []).length > 3 && (
+                      <span
+                        style={{
+                          marginLeft: 6,
+                          fontSize: 11,
+                          color: ANK.teal,
+                          fontWeight: 600,
+                        }}
+                      >
+                        +{s.linkedCourses.length - 3} ders
+                      </span>
+                    )}
                   </p>
                 </div>
                 <button
@@ -835,6 +973,16 @@ function AnketlerPaneli({ surveys, assignments, onAdd, onUpdate, onRemove }) {
                     path="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
                     size={13}
                     color={ANK.accent}
+                  />
+                </button>
+                <button onClick={() => onDuplicate(s)} title="Çoğalt" style={iconBtn(ANK.blue)}>
+                  <AIcon
+                    path={[
+                      'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2',
+                      'M10 8h8a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-8a2 2 0 012-2z',
+                    ]}
+                    size={13}
+                    color={ANK.blue}
                   />
                 </button>
                 <button onClick={() => onRemove(s.id)} title="Sil" style={iconBtn(ANK.red)}>
@@ -856,6 +1004,8 @@ function AnketlerPaneli({ surveys, assignments, onAdd, onUpdate, onRemove }) {
           isNew={!!editing._isNew}
           onSave={saveFromEditor}
           onCancel={() => setEditing(null)}
+          activeDepartment={activeDepartment}
+          isAdmin={isAdmin}
         />
       )}
     </div>
@@ -872,7 +1022,7 @@ const QUESTION_TYPES = [
   { v: 'textarea', label: 'Uzun metin' },
   { v: 'text', label: 'Kısa metin' },
 ];
-function SurveyEditorModal({ initial, isNew, onSave, onCancel }) {
+function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment, isAdmin }) {
   const [title, setTitle] = useState(initial.title || '');
   const [description, setDescription] = useState(initial.description || '');
   const [questions, setQuestions] = useState(
@@ -883,6 +1033,49 @@ function SurveyEditorModal({ initial, isNew, onSave, onCancel }) {
     }))
   );
   const [saving, setSaving] = useState(false);
+
+  // ── Ders eşleştirme: anket bölümdeki mevcut derslerle ilişkilendirilebilir ──
+  // linkedCourses: [{ code, name }] — katılımcı ekranındaki ders açılır
+  // listesi yalnızca bu derslerle sınırlanır; sonuçlarda ders filtresi sunar.
+  const [linkedCourses, setLinkedCourses] = useState(initial.linkedCourses || []);
+  const [allCourses, setAllCourses] = useState([]);
+  const [courseDeptId, setCourseDeptId] = useState(activeDepartment || '');
+  const [courseSearch, setCourseSearch] = useState('');
+  const departments = window.DEPARTMENTS || [];
+
+  useEffect(() => {
+    let alive = true;
+    window
+      .apiRead('sinav_dersler')
+      .then((c) => {
+        if (alive) setAllCourses(c || []);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const visibleCourses = useMemo(() => {
+    const q = courseSearch.trim().toLocaleLowerCase('tr');
+    return allCourses
+      .filter((c) => !courseDeptId || (c.departmentId || '') === courseDeptId)
+      .filter(
+        (c) =>
+          !q ||
+          (c.name || '').toLocaleLowerCase('tr').includes(q) ||
+          (c.code || '').toLocaleLowerCase('tr').includes(q)
+      );
+  }, [allCourses, courseDeptId, courseSearch]);
+
+  const courseKey = (c) => (c.code || '') + '::' + (c.name || '');
+  const isLinked = (c) => linkedCourses.some((l) => courseKey(l) === courseKey(c));
+  const toggleCourse = (c) =>
+    setLinkedCourses((prev) =>
+      isLinked(c)
+        ? prev.filter((l) => courseKey(l) !== courseKey(c))
+        : [...prev, { code: c.code || '', name: c.name || '' }]
+    );
 
   const update = (i, patch) =>
     setQuestions((prev) => prev.map((q, idx) => (idx === i ? { ...q, ...patch } : q)));
@@ -917,6 +1110,8 @@ function SurveyEditorModal({ initial, isNew, onSave, onCancel }) {
         description: description.trim(),
         infoFields: initial.infoFields || [],
         questions: cleaned,
+        linkedCourses,
+        ...(initial.presetKey ? { presetKey: initial.presetKey } : {}),
       });
     } finally {
       setSaving(false);
@@ -971,6 +1166,149 @@ function SurveyEditorModal({ initial, isNew, onSave, onCancel }) {
               rows={2}
               style={{ ...inputStyle, resize: 'vertical' }}
             />
+          </div>
+
+          {/* ── Ders eşleştirme ── */}
+          <div
+            style={{
+              border: '1px solid ' + ANK.border,
+              borderRadius: 10,
+              padding: 12,
+              background: '#FAFAFA',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}
+            >
+              <label style={{ ...labelStyle, marginBottom: 0 }}>
+                Ders eşleştirme ({linkedCourses.length} ders)
+              </label>
+              {linkedCourses.length > 0 && (
+                <button
+                  onClick={() => setLinkedCourses([])}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: ANK.red,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Tümünü kaldır
+                </button>
+              )}
+            </div>
+            <p style={{ fontSize: 11, color: ANK.textMuted, margin: '6px 0 10px' }}>
+              Anketi bölümdeki derslerle eşleştirin — katılımcı ders seçerken yalnızca bu dersler
+              listelenir, sonuçlar ders bazında filtrelenebilir. Boş bırakılırsa tüm dersler
+              seçilebilir.
+            </p>
+            {linkedCourses.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                {linkedCourses.map((c) => (
+                  <span
+                    key={(c.code || '') + c.name}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '3px 10px',
+                      borderRadius: 12,
+                      background: ANK.tealLight,
+                      color: ANK.teal,
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {c.code ? c.code + ' — ' : ''}
+                    {c.name}
+                    <button
+                      onClick={() => toggleCourse(c)}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        color: ANK.teal,
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'flex',
+                      }}
+                      title="Kaldır"
+                    >
+                      <AIcon path="M6 18L18 6M6 6l12 12" size={11} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+              {isAdmin && (
+                <select
+                  value={courseDeptId}
+                  onChange={(e) => setCourseDeptId(e.target.value)}
+                  style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer' }}
+                >
+                  <option value="">Tüm bölümler</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <input
+                value={courseSearch}
+                onChange={(e) => setCourseSearch(e.target.value)}
+                placeholder="Ders adı veya kodu ara…"
+                style={{ ...inputStyle, flex: 1, minWidth: 160 }}
+              />
+            </div>
+            <div
+              style={{
+                maxHeight: 160,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+              }}
+            >
+              {visibleCourses.length === 0 ? (
+                <p style={{ fontSize: 12, color: ANK.textMuted, margin: 6 }}>
+                  {allCourses.length === 0
+                    ? 'Ders bulunamadı — Sınav Otomasyonu modülünden ders tanımlayın.'
+                    : 'Aramayla eşleşen ders yok.'}
+                </p>
+              ) : (
+                visibleCourses.slice(0, 60).map((c) => (
+                  <label
+                    key={c.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '5px 8px',
+                      borderRadius: 6,
+                      fontSize: 12.5,
+                      color: ANK.text,
+                      cursor: 'pointer',
+                      background: isLinked(c) ? ANK.tealLight : 'transparent',
+                    }}
+                  >
+                    <input type="checkbox" checked={isLinked(c)} onChange={() => toggleCourse(c)} />
+                    <span style={{ fontWeight: 600, color: ANK.teal, minWidth: 62 }}>
+                      {c.code || '—'}
+                    </span>
+                    {c.name}
+                  </label>
+                ))
+              )}
+            </div>
           </div>
         </div>
         <div
@@ -1434,13 +1772,386 @@ function AtamaPaneli({
   );
 }
 
-// ─── Sonuçlar paneli ───────────────────────────────────────────────────────
+// ─── Sonuçlar paneli — gelişmiş grafikler + CSV/Excel dışa aktarma ─────────
+
+// Likert 1→5 renk skalası (kırmızı → yeşil)
+const LIKERT_COLORS = ['#DC2626', '#F59E0B', '#9CA3AF', '#34D399', '#059669'];
+const LIKERT_LABELS = [
+  'Kesinlikle katılmıyorum',
+  'Katılmıyorum',
+  'Kararsızım',
+  'Katılıyorum',
+  'Kesinlikle katılıyorum',
+];
+
+// Soru tipine göre seçenek kümesi (dağılım grafikleri için)
+function optionsForType(type) {
+  if (type === 'likert') return ['1', '2', '3', '4', '5'];
+  if (type === 'yesno') return ['evet', 'hayır'];
+  if (type === 'hours0to5') return ['0', '1', '2', '3', '4', '5'];
+  if (type === 'hoursRange') return ['0', '1-2', '3-4', '5-6', '7-8', '9-10'];
+  if (type === 'hoursExam') return ['0', '1-4', '5-8', '9-12', '13-16', '17-20'];
+  return null; // text / textarea
+}
+
+function countAnswers(responses, qid, options) {
+  const counts = Object.fromEntries(options.map((o) => [o, 0]));
+  responses.forEach((r) => {
+    const v = r.answers?.[qid];
+    if (v != null && Object.prototype.hasOwnProperty.call(counts, String(v))) {
+      counts[String(v)]++;
+    }
+  });
+  return counts;
+}
+
+// ── Yatay yığılmış Likert dağılım çubuğu ──
+function LikertStackedBar({ counts }) {
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  if (total === 0) {
+    return <p style={{ fontSize: 12, color: ANK.textMuted, margin: 0 }}>Yanıt yok</p>;
+  }
+  return (
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          height: 22,
+          borderRadius: 6,
+          overflow: 'hidden',
+          border: '1px solid ' + ANK.border,
+        }}
+      >
+        {['1', '2', '3', '4', '5'].map((v, i) => {
+          const c = counts[v] || 0;
+          if (c === 0) return null;
+          const pct = (c / total) * 100;
+          return (
+            <div
+              key={v}
+              title={LIKERT_LABELS[i] + ': ' + c + ' yanıt (%' + Math.round(pct) + ')'}
+              style={{
+                width: pct + '%',
+                background: LIKERT_COLORS[i],
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: 10,
+                fontWeight: 700,
+                minWidth: c > 0 ? 14 : 0,
+              }}
+            >
+              {pct >= 9 ? c : ''}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 5, flexWrap: 'wrap' }}>
+        {['1', '2', '3', '4', '5'].map((v, i) => (
+          <span
+            key={v}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 10,
+              color: ANK.textMuted,
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                background: LIKERT_COLORS[i],
+                display: 'inline-block',
+              }}
+            />
+            {v} ({counts[v] || 0})
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── SVG halka (donut) grafik — Evet/Hayır ──
+function DonutChart({ data, size = 120 }) {
+  const total = data.reduce((a, d) => a + d.value, 0);
+  if (total === 0) {
+    return <p style={{ fontSize: 12, color: ANK.textMuted, margin: 0 }}>Yanıt yok</p>;
+  }
+  const r = size / 2 - 12;
+  const cx = size / 2;
+  const cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+  let offset = 0;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+      <svg width={size} height={size}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#F3F4F6" strokeWidth="18" />
+        {data.map((d) => {
+          const frac = d.value / total;
+          const dash = frac * circumference;
+          const el = (
+            <circle
+              key={d.label}
+              cx={cx}
+              cy={cy}
+              r={r}
+              fill="none"
+              stroke={d.color}
+              strokeWidth="18"
+              strokeDasharray={dash + ' ' + (circumference - dash)}
+              strokeDashoffset={-offset}
+              transform={'rotate(-90 ' + cx + ' ' + cy + ')'}
+            >
+              <title>
+                {d.label}: {d.value} (%{Math.round(frac * 100)})
+              </title>
+            </circle>
+          );
+          offset += dash;
+          return el;
+        })}
+        <text
+          x={cx}
+          y={cy + 5}
+          textAnchor="middle"
+          style={{ fontSize: 16, fontWeight: 700, fill: ANK.primary }}
+        >
+          {total}
+        </text>
+      </svg>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {data.map((d) => (
+          <span
+            key={d.label}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              color: ANK.text,
+            }}
+          >
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 3,
+                background: d.color,
+                display: 'inline-block',
+              }}
+            />
+            {d.label}: <strong>{d.value}</strong> (%
+            {Math.round((d.value / total) * 100)})
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Dikey çubuk dağılımı — saat/aralık soruları ──
+function BarDist({ options, counts, color = ANK.accent }) {
+  const max = Math.max(1, ...options.map((o) => counts[o] || 0));
+  const total = options.reduce((a, o) => a + (counts[o] || 0), 0);
+  if (total === 0) {
+    return <p style={{ fontSize: 12, color: ANK.textMuted, margin: 0 }}>Yanıt yok</p>;
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 90 }}>
+      {options.map((o) => {
+        const c = counts[o] || 0;
+        const h = Math.round((c / max) * 62);
+        return (
+          <div
+            key={o}
+            title={o + ': ' + c + ' yanıt'}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: 3,
+              height: '100%',
+            }}
+          >
+            <span style={{ fontSize: 10, fontWeight: 700, color: ANK.primary }}>
+              {c > 0 ? c : ''}
+            </span>
+            <div
+              style={{
+                width: '100%',
+                maxWidth: 38,
+                height: Math.max(c > 0 ? 4 : 2, h),
+                background: c > 0 ? color : '#F3F4F6',
+                borderRadius: '4px 4px 0 0',
+              }}
+            />
+            <span style={{ fontSize: 10, color: ANK.textMuted }}>{o}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Yorum listesi — metin yanıtları ──
+function CommentList({ texts }) {
+  const [showAll, setShowAll] = useState(false);
+  if (texts.length === 0) {
+    return <p style={{ fontSize: 12, color: ANK.textMuted, margin: 0 }}>Yorum yok</p>;
+  }
+  const visible = showAll ? texts : texts.slice(0, 5);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {visible.map((t, i) => (
+        <div
+          key={i}
+          style={{
+            padding: '8px 12px',
+            background: '#F9FAFB',
+            borderRadius: 8,
+            borderLeft: '3px solid ' + ANK.accent,
+            fontSize: 12.5,
+            color: ANK.text,
+            lineHeight: 1.5,
+          }}
+        >
+          {t}
+        </div>
+      ))}
+      {texts.length > 5 && (
+        <button
+          onClick={() => setShowAll((p) => !p)}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            color: ANK.accent,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            alignSelf: 'flex-start',
+            padding: '4px 0',
+          }}
+        >
+          {showAll ? 'Daha az göster' : 'Tümünü göster (' + texts.length + ')'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Dışa aktarma yardımcıları ──
+function buildExportTable(survey, responses) {
+  const infoFields = survey.infoFields || [];
+  const questions = survey.questions || [];
+  const headers = [
+    '#',
+    'Tarih',
+    'Rol',
+    ...infoFields.map((f) => f.label || f.key),
+    ...questions.map((q, i) => 'S' + (i + 1) + '. ' + q.text),
+  ];
+  const roleTr = { student: 'Öğrenci', professor: 'Akademisyen', alumni: 'Mezun' };
+  const rows = responses.map((r, idx) => [
+    idx + 1,
+    (r.submittedAt || '').slice(0, 16).replace('T', ' '),
+    roleTr[r.role] || r.role || '',
+    ...infoFields.map((f) => r.answers?.[f.key] ?? ''),
+    ...questions.map((q) => {
+      const v = r.answers?.[q.id];
+      if (v == null) return '';
+      if (q.type === 'yesno') return v === 'evet' ? 'Evet' : v === 'hayır' ? 'Hayır' : v;
+      return String(v);
+    }),
+  ]);
+  return { headers, rows };
+}
+
+function downloadCSV(survey, responses) {
+  const { headers, rows } = buildExportTable(survey, responses);
+  const esc = (v) => {
+    const s = String(v ?? '');
+    return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  // Türkçe Excel için BOM + noktalı virgül ayracı
+  const csv = '﻿' + [headers, ...rows].map((row) => row.map(esc).join(';')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (survey.title || 'anket').replace(/[^\wçğıöşüÇĞİÖŞÜ -]/g, '') + '_yanitlar.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function ensureXLSX() {
+  if (window.XLSX) return window.XLSX;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
+    s.onload = res;
+    s.onerror = () => rej(new Error('XLSX kütüphanesi yüklenemedi'));
+    document.head.appendChild(s);
+  });
+  return window.XLSX;
+}
+
+async function downloadExcel(survey, responses) {
+  const XLSX = await ensureXLSX();
+  const { headers, rows } = buildExportTable(survey, responses);
+  const wb = XLSX.utils.book_new();
+
+  // Sayfa 1: ham yanıtlar
+  const ws1 = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws1['!cols'] = headers.map((h, i) => ({ wch: i < 3 ? 12 : Math.min(50, h.length + 4) }));
+  XLSX.utils.book_append_sheet(wb, ws1, 'Yanıtlar');
+
+  // Sayfa 2: soru bazlı özet
+  const summary = [['Soru', 'Tip', 'Yanıt Sayısı', 'Özet']];
+  (survey.questions || []).forEach((q, i) => {
+    const opts = optionsForType(q.type);
+    let n = 0;
+    let text = '';
+    if (opts) {
+      const counts = countAnswers(responses, q.id, opts);
+      n = opts.reduce((a, o) => a + counts[o], 0);
+      if (q.type === 'likert') {
+        const sum = opts.reduce((a, o) => a + counts[o] * parseInt(o, 10), 0);
+        text = n ? 'Ortalama: ' + (sum / n).toFixed(2) : '—';
+      } else {
+        text = opts.map((o) => o + ': ' + counts[o]).join(' | ');
+      }
+    } else {
+      const texts = responses.map((r) => r.answers?.[q.id]).filter((v) => v && String(v).trim());
+      n = texts.length;
+      text = n + ' metin yanıtı';
+    }
+    summary.push(['S' + (i + 1) + '. ' + q.text, q.type, n, text]);
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(summary);
+  ws2['!cols'] = [{ wch: 70 }, { wch: 12 }, { wch: 12 }, { wch: 50 }];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Özet');
+
+  XLSX.writeFile(
+    wb,
+    (survey.title || 'anket').replace(/[^\wçğıöşüÇĞİÖŞÜ -]/g, '') + '_sonuclar.xlsx'
+  );
+}
+
 function SonuclarPaneli({ surveys }) {
   const [surveyId, setSurveyId] = useState('');
   const [responses, setResponses] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [courseFilter, setCourseFilter] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
+    setCourseFilter('');
     if (!surveyId) {
       setResponses([]);
       return;
@@ -1453,99 +2164,249 @@ function SonuclarPaneli({ surveys }) {
   }, [surveyId]);
 
   const survey = surveys.find((s) => s.id === surveyId);
-  const likertQs = (survey?.questions || []).filter((q) => q.type === 'likert');
+
+  // Ders filtresi: yanıtlarda ders kodu alanı varsa aktifleşir
+  const courseKeyField = useMemo(() => {
+    const f = (survey?.infoFields || []).find((x) => x.source === 'courseCode');
+    return f?.key || 'dersKodu';
+  }, [survey]);
+  const courseOptions = useMemo(() => {
+    const set = new Map();
+    responses.forEach((r) => {
+      const code = r.answers?.[courseKeyField];
+      if (code) {
+        const nameField = (survey?.infoFields || []).find((x) => x.source === 'course');
+        const name = nameField ? r.answers?.[nameField.key] : '';
+        set.set(code, name || code);
+      }
+    });
+    return [...set.entries()].map(([code, name]) => ({ code, name }));
+  }, [responses, courseKeyField, survey]);
+
+  const filtered = useMemo(
+    () =>
+      courseFilter
+        ? responses.filter((r) => r.answers?.[courseKeyField] === courseFilter)
+        : responses,
+    [responses, courseFilter, courseKeyField]
+  );
+
+  // Genel Likert ortalaması
+  const overallLikert = useMemo(() => {
+    const likertQs = (survey?.questions || []).filter((q) => q.type === 'likert');
+    let sum = 0;
+    let n = 0;
+    likertQs.forEach((q) => {
+      filtered.forEach((r) => {
+        const v = parseInt(r.answers?.[q.id] || 0, 10);
+        if (v >= 1 && v <= 5) {
+          sum += v;
+          n++;
+        }
+      });
+    });
+    return n ? (sum / n).toFixed(2) : null;
+  }, [survey, filtered]);
+
+  const commentCount = useMemo(() => {
+    const textQs = (survey?.questions || []).filter(
+      (q) => q.type === 'textarea' || q.type === 'text'
+    );
+    return textQs.reduce(
+      (acc, q) =>
+        acc + filtered.filter((r) => r.answers?.[q.id] && String(r.answers[q.id]).trim()).length,
+      0
+    );
+  }, [survey, filtered]);
+
+  const handleExcel = async () => {
+    setExporting(true);
+    try {
+      await downloadExcel(survey, filtered);
+    } catch (e) {
+      alert('Excel oluşturulamadı: ' + e.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportBtn = (onClick, label, primary) => (
+    <button
+      onClick={onClick}
+      disabled={exporting}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '8px 14px',
+        borderRadius: 8,
+        border: primary ? 'none' : '1px solid ' + ANK.border,
+        background: primary ? ANK.green : 'white',
+        color: primary ? 'white' : ANK.green,
+        fontSize: 12.5,
+        fontWeight: 600,
+        cursor: exporting ? 'wait' : 'pointer',
+        opacity: exporting ? 0.6 : 1,
+        fontFamily: "'Inter', sans-serif",
+      }}
+    >
+      <AIcon path="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" size={14} />
+      {label}
+    </button>
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={cardStyle}>
-        <label style={labelStyle}>Anket seç</label>
-        <select
-          value={surveyId}
-          onChange={(e) => setSurveyId(e.target.value)}
-          style={{ ...inputStyle, cursor: 'pointer' }}
-        >
-          <option value="">— Anket seçin —</option>
-          {surveys.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.title}
-            </option>
-          ))}
-        </select>
+      <div style={{ ...cardStyle, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: 2, minWidth: 220 }}>
+          <label style={labelStyle}>Anket seç</label>
+          <select
+            value={surveyId}
+            onChange={(e) => setSurveyId(e.target.value)}
+            style={{ ...inputStyle, cursor: 'pointer' }}
+          >
+            <option value="">— Anket seçin —</option>
+            {surveys.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title}
+              </option>
+            ))}
+          </select>
+        </div>
+        {courseOptions.length > 0 && (
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <label style={labelStyle}>Ders filtresi</label>
+            <select
+              value={courseFilter}
+              onChange={(e) => setCourseFilter(e.target.value)}
+              style={{ ...inputStyle, cursor: 'pointer' }}
+            >
+              <option value="">Tüm dersler</option>
+              {courseOptions.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} — {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {surveyId &&
         (loading ? (
           <Spinner />
-        ) : responses.length === 0 ? (
-          <EmptyState text="Bu anket için henüz yanıt yok." />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            text={courseFilter ? 'Bu ders için yanıt yok.' : 'Bu anket için henüz yanıt yok.'}
+          />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+            {/* Özet kartları + dışa aktarma */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                gap: 12,
+              }}
+            >
               {[
-                { label: 'Toplam yanıt', value: responses.length },
+                { label: 'Toplam yanıt', value: filtered.length, color: ANK.primary },
                 {
                   label: 'Son yanıt',
-                  value: (responses[responses.length - 1]?.submittedAt || '').slice(0, 10) || '—',
+                  value:
+                    (
+                      filtered
+                        .map((r) => r.submittedAt || '')
+                        .sort()
+                        .pop() || ''
+                    ).slice(0, 10) || '—',
+                  color: ANK.blue,
                 },
+                {
+                  label: 'Genel ortalama (1–5)',
+                  value: overallLikert ?? '—',
+                  color: ANK.accent,
+                },
+                { label: 'Yorum', value: commentCount, color: ANK.teal },
               ].map((k) => (
                 <div key={k.label} style={{ ...cardStyle, padding: 16 }}>
                   <p style={{ fontSize: 12, color: ANK.textMuted, margin: 0 }}>{k.label}</p>
-                  <p
-                    style={{ fontSize: 24, fontWeight: 700, color: ANK.primary, margin: '4px 0 0' }}
-                  >
+                  <p style={{ fontSize: 24, fontWeight: 700, color: k.color, margin: '4px 0 0' }}>
                     {k.value}
                   </p>
                 </div>
               ))}
             </div>
 
-            {likertQs.length > 0 && (
-              <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <p style={labelStyle}>Likert ortalamaları (1–5)</p>
-                {likertQs.map((q) => {
-                  const vals = responses
-                    .map((r) => parseInt(r.answers?.[q.id] || 0))
-                    .filter((v) => v > 0);
-                  const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-                  const pct = Math.round((avg / 5) * 100);
-                  return (
-                    <div key={q.id}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          gap: 12,
-                          fontSize: 12,
-                          marginBottom: 4,
-                        }}
-                      >
-                        <span style={{ color: ANK.textMuted, flex: 1 }}>
-                          {q.text.length > 80 ? q.text.slice(0, 80) + '…' : q.text}
-                        </span>
-                        <strong style={{ color: ANK.accent }}>{avg.toFixed(1)}</strong>
-                      </div>
-                      <div
-                        style={{
-                          height: 6,
-                          background: '#F3F4F6',
-                          borderRadius: 4,
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <div
-                          style={{
-                            height: '100%',
-                            width: pct + '%',
-                            background: ANK.accent,
-                            borderRadius: 4,
-                          }}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              {exportBtn(() => downloadCSV(survey, filtered), 'CSV indir', false)}
+              {exportBtn(handleExcel, exporting ? 'Hazırlanıyor…' : 'Excel indir', true)}
+            </div>
+
+            {/* Soru bazlı grafikler */}
+            {(survey.questions || []).map((q, i) => {
+              const opts = optionsForType(q.type);
+              return (
+                <div key={q.id} style={{ ...cardStyle, padding: 18 }}>
+                  <p
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: ANK.primary,
+                      margin: '0 0 12px',
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        background: ANK.accentPale,
+                        color: ANK.accent,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        marginRight: 8,
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    {q.text}
+                  </p>
+                  {q.type === 'likert' && (
+                    <LikertStackedBar counts={countAnswers(filtered, q.id, opts)} />
+                  )}
+                  {q.type === 'yesno' &&
+                    (() => {
+                      const counts = countAnswers(filtered, q.id, opts);
+                      return (
+                        <DonutChart
+                          data={[
+                            { label: 'Evet', value: counts['evet'] || 0, color: ANK.green },
+                            { label: 'Hayır', value: counts['hayır'] || 0, color: ANK.red },
+                          ]}
                         />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                      );
+                    })()}
+                  {(q.type === 'hours0to5' ||
+                    q.type === 'hoursRange' ||
+                    q.type === 'hoursExam') && (
+                    <BarDist options={opts} counts={countAnswers(filtered, q.id, opts)} />
+                  )}
+                  {(q.type === 'textarea' || q.type === 'text') && (
+                    <CommentList
+                      texts={filtered
+                        .map((r) => r.answers?.[q.id])
+                        .filter((v) => v && String(v).trim())
+                        .map(String)}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
         ))}
     </div>
@@ -1761,7 +2622,7 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
 //                        codeKey alanına ders kodunu da yazar
 //         'courseCode' → ders seçimiyle otomatik dolan, salt-okunur alan
 //         (tanımsız)   → düz metin girişi (cinsiyet, sınıf vb.)
-function InfoFieldsForm({ fields, values, onChange, activeDepartment }) {
+function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCourses }) {
   const departments = window.DEPARTMENTS || [];
   const [courses, setCourses] = useState([]);
   const [deptId, setDeptId] = useState(activeDepartment || '');
@@ -1789,10 +2650,16 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment }) {
     if (d && deptField && !values[deptField.key]) onChange(deptField.key, d.name);
   }, []);
 
-  const deptCourses = useMemo(
-    () => courses.filter((c) => !deptId || (c.departmentId || '') === deptId),
-    [courses, deptId]
-  );
+  // Anket derslerle eşleştirilmişse yalnızca o dersler listelenir
+  const deptCourses = useMemo(() => {
+    const base = courses.filter((c) => !deptId || (c.departmentId || '') === deptId);
+    if (!linkedCourses || linkedCourses.length === 0) return base;
+    const keys = new Set(linkedCourses.map((l) => (l.code || '') + '::' + (l.name || '')));
+    const matched = base.filter((c) => keys.has((c.code || '') + '::' + (c.name || '')));
+    // Eşleşen ders bölüm filtresinde yoksa (örn. başka bölümün dersi) yine göster
+    if (matched.length > 0) return matched;
+    return courses.filter((c) => keys.has((c.code || '') + '::' + (c.name || '')));
+  }, [courses, deptId, linkedCourses]);
 
   const selectStyle = { ...inputStyle, cursor: 'pointer' };
   const fieldLabel = { fontSize: 12, color: ANK.textMuted, display: 'block', marginBottom: 4 };
@@ -1965,6 +2832,7 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment }) {
             values={info}
             onChange={setInfoField}
             activeDepartment={activeDepartment}
+            linkedCourses={survey.linkedCourses}
           />
         )}
 
