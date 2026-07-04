@@ -1381,6 +1381,12 @@ apiRead.fresh = function (collection, params) {
   __apiInvalidate(collection);
   return apiRead(collection, params);
 };
+// Kritik akışlar için: hata durumunda [] yerine THROW eder (cache'siz).
+// Örn. mükerrer-önleme kontrolleri — başarısız okuma "kayıt yok" sanılırsa
+// aynı veriler tekrar tekrar yazılır (trip_history şişmesinin kök nedeni).
+apiRead.strict = function (collection, params) {
+  return __apiReadRaw(collection, params);
+};
 
 async function __apiReadDocRaw(collection, docId) {
   const token = localStorage.getItem('caku_auth_token');
@@ -2164,7 +2170,11 @@ const DB = {
       if (!student.hostInstitution) return;
 
       // Fetch existing entries for this student
-      const existingEntries = await apiRead('trip_history', {
+      // ÖNEMLİ: apiRead.strict — normal apiRead hata durumunda sessizce []
+      // döndürür; bu, "geçmiş boş" sanılıp aynı eşleştirmelerin HER kayıtta
+      // yeniden yazılmasına yol açıyordu (trip_history 17k+ kayda şişmişti).
+      // strict hata fırlatır → aşağıdaki catch senkronu yazmadan iptal eder.
+      const existingEntries = await apiRead.strict('trip_history', {
         where: [
           `studentNumber:eq:${student.studentNumber}`,
           `hostInstitution:eq:${student.hostInstitution}`,
