@@ -37,6 +37,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
     donem: 'guz',
     akts: 6,
     bolognaLink: '',
+    statu: '', // Z/S — bilinçli seçim zorunlu, varsayılan yok
   });
   const [saving, setSaving] = useState(false);
   const [filterClass, setFilterClass] = useState('all');
@@ -94,6 +95,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
       donem: c.donem || 'guz',
       akts: c.akts || 6,
       bolognaLink: c.bolognaLink || '',
+      statu: c.statu || (c.sinif === 5 ? 'S' : ''),
     });
   };
 
@@ -108,6 +110,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
       donem: 'guz',
       akts: 6,
       bolognaLink: '',
+      statu: '',
     });
   };
 
@@ -115,6 +118,8 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
     if (!form.code.trim() || !form.name.trim()) return alert('Ders kodu ve adı zorunludur.');
     const bolognaLink = (form.bolognaLink || '').trim();
     if (!bolognaLink) return alert('Ders Bologna linki zorunludur.');
+    if (form.statu !== 'Z' && form.statu !== 'S')
+      return alert('Zorunlu (Z) / Seçmeli (S) seçimi zorunludur.');
     setSaving(true);
     try {
       const dataToSave = {
@@ -126,6 +131,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
         professor: form.professor || '',
         donem: form.donem,
         bolognaLink: bolognaLink,
+        statu: form.statu,
         departmentId: activeDepartment || 'bilgisayar',
         updatedAt: new Date().toISOString(),
       };
@@ -481,6 +487,22 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>
                       {c.akts || 6}
+                      {c.statu && (
+                        <span
+                          title={c.statu === 'Z' ? 'Zorunlu' : 'Seçmeli'}
+                          style={{
+                            marginLeft: 6,
+                            padding: '1px 6px',
+                            borderRadius: 8,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            background: c.statu === 'Z' ? '#DBEAFE' : '#E1BEE7',
+                            color: c.statu === 'Z' ? '#0D47A1' : '#4A148C',
+                          }}
+                        >
+                          {c.statu}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>{c.duration} dk</td>
                     <td style={{ padding: '12px 16px', fontSize: 12 }}>
@@ -588,6 +610,16 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                       {a} AKTS
                     </option>
                   ))}
+                </Select>
+              </FormField>
+              <FormField label="Zorunlu / Seçmeli *">
+                <Select
+                  value={form.statu}
+                  onChange={(e) => setForm({ ...form, statu: e.target.value })}
+                >
+                  <option value="">— Seçiniz —</option>
+                  <option value="Z">Z (Zorunlu)</option>
+                  <option value="S">S (Seçmeli)</option>
                 </Select>
               </FormField>
               <FormField label="Sınav Süresi (dk)">

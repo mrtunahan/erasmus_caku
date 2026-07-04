@@ -4789,6 +4789,68 @@ const ReviewPanel = ({ record, onDecision }) => {
             <div style={{ fontSize: 11, color: DS.textMuted, flex: '1 1 150px', minWidth: 0 }}>
               {tgt ? '→ ' + (tgt.code || '') + ' ' + (tgt.name || '') : '→ Eşleşme yok'}
             </div>
+            {/* Belgeler: öğrencinin yüklediği PDF + Bologna linkleri */}
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              {src.fileUrl && (
+                <a
+                  href={
+                    '/api/files/view/' + String(src.fileUrl).replace('/api/files/download/', '')
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Öğrencinin yüklediği ders içeriği belgesi"
+                  style={{
+                    padding: '3px 9px',
+                    borderRadius: 12,
+                    background: DS.navy,
+                    color: 'white',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                  }}
+                >
+                  📄 PDF
+                </a>
+              )}
+              {src.bolognaLink && (
+                <a
+                  href={src.bolognaLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Karşı kurum Bologna sayfası"
+                  style={{
+                    padding: '3px 9px',
+                    borderRadius: 12,
+                    background: DS.accentLight,
+                    color: DS.accent,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                  }}
+                >
+                  🔗 Bologna (Karşı)
+                </a>
+              )}
+              {tgt && tgt.bolognaLink && (
+                <a
+                  href={tgt.bolognaLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="ÇAKÜ dersi Bologna sayfası"
+                  style={{
+                    padding: '3px 9px',
+                    borderRadius: 12,
+                    background: DS.greenBg,
+                    color: DS.green,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                  }}
+                >
+                  🔗 Bologna (ÇAKÜ)
+                </a>
+              )}
+            </div>
             {decided ? (
               <span
                 style={{
@@ -4853,14 +4915,7 @@ const ReviewPanel = ({ record, onDecision }) => {
   );
 };
 
-const ExemptionHistory = ({
-  records,
-  loading,
-  onDelete,
-  onExportWord,
-  onUpdateDecision,
-  emptyText,
-}) => {
+const ExemptionHistory = ({ records, loading, onDelete, onUpdateDecision, emptyText }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedReview, setExpandedReview] = useState(null);
 
@@ -5107,16 +5162,6 @@ const ExemptionHistory = ({
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <Button
-                    small
-                    variant="ghost"
-                    onClick={function () {
-                      onExportWord(rec);
-                    }}
-                    icon={<Icons.download />}
-                  >
-                    Word
-                  </Button>
                   {onDelete && (
                     <Button
                       small
@@ -5515,10 +5560,31 @@ const CalibrationPanel = ({ records, thresholds, onSaveThresholds }) => {
 // ── Eşleştirme Geçmişi (muafiyet_history) ──
 // Onaylanan ders eşleştirmelerinin bölüm arşivi. Erasmus eşleştirme
 // geçmişinden (trip_history) TAMAMEN BAĞIMSIZDIR.
-const MuafiyetGecmisi = ({ activeDepartment }) => {
+const MuafiyetGecmisi = ({ activeDepartment, canDelete }) => {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  const handleDelete = async (entry) => {
+    if (
+      !confirm(
+        'Bu eşleştirme geçmişten silinecek:\n' +
+          (entry.sourceCourse?.code || '') +
+          ' → ' +
+          (entry.cakuCourse?.code || '') +
+          ' (' +
+          (entry.studentName || '') +
+          ')\nEmin misiniz?'
+      )
+    )
+      return;
+    try {
+      await window.DBWrite.remove('muafiyet_history', String(entry.id));
+      setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+    } catch (e) {
+      alert('Silinemedi: ' + e.message);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -5683,6 +5749,25 @@ const MuafiyetGecmisi = ({ activeDepartment }) => {
                   {e.approvedBy ? ' · ' + e.approvedBy : ''}
                 </div>
               </div>
+              {canDelete && (
+                <button
+                  onClick={() => handleDelete(e)}
+                  title="Eşleştirmeyi geçmişten sil"
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 7,
+                    border: '1px solid ' + DS.border,
+                    background: 'white',
+                    color: DS.red,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    flexShrink: 0,
+                  }}
+                >
+                  🗑
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -5957,9 +6042,6 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             })}
             loading={recordsLoading}
             onDelete={handleDeleteRecord}
-            onExportWord={function (rec) {
-              exportMuafiyetWord(rec);
-            }}
             onUpdateDecision={handleUpdateDecision}
             emptyText="Onay bekleyen talep yok. Öğrenciler yeni talep gönderdiğinde burada listelenir."
           />
@@ -5969,9 +6051,6 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             records={records}
             loading={recordsLoading}
             onDelete={isStudent ? null : handleDeleteRecord}
-            onExportWord={function (rec) {
-              exportMuafiyetWord(rec);
-            }}
             onUpdateDecision={isStudent ? null : handleUpdateDecision}
             emptyText={
               isStudent
@@ -5980,7 +6059,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             }
           />
         )}
-        {activeTab === 'esgecmis' && <MuafiyetGecmisi activeDepartment={activeDepartment} />}
+        {activeTab === 'esgecmis' && (
+          <MuafiyetGecmisi activeDepartment={activeDepartment} canDelete={!isStudent} />
+        )}
       </div>
     </div>
   );
@@ -6009,6 +6090,7 @@ const emptyManualRow = function () {
       file: null,
       fileName: '',
       content: '',
+      bolognaLink: '', // karşı kurumun ders Bologna sayfası — ZORUNLU
     },
     cak: {
       name: '',
@@ -6018,6 +6100,7 @@ const emptyManualRow = function () {
       file: null,
       fileName: '',
       content: '',
+      bolognaLink: '', // Ders Yönetimi'nden otomatik gelir
       selKey: '', // dropdown'da seçili katalog dersi
       manual: false, // true → elle giriş modu (ders listede yoksa)
       fromCatalog: false, // içerik katalogdan otomatik dolduruldu
@@ -6048,8 +6131,10 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
 
   const tr = (v) => (typeof v === 'string' ? v.toLocaleUpperCase('tr-TR') : v);
   const updateSide = (rowId, side, field, value) => {
+    // URL alanları büyük harfe çevrilmez (link bozulur)
+    const v = field === 'bolognaLink' ? value : tr(value);
     setRows((prev) =>
-      prev.map((r) => (r.id === rowId ? { ...r, [side]: { ...r[side], [field]: tr(value) } } : r))
+      prev.map((r) => (r.id === rowId ? { ...r, [side]: { ...r[side], [field]: v } } : r))
     );
   };
   const updateNumeric = (rowId, side, field, value) => {
@@ -6170,24 +6255,29 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
       if (k) catalogByCode.set(k, c);
     });
     const merged = new Map(); // normCode → seçenek
-    const put = (code, name, cat) => {
+    const put = (course, cat) => {
+      const code = course.code || '';
+      const name = course.name || '';
       const k = normCode(code) || 'N:' + name;
       if (merged.has(k)) return;
       merged.set(k, {
-        code: code || '',
-        name: name || '',
-        akts: (cat && cat.akts) || '',
-        statu: (cat && cat.status) || '',
+        code,
+        name,
+        // ÖNCELİK: dersin kendi alanları (Ders Yönetimi'nde akademisyen
+        // AKTS + Z/S + Bologna girer); eksikse katalogdan tamamlanır
+        akts: course.akts || (cat && cat.akts) || '',
+        statu: course.statu || (course.sinif === 5 ? 'S' : '') || (cat && cat.status) || '',
+        bolognaLink: course.bolognaLink || '',
         content: (cat && (cat.weeklyContent || cat.content)) || '',
       });
     };
-    // 1) Bölüm dersleri (katalogdan zenginleştirilmiş)
+    // 1) Bölüm dersleri — Ders Yönetimi kaynağı (AKTS + Z/S + Bologna linki)
     deptCourses.forEach((c) => {
-      if (c.name) put(c.code, c.name, catalogByCode.get(normCode(c.code)));
+      if (c.name) put(c, catalogByCode.get(normCode(c.code)));
     });
     // 2) Yalnızca katalogda olan dersler
     (courseContents || []).forEach((c) => {
-      if (c.name) put(c.code, c.name, c);
+      if (c.name) put({ code: c.code, name: c.name, akts: c.akts, statu: c.status }, c);
     });
     return [...merged.values()]
       .map((c) => ({ ...c, key: (c.code || '') + '::' + c.name }))
@@ -6203,7 +6293,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
         if (r.id !== rowId) return r;
         if (!opt) {
           // seçim temizlendi — katalogdan gelen içerik de temizlenir
-          const cleared = { ...r.cak, selKey: '', name: '', code: '', akts: '' };
+          const cleared = { ...r.cak, selKey: '', name: '', code: '', akts: '', bolognaLink: '' };
           if (r.cak.fromCatalog) {
             cleared.content = '';
             cleared.contentChars = 0;
@@ -6223,6 +6313,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
             code: tr(opt.code),
             akts: String(opt.akts || '').replace(/\D/g, ''),
             statu: normalizeStatu(opt.statu) || r.cak.statu,
+            bolognaLink: opt.bolognaLink || '',
             ...(hasContent
               ? {
                   content,
@@ -6250,6 +6341,30 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
   const removeRow = (rowId) =>
     setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.id !== rowId) : prev));
 
+  // Öğrencinin yüklediği belgeyi sunucuya kaydet — akademisyen onay ekranında
+  // PDF'i görüntüleyebilsin diye. Başarısız olursa null döner (talep yine
+  // gönderilir; yalnızca görüntüleme linki olmaz).
+  const uploadDocFile = async (file) => {
+    if (!file) return null;
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const token = localStorage.getItem('caku_auth_token');
+      const res = await fetch('/api/files/upload?folder=muafiyet_belgeler', {
+        method: 'POST',
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
+        credentials: 'include',
+        body: fd,
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.downloadURL || null;
+    } catch (e) {
+      console.warn('Belge yüklenemedi:', e.message);
+      return null;
+    }
+  };
+
   const validate = () => {
     if (!studentName.trim() || !studentNo.trim()) {
       setMsg({ text: 'Öğrenci adı ve numarası zorunlu.', kind: 'error' });
@@ -6263,6 +6378,16 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
       if (!r.src.akts || !r.cak.akts) {
         setMsg({
           text: 'Her ders için iki yan da AKTS zorunlu — muafiyet kararı AKTS uyumuna bakar.',
+          kind: 'error',
+        });
+        return false;
+      }
+      const srcLink = (r.src.bolognaLink || '').trim();
+      if (!/^https?:\/\/\S+$/i.test(srcLink)) {
+        setMsg({
+          text:
+            'Karşı kurum dersinin Bologna linki zorunludur (http:// veya https:// ile başlamalı). ' +
+            'Dersin resmi Bologna bilgi paketi sayfasının bağlantısını girin.',
           kind: 'error',
         });
         return false;
@@ -6311,6 +6436,14 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
     if (!validate()) return;
     setProcessing(true);
     try {
+      // Yüklenen belgeleri sunucuya kaydet — akademisyen onayda görüntüler
+      const fileUrls = await Promise.all(
+        rows.map(async (r) => ({
+          src: await uploadDocFile(r.src.file),
+          cak: await uploadDocFile(r.cak.file),
+        }))
+      );
+
       // Semantik servis ayaktaysa embedding cosine kullanılır; yoksa sözcüksel.
       const semScores = await fetchSemanticScores(
         rows.map((r) => ({ a: r.src.content, b: r.cak.content }))
@@ -6344,6 +6477,9 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
             akts: r.cak.akts,
             statu: r.cak.statu,
             weeklyContent: r.cak.content,
+            bolognaLink: r.cak.bolognaLink || '',
+            fileUrl: fileUrls[i]?.cak || '',
+            fromCatalog: !!r.cak.fromCatalog,
           },
           sourceCourse: {
             code: r.src.code,
@@ -6351,6 +6487,8 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
             akts: r.src.akts,
             statu: r.src.statu,
             weeklyContent: r.src.content,
+            bolognaLink: r.src.bolognaLink || '',
+            fileUrl: fileUrls[i]?.src || '',
             grade: '',
           },
           score: finalScore,
@@ -6596,6 +6734,44 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
               <option value="S">S (Seçmeli)</option>
             </select>
           </div>
+          {side === 'src' ? (
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={labelStyle}>Bologna Linki *</label>
+              <input
+                value={v.bolognaLink || ''}
+                onChange={(e) => updateSide(row.id, side, 'bolognaLink', e.target.value)}
+                style={inputStyle}
+                placeholder="https://... (karşı kurumun ders bilgi paketi sayfası)"
+              />
+            </div>
+          ) : (
+            v.bolognaLink && (
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={labelStyle}>Bologna Linki (otomatik)</label>
+                <a
+                  href={v.bolognaLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'block',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1px solid ' + DS.greenLight,
+                    background: DS.greenBg,
+                    color: DS.green,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  🔗 {v.bolognaLink}
+                </a>
+              </div>
+            )
+          )}
           <div>
             <label style={labelStyle}>İçerik Dosyası *</label>
             <label
