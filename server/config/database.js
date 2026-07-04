@@ -7,13 +7,65 @@ let client = null;
 let db = null;
 let isConnecting = false;
 
+// students.studentNumber indeksini güvenli şekilde unique'e yükselt.
+// KURAL: hiçbir koşulda veri silinmez. Mükerrer numara varsa mevcut
+// non-unique indeks korunur ve mükerrerler log'a dökülür.
+async function upgradeStudentNumberIndex(database) {
+  const students = database.collection('students');
+  try {
+    // Zaten unique indeks var mı?
+    const indexes = await students.indexes();
+    const existing = indexes.find(
+      (ix) => ix.key && ix.key.studentNumber === 1 && Object.keys(ix.key).length === 1
+    );
+    if (existing && existing.unique) return; // yapılacak iş yok
+
+    // Mükerrer kontrolü — silme YOK, yalnızca sayım
+    const dups = await students
+      .aggregate([
+        { $group: { _id: '$studentNumber', n: { $sum: 1 } } },
+        { $match: { n: { $gt: 1 } } },
+        { $limit: 20 },
+      ])
+      .toArray();
+
+    if (dups.length > 0) {
+      console.warn(
+        `[indexes] students.studentNumber unique'e YÜKSELTİLMEDİ — ${dups.length}+ mükerrer numara var. ` +
+          `Örnekler: ${dups
+            .slice(0, 5)
+            .map((d) => d._id + ' (x' + d.n + ')')
+            .join(', ')}. Mükerrerler elle birleştirilince otomatik yükseltilecek.`
+      );
+      // non-unique indeks garanti edilsin
+      await students.createIndex({ studentNumber: 1 }, { background: true });
+      return;
+    }
+
+    // Mükerrer yok → eski non-unique indeksi bırakıp unique oluştur
+    if (existing) {
+      await students.dropIndex(existing.name);
+    }
+    await students.createIndex({ studentNumber: 1 }, { unique: true, background: true });
+    console.log('[indexes] students.studentNumber UNIQUE indekse yükseltildi.');
+  } catch (err) {
+    // İndeks yükseltme hatası açılışı engellemesin — non-unique'e geri düş
+    console.warn('[indexes] studentNumber unique yükseltme hatası:', err.message);
+    try {
+      await students.createIndex({ studentNumber: 1 }, { background: true });
+    } catch (_e) {
+      /* sessiz */
+    }
+  }
+}
+
 // Veritabanı indekslerini oluştur (varsa atlar, veri kaybı yapmaz)
 async function setupIndexes(database) {
   try {
-    // Öğrenci girişi ve sorguları
-    // NOT: unique değil — mükerrer studentNumber kayıtları olduğu için.
-    // Temizleme scripti çalıştırıldıktan sonra unique'e alınabilir.
-    await database.collection('students').createIndex({ studentNumber: 1 }, { background: true });
+    // Öğrenci girişi ve sorguları — mükerrer kayıt YOKSA unique indekse
+    // yükseltilir; mükerrer varsa VERİ SİLİNMEZ, uyarı loglanır ve
+    // non-unique indeksle devam edilir (temizlik manuel yapılmalı).
+    await upgradeStudentNumberIndex(database);
     await database.collection('students').createIndex({ departmentId: 1 }, { background: true });
 
     // Bölüm yetkilisi girişi

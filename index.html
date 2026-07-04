@@ -501,7 +501,29 @@
       .catch(function(err) {
         console.warn('API sunucusu bağlantı hatası:', err.message);
         window.apiError = err.message;
+        var t = document.getElementById('loading-text');
+        if (t) t.textContent = 'Sunucu bağlantısı kurulamıyor — yeniden deneniyor…';
       });
+
+    // Yükleme ekranı bekçisi: uygulama 15 sn içinde açılmazsa kullanıcıya
+    // sonsuz spinner yerine anlaşılır bir hata + yenile butonu göster.
+    setTimeout(function () {
+      var bar = document.getElementById('loading-bar');
+      if (!bar) return; // uygulama açıldı, splash React tarafından kaldırıldı
+      var screen = document.querySelector('.loading-screen');
+      if (!screen) return;
+      var reason = window.apiError
+        ? 'API sunucusuna ulaşılamıyor (' + window.apiError + ').'
+        : 'Uygulama beklenenden uzun sürede yüklendi.';
+      screen.innerHTML =
+        '<img src="logo.png" alt="Logo" class="loading-logo" />' +
+        '<div class="loading-title">Bağlantı Sorunu</div>' +
+        '<div class="loading-subtitle" style="max-width:340px;line-height:1.5">' + reason +
+        ' Sunucu çalışıyorsa sayfayı yenileyin; sorun sürerse sistem yöneticisine bildirin.</div>' +
+        '<button onclick="location.reload()" style="margin-top:18px;padding:10px 26px;border:none;' +
+        'border-radius:8px;background:#1B2A4A;color:#fff;font-size:14px;font-weight:600;cursor:pointer">' +
+        'Yeniden Dene</button>';
+    }, 15000);
   </script>
 
   <!-- Vite Entry Point: pre-build edilmiş, lazy-loading destekli -->
