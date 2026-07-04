@@ -69,10 +69,14 @@ const path = require('path');
       keep++;
       continue;
     }
-    // En eskiyi tut (createdAt yoksa _id sırası en eskiye yakındır)
-    docs.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    // EN YENİYİ tut: (1) dönüş kayıtlarındaki not alanları her senkronla
+    // güncel öğrenci durumundan yazılır — en güncel notlar en yeni kayıtta;
+    // (2) createdAt iki farklı formatta (ISO + Date.toString) olduğundan
+    // string sıralaması yanıltıcı — ObjectId zaman damgası formattan
+    // bağımsız kronolojiktir, ona göre sıralanır.
+    docs.sort((a, b) => String(a._id).localeCompare(String(b._id)));
     keep++;
-    docs.slice(1).forEach((d) => toDelete.push(d._id));
+    docs.slice(0, -1).forEach((d) => toDelete.push(d._id)); // sonuncusu (en yeni) kalır
   }
 
   console.log(`Benzersiz imza (tutulacak): ${keep}`);
