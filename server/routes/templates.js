@@ -162,6 +162,19 @@ function canViewTemplate(scope, tpl, deptFacMap) {
   return false;
 }
 
+// Alan eşleme kayıtlarını doğrula/temizle — yer tutucu → değişken eşlemesi.
+// Şema: { token, tokenOccurrence, context, variable, value }
+function sanitizeFields(input) {
+  if (!Array.isArray(input)) return null;
+  return input.slice(0, 300).map((f) => ({
+    token: String(f && f.token ? f.token : '').slice(0, 60),
+    tokenOccurrence: Math.max(1, parseInt(f && f.tokenOccurrence, 10) || 1),
+    context: String(f && f.context ? f.context : '').slice(0, 200),
+    variable: String(f && f.variable ? f.variable : '').slice(0, 60),
+    value: String(f && f.value ? f.value : '').slice(0, 500),
+  }));
+}
+
 function publicTemplate(tpl) {
   return {
     _id: tpl._id,
@@ -171,6 +184,7 @@ function publicTemplate(tpl) {
     scope: tpl.scope,
     departmentId: tpl.departmentId || '',
     facultyId: tpl.facultyId || '',
+    fields: Array.isArray(tpl.fields) ? tpl.fields : [],
     isDefault: !!tpl.isDefault,
     isActive: tpl.isActive !== false,
     file: tpl.file
@@ -339,6 +353,9 @@ router.patch('/:id', writeLimiter, softAuthMiddleware, async (req, res) => {
     if (typeof req.body.description === 'string') update.description = req.body.description;
     if (typeof req.body.isActive === 'boolean') update.isActive = req.body.isActive;
     if (typeof req.body.isDefault === 'boolean') update.isDefault = req.body.isDefault;
+    // Alan eşlemesi (yer tutucu → değişken) — Şablonlar modülü eşleme arayüzü
+    const fields = sanitizeFields(req.body.fields);
+    if (fields) update.fields = fields;
     update.updatedAt = new Date();
 
     if (update.isDefault === true) {

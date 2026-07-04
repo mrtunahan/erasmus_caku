@@ -52,6 +52,7 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [mapping, setMapping] = useState(null); // { tpl, file? } — alan eşleme sihirbazı
   const [filter, setFilter] = useState({ module: 'all', search: '' });
   const [msg, setMsg] = useState({ text: '', kind: '' });
 
@@ -363,6 +364,24 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {t.file && t.file.extension === 'docx' && (
+                    <button
+                      onClick={() => setMapping({ tpl: t, file: null })}
+                      title={
+                        (t.fields || []).some((f) => f.variable)
+                          ? 'Alan eşlemesini düzenle (' +
+                            t.fields.filter((f) => f.variable).length +
+                            ' alan eşli)'
+                          : 'Anahtar alanları eşle — çıktı üretimi için gerekli'
+                      }
+                      style={iconBtn(
+                        (t.fields || []).some((f) => f.variable) ? '#7C3AED' : '#D97706',
+                        (t.fields || []).some((f) => f.variable) ? '#EDE9FE' : '#FEF3C7'
+                      )}
+                    >
+                      🧩
+                    </button>
+                  )}
                   <a
                     href={'/api/templates/' + t._id + '/download'}
                     title="İndir"
@@ -401,10 +420,16 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
       {showAdd && (
         <AddTemplateModal
           onClose={() => setShowAdd(false)}
-          onSaved={() => {
+          onSaved={(tpl, file) => {
             setShowAdd(false);
-            showMsg('Şablon eklendi.', 'ok');
             load();
+            // .docx ise yer tutucu eşleme sihirbazını otomatik aç
+            if (tpl && tpl.file && tpl.file.extension === 'docx') {
+              showMsg('Şablon eklendi — şimdi anahtar alanları eşleyin.', 'ok');
+              setMapping({ tpl, file });
+            } else {
+              showMsg('Şablon eklendi.', 'ok');
+            }
           }}
           currentUser={currentUser}
           activeDepartment={activeDepartment}
@@ -412,6 +437,20 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
           isUniAdmin={isUniAdmin}
           isFacMgr={isFacMgr}
           isDeptMgr={isDeptMgr}
+        />
+      )}
+
+      {mapping && (
+        <FieldMappingModal
+          tpl={mapping.tpl}
+          localFile={mapping.file}
+          headers={headers}
+          onClose={() => setMapping(null)}
+          onSaved={() => {
+            setMapping(null);
+            showMsg('Alan eşlemesi kaydedildi.', 'ok');
+            load();
+          }}
         />
       )}
     </div>
@@ -501,7 +540,9 @@ function AddTemplateModal(props) {
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'Yüklenemedi');
-      onSaved();
+      // Oluşan şablonu ve yerel dosyayı üst bileşene ver — .docx ise
+      // alan eşleme sihirbazı otomatik açılır
+      onSaved(d, file);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -693,6 +734,263 @@ function AddTemplateModal(props) {
           </SB_Btn>
         </div>
       </form>
+    </SB_Modal>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// Alan Eşleme Sihirbazı — .docx şablonundaki yer tutucuları
+// (yyyyy, xxxxx, XXXXX, tek X, {degisken}) tespit eder; yükleyen yetkili
+// her birini modülün değişkenlerine ya da sabit metne eşler. Eşleme
+// document_templates.fields'a kaydedilir; hedef modül çıktı üretirken
+// window.TemplateEngine.generateDocx bu eşlemeyi kullanır.
+// ══════════════════════════════════════════════════════════════
+function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
+  const [fields, setFields] = useState(null); // null=yükleniyor
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const vars = window.TEMPLATE_VARS?.[tpl.module] ||
+    window.TEMPLATE_VARS?._generic || {
+      static: [],
+      row: [],
+    };
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        let buf;
+        if (localFile) {
+          buf = await localFile.arrayBuffer();
+        } else {
+          const r = await fetch('/api/templates/' + tpl._id + '/download', {
+            headers: headers(),
+          });
+          if (!r.ok) throw new Error('Şablon dosyası indirilemedi.');
+          buf = await r.arrayBuffer();
+        }
+        const detected = await window.TemplateEngine.detectPlaceholders(buf);
+        // Kayıtlı eşlemeleri (token + sıra) üzerine bindir
+        const saved = tpl.fields || [];
+        const merged = detected.map((d) => {
+          const s = saved.find(
+            (x) => x.token === d.token && x.tokenOccurrence === d.tokenOccurrence
+          );
+          return s ? { ...d, variable: s.variable || '', value: s.value || '' } : d;
+        });
+        if (alive) setFields(merged);
+      } catch (e) {
+        if (alive) {
+          setError(e.message);
+          setFields([]);
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [tpl._id]);
+
+  const update = (i, patch) =>
+    setFields((prev) => prev.map((f, idx) => (idx === i ? { ...f, ...patch } : f)));
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const r = await fetch('/api/templates/' + tpl._id, {
+        method: 'PATCH',
+        headers: { ...headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: fields.map(({ token, tokenOccurrence, context, variable, value }) => ({
+            token,
+            tokenOccurrence,
+            context,
+            variable,
+            value,
+          })),
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Kaydedilemedi');
+      onSaved();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const mappedCount = (fields || []).filter((f) => f.variable).length;
+  const selStyle = {
+    width: '100%',
+    padding: '7px 10px',
+    borderRadius: 7,
+    border: '1px solid #D1D5DB',
+    fontSize: 12.5,
+    fontFamily: "'Inter', sans-serif",
+    boxSizing: 'border-box',
+  };
+
+  return (
+    <SB_Modal open={true} onClose={onClose} title={'Alan Eşleme — ' + tpl.name} width={760}>
+      <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 12px', lineHeight: 1.6 }}>
+        Belgede tespit edilen yer tutucular aşağıda. Her birini{' '}
+        <b>{moduleMeta(tpl.module).label}</b> modülünün değişkenlerine eşleyin — çıktı üretilirken
+        bu alanlar gerçek verilerle doldurulur. <b>Satır değişkenleri</b> tablo satırındaki alanlar
+        içindir: o satır, ders sayısı kadar çoğaltılır. Eşlemek istemediklerinizi "Atla" bırakın;
+        sabit bir metin yazmak için "Sabit metin" seçin.
+      </p>
+
+      {fields === null ? (
+        <p style={{ padding: 24, textAlign: 'center', color: '#6B7280' }}>Belge inceleniyor…</p>
+      ) : fields.length === 0 ? (
+        <div
+          style={{
+            padding: 20,
+            background: '#FEF3C7',
+            border: '1px solid #FCD34D',
+            borderRadius: 10,
+            fontSize: 13,
+            color: '#92400E',
+          }}
+        >
+          Belgede yer tutucu bulunamadı. Şablonda değişken alanları <b>xxxxx</b>, <b>yyyyy</b>,{' '}
+          <b>XXXXX</b> ya da <b>{'{degiskenAdi}'}</b> biçiminde yazın ve şablonu yeniden yükleyin.
+        </div>
+      ) : (
+        <div
+          style={{
+            maxHeight: 420,
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            marginBottom: 12,
+          }}
+        >
+          {fields.map((f, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 220px',
+                gap: 10,
+                alignItems: 'center',
+                padding: '9px 12px',
+                borderRadius: 9,
+                border: '1px solid ' + (f.variable ? '#C4B5FD' : '#E5E7EB'),
+                background: f.variable ? '#F5F3FF' : 'white',
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '1px 7px',
+                    borderRadius: 8,
+                    background: '#1F2937',
+                    color: 'white',
+                    fontFamily: "'JetBrains Mono', monospace",
+                  }}
+                >
+                  {f.token}
+                </span>
+                <span style={{ fontSize: 10.5, color: '#9CA3AF', marginLeft: 6 }}>
+                  #{f.tokenOccurrence}
+                </span>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: '#6B7280',
+                    marginTop: 3,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title={f.context}
+                >
+                  …{f.context}…
+                </div>
+              </div>
+              <div>
+                <select
+                  value={f.variable}
+                  onChange={(e) => update(i, { variable: e.target.value })}
+                  style={selStyle}
+                >
+                  <option value="">— Atla —</option>
+                  {vars.static.length > 0 && (
+                    <optgroup label="Belge alanları">
+                      {vars.static.map((v) => (
+                        <option key={v.id} value={'static:' + v.id}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {vars.row.length > 0 && (
+                    <optgroup label="Tablo satırı (ders başına)">
+                      {vars.row.map((v) => (
+                        <option key={v.id} value={'row:' + v.id}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <option value="const">Sabit metin…</option>
+                </select>
+                {f.variable === 'const' && (
+                  <input
+                    value={f.value}
+                    onChange={(e) => update(i, { value: e.target.value })}
+                    placeholder="Yazılacak sabit metin"
+                    style={{ ...selStyle, marginTop: 5 }}
+                  />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <div
+          style={{
+            background: '#FEE2E2',
+            color: '#991B1B',
+            padding: '8px 12px',
+            borderRadius: 8,
+            fontSize: 12.5,
+            marginBottom: 10,
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        <span style={{ fontSize: 12, color: '#6B7280' }}>
+          {mappedCount} alan eşlendi{fields ? ' / ' + fields.length + ' tespit' : ''}
+        </span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <SB_Btn type="button" variant="secondary" onClick={onClose} disabled={saving}>
+            İptal
+          </SB_Btn>
+          <SB_Btn type="button" onClick={save} disabled={saving || fields === null}>
+            {saving ? 'Kaydediliyor…' : 'Eşlemeyi Kaydet'}
+          </SB_Btn>
+        </div>
+      </div>
     </SB_Modal>
   );
 }
