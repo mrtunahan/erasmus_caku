@@ -4915,7 +4915,14 @@ const ReviewPanel = ({ record, onDecision }) => {
   );
 };
 
-const ExemptionHistory = ({ records, loading, onDelete, onUpdateDecision, emptyText }) => {
+const ExemptionHistory = ({
+  records,
+  loading,
+  onDelete,
+  onUpdateDecision,
+  onGenerateDoc,
+  emptyText,
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedReview, setExpandedReview] = useState(null);
 
@@ -5162,6 +5169,18 @@ const ExemptionHistory = ({ records, loading, onDelete, onUpdateDecision, emptyT
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
+                  {onGenerateDoc && (
+                    <Button
+                      small
+                      variant="ghost"
+                      onClick={function () {
+                        onGenerateDoc(rec);
+                      }}
+                      icon={<Icons.download />}
+                    >
+                      Belge Oluştur
+                    </Button>
+                  )}
                   {onDelete && (
                     <Button
                       small
@@ -5848,6 +5867,97 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
+  // ── Şablondan belge üret ──
+  // Şablonlar modülünde 'muafiyet' modülüne atanmış .docx şablonunu çözer,
+  // alan eşlemesine göre kayıt verileriyle doldurur ve indirir.
+  const handleGenerateDoc = async function (rec) {
+    try {
+      const token = localStorage.getItem('caku_auth_token');
+      const authHeaders = token ? { Authorization: 'Bearer ' + token } : {};
+
+      const rr = await fetch(
+        '/api/templates/resolve?module=muafiyet&departmentId=' +
+          encodeURIComponent(rec.departmentId || activeDepartment || ''),
+        { headers: authHeaders, credentials: 'include' }
+      );
+      const rd = await rr.json().catch(() => ({}));
+      const tpl = rd.template;
+      if (!tpl) {
+        alert(
+          'Bu bölüm için muafiyet şablonu bulunamadı.\n' +
+            'Şablonlar modülünden "Ders Muafiyet" modülüne bir .docx şablonu yükleyin.'
+        );
+        return;
+      }
+      if (!tpl.file || tpl.file.extension !== 'docx') {
+        alert('Atanan şablon .docx değil — belge üretimi yalnızca .docx şablonlarla çalışır.');
+        return;
+      }
+      const mapped = (tpl.fields || []).filter(function (f) {
+        return f.variable;
+      });
+      if (mapped.length === 0) {
+        alert(
+          'Şablonun alan eşlemesi yapılmamış.\n' +
+            'Şablonlar modülünde şablonun yanındaki 🧩 (Alanlar) butonuyla ' +
+            'yer tutucuları değişkenlere eşleyin.'
+        );
+        return;
+      }
+
+      const fr = await fetch('/api/templates/' + tpl._id + '/download', {
+        headers: authHeaders,
+        credentials: 'include',
+      });
+      if (!fr.ok) throw new Error('Şablon dosyası indirilemedi.');
+      const buf = await fr.arrayBuffer();
+
+      // Belgeye yalnızca ONAYLANAN dersler girer; hiç onay yoksa tüm talepler
+      const ms = rec.matches || [];
+      const confirmed = ms.filter(function (m) {
+        return m.adminDecision === 'confirmed';
+      });
+      const rowsSrc = confirmed.length > 0 ? confirmed : ms;
+      const rows = rowsSrc.map(function (m) {
+        const src = m.sourceCourse || m.source || {};
+        const cak = m.localCourse || m.target || {};
+        return {
+          kDersKod: src.code || '',
+          kDersAd: src.name || '',
+          kDersAkts: src.akts || '',
+          kDersNot: src.grade || '',
+          cDersKod: cak.code || '',
+          cDersAd: cak.name || '',
+          cDersAkts: cak.akts || '',
+          cDersNot: m.convertedGrade || cak.grade || '',
+          cDersStatu: cak.statu || '',
+        };
+      });
+      const sum = function (arr, key) {
+        return arr.reduce(function (a, r) {
+          return a + (parseInt(r[key], 10) || 0);
+        }, 0);
+      };
+      const staticData = {
+        ogrenciNo: rec.studentNo || '',
+        ogrenciAdSoyad: rec.studentName || '',
+        kaynakUniversite: rec.otherUni || rec.otherUniversity || '',
+        kaynakFakulte: rec.otherFaculty || '',
+        kaynakBolum: rec.otherDept || rec.otherDepartment || '',
+        cakuBolum: rec.localDept || departmentInfo?.name || '',
+        kaynakToplamAkts: String(sum(rows, 'kDersAkts')),
+        cakuToplamAkts: String(sum(rows, 'cDersAkts')),
+        tarih: new Date().toLocaleDateString('tr-TR'),
+      };
+
+      const blob = await window.TemplateEngine.generateDocx(buf, tpl.fields, staticData, rows);
+      window.TemplateEngine.downloadBlob(blob, 'Muafiyet_' + (rec.studentNo || 'kayit') + '.docx');
+    } catch (e) {
+      console.error('Belge üretim hatası:', e);
+      alert('Belge oluşturulamadı: ' + e.message);
+    }
+  };
+
   const handleUpdateDecision = async function (recordId, matchIndex, decision) {
     try {
       var updatedMatches = await MuafiyetDB.updateMatchDecision(
@@ -6043,6 +6153,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             loading={recordsLoading}
             onDelete={handleDeleteRecord}
             onUpdateDecision={handleUpdateDecision}
+            onGenerateDoc={handleGenerateDoc}
             emptyText="Onay bekleyen talep yok. Öğrenciler yeni talep gönderdiğinde burada listelenir."
           />
         )}
@@ -6052,6 +6163,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             loading={recordsLoading}
             onDelete={isStudent ? null : handleDeleteRecord}
             onUpdateDecision={isStudent ? null : handleUpdateDecision}
+            onGenerateDoc={isStudent ? null : handleGenerateDoc}
             emptyText={
               isStudent
                 ? 'Henüz muafiyet talebiniz yok. "Yeni Muafiyet" sekmesinden oluşturabilirsiniz.'

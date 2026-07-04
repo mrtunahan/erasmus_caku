@@ -1428,6 +1428,272 @@ window.apiRead = apiRead;
 window.apiReadDoc = apiReadDoc;
 
 // ══════════════════════════════════════════════════════════════
+// ── ŞABLON MOTORU (window.TemplateEngine) ──
+// Word (.docx) şablonlarındaki yer tutucuları (yyyyy, xxxxx, XXXXX, Xxxxx,
+// tek X, {degisken}) tespit eder ve gerçek verilerle doldurup yeni .docx
+// üretir. Şablonlar modülü tespit+eşleme için, hedef modüller (muafiyet vb.)
+// çıktı üretimi için kullanır.
+//
+// Alan eşleme kaydı (document_templates.fields):
+//   { token, tokenOccurrence, context, variable, value }
+//   variable: 'static:<id>' | 'row:<id>' | 'const' | '' (atla)
+// ══════════════════════════════════════════════════════════════
+
+// Modül başına eşlenebilir değişken sözlüğü — Şablonlar modülündeki eşleme
+// arayüzü bu etiketleri gösterir; hedef modül aynı id'lerle veri sağlar.
+window.TEMPLATE_VARS = {
+  muafiyet: {
+    static: [
+      { id: 'ogrenciNo', label: 'Öğrenci Numarası' },
+      { id: 'ogrenciAdSoyad', label: 'Öğrenci Adı Soyadı' },
+      { id: 'kaynakUniversite', label: 'Karşı Üniversite' },
+      { id: 'kaynakFakulte', label: 'Karşı Fakülte' },
+      { id: 'kaynakBolum', label: 'Karşı Bölüm' },
+      { id: 'cakuBolum', label: 'ÇAKÜ Bölüm Adı' },
+      { id: 'kaynakToplamAkts', label: 'Karşı Toplam AKTS' },
+      { id: 'cakuToplamAkts', label: 'ÇAKÜ Toplam AKTS' },
+      { id: 'tarih', label: 'Bugünün Tarihi' },
+    ],
+    row: [
+      { id: 'kDersKod', label: 'Karşı Ders Kodu' },
+      { id: 'kDersAd', label: 'Karşı Ders Adı' },
+      { id: 'kDersAkts', label: 'Karşı Ders AKTS' },
+      { id: 'kDersNot', label: 'Karşı Başarı Notu' },
+      { id: 'cDersKod', label: 'ÇAKÜ Ders Kodu' },
+      { id: 'cDersAd', label: 'ÇAKÜ Ders Adı' },
+      { id: 'cDersAkts', label: 'ÇAKÜ Ders AKTS' },
+      { id: 'cDersNot', label: 'ÇAKÜ Başarı Notu' },
+      { id: 'cDersStatu', label: 'ÇAKÜ Ders Statüsü (Z/S)' },
+    ],
+  },
+  _generic: {
+    static: [
+      { id: 'tarih', label: 'Bugünün Tarihi' },
+      { id: 'bolumAd', label: 'Bölüm Adı' },
+      { id: 'hazirlayan', label: 'Hazırlayan (yetkili adı)' },
+    ],
+    row: [],
+  },
+};
+
+const TemplateEngine = (() => {
+  async function ensureJSZip() {
+    if (window.JSZip) return window.JSZip;
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+      s.onload = res;
+      s.onerror = () => rej(new Error('JSZip yüklenemedi'));
+      document.head.appendChild(s);
+    });
+    return window.JSZip;
+  }
+
+  // XML entity çözümü (metin çıkarımında)
+  const decodeEnt = (s) =>
+    s
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'");
+  const escapeXml = (s) =>
+    String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+  // Yer tutucu deseni: {degisken} | xxxx+ | yyyy+ | tek başına X
+  // (Xxxxx büyük/küçük karışımı [xX]{4,} ile yakalanır)
+  const TOKEN_RX =
+    /\{[A-Za-z0-9_çğıöşüÇĞİÖŞÜ]+\}|[xX]{4,}|[yY]{4,}|(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9])X(?![A-Za-zÇĞİÖŞÜçğıöşü0-9])/g;
+
+  async function readDocumentXml(arrayBuffer) {
+    const JSZip = await ensureJSZip();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    const entry = zip.file('word/document.xml');
+    if (!entry) throw new Error('Geçersiz .docx (word/document.xml yok)');
+    const xml = await entry.async('string');
+    return { zip, xml };
+  }
+
+  // Belgedeki yer tutucuları belge sırasıyla döndürür.
+  // Dönen her kayıt: { token, tokenOccurrence, context }
+  async function detectPlaceholders(arrayBuffer) {
+    const { xml } = await readDocumentXml(arrayBuffer);
+    // Düz metin: paragrafları satıra çevir, etiketleri at
+    const text = decodeEnt(xml.replace(/<w:p\b[^>]*>/g, '\n').replace(/<[^>]+>/g, ''));
+    const perToken = {};
+    const out = [];
+    let m;
+    TOKEN_RX.lastIndex = 0;
+    while ((m = TOKEN_RX.exec(text)) !== null) {
+      const token = m[0];
+      perToken[token] = (perToken[token] || 0) + 1;
+      const before = text.slice(Math.max(0, m.index - 40), m.index).replace(/\n/g, ' ');
+      const after = text
+        .slice(m.index + token.length, m.index + token.length + 40)
+        .replace(/\n/g, ' ');
+      out.push({
+        token,
+        tokenOccurrence: perToken[token],
+        context: (before + '⟪' + token + '⟫' + after).trim(),
+        variable: '',
+        value: '',
+      });
+    }
+    return out;
+  }
+
+  // Token'ı, karakterleri arasında XML etiketlerine (run sınırları) izin
+  // veren bir regex'e çevir — Word metni birden çok <w:t>'ye bölebilir.
+  const TAGS = '(?:<[^>]*>)*';
+  function xmlTokenRegex(token) {
+    const parts = token.split('').map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    let pattern = parts.join(TAGS);
+    if (token === 'X') {
+      // Tek X: harf/rakam komşuluğunda eşleşmesin (etiketler hariç)
+      pattern = '(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9])' + pattern + '(?![A-Za-zÇĞİÖŞÜçğıöşü0-9])';
+    }
+    return new RegExp(pattern, 'g');
+  }
+
+  // XML içinde her alanın (token + tokenOccurrence) mutlak konumunu bul.
+  // Not: sadece <w:t>…</w:t> içindeki eşleşmeler sayılır (etiket adlarındaki
+  // x/y harfleri TAGS deseni sayesinde zaten eşleşmez; yine de w:t dışı kalan
+  // düz metin olmadığından güvenlidir).
+  function locateFields(xml, fields) {
+    const perTokenPos = {}; // token → [{start,end}, …] belge sırasında
+    const tokens = [...new Set(fields.map((f) => f.token))];
+    tokens.forEach((token) => {
+      const rx = xmlTokenRegex(token);
+      const list = [];
+      let m;
+      while ((m = rx.exec(xml)) !== null) {
+        list.push({ start: m.index, end: m.index + m[0].length });
+        // İç içe eşleşme kaymalarını önle
+        rx.lastIndex = m.index + Math.max(1, m[0].length);
+      }
+      perTokenPos[token] = list;
+    });
+    return fields.map((f) => {
+      const pos = (perTokenPos[f.token] || [])[f.tokenOccurrence - 1] || null;
+      return { ...f, _pos: pos };
+    });
+  }
+
+  // Konumlara göre (sondan başa) değiştirme — offset kayması olmaz
+  function applyReplacements(xml, repls) {
+    const sorted = repls.filter((r) => r._pos).sort((a, b) => b._pos.start - a._pos.start);
+    let out = xml;
+    sorted.forEach((r) => {
+      out = out.slice(0, r._pos.start) + escapeXml(r._value) + out.slice(r._pos.end);
+    });
+    return out;
+  }
+
+  function resolveValue(field, staticData) {
+    if (field.variable === 'const') return field.value || '';
+    if (field.variable && field.variable.startsWith('static:')) {
+      const id = field.variable.slice(7);
+      return staticData[id] != null ? String(staticData[id]) : '';
+    }
+    return null; // atla / row (bu geçişte değil)
+  }
+
+  // Şablonu verilerle doldurup .docx Blob döndürür.
+  //   fields: eşleme kayıtları (detect sırası korunmuş)
+  //   staticData: { degiskenId: değer }
+  //   rows: [{ degiskenId: değer }, …] — satır değişkenleri için tablo satırı
+  async function generateDocx(arrayBuffer, fields, staticData, rows) {
+    const { zip, xml } = await readDocumentXml(arrayBuffer);
+    const located = locateFields(xml, fields);
+
+    const isRow = (f) => f.variable && f.variable.startsWith('row:');
+    const rowFields = located.filter((f) => isRow(f) && f._pos);
+    const staticFields = located.filter((f) => !isRow(f));
+
+    let rowRegion = null; // { start, end, tpl, rowFieldRel }
+    if (rowFields.length > 0) {
+      // İlk satır değişkeninin bulunduğu <w:tr> bloğu satır şablonudur
+      const anchor = rowFields[0]._pos.start;
+      const trStart = xml.lastIndexOf('<w:tr', anchor);
+      const trEnd = xml.indexOf('</w:tr>', anchor);
+      if (trStart >= 0 && trEnd >= 0) {
+        const end = trEnd + '</w:tr>'.length;
+        const tpl = xml.slice(trStart, end);
+        // Satır içindeki alanlar (göreli konumlarla)
+        const rowFieldRel = rowFields
+          .filter((f) => f._pos.start >= trStart && f._pos.end <= end)
+          .map((f) => ({
+            ...f,
+            _pos: { start: f._pos.start - trStart, end: f._pos.end - trStart },
+          }));
+        rowRegion = { start: trStart, end, tpl, rowFieldRel };
+      }
+    }
+
+    // 1) Statik alanlar: satır bölgesi DIŞINDA kalanlar
+    const staticRepls = staticFields
+      .filter(
+        (f) =>
+          f._pos && (!rowRegion || f._pos.end <= rowRegion.start || f._pos.start >= rowRegion.end)
+      )
+      .map((f) => ({ ...f, _value: resolveValue(f, staticData) }))
+      .filter((f) => f._value !== null);
+
+    let out;
+    if (rowRegion) {
+      // Satır bölgesini veri satırlarıyla çoğalt
+      const renderedRows = (rows || [])
+        .map((rowData) => {
+          const rowRepls = rowRegion.rowFieldRel.map((f) => ({
+            ...f,
+            _value:
+              rowData[f.variable.slice(4)] != null ? String(rowData[f.variable.slice(4)]) : '',
+          }));
+          return applyReplacements(rowRegion.tpl, rowRepls);
+        })
+        .join('');
+      const head = applyReplacements(
+        xml.slice(0, rowRegion.start),
+        staticRepls.filter((f) => f._pos.end <= rowRegion.start)
+      );
+      const tailOffset = rowRegion.end;
+      const tail = applyReplacements(
+        xml.slice(tailOffset),
+        staticRepls
+          .filter((f) => f._pos.start >= tailOffset)
+          .map((f) => ({
+            ...f,
+            _pos: { start: f._pos.start - tailOffset, end: f._pos.end - tailOffset },
+          }))
+      );
+      out = head + renderedRows + tail;
+    } else {
+      out = applyReplacements(xml, staticRepls);
+    }
+
+    zip.file('word/document.xml', out);
+    return zip.generateAsync({
+      type: 'blob',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+  }
+
+  function downloadBlob(blob, filename) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
+  return { detectPlaceholders, generateDocx, downloadBlob };
+})();
+window.TemplateEngine = TemplateEngine;
+
+// ══════════════════════════════════════════════════════════════
 // ── Merkezi Bildirim Sistemi (notifications koleksiyonu) ─────
 // Tek koleksiyon, çoklu modül (staj/portal/erasmus/sistem...).
 // Mevcut modül-bazlı bildirim koleksiyonları olduğu gibi kalır;
