@@ -15,7 +15,9 @@
 const { logger } = require('../lib/logger');
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-const ENFORCE = process.env.CSRF_PROTECTION === 'enforce';
+// Varsayılan ENFORCE — açıkça CSRF_PROTECTION=soft ile gevşetilebilir.
+// (Eski davranış: varsayılan soft, 'enforce' ile sıkıydı; tersine çevrildi.)
+const ENFORCE = process.env.CSRF_PROTECTION !== 'soft';
 
 function parsedHost(urlStr) {
   if (!urlStr || typeof urlStr !== 'string') return null;
@@ -48,6 +50,12 @@ function buildAllowedHosts(req) {
 function csrfOriginCheck(getDb) {
   return function (req, res, next) {
     if (SAFE_METHODS.has(req.method)) return next();
+
+    // Authorization: Bearer ile gelen istekler CSRF'e bağışıktır — tarayıcı
+    // bu header'ı sitelerarası otomatik göndermez. Cookie tabanlı olmayan
+    // istemciler (script/mobil) böylece bloklanmaz.
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) return next();
 
     const origin = parsedHost(req.headers.origin);
     const referer = parsedHost(req.headers.referer);

@@ -1,9 +1,28 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+const jwt = require('jsonwebtoken');
 const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { auditWrites } = require('../middleware/auditLog');
 const { softAuth } = require('../middleware/softAuth');
+const { JWT_SECRET } = require('../middleware/auth');
+
+// Okuma rotaları için sessiz token çözümü — softAuth'tan farkı: anonim
+// istekleri audit_logs'a YAZMAZ (her sayfa açılışında onlarca GET var).
+function decodeUser(req) {
+  let token = null;
+  if (req.cookies && req.cookies.caku_auth) token = req.cookies.caku_auth;
+  if (!token) {
+    const h = req.headers.authorization;
+    if (h && h.startsWith('Bearer ')) token = h.split(' ')[1];
+  }
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (_e) {
+    return null;
+  }
+}
 
 const router = express.Router();
 
@@ -105,6 +124,128 @@ const ALLOWED_COLLECTIONS = [
 // Generic /api/db okuma API'sinden ERİŞİLEMEZ — parola hash'lerinin
 // kimlik doğrulamasız sızmasını önlemek için izin listesinden çıkarıldı.
 const READABLE_COLLECTIONS = [...ALLOWED_COLLECTIONS];
+
+// ══════════════════════════════════════════════
+// ERİŞİM POLİTİKASI (RBAC)
+//
+// DB_AUTH_MODE=off ile eski (açık) davranışa acil dönüş yapılabilir;
+// varsayılan 'enforce'. Politika:
+//
+//   OKUMA:
+//   • PUBLIC_READ           → token'sız okunabilir (org yapısı, PII yok)
+//   • PUBLIC_READ_STRIPPED  → token'sız okunabilir ama yalnız listelenen
+//                             alanlar döner (giriş ekranı akademisyen araması)
+//   • ADMIN_READ            → yalnız admin rolü / isUniversityAdmin bayraklı
+//                             akademisyen (audit kayıtları PII içerir)
+//   • diğer tüm koleksiyonlar → geçerli token zorunlu
+//
+//   YAZMA:
+//   • geçerli token zorunlu (öğrenci kaydı /api/auth/student-register'a taşındı)
+//   • WRITE_DENY (audit_logs) → generic API'den kimse yazamaz
+//   • student rolü → yalnız STUDENT_WRITABLE koleksiyonlarına yazabilir
+//   • professor / bolum_yetkilisi / admin → tüm izinli koleksiyonlar
+// ══════════════════════════════════════════════
+const DB_AUTH_ENFORCED = process.env.DB_AUTH_MODE !== 'off';
+
+const PUBLIC_READ = new Set(['universities', 'faculties', 'departments']);
+// Giriş ekranındaki akademisyen adı araması için gerekli asgari alanlar
+const PUBLIC_READ_STRIPPED = { professors: ['name', 'title', 'departmentId'] };
+const ADMIN_READ = new Set(['audit_logs']);
+const WRITE_DENY = new Set(['audit_logs']);
+
+// Öğrencilerin işlem yapması meşru olan koleksiyonlar (kendi başvuruları,
+// anket yanıtları, portal etkileşimleri, kulüpler, proje başvuruları)
+const STUDENT_WRITABLE = new Set([
+  'survey_responses',
+  'internship_applications',
+  'internship_uploads',
+  'internship_notifications',
+  'muafiyet_records',
+  'portal_posts',
+  'portal_posts_comments',
+  'portal_profiles',
+  'portal_follows',
+  'portal_reports',
+  'portal_notifications',
+  'portal_notifications_items',
+  'portal_moderators',
+  'student_notifications',
+  'forms',
+  'course_groups',
+  'course_group_posts',
+  'student_clubs',
+  'club_documents',
+  'projects',
+  'unides_projects',
+  'tubitak2209_projects',
+]);
+
+const STAFF_ROLES = new Set(['professor', 'bolum_yetkilisi', 'admin']);
+
+// isUniversityAdmin bayrağı JWT'de yok (role: 'professor') — audit_logs gibi
+// hassas okumalar için professors koleksiyonundan bakılır, 60 sn cache'lenir.
+const uniAdminCache = new Map(); // identifier -> { ok, ts }
+async function isUniversityAdmin(db, identifier) {
+  if (!identifier) return false;
+  const hit = uniAdminCache.get(identifier);
+  if (hit && Date.now() - hit.ts < 60 * 1000) return hit.ok;
+  let ok = false;
+  try {
+    const doc = await db
+      .collection('professors')
+      .findOne({ name: identifier }, { projection: { isUniversityAdmin: 1 } });
+    ok = !!(doc && doc.isUniversityAdmin);
+  } catch (_e) {
+    ok = false;
+  }
+  uniAdminCache.set(identifier, { ok, ts: Date.now() });
+  return ok;
+}
+
+// Okuma yetkisi kararı: { allow: bool, strip?: [alanlar], status?, error? }
+// getDb yalnızca gerektiğinde (audit_logs bayrak kontrolü) çağrılır —
+// yetkisiz istekler DB'ye hiç dokunmadan reddedilir.
+async function readDecision(collection, user, getDb) {
+  if (!DB_AUTH_ENFORCED) return { allow: true };
+  if (ADMIN_READ.has(collection)) {
+    if (!user) return { allow: false, status: 401, error: 'Bu veri için giriş gereklidir.' };
+    if (user.role === 'admin') return { allow: true };
+    if (user.role === 'professor') {
+      const db = await getDb();
+      if (await isUniversityAdmin(db, user.identifier)) return { allow: true };
+    }
+    return { allow: false, status: 403, error: 'Bu veriye erişim yetkiniz yok.' };
+  }
+  if (user) return { allow: true };
+  if (PUBLIC_READ.has(collection)) return { allow: true };
+  if (PUBLIC_READ_STRIPPED[collection]) {
+    return { allow: true, strip: PUBLIC_READ_STRIPPED[collection] };
+  }
+  return { allow: false, status: 401, error: 'Bu veri için giriş gereklidir.' };
+}
+
+// Yazma yetkisi kararı (tek işlem için)
+function writeDecision(op, user) {
+  if (!DB_AUTH_ENFORCED) return { allow: true };
+  if (!user) return { allow: false, status: 401, error: 'Yazma işlemi için giriş gereklidir.' };
+  if (WRITE_DENY.has(op.collection)) {
+    return {
+      allow: false,
+      status: 403,
+      error: `Bu koleksiyona API üzerinden yazılamaz: ${op.collection}`,
+    };
+  }
+  if (user.role === 'student') {
+    if (STUDENT_WRITABLE.has(op.collection)) return { allow: true };
+    return {
+      allow: false,
+      status: 403,
+      error: `Öğrenci rolü bu koleksiyona yazamaz: ${op.collection}`,
+    };
+  }
+  if (STAFF_ROLES.has(user.role)) return { allow: true };
+  return { allow: false, status: 403, error: 'Bilinmeyen rol.' };
+}
 
 // Where/orderBy field adları için güvenlik allowlist'i —
 // Mongo operatör enjeksiyonu (örn. $where) ve prototip kirletmesini engeller.
@@ -249,6 +390,11 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
     if (!ALLOWED_COLLECTIONS.includes(op.collection)) {
       return res.status(403).json({ error: `Koleksiyon izni yok: ${op.collection}` });
     }
+    // RBAC: token + rol denetimi (softAuth req.user'ı doldurdu; yoksa anonim)
+    const decision = writeDecision(op, req.user);
+    if (!decision.allow) {
+      return res.status(decision.status || 403).json({ error: decision.error });
+    }
   }
 
   const deleteCount = operations.filter((op) => op.type === 'delete').length;
@@ -325,6 +471,14 @@ router.get('/:collection', async (req, res) => {
   }
 
   try {
+    // RBAC: kimliksiz istekler yalnız public koleksiyonları okuyabilir.
+    // Karar DB bağlantısından ÖNCE verilir (yetkisiz istek DB'ye dokunmaz).
+    const user = decodeUser(req);
+    const decision = await readDecision(collection, user, getDbSafe);
+    if (!decision.allow) {
+      return res.status(decision.status || 403).json({ error: decision.error });
+    }
+
     const db = await getDbSafe();
     const col = db.collection(collection);
 
@@ -387,6 +541,15 @@ router.get('/:collection', async (req, res) => {
 
     const result = docs.map((doc) => {
       const { _id, _docId, ...rest } = doc;
+      // Anonim erişimde yalnız izinli alanları döndür (örn. giriş ekranı
+      // akademisyen araması: ad/unvan/bölüm — e-posta ve bayraklar sızmasın)
+      if (decision.strip) {
+        const stripped = {};
+        decision.strip.forEach((f) => {
+          if (rest[f] !== undefined) stripped[f] = rest[f];
+        });
+        return { ...stripped, id: _docId || _id.toString() };
+      }
       return {
         ...rest,
         id: _docId || _id.toString(),
@@ -409,6 +572,13 @@ router.get('/:collection/:docId', async (req, res) => {
   }
 
   try {
+    // RBAC: tek doküman okuması da aynı politikaya tabi
+    const user = decodeUser(req);
+    const decision = await readDecision(collection, user, getDbSafe);
+    if (!decision.allow) {
+      return res.status(decision.status || 403).json({ error: decision.error });
+    }
+
     const db = await getDbSafe();
     const col = db.collection(collection);
 
@@ -429,6 +599,13 @@ router.get('/:collection/:docId', async (req, res) => {
     }
 
     const { _id, _docId, ...rest } = doc;
+    if (decision.strip) {
+      const stripped = {};
+      decision.strip.forEach((f) => {
+        if (rest[f] !== undefined) stripped[f] = rest[f];
+      });
+      return res.json({ exists: true, data: stripped, id: _docId || _id.toString() });
+    }
     return res.json({ exists: true, data: rest, id: _docId || _id.toString() });
   } catch (error) {
     console.error(`Read ${collection}/${docId} error:`, error);

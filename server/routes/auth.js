@@ -595,6 +595,114 @@ router.post('/change-password', async (req, res) => {
 });
 
 // ══════════════════════════════════════════════
+// 5.5 Öğrenci ön-kontrol (giriş öncesi TEK öğrenci sorgusu)
+// POST /api/auth/student-lookup { studentNumber }
+//
+// Eski akış istemcide TÜM students koleksiyonunu çekiyordu (PII sızıntısı).
+// Bu endpoint yalnızca ilgili numaranın var olup olmadığını, şifresinin
+// belirlenip belirlenmediğini ve karşılama için gereken asgari alanları döner.
+// ══════════════════════════════════════════════
+router.post('/student-lookup', async (req, res) => {
+  const { studentNumber } = req.body;
+  if (!studentNumber || !/^\d{9}$/.test(String(studentNumber).trim())) {
+    return res.status(400).json({ error: 'Geçerli 9 haneli öğrenci numarası gerekli.' });
+  }
+  const trimmedId = String(studentNumber).trim();
+  const rateLimitKey = `lookup:${trimmedId}`;
+  if (!checkRateLimit(rateLimitKey)) {
+    return res.status(429).json({ error: 'Çok fazla deneme. 15 dakika sonra tekrar deneyin.' });
+  }
+  try {
+    const db = await getDbSafe();
+    const student = await db.collection('students').findOne({ studentNumber: trimmedId });
+    if (!student) {
+      recordAttempt(rateLimitKey);
+      return res.json({ exists: false });
+    }
+    const doc = await getPasswordDoc('student_passwords');
+    return res.json({
+      exists: true,
+      hasPassword: !!doc[trimmedId],
+      student: {
+        firstName: student.firstName || '',
+        lastName: student.lastName || '',
+        departmentId: student.departmentId || 'bilgisayar',
+        departmentName: student.departmentName || '',
+        erasmusAccess: student.erasmusAccess === true,
+      },
+    });
+  } catch (error) {
+    console.error('studentLookup error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
+  }
+});
+
+// ══════════════════════════════════════════════
+// 5.6 Öğrenci kayıt (sunucu tarafı — token gerektirmez, kendisi token üretir)
+// POST /api/auth/student-register
+//   { studentNumber, firstName, lastName, departmentId, departmentName, password }
+//
+// Eski akış kayıt sırasında istemciden generic /api/db/write ile students
+// koleksiyonuna yazıyordu; bu, yazma API'sinin anonim kalmasını zorunlu
+// kılıyordu. Kayıt artık burada atomik yapılır: mükerrer kontrolü + öğrenci
+// kaydı + şifre hash'i + oturum token'ı.
+// ══════════════════════════════════════════════
+router.post('/student-register', async (req, res) => {
+  const { studentNumber, firstName, lastName, departmentId, departmentName, password } =
+    req.body || {};
+  const trimmedId = String(studentNumber || '').trim();
+  if (!/^\d{9}$/.test(trimmedId)) {
+    return res.status(400).json({ error: 'Geçerli 9 haneli öğrenci numarası gerekli.' });
+  }
+  if (!firstName || !String(firstName).trim() || !lastName || !String(lastName).trim()) {
+    return res.status(400).json({ error: 'Ad ve soyad zorunludur.' });
+  }
+  if (!departmentId || typeof departmentId !== 'string') {
+    return res.status(400).json({ error: 'Bölüm seçimi zorunludur.' });
+  }
+  if (!password || String(password).length < 6) {
+    return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır.' });
+  }
+  const rateLimitKey = `register:${trimmedId}`;
+  if (!checkRateLimit(rateLimitKey)) {
+    return res.status(429).json({ error: 'Çok fazla deneme. 15 dakika sonra tekrar deneyin.' });
+  }
+  try {
+    const db = await getDbSafe();
+    const students = db.collection('students');
+    const existing = await students.findOne({ studentNumber: trimmedId });
+    if (existing) {
+      recordAttempt(rateLimitKey);
+      return res.json({
+        success: false,
+        error: 'Bu öğrenci numarası ile daha önce kayıt olunmuş!',
+      });
+    }
+    const now = new Date();
+    await students.insertOne({
+      studentNumber: trimmedId,
+      firstName: String(firstName).trim(),
+      lastName: String(lastName).trim(),
+      departmentId: departmentId,
+      departmentName: String(departmentName || '').trim(),
+      erasmusAccess: false,
+      createdAt: now,
+      updatedAt: now,
+      registeredVia: 'self-service',
+    });
+    const bcryptHash = await hashPassword(String(password));
+    await setPasswordDoc('student_passwords', { [trimmedId]: bcryptHash }, true);
+    clearAttempts(rateLimitKey);
+    const token = generateToken({ role: 'student', identifier: trimmedId, departmentId });
+    setTokenCookie(res, token);
+    return res.json({ success: true, token, departmentId });
+  } catch (error) {
+    console.error('studentRegister error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
+  }
+});
+
+// ══════════════════════════════════════════════
 // 6. Öğrenci şifre var mı kontrol
 // ══════════════════════════════════════════════
 router.post('/student-has-password-check', async (req, res) => {

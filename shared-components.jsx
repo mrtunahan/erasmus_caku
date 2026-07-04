@@ -1,7 +1,9 @@
 // ══════════════════════════════════════════════════════════════
 // ÇAKÜ Yönetim Sistemi - Ortak Bileşenler
 // ══════════════════════════════════════════════════════════════
-import T_TOKENS from './design-tokens.cjs';
+// Token'ların gerçek kaynağı design-tokens.json — JSON import'u Vite'ın
+// hem dev hem prod modunda sorunsuz çalışır (.cjs import'u dev'de patlıyordu).
+import T_TOKENS from './design-tokens.json';
 
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
@@ -1125,6 +1127,8 @@ const AUTH_API_ROUTES = {
   verifyDepartmentManagerLogin: { method: 'POST', path: '/api/auth/department-manager' },
   changePassword: { method: 'POST', path: '/api/auth/change-password' },
   checkStudentHasPassword: { method: 'POST', path: '/api/auth/student-has-password-check' },
+  studentLookup: { method: 'POST', path: '/api/auth/student-lookup' },
+  studentRegister: { method: 'POST', path: '/api/auth/student-register' },
   adminResetPassword: { method: 'POST', path: '/api/auth/admin-reset' },
   setDefaultProfessorPassword: { method: 'POST', path: '/api/auth/default-professor-password' },
 };
@@ -1288,6 +1292,47 @@ function __apiInvalidate(collection) {
 }
 window.apiInvalidate = __apiInvalidate;
 
+// ── API hata bildirimi: sessiz [] dönüşü yerine kullanıcıya görünür banner ──
+// React'e bağımlı değil (login öncesi de çalışır); 30 sn'de en fazla bir kez
+// gösterilir, 8 sn sonra otomatik kapanır. Ayrıca 'api:error' CustomEvent'i
+// yayınlanır — modüller isterse dinleyebilir.
+let __apiErrLastShown = 0;
+function __notifyApiError(collection, err) {
+  try {
+    window.dispatchEvent(
+      new CustomEvent('api:error', { detail: { collection, message: err?.message } })
+    );
+  } catch (_e) {
+    /* CustomEvent desteklenmiyorsa sessiz */
+  }
+  const now = Date.now();
+  if (now - __apiErrLastShown < 30 * 1000) return; // spam engeli
+  __apiErrLastShown = now;
+  try {
+    let el = document.getElementById('caku-api-error-banner');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'caku-api-error-banner';
+      el.style.cssText =
+        'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:99999;' +
+        'background:#8B2635;color:#fff;padding:10px 18px;border-radius:8px;' +
+        "font:600 13px 'Inter',sans-serif;box-shadow:0 6px 20px rgba(0,0,0,0.25);" +
+        'display:flex;align-items:center;gap:10px;max-width:90vw;';
+      document.body.appendChild(el);
+    }
+    el.innerHTML =
+      '<span>⚠ Sunucudan veri alınamıyor — gösterilen bilgiler eksik olabilir.</span>' +
+      '<button onclick="this.parentElement.remove()" style="border:none;background:rgba(255,255,255,0.2);' +
+      'color:#fff;border-radius:5px;padding:3px 9px;cursor:pointer;font-weight:700">Kapat</button>';
+    el.style.display = 'flex';
+    setTimeout(() => {
+      if (el && el.parentElement) el.remove();
+    }, 8000);
+  } catch (_e) {
+    /* DOM hazır değilse sessiz */
+  }
+}
+
 async function __apiReadRaw(collection, params = {}) {
   const url = new URL(`/api/db/${collection}`, window.location.origin);
   if (params.where) {
@@ -1325,6 +1370,7 @@ async function apiRead(collection, params = {}) {
     .catch((err) => {
       __apiInflight.delete(key);
       console.warn(`apiRead(${collection}) failed:`, err.message);
+      __notifyApiError(collection, err); // kullanıcıya görünür uyarı (banner)
       return []; // 502/500 veya diğer hatalarda çökmek yerine boş dizi dön
     });
   __apiInflight.set(key, p);
@@ -3066,6 +3112,23 @@ const LoginModal = ({ onLogin }) => {
       const identifier =
         pendingUser.role === 'student' ? pendingUser.studentNumber : pendingUser.name;
       await DB.changePassword(pendingUser.role, identifier, newPassword);
+      // Oturum token'ı al — API artık kimliksiz okuma/yazma kabul etmiyor;
+      // token alınamazsa da devam edilir (kullanıcı yeniden giriş yapabilir).
+      try {
+        if (pendingUser.role === 'student') {
+          await CloudFunctions.call('verifyStudentLogin', {
+            studentNumber: identifier,
+            password: newPassword,
+          });
+        } else if (pendingUser.role === 'professor') {
+          await CloudFunctions.call('verifyProfessorLogin', {
+            professorName: identifier,
+            password: newPassword,
+          });
+        }
+      } catch (tokenErr) {
+        console.warn('Kurulum sonrası token alınamadı:', tokenErr.message);
+      }
       onLogin(pendingUser);
     } catch (err) {
       console.error('Password setup error:', err);
@@ -3105,28 +3168,25 @@ const LoginModal = ({ onLogin }) => {
     }
     setLoading(true);
     try {
-      // Mükerrer kayıt kontrolü
-      const existingStudents = await DB.fetchStudents();
-      const alreadyExists = existingStudents.find((s) => s.studentNumber === pendingStudentNumber);
-      if (alreadyExists) {
-        setError('Bu öğrenci numarası ile daha önce kayıt olunmuş!');
-        setLoading(false);
-        return;
-      }
-
-      // Öğrenciyi veritabanına kaydet
+      // Kayıt sunucu tarafında atomik yapılır: mükerrer kontrolü + öğrenci
+      // kaydı + şifre hash'i + oturum token'ı tek endpoint'te
+      // (/api/auth/student-register). Token yanıtla birlikte gelir ve
+      // CloudFunctions.call tarafından otomatik saklanır.
       const deptObj = DEPARTMENTS.find((d) => d.id === selectedDepartment);
-      const studentData = {
+      const regRes = await CloudFunctions.call('studentRegister', {
         studentNumber: pendingStudentNumber,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         departmentId: selectedDepartment,
         departmentName: deptObj?.name || '',
-        erasmusAccess: false,
-      };
-      await DB.addStudent(studentData);
-      // Şifreyi kaydet
-      await DB.updatePassword(pendingStudentNumber, newPassword);
+        password: newPassword,
+      });
+      const reg = regRes.data || {};
+      if (!reg.success) {
+        setError(reg.error || 'Kayıt başarısız.');
+        setLoading(false);
+        return;
+      }
       const user = {
         role: 'student',
         name: `${firstName.trim()} ${lastName.trim()}`,
@@ -3177,12 +3237,13 @@ const LoginModal = ({ onLogin }) => {
     }
     setLoading(true);
     try {
-      const students = await DB.fetchStudents();
-      const student = students.find((s) => s.studentNumber === trimmedId);
-      if (student) {
-        // Mevcut öğrenci: şifre var mı kontrol et (Cloud Functions üzerinden)
-        const hasPassword = await DB.checkStudentHasPassword(trimmedId);
-        if (!hasPassword) {
+      // Sunucu tarafı tekil sorgu — eski akış tüm öğrenci listesini çekiyordu
+      // (PII sızıntısı + kimliksiz okuma zorunluluğu). Artık tek endpoint.
+      const lookupRes = await CloudFunctions.call('studentLookup', { studentNumber: trimmedId });
+      const lookup = lookupRes.data || {};
+      if (lookup.exists) {
+        const student = { studentNumber: trimmedId, ...(lookup.student || {}) };
+        if (!lookup.hasPassword) {
           // Şifre yok: şifre belirleme ekranına
           const user = {
             role: 'student',
