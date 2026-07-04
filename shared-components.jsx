@@ -1505,8 +1505,12 @@ const TemplateEngine = (() => {
 
   // Yer tutucu deseni: {degisken} | xxxx+ | yyyy+ | tek başına X
   // (Xxxxx büyük/küçük karışımı [xX]{4,} ile yakalanır)
+  // Sayı kuralı: 1-2 haneli, bitişiğinde harf/rakam/nokta/virgül olmayan
+  // sayılar yer tutucudur ("Kodu 7" içindeki 7 gibi). "12. maddesi",
+  // "12.04.2026", "2024-2025" gibi gerçek sayılar nokta/rakam bitişikliği
+  // nedeniyle dışlanır; yanlış tespit edilenler "Atla" ile dokunulmadan kalır.
   const TOKEN_RX =
-    /\{[A-Za-z0-9_çğıöşüÇĞİÖŞÜ]+\}|[xX]{4,}|[yY]{4,}|(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9])X(?![A-Za-zÇĞİÖŞÜçğıöşü0-9])/g;
+    /\{[A-Za-z0-9_çğıöşüÇĞİÖŞÜ]+\}|[xX]{4,}|[yY]{4,}|(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9])X(?![A-Za-zÇĞİÖŞÜçğıöşü0-9])|(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9.,])\d{1,2}(?![A-Za-zÇĞİÖŞÜçğıöşü0-9.,])/g;
 
   async function readDocumentXml(arrayBuffer) {
     const JSZip = await ensureJSZip();
@@ -1554,15 +1558,43 @@ const TemplateEngine = (() => {
     if (token === 'X') {
       // Tek X: harf/rakam komşuluğunda eşleşmesin (etiketler hariç)
       pattern = '(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9])' + pattern + '(?![A-Za-zÇĞİÖŞÜçğıöşü0-9])';
+    } else if (/^\d+$/.test(token)) {
+      // Sayı token'ı: "7", "17" içinde ya da "12."/"12.04" bitişiğinde eşleşmesin
+      pattern = '(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9.,])' + pattern + '(?![A-Za-zÇĞİÖŞÜçğıöşü0-9.,])';
     }
     return new RegExp(pattern, 'g');
   }
 
   // XML içinde her alanın (token + tokenOccurrence) mutlak konumunu bul.
-  // Not: sadece <w:t>…</w:t> içindeki eşleşmeler sayılır (etiket adlarındaki
-  // x/y harfleri TAGS deseni sayesinde zaten eşleşmez; yine de w:t dışı kalan
-  // düz metin olmadığından güvenlidir).
+  // KRİTİK: eşleşme yalnızca GÖRÜNÜR METİN içindeyse sayılır — XML öznitelik
+  // değerlerindeki sayılar (w:val="4", w:sz="16" gibi) sayaç kaydırır ve
+  // yanlış alanların değiştirilmesine yol açar. Bu yüzden match'in başlangıcı
+  // bir <w:t>…</w:t> aralığında olmalıdır (TAGS deseni sayesinde token
+  // run sınırlarını aşabilir; başlangıç noktası yeterli koşuldur).
+  function textRangesOf(xml) {
+    const ranges = [];
+    // DİKKAT: '<w:t' sonrası boşluk ya da '>' ZORUNLU — aksi halde desen
+    // <w:tbl>, <w:tc>, <w:tblInd …> gibi w:t ile BAŞLAYAN diğer etiketleri
+    // de yakalar ve öznitelik bölgeleri 'görünür metin' sanılır.
+    const rx = /<w:t(?:\s[^>]*)?>/g;
+    let m;
+    while ((m = rx.exec(xml)) !== null) {
+      const s = m.index + m[0].length;
+      const e = xml.indexOf('</w:t>', s);
+      if (e >= 0) ranges.push([s, e]);
+    }
+    return ranges;
+  }
+
   function locateFields(xml, fields) {
+    const ranges = textRangesOf(xml);
+    const inText = (pos) => {
+      for (let i = 0; i < ranges.length; i++) {
+        if (pos >= ranges[i][0] && pos < ranges[i][1]) return true;
+        if (ranges[i][0] > pos) return false; // aralıklar sıralı
+      }
+      return false;
+    };
     const perTokenPos = {}; // token → [{start,end}, …] belge sırasında
     const tokens = [...new Set(fields.map((f) => f.token))];
     tokens.forEach((token) => {
@@ -1570,7 +1602,9 @@ const TemplateEngine = (() => {
       const list = [];
       let m;
       while ((m = rx.exec(xml)) !== null) {
-        list.push({ start: m.index, end: m.index + m[0].length });
+        if (inText(m.index)) {
+          list.push({ start: m.index, end: m.index + m[0].length });
+        }
         // İç içe eşleşme kaymalarını önle
         rx.lastIndex = m.index + Math.max(1, m[0].length);
       }
@@ -1613,37 +1647,152 @@ const TemplateEngine = (() => {
     const rowFields = located.filter((f) => isRow(f) && f._pos);
     const staticFields = located.filter((f) => !isRow(f));
 
-    let rowRegion = null; // { start, end, tpl, rowFieldRel }
+    // İki satır kuralı desteklenir:
+    //   KLON modu   → satır değişkenleri kendi başına bir tablo satırındaysa
+    //                 o satır ders sayısı kadan çoğaltılır.
+    //   İŞARETÇİ modu → değişkenler sütun BAŞLIKLARININ içindeyse
+    //                 ("Kodu 7", "Adı 8" gibi), işaretler başlıktan silinir
+    //                 ve hemen ALTINDAKİ boş satır sütun hizasıyla çoğaltılır.
+    let rowRegion = null; // { start, end, tpl, rowFieldRel } — klon modu
+    let markerRegion = null; // { start, end, cleanedHeader, dataStart, dataEnd, dataTpl, cellVars }
     if (rowFields.length > 0) {
-      // İlk satır değişkeninin bulunduğu <w:tr> bloğu satır şablonudur
       const anchor = rowFields[0]._pos.start;
       const trStart = xml.lastIndexOf('<w:tr', anchor);
       const trEnd = xml.indexOf('</w:tr>', anchor);
       if (trStart >= 0 && trEnd >= 0) {
         const end = trEnd + '</w:tr>'.length;
         const tpl = xml.slice(trStart, end);
-        // Satır içindeki alanlar (göreli konumlarla)
         const rowFieldRel = rowFields
           .filter((f) => f._pos.start >= trStart && f._pos.end <= end)
           .map((f) => ({
             ...f,
             _pos: { start: f._pos.start - trStart, end: f._pos.end - trStart },
           }));
-        rowRegion = { start: trStart, end, tpl, rowFieldRel };
+
+        // Satır metni, token'lar çıkarılınca anlamlı kelime içeriyor mu?
+        // İçeriyorsa bunlar sütun başlığı işaretçileridir (İŞARETÇİ modu).
+        let plain = tpl.replace(/<[^>]+>/g, '');
+        rowFieldRel.forEach((f) => {
+          plain = plain.replace(f.token, '');
+        });
+        const isMarkerMode = /[A-Za-zÇĞİÖŞÜçğıöşü]{3}/.test(plain);
+
+        if (!isMarkerMode) {
+          rowRegion = { start: trStart, end, tpl, rowFieldRel };
+        } else {
+          // Hücre sınırlarını çıkar, her değişkenin sütun indeksini bul
+          const cellsOf = (rowXml) => {
+            const cells = [];
+            const rx = /<w:tc\b[\s\S]*?<\/w:tc>/g;
+            let m;
+            while ((m = rx.exec(rowXml)) !== null) {
+              cells.push({ start: m.index, end: m.index + m[0].length });
+            }
+            return cells;
+          };
+          const headerCells = cellsOf(tpl);
+          const cellVars = rowFieldRel
+            .map((f) => ({
+              varId: f.variable.slice(4),
+              cellIndex: headerCells.findIndex(
+                (c) => f._pos.start >= c.start && f._pos.end <= c.end
+              ),
+            }))
+            .filter((cv) => cv.cellIndex >= 0);
+
+          // İşaretleri başlıktan sil (önündeki boşlukla birlikte)
+          const cleanedHeader = applyReplacements(
+            tpl,
+            rowFieldRel.map((f) => {
+              const s =
+                f._pos.start > 0 && tpl[f._pos.start - 1] === ' ' ? f._pos.start - 1 : f._pos.start;
+              return { _pos: { start: s, end: f._pos.end }, _value: '' };
+            })
+          );
+
+          // Veri şablonu = başlık satırının hemen altındaki satır
+          const dataStart = xml.indexOf('<w:tr', end);
+          const dataEnd = dataStart >= 0 ? xml.indexOf('</w:tr>', dataStart) : -1;
+          if (dataStart >= 0 && dataEnd >= 0) {
+            markerRegion = {
+              start: trStart,
+              end,
+              cleanedHeader,
+              dataStart,
+              dataEnd: dataEnd + '</w:tr>'.length,
+              dataTpl: xml.slice(dataStart, dataEnd + '</w:tr>'.length),
+              cellVars,
+            };
+          } else {
+            // Altında satır yoksa klon moduna düş
+            rowRegion = { start: trStart, end, tpl, rowFieldRel };
+          }
+        }
       }
     }
 
-    // 1) Statik alanlar: satır bölgesi DIŞINDA kalanlar
+    // İşaretçi modunda bir veri satırını doldur: değeri ilgili hücrenin
+    // paragrafına run olarak enjekte eder (sondan başa — offset güvenli)
+    function fillDataRow(dataTpl, cellVars, rowData) {
+      const cells = [];
+      const rx = /<w:tc\b[\s\S]*?<\/w:tc>/g;
+      let m;
+      while ((m = rx.exec(dataTpl)) !== null) {
+        cells.push({ start: m.index, end: m.index + m[0].length, xml: m[0] });
+      }
+      let out = dataTpl;
+      const sorted = cellVars.slice().sort((a, b) => b.cellIndex - a.cellIndex);
+      sorted.forEach((cv) => {
+        const cell = cells[cv.cellIndex];
+        if (!cell) return;
+        const val = rowData[cv.varId] != null ? String(rowData[cv.varId]) : '';
+        const pEnd = out.slice(cell.start, cell.end).indexOf('</w:p>');
+        if (pEnd < 0) return;
+        const insertAt = cell.start + pEnd;
+        out =
+          out.slice(0, insertAt) +
+          '<w:r><w:t xml:space="preserve">' +
+          escapeXml(val) +
+          '</w:t></w:r>' +
+          out.slice(insertAt);
+      });
+      return out;
+    }
+
+    // 1) Statik alanlar: satır/işaretçi bölgesi DIŞINDA kalanlar
+    const exclStart = markerRegion ? markerRegion.start : rowRegion ? rowRegion.start : -1;
+    const exclEnd = markerRegion ? markerRegion.dataEnd : rowRegion ? rowRegion.end : -1;
     const staticRepls = staticFields
       .filter(
-        (f) =>
-          f._pos && (!rowRegion || f._pos.end <= rowRegion.start || f._pos.start >= rowRegion.end)
+        (f) => f._pos && (exclStart < 0 || f._pos.end <= exclStart || f._pos.start >= exclEnd)
       )
       .map((f) => ({ ...f, _value: resolveValue(f, staticData) }))
       .filter((f) => f._value !== null);
 
     let out;
-    if (rowRegion) {
+    if (markerRegion) {
+      // İŞARETÇİ modu: temiz başlık + sütun hizalı veri satırları
+      const renderedRows = (rows || [])
+        .map((rowData) => fillDataRow(markerRegion.dataTpl, markerRegion.cellVars, rowData))
+        .join('');
+      const head = applyReplacements(
+        xml.slice(0, markerRegion.start),
+        staticRepls.filter((f) => f._pos.end <= markerRegion.start)
+      );
+      // Başlık ile veri satırı arasında kalan XML (varsa) korunur
+      const between = xml.slice(markerRegion.end, markerRegion.dataStart);
+      const tailOffset = markerRegion.dataEnd;
+      const tail = applyReplacements(
+        xml.slice(tailOffset),
+        staticRepls
+          .filter((f) => f._pos.start >= tailOffset)
+          .map((f) => ({
+            ...f,
+            _pos: { start: f._pos.start - tailOffset, end: f._pos.end - tailOffset },
+          }))
+      );
+      out = head + markerRegion.cleanedHeader + between + renderedRows + tail;
+    } else if (rowRegion) {
       // Satır bölgesini veri satırlarıyla çoğalt
       const renderedRows = (rows || [])
         .map((rowData) => {
