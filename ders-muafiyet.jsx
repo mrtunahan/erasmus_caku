@@ -20,9 +20,18 @@ const _convertGrade = window.convertGrade;
 // SABİTLER
 // ══════════════════════════════════════════════════════════════
 
-const MUAFIYET_TABS = [
+// Sekmeler role göre belirlenir (DersMuafiyetApp içinde):
+//   Öğrenci   → Yeni Muafiyet, Taleplerim, Eşleştirme Geçmişi
+//   Akademisyen → Onay Bekleyenler, Geçmiş Kayıtlar, Eşleştirme Geçmişi, Ayarlar
+const STUDENT_TABS = [
   { id: 'yeni', label: 'Yeni Muafiyet', icon: 'plus' },
+  { id: 'gecmis', label: 'Taleplerim', icon: 'history' },
+  { id: 'esgecmis', label: 'Eşleştirme Geçmişi', icon: 'history' },
+];
+const STAFF_TABS = [
+  { id: 'onay', label: 'Onay Bekleyenler', icon: 'plus' },
   { id: 'gecmis', label: 'Geçmiş Kayıtlar', icon: 'history' },
+  { id: 'esgecmis', label: 'Eşleştirme Geçmişi', icon: 'history' },
   { id: 'ayarlar', label: 'Ayarlar', icon: 'settings' },
 ];
 
@@ -1397,9 +1406,12 @@ var MuafiyetDB = {
     if (window.audit) window.audit('muafiyet_record_delete', 'muafiyet_records', String(id), {});
   },
 
-  // Admin insan onayı: tek bir match'in kararını günceller
+  // Akademisyen onayı: tek bir match'in kararını günceller
   // decision: "confirmed" (muaf) | "rejected" (red)
-  async updateMatchDecision(recordId, matchIndex, decision, adminNote) {
+  // ONAYDA: eşleştirme muafiyet_history koleksiyonuna yazılır (Erasmus
+  // trip_history'den BAĞIMSIZ ayrı geçmiş). sigKey unique indeksi aynı
+  // eşleştirmenin ikinci kez yazılmasını engeller.
+  async updateMatchDecision(recordId, matchIndex, decision, adminNote, approvedBy) {
     var result = await window.apiReadDoc('muafiyet_records', String(recordId));
     if (!result.exists) throw new Error('Kayıt bulunamadı');
     var data = result.data;
@@ -1408,6 +1420,7 @@ var MuafiyetDB = {
     matches[matchIndex] = Object.assign({}, matches[matchIndex], {
       adminDecision: decision,
       adminNote: adminNote || '',
+      adminDecidedBy: approvedBy || '',
       adminUpdatedAt: new Date().toISOString(),
     });
     var pendingLeft = matches.filter(function (m) {
@@ -1418,6 +1431,43 @@ var MuafiyetDB = {
       pendingReviewCount: pendingLeft,
       updatedAt: new Date().toISOString(),
     });
+
+    // Onaylanan eşleştirmeyi geçmişe işle — iki kayıt şekli de desteklenir:
+    // öğrenci formu (sourceCourse/localCourse) ve eski sihirbaz (source/target)
+    if (decision === 'confirmed') {
+      var m = matches[matchIndex];
+      var src = m.sourceCourse || m.source || {};
+      var cak = m.localCourse || m.target || {};
+      var entry = {
+        sigKey:
+          (data.studentNo || '') +
+          '|' +
+          (src.code || src.name || '') +
+          '|' +
+          (cak.code || cak.name || ''),
+        studentName: data.studentName || '',
+        studentNo: data.studentNo || '',
+        departmentId: data.departmentId || '',
+        localDept: data.localDept || '',
+        sourceUniversity: data.otherUni || '',
+        sourceFaculty: data.otherFaculty || '',
+        sourceDept: data.otherDept || '',
+        sourceCourse: { code: src.code || '', name: src.name || '', akts: src.akts || '' },
+        cakuCourse: { code: cak.code || '', name: cak.name || '', akts: cak.akts || '' },
+        score: typeof m.score === 'number' ? m.score : m.contentScore || 0,
+        aktsPass: m.aktsPass !== false,
+        approvedBy: approvedBy || '',
+        approvedAt: new Date().toISOString(),
+        recordId: String(recordId),
+      };
+      try {
+        await window.DBWrite.add('muafiyet_history', entry);
+      } catch (e) {
+        // sigKey unique ihlali = zaten geçmişte var; sessizce geç
+        if (!/duplicate|E11000/i.test(e.message || '')) throw e;
+      }
+    }
+
     if (window.audit)
       window.audit(
         decision === 'confirmed' ? 'muafiyet_approve' : 'muafiyet_reject',
@@ -1426,6 +1476,14 @@ var MuafiyetDB = {
         { meta: { matchIndex: matchIndex, decision: decision, note: adminNote || '' } }
       );
     return matches;
+  },
+
+  async fetchMuafiyetHistory() {
+    try {
+      return await window.apiRead('muafiyet_history', { orderBy: 'approvedAt:desc' });
+    } catch (e) {
+      return [];
+    }
   },
 };
 
@@ -1436,9 +1494,9 @@ var MuafiyetDB = {
 function exportMuafiyetWord(record) {
   var studentName = record.studentName || 'xxxxx XXXXX';
   var studentNo = record.studentNo || 'xxxxx';
-  var otherUni = record.otherUniversity || 'xxxxx Üniversitesi';
+  var otherUni = record.otherUniversity || record.otherUni || 'xxxxx Üniversitesi';
   var otherFaculty = record.otherFaculty || 'xxxxx Fakültesi';
-  var otherDept = record.otherDepartment || 'xxxxx Mühendisliği';
+  var otherDept = record.otherDepartment || record.otherDept || 'xxxxx Mühendisliği';
   var matches = record.matches || [];
   var dataRows = '';
   var totalAktsSource = 0;
@@ -1446,8 +1504,9 @@ function exportMuafiyetWord(record) {
   var rowCount = Math.max(matches.length, 8);
   for (var i = 0; i < rowCount; i++) {
     var m = matches[i] || {};
-    var src = m.source || {};
-    var tgt = m.target || {};
+    // İki kayıt şekli: eski sihirbaz (source/target) + öğrenci formu (sourceCourse/localCourse)
+    var src = m.source || m.sourceCourse || {};
+    var tgt = m.target || m.localCourse || {};
     if (src.akts) totalAktsSource += parseInt(src.akts) || 0;
     if (tgt.akts) totalAktsTarget += parseInt(tgt.akts) || 0;
     dataRows +=
@@ -4651,6 +4710,18 @@ const ReviewPanel = ({ record, onDecision }) => {
       {(record.matches || []).map(function (m, idx) {
         if (m.tier !== 'review') return null;
         var decided = m.adminDecision;
+        // İki kayıt şekli desteklenir: öğrenci formu (sourceCourse/localCourse)
+        // ve eski sihirbaz (source/target)
+        var src = m.sourceCourse || m.source || {};
+        var tgt = m.localCourse || m.target || null;
+        var recColor =
+          m.recommendation === 'muaf' ? DS.green : m.recommendation === 'red' ? DS.red : DS.amber;
+        var recBg =
+          m.recommendation === 'muaf'
+            ? DS.greenBg
+            : m.recommendation === 'red'
+              ? DS.redLight
+              : DS.amberLight;
         return (
           <div
             key={idx}
@@ -4670,8 +4741,8 @@ const ReviewPanel = ({ record, onDecision }) => {
             }}
           >
             <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-              <span style={{ fontWeight: 700, color: DS.navy }}>{m.source.code}</span>
-              <span style={{ color: DS.textSecondary, marginLeft: 6 }}>{m.source.name}</span>
+              <span style={{ fontWeight: 700, color: DS.navy }}>{src.code || '—'}</span>
+              <span style={{ color: DS.textSecondary, marginLeft: 6 }}>{src.name || ''}</span>
               <span
                 style={{
                   marginLeft: 8,
@@ -4683,11 +4754,40 @@ const ReviewPanel = ({ record, onDecision }) => {
                   borderRadius: 10,
                 }}
               >
-                %{Math.round((m.score || 0) * 100)} eşleşme
+                %{Math.round((m.score || m.contentScore || 0) * 100)} içerik
               </span>
+              <span
+                style={{
+                  marginLeft: 4,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: m.aktsPass !== false ? DS.green : DS.red,
+                  background: m.aktsPass !== false ? DS.greenBg : DS.redLight,
+                  padding: '1px 6px',
+                  borderRadius: 10,
+                }}
+              >
+                AKTS {m.aktsPass !== false ? '✓' : '✗'}
+                {src.akts && tgt && tgt.akts ? ' (' + src.akts + '→' + tgt.akts + ')' : ''}
+              </span>
+              {m.recommendation && (
+                <span
+                  style={{
+                    marginLeft: 4,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: recColor,
+                    background: recBg,
+                    padding: '1px 6px',
+                    borderRadius: 10,
+                  }}
+                >
+                  Sistem: {m.recommendation.toLocaleUpperCase('tr')}
+                </span>
+              )}
             </div>
             <div style={{ fontSize: 11, color: DS.textMuted, flex: '1 1 150px', minWidth: 0 }}>
-              {m.target ? '→ ' + m.target.code + ' ' + m.target.name : '→ Eşleşme yok'}
+              {tgt ? '→ ' + (tgt.code || '') + ' ' + (tgt.name || '') : '→ Eşleşme yok'}
             </div>
             {decided ? (
               <span
@@ -4753,7 +4853,14 @@ const ReviewPanel = ({ record, onDecision }) => {
   );
 };
 
-const ExemptionHistory = ({ records, loading, onDelete, onExportWord, onUpdateDecision }) => {
+const ExemptionHistory = ({
+  records,
+  loading,
+  onDelete,
+  onExportWord,
+  onUpdateDecision,
+  emptyText,
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedReview, setExpandedReview] = useState(null);
 
@@ -4763,7 +4870,7 @@ const ExemptionHistory = ({ records, loading, onDelete, onExportWord, onUpdateDe
     return (
       (r.studentName || '').toLowerCase().includes(term) ||
       (r.studentNo || '').toLowerCase().includes(term) ||
-      (r.otherUniversity || '').toLowerCase().includes(term)
+      (r.otherUniversity || r.otherUni || '').toLowerCase().includes(term)
     );
   });
 
@@ -4802,7 +4909,7 @@ const ExemptionHistory = ({ records, loading, onDelete, onExportWord, onUpdateDe
           Henüz kayıt yok
         </div>
         <div style={{ fontSize: 13, color: DS.textSecondary }}>
-          Yeni muafiyet işlemi yaparak ilk kaydınızı oluşturun.
+          {emptyText || 'Yeni muafiyet işlemi yaparak ilk kaydınızı oluşturun.'}
         </div>
       </div>
     );
@@ -4917,7 +5024,7 @@ const ExemptionHistory = ({ records, loading, onDelete, onExportWord, onUpdateDe
                         flexWrap: 'wrap',
                       }}
                     >
-                      <span>{rec.otherUniversity || '—'}</span>
+                      <span>{rec.otherUniversity || rec.otherUni || '—'}</span>
                       <span
                         style={{
                           background: DS.greenLight,
@@ -4932,10 +5039,14 @@ const ExemptionHistory = ({ records, loading, onDelete, onExportWord, onUpdateDe
                       </span>
                       {(() => {
                         const ms = rec.matches || [];
+                        // Akademisyen kararı esas alınır; eski (otomatik) kayıtlar
+                        // için tier bazlı sayım geriye dönük korunur
                         const a =
-                          rec.approvedCount ?? ms.filter((m) => m.tier === 'approved').length;
+                          ms.filter((m) => m.adminDecision === 'confirmed').length ||
+                          (rec.approvedCount ?? ms.filter((m) => m.tier === 'approved').length);
                         const rj =
-                          rec.rejectedCount ?? ms.filter((m) => m.tier === 'rejected').length;
+                          ms.filter((m) => m.adminDecision === 'rejected').length ||
+                          (rec.rejectedCount ?? ms.filter((m) => m.tier === 'rejected').length);
                         return (
                           <>
                             {a > 0 && (
@@ -5006,16 +5117,19 @@ const ExemptionHistory = ({ records, loading, onDelete, onExportWord, onUpdateDe
                   >
                     Word
                   </Button>
-                  <Button
-                    small
-                    variant="danger"
-                    onClick={function () {
-                      if (confirm('Bu kaydı silmek istediğinizden emin misiniz?')) onDelete(rec.id);
-                    }}
-                    icon={<Icons.trash />}
-                  >
-                    Sil
-                  </Button>
+                  {onDelete && (
+                    <Button
+                      small
+                      variant="danger"
+                      onClick={function () {
+                        if (confirm('Bu kaydı silmek istediğinizden emin misiniz?'))
+                          onDelete(rec.id);
+                      }}
+                      icon={<Icons.trash />}
+                    >
+                      Sil
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -5398,11 +5512,190 @@ const CalibrationPanel = ({ records, thresholds, onSaveThresholds }) => {
 // ANA MODÜL
 // ══════════════════════════════════════════════════════════════
 
+// ── Eşleştirme Geçmişi (muafiyet_history) ──
+// Onaylanan ders eşleştirmelerinin bölüm arşivi. Erasmus eşleştirme
+// geçmişinden (trip_history) TAMAMEN BAĞIMSIZDIR.
+const MuafiyetGecmisi = ({ activeDepartment }) => {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    MuafiyetDB.fetchMuafiyetHistory()
+      .then((all) => {
+        if (!alive) return;
+        const list = (all || []).filter(
+          (e) => !activeDepartment || (e.departmentId || '') === activeDepartment
+        );
+        setEntries(list);
+      })
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [activeDepartment]);
+
+  const filtered = useMemo(() => {
+    const t = search.trim().toLocaleLowerCase('tr');
+    if (!t) return entries;
+    return entries.filter((e) =>
+      [
+        e.studentName,
+        e.studentNo,
+        e.sourceUniversity,
+        e.sourceCourse?.code,
+        e.sourceCourse?.name,
+        e.cakuCourse?.code,
+        e.cakuCourse?.name,
+      ]
+        .filter(Boolean)
+        .some((v) => String(v).toLocaleLowerCase('tr').includes(t))
+    );
+  }, [entries, search]);
+
+  if (loading) {
+    return (
+      <div style={{ padding: 60, textAlign: 'center' }}>
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            margin: '0 auto 16px',
+            borderRadius: '50%',
+            border: '3px solid ' + DS.accentLight,
+            borderTopColor: DS.accent,
+            animation: 'spin 0.8s linear infinite',
+          }}
+        />
+        <div style={{ color: DS.textSecondary, fontSize: 14 }}>Geçmiş yükleniyor...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div
+        style={{
+          background: DS.greenBg,
+          border: '1px solid ' + DS.greenLight,
+          borderRadius: 10,
+          padding: '10px 14px',
+          marginBottom: 16,
+          fontSize: 12,
+          color: DS.green,
+          fontWeight: 600,
+        }}
+      >
+        Akademisyen tarafından ONAYLANAN ders eşleştirmelerinin arşividir ({entries.length}
+        {' kayıt'}). Gelecekteki taleplerde referans olarak kullanılabilir.
+      </div>
+
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Öğrenci, üniversite veya ders kodu ile ara..."
+        style={{
+          width: '100%',
+          padding: '11px 14px',
+          borderRadius: DS.radiusSm,
+          border: '1px solid ' + DS.border,
+          fontSize: 13,
+          outline: 'none',
+          marginBottom: 14,
+          boxSizing: 'border-box',
+          fontFamily: 'inherit',
+        }}
+      />
+
+      {filtered.length === 0 ? (
+        <div
+          style={{
+            padding: 50,
+            textAlign: 'center',
+            background: DS.bgCard,
+            borderRadius: DS.radius,
+            border: '1px solid ' + DS.border,
+            color: DS.textSecondary,
+            fontSize: 13,
+          }}
+        >
+          {entries.length === 0
+            ? 'Henüz onaylanmış eşleştirme yok. Akademisyen bir talebi onayladığında burada listelenir.'
+            : 'Aramayla eşleşen kayıt yok.'}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filtered.map((e, i) => (
+            <div
+              key={e.id || i}
+              style={{
+                background: 'white',
+                border: '1px solid ' + DS.border,
+                borderLeft: '4px solid ' + DS.green,
+                borderRadius: 10,
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ flex: '2 1 260px', minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: DS.navy }}>
+                  {e.sourceCourse?.code ? e.sourceCourse.code + ' — ' : ''}
+                  {e.sourceCourse?.name}
+                  <span style={{ color: DS.textMuted, fontWeight: 500, margin: '0 6px' }}>→</span>
+                  <span style={{ color: DS.green }}>
+                    {e.cakuCourse?.code ? e.cakuCourse.code + ' — ' : ''}
+                    {e.cakuCourse?.name}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: DS.textSecondary, marginTop: 3 }}>
+                  {e.sourceUniversity || 'Kaynak kurum belirtilmemiş'}
+                  {e.sourceCourse?.akts && e.cakuCourse?.akts
+                    ? ' · AKTS ' + e.sourceCourse.akts + ' → ' + e.cakuCourse.akts
+                    : ''}
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: DS.textMuted, flex: '1 1 140px' }}>
+                {e.studentName}
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", marginLeft: 5 }}>
+                  #{e.studentNo}
+                </span>
+              </div>
+              <div style={{ textAlign: 'right', fontSize: 11, color: DS.textMuted }}>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    borderRadius: 10,
+                    background: DS.greenBg,
+                    color: DS.green,
+                    fontWeight: 700,
+                    marginBottom: 2,
+                  }}
+                >
+                  %{Math.round((e.score || 0) * 100)}
+                </span>
+                <div>
+                  {(e.approvedAt || '').slice(0, 10)}
+                  {e.approvedBy ? ' · ' + e.approvedBy : ''}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
   const isStudent = currentUser?.role === 'student';
-  const [activeTab, setActiveTab] = useState('yeni');
+  const tabs = isStudent ? STUDENT_TABS : STAFF_TABS;
+  const [activeTab, setActiveTab] = useState(isStudent ? 'yeni' : 'onay');
   const [courseContents, setCourseContents] = useState([]);
-  const [gradingSystem, setGradingSystem] = useState(null);
   const [records, setRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
   const [thresholds, setThresholds] = useState({
@@ -5416,8 +5709,6 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         try {
           var contents = await MuafiyetDB.fetchCourseContents();
           if (contents.length > 0) setCourseContents(contents);
-          var grading = await MuafiyetDB.fetchGradingSystem();
-          if (grading) setGradingSystem(grading);
           // Kalibre edilmiş eşikler (varsa) — decideTier bu değerleri kullanır
           var savedThresholds = await MuafiyetDB.fetchThresholds();
           if (savedThresholds) {
@@ -5433,6 +5724,13 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             var deptId = r.departmentId || 'bilgisayar';
             return deptId === activeDepartment;
           });
+          // Öğrenci yalnızca KENDİ taleplerini görür
+          if (isStudent) {
+            var myNo = currentUser?.studentNumber || currentUser?.identifier || '';
+            recs = recs.filter(function (r) {
+              return r.studentNo === myNo;
+            });
+          }
           setRecords(recs);
         } catch (err) {
           console.error('Muafiyet verileri yüklenirken hata:', err);
@@ -5441,7 +5739,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
       }
       loadData();
     },
-    [activeDepartment]
+    [activeDepartment, isStudent, currentUser?.studentNumber]
   );
 
   const handleSaveThresholds = async function (t) {
@@ -5467,7 +5765,13 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const handleUpdateDecision = async function (recordId, matchIndex, decision) {
     try {
-      var updatedMatches = await MuafiyetDB.updateMatchDecision(recordId, matchIndex, decision, '');
+      var updatedMatches = await MuafiyetDB.updateMatchDecision(
+        recordId,
+        matchIndex,
+        decision,
+        '',
+        currentUser?.name || currentUser?.identifier || ''
+      );
       // Kayıtları güncelle
       setRecords(function (prev) {
         return prev.map(function (r) {
@@ -5552,11 +5856,11 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             borderBottom: '2px solid ' + DS.borderLight,
           }}
         >
-          {MUAFIYET_TABS.filter(function (tab) {
-            // Ayarlar (katalog + eşik kalibrasyonu) yalnızca akademisyen/yetkili görür
-            return !(isStudent && tab.id === 'ayarlar');
-          }).map(function (tab) {
+          {tabs.map(function (tab) {
             var isActive = activeTab === tab.id;
+            var pendingCount = records.filter(function (r) {
+              return r.pendingReviewCount > 0;
+            }).length;
             return (
               <button
                 key={tab.id}
@@ -5581,13 +5885,30 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
                 }}
               >
                 {tab.id === 'yeni' && <span style={{ fontSize: 15 }}>＋</span>}
+                {tab.id === 'onay' && <span style={{ fontSize: 14 }}>⏳</span>}
                 {tab.id === 'gecmis' && <span style={{ fontSize: 14 }}>📋</span>}
+                {tab.id === 'esgecmis' && <span style={{ fontSize: 14 }}>🔁</span>}
                 {tab.id === 'ayarlar' && (
                   <span style={{ color: isActive ? DS.navy : DS.textMuted }}>
                     <Icons.settings />
                   </span>
                 )}
                 {tab.label}
+                {tab.id === 'onay' && pendingCount > 0 && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      background: DS.amberLight,
+                      color: DS.amber,
+                      padding: '1px 7px',
+                      borderRadius: 10,
+                      border: '1px solid #FCD34D',
+                    }}
+                  >
+                    {pendingCount}
+                  </span>
+                )}
                 {tab.id === 'gecmis' && records.length > 0 && (
                   <span
                     style={{
@@ -5602,80 +5923,64 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
                     {records.length}
                   </span>
                 )}
-                {tab.id === 'gecmis' &&
-                  records.some(function (r) {
-                    return r.pendingReviewCount > 0;
-                  }) && (
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        background: DS.amberLight,
-                        color: DS.amber,
-                        padding: '1px 5px',
-                        borderRadius: 10,
-                        border: '1px solid #FCD34D',
-                      }}
-                    >
-                      ⏳
-                    </span>
-                  )}
               </button>
             );
           })}
         </div>
 
         {/* Tab İçeriği */}
+        {/* Ayarlar: yalnızca eşik kalibrasyonu (katalog/not tablosu yükleme kaldırıldı) */}
         {activeTab === 'ayarlar' && !isStudent && (
-          <>
-            <div style={{ marginBottom: 20 }}>
-              <CalibrationPanel
-                records={records}
-                thresholds={thresholds}
-                onSaveThresholds={handleSaveThresholds}
-              />
-            </div>
-            <SettingsPanel
-              courseContents={courseContents}
-              setCourseContents={setCourseContents}
-              gradingSystem={gradingSystem}
-              setGradingSystem={setGradingSystem}
-            />
-          </>
-        )}
-        {activeTab === 'yeni' &&
-          (currentUser?.role === 'student' ? (
-            <ManualExemptionForm
-              currentUser={currentUser}
-              courseContents={courseContents}
-              onSave={function (saved) {
-                setRecords(function (prev) {
-                  return [saved, ...prev];
-                });
-              }}
-            />
-          ) : (
-            <NewExemption
-              courseContents={courseContents}
-              gradingSystem={gradingSystem}
-              onSave={function (saved) {
-                setRecords(function (prev) {
-                  return [saved, ...prev];
-                });
-              }}
-            />
-          ))}
-        {activeTab === 'gecmis' && (
-          <ExemptionHistory
+          <CalibrationPanel
             records={records}
+            thresholds={thresholds}
+            onSaveThresholds={handleSaveThresholds}
+          />
+        )}
+        {/* Yeni Muafiyet: yalnızca öğrenci oluşturur; akademisyen onaylar */}
+        {activeTab === 'yeni' && isStudent && (
+          <ManualExemptionForm
+            currentUser={currentUser}
+            courseContents={courseContents}
+            onSave={function (saved) {
+              setRecords(function (prev) {
+                return [saved, ...prev];
+              });
+            }}
+          />
+        )}
+        {/* Onay Bekleyenler: akademisyen — karar bekleyen talepler */}
+        {activeTab === 'onay' && !isStudent && (
+          <ExemptionHistory
+            records={records.filter(function (r) {
+              return r.pendingReviewCount > 0;
+            })}
             loading={recordsLoading}
             onDelete={handleDeleteRecord}
             onExportWord={function (rec) {
               exportMuafiyetWord(rec);
             }}
             onUpdateDecision={handleUpdateDecision}
+            emptyText="Onay bekleyen talep yok. Öğrenciler yeni talep gönderdiğinde burada listelenir."
           />
         )}
+        {activeTab === 'gecmis' && (
+          <ExemptionHistory
+            records={records}
+            loading={recordsLoading}
+            onDelete={isStudent ? null : handleDeleteRecord}
+            onExportWord={function (rec) {
+              exportMuafiyetWord(rec);
+            }}
+            onUpdateDecision={isStudent ? null : handleUpdateDecision}
+            emptyText={
+              isStudent
+                ? 'Henüz muafiyet talebiniz yok. "Yeni Muafiyet" sekmesinden oluşturabilirsiniz.'
+                : 'Henüz kayıt yok.'
+            }
+          />
+        )}
+        {activeTab === 'esgecmis' && <MuafiyetGecmisi activeDepartment={activeDepartment} />}
       </div>
     </div>
   );
@@ -5833,11 +6138,11 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
     }
   };
 
-  // ── ÇAKÜ ders listesi: önce muafiyet kataloğu (kod+ad+AKTS+statü+içerik),
-  // katalog boşsa sinav_dersler'den bölüm dersleri (kod+ad) fallback ──
-  const [fallbackCourses, setFallbackCourses] = useState([]);
+  // ── ÇAKÜ ders listesi: sinav_dersler (bölüm dersleri) ∪ muafiyet kataloğu.
+  // Kod bazında birleştirilir — AKTS/statü/içerik katalogdan zenginleştirilir;
+  // katalogda olmayan bölüm dersleri de listede kalır (AKTS elle girilir).
+  const [deptCourses, setDeptCourses] = useState([]);
   useEffect(() => {
-    if (courseContents && courseContents.length > 0) return; // katalog var
     let alive = true;
     window
       .apiRead('sinav_dersler')
@@ -5845,36 +6150,49 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
         if (!alive) return;
         const deptId = currentUser?.departmentId || '';
         const list = (all || []).filter((c) => !deptId || (c.departmentId || '') === deptId);
-        setFallbackCourses(list);
+        setDeptCourses(list);
       })
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [courseContents, currentUser?.departmentId]);
+  }, [currentUser?.departmentId]);
 
   const cakOptions = useMemo(() => {
-    const source =
-      courseContents && courseContents.length > 0
-        ? courseContents.map((c) => ({
-            code: c.code || '',
-            name: c.name || '',
-            akts: c.akts || '',
-            statu: c.status || '',
-            content: c.weeklyContent || c.content || '',
-          }))
-        : fallbackCourses.map((c) => ({
-            code: c.code || '',
-            name: c.name || '',
-            akts: '',
-            statu: '',
-            content: '',
-          }));
-    return source
-      .filter((c) => c.name)
+    const normCode = (c) =>
+      String(c || '')
+        .replace(/\s/g, '')
+        .toLocaleUpperCase('tr');
+    // Katalog kayıtlarını koda göre indeksle (AKTS + statü + içerik kaynağı)
+    const catalogByCode = new Map();
+    (courseContents || []).forEach((c) => {
+      const k = normCode(c.code);
+      if (k) catalogByCode.set(k, c);
+    });
+    const merged = new Map(); // normCode → seçenek
+    const put = (code, name, cat) => {
+      const k = normCode(code) || 'N:' + name;
+      if (merged.has(k)) return;
+      merged.set(k, {
+        code: code || '',
+        name: name || '',
+        akts: (cat && cat.akts) || '',
+        statu: (cat && cat.status) || '',
+        content: (cat && (cat.weeklyContent || cat.content)) || '',
+      });
+    };
+    // 1) Bölüm dersleri (katalogdan zenginleştirilmiş)
+    deptCourses.forEach((c) => {
+      if (c.name) put(c.code, c.name, catalogByCode.get(normCode(c.code)));
+    });
+    // 2) Yalnızca katalogda olan dersler
+    (courseContents || []).forEach((c) => {
+      if (c.name) put(c.code, c.name, c);
+    });
+    return [...merged.values()]
       .map((c) => ({ ...c, key: (c.code || '') + '::' + c.name }))
       .sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, 'tr'));
-  }, [courseContents, fallbackCourses]);
+  }, [courseContents, deptCourses]);
 
   // Dropdown'dan ders seçimi: kod + AKTS + statü otomatik dolar;
   // katalogda yeterli içerik varsa içerik dosyası da otomatik doldurulur.
@@ -6014,6 +6332,11 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
           contentScore: finalScore,
           noContent: factor.noContent && sem == null,
         });
+        // YENİ AKIŞ: hiçbir ders otomatik sonuçlanmaz — hepsi akademisyen
+        // onayına gider. NLP kararı yalnızca akademisyene ÖNERİ olarak sunulur.
+        const recommendation =
+          decision.tier === 'approved' ? 'muaf' : decision.tier === 'rejected' ? 'red' : 'incele';
+        const recommendReason = decision.reason || 'İçerik uyumu %' + Math.round(finalScore * 100);
         return {
           localCourse: {
             code: r.cak.code,
@@ -6033,16 +6356,19 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
           score: finalScore,
           contentScore: finalScore,
           scoreMethod,
-          tier: decision.tier,
-          matched: decision.matched,
+          tier: 'review', // her ders akademisyen onayına düşer
+          matched: false,
+          recommendation,
+          recommendReason,
           aktsPass,
           rejectReason: decision.reason,
         };
       });
 
-      const approvedCount = matches.filter((m) => m.tier === 'approved').length;
-      const reviewCount = matches.filter((m) => m.tier === 'review').length;
-      const rejectedCount = matches.filter((m) => m.tier === 'rejected').length;
+      // Tüm dersler onay beklediği için sayaçlar öneri bazlı tutulur
+      const recMuaf = matches.filter((m) => m.recommendation === 'muaf').length;
+      const recIncele = matches.filter((m) => m.recommendation === 'incele').length;
+      const recRed = matches.filter((m) => m.recommendation === 'red').length;
 
       const record = await MuafiyetDB.saveRecord({
         studentName,
@@ -6053,18 +6379,19 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
         localDept: currentUser?.departmentName || '',
         departmentId: currentUser?.departmentId || '',
         matches,
-        approvedCount,
-        pendingReviewCount: reviewCount,
-        rejectedCount,
+        status: 'pending',
+        approvedCount: 0,
+        pendingReviewCount: matches.length,
+        rejectedCount: 0,
         manualEntry: true,
         createdBy: currentUser?.identifier || currentUser?.name || '',
       });
 
-      // Sonuç panelini doldur — kullanıcı her dersin skorunu ve kararını görür
+      // Sonuç panelini doldur — öğrenci her ders için sistem önerisini görür
       setResultPanel({
-        approvedCount,
-        reviewCount,
-        rejectedCount,
+        recMuaf,
+        recIncele,
+        recRed,
         matches,
       });
       setMsg({ text: '', kind: '' });
@@ -6249,7 +6576,13 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
               onChange={(e) => updateNumeric(row.id, side, 'akts', e.target.value)}
               style={inputStyle}
               inputMode="numeric"
-              placeholder={side === 'cak' && !v.manual ? 'Ders seçince dolar' : ''}
+              placeholder={
+                side === 'cak' && !v.manual
+                  ? v.selKey
+                    ? 'Katalogda yok — elle girin'
+                    : 'Ders seçince dolar'
+                  : ''
+              }
             />
           </div>
           <div>
@@ -6303,38 +6636,11 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
 
   // ── Sonuç Paneli (kayıt sonrası) ──
   if (resultPanel) {
-    const pctA = Math.round(CALIBRATION.autoApprove * 100);
-    const pctR = Math.round(CALIBRATION.review * 100);
-    const tierMeta = {
-      approved: {
-        label: 'OTOMATİK MUAF',
-        color: DS.green,
-        bg: DS.greenBg,
-        border: DS.greenLight,
-        explain:
-          'İçerik uyumu ≥ %' +
-          pctA +
-          ' ve AKTS uyumlu — sistem otomatik onayladı, geçmişe işlendi.',
-      },
-      review: {
-        label: 'AKADEMİSYEN ONAYINDA',
-        color: DS.amber,
-        bg: DS.amberLight,
-        border: '#FCD34D',
-        explain:
-          'İçerik uyumu %' +
-          pctR +
-          '–' +
-          (pctA - 1) +
-          ' (sınır bölgesi) — akademisyen kararını verecek.',
-      },
-      rejected: {
-        label: 'REDDEDİLDİ',
-        color: DS.red,
-        bg: DS.redLight,
-        border: '#FECACA',
-        explain: 'İçerik uyumu %' + pctR + ' altı veya AKTS yetersiz.',
-      },
+    // YENİ AKIŞ: tüm dersler akademisyen onayına gider; NLP sonucu ÖNERİDİR.
+    const recMeta = {
+      muaf: { label: 'Öneri: MUAF', color: DS.green, bg: DS.greenBg, border: DS.greenLight },
+      incele: { label: 'Öneri: İNCELE', color: DS.amber, bg: DS.amberLight, border: '#FCD34D' },
+      red: { label: 'Öneri: RED', color: DS.red, bg: DS.redLight, border: '#FECACA' },
     };
     return (
       <div>
@@ -6349,17 +6655,14 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
           }}
         >
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: DS.navy }}>
-            Muafiyet Talebiniz Alındı
+            ✓ Talebiniz Akademisyen Onayına Gönderildi
           </h3>
           <p style={{ margin: '6px 0 0', fontSize: 13, color: DS.textSecondary, lineHeight: 1.6 }}>
-            <b>Ders adının aynı olması gerekmez.</b> Sistem yalnızca iki kritere bakar:{' '}
-            <b>AKTS uyumu</b> (alınan dersin kredisi, muaf olunacak dersin en az %70'i) ve{' '}
-            <b>içerik uyumu</b>. İçerik uyumu <b>%{pctA} ve üzeriyse</b> otomatik muaf,{' '}
-            <b>
-              %{pctR}–%{pctA - 1}
-            </b>{' '}
-            arası akademisyen kararına gider, <b>%{pctR} altı</b> reddedilir. Akademisyen onayı
-            bekleyen kayıtlar geçmişinizde sarı renkle görünür.
+            Muafiyet talebiniz kaydedildi ve bölüm akademisyeninin onayına sunuldu. Sistem her ders
+            için <b>AKTS uyumu</b> ve <b>içerik uyumu</b> analizini yaptı — aşağıdaki sonuçlar
+            akademisyene <b>öneri</b> olarak iletildi; nihai kararı akademisyen verir. Onaylanan
+            dersler bölümün <b>Eşleştirme Geçmişi</b>'ne işlenir. Talebinizin durumunu "Taleplerim"
+            sekmesinden izleyebilirsiniz.
           </p>
         </div>
 
@@ -6373,38 +6676,37 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
           }}
         >
           {[
-            {
-              key: 'approved',
-              label: 'Otomatik Muaf',
-              count: resultPanel.approvedCount,
-              meta: tierMeta.approved,
-            },
-            {
-              key: 'review',
-              label: 'Akademisyen Onayında',
-              count: resultPanel.reviewCount,
-              meta: tierMeta.review,
-            },
-            {
-              key: 'rejected',
-              label: 'Red',
-              count: resultPanel.rejectedCount,
-              meta: tierMeta.rejected,
-            },
+            { key: 'muaf', label: 'Sistem Önerisi: Muaf', count: resultPanel.recMuaf },
+            { key: 'incele', label: 'Sistem Önerisi: İncele', count: resultPanel.recIncele },
+            { key: 'red', label: 'Sistem Önerisi: Red', count: resultPanel.recRed },
           ].map((s) => (
             <div
               key={s.key}
               style={{
-                background: s.meta.bg,
-                border: '1px solid ' + s.meta.border,
+                background: recMeta[s.key].bg,
+                border: '1px solid ' + recMeta[s.key].border,
                 borderRadius: 10,
                 padding: 14,
               }}
             >
-              <div style={{ fontSize: 28, fontWeight: 800, color: s.meta.color, lineHeight: 1 }}>
+              <div
+                style={{
+                  fontSize: 28,
+                  fontWeight: 800,
+                  color: recMeta[s.key].color,
+                  lineHeight: 1,
+                }}
+              >
                 {s.count}
               </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: s.meta.color, marginTop: 6 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: recMeta[s.key].color,
+                  marginTop: 6,
+                }}
+              >
                 {s.label}
               </div>
             </div>
@@ -6413,7 +6715,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
 
         {/* Her ders için detaylı kart */}
         {resultPanel.matches.map((m, idx) => {
-          const meta = tierMeta[m.tier];
+          const meta = recMeta[m.recommendation] || recMeta.incele;
           return (
             <div
               key={idx}
@@ -6515,7 +6817,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
                 ))}
               </div>
               <div style={{ fontSize: 12, color: DS.textSecondary, lineHeight: 1.6 }}>
-                {meta.explain}
+                {m.recommendReason} — nihai karar akademisyene aittir.
                 {(m.contentScore || 0) < 0.05 && (
                   <div
                     style={{
@@ -6533,7 +6835,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
                     Word (.docx) yükleyip yeniden deneyin.
                   </div>
                 )}
-                {m.tier === 'rejected' && (m.contentScore || 0) >= 0.05 && (
+                {m.recommendation === 'red' && (m.contentScore || 0) >= 0.05 && (
                   <div style={{ marginTop: 6, color: DS.red }}>
                     <b>Olası nedenler:</b> içerik metinleri farklı konular içeriyor, AKTS kredisi
                     yetersiz, veya PDF'den çıkarılan metin eksik. Daha kapsamlı bir içerik dosyası

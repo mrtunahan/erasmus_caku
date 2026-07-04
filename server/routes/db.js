@@ -72,6 +72,7 @@ const ALLOWED_COLLECTIONS = [
   'portal_reports',
   'muafiyet_settings',
   'muafiyet_records',
+  'muafiyet_history',
   'projects',
   'project_courses',
   'departments',
