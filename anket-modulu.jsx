@@ -361,6 +361,8 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
       infoFields: s.infoFields || [],
       questions: s.questions || [],
       linkedCourses: s.linkedCourses || [],
+      // presetKey korunur — şablon kartındaki "N yüklü" sayacı kopyaları da sayar
+      ...(s.presetKey ? { presetKey: s.presetKey } : {}),
       createdBy: currentUser?.name || '',
     };
     await window.DBWrite.add('surveys', copy);
@@ -1088,8 +1090,18 @@ function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment,
       [arr[i], arr[j]] = [arr[j], arr[i]];
       return arr;
     });
+  // Yeni soru id'si mevcut en büyük sayısal ekin +1'i — soru silindikten
+  // sonra eklenen sorunun eski bir id ile çakışmasını önler (çakışan id'ler
+  // doldurma ekranında iki sorunun tek cevabı paylaşmasına yol açar).
   const add = () =>
-    setQuestions((prev) => [...prev, { id: 'q' + (prev.length + 1), type: 'likert', text: '' }]);
+    setQuestions((prev) => {
+      let maxN = 0;
+      prev.forEach((q) => {
+        const m = /^q(\d+)$/.exec(q.id || '');
+        if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+      });
+      return [...prev, { id: 'q' + (maxN + 1), type: 'likert', text: '' }];
+    });
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -2165,6 +2177,14 @@ function SonuclarPaneli({ surveys }) {
 
   const survey = surveys.find((s) => s.id === surveyId);
 
+  // Seçili anket başka oturumda silinmişse (realtime yenileme sonrası)
+  // seçim sıfırlanır — aksi halde aşağıdaki render survey.questions'ta çöker.
+  useEffect(() => {
+    if (surveyId && !surveys.some((s) => s.id === surveyId)) {
+      setSurveyId('');
+    }
+  }, [surveys, surveyId]);
+
   // Ders filtresi: yanıtlarda ders kodu alanı varsa aktifleşir
   const courseKeyField = useMemo(() => {
     const f = (survey?.infoFields || []).find((x) => x.source === 'courseCode');
@@ -2293,6 +2313,7 @@ function SonuclarPaneli({ surveys }) {
       </div>
 
       {surveyId &&
+        survey &&
         (loading ? (
           <Spinner />
         ) : filtered.length === 0 ? (
@@ -2458,17 +2479,42 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
       );
   }, [load]);
 
-  // Bana atanmış anketler: rolüm + (bölüm kısıtı yoksa ya da bölümüm eşleşiyorsa)
+  // Bana atanmış anketler: rol + bölüm + hedef grup eşleşmesi.
+  // Eski şemadaki targetRole='alumni' kayıtları student+'Mezun' eşdeğeri sayılır.
+  const isAlumni = !!(
+    currentUser?.isAlumni ||
+    currentUser?.mezun ||
+    currentUser?.status === 'mezun'
+  );
+  const myClass = String(currentUser?.sinif || currentUser?.class || '').trim();
+  const matchesGroup = useCallback(
+    (role, group) => {
+      if (role !== 'student') return true; // akademisyen grupları unvan bazlı — unvan verisi yok, tümü görür
+      const g = (group || '').trim();
+      if (!g || g === 'Tüm öğrenciler') return true; // grupsuz eski kayıtlar herkese görünür
+      if (g === 'Mezun') return isAlumni;
+      // '1. sınıf' vb. — mezunlar sınıf gruplarını görmez;
+      // kullanıcının sınıfı biliniyorsa eşleştir, bilinmiyorsa göster
+      if (isAlumni) return false;
+      if (!myClass) return true;
+      return g.startsWith(myClass + '.');
+    },
+    [isAlumni, myClass]
+  );
   const myAssignments = useMemo(() => {
     const seen = new Set();
     return assignments.filter((a) => {
-      if (a.targetRole !== myRole) return false;
+      // alumni → student+'Mezun' geriye dönük eşdeğerlik
+      const role = a.targetRole === 'alumni' ? 'student' : a.targetRole;
+      const group = a.targetRole === 'alumni' ? 'Mezun' : a.targetGroup;
+      if (role !== myRole) return false;
       if (a.departmentId && activeDepartment && a.departmentId !== activeDepartment) return false;
+      if (!matchesGroup(role, group)) return false;
       if (seen.has(a.surveyId)) return false; // aynı anket birden fazla gruba atanmışsa tek göster
       seen.add(a.surveyId);
       return true;
     });
-  }, [assignments, myRole, activeDepartment]);
+  }, [assignments, myRole, activeDepartment, matchesGroup]);
 
   const completed = (surveyId) => myResponses.some((r) => r.surveyId === surveyId);
 
@@ -2650,15 +2696,23 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
     if (d && deptField && !values[deptField.key]) onChange(deptField.key, d.name);
   }, []);
 
-  // Anket derslerle eşleştirilmişse yalnızca o dersler listelenir
+  // Anket derslerle eşleştirilmişse yalnızca o dersler listelenir.
+  // Eşleşme kod-öncelikli: ders adı sonradan değişse bile kod eşleşir;
+  // kodsuz eşleştirmeler ad üzerinden bulunur. Hiçbir ders bulunamazsa
+  // (ders silinmiş/yeniden adlandırılmış) katılımcıyı kilitlememek için
+  // tüm derslere geri dönülür.
   const deptCourses = useMemo(() => {
     const base = courses.filter((c) => !deptId || (c.departmentId || '') === deptId);
     if (!linkedCourses || linkedCourses.length === 0) return base;
-    const keys = new Set(linkedCourses.map((l) => (l.code || '') + '::' + (l.name || '')));
-    const matched = base.filter((c) => keys.has((c.code || '') + '::' + (c.name || '')));
-    // Eşleşen ders bölüm filtresinde yoksa (örn. başka bölümün dersi) yine göster
+    const codeKeys = new Set(linkedCourses.filter((l) => l.code).map((l) => l.code));
+    const nameKeys = new Set(linkedCourses.filter((l) => !l.code && l.name).map((l) => l.name));
+    const isMatch = (c) => (c.code && codeKeys.has(c.code)) || nameKeys.has(c.name || '');
+    const matched = base.filter(isMatch);
     if (matched.length > 0) return matched;
-    return courses.filter((c) => keys.has((c.code || '') + '::' + (c.name || '')));
+    // Bölüm filtresi dışında kalan eşleşmeler (başka bölümün dersi)
+    const anyDept = courses.filter(isMatch);
+    if (anyDept.length > 0) return anyDept;
+    return base;
   }, [courses, deptId, linkedCourses]);
 
   const selectStyle = { ...inputStyle, cursor: 'pointer' };
