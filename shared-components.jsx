@@ -2195,6 +2195,13 @@ const DB = {
       const existingKeys = new Set(existingEntries.map((e) => matchKey(e, e.type)));
       const ops = [];
 
+      // Sunucu tarafı ikinci savunma hattı: her kayda deterministik imza
+      // anahtarı yazılır; trip_history'de sigKey üzerinde UNIQUE indeks var.
+      // İstemci kontrolü ne olursa olsun (yarış durumu, eski build) aynı
+      // imzayla ikinci kayıt Mongo tarafından reddedilir.
+      const sigKeyOf = (key) =>
+        (student.studentNumber || '') + '|' + (student.hostInstitution || '') + '|' + key;
+
       // Process outgoing matches
       // ONAY KAPISI: yalnız akademisyen onayından geçmiş (status==='approved')
       // eşleştirmeler geçmişe yazılır. status alanı olmayan eski kayıtlar
@@ -2210,6 +2217,7 @@ const DB = {
             collection: 'trip_history',
             type: 'add',
             data: {
+              sigKey: sigKeyOf(key),
               hostInstitution: student.hostInstitution,
               hostCountry: student.hostCountry || '',
               type: 'outgoing',
@@ -2240,6 +2248,7 @@ const DB = {
             collection: 'trip_history',
             type: 'add',
             data: {
+              sigKey: sigKeyOf(key),
               hostInstitution: student.hostInstitution,
               hostCountry: student.hostCountry || '',
               type: 'return',

@@ -105,6 +105,25 @@ async function setupIndexes(database) {
       .collection('student_notifications')
       .createIndex({ studentNumber: 1, createdAt: -1 }, { background: true });
 
+    // Eşleştirme geçmişi — mükerrer yazmaya karşı fiziksel bariyer.
+    // sigKey: studentNumber|hostInstitution|matchKey imzası (istemci yazar).
+    // Partial: yalnızca sigKey'i olan (yeni) kayıtlara uygulanır — temizlik
+    // öncesi eski kayıtlar sigKey taşımadığından indeks onları etkilemez.
+    try {
+      await database.collection('trip_history').createIndex(
+        { sigKey: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { sigKey: { $type: 'string' } },
+          background: true,
+        }
+      );
+    } catch (err) {
+      if (!/already exists|equivalent index/i.test(err.message)) {
+        console.warn('[indexes] trip_history sigKey unique:', err.message);
+      }
+    }
+
     // Performans modülü — akademisyen gösterge değerleri
     await database
       .collection('performance_data')
