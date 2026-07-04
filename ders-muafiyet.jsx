@@ -5647,6 +5647,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
           (currentUser?.role === 'student' ? (
             <ManualExemptionForm
               currentUser={currentUser}
+              courseContents={courseContents}
               onSave={function (saved) {
                 setRecords(function (prev) {
                   return [saved, ...prev];
@@ -5704,11 +5705,32 @@ const emptyManualRow = function () {
       fileName: '',
       content: '',
     },
-    cak: { name: '', code: '', akts: '', statu: 'Z', file: null, fileName: '', content: '' },
+    cak: {
+      name: '',
+      code: '',
+      akts: '',
+      statu: 'Z',
+      file: null,
+      fileName: '',
+      content: '',
+      selKey: '', // dropdown'da seçili katalog dersi
+      manual: false, // true → elle giriş modu (ders listede yoksa)
+      fromCatalog: false, // içerik katalogdan otomatik dolduruldu
+    },
   };
 };
 
-const ManualExemptionForm = ({ currentUser, onSave }) => {
+// 'Zorunlu'/'Z'/'SEÇMELİ' gibi serbest statü metnini Z/S'ye indirger
+const normalizeStatu = (s) => {
+  const t = String(s || '')
+    .trim()
+    .toLocaleLowerCase('tr');
+  if (t.startsWith('s')) return 'S';
+  if (t.startsWith('z')) return 'Z';
+  return '';
+};
+
+const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
   const [studentName, setStudentName] = useState(currentUser?.name || '');
   const [studentNo, setStudentNo] = useState(
     currentUser?.studentNumber || currentUser?.identifier || ''
@@ -5799,6 +5821,7 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
                   content: cleaned,
                   contentChars: charCount,
                   encodingBroken,
+                  fromCatalog: false, // elle yüklenen dosya katalog içeriğini geçersiz kılar
                 },
               }
             : r
@@ -5809,6 +5832,101 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
       setMsg({ text: 'Dosya okunamadı: ' + e.message, kind: 'error' });
     }
   };
+
+  // ── ÇAKÜ ders listesi: önce muafiyet kataloğu (kod+ad+AKTS+statü+içerik),
+  // katalog boşsa sinav_dersler'den bölüm dersleri (kod+ad) fallback ──
+  const [fallbackCourses, setFallbackCourses] = useState([]);
+  useEffect(() => {
+    if (courseContents && courseContents.length > 0) return; // katalog var
+    let alive = true;
+    window
+      .apiRead('sinav_dersler')
+      .then((all) => {
+        if (!alive) return;
+        const deptId = currentUser?.departmentId || '';
+        const list = (all || []).filter((c) => !deptId || (c.departmentId || '') === deptId);
+        setFallbackCourses(list);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [courseContents, currentUser?.departmentId]);
+
+  const cakOptions = useMemo(() => {
+    const source =
+      courseContents && courseContents.length > 0
+        ? courseContents.map((c) => ({
+            code: c.code || '',
+            name: c.name || '',
+            akts: c.akts || '',
+            statu: c.status || '',
+            content: c.weeklyContent || c.content || '',
+          }))
+        : fallbackCourses.map((c) => ({
+            code: c.code || '',
+            name: c.name || '',
+            akts: '',
+            statu: '',
+            content: '',
+          }));
+    return source
+      .filter((c) => c.name)
+      .map((c) => ({ ...c, key: (c.code || '') + '::' + c.name }))
+      .sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, 'tr'));
+  }, [courseContents, fallbackCourses]);
+
+  // Dropdown'dan ders seçimi: kod + AKTS + statü otomatik dolar;
+  // katalogda yeterli içerik varsa içerik dosyası da otomatik doldurulur.
+  const selectCakCourse = (rowId, key) => {
+    const opt = cakOptions.find((o) => o.key === key);
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        if (!opt) {
+          // seçim temizlendi — katalogdan gelen içerik de temizlenir
+          const cleared = { ...r.cak, selKey: '', name: '', code: '', akts: '' };
+          if (r.cak.fromCatalog) {
+            cleared.content = '';
+            cleared.contentChars = 0;
+            cleared.fileName = '';
+            cleared.fromCatalog = false;
+          }
+          return { ...r, cak: cleared };
+        }
+        const content = (opt.content || '').replace(/\s+/g, ' ').trim();
+        const hasContent = content.length >= 50;
+        return {
+          ...r,
+          cak: {
+            ...r.cak,
+            selKey: key,
+            name: tr(opt.name),
+            code: tr(opt.code),
+            akts: String(opt.akts || '').replace(/\D/g, ''),
+            statu: normalizeStatu(opt.statu) || r.cak.statu,
+            ...(hasContent
+              ? {
+                  content,
+                  contentChars: content.length,
+                  encodingBroken: false,
+                  file: null,
+                  fileName: 'Ders kataloğu içeriği',
+                  fromCatalog: true,
+                }
+              : r.cak.fromCatalog
+                ? { content: '', contentChars: 0, fileName: '', fromCatalog: false }
+                : {}),
+          },
+        };
+      })
+    );
+  };
+
+  const toggleCakManual = (rowId, on) =>
+    setRows((prev) =>
+      prev.map((r) => (r.id === rowId ? { ...r, cak: { ...r.cak, manual: on, selKey: '' } } : r))
+    );
 
   const addRow = () => setRows((prev) => [...prev, emptyManualRow()]);
   const removeRow = (rowId) =>
@@ -6023,20 +6141,104 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
               </div>
             </>
           )}
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={labelStyle}>Ders Adı *</label>
-            <input
-              value={v.name}
-              onChange={(e) => updateSide(row.id, side, 'name', e.target.value)}
-              style={inputStyle}
-            />
-          </div>
+          {side === 'cak' && !v.manual ? (
+            <div style={{ gridColumn: 'span 2' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <label style={labelStyle}>Muaf Olunacak Ders *</label>
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 11,
+                    color: DS.textSecondary,
+                    cursor: 'pointer',
+                    marginBottom: 4,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    onChange={() => toggleCakManual(row.id, true)}
+                  />
+                  Listede yok — elle gir
+                </label>
+              </div>
+              <select
+                value={v.selKey}
+                onChange={(e) => selectCakCourse(row.id, e.target.value)}
+                style={{ ...inputStyle, cursor: 'pointer' }}
+              >
+                <option value="">
+                  {cakOptions.length
+                    ? '— Bölüm derslerinden seçin —'
+                    : 'Ders listesi bulunamadı — elle giriş kullanın'}
+                </option>
+                {cakOptions.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.code ? o.code + ' — ' : ''}
+                    {o.name}
+                    {o.akts ? ' (' + o.akts + ' AKTS)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div style={{ gridColumn: 'span 2' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <label style={labelStyle}>Ders Adı *</label>
+                {side === 'cak' && (
+                  <label
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      fontSize: 11,
+                      color: DS.textSecondary,
+                      cursor: 'pointer',
+                      marginBottom: 4,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked
+                      onChange={() => toggleCakManual(row.id, false)}
+                    />
+                    Listeden seç
+                  </label>
+                )}
+              </div>
+              <input
+                value={v.name}
+                onChange={(e) => updateSide(row.id, side, 'name', e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+          )}
           <div>
             <label style={labelStyle}>Ders Kodu</label>
             <input
               value={v.code}
               onChange={(e) => updateSide(row.id, side, 'code', e.target.value)}
-              style={inputStyle}
+              style={{
+                ...inputStyle,
+                ...(side === 'cak' && !v.manual && v.selKey ? { background: '#F3F4F6' } : {}),
+              }}
+              readOnly={side === 'cak' && !v.manual && !!v.selKey}
               placeholder="ÖRN: BIL307"
             />
           </div>
@@ -6047,6 +6249,7 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
               onChange={(e) => updateNumeric(row.id, side, 'akts', e.target.value)}
               style={inputStyle}
               inputMode="numeric"
+              placeholder={side === 'cak' && !v.manual ? 'Ders seçince dolar' : ''}
             />
           </div>
           <div>
@@ -6067,9 +6270,9 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
                 display: 'block',
                 padding: '8px 10px',
                 borderRadius: 6,
-                border: '1px dashed ' + color,
-                background: v.fileName ? color + '12' : 'white',
-                color: v.fileName ? color : DS.textSecondary,
+                border: '1px dashed ' + (v.fromCatalog ? DS.green : color),
+                background: v.fromCatalog ? DS.greenBg : v.fileName ? color + '12' : 'white',
+                color: v.fromCatalog ? DS.green : v.fileName ? color : DS.textSecondary,
                 fontSize: 12,
                 cursor: 'pointer',
                 textAlign: 'center',
@@ -6078,7 +6281,7 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
                 whiteSpace: 'nowrap',
               }}
             >
-              {v.fileName || 'PDF/DOCX seç'}
+              {v.fromCatalog ? '✓ Katalogdan otomatik doldu' : v.fileName || 'PDF/DOCX seç'}
               <input
                 type="file"
                 accept=".pdf,.docx,.doc"
@@ -6086,6 +6289,12 @@ const ManualExemptionForm = ({ currentUser, onSave }) => {
                 style={{ display: 'none' }}
               />
             </label>
+            {v.fromCatalog && (
+              <p style={{ fontSize: 10, color: DS.textSecondary, margin: '4px 0 0' }}>
+                İçerik ders kataloğundan alındı ({v.contentChars} karakter). Değiştirmek için dosya
+                seçebilirsiniz.
+              </p>
+            )}
           </div>
         </div>
       </div>
