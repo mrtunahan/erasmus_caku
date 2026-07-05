@@ -109,6 +109,7 @@ const ALLOWED_COLLECTIONS = [
   'performance_data',
   'performance_agg_rules',
   'strateji_izleme',
+  'strateji_atama',
   'audit_logs',
   'notifications',
   'student_clubs',
