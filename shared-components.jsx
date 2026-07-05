@@ -1451,10 +1451,12 @@ const DERS_ESLESME_ROWS = [
   { id: 'kDersKod', label: 'Karşı/Yurtdışı Ders Kodu' },
   { id: 'kDersAd', label: 'Karşı/Yurtdışı Ders Adı' },
   { id: 'kDersAkts', label: 'Karşı Ders AKTS' },
+  { id: 'kDersDonem', label: 'Karşı Ders Dönemi (Güz/Bahar)' },
   { id: 'kDersNot', label: 'Karşı Başarı Notu' },
   { id: 'cDersKod', label: 'ÇAKÜ Ders Kodu' },
   { id: 'cDersAd', label: 'ÇAKÜ Ders Adı' },
   { id: 'cDersAkts', label: 'ÇAKÜ Ders AKTS' },
+  { id: 'cDersDonem', label: 'ÇAKÜ Ders Dönemi (Güz/Bahar)' },
   { id: 'cDersNot', label: 'ÇAKÜ Başarı Notu' },
   { id: 'cDersStatu', label: 'ÇAKÜ Ders Statüsü (Z/S)' },
 ];
@@ -1730,6 +1732,53 @@ const TemplateEngine = (() => {
     return out;
   }
 
+  // Veri (alt) satırlarından KALIN (bold) biçimini kaldır — yalnızca çoğaltılan
+  // satırlara uygulanır; başlık satırı ve statik metin dokunulmadan kalır.
+  // Word'ün kalın işareti <w:b/> ya da <w:b w:val="true"/>; w:val="false/0"
+  // zaten kalın-değil demek, ona dokunmuyoruz.
+  function stripBoldRuns(xml) {
+    return xml
+      .replace(/<w:b(?:Cs)?(?:\s+w:val="(?:false|0)")\s*\/>/g, '') // zaten kapalı: sadeleştir
+      .replace(/<w:b(?:Cs)?(?:\s+w:val="(?:true|1)")?\s*\/>/g, '') // <w:b/> / <w:b w:val="true"/>
+      .replace(/<w:b(?:Cs)?(?:\s[^>]*)?>\s*<\/w:b(?:Cs)?>/g, ''); // paired <w:b></w:b>
+  }
+
+  // Bir satır XML'indeki <w:tc>…</w:tc> hücrelerini (sıralı) döndürür.
+  function tcCells(rowXml) {
+    const cells = [];
+    const rx = /<w:tc\b[\s\S]*?<\/w:tc>/g;
+    let m;
+    while ((m = rx.exec(rowXml)) !== null) {
+      cells.push({ start: m.index, end: m.index + m[0].length, xml: m[0] });
+    }
+    return cells;
+  }
+
+  // Bir hücreye dikey birleştirme (vMerge) ekle.
+  //   mode='restart' → grubun ilk satırı (değer burada durur)
+  //   mode='continue' → alttaki satırlar (içerik boş, üstteki hücreyle birleşir)
+  // vMerge, OOXML şema sırasına uygun olsun diye tcW/gridSpan'dan SONRA,
+  // tcBorders/shd'den ÖNCE eklenir; mevcut vMerge varsa temizlenir.
+  function injectVMerge(cellXml, mode) {
+    const tag = mode === 'restart' ? '<w:vMerge w:val="restart"/>' : '<w:vMerge/>';
+    if (/<w:tcPr\s*\/>/.test(cellXml)) {
+      return cellXml.replace(/<w:tcPr\s*\/>/, '<w:tcPr>' + tag + '</w:tcPr>');
+    }
+    const pm = cellXml.match(/<w:tcPr>([\s\S]*?)<\/w:tcPr>/);
+    if (pm) {
+      let inner = pm[1].replace(/<w:vMerge(?:\s[^>]*)?\/>/g, '');
+      let insertPos = 0;
+      const tcw = inner.match(/<w:tcW[^>]*\/>/);
+      if (tcw) insertPos = Math.max(insertPos, tcw.index + tcw[0].length);
+      const gs = inner.match(/<w:gridSpan[^>]*\/>/);
+      if (gs) insertPos = Math.max(insertPos, gs.index + gs[0].length);
+      inner = inner.slice(0, insertPos) + tag + inner.slice(insertPos);
+      return cellXml.replace(/<w:tcPr>[\s\S]*?<\/w:tcPr>/, '<w:tcPr>' + inner + '</w:tcPr>');
+    }
+    // tcPr yok — hücre açılışından hemen sonra ekle
+    return cellXml.replace(/(<w:tc(?:\s[^>]*)?>)/, '$1<w:tcPr>' + tag + '</w:tcPr>');
+  }
+
   function resolveValue(field, staticData) {
     if (field.variable === 'const') return field.value || '';
     if (field.variable && field.variable.startsWith('static:')) {
@@ -1743,7 +1792,8 @@ const TemplateEngine = (() => {
   //   fields: eşleme kayıtları (detect sırası korunmuş)
   //   staticData: { degiskenId: değer }
   //   rows: [{ degiskenId: değer }, …] — satır değişkenleri için tablo satırı
-  async function generateDocx(arrayBuffer, fields, staticData, rows) {
+  async function generateDocx(arrayBuffer, fields, staticData, rows, opts) {
+    const stripRowBold = !!(opts && opts.stripRowBold);
     const { zip, xml } = await readDocumentXml(arrayBuffer);
     const located = locateFields(xml, fields);
 
@@ -1892,7 +1942,10 @@ const TemplateEngine = (() => {
     if (markerRegion) {
       // İŞARETÇİ modu: temiz başlık + sütun hizalı veri satırları
       const renderedRows = (rows || [])
-        .map((rowData) => fillDataRow(markerRegion.dataTpl, markerRegion.cellVars, rowData))
+        .map((rowData) => {
+          const r = fillDataRow(markerRegion.dataTpl, markerRegion.cellVars, rowData);
+          return stripRowBold ? stripBoldRuns(r) : r;
+        })
         .join('');
       const head = applyReplacements(
         xml.slice(0, markerRegion.start),
@@ -1912,15 +1965,44 @@ const TemplateEngine = (() => {
       );
       out = head + markerRegion.cleanedHeader + between + renderedRows + tail;
     } else if (rowRegion) {
-      // Satır bölgesini veri satırlarıyla çoğalt
+      // Şablon satırındaki her hücrenin hangi satır-değişkenini taşıdığını
+      // (sütun→değişken haritası) bir kez çıkar — vMerge (hücre birleştirme)
+      // için gerekli. rowData._merge[varId] = 'restart' | 'continue' ise o
+      // sütunun hücresine dikey birleştirme uygulanır.
+      const tplCells = tcCells(rowRegion.tpl);
+      const cellVarOf = tplCells.map((c) => {
+        const f = rowRegion.rowFieldRel.find(
+          (rf) => rf._pos.start >= c.start && rf._pos.end <= c.end
+        );
+        return f ? f.variable.slice(4) : null;
+      });
       const renderedRows = (rows || [])
         .map((rowData) => {
-          const rowRepls = rowRegion.rowFieldRel.map((f) => ({
-            ...f,
-            _value:
-              rowData[f.variable.slice(4)] != null ? String(rowData[f.variable.slice(4)]) : '',
-          }));
-          return applyReplacements(rowRegion.tpl, rowRepls);
+          const merge = rowData._merge || null;
+          const rowRepls = rowRegion.rowFieldRel.map((f) => {
+            const varId = f.variable.slice(4);
+            const st = merge && merge[varId];
+            // 'continue' hücreleri boşaltılır (üstteki hücreyle birleşecek)
+            const val =
+              st === 'continue' ? '' : rowData[varId] != null ? String(rowData[varId]) : '';
+            return { ...f, _value: val };
+          });
+          let r = applyReplacements(rowRegion.tpl, rowRepls);
+          if (stripRowBold) r = stripBoldRuns(r);
+          // vMerge enjeksiyonu — hücre indeksleri şablonla aynı kaldığından
+          // (replacement yalnızca token metnini değiştirir) sondan başa uygula
+          if (merge) {
+            const cells = tcCells(r);
+            for (let ci = cells.length - 1; ci >= 0; ci--) {
+              const varId = cellVarOf[ci];
+              const st = varId && merge[varId];
+              if (st) {
+                const nc = injectVMerge(cells[ci].xml, st);
+                r = r.slice(0, cells[ci].start) + nc + r.slice(cells[ci].end);
+              }
+            }
+          }
+          return r;
         })
         .join('');
       const head = applyReplacements(
@@ -2074,7 +2156,9 @@ const TemplateEngine = (() => {
     }
     let blob;
     try {
-      blob = await generateDocx(buf, tpl.fields, opts.staticData || {}, opts.rows || []);
+      blob = await generateDocx(buf, tpl.fields, opts.staticData || {}, opts.rows || [], {
+        stripRowBold: !!opts.stripRowBold,
+      });
     } catch (e) {
       // Motor bozuk XML üretti (şablonun karmaşık yapısı) — sessiz bozuk
       // dosya indirmek yerine çağırana bildir; o yerleşik biçime düşebilir.
