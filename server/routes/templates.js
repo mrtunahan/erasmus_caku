@@ -296,6 +296,16 @@ router.post('/', writeLimiter, softAuthMiddleware, upload.single('file'), async 
     const isActive = !(req.body.isActive === 'false' || req.body.isActive === false);
 
     const ext = path.extname(req.file.filename).toLocaleLowerCase('tr').slice(1);
+    // Multer originalname'i latin1 olarak çözer — Türkçe karakterler bozulur
+    // (İ→Ä°, Ş→Å ...). UTF-8'e geri çevir. Zaten geçerli UTF-8 ise değişmez.
+    let safeOriginal = req.file.originalname;
+    try {
+      const reencoded = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+      // Ã / Å gibi mojibake işaretleri varsa düzeltilmiş sürümü kullan
+      if (/[Ã-]/.test(req.file.originalname)) safeOriginal = reencoded;
+    } catch (_) {
+      /* orijinali koru */
+    }
     const doc = {
       name: name.trim(),
       description,
@@ -306,7 +316,7 @@ router.post('/', writeLimiter, softAuthMiddleware, upload.single('file'), async 
       isDefault,
       isActive,
       file: {
-        originalName: req.file.originalname,
+        originalName: safeOriginal,
         storedName: req.file.filename,
         mimeType: req.file.mimetype,
         size: req.file.size,

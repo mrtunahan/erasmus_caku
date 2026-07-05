@@ -5918,24 +5918,34 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         return m.adminDecision === 'confirmed';
       });
       const rowsSrc = confirmed.length > 0 ? confirmed : ms;
+      // AKTS değerlerini önce sayıya normalize et — satırda gösterilen değer
+      // ile toplam AYNI sayısal kaynaktan üretilsin (tutarsızlık olmasın).
+      const aktsNum = function (v) {
+        const n = parseInt(String(v == null ? '' : v).replace(/[^\d]/g, ''), 10);
+        return isNaN(n) ? 0 : n;
+      };
       const rows = rowsSrc.map(function (m) {
         const src = m.sourceCourse || m.source || {};
         const cak = m.localCourse || m.target || {};
+        const kAkts = aktsNum(src.akts);
+        const cAkts = aktsNum(cak.akts);
         return {
           kDersKod: src.code || '',
           kDersAd: src.name || '',
-          kDersAkts: src.akts || '',
+          kDersAkts: kAkts ? String(kAkts) : '',
           kDersNot: src.grade || '',
           cDersKod: cak.code || '',
           cDersAd: cak.name || '',
-          cDersAkts: cak.akts || '',
+          cDersAkts: cAkts ? String(cAkts) : '',
           cDersNot: m.convertedGrade || cak.grade || '',
           cDersStatu: cak.statu || '',
+          _kAkts: kAkts,
+          _cAkts: cAkts,
         };
       });
-      const sum = function (arr, key) {
-        return arr.reduce(function (a, r) {
-          return a + (parseInt(r[key], 10) || 0);
+      const sumBy = function (key) {
+        return rows.reduce(function (a, r) {
+          return a + (r[key] || 0);
         }, 0);
       };
       const staticData = {
@@ -5945,8 +5955,8 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         kaynakFakulte: rec.otherFaculty || '',
         kaynakBolum: rec.otherDept || rec.otherDepartment || '',
         cakuBolum: rec.localDept || departmentInfo?.name || '',
-        kaynakToplamAkts: String(sum(rows, 'kDersAkts')),
-        cakuToplamAkts: String(sum(rows, 'cDersAkts')),
+        kaynakToplamAkts: String(sumBy('_kAkts')),
+        cakuToplamAkts: String(sumBy('_cAkts')),
         tarih: new Date().toLocaleDateString('tr-TR'),
       };
 

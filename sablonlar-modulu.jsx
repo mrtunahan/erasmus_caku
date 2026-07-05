@@ -264,9 +264,12 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
           Henüz bir şablon eklenmedi. Yukarıdaki butonla başlayın.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filtered.map((t) => {
             const m = moduleMeta(t.module);
+            const isDocx = t.file && t.file.extension === 'docx';
+            const mappedCount = (t.fields || []).filter((f) => f.variable).length;
+            const hasMapping = mappedCount > 0;
             return (
               <div
                 key={t._id}
@@ -275,142 +278,198 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
                   border: '1px solid #E5E7EB',
                   borderLeft: '4px solid ' + m.color,
                   borderRadius: 12,
-                  padding: 14,
-                  display: 'grid',
-                  gridTemplateColumns: '1fr auto',
-                  gap: 12,
-                  alignItems: 'center',
+                  padding: 16,
+                  opacity: t.isActive ? 1 : 0.72,
                 }}
               >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>
-                      {t.name}
-                    </span>
+                {/* Üst satır: başlık + rozetler */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 15.5, fontWeight: 700, color: '#111827' }}>
+                    {t.name}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      padding: '2px 9px',
+                      borderRadius: 999,
+                      background: m.color + '18',
+                      color: m.color,
+                    }}
+                  >
+                    {m.label}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      padding: '2px 9px',
+                      borderRadius: 999,
+                      background: '#F1F5F9',
+                      color: '#475569',
+                    }}
+                  >
+                    {SB_SCOPE_LABEL[t.scope] || t.scope}
+                  </span>
+                  {t.isDefault && (
                     <span
                       style={{
                         fontSize: 10.5,
                         fontWeight: 700,
-                        padding: '2px 8px',
+                        padding: '2px 9px',
                         borderRadius: 999,
-                        background: m.color + '15',
-                        color: m.color,
+                        background: '#FEF3C7',
+                        color: '#92400E',
                       }}
                     >
-                      {m.label}
+                      ★ VARSAYILAN
                     </span>
+                  )}
+                  {!t.isActive && (
                     <span
                       style={{
                         fontSize: 10.5,
-                        fontWeight: 600,
-                        padding: '2px 8px',
+                        fontWeight: 700,
+                        padding: '2px 9px',
                         borderRadius: 999,
-                        background: '#F1F5F9',
-                        color: '#475569',
+                        background: '#E5E7EB',
+                        color: '#374151',
                       }}
                     >
-                      {SB_SCOPE_LABEL[t.scope] || t.scope}
+                      PASİF
                     </span>
-                    {t.isDefault && (
+                  )}
+                </div>
+
+                {t.description && (
+                  <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 5 }}>
+                    {t.description}
+                  </div>
+                )}
+
+                {/* Dosya + meta satırı */}
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: '#6B7280',
+                    marginTop: 8,
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  {t.file && (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: '#F9FAFB',
+                        border: '1px solid #E5E7EB',
+                        borderRadius: 7,
+                        padding: '4px 10px',
+                        maxWidth: '100%',
+                      }}
+                    >
+                      <span>📄</span>
                       <span
                         style={{
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          padding: '2px 8px',
-                          borderRadius: 999,
-                          background: '#FEF3C7',
-                          color: '#92400E',
-                        }}
-                      >
-                        ★ VARSAYILAN
-                      </span>
-                    )}
-                    {!t.isActive && (
-                      <span
-                        style={{
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          padding: '2px 8px',
-                          borderRadius: 999,
-                          background: '#E5E7EB',
+                          maxWidth: 340,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontWeight: 600,
                           color: '#374151',
                         }}
+                        title={t.file.originalName}
                       >
-                        PASİF
+                        {t.file.originalName}
                       </span>
-                    )}
-                  </div>
-                  {t.description && (
-                    <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 4 }}>
-                      {t.description}
-                    </div>
+                      <span style={{ color: '#9CA3AF' }}>
+                        {(t.file.extension || '').toUpperCase()} · {fmtBytes(t.file.size)}
+                      </span>
+                    </span>
                   )}
+                  <span style={{ color: '#9CA3AF' }}>
+                    {fmtDate(t.createdAt)}
+                    {t.createdByName ? ' · ' + t.createdByName : ''}
+                  </span>
+                </div>
+
+                {/* Eşleme durum şeridi (yalnız .docx) */}
+                {isDocx && (
                   <div
                     style={{
-                      fontSize: 11.5,
-                      color: '#9CA3AF',
-                      marginTop: 4,
+                      marginTop: 10,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 600,
                       display: 'flex',
-                      gap: 10,
-                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      gap: 8,
+                      background: hasMapping ? '#EDE9FE' : '#FEF3C7',
+                      color: hasMapping ? '#6D28D9' : '#92400E',
+                      border: '1px solid ' + (hasMapping ? '#DDD6FE' : '#FDE68A'),
                     }}
                   >
-                    {t.file && (
-                      <span>
-                        📄 {t.file.originalName} ({fmtBytes(t.file.size)} ·{' '}
-                        {(t.file.extension || '').toUpperCase()})
-                      </span>
-                    )}
-                    <span>· {fmtDate(t.createdAt)}</span>
-                    {t.createdByName && <span>· {t.createdByName}</span>}
+                    <span>{hasMapping ? '🧩' : '⚠️'}</span>
+                    <span>
+                      {hasMapping
+                        ? mappedCount + ' anahtar alan eşlendi — belge üretimine hazır'
+                        : 'Anahtar alanlar henüz eşlenmedi. Çıktı üretmek için eşleme gerekli.'}
+                    </span>
                   </div>
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  {t.file && t.file.extension === 'docx' && (
+                )}
+
+                {/* Aksiyon butonları — etiketli */}
+                <div
+                  style={{
+                    marginTop: 12,
+                    display: 'flex',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                    justifyContent: 'flex-end',
+                  }}
+                >
+                  {isDocx && (
                     <button
                       onClick={() => setMapping({ tpl: t, file: null })}
-                      title={
-                        (t.fields || []).some((f) => f.variable)
-                          ? 'Alan eşlemesini düzenle (' +
-                            t.fields.filter((f) => f.variable).length +
-                            ' alan eşli)'
-                          : 'Anahtar alanları eşle — çıktı üretimi için gerekli'
-                      }
-                      style={iconBtn(
-                        (t.fields || []).some((f) => f.variable) ? '#7C3AED' : '#D97706',
-                        (t.fields || []).some((f) => f.variable) ? '#EDE9FE' : '#FEF3C7'
+                      style={textBtn(
+                        hasMapping ? '#7C3AED' : '#B45309',
+                        hasMapping ? '#EDE9FE' : '#FEF3C7'
                       )}
                     >
-                      🧩
+                      🧩 {hasMapping ? 'Eşlemeyi Düzenle' : 'Alanları Eşle'}
                     </button>
                   )}
                   <a
                     href={'/api/templates/' + t._id + '/download'}
-                    title="İndir"
-                    style={iconBtn('#16A34A', '#DCFCE7')}
+                    style={{ ...textBtn('#15803D', '#DCFCE7'), textDecoration: 'none' }}
                   >
-                    ⬇
+                    ⬇ İndir
                   </a>
                   <button
                     onClick={() => handleToggle(t, 'isDefault')}
-                    title={t.isDefault ? 'Varsayılanı kaldır' : 'Varsayılan yap'}
-                    style={iconBtn(t.isDefault ? '#9A3412' : '#92400E', '#FEF3C7')}
+                    style={textBtn(
+                      t.isDefault ? '#B45309' : '#6B7280',
+                      t.isDefault ? '#FEF3C7' : '#F3F4F6'
+                    )}
                   >
-                    ★
+                    ★ {t.isDefault ? 'Varsayılanı Kaldır' : 'Varsayılan Yap'}
                   </button>
                   <button
                     onClick={() => handleToggle(t, 'isActive')}
-                    title={t.isActive ? 'Pasifleştir' : 'Aktifleştir'}
-                    style={iconBtn(t.isActive ? '#1E40AF' : '#6B7280', '#DBEAFE')}
+                    style={textBtn(
+                      t.isActive ? '#1E40AF' : '#6B7280',
+                      t.isActive ? '#DBEAFE' : '#F3F4F6'
+                    )}
                   >
-                    {t.isActive ? '✓' : '○'}
+                    {t.isActive ? '✓ Aktif' : '○ Pasif'}
                   </button>
-                  <button
-                    onClick={() => handleDelete(t)}
-                    title="Sil"
-                    style={iconBtn('#DC2626', '#FEE2E2')}
-                  >
-                    ✕
+                  <button onClick={() => handleDelete(t)} style={textBtn('#DC2626', '#FEE2E2')}>
+                    ✕ Sil
                   </button>
                 </div>
               </div>
@@ -475,6 +534,26 @@ function iconBtn(color, bg) {
     justifyContent: 'center',
     textDecoration: 'none',
     lineHeight: 1,
+  };
+}
+
+// Metin etiketli aksiyon butonu (kart alt satırı)
+function textBtn(color, bg) {
+  return {
+    padding: '7px 13px',
+    borderRadius: 8,
+    border: '1px solid ' + color + '33',
+    background: bg,
+    color: color,
+    cursor: 'pointer',
+    fontSize: 12.5,
+    fontWeight: 600,
+    fontFamily: "'Inter', sans-serif",
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
   };
 }
 
