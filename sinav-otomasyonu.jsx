@@ -2238,6 +2238,10 @@ async function exportDeptPrintable(
       alert(
         'Sınav programı şablonunun alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp 🧩 ile alanları eşleyin. Şimdilik yerleşik yazdırma kullanılacak.'
       );
+    } else if (res.reason === 'invalid-output') {
+      alert(
+        'Yüklü sınav programı şablonundan geçerli belge üretilemedi (şablon yapısı desteklenmiyor). Yerleşik yazdırma kullanılacak.'
+      );
     }
     // no-template / diğer → sessizce yerleşik yazdırmaya düş
   }
