@@ -4591,7 +4591,35 @@ const StudentDetailModal = ({
 // ── Word Document Generators (same logic as before) ──
 // ── Erasmus ders eşleştirmelerini şablon motoru satır verisine çevir ──
 // match'ler çok-a-çok olabilir; her (host, home) çiftini ayrı satıra açar.
-function erasmusRowsFromMatches(matches, gradeMode) {
+// Öğrenci soyadını BÜYÜK harfe çevir (yerel karakterler dahil), ad-soyadı birleştir
+function erasmusUpperSurname(s) {
+  return String(s || '').toLocaleUpperCase('tr-TR');
+}
+function erasmusAdSoyad(student) {
+  const ad = student.firstName || '';
+  const soyad = erasmusUpperSurname(student.lastName || '');
+  return `${ad} ${soyad}`.trim();
+}
+// Öğrencinin seçtiği dönem (Güz/Bahar) + akademik yıl
+function erasmusSemesterInfo(student) {
+  const semester = student.semester || 'Fall 2025';
+  const [season, year] = semester.split(' ');
+  const seasonTR = season === 'Fall' ? 'Güz' : 'Bahar';
+  const academicYear =
+    season === 'Fall' ? `${year}-${parseInt(year) + 1}` : `${parseInt(year) - 1}-${year}`;
+  return { seasonTR, academicYear };
+}
+// Bir ders için dönem değeri: dersin kendi dönemi metin (Güz/Bahar) ise onu,
+// aksi halde (boş ya da sayısal "11" gibi) öğrencinin seçtiği dönemi kullan.
+function erasmusCourseDonem(course, fallbackDonem) {
+  const raw = course && course.semester != null ? String(course.semester).trim() : '';
+  if (/güz|bahar|fall|spring/i.test(raw)) {
+    return /güz|fall/i.test(raw) ? 'Güz' : 'Bahar';
+  }
+  return fallbackDonem;
+}
+
+function erasmusRowsFromMatches(matches, gradeMode, donem) {
   const rows = [];
   (matches || []).forEach((match) => {
     const hostL = match.hostCourses || [];
@@ -4612,10 +4640,12 @@ function erasmusRowsFromMatches(matches, gradeMode) {
         kDersKod: hc ? hc.code || '' : '',
         kDersAd: hc ? hc.name || '' : '',
         kDersAkts: hc ? String(hc.credits ?? '') : '',
+        kDersDonem: hc ? erasmusCourseDonem(hc, donem) : '',
         kDersNot: kNot,
         cDersKod: mc ? mc.code || '' : '',
         cDersAd: mc ? mc.name || '' : '',
         cDersAkts: mc ? String(mc.credits ?? '') : '',
+        cDersDonem: mc ? erasmusCourseDonem(mc, donem) : '',
         cDersNot: cNot,
         cDersStatu: statu,
         _kA: hc ? Number(hc.credits) || 0 : 0,
@@ -4626,19 +4656,24 @@ function erasmusRowsFromMatches(matches, gradeMode) {
   return rows;
 }
 
+// "Faculty of Engineering..." gibi değerlerin başındaki İngilizce etiket
+// önekini (şablonda zaten var) at ki çıktıda "Faculty of Faculty of..."
+// şeklinde tekrar etmesin.
+function erasmusStripLabel(value, label) {
+  let v = String(value || '').trim();
+  const rx = new RegExp('^(?:' + label + '\\s+)+', 'i');
+  return v.replace(rx, '').trim();
+}
+
 // Öğrenci + dönem bilgisinden şablon statik verisi üret
 function erasmusStaticData(student, rows) {
-  const semester = student.semester || 'Fall 2025';
-  const [season, year] = semester.split(' ');
-  const seasonTR = season === 'Fall' ? 'Güz' : 'Bahar';
-  const academicYear =
-    season === 'Fall' ? `${year}-${parseInt(year) + 1}` : `${parseInt(year) - 1}-${year}`;
+  const { seasonTR, academicYear } = erasmusSemesterInfo(student);
   return {
     ogrenciNo: student.studentNumber || '',
-    ogrenciAdSoyad: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+    ogrenciAdSoyad: erasmusAdSoyad(student),
     kaynakUniversite: student.hostInstitution || '',
-    kaynakFakulte: student.hostFaculty || '',
-    kaynakBolum: student.hostDepartment || '',
+    kaynakFakulte: erasmusStripLabel(student.hostFaculty, 'Faculty of'),
+    kaynakBolum: erasmusStripLabel(student.hostDepartment, 'Department of'),
     cakuBolum: student.departmentName || '',
     hostUlke: student.hostCountry || '',
     hostKurum: student.hostInstitution || '',
@@ -4657,14 +4692,19 @@ const generateOutgoingWordDoc = async (student) => {
   }
   // Önce Şablonlar modülüne atanmış "gidiş" şablonunu dene
   if (window.TemplateEngine && window.TemplateEngine.produceFromTemplate) {
-    const rows = erasmusRowsFromMatches(student.outgoingMatches, false);
+    const rows = erasmusRowsFromMatches(
+      student.outgoingMatches,
+      false,
+      erasmusSemesterInfo(student).seasonTR
+    );
     const res = await window.TemplateEngine.produceFromTemplate({
       module: 'erasmus',
       docType: 'gidis',
       departmentId: student.departmentId || '',
       staticData: erasmusStaticData(student, rows),
       rows,
-      filename: `${student.lastName}_${student.firstName}_Gidis_Degerlendirme.docx`,
+      stripRowBold: true,
+      filename: `${erasmusUpperSurname(student.lastName)}_${student.firstName}_Gidis_Degerlendirme.docx`,
     });
     if (res.ok) return;
     if (res.reason === 'no-mapping') {
@@ -4744,7 +4784,7 @@ const generateOutgoingWordDoc = async (student) => {
 <head><meta charset='utf-8'><title>Erasmus Gidiş Değerlendirmesi</title><style>@page { size: A4 landscape; margin: 2cm; }</style></head>
 <body style='font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5;'>
 <h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ GİDİŞ ÖNCESİ DERS EŞLEŞTİRME DEĞERLENDİRMESİ</h3>
-<p style='text-align: justify; margin: 20px 0;'>Bölümümüz <b>${student.studentNumber}</b> numaralı öğrencisi <b>${student.firstName} ${student.lastName}</b>'nın, <b>${academicYear} Eğitim-Öğretim Yılı ${seasonTR} Dönemi</b>'ni ERASMUS+ Öğrenim Hareketliliği programı kapsamında <b>${student.hostCountry}</b>'da bulunan "<b>${student.hostInstitution}</b>"${student.hostFaculty ? ' ' + student.hostFaculty : ''}${student.hostDepartment ? ' ' + student.hostDepartment : ''} Bölümünde alacağı derslerin karşılıklarının uygun olduğuna ve gereği için Fakültemiz ilgili kurullarında görüşülmek üzere Dekanlık Makamına sunulmasına,</p>
+<p style='text-align: justify; margin: 20px 0;'>Bölümümüz <b>${student.studentNumber}</b> numaralı öğrencisi <b>${student.firstName} ${erasmusUpperSurname(student.lastName)}</b>'nın, <b>${academicYear} Eğitim-Öğretim Yılı ${seasonTR} Dönemi</b>'ni ERASMUS+ Öğrenim Hareketliliği programı kapsamında <b>${student.hostCountry}</b>'da bulunan "<b>${student.hostInstitution}</b>"${student.hostFaculty ? ' ' + student.hostFaculty : ''}${student.hostDepartment ? ' ' + student.hostDepartment : ''} Bölümünde alacağı derslerin karşılıklarının uygun olduğuna ve gereği için Fakültemiz ilgili kurullarında görüşülmek üzere Dekanlık Makamına sunulmasına,</p>
 <table border='1' cellpadding='4' cellspacing='0' style='width: 100%; border-collapse: collapse; margin: 5px 0; font-size: 9pt;'>
 <thead><tr style='background-color: #e8e8e8; font-weight: bold; font-size: 8pt;'>
 <td colspan='4' style='border: 1px solid black; text-align: center;'><b>${hostHeader}</b></td>
@@ -4759,7 +4799,7 @@ ${rows.join('')}
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHostCredits}</td><td style='border: 1px solid black;'></td>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td><td style='border: 1px solid black;'></td><td style='border: 1px solid black;'></td>
 </tr></tbody></table>
-<p style='margin: 15px 0;'><strong>Öğrenci:</strong> ${student.firstName} ${student.lastName} (${student.studentNumber})</p>
+<p style='margin: 15px 0;'><strong>Öğrenci:</strong> ${student.firstName} ${erasmusUpperSurname(student.lastName)} (${student.studentNumber})</p>
 </body></html>`;
 
   try {
@@ -4776,14 +4816,19 @@ const generateReturnWordDoc = async (student) => {
   }
   // Önce Şablonlar modülüne atanmış "dönüş" şablonunu dene
   if (window.TemplateEngine && window.TemplateEngine.produceFromTemplate) {
-    const rows = erasmusRowsFromMatches(student.returnMatches, true);
+    const rows = erasmusRowsFromMatches(
+      student.returnMatches,
+      true,
+      erasmusSemesterInfo(student).seasonTR
+    );
     const res = await window.TemplateEngine.produceFromTemplate({
       module: 'erasmus',
       docType: 'donus',
       departmentId: student.departmentId || '',
       staticData: erasmusStaticData(student, rows),
       rows,
-      filename: `${student.lastName}_${student.firstName}_Donus_Muafiyet.docx`,
+      stripRowBold: true,
+      filename: `${erasmusUpperSurname(student.lastName)}_${student.firstName}_Donus_Muafiyet.docx`,
     });
     if (res.ok) return;
     if (res.reason === 'no-mapping') {
@@ -4872,7 +4917,7 @@ const generateReturnWordDoc = async (student) => {
 <head><meta charset='utf-8'><title>Erasmus Dönüş Muafiyeti</title><style>@page { size: A4 landscape; margin: 2cm; }</style></head>
 <body style='font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5;'>
 <h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ DÖNÜŞÜ MUAFİYET İSTEĞİ</h3>
-<p style='text-align: justify; margin: 20px 0;'>Bölümümüz <b>${student.studentNumber}</b> numaralı öğrencisi <b>${student.firstName} ${student.lastName}</b>'nın, <b>${academicYear} Akademik Yılı ${seasonTR} Dönemi</b>'nde ERASMUS+ programı kapsamında yurtdışında almış olduğu derslerin, Bilgisayar Mühendisliği Bölümü lisans programında hangi derslere karşılık geldiği, hangi derslere sayılacağının belirlenmesi talebi hakkında vermiş olduğu dilekçesi incelenmiş olup, aşağıda tabloda verildiği şekliyle uygun olduğuna ve gereği için Fakültemiz ilgili kurullarında görüşülmek üzere Dekanlık Makamına sunulmasına,</p>
+<p style='text-align: justify; margin: 20px 0;'>Bölümümüz <b>${student.studentNumber}</b> numaralı öğrencisi <b>${student.firstName} ${erasmusUpperSurname(student.lastName)}</b>'nın, <b>${academicYear} Akademik Yılı ${seasonTR} Dönemi</b>'nde ERASMUS+ programı kapsamında yurtdışında almış olduğu derslerin, Bilgisayar Mühendisliği Bölümü lisans programında hangi derslere karşılık geldiği, hangi derslere sayılacağının belirlenmesi talebi hakkında vermiş olduğu dilekçesi incelenmiş olup, aşağıda tabloda verildiği şekliyle uygun olduğuna ve gereği için Fakültemiz ilgili kurullarında görüşülmek üzere Dekanlık Makamına sunulmasına,</p>
 <table border='1' cellpadding='4' cellspacing='0' style='width: 100%; border-collapse: collapse; margin: 5px 0; font-size: 9pt;'>
 <thead><tr style='background-color: #e8e8e8; font-weight: bold; font-size: 8pt;'>
 <td colspan='4' style='border: 1px solid black; text-align: center;'><b>${hostHeader}</b></td>
@@ -4887,7 +4932,7 @@ ${rows.join('')}
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHostCredits}</td><td style='border: 1px solid black;'></td>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td><td style='border: 1px solid black;'></td><td style='border: 1px solid black;'></td>
 </tr></tbody></table>
-<p style='margin: 15px 0;'><strong>Öğrenci:</strong> ${student.firstName} ${student.lastName} (${student.studentNumber})</p>
+<p style='margin: 15px 0;'><strong>Öğrenci:</strong> ${student.firstName} ${erasmusUpperSurname(student.lastName)} (${student.studentNumber})</p>
 </body></html>`;
 
   try {

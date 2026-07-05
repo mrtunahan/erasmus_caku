@@ -1451,10 +1451,12 @@ const DERS_ESLESME_ROWS = [
   { id: 'kDersKod', label: 'Karşı/Yurtdışı Ders Kodu' },
   { id: 'kDersAd', label: 'Karşı/Yurtdışı Ders Adı' },
   { id: 'kDersAkts', label: 'Karşı Ders AKTS' },
+  { id: 'kDersDonem', label: 'Karşı Ders Dönemi (Güz/Bahar)' },
   { id: 'kDersNot', label: 'Karşı Başarı Notu' },
   { id: 'cDersKod', label: 'ÇAKÜ Ders Kodu' },
   { id: 'cDersAd', label: 'ÇAKÜ Ders Adı' },
   { id: 'cDersAkts', label: 'ÇAKÜ Ders AKTS' },
+  { id: 'cDersDonem', label: 'ÇAKÜ Ders Dönemi (Güz/Bahar)' },
   { id: 'cDersNot', label: 'ÇAKÜ Başarı Notu' },
   { id: 'cDersStatu', label: 'ÇAKÜ Ders Statüsü (Z/S)' },
 ];
@@ -1730,6 +1732,17 @@ const TemplateEngine = (() => {
     return out;
   }
 
+  // Veri (alt) satırlarından KALIN (bold) biçimini kaldır — yalnızca çoğaltılan
+  // satırlara uygulanır; başlık satırı ve statik metin dokunulmadan kalır.
+  // Word'ün kalın işareti <w:b/> ya da <w:b w:val="true"/>; w:val="false/0"
+  // zaten kalın-değil demek, ona dokunmuyoruz.
+  function stripBoldRuns(xml) {
+    return xml
+      .replace(/<w:b(?:Cs)?(?:\s+w:val="(?:false|0)")\s*\/>/g, '') // zaten kapalı: sadeleştir
+      .replace(/<w:b(?:Cs)?(?:\s+w:val="(?:true|1)")?\s*\/>/g, '') // <w:b/> / <w:b w:val="true"/>
+      .replace(/<w:b(?:Cs)?(?:\s[^>]*)?>\s*<\/w:b(?:Cs)?>/g, ''); // paired <w:b></w:b>
+  }
+
   function resolveValue(field, staticData) {
     if (field.variable === 'const') return field.value || '';
     if (field.variable && field.variable.startsWith('static:')) {
@@ -1743,7 +1756,8 @@ const TemplateEngine = (() => {
   //   fields: eşleme kayıtları (detect sırası korunmuş)
   //   staticData: { degiskenId: değer }
   //   rows: [{ degiskenId: değer }, …] — satır değişkenleri için tablo satırı
-  async function generateDocx(arrayBuffer, fields, staticData, rows) {
+  async function generateDocx(arrayBuffer, fields, staticData, rows, opts) {
+    const stripRowBold = !!(opts && opts.stripRowBold);
     const { zip, xml } = await readDocumentXml(arrayBuffer);
     const located = locateFields(xml, fields);
 
@@ -1892,7 +1906,10 @@ const TemplateEngine = (() => {
     if (markerRegion) {
       // İŞARETÇİ modu: temiz başlık + sütun hizalı veri satırları
       const renderedRows = (rows || [])
-        .map((rowData) => fillDataRow(markerRegion.dataTpl, markerRegion.cellVars, rowData))
+        .map((rowData) => {
+          const r = fillDataRow(markerRegion.dataTpl, markerRegion.cellVars, rowData);
+          return stripRowBold ? stripBoldRuns(r) : r;
+        })
         .join('');
       const head = applyReplacements(
         xml.slice(0, markerRegion.start),
@@ -1920,7 +1937,8 @@ const TemplateEngine = (() => {
             _value:
               rowData[f.variable.slice(4)] != null ? String(rowData[f.variable.slice(4)]) : '',
           }));
-          return applyReplacements(rowRegion.tpl, rowRepls);
+          const r = applyReplacements(rowRegion.tpl, rowRepls);
+          return stripRowBold ? stripBoldRuns(r) : r;
         })
         .join('');
       const head = applyReplacements(
@@ -2074,7 +2092,9 @@ const TemplateEngine = (() => {
     }
     let blob;
     try {
-      blob = await generateDocx(buf, tpl.fields, opts.staticData || {}, opts.rows || []);
+      blob = await generateDocx(buf, tpl.fields, opts.staticData || {}, opts.rows || [], {
+        stripRowBold: !!opts.stripRowBold,
+      });
     } catch (e) {
       // Motor bozuk XML üretti (şablonun karmaşık yapısı) — sessiz bozuk
       // dosya indirmek yerine çağırana bildir; o yerleşik biçime düşebilir.
