@@ -381,21 +381,154 @@ async function updateTemplateHandler(req, res) {
     // Alan eşlemesi (yer tutucu → değişken) — Şablonlar modülü eşleme arayüzü
     const fields = sanitizeFields(req.body.fields);
     if (fields) update.fields = fields;
+
+    // ── Modül / belge türü değişimi ──
+    // Modül veya belge türü değişince değişken sözlüğü de değişir, eski
+    // alan eşlemesi geçersiz kalır — bu yüzden fields sıfırlanır.
+    let clearedMapping = false;
+    if (typeof req.body.module === 'string' && req.body.module !== tpl.module) {
+      if (!ALLOWED_MODULES.has(req.body.module)) {
+        return res.status(400).json({ error: 'Geçersiz modül.' });
+      }
+      update.module = req.body.module;
+      update.fields = [];
+      clearedMapping = true;
+    }
+    if (typeof req.body.docType === 'string') {
+      const dt =
+        req.body.docType
+          .trim()
+          .slice(0, 40)
+          .replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
+      if (dt !== (tpl.docType || 'default')) {
+        update.docType = dt;
+        update.fields = [];
+        clearedMapping = true;
+      }
+    }
+
+    // ── Kapsam değişimi ── (yalnızca yetki dahilinde)
+    if (typeof req.body.scope === 'string' && req.body.scope !== tpl.scope) {
+      const newScope = req.body.scope;
+      if (!['department', 'faculty', 'university'].includes(newScope)) {
+        return res.status(400).json({ error: 'Geçersiz kapsam.' });
+      }
+      const candidate = { scope: newScope, departmentId: '', facultyId: '' };
+      if (newScope === 'department') {
+        candidate.departmentId = asPlainString(req.body.departmentId) || tpl.departmentId || '';
+        if (!candidate.departmentId) return res.status(400).json({ error: 'Bölüm seçilmedi.' });
+      } else if (newScope === 'faculty') {
+        candidate.facultyId = asPlainString(req.body.facultyId) || scope.facultyId || '';
+        if (!candidate.facultyId) return res.status(400).json({ error: 'Fakülte seçilmedi.' });
+      } else if (newScope === 'university' && !scope.isUniversityAdmin) {
+        return res.status(403).json({ error: 'Üniversite geneli kapsam için yetkiniz yok.' });
+      }
+      // Yeni kapsam da bu kullanıcının yönetebileceği bir yer olmalı
+      if (!canManageTemplate(scope, candidate, dmap)) {
+        return res.status(403).json({ error: 'Seçtiğiniz kapsama şablon taşıma yetkiniz yok.' });
+      }
+      update.scope = candidate.scope;
+      update.departmentId = candidate.departmentId;
+      update.facultyId = candidate.facultyId;
+    } else if (tpl.scope === 'department' && typeof req.body.departmentId === 'string') {
+      // Aynı kapsam ama bölüm değiştirme
+      const newDept = asPlainString(req.body.departmentId);
+      if (newDept && newDept !== tpl.departmentId) {
+        if (!canManageTemplate(scope, { scope: 'department', departmentId: newDept }, dmap)) {
+          return res.status(403).json({ error: 'Bu bölüme şablon taşıma yetkiniz yok.' });
+        }
+        update.departmentId = newDept;
+      }
+    }
+
     update.updatedAt = new Date();
 
     if (update.isDefault === true) {
-      await clearOtherDefaults(db, tpl, tpl._id);
+      await clearOtherDefaults(db, { ...tpl, ...update }, tpl._id);
     }
 
     await db.collection('document_templates').updateOne({ _id: tpl._id }, { $set: update });
     const updated = await db.collection('document_templates').findOne({ _id: tpl._id });
-    res.json(publicTemplate(updated));
+    res.json({ ...publicTemplate(updated), clearedMapping });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 }
 router.patch('/:id', writeLimiter, softAuthMiddleware, updateTemplateHandler);
 router.post('/:id/update', writeLimiter, softAuthMiddleware, updateTemplateHandler);
+
+// ── Dosya değiştir (yeni .docx yükle, aynı kaydı güncelle) ──
+// Yer tutucular değişeceği için eski alan eşlemesi (fields) sıfırlanır.
+router.post(
+  '/:id/replace-file',
+  writeLimiter,
+  softAuthMiddleware,
+  upload.single('file'),
+  async (req, res) => {
+    if (!req.user) {
+      cleanupFile(req.file);
+      return res.status(401).json({ error: 'Bu işlem için giriş gerekli.' });
+    }
+    try {
+      const id = req.params.id;
+      if (!ObjectId.isValid(id)) {
+        cleanupFile(req.file);
+        return res.status(400).json({ error: 'Geçersiz id.' });
+      }
+      if (!req.file) return res.status(400).json({ error: 'Dosya gerekli.' });
+
+      const db = await getDbSafe();
+      const tpl = await db.collection('document_templates').findOne({ _id: new ObjectId(id) });
+      if (!tpl) {
+        cleanupFile(req.file);
+        return res.status(404).json({ error: 'Şablon bulunamadı.' });
+      }
+      const scope = await resolveActorScope(req);
+      const dmap = await getDeptToFacultyMap(db);
+      if (!canManageTemplate(scope, tpl, dmap)) {
+        cleanupFile(req.file);
+        return res.status(403).json({ error: 'Bu şablonu düzenleme yetkiniz yok.' });
+      }
+
+      // Eski dosyayı sil
+      if (tpl.file && tpl.file.storedName) {
+        const oldP = path.join(TEMPLATES_DIR, tpl.file.storedName);
+        if (oldP.startsWith(TEMPLATES_DIR + path.sep)) fs.unlink(oldP, () => {});
+      }
+
+      let safeOriginal = req.file.originalname;
+      try {
+        const reencoded = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        if (/[Ã-]/.test(req.file.originalname)) safeOriginal = reencoded;
+      } catch (_) {
+        /* orijinali koru */
+      }
+      const ext = path.extname(req.file.filename).toLocaleLowerCase('tr').slice(1);
+
+      await db.collection('document_templates').updateOne(
+        { _id: tpl._id },
+        {
+          $set: {
+            file: {
+              originalName: safeOriginal,
+              storedName: req.file.filename,
+              mimeType: req.file.mimetype,
+              size: req.file.size,
+              extension: ext,
+            },
+            fields: [], // yer tutucular değişti — eşleme sıfırlanır
+            updatedAt: new Date(),
+          },
+        }
+      );
+      const updated = await db.collection('document_templates').findOne({ _id: tpl._id });
+      res.json(publicTemplate(updated));
+    } catch (err) {
+      cleanupFile(req.file);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 // ── Sil (DELETE /:id ve nginx-uyumlu POST /:id/delete) ──
 async function deleteTemplateHandler(req, res) {
