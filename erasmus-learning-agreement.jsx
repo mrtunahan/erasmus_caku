@@ -4619,12 +4619,27 @@ function erasmusCourseDonem(course, fallbackDonem) {
   return fallbackDonem;
 }
 
+// Bir eşleşme tek-tarafı çok-tarafla eşliyorsa (2'ye 1 / 1'e 2), tek olan
+// tarafın hücreleri karşı derslerin satırları boyunca dikey birleştirilir.
+const ERASMUS_HOST_COLS = ['kDersKod', 'kDersAd', 'kDersAkts', 'kDersDonem', 'kDersNot'];
+const ERASMUS_HOME_COLS = [
+  'cDersKod',
+  'cDersAd',
+  'cDersAkts',
+  'cDersDonem',
+  'cDersNot',
+  'cDersStatu',
+];
+
 function erasmusRowsFromMatches(matches, gradeMode, donem) {
   const rows = [];
   (matches || []).forEach((match) => {
     const hostL = match.hostCourses || [];
     const homeL = match.homeCourses || [];
     const maxLen = Math.max(hostL.length, homeL.length, 1);
+    // Hangi taraf birleşecek? (tek karşı çok)
+    const hostMerges = hostL.length === 1 && homeL.length > 1;
+    const homeMerges = homeL.length === 1 && hostL.length > 1;
     for (let i = 0; i < maxLen; i++) {
       const hc = hostL[i];
       const mc = homeL[i];
@@ -4635,6 +4650,16 @@ function erasmusRowsFromMatches(matches, gradeMode, donem) {
         const hg = match.hostGrades?.[i] || match.hostGrade || '';
         kNot = hg;
         cNot = hg && window.convertGrade ? window.convertGrade(hg) : '';
+      }
+      // Birleşen tarafın hücreleri için: ilk satır 'restart', altları 'continue'
+      let _merge = null;
+      if (hostMerges || homeMerges) {
+        _merge = {};
+        const cols = hostMerges ? ERASMUS_HOST_COLS : ERASMUS_HOME_COLS;
+        const st = i === 0 ? 'restart' : 'continue';
+        cols.forEach((c) => {
+          _merge[c] = st;
+        });
       }
       rows.push({
         kDersKod: hc ? hc.code || '' : '',
@@ -4648,6 +4673,7 @@ function erasmusRowsFromMatches(matches, gradeMode, donem) {
         cDersDonem: mc ? erasmusCourseDonem(mc, donem) : '',
         cDersNot: cNot,
         cDersStatu: statu,
+        _merge,
         _kA: hc ? Number(hc.credits) || 0 : 0,
         _cA: mc ? Number(mc.credits) || 0 : 0,
       });

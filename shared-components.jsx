@@ -1743,6 +1743,42 @@ const TemplateEngine = (() => {
       .replace(/<w:b(?:Cs)?(?:\s[^>]*)?>\s*<\/w:b(?:Cs)?>/g, ''); // paired <w:b></w:b>
   }
 
+  // Bir satır XML'indeki <w:tc>…</w:tc> hücrelerini (sıralı) döndürür.
+  function tcCells(rowXml) {
+    const cells = [];
+    const rx = /<w:tc\b[\s\S]*?<\/w:tc>/g;
+    let m;
+    while ((m = rx.exec(rowXml)) !== null) {
+      cells.push({ start: m.index, end: m.index + m[0].length, xml: m[0] });
+    }
+    return cells;
+  }
+
+  // Bir hücreye dikey birleştirme (vMerge) ekle.
+  //   mode='restart' → grubun ilk satırı (değer burada durur)
+  //   mode='continue' → alttaki satırlar (içerik boş, üstteki hücreyle birleşir)
+  // vMerge, OOXML şema sırasına uygun olsun diye tcW/gridSpan'dan SONRA,
+  // tcBorders/shd'den ÖNCE eklenir; mevcut vMerge varsa temizlenir.
+  function injectVMerge(cellXml, mode) {
+    const tag = mode === 'restart' ? '<w:vMerge w:val="restart"/>' : '<w:vMerge/>';
+    if (/<w:tcPr\s*\/>/.test(cellXml)) {
+      return cellXml.replace(/<w:tcPr\s*\/>/, '<w:tcPr>' + tag + '</w:tcPr>');
+    }
+    const pm = cellXml.match(/<w:tcPr>([\s\S]*?)<\/w:tcPr>/);
+    if (pm) {
+      let inner = pm[1].replace(/<w:vMerge(?:\s[^>]*)?\/>/g, '');
+      let insertPos = 0;
+      const tcw = inner.match(/<w:tcW[^>]*\/>/);
+      if (tcw) insertPos = Math.max(insertPos, tcw.index + tcw[0].length);
+      const gs = inner.match(/<w:gridSpan[^>]*\/>/);
+      if (gs) insertPos = Math.max(insertPos, gs.index + gs[0].length);
+      inner = inner.slice(0, insertPos) + tag + inner.slice(insertPos);
+      return cellXml.replace(/<w:tcPr>[\s\S]*?<\/w:tcPr>/, '<w:tcPr>' + inner + '</w:tcPr>');
+    }
+    // tcPr yok — hücre açılışından hemen sonra ekle
+    return cellXml.replace(/(<w:tc(?:\s[^>]*)?>)/, '$1<w:tcPr>' + tag + '</w:tcPr>');
+  }
+
   function resolveValue(field, staticData) {
     if (field.variable === 'const') return field.value || '';
     if (field.variable && field.variable.startsWith('static:')) {
@@ -1929,16 +1965,44 @@ const TemplateEngine = (() => {
       );
       out = head + markerRegion.cleanedHeader + between + renderedRows + tail;
     } else if (rowRegion) {
-      // Satır bölgesini veri satırlarıyla çoğalt
+      // Şablon satırındaki her hücrenin hangi satır-değişkenini taşıdığını
+      // (sütun→değişken haritası) bir kez çıkar — vMerge (hücre birleştirme)
+      // için gerekli. rowData._merge[varId] = 'restart' | 'continue' ise o
+      // sütunun hücresine dikey birleştirme uygulanır.
+      const tplCells = tcCells(rowRegion.tpl);
+      const cellVarOf = tplCells.map((c) => {
+        const f = rowRegion.rowFieldRel.find(
+          (rf) => rf._pos.start >= c.start && rf._pos.end <= c.end
+        );
+        return f ? f.variable.slice(4) : null;
+      });
       const renderedRows = (rows || [])
         .map((rowData) => {
-          const rowRepls = rowRegion.rowFieldRel.map((f) => ({
-            ...f,
-            _value:
-              rowData[f.variable.slice(4)] != null ? String(rowData[f.variable.slice(4)]) : '',
-          }));
-          const r = applyReplacements(rowRegion.tpl, rowRepls);
-          return stripRowBold ? stripBoldRuns(r) : r;
+          const merge = rowData._merge || null;
+          const rowRepls = rowRegion.rowFieldRel.map((f) => {
+            const varId = f.variable.slice(4);
+            const st = merge && merge[varId];
+            // 'continue' hücreleri boşaltılır (üstteki hücreyle birleşecek)
+            const val =
+              st === 'continue' ? '' : rowData[varId] != null ? String(rowData[varId]) : '';
+            return { ...f, _value: val };
+          });
+          let r = applyReplacements(rowRegion.tpl, rowRepls);
+          if (stripRowBold) r = stripBoldRuns(r);
+          // vMerge enjeksiyonu — hücre indeksleri şablonla aynı kaldığından
+          // (replacement yalnızca token metnini değiştirir) sondan başa uygula
+          if (merge) {
+            const cells = tcCells(r);
+            for (let ci = cells.length - 1; ci >= 0; ci--) {
+              const varId = cellVarOf[ci];
+              const st = varId && merge[varId];
+              if (st) {
+                const nc = injectVMerge(cells[ci].xml, st);
+                r = r.slice(0, cells[ci].start) + nc + r.slice(cells[ci].end);
+              }
+            }
+          }
+          return r;
         })
         .join('');
       const head = applyReplacements(
