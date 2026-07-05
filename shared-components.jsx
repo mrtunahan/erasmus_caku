@@ -1439,41 +1439,107 @@ window.apiReadDoc = apiReadDoc;
 //   variable: 'static:<id>' | 'row:<id>' | 'const' | '' (atla)
 // ══════════════════════════════════════════════════════════════
 
-// Modül başına eşlenebilir değişken sözlüğü — Şablonlar modülündeki eşleme
-// arayüzü bu etiketleri gösterir; hedef modül aynı id'lerle veri sağlar.
+// Modül/belge-türü başına eşlenebilir değişken sözlüğü — Şablonlar modülündeki
+// eşleme arayüzü bu etiketleri gösterir; hedef modül aynı id'lerle veri sağlar.
+//
+// Değişken sözlüğü çözümü: TEMPLATE_VARS[module][docType] → yoksa
+// TEMPLATE_VARS[module].default → yoksa _generic.
+// docTypes: her modülün belge türleri (aynı modüle birden çok belge).
+
+// Kaynak↔ÇAKÜ ders tablosu ortak satır değişkenleri (muafiyet/erasmus)
+const DERS_ESLESME_ROWS = [
+  { id: 'kDersKod', label: 'Karşı/Yurtdışı Ders Kodu' },
+  { id: 'kDersAd', label: 'Karşı/Yurtdışı Ders Adı' },
+  { id: 'kDersAkts', label: 'Karşı Ders AKTS' },
+  { id: 'kDersNot', label: 'Karşı Başarı Notu' },
+  { id: 'cDersKod', label: 'ÇAKÜ Ders Kodu' },
+  { id: 'cDersAd', label: 'ÇAKÜ Ders Adı' },
+  { id: 'cDersAkts', label: 'ÇAKÜ Ders AKTS' },
+  { id: 'cDersNot', label: 'ÇAKÜ Başarı Notu' },
+  { id: 'cDersStatu', label: 'ÇAKÜ Ders Statüsü (Z/S)' },
+];
+const OGR_KURUM_STATIC = [
+  { id: 'ogrenciNo', label: 'Öğrenci Numarası' },
+  { id: 'ogrenciAdSoyad', label: 'Öğrenci Adı Soyadı' },
+  { id: 'kaynakUniversite', label: 'Karşı/Yurtdışı Üniversite' },
+  { id: 'kaynakFakulte', label: 'Karşı Fakülte' },
+  { id: 'kaynakBolum', label: 'Karşı Bölüm' },
+  { id: 'cakuBolum', label: 'ÇAKÜ Bölüm Adı' },
+  { id: 'kaynakToplamAkts', label: 'Karşı Toplam AKTS' },
+  { id: 'cakuToplamAkts', label: 'ÇAKÜ Toplam AKTS' },
+  { id: 'akademikYil', label: 'Akademik Yıl (örn 2025-2026)' },
+  { id: 'donem', label: 'Dönem (Güz/Bahar)' },
+  { id: 'tarih', label: 'Bugünün Tarihi' },
+];
+
 window.TEMPLATE_VARS = {
   muafiyet: {
-    static: [
-      { id: 'ogrenciNo', label: 'Öğrenci Numarası' },
-      { id: 'ogrenciAdSoyad', label: 'Öğrenci Adı Soyadı' },
-      { id: 'kaynakUniversite', label: 'Karşı Üniversite' },
-      { id: 'kaynakFakulte', label: 'Karşı Fakülte' },
-      { id: 'kaynakBolum', label: 'Karşı Bölüm' },
-      { id: 'cakuBolum', label: 'ÇAKÜ Bölüm Adı' },
-      { id: 'kaynakToplamAkts', label: 'Karşı Toplam AKTS' },
-      { id: 'cakuToplamAkts', label: 'ÇAKÜ Toplam AKTS' },
-      { id: 'tarih', label: 'Bugünün Tarihi' },
+    docTypes: [{ id: 'default', label: 'Muafiyet Kararı' }],
+    default: { static: OGR_KURUM_STATIC, row: DERS_ESLESME_ROWS },
+  },
+  erasmus: {
+    docTypes: [
+      { id: 'gidis', label: 'Gidiş Öncesi Değerlendirme' },
+      { id: 'donus', label: 'Dönüş Muafiyet İsteği' },
     ],
-    row: [
-      { id: 'kDersKod', label: 'Karşı Ders Kodu' },
-      { id: 'kDersAd', label: 'Karşı Ders Adı' },
-      { id: 'kDersAkts', label: 'Karşı Ders AKTS' },
-      { id: 'kDersNot', label: 'Karşı Başarı Notu' },
-      { id: 'cDersKod', label: 'ÇAKÜ Ders Kodu' },
-      { id: 'cDersAd', label: 'ÇAKÜ Ders Adı' },
-      { id: 'cDersAkts', label: 'ÇAKÜ Ders AKTS' },
-      { id: 'cDersNot', label: 'ÇAKÜ Başarı Notu' },
-      { id: 'cDersStatu', label: 'ÇAKÜ Ders Statüsü (Z/S)' },
-    ],
+    gidis: {
+      static: [
+        ...OGR_KURUM_STATIC,
+        { id: 'hostUlke', label: 'Gidilen Ülke' },
+        { id: 'hostKurum', label: 'Gidilen Kurum' },
+      ],
+      row: DERS_ESLESME_ROWS,
+    },
+    donus: {
+      static: [
+        ...OGR_KURUM_STATIC,
+        { id: 'hostUlke', label: 'Gidilen Ülke' },
+        { id: 'hostKurum', label: 'Gidilen Kurum' },
+      ],
+      row: DERS_ESLESME_ROWS,
+    },
+  },
+  sinav: {
+    docTypes: [{ id: 'default', label: 'Sınav Programı' }],
+    default: {
+      static: [
+        { id: 'bolumAd', label: 'Bölüm Adı' },
+        { id: 'donemAd', label: 'Dönem/Sınav Adı' },
+        { id: 'tarih', label: 'Bugünün Tarihi' },
+      ],
+      row: [
+        { id: 'dersAd', label: 'Dersin Adı' },
+        { id: 'dersKod', label: 'Dersin Kodu' },
+        { id: 'baslangic', label: 'Başlangıç Tarih-Saat' },
+        { id: 'bitis', label: 'Bitiş Tarih-Saat' },
+        { id: 'sure', label: 'Sınav Süresi' },
+        { id: 'salon', label: 'Salon/Sınıf' },
+        { id: 'gozetmen', label: 'Gözetmen(ler)' },
+      ],
+    },
   },
   _generic: {
-    static: [
-      { id: 'tarih', label: 'Bugünün Tarihi' },
-      { id: 'bolumAd', label: 'Bölüm Adı' },
-      { id: 'hazirlayan', label: 'Hazırlayan (yetkili adı)' },
-    ],
-    row: [],
+    docTypes: [{ id: 'default', label: 'Belge' }],
+    default: {
+      static: [
+        { id: 'tarih', label: 'Bugünün Tarihi' },
+        { id: 'bolumAd', label: 'Bölüm Adı' },
+        { id: 'hazirlayan', label: 'Hazırlayan (yetkili adı)' },
+      ],
+      row: [],
+    },
   },
+};
+
+// Bir modül+belge-türü için değişken setini çöz
+window.templateVarsFor = function (module, docType) {
+  const mod = window.TEMPLATE_VARS[module] || window.TEMPLATE_VARS._generic;
+  return mod[docType || 'default'] || mod.default || window.TEMPLATE_VARS._generic.default;
+};
+// Bir modülün belge türleri
+window.templateDocTypes = function (module) {
+  const mod = window.TEMPLATE_VARS[module] || window.TEMPLATE_VARS._generic;
+  return mod.docTypes || [{ id: 'default', label: 'Belge' }];
 };
 
 const TemplateEngine = (() => {
@@ -1510,7 +1576,7 @@ const TemplateEngine = (() => {
   // "12.04.2026", "2024-2025" gibi gerçek sayılar nokta/rakam bitişikliği
   // nedeniyle dışlanır; yanlış tespit edilenler "Atla" ile dokunulmadan kalır.
   const TOKEN_RX =
-    /\{[A-Za-z0-9_çğıöşüÇĞİÖŞÜ]+\}|[xX]{4,}|[yY]{4,}|(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9])X(?![A-Za-zÇĞİÖŞÜçğıöşü0-9])|(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9.,])\d{1,2}(?![A-Za-zÇĞİÖŞÜçğıöşü0-9.,])/g;
+    /\{[A-Za-z0-9_çğıöşüÇĞİÖŞÜ]+\}|[xX]{4,}|[yY]{4,}|(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9])X(?![A-Za-zÇĞİÖŞÜçğıöşü0-9])|(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9.])\d{1,2}(?![A-Za-zÇĞİÖŞÜçğıöşü0-9.])/g;
 
   async function readDocumentXml(arrayBuffer) {
     const JSZip = await ensureJSZip();
@@ -1560,7 +1626,7 @@ const TemplateEngine = (() => {
       pattern = '(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9])' + pattern + '(?![A-Za-zÇĞİÖŞÜçğıöşü0-9])';
     } else if (/^\d+$/.test(token)) {
       // Sayı token'ı: "7", "17" içinde ya da "12."/"12.04" bitişiğinde eşleşmesin
-      pattern = '(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9.,])' + pattern + '(?![A-Za-zÇĞİÖŞÜçğıöşü0-9.,])';
+      pattern = '(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9.])' + pattern + '(?![A-Za-zÇĞİÖŞÜçğıöşü0-9.])';
     }
     return new RegExp(pattern, 'g');
   }
@@ -1853,7 +1919,52 @@ const TemplateEngine = (() => {
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
 
-  return { detectPlaceholders, generateDocx, downloadBlob };
+  // Uçtan uca yardımcı: modül+belge-türü için atanmış şablonu çözer, verilerle
+  // doldurur ve indirir. Şablon yoksa/eşleme yoksa { ok:false, reason } döner
+  // — çağıran modül isterse gömülü çıktıya (fallback) düşer.
+  //   opts: { module, docType, departmentId, staticData, rows, filename }
+  async function produceFromTemplate(opts) {
+    const token = localStorage.getItem('caku_auth_token');
+    const headers = token ? { Authorization: 'Bearer ' + token } : {};
+    const url =
+      '/api/templates/resolve?module=' +
+      encodeURIComponent(opts.module) +
+      '&docType=' +
+      encodeURIComponent(opts.docType || 'default') +
+      '&departmentId=' +
+      encodeURIComponent(opts.departmentId || '');
+    let tpl;
+    try {
+      const r = await fetch(url, { headers, credentials: 'include' });
+      const d = await r.json().catch(() => ({}));
+      tpl = d.template;
+    } catch (e) {
+      return { ok: false, reason: 'network', message: e.message };
+    }
+    if (!tpl) return { ok: false, reason: 'no-template' };
+    if (!tpl.file || tpl.file.extension !== 'docx') {
+      return { ok: false, reason: 'not-docx' };
+    }
+    if (!(tpl.fields || []).some((f) => f.variable)) {
+      return { ok: false, reason: 'no-mapping' };
+    }
+    let buf;
+    try {
+      const fr = await fetch('/api/templates/' + tpl._id + '/download', {
+        headers,
+        credentials: 'include',
+      });
+      if (!fr.ok) throw new Error('indirilemedi');
+      buf = await fr.arrayBuffer();
+    } catch (e) {
+      return { ok: false, reason: 'download', message: e.message };
+    }
+    const blob = await generateDocx(buf, tpl.fields, opts.staticData || {}, opts.rows || []);
+    downloadBlob(blob, opts.filename || 'belge.docx');
+    return { ok: true };
+  }
+
+  return { detectPlaceholders, generateDocx, downloadBlob, produceFromTemplate };
 })();
 window.TemplateEngine = TemplateEngine;
 

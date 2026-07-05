@@ -35,13 +35,16 @@ const writeLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: tru
 const TEMPLATES_DIR = path.join(__dirname, '..', 'uploads', 'templates');
 if (!fs.existsSync(TEMPLATES_DIR)) fs.mkdirSync(TEMPLATES_DIR, { recursive: true });
 
-// Modül id'leri (frontend ile aynı olmalı)
+// Modül id'leri (frontend SB_MODULES ile aynı olmalı) — tüm bölüm modülleri
 const ALLOWED_MODULES = new Set([
   'erasmus',
   'muafiyet',
+  'staj',
   'sinav',
   'dersprogrami',
   'projeler',
+  'formlar',
+  'performans',
   'anket',
 ]);
 
@@ -181,6 +184,7 @@ function publicTemplate(tpl) {
     name: tpl.name,
     description: tpl.description || '',
     module: tpl.module,
+    docType: tpl.docType || 'default',
     scope: tpl.scope,
     departmentId: tpl.departmentId || '',
     facultyId: tpl.facultyId || '',
@@ -295,6 +299,13 @@ router.post('/', writeLimiter, softAuthMiddleware, upload.single('file'), async 
     const isDefault = req.body.isDefault === 'true' || req.body.isDefault === true;
     const isActive = !(req.body.isActive === 'false' || req.body.isActive === false);
 
+    // Belge türü — aynı modüle birden çok belge (Erasmus gidiş/dönüş gibi).
+    // Serbest kısa slug; boşsa 'default'.
+    const docType = (asPlainString(req.body.docType) || 'default')
+      .trim()
+      .slice(0, 40)
+      .replace(/[^a-zA-Z0-9_-]/g, '');
+
     const ext = path.extname(req.file.filename).toLocaleLowerCase('tr').slice(1);
     // Multer originalname'i latin1 olarak çözer — Türkçe karakterler bozulur
     // (İ→Ä°, Ş→Å ...). UTF-8'e geri çevir. Zaten geçerli UTF-8 ise değişmez.
@@ -310,6 +321,7 @@ router.post('/', writeLimiter, softAuthMiddleware, upload.single('file'), async 
       name: name.trim(),
       description,
       module: module_,
+      docType: docType || 'default',
       scope: templateScope,
       departmentId,
       facultyId,
@@ -458,6 +470,7 @@ router.get('/resolve', readLimiter, async (req, res) => {
   try {
     const module_ = asPlainString(req.query.module);
     const departmentId = asPlainString(req.query.departmentId);
+    const docType = (asPlainString(req.query.docType) || 'default').replace(/[^a-zA-Z0-9_-]/g, '');
     if (!module_ || !ALLOWED_MODULES.has(module_)) {
       return res.status(400).json({ error: 'Geçersiz modül.' });
     }
@@ -465,10 +478,16 @@ router.get('/resolve', readLimiter, async (req, res) => {
     const dmap = await getDeptToFacultyMap(db);
     const facultyId = departmentId ? dmap[departmentId] || '' : '';
 
+    // docType eşleşmesi: kayıtta docType yoksa (eski) 'default' say
+    const base = {
+      module: module_,
+      isActive: { $ne: false },
+      $or: [{ docType }, ...(docType === 'default' ? [{ docType: { $exists: false } }] : [])],
+    };
     const find = (q) =>
       db
         .collection('document_templates')
-        .find({ ...q, module: module_, isActive: { $ne: false } })
+        .find({ ...base, ...q })
         .sort({ isDefault: -1, updatedAt: -1 })
         .limit(1)
         .toArray();
@@ -486,8 +505,11 @@ router.get('/resolve', readLimiter, async (req, res) => {
 
 // ── Helpers ──
 async function clearOtherDefaults(db, tpl, exceptId) {
+  // Varsayılan yalnızca aynı (module, docType, scope) kümesinde tekildir —
+  // böylece Erasmus gidiş ve dönüş belgeleri ayrı ayrı varsayılan olabilir.
   const filter = {
     module: tpl.module,
+    docType: tpl.docType || 'default',
     scope: tpl.scope,
     isDefault: true,
   };

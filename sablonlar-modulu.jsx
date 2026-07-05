@@ -15,11 +15,24 @@ const SB_Btn = window.Btn;
 const SB_MODULES = [
   { id: 'erasmus', label: 'Erasmus', color: '#3B82F6' },
   { id: 'muafiyet', label: 'Ders Muafiyet', color: '#10B981' },
+  { id: 'staj', label: 'Staj', color: '#0EA5E9' },
   { id: 'sinav', label: 'Sınav Otomasyonu', color: '#DC2626' },
   { id: 'dersprogrami', label: 'Ders Programı', color: '#F59E0B' },
   { id: 'projeler', label: 'Proje Performans', color: '#8B5CF6' },
+  { id: 'formlar', label: 'Formlar', color: '#64748B' },
+  { id: 'performans', label: 'Performans', color: '#0D9488' },
   { id: 'anket', label: 'Anketler', color: '#06B6D4' },
 ];
+// Bir modülün belge türleri (shared TEMPLATE_VARS'tan)
+function docTypesOf(moduleId) {
+  return typeof window !== 'undefined' && window.templateDocTypes
+    ? window.templateDocTypes(moduleId)
+    : [{ id: 'default', label: 'Belge' }];
+}
+function docTypeLabel(moduleId, docType) {
+  const dt = docTypesOf(moduleId).find((d) => d.id === (docType || 'default'));
+  return dt ? dt.label : docType || 'Belge';
+}
 const SB_SCOPE_LABEL = {
   university: 'Üniversite Geneli',
   faculty: 'Fakülte Geneli',
@@ -299,6 +312,20 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
                   >
                     {m.label}
                   </span>
+                  {docTypesOf(t.module).length > 1 && (
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        padding: '2px 9px',
+                        borderRadius: 999,
+                        background: '#EEF2FF',
+                        color: '#4338CA',
+                      }}
+                    >
+                      {docTypeLabel(t.module, t.docType)}
+                    </span>
+                  )}
                   <span
                     style={{
                       fontSize: 10.5,
@@ -563,6 +590,7 @@ function AddTemplateModal(props) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [module_, setModule] = useState('erasmus');
+  const [docType, setDocType] = useState('gidis'); // erasmus varsayılan ilk türü
   const [file, setFile] = useState(null);
   const [isDefault, setIsDefault] = useState(false);
   const [isActive, setIsActive] = useState(true);
@@ -605,6 +633,7 @@ function AddTemplateModal(props) {
     fd.append('name', name.trim());
     fd.append('description', description.trim());
     fd.append('module', module_);
+    fd.append('docType', docType || 'default');
     fd.append('isDefault', String(!!isDefault));
     fd.append('isActive', String(!!isActive));
     fd.append('scope', scope);
@@ -644,7 +673,13 @@ function AddTemplateModal(props) {
         <SB_FormField label="Modül *">
           <select
             value={module_}
-            onChange={(e) => setModule(e.target.value)}
+            onChange={(e) => {
+              const mod = e.target.value;
+              setModule(mod);
+              // Modül değişince belge türünü o modülün ilk türüne çek
+              const types = docTypesOf(mod);
+              setDocType(types[0] ? types[0].id : 'default');
+            }}
             style={{
               width: '100%',
               padding: '10px 14px',
@@ -662,6 +697,33 @@ function AddTemplateModal(props) {
             ))}
           </select>
         </SB_FormField>
+        {docTypesOf(module_).length > 1 && (
+          <SB_FormField label="Belge Türü *">
+            <select
+              value={docType}
+              onChange={(e) => setDocType(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: 8,
+                border: '1px solid #D1D5DB',
+                fontSize: 14,
+                fontFamily: "'Inter', sans-serif",
+                boxSizing: 'border-box',
+              }}
+            >
+              {docTypesOf(module_).map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 4 }}>
+              Aynı modüle birden çok belge atanabilir (örn. Erasmus gidiş ve dönüş ayrı
+              belgelerdir). Her belge türü için ayrı şablon yükleyin.
+            </div>
+          </SB_FormField>
+        )}
         {(isUniAdmin || isFacMgr) && (
           <SB_FormField label="Kapsam *">
             <select
@@ -831,11 +893,9 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const vars = window.TEMPLATE_VARS?.[tpl.module] ||
-    window.TEMPLATE_VARS?._generic || {
-      static: [],
-      row: [],
-    };
+  const vars = window.templateVarsFor
+    ? window.templateVarsFor(tpl.module, tpl.docType)
+    : { static: [], row: [] };
 
   useEffect(() => {
     let alive = true;

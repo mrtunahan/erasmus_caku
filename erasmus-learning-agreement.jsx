@@ -4611,11 +4611,92 @@ const StudentDetailModal = ({
 };
 
 // ── Word Document Generators (same logic as before) ──
+// ── Erasmus ders eşleştirmelerini şablon motoru satır verisine çevir ──
+// match'ler çok-a-çok olabilir; her (host, home) çiftini ayrı satıra açar.
+function erasmusRowsFromMatches(matches, gradeMode) {
+  const rows = [];
+  (matches || []).forEach((match) => {
+    const hostL = match.hostCourses || [];
+    const homeL = match.homeCourses || [];
+    const maxLen = Math.max(hostL.length, homeL.length, 1);
+    for (let i = 0; i < maxLen; i++) {
+      const hc = hostL[i];
+      const mc = homeL[i];
+      const statu = mc ? ((mc.name || '').toLowerCase().match(/elective|seçmeli/) ? 'S' : 'Z') : '';
+      let kNot = '';
+      let cNot = '';
+      if (gradeMode) {
+        const hg = match.hostGrades?.[i] || match.hostGrade || '';
+        kNot = hg;
+        cNot = hg && window.convertGrade ? window.convertGrade(hg) : '';
+      }
+      rows.push({
+        kDersKod: hc ? hc.code || '' : '',
+        kDersAd: hc ? hc.name || '' : '',
+        kDersAkts: hc ? String(hc.credits ?? '') : '',
+        kDersNot: kNot,
+        cDersKod: mc ? mc.code || '' : '',
+        cDersAd: mc ? mc.name || '' : '',
+        cDersAkts: mc ? String(mc.credits ?? '') : '',
+        cDersNot: cNot,
+        cDersStatu: statu,
+        _kA: hc ? Number(hc.credits) || 0 : 0,
+        _cA: mc ? Number(mc.credits) || 0 : 0,
+      });
+    }
+  });
+  return rows;
+}
+
+// Öğrenci + dönem bilgisinden şablon statik verisi üret
+function erasmusStaticData(student, rows) {
+  const semester = student.semester || 'Fall 2025';
+  const [season, year] = semester.split(' ');
+  const seasonTR = season === 'Fall' ? 'Güz' : 'Bahar';
+  const academicYear =
+    season === 'Fall' ? `${year}-${parseInt(year) + 1}` : `${parseInt(year) - 1}-${year}`;
+  return {
+    ogrenciNo: student.studentNumber || '',
+    ogrenciAdSoyad: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+    kaynakUniversite: student.hostInstitution || '',
+    kaynakFakulte: student.hostFaculty || '',
+    kaynakBolum: student.hostDepartment || '',
+    cakuBolum: student.departmentName || '',
+    hostUlke: student.hostCountry || '',
+    hostKurum: student.hostInstitution || '',
+    akademikYil: academicYear,
+    donem: seasonTR,
+    kaynakToplamAkts: String(rows.reduce((a, r) => a + (r._kA || 0), 0)),
+    cakuToplamAkts: String(rows.reduce((a, r) => a + (r._cA || 0), 0)),
+    tarih: new Date().toLocaleDateString('tr-TR'),
+  };
+}
+
 const generateOutgoingWordDoc = async (student) => {
   if (!student.outgoingMatches || student.outgoingMatches.length === 0) {
     alert('Bu öğrencinin henüz gidiş eşleştirmesi bulunmamaktadır.');
     return;
   }
+  // Önce Şablonlar modülüne atanmış "gidiş" şablonunu dene
+  if (window.TemplateEngine && window.TemplateEngine.produceFromTemplate) {
+    const rows = erasmusRowsFromMatches(student.outgoingMatches, false);
+    const res = await window.TemplateEngine.produceFromTemplate({
+      module: 'erasmus',
+      docType: 'gidis',
+      departmentId: student.departmentId || '',
+      staticData: erasmusStaticData(student, rows),
+      rows,
+      filename: `${student.lastName}_${student.firstName}_Gidis_Degerlendirme.docx`,
+    });
+    if (res.ok) return;
+    if (res.reason === 'no-mapping') {
+      alert(
+        'Erasmus GİDİŞ şablonunun alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp 🧩 ile alanları eşleyin. Şimdilik yerleşik biçim kullanılacak.'
+      );
+    }
+    // no-template / diğer → sessizce yerleşik biçme düş
+  }
+
   const totalHomeCredits = student.outgoingMatches.reduce(
     (sum, m) => sum + m.homeCourses.reduce((s, c) => s + c.credits, 0),
     0
@@ -4709,6 +4790,25 @@ const generateReturnWordDoc = async (student) => {
     alert('Bu öğrencinin henüz dönüş eşleştirmesi bulunmamaktadır.');
     return;
   }
+  // Önce Şablonlar modülüne atanmış "dönüş" şablonunu dene
+  if (window.TemplateEngine && window.TemplateEngine.produceFromTemplate) {
+    const rows = erasmusRowsFromMatches(student.returnMatches, true);
+    const res = await window.TemplateEngine.produceFromTemplate({
+      module: 'erasmus',
+      docType: 'donus',
+      departmentId: student.departmentId || '',
+      staticData: erasmusStaticData(student, rows),
+      rows,
+      filename: `${student.lastName}_${student.firstName}_Donus_Muafiyet.docx`,
+    });
+    if (res.ok) return;
+    if (res.reason === 'no-mapping') {
+      alert(
+        'Erasmus DÖNÜŞ şablonunun alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp 🧩 ile alanları eşleyin. Şimdilik yerleşik biçim kullanılacak.'
+      );
+    }
+  }
+
   const totalHomeCredits = student.returnMatches.reduce(
     (sum, m) => sum + m.homeCourses.reduce((s, c) => s + c.credits, 0),
     0
