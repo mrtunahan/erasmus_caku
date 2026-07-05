@@ -2014,7 +2014,25 @@ const TemplateEngine = (() => {
     } catch (e) {
       // Motor bozuk XML üretti (şablonun karmaşık yapısı) — sessiz bozuk
       // dosya indirmek yerine çağırana bildir; o yerleşik biçime düşebilir.
-      return { ok: false, reason: 'invalid-output', message: e.message };
+      // Gerçek sebebi konsola da yaz (tanılama için — uyarı mesajı kısaltılmış).
+      try {
+        console.error(
+          '[TemplateEngine] generateDocx hatası:',
+          e && e.message,
+          '\nmodule=',
+          opts.module,
+          'docType=',
+          opts.docType,
+          'tpl=',
+          tpl && tpl._id,
+          'fields=',
+          (tpl.fields || []).length,
+          e
+        );
+      } catch (_) {
+        /* konsol yoksa yut */
+      }
+      return { ok: false, reason: 'invalid-output', message: e && e.message };
     }
     downloadBlob(blob, opts.filename || 'belge.docx');
     return { ok: true };
