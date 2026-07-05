@@ -1731,8 +1731,20 @@ const TemplateEngine = (() => {
       }
     }
 
+    // Hücredeki mevcut yazı-tipi ayarını (rPr) bul — enjekte edilen değer
+    // aynı boyut/stille yazılsın. Öncelik: mevcut bir run'ın rPr'si, yoksa
+    // paragraf işaretinin rPr'si (<w:pPr><w:rPr>), o da yoksa boş.
+    function cellRunProps(cellXml) {
+      let m = cellXml.match(/<w:r\b[^>]*>\s*(<w:rPr>[\s\S]*?<\/w:rPr>)/);
+      if (m) return m[1];
+      m = cellXml.match(/<w:pPr>[\s\S]*?(<w:rPr>[\s\S]*?<\/w:rPr>)[\s\S]*?<\/w:pPr>/);
+      if (m) return m[1];
+      return '';
+    }
+
     // İşaretçi modunda bir veri satırını doldur: değeri ilgili hücrenin
-    // paragrafına run olarak enjekte eder (sondan başa — offset güvenli)
+    // paragrafına run olarak enjekte eder (sondan başa — offset güvenli).
+    // Enjekte edilen run, hücrenin mevcut font ayarını (rPr) devralır.
     function fillDataRow(dataTpl, cellVars, rowData) {
       const cells = [];
       const rx = /<w:tc\b[\s\S]*?<\/w:tc>/g;
@@ -1749,9 +1761,12 @@ const TemplateEngine = (() => {
         const pEnd = out.slice(cell.start, cell.end).indexOf('</w:p>');
         if (pEnd < 0) return;
         const insertAt = cell.start + pEnd;
+        const rPr = cellRunProps(cell.xml);
         out =
           out.slice(0, insertAt) +
-          '<w:r><w:t xml:space="preserve">' +
+          '<w:r>' +
+          rPr +
+          '<w:t xml:space="preserve">' +
           escapeXml(val) +
           '</w:t></w:r>' +
           out.slice(insertAt);
