@@ -1534,6 +1534,13 @@ window.TEMPLATE_VARS = {
     // Geriye dönük: docType='default' ile kaydedilmiş eski şablonlar
     default: { static: SINAV_STATIC, row: SINAV_ROWS },
   },
+  performans: {
+    docTypes: [{ id: 'strateji-izleme', label: 'Stratejik Plan İzleme' }],
+    // Bu belge placeholder eşlemesi KULLANMAZ; gösterge (PG) koduna göre
+    // doldurulur (produceByRowKey). Değişken seti bilgilendirme amaçlı boş.
+    'strateji-izleme': { static: [], row: [], rowKeyFill: true },
+    default: { static: [], row: [] },
+  },
   _generic: {
     docTypes: [{ id: 'default', label: 'Belge' }],
     default: {
@@ -2194,7 +2201,184 @@ const TemplateEngine = (() => {
     return { ok: true };
   }
 
-  return { detectPlaceholders, generateDocx, downloadBlob, produceFromTemplate };
+  // ── SATIR-KODU (PG) DOLDURMA — Stratejik Plan İzleme gibi "boşluk doldurma"
+  // belgeleri için. Placeholder yok; her tablo satırının 1. hücresindeki
+  // gösterge kodu (PG x.y.z) anahtar; 2. ve 3. hücreler (Değer, Açıklama)
+  // verilerle doldurulur. Diğer satırlar/hücreler dokunulmaz — çıktı TÜM
+  // şablonu içerir, sadece verisi olan göstergeler dolar.
+
+  // Hücre görünür metnini çıkar (entity çözülür)
+  function cellText(cellXml) {
+    return (cellXml.match(/<w:t[^>]*>[\s\S]*?<\/w:t>/g) || [])
+      .map((x) => x.replace(/<[^>]+>/g, ''))
+      .join('')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+  }
+
+  // Hücrenin yazı-tipi ayarını (rPr) bul (run → yoksa paragraf işareti)
+  function cellRPr(cellXml) {
+    let m = cellXml.match(/<w:r\b[^>]*>\s*(<w:rPr>[\s\S]*?<\/w:rPr>)/);
+    if (m) return m[1];
+    m = cellXml.match(/<w:pPr>[\s\S]*?(<w:rPr>[\s\S]*?<\/w:rPr>)[\s\S]*?<\/w:pPr>/);
+    if (m) return m[1];
+    return '';
+  }
+
+  // Boş bir hücrenin ilk paragrafına değeri run olarak enjekte et
+  function fillCell(cellXml, val) {
+    const rPr = cellRPr(cellXml);
+    const run = '<w:r>' + rPr + '<w:t xml:space="preserve">' + escapeXml(val) + '</w:t></w:r>';
+    const idx = cellXml.indexOf('</w:p>');
+    if (idx < 0) return cellXml;
+    return cellXml.slice(0, idx) + run + cellXml.slice(idx);
+  }
+
+  const normCode = (k) =>
+    String(k || '')
+      .replace(/\s+/g, '')
+      .replace(/\.+$/, '')
+      .toUpperCase();
+
+  // xml içindeki tablo satırlarını, 1. hücredeki PG koduna göre doldur.
+  //   dataByKey: { 'PG 1.1.1': { deger, aciklama }, … }
+  function fillRowsByKey(xml, dataByKey) {
+    const data = {};
+    Object.keys(dataByKey || {}).forEach((k) => {
+      data[normCode(k)] = dataByKey[k];
+    });
+    return xml.replace(/<w:tbl>[\s\S]*?<\/w:tbl>/g, (tbl) =>
+      tbl.replace(/<w:tr\b[\s\S]*?<\/w:tr>/g, (tr) => {
+        const cells = tcCells(tr);
+        if (cells.length < 3) return tr;
+        const c0 = cellText(cells[0].xml);
+        const m = c0.match(/PG\s*\d+\.\d+\.\d+/i);
+        if (!m) return tr;
+        const rec = data[normCode(m[0])];
+        if (!rec) return tr;
+        let out = tr;
+        // sondan başa (offset güvenli): 3. hücre (açıklama), 2. hücre (değer)
+        [
+          [2, rec.aciklama],
+          [1, rec.deger],
+        ].forEach(([ci, val]) => {
+          if (val == null || String(val) === '') return;
+          const cell = cells[ci];
+          if (!cell) return;
+          out = out.slice(0, cell.start) + fillCell(cell.xml, String(val)) + out.slice(cell.end);
+        });
+        return out;
+      })
+    );
+  }
+
+  // Şablondaki gösterge satırlarını çıkar → form üretmek için.
+  //   döner: [{ amac, hedef, code, desc, unit, isAcademic }]
+  async function parseRowIndicators(arrayBuffer) {
+    const { xml } = await readDocumentXml(arrayBuffer);
+    const tbls = xml.match(/<w:tbl>[\s\S]*?<\/w:tbl>/g) || [];
+    const acadRx = /akademik birim|fak[üu]lte|enstit[üu]|y[üu]ksekokul/i;
+    const out = [];
+    tbls.forEach((tbl) => {
+      const rows = tbl.match(/<w:tr\b[\s\S]*?<\/w:tr>/g) || [];
+      let amac = '';
+      let hedef = '';
+      rows.forEach((r) => {
+        const cells = tcCells(r);
+        if (cells.length < 2) return;
+        const c0 = cellText(cells[0].xml).trim();
+        const c1 = cellText(cells[1].xml).trim();
+        if (/^A\s*\d+$/i.test(c0)) amac = c1;
+        else if (/^H\s*\d/i.test(c0) && !/performans/i.test(c0)) hedef = c1;
+      });
+      rows.forEach((r) => {
+        const cells = tcCells(r);
+        if (cells.length < 3) return;
+        const c0 = cellText(cells[0].xml).trim();
+        const m = c0.match(/PG\s*\d+\.\d+\.\d+/i);
+        if (!m) return;
+        const par = c0.match(/\(([^)]*?)\s*taraf[ıi]ndan\s*doldurulacak/i);
+        const unit = par ? par[1].trim() : '';
+        out.push({
+          amac,
+          hedef,
+          code: m[0].replace(/\s+/g, ' ').trim(),
+          desc: c0,
+          unit,
+          isAcademic: acadRx.test(unit),
+        });
+      });
+    });
+    return out;
+  }
+
+  // Uçtan uca: atanmış şablonu çöz, PG koduna göre doldur, indir.
+  //   opts: { module, docType, departmentId, dataByKey, filename }
+  async function produceByRowKey(opts) {
+    const token = localStorage.getItem('caku_auth_token');
+    const headers = token ? { Authorization: 'Bearer ' + token } : {};
+    const url =
+      '/api/templates/resolve?module=' +
+      encodeURIComponent(opts.module) +
+      '&docType=' +
+      encodeURIComponent(opts.docType || 'default') +
+      '&departmentId=' +
+      encodeURIComponent(opts.departmentId || '');
+    let tpl;
+    try {
+      const r = await fetch(url, { headers, credentials: 'include' });
+      const d = await r.json().catch(() => ({}));
+      tpl = d.template;
+    } catch (e) {
+      return { ok: false, reason: 'network', message: e.message };
+    }
+    if (!tpl) return { ok: false, reason: 'no-template' };
+    if (!tpl.file || tpl.file.extension !== 'docx') return { ok: false, reason: 'not-docx' };
+    let buf;
+    try {
+      const fr = await fetch('/api/templates/' + tpl._id + '/download', {
+        headers,
+        credentials: 'include',
+      });
+      if (!fr.ok) throw new Error('indirilemedi');
+      buf = await fr.arrayBuffer();
+    } catch (e) {
+      return { ok: false, reason: 'download', message: e.message };
+    }
+    try {
+      const { zip, xml } = await readDocumentXml(buf);
+      const out = fillRowsByKey(xml, opts.dataByKey || {});
+      const bal = tagBalanceFailure(out);
+      if (bal) {
+        try {
+          console.error('[TemplateEngine] satır-kodu doldurma denge hatası:', bal.reason);
+        } catch (_) {
+          /* yut */
+        }
+        return { ok: false, reason: 'invalid-output', message: bal.reason };
+      }
+      zip.file('word/document.xml', out);
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+      downloadBlob(blob, opts.filename || 'belge.docx');
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, reason: 'invalid-output', message: e && e.message };
+    }
+  }
+
+  return {
+    detectPlaceholders,
+    generateDocx,
+    downloadBlob,
+    produceFromTemplate,
+    parseRowIndicators,
+    produceByRowKey,
+    fillRowsByKey,
+  };
 })();
 window.TemplateEngine = TemplateEngine;
 
