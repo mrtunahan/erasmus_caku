@@ -1474,7 +1474,13 @@ const OGR_KURUM_STATIC = [
 
 window.TEMPLATE_VARS = {
   muafiyet: {
-    docTypes: [{ id: 'default', label: 'Muafiyet Kararı' }],
+    docTypes: [
+      { id: 'muafiyet', label: 'Ders Muafiyet İsteği' },
+      { id: 'intibak', label: 'Yaz Dönemi Ders İntibak İsteği' },
+    ],
+    muafiyet: { static: OGR_KURUM_STATIC, row: DERS_ESLESME_ROWS },
+    intibak: { static: OGR_KURUM_STATIC, row: DERS_ESLESME_ROWS },
+    // Geriye dönük: docType='default' ile kaydedilmiş eski şablonlar
     default: { static: OGR_KURUM_STATIC, row: DERS_ESLESME_ROWS },
   },
   erasmus: {
