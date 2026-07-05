@@ -1904,6 +1904,21 @@ const TemplateEngine = (() => {
       out = applyReplacements(xml, staticRepls);
     }
 
+    // ÇIKTI DOĞRULAMA: bozuk XML sessizce inip Word'de "dosya bozuk" hatası
+    // vermesin. Geçersizse throw — çağıran (produceFromTemplate) yakalar.
+    if (typeof DOMParser !== 'undefined') {
+      try {
+        const chk = new DOMParser().parseFromString(out, 'application/xml');
+        const err = chk.getElementsByTagName('parsererror');
+        if (err && err.length > 0) {
+          throw new Error('Şablon çıktısı geçerli bir belge üretmedi (XML hatası).');
+        }
+      } catch (e) {
+        if (/XML hatası/.test(e.message)) throw e;
+        // DOMParser kendi hatası — yut, üretime devam
+      }
+    }
+
     zip.file('word/document.xml', out);
     return zip.generateAsync({
       type: 'blob',
@@ -1959,7 +1974,14 @@ const TemplateEngine = (() => {
     } catch (e) {
       return { ok: false, reason: 'download', message: e.message };
     }
-    const blob = await generateDocx(buf, tpl.fields, opts.staticData || {}, opts.rows || []);
+    let blob;
+    try {
+      blob = await generateDocx(buf, tpl.fields, opts.staticData || {}, opts.rows || []);
+    } catch (e) {
+      // Motor bozuk XML üretti (şablonun karmaşık yapısı) — sessiz bozuk
+      // dosya indirmek yerine çağırana bildir; o yerleşik biçime düşebilir.
+      return { ok: false, reason: 'invalid-output', message: e.message };
+    }
     downloadBlob(blob, opts.filename || 'belge.docx');
     return { ok: true };
   }

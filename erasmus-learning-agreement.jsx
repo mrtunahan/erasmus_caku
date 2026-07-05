@@ -42,62 +42,40 @@ const loadJSZip = () => {
   return _jszipPromise;
 };
 
-// ── HTML içeriğini gerçek bir .docx (OOXML altChunk) paketi olarak indir ──
-// Word, paket içine gömülü HTML'i açılışta otomatik dönüştürür; bu sayede
-// mevcut zengin tablo/yerleşim korunur ve dosya geçerli bir .docx olur.
+// ── HTML içeriğini Word'ün açabileceği bir belge olarak indir ──
+// ÖNCE: OOXML altChunk (.docx) paketi kullanılıyordu ama bazı Word
+// sürümlerinde "dosya bozuk" hatası veriyordu (altChunk kırılgan).
+// ŞİMDİ: Word'ün onlarca yıldır sorunsuz açtığı klasik "HTML-as-Word"
+// yöntemi — HTML gövdesi Word namespace'leriyle sarılıp .doc olarak
+// verilir. Her Word/LibreOffice sürümünde güvenle açılır.
 const downloadAsDocx = async (html, filename) => {
-  const JSZip = await loadJSZip();
-  const zip = new JSZip();
+  // Gelen html tam bir <html>…</html> ise gövdeyi al, değilse olduğu gibi kullan.
+  let inner = html;
+  const bodyMatch = /<body[^>]*>([\s\S]*?)<\/body>/i.exec(html);
+  if (bodyMatch) inner = bodyMatch[1];
 
-  zip.file(
-    '[Content_Types].xml',
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-<Default Extension="xml" ContentType="application/xml"/>
-<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-<Override PartName="/word/afchunk.htm" ContentType="text/html"/>
-</Types>`
-  );
+  const doc =
+    '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+    'xmlns:w="urn:schemas-microsoft-com:office:word" ' +
+    'xmlns="http://www.w3.org/TR/REC-html40">' +
+    '<head><meta charset="utf-8">' +
+    '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View>' +
+    '<w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->' +
+    '<style>@page { size: A4 landscape; margin: 2cm; } ' +
+    'body { font-family: Arial, sans-serif; font-size: 11pt; }</style></head>' +
+    '<body>' +
+    inner +
+    '</body></html>';
 
-  zip.folder('_rels').file(
-    '.rels',
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`
-  );
-
-  const wordFolder = zip.folder('word');
-  wordFolder.file(
-    'document.xml',
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<w:body>
-<w:altChunk r:id="htmlChunk"/>
-<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>
-</w:body>
-</w:document>`
-  );
-
-  wordFolder.folder('_rels').file(
-    'document.xml.rels',
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="htmlChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="afchunk.htm"/>
-</Relationships>`
-  );
-
-  wordFolder.file('afchunk.htm', '﻿' + html);
-
-  const blob = await zip.generateAsync({
-    type: 'blob',
-    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  // ﻿ (BOM) + application/msword → Word doğru kodlama ve türle açar
+  const blob = new Blob(['﻿', doc], {
+    type: 'application/msword;charset=utf-8',
   });
+  const docName = String(filename || 'belge.docx').replace(/\.docx?$/i, '') + '.doc';
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename;
+  a.download = docName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -4693,6 +4671,10 @@ const generateOutgoingWordDoc = async (student) => {
       alert(
         'Erasmus GİDİŞ şablonunun alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp 🧩 ile alanları eşleyin. Şimdilik yerleşik biçim kullanılacak.'
       );
+    } else if (res.reason === 'invalid-output') {
+      alert(
+        'Yüklü Erasmus GİDİŞ şablonundan geçerli belge üretilemedi (şablon yapısı desteklenmiyor). Yerleşik biçim kullanılacak.'
+      );
     }
     // no-template / diğer → sessizce yerleşik biçme düş
   }
@@ -4805,6 +4787,10 @@ const generateReturnWordDoc = async (student) => {
     if (res.reason === 'no-mapping') {
       alert(
         'Erasmus DÖNÜŞ şablonunun alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp 🧩 ile alanları eşleyin. Şimdilik yerleşik biçim kullanılacak.'
+      );
+    } else if (res.reason === 'invalid-output') {
+      alert(
+        'Yüklü Erasmus DÖNÜŞ şablonundan geçerli belge üretilemedi (şablon yapısı desteklenmiyor). Yerleşik biçim kullanılacak.'
       );
     }
   }
