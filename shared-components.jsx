@@ -1652,6 +1652,12 @@ const TemplateEngine = (() => {
     return ranges;
   }
 
+  // Bir eşleşme aralığı YAPISAL etiket içeriyorsa (paragraf/hücre/satır/tablo
+  // sınırı) o token'ı değiştirmek belgeyi bozar. TAGS deseni token'ı birden
+  // çok run'a bölünmüş halde yakalayabilir; ama iki ayrı paragraf/hücreye
+  // yayılmışsa bu meşru bir yer tutucu değildir. Böyle eşleşmeler reddedilir.
+  const STRUCT_TAG = /<\/?w:(p|tc|tr|tbl|sectPr|tblPr|tblGrid|body)\b/;
+
   function locateFields(xml, fields) {
     const ranges = textRangesOf(xml);
     const inText = (pos) => {
@@ -1668,11 +1674,13 @@ const TemplateEngine = (() => {
       const list = [];
       let m;
       while ((m = rx.exec(xml)) !== null) {
-        if (inText(m.index)) {
-          list.push({ start: m.index, end: m.index + m[0].length });
+        const matchStr = m[0];
+        // Başlangıç görünür metinde VE aralık yapısal sınır aşmıyorsa kabul
+        if (inText(m.index) && !STRUCT_TAG.test(matchStr)) {
+          list.push({ start: m.index, end: m.index + matchStr.length });
         }
         // İç içe eşleşme kaymalarını önle
-        rx.lastIndex = m.index + Math.max(1, m[0].length);
+        rx.lastIndex = m.index + Math.max(1, matchStr.length);
       }
       perTokenPos[token] = list;
     });
@@ -1904,19 +1912,13 @@ const TemplateEngine = (() => {
       out = applyReplacements(xml, staticRepls);
     }
 
-    // ÇIKTI DOĞRULAMA: bozuk XML sessizce inip Word'de "dosya bozuk" hatası
-    // vermesin. Geçersizse throw — çağıran (produceFromTemplate) yakalar.
-    if (typeof DOMParser !== 'undefined') {
-      try {
-        const chk = new DOMParser().parseFromString(out, 'application/xml');
-        const err = chk.getElementsByTagName('parsererror');
-        if (err && err.length > 0) {
-          throw new Error('Şablon çıktısı geçerli bir belge üretmedi (XML hatası).');
-        }
-      } catch (e) {
-        if (/XML hatası/.test(e.message)) throw e;
-        // DOMParser kendi hatası — yut, üretime devam
-      }
+    // ÇIKTI DOĞRULAMA: yalnızca etiket DENGESİ kontrol edilir (namespace-agnostic).
+    // DOMParser namespace bağlama konusunda Word'den katıdır ve geçerli OOXML'i
+    // "bozuk" sanıp yanlış-pozitif üretiyordu; onun yerine açılış/kapanış etiket
+    // dengesini sayan hafif kontrol — motor'un yapısal etiket bozması (gerçek
+    // hata) yakalanır, geçerli belge reddedilmez.
+    if (!isTagBalanced(out)) {
+      throw new Error('Şablon çıktısında etiket dengesi bozuldu.');
     }
 
     zip.file('word/document.xml', out);
@@ -1924,6 +1926,32 @@ const TemplateEngine = (() => {
       type: 'blob',
       mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     });
+  }
+
+  // Hafif, namespace-agnostic etiket dengesi kontrolü. Açılış/kapanış
+  // etiketlerini bir yığınla eşler; self-closing ve <?…?>/<!--…--> atlanır.
+  // Motor'un yapısal etiket silmesi gibi GERÇEK bozulmaları yakalar,
+  // geçerli OOXML'i (namespace prefix'i ne olursa olsun) reddetmez.
+  function isTagBalanced(xml) {
+    const stack = [];
+    const rx =
+      /<\/?([A-Za-z_][\w:.-]*)([^>]*?)(\/?)>|<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>/g;
+    let m;
+    while ((m = rx.exec(xml)) !== null) {
+      const whole = m[0];
+      if (whole.startsWith('<?') || whole.startsWith('<!--') || whole.startsWith('<![CDATA[')) {
+        continue;
+      }
+      const name = m[1];
+      const selfClose = m[3] === '/';
+      if (whole.startsWith('</')) {
+        if (stack.length === 0 || stack[stack.length - 1] !== name) return false;
+        stack.pop();
+      } else if (!selfClose) {
+        stack.push(name);
+      }
+    }
+    return stack.length === 0;
   }
 
   function downloadBlob(blob, filename) {
