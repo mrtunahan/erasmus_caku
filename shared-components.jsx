@@ -1664,6 +1664,30 @@ const TemplateEngine = (() => {
   // yayılmışsa bu meşru bir yer tutucu değildir. Böyle eşleşmeler reddedilir.
   const STRUCT_TAG = /<\/?w:(p|tc|tr|tbl|sectPr|tblPr|tblGrid|body)\b/;
 
+  // '<w:tr>' AÇILIŞ etiketini bul — KRİTİK: düz string araması ('<w:tr')
+  // '<w:trPr>' ile de eşleşir (ikisi de '<w:tr' ile başlar). Bu, satır
+  // bölgesinin başlangıcını yanlış (satır-özellikleri etiketine) kaydırıp
+  // gerçek <w:tr> açılışını bölge dışında bırakır ve çıktı XML'ini bozar.
+  // Bu yüzden '<w:tr' sonrası ' ' veya '>' zorunlu (trPr'yi dışlar).
+  const TR_OPEN_RX = /<w:tr(?=[ >])/g;
+  // pos'tan ÖNCEKI son <w:tr> açılışının konumu (yoksa -1)
+  function lastTrOpenBefore(xml, pos) {
+    TR_OPEN_RX.lastIndex = 0;
+    let last = -1;
+    let m;
+    while ((m = TR_OPEN_RX.exec(xml)) !== null) {
+      if (m.index >= pos) break;
+      last = m.index;
+    }
+    return last;
+  }
+  // pos'tan İTİBAREN ilk <w:tr> açılışının konumu (yoksa -1)
+  function firstTrOpenFrom(xml, pos) {
+    TR_OPEN_RX.lastIndex = pos < 0 ? 0 : pos;
+    const m = TR_OPEN_RX.exec(xml);
+    return m ? m.index : -1;
+  }
+
   function locateFields(xml, fields) {
     const ranges = textRangesOf(xml);
     const inText = (pos) => {
@@ -1737,7 +1761,7 @@ const TemplateEngine = (() => {
     let markerRegion = null; // { start, end, cleanedHeader, dataStart, dataEnd, dataTpl, cellVars }
     if (rowFields.length > 0) {
       const anchor = rowFields[0]._pos.start;
-      const trStart = xml.lastIndexOf('<w:tr', anchor);
+      const trStart = lastTrOpenBefore(xml, anchor);
       const trEnd = xml.indexOf('</w:tr>', anchor);
       if (trStart >= 0 && trEnd >= 0) {
         const end = trEnd + '</w:tr>'.length;
@@ -1791,7 +1815,7 @@ const TemplateEngine = (() => {
           );
 
           // Veri şablonu = başlık satırının hemen altındaki satır
-          const dataStart = xml.indexOf('<w:tr', end);
+          const dataStart = firstTrOpenFrom(xml, end);
           const dataEnd = dataStart >= 0 ? xml.indexOf('</w:tr>', dataStart) : -1;
           if (dataStart >= 0 && dataEnd >= 0) {
             markerRegion = {
