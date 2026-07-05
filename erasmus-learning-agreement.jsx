@@ -4673,7 +4673,9 @@ const generateOutgoingWordDoc = async (student) => {
       );
     } else if (res.reason === 'invalid-output') {
       alert(
-        'Yüklü Erasmus GİDİŞ şablonundan geçerli belge üretilemedi (şablon yapısı desteklenmiyor). Yerleşik biçim kullanılacak.'
+        'Yüklü Erasmus GİDİŞ şablonundan geçerli belge üretilemedi. Yerleşik biçim kullanılacak.\n\nSebep: ' +
+          (res.message || 'bilinmiyor') +
+          '\n(Ayrıntı için tarayıcı konsoluna bakın — F12.)'
       );
     }
     // no-template / diğer → sessizce yerleşik biçme düş
@@ -4790,7 +4792,9 @@ const generateReturnWordDoc = async (student) => {
       );
     } else if (res.reason === 'invalid-output') {
       alert(
-        'Yüklü Erasmus DÖNÜŞ şablonundan geçerli belge üretilemedi (şablon yapısı desteklenmiyor). Yerleşik biçim kullanılacak.'
+        'Yüklü Erasmus DÖNÜŞ şablonundan geçerli belge üretilemedi. Yerleşik biçim kullanılacak.\n\nSebep: ' +
+          (res.message || 'bilinmiyor') +
+          '\n(Ayrıntı için tarayıcı konsoluna bakın — F12.)'
       );
     }
   }
