@@ -2779,84 +2779,6 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
-  const syncCourses = async () => {
-    if (!selectedDeptId) {
-      alert('Lütfen önce bir bölüm seçin!');
-      return;
-    }
-    if (
-      !confirm(
-        'Eksik dersler eklenecek ve mevcut derslerin bilgileri güncellenecek. Onaylıyor musunuz?'
-      )
-    )
-      return;
-    setLoading(true);
-    try {
-      const cRef = getCoursesRef();
-      if (!cRef) throw new Error('Veritabanı hazır değil');
-      // Sadece seçili bölümün derslerini al
-      const snap = await cRef.where('departmentId', '==', selectedDeptId).get();
-      const existing = snap.docs.map((d) => ({ fireId: d.id, ...d.data() }));
-
-      const ops = [];
-      let added = 0;
-      let updated = 0;
-
-      for (const seedC of SEED_COURSES) {
-        const found = existing.find((e) => e.code === seedC.code);
-        if (found) {
-          // Update if different
-          if (
-            found.name !== seedC.name ||
-            found.sinif !== seedC.sinif ||
-            found.donem !== seedC.donem
-          ) {
-            ops.push({
-              collection: 'sinav_dersler',
-              type: 'update',
-              docId: found.fireId,
-              data: {
-                name: seedC.name,
-                sinif: seedC.sinif,
-                duration: seedC.duration,
-                donem: seedC.donem || 'guz',
-              },
-            });
-            updated++;
-          }
-        } else {
-          // Add new
-          ops.push({
-            collection: 'sinav_dersler',
-            type: 'add',
-            data: {
-              ...seedC,
-              studentCount: 0,
-              departmentId: selectedDeptId,
-              createdAt: new Date().toISOString(),
-            },
-          });
-          added++;
-        }
-      }
-
-      if (added > 0 || updated > 0) {
-        for (let i = 0; i < ops.length; i += 20) {
-          await DBWrite.batch(ops.slice(i, i + 20));
-        }
-        alert(`İşlem tamamlandı: ${added} ders eklendi, ${updated} ders güncellendi.`);
-        loadData();
-      } else {
-        alert('Tüm dersler zaten güncel.');
-        setLoading(false);
-      }
-    } catch (e) {
-      console.error('Sync error:', e);
-      alert('Hata: ' + e.message);
-      setLoading(false);
-    }
-  };
-
   // ── Load departments ──
   const loadDepartments = async () => {
     try {
@@ -3599,31 +3521,6 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
-  const handleResetPlacements = async () => {
-    if (!activePeriodId) return;
-    if (!confirm('Bu dönemdeki tüm sınav yerleşimlerini sıfırlamak istediğinize emin misiniz?'))
-      return;
-    try {
-      const ref = getExamsRef();
-      if (!ref) {
-        alert('Veritabanı bağlantısı yok!');
-        return;
-      }
-      const snap = await ref.where('periodId', '==', activePeriodId).get();
-      const ops = snap.docs.map((doc) => ({
-        collection: 'sinav_programi',
-        type: 'delete',
-        docId: doc.id,
-      }));
-      for (let i = 0; i < ops.length; i += 20) {
-        await DBWrite.batch(ops.slice(i, i + 20));
-      }
-      setPlacedExams((prev) => prev.filter((e) => e.periodId !== activePeriodId));
-    } catch (e) {
-      alert('Sıfırlama hatası: ' + e.message);
-    }
-  };
-
   // ── Department CRUD handlers ──
   const handleDeptSave = async (existingDept, formData) => {
     if (existingDept) {
@@ -3744,17 +3641,6 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
                   Örnek Verileri Yükle (Bilgisayar Müh.)
                 </Btn>
               )}
-            {isAdmin &&
-              courses.length > 0 &&
-              selectedDept?.name?.toLowerCase().includes('bilgisayar') && (
-                <GhostBtn
-                  onClick={syncCourses}
-                  style={{ color: '#059669', borderColor: '#059669' }}
-                >
-                  Verileri Güncelle
-                </GhostBtn>
-              )}
-
             {canManage && (
               <GhostBtn
                 onClick={() => {
@@ -4031,14 +3917,6 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
                     >
                       Bölüm Çıktısı
                     </GhostBtn>
-                    {canManage && (
-                      <GhostBtn
-                        onClick={handleResetPlacements}
-                        style={{ fontSize: 12, padding: '4px 10px', color: '#DC2626' }}
-                      >
-                        Sıfırla
-                      </GhostBtn>
-                    )}
                   </>
                 )}
                 {periodExams.length === 0 && (
