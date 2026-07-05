@@ -65,6 +65,7 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [editTpl, setEditTpl] = useState(null); // düzenlenen şablon (meta/dosya)
   const [mapping, setMapping] = useState(null); // { tpl, file? } — alan eşleme sihirbazı
   const [filter, setFilter] = useState({ module: 'all', search: '' });
   const [msg, setMsg] = useState({ text: '', kind: '' });
@@ -471,6 +472,9 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
                       🧩 {hasMapping ? 'Eşlemeyi Düzenle' : 'Alanları Eşle'}
                     </button>
                   )}
+                  <button onClick={() => setEditTpl(t)} style={textBtn('#0F766E', '#CCFBF1')}>
+                    ✏️ Düzenle
+                  </button>
                   <a
                     href={'/api/templates/' + t._id + '/download'}
                     style={{ ...textBtn('#15803D', '#DCFCE7'), textDecoration: 'none' }}
@@ -517,6 +521,29 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
               setMapping({ tpl, file });
             } else {
               showMsg('Şablon eklendi.', 'ok');
+            }
+          }}
+          currentUser={currentUser}
+          activeDepartment={activeDepartment}
+          departmentInfo={departmentInfo}
+          isUniAdmin={isUniAdmin}
+          isFacMgr={isFacMgr}
+          isDeptMgr={isDeptMgr}
+        />
+      )}
+
+      {editTpl && (
+        <AddTemplateModal
+          editTemplate={editTpl}
+          onClose={() => setEditTpl(null)}
+          onSaved={(tpl, needsRemap) => {
+            setEditTpl(null);
+            load();
+            if (needsRemap && tpl && tpl.file && tpl.file.extension === 'docx') {
+              showMsg('Şablon güncellendi — eşleme sıfırlandı, yeniden eşleyin.', 'ok');
+              setMapping({ tpl, file: null });
+            } else {
+              showMsg('Şablon güncellendi.', 'ok');
             }
           }}
           currentUser={currentUser}
@@ -585,20 +612,33 @@ function textBtn(color, bg) {
 }
 
 function AddTemplateModal(props) {
-  const { onClose, onSaved, isUniAdmin, isFacMgr, isDeptMgr, activeDepartment, currentUser } =
-    props;
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [module_, setModule] = useState('erasmus');
-  const [docType, setDocType] = useState('gidis'); // erasmus varsayılan ilk türü
+  const {
+    onClose,
+    onSaved,
+    isUniAdmin,
+    isFacMgr,
+    isDeptMgr,
+    activeDepartment,
+    currentUser,
+    editTemplate,
+  } = props;
+  const isEdit = !!editTemplate;
+  const [name, setName] = useState(editTemplate?.name || '');
+  const [description, setDescription] = useState(editTemplate?.description || '');
+  const [module_, setModule] = useState(editTemplate?.module || 'erasmus');
+  const [docType, setDocType] = useState(editTemplate?.docType || (isEdit ? 'default' : 'gidis'));
   const [file, setFile] = useState(null);
-  const [isDefault, setIsDefault] = useState(false);
-  const [isActive, setIsActive] = useState(true);
+  const [isDefault, setIsDefault] = useState(!!editTemplate?.isDefault);
+  const [isActive, setIsActive] = useState(editTemplate ? editTemplate.isActive !== false : true);
   const [scope, setScope] = useState(
-    isUniAdmin ? 'university' : isFacMgr ? 'department' : 'department'
+    editTemplate?.scope || (isUniAdmin ? 'university' : 'department')
   );
-  const [scopeDeptId, setScopeDeptId] = useState(activeDepartment || '');
-  const [scopeFacId, setScopeFacId] = useState(currentUser?.facultyId || '');
+  const [scopeDeptId, setScopeDeptId] = useState(
+    editTemplate?.departmentId || activeDepartment || ''
+  );
+  const [scopeFacId, setScopeFacId] = useState(
+    editTemplate?.facultyId || currentUser?.facultyId || ''
+  );
   const [departments, setDepartments] = useState([]);
   const [faculties, setFaculties] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -619,39 +659,91 @@ function AddTemplateModal(props) {
     })();
   }, []);
 
+  // Düzenlemede modül veya belge türü değişimi eşlemeyi sıfırlar — kullanıcıyı uyar
+  const mappingWillReset =
+    isEdit &&
+    (module_ !== editTemplate.module ||
+      (docType || 'default') !== (editTemplate.docType || 'default'));
+  const hadMapping = isEdit && (editTemplate.fields || []).some((f) => f.variable);
+
+  const authHeaders = () => {
+    const t = localStorage.getItem('caku_auth_token');
+    return t ? { Authorization: 'Bearer ' + t } : {};
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!file) return setError('Bir dosya seçin.');
     if (name.trim().length < 2) return setError('Şablon adı en az 2 karakter.');
-    const ext = '.' + (file.name.split('.').pop() || '').toLocaleLowerCase('tr');
-    if (!SB_ALLOWED_EXT.includes(ext))
-      return setError('Sadece şu uzantılar destekleniyor: ' + SB_ALLOWED_EXT.join(', '));
-
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('name', name.trim());
-    fd.append('description', description.trim());
-    fd.append('module', module_);
-    fd.append('docType', docType || 'default');
-    fd.append('isDefault', String(!!isDefault));
-    fd.append('isActive', String(!!isActive));
-    fd.append('scope', scope);
-    if (scope === 'department') fd.append('departmentId', scopeDeptId);
-    if (scope === 'faculty') fd.append('facultyId', scopeFacId);
+    if (!isEdit && !file) return setError('Bir dosya seçin.');
+    if (file) {
+      const ext = '.' + (file.name.split('.').pop() || '').toLocaleLowerCase('tr');
+      if (!SB_ALLOWED_EXT.includes(ext))
+        return setError('Sadece şu uzantılar destekleniyor: ' + SB_ALLOWED_EXT.join(', '));
+    }
 
     setSaving(true);
     try {
-      const t = localStorage.getItem('caku_auth_token');
+      if (isEdit) {
+        // 1) Dosya değiştirilmişse önce onu yükle (fields sıfırlanır)
+        let replacedFile = null;
+        if (file) {
+          const ffd = new FormData();
+          ffd.append('file', file);
+          const fr = await fetch('/api/templates/' + editTemplate._id + '/replace-file', {
+            method: 'POST',
+            headers: authHeaders(),
+            credentials: 'include',
+            body: ffd,
+          });
+          replacedFile = await fr.json().catch(() => ({}));
+          if (!fr.ok) throw new Error(replacedFile.error || 'Dosya değiştirilemedi');
+        }
+        // 2) Meta güncelle
+        const body = {
+          name: name.trim(),
+          description: description.trim(),
+          module: module_,
+          docType: docType || 'default',
+          isDefault: !!isDefault,
+          isActive: !!isActive,
+          scope,
+        };
+        if (scope === 'department') body.departmentId = scopeDeptId;
+        if (scope === 'faculty') body.facultyId = scopeFacId;
+        const r = await fetch('/api/templates/' + editTemplate._id + '/update', {
+          method: 'POST',
+          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'Güncellenemedi');
+        // Eşleme sıfırlandıysa (modül/tür/dosya değişti) sihirbazı aç
+        const cleared = d.clearedMapping || !!file;
+        onSaved(d, cleared && d.file && d.file.extension === 'docx' ? true : false);
+        return;
+      }
+
+      // Oluşturma akışı
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('name', name.trim());
+      fd.append('description', description.trim());
+      fd.append('module', module_);
+      fd.append('docType', docType || 'default');
+      fd.append('isDefault', String(!!isDefault));
+      fd.append('isActive', String(!!isActive));
+      fd.append('scope', scope);
+      if (scope === 'department') fd.append('departmentId', scopeDeptId);
+      if (scope === 'faculty') fd.append('facultyId', scopeFacId);
       const r = await fetch('/api/templates', {
         method: 'POST',
-        headers: t ? { Authorization: 'Bearer ' + t } : {},
+        headers: authHeaders(),
         body: fd,
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'Yüklenemedi');
-      // Oluşan şablonu ve yerel dosyayı üst bileşene ver — .docx ise
-      // alan eşleme sihirbazı otomatik açılır
       onSaved(d, file);
     } catch (err) {
       setError(err.message);
@@ -661,7 +753,12 @@ function AddTemplateModal(props) {
   };
 
   return (
-    <SB_Modal open={true} onClose={onClose} title="Yeni Şablon" width={560}>
+    <SB_Modal
+      open={true}
+      onClose={onClose}
+      title={isEdit ? 'Şablonu Düzenle' : 'Yeni Şablon'}
+      width={560}
+    >
       <form onSubmit={submit}>
         <SB_FormField label="Şablon Adı *">
           <SB_Input
@@ -820,7 +917,20 @@ function AddTemplateModal(props) {
             }}
           />
         </SB_FormField>
-        <SB_FormField label="Dosya * (.docx, .doc, .pdf, .xlsx, .xls — maks 10 MB)">
+        <SB_FormField
+          label={
+            isEdit
+              ? 'Dosyayı Değiştir (isteğe bağlı — .docx, .doc, .pdf, .xlsx, .xls)'
+              : 'Dosya * (.docx, .doc, .pdf, .xlsx, .xls — maks 10 MB)'
+          }
+        >
+          {isEdit && editTemplate.file && (
+            <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>
+              Mevcut: <b>{editTemplate.file.originalName}</b> (
+              {(editTemplate.file.extension || '').toUpperCase()}). Değiştirmek için yeni dosya
+              seçin; bırakırsanız aynı kalır.
+            </div>
+          )}
           <input
             type="file"
             accept={SB_ALLOWED_EXT.join(',')}
@@ -835,6 +945,23 @@ function AddTemplateModal(props) {
               boxSizing: 'border-box',
             }}
           />
+          {isEdit && (file || mappingWillReset) && hadMapping && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: '8px 12px',
+                borderRadius: 8,
+                background: '#FEF3C7',
+                color: '#92400E',
+                fontSize: 12,
+                fontWeight: 600,
+                border: '1px solid #FDE68A',
+              }}
+            >
+              ⚠️ {file ? 'Yeni dosya' : 'Modül/belge türü değişimi'} nedeniyle mevcut alan eşlemeniz
+              sıfırlanacak — kaydettikten sonra 🧩 ile yeniden eşlemeniz gerekir.
+            </div>
+          )}
         </SB_FormField>
         <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
           <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -873,7 +1000,13 @@ function AddTemplateModal(props) {
             İptal
           </SB_Btn>
           <SB_Btn type="submit" disabled={saving}>
-            {saving ? 'Yükleniyor…' : 'Şablonu Kaydet'}
+            {saving
+              ? isEdit
+                ? 'Kaydediliyor…'
+                : 'Yükleniyor…'
+              : isEdit
+                ? 'Değişiklikleri Kaydet'
+                : 'Şablonu Kaydet'}
           </SB_Btn>
         </div>
       </form>
