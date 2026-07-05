@@ -1534,6 +1534,13 @@ window.TEMPLATE_VARS = {
     // Geriye dönük: docType='default' ile kaydedilmiş eski şablonlar
     default: { static: SINAV_STATIC, row: SINAV_ROWS },
   },
+  performans: {
+    docTypes: [{ id: 'strateji-izleme', label: 'Stratejik Plan İzleme' }],
+    // Bu belge placeholder eşlemesi KULLANMAZ; gösterge (PG) koduna göre
+    // doldurulur (produceByRowKey). Değişken seti bilgilendirme amaçlı boş.
+    'strateji-izleme': { static: [], row: [], rowKeyFill: true },
+    default: { static: [], row: [] },
+  },
   _generic: {
     docTypes: [{ id: 'default', label: 'Belge' }],
     default: {

@@ -688,7 +688,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
       </div>
 
       {/* ── Görünüm Sekmesi (yetkiye göre) ── */}
-      {(capOwn ? 1 : 0) + (capDept ? 1 : 0) + (capFaculty ? 1 : 0) > 1 && (
+      {(capOwn ? 1 : 0) + (capDept ? 1 : 0) + (capFaculty ? 1 : 0) + (capDept ? 1 : 0) > 1 && (
         <div
           style={{
             display: 'flex',
@@ -702,6 +702,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
             { id: 'own', label: 'Verilerim', enabled: capOwn },
             { id: 'dept', label: 'Bölüm Özeti', enabled: capDept },
             { id: 'faculty', label: 'Fakülte Özeti', enabled: capFaculty },
+            { id: 'strateji', label: 'Stratejik Plan İzleme', enabled: capDept },
           ]
             .filter((v) => v.enabled)
             .map((v) => (
@@ -1173,9 +1174,420 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
             )}
           </div>
         )}
+
+        {activeView === 'strateji' && (
+          <StratejikPlanIzleme
+            deptId={deptForSummary}
+            deptName={
+              (typeof window !== 'undefined' && Array.isArray(window.DEPARTMENTS)
+                ? window.DEPARTMENTS.find((d) => d.id === deptForSummary)?.name
+                : '') ||
+              selectedBolum ||
+              ''
+            }
+            yil={selectedYil}
+            canEdit={capDept}
+          />
+        )}
       </div>
 
       {/* Toast */}
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: C.accent,
+            color: '#fff',
+            padding: '10px 22px',
+            borderRadius: 8,
+            fontSize: 12.5,
+            fontWeight: 600,
+            zIndex: 1000,
+            fontFamily: F,
+            boxShadow: '0 6px 20px rgba(0,0,0,0.15)',
+          }}
+        >
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═════════════ Stratejik Plan İzleme ═════════════
+// Şablonlar'a yüklenmiş (performans / strateji-izleme) belgeden göstergeleri
+// ayrıştırır, AKADEMİK birim sorumlu olanları amaç/hedef ağacında gösterir,
+// Değer + Açıklama girişini DB'de saklar; belge üretiminde TÜM şablonu
+// doldurur (motor produceByRowKey — PG koduna göre).
+function StratejikPlanIzleme({ deptId, deptName, yil, canEdit }) {
+  const [loading, setLoading] = useState(true);
+  const [noTemplate, setNoTemplate] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [indicators, setIndicators] = useState([]);
+  const [values, setValues] = useState({});
+  const [baseline, setBaseline] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [toast, setToast] = useState('');
+  const showToast = (m) => {
+    setToast(m);
+    setTimeout(() => setToast(''), 3500);
+  };
+
+  // 1) Şablonu çöz + göstergeleri ayrıştır
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setNoTemplate(false);
+      setErrorMsg('');
+      try {
+        const token = localStorage.getItem('caku_auth_token');
+        const headers = token ? { Authorization: 'Bearer ' + token } : {};
+        const rr = await fetch(
+          '/api/templates/resolve?module=performans&docType=strateji-izleme&departmentId=' +
+            encodeURIComponent(deptId || ''),
+          { headers, credentials: 'include' }
+        );
+        const rd = await rr.json().catch(() => ({}));
+        const tpl = rd.template;
+        if (!tpl || !tpl.file || tpl.file.extension !== 'docx') {
+          if (!cancelled) {
+            setNoTemplate(true);
+            setLoading(false);
+          }
+          return;
+        }
+        const fr = await fetch('/api/templates/' + tpl._id + '/download', {
+          headers,
+          credentials: 'include',
+        });
+        if (!fr.ok) throw new Error('Şablon dosyası indirilemedi');
+        const buf = await fr.arrayBuffer();
+        const inds = await window.TemplateEngine.parseRowIndicators(buf);
+        if (!cancelled) setIndicators(inds.filter((i) => i.isAcademic));
+      } catch (e) {
+        if (!cancelled) setErrorMsg(e.message || 'Şablon yüklenemedi');
+      }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [deptId]);
+
+  // 2) Kayıtlı değerleri yükle (yıl + bölüm)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await window.apiRead('strateji_izleme').catch(() => []);
+        const map = {};
+        (Array.isArray(rows) ? rows : []).forEach((r) => {
+          if (!r || !r.code) return;
+          if (String(r.yil) !== String(yil)) return;
+          if ((r.departmentId || '') !== (deptId || '')) return;
+          map[r.code] = {
+            deger: r.deger == null ? '' : String(r.deger),
+            aciklama: r.aciklama == null ? '' : String(r.aciklama),
+          };
+        });
+        if (!cancelled) {
+          setValues(map);
+          setBaseline(map);
+        }
+      } catch (_) {
+        /* yut */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [deptId, yil]);
+
+  const setField = (code, field, val) =>
+    setValues((prev) => ({ ...prev, [code]: { ...(prev[code] || {}), [field]: val } }));
+
+  // Amaç → Hedef gruplama
+  const grouped = useMemo(() => {
+    const order = [];
+    const byAmac = {};
+    indicators.forEach((i) => {
+      const amac = i.amac || 'Diğer';
+      if (!byAmac[amac]) {
+        byAmac[amac] = { amac, hedefOrder: [], hedefler: {} };
+        order.push(byAmac[amac]);
+      }
+      const a = byAmac[amac];
+      const hedef = i.hedef || '';
+      if (!a.hedefler[hedef]) {
+        a.hedefler[hedef] = { hedef, items: [] };
+        a.hedefOrder.push(hedef);
+      }
+      a.hedefler[hedef].items.push(i);
+    });
+    return order;
+  }, [indicators]);
+
+  const dirtyCount = useMemo(() => {
+    let n = 0;
+    indicators.forEach((i) => {
+      const c = values[i.code] || {};
+      const b = baseline[i.code] || {};
+      if ((c.deger || '') !== (b.deger || '') || (c.aciklama || '') !== (b.aciklama || '')) n++;
+    });
+    return n;
+  }, [indicators, values, baseline]);
+
+  const handleSave = async () => {
+    if (!canEdit) return;
+    setSaving(true);
+    try {
+      const ops = [];
+      indicators.forEach((i) => {
+        const c = values[i.code] || {};
+        const b = baseline[i.code] || {};
+        if ((c.deger || '') === (b.deger || '') && (c.aciklama || '') === (b.aciklama || ''))
+          return;
+        const docId = (yil + '_' + (deptId || 'x') + '_' + i.code).replace(/[^\w]/g, '_');
+        ops.push({
+          collection: 'strateji_izleme',
+          type: 'set',
+          docId,
+          data: {
+            yil: String(yil),
+            departmentId: deptId || '',
+            code: i.code,
+            deger: c.deger || '',
+            aciklama: c.aciklama || '',
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      });
+      if (!ops.length) {
+        showToast('Değişiklik yok.');
+        setSaving(false);
+        return;
+      }
+      for (let k = 0; k < ops.length; k += 20) await window.DBWrite.batch(ops.slice(k, k + 20));
+      window.apiInvalidate && window.apiInvalidate('strateji_izleme');
+      setBaseline(JSON.parse(JSON.stringify(values)));
+      showToast(ops.length + ' gösterge kaydedildi.');
+    } catch (e) {
+      showToast('Kayıt hatası: ' + e.message);
+    }
+    setSaving(false);
+  };
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const dataByKey = {};
+      indicators.forEach((i) => {
+        const c = values[i.code] || {};
+        if ((c.deger || '') !== '' || (c.aciklama || '') !== '')
+          dataByKey[i.code] = { deger: c.deger || '', aciklama: c.aciklama || '' };
+      });
+      const res = await window.TemplateEngine.produceByRowKey({
+        module: 'performans',
+        docType: 'strateji-izleme',
+        departmentId: deptId || '',
+        dataByKey,
+        filename:
+          'Stratejik_Plan_Izleme_' +
+          (deptName || 'bolum').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') +
+          '_' +
+          yil +
+          '.docx',
+      });
+      if (!res.ok) {
+        if (res.reason === 'no-template')
+          showToast('Şablon bulunamadı. Şablonlar modülüne yükleyin.');
+        else if (res.reason === 'invalid-output')
+          showToast('Belge üretilemedi: ' + (res.message || 'yapı desteklenmiyor'));
+        else showToast('Belge üretilemedi (' + res.reason + ').');
+      }
+    } catch (e) {
+      showToast('Hata: ' + e.message);
+    }
+    setGenerating(false);
+  };
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px 20px', color: C.textMuted, fontSize: 14 }}>
+        Stratejik plan şablonu yükleniyor…
+      </div>
+    );
+  }
+  if (noTemplate) {
+    return (
+      <div>
+        <Hdr title="Stratejik Plan İzleme" sub={`${yil} yılı — ${deptName || 'bölüm'}`} />
+        <InfoBar
+          color={C.warning}
+          text="Bu alan için Şablonlar modülüne bir 'Stratejik Plan İzleme' belgesi (modül: Performans) yüklenmemiş. Yükledikten sonra göstergeler burada otomatik listelenecek."
+        />
+      </div>
+    );
+  }
+  if (errorMsg) {
+    return (
+      <div>
+        <Hdr title="Stratejik Plan İzleme" sub={`${yil} yılı — ${deptName || 'bölüm'}`} />
+        <InfoBar color={C.danger} text={'Şablon okunamadı: ' + errorMsg} />
+      </div>
+    );
+  }
+
+  const inpStyle = {
+    width: '100%',
+    padding: '6px 8px',
+    borderRadius: 6,
+    border: `1px solid ${C.border}`,
+    fontSize: 12.5,
+    fontFamily: F,
+    boxSizing: 'border-box',
+    background: canEdit ? C.white : C.surfaceAlt,
+  };
+
+  return (
+    <div>
+      <Hdr
+        title="Stratejik Plan İzleme"
+        sub={`${yil} yılı — ${deptName || 'bölüm'} · akademik birim sorumlu ${indicators.length} gösterge`}
+      />
+      <InfoBar
+        color={C.purple}
+        text="Yalnızca akademik birimlerin sorumlu olduğu göstergeler listelenir. Değer + Açıklama girip kaydedin; 'Belge Üret' TÜM stratejik plan şablonunu üretir, girdiğiniz göstergeler dolu gelir."
+      />
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        {canEdit && (
+          <button
+            onClick={handleSave}
+            disabled={saving || dirtyCount === 0}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: dirtyCount ? C.success : C.border,
+              color: '#fff',
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: dirtyCount ? 'pointer' : 'default',
+              fontFamily: F,
+            }}
+          >
+            {saving ? 'Kaydediliyor…' : dirtyCount ? `Kaydet (${dirtyCount})` : 'Kaydet'}
+          </button>
+        )}
+        <button
+          onClick={handleGenerate}
+          disabled={generating}
+          style={{
+            padding: '9px 18px',
+            borderRadius: 8,
+            border: 'none',
+            background: C.accent,
+            color: '#fff',
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: F,
+          }}
+        >
+          {generating ? 'Üretiliyor…' : '📄 Belge Üret (tüm şablon)'}
+        </button>
+      </div>
+
+      {indicators.length === 0 ? (
+        <InfoBar color={C.textMuted} text="Şablonda akademik birim sorumlu gösterge bulunamadı." />
+      ) : (
+        grouped.map((a, ai) => (
+          <div key={ai} style={{ marginBottom: 20 }}>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: C.accent,
+                padding: '8px 10px',
+                background: C.accentGlow,
+                borderRadius: 6,
+                marginBottom: 8,
+              }}
+            >
+              {a.amac}
+            </div>
+            {a.hedefOrder.map((hk, hi) => {
+              const h = a.hedefler[hk];
+              return (
+                <div key={hi} style={{ marginBottom: 10, paddingLeft: 4 }}>
+                  {h.hedef && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: C.textMuted,
+                        margin: '4px 0 6px',
+                      }}
+                    >
+                      {h.hedef}
+                    </div>
+                  )}
+                  {h.items.map((it) => {
+                    const v = values[it.code] || {};
+                    return (
+                      <div
+                        key={it.code}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'minmax(0,1fr) 110px minmax(0,1fr)',
+                          gap: 8,
+                          alignItems: 'start',
+                          padding: '8px 10px',
+                          border: `1px solid ${C.borderLight}`,
+                          borderRadius: 8,
+                          marginBottom: 6,
+                          background: C.surface,
+                        }}
+                      >
+                        <div style={{ fontSize: 12, color: C.text, lineHeight: 1.4 }}>
+                          <span style={{ fontWeight: 700, color: C.accent }}>{it.code}</span>{' '}
+                          {it.desc.replace(/^PG\s*\d+\.\d+\.\d+\.?\s*/i, '')}
+                          {it.unit && (
+                            <div style={{ fontSize: 10.5, color: C.textDim, marginTop: 2 }}>
+                              🏛 {it.unit}
+                            </div>
+                          )}
+                        </div>
+                        <input
+                          value={v.deger || ''}
+                          onChange={(e) => setField(it.code, 'deger', e.target.value)}
+                          disabled={!canEdit}
+                          placeholder="Değer"
+                          style={{ ...inpStyle, textAlign: 'center' }}
+                        />
+                        <input
+                          value={v.aciklama || ''}
+                          onChange={(e) => setField(it.code, 'aciklama', e.target.value)}
+                          disabled={!canEdit}
+                          placeholder="Açıklama"
+                          style={inpStyle}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        ))
+      )}
+
       {toast && (
         <div
           style={{
