@@ -1923,8 +1923,23 @@ const TemplateEngine = (() => {
     // "bozuk" sanıp yanlış-pozitif üretiyordu; onun yerine açılış/kapanış etiket
     // dengesini sayan hafif kontrol — motor'un yapısal etiket bozması (gerçek
     // hata) yakalanır, geçerli belge reddedilmez.
-    if (!isTagBalanced(out)) {
-      throw new Error('Şablon çıktısında etiket dengesi bozuldu.');
+    const balance = tagBalanceFailure(out);
+    if (balance) {
+      // Tanılama: dengenin ilk bozulduğu noktayı ve çevresini konsola yaz —
+      // hangi run/hücre sınırının koptuğu görülsün (kök neden teşhisi).
+      try {
+        const snippet = out.slice(Math.max(0, balance.pos - 200), balance.pos + 120);
+        console.error(
+          '[TemplateEngine] Etiket dengesi bozuldu →',
+          balance.reason,
+          '@',
+          balance.pos,
+          '\n--- çevre XML ---\n' + snippet + '\n-----------------'
+        );
+      } catch (_) {
+        /* konsol yoksa yut */
+      }
+      throw new Error('Şablon çıktısında etiket dengesi bozuldu. (' + balance.reason + ')');
     }
 
     zip.file('word/document.xml', out);
@@ -1939,6 +1954,12 @@ const TemplateEngine = (() => {
   // Motor'un yapısal etiket silmesi gibi GERÇEK bozulmaları yakalar,
   // geçerli OOXML'i (namespace prefix'i ne olursa olsun) reddetmez.
   function isTagBalanced(xml) {
+    return tagBalanceFailure(xml) === null;
+  }
+
+  // Denge bozulmuşsa { pos, reason } döndürür, dengeliyse null.
+  // reason: hangi etiketin nerede sırayı bozduğunu insan-okur biçimde anlatır.
+  function tagBalanceFailure(xml) {
     const stack = [];
     const rx =
       /<\/?([A-Za-z_][\w:.-]*)([^>]*?)(\/?)>|<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>/g;
@@ -1951,13 +1972,32 @@ const TemplateEngine = (() => {
       const name = m[1];
       const selfClose = m[3] === '/';
       if (whole.startsWith('</')) {
-        if (stack.length === 0 || stack[stack.length - 1] !== name) return false;
+        if (stack.length === 0) {
+          return { pos: m.index, reason: 'fazladan kapanış </' + name + '>' };
+        }
+        if (stack[stack.length - 1].name !== name) {
+          return {
+            pos: m.index,
+            reason:
+              'kapanış </' +
+              name +
+              '> ama açık olan <' +
+              stack[stack.length - 1].name +
+              '> (@' +
+              stack[stack.length - 1].pos +
+              ')',
+          };
+        }
         stack.pop();
       } else if (!selfClose) {
-        stack.push(name);
+        stack.push({ name, pos: m.index });
       }
     }
-    return stack.length === 0;
+    if (stack.length > 0) {
+      const top = stack[stack.length - 1];
+      return { pos: top.pos, reason: 'kapanmamış <' + top.name + '>' };
+    }
+    return null;
   }
 
   function downloadBlob(blob, filename) {
