@@ -2218,11 +2218,12 @@ async function exportDeptPrintable(
       bitis: e.endStr || '',
       sure: e.durationStr || '',
       salon: e.assignedRoom || '',
+      ogrenciSayisi: e.studentCount != null ? String(e.studentCount) : '',
       gozetmen: e.supervisors || '',
     }));
     const res = await window.TemplateEngine.produceFromTemplate({
       module: 'sinav',
-      docType: 'default',
+      docType: 'bolum',
       departmentId: departmentId || '',
       staticData: {
         bolumAd: deptName || '',
@@ -2230,6 +2231,7 @@ async function exportDeptPrintable(
         tarih: new Date().toLocaleDateString('tr-TR'),
       },
       rows,
+      stripRowBold: true,
       filename:
         'Sinav_Programi_' + (deptName || 'bolum').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') + '.docx',
     });
