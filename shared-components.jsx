@@ -1474,6 +1474,23 @@ const OGR_KURUM_STATIC = [
   { id: 'tarih', label: 'Bugünün Tarihi' },
 ];
 
+// Sınav programı şablon değişkenleri (Bölüm ve Dekanlık çıktısı ortak set)
+const SINAV_STATIC = [
+  { id: 'bolumAd', label: 'Bölüm Adı' },
+  { id: 'donemAd', label: 'Dönem/Sınav Adı (örn. Bütünleme - Bahar 2025-2026)' },
+  { id: 'tarih', label: 'Bugünün Tarihi' },
+];
+const SINAV_ROWS = [
+  { id: 'dersAd', label: 'Dersin Adı' },
+  { id: 'dersKod', label: 'Dersin Kodu' },
+  { id: 'baslangic', label: 'Başlangıç Tarih-Saat' },
+  { id: 'bitis', label: 'Bitiş Tarih-Saat' },
+  { id: 'sure', label: 'Sınav Süresi' },
+  { id: 'salon', label: 'Salon/Sınıf' },
+  { id: 'ogrenciSayisi', label: 'Sınava Girecek Öğrenci Sayısı' },
+  { id: 'gozetmen', label: 'Gözetmen(ler)' },
+];
+
 window.TEMPLATE_VARS = {
   muafiyet: {
     docTypes: [
@@ -1508,23 +1525,14 @@ window.TEMPLATE_VARS = {
     },
   },
   sinav: {
-    docTypes: [{ id: 'default', label: 'Sınav Programı' }],
-    default: {
-      static: [
-        { id: 'bolumAd', label: 'Bölüm Adı' },
-        { id: 'donemAd', label: 'Dönem/Sınav Adı' },
-        { id: 'tarih', label: 'Bugünün Tarihi' },
-      ],
-      row: [
-        { id: 'dersAd', label: 'Dersin Adı' },
-        { id: 'dersKod', label: 'Dersin Kodu' },
-        { id: 'baslangic', label: 'Başlangıç Tarih-Saat' },
-        { id: 'bitis', label: 'Bitiş Tarih-Saat' },
-        { id: 'sure', label: 'Sınav Süresi' },
-        { id: 'salon', label: 'Salon/Sınıf' },
-        { id: 'gozetmen', label: 'Gözetmen(ler)' },
-      ],
-    },
+    docTypes: [
+      { id: 'bolum', label: 'Bölüm Çıktısı' },
+      { id: 'dekanlik', label: 'Dekanlık Çıktısı' },
+    ],
+    bolum: { static: SINAV_STATIC, row: SINAV_ROWS },
+    dekanlik: { static: SINAV_STATIC, row: SINAV_ROWS },
+    // Geriye dönük: docType='default' ile kaydedilmiş eski şablonlar
+    default: { static: SINAV_STATIC, row: SINAV_ROWS },
   },
   _generic: {
     docTypes: [{ id: 'default', label: 'Belge' }],
