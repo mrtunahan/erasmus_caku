@@ -24,7 +24,7 @@ const _convertGrade = window.convertGrade;
 //   Öğrenci   → Yeni Muafiyet, Taleplerim, Eşleştirme Geçmişi
 //   Akademisyen → Onay Bekleyenler, Geçmiş Kayıtlar, Eşleştirme Geçmişi, Ayarlar
 const STUDENT_TABS = [
-  { id: 'yeni', label: 'Yeni Muafiyet', icon: 'plus' },
+  { id: 'yeni', label: 'Yeni Talep', icon: 'plus' },
   { id: 'gecmis', label: 'Taleplerim', icon: 'history' },
   { id: 'esgecmis', label: 'Eşleştirme Geçmişi', icon: 'history' },
 ];
@@ -1449,6 +1449,7 @@ var MuafiyetDB = {
         studentNo: data.studentNo || '',
         departmentId: data.departmentId || '',
         localDept: data.localDept || '',
+        basvuruTuru: data.basvuruTuru || 'muafiyet',
         sourceUniversity: data.otherUni || '',
         sourceFaculty: data.otherFaculty || '',
         sourceDept: data.otherDept || '',
@@ -5579,7 +5580,7 @@ const CalibrationPanel = ({ records, thresholds, onSaveThresholds }) => {
 // ── Eşleştirme Geçmişi (muafiyet_history) ──
 // Onaylanan ders eşleştirmelerinin bölüm arşivi. Erasmus eşleştirme
 // geçmişinden (trip_history) TAMAMEN BAĞIMSIZDIR.
-const MuafiyetGecmisi = ({ activeDepartment, canDelete }) => {
+const MuafiyetGecmisi = ({ activeDepartment, basvuruTuru, turMeta, canDelete }) => {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -5611,7 +5612,9 @@ const MuafiyetGecmisi = ({ activeDepartment, canDelete }) => {
       .then((all) => {
         if (!alive) return;
         const list = (all || []).filter(
-          (e) => !activeDepartment || (e.departmentId || '') === activeDepartment
+          (e) =>
+            (!activeDepartment || (e.departmentId || '') === activeDepartment) &&
+            (e.basvuruTuru || 'muafiyet') === (basvuruTuru || 'muafiyet')
         );
         setEntries(list);
       })
@@ -5619,7 +5622,7 @@ const MuafiyetGecmisi = ({ activeDepartment, canDelete }) => {
     return () => {
       alive = false;
     };
-  }, [activeDepartment]);
+  }, [activeDepartment, basvuruTuru]);
 
   const filtered = useMemo(() => {
     const t = search.trim().toLocaleLowerCase('tr');
@@ -5672,8 +5675,9 @@ const MuafiyetGecmisi = ({ activeDepartment, canDelete }) => {
           fontWeight: 600,
         }}
       >
-        Akademisyen tarafından ONAYLANAN ders eşleştirmelerinin arşividir ({entries.length}
-        {' kayıt'}). Gelecekteki taleplerde referans olarak kullanılabilir.
+        {turMeta ? turMeta.label + ' — ' : ''}akademisyen tarafından ONAYLANAN ders
+        eşleştirmelerinin arşividir ({entries.length}
+        {' kayıt'}). Bu geçmiş yalnızca bu başvuru türüne aittir.
       </div>
 
       <input
@@ -5795,10 +5799,31 @@ const MuafiyetGecmisi = ({ activeDepartment, canDelete }) => {
   );
 };
 
+// Başvuru türleri — modül iki bağımsız alana bölünür (ayrı geçmiş, ayrı çıktı)
+const BASVURU_TURLERI = [
+  {
+    id: 'muafiyet',
+    label: 'Ders Muafiyet İsteği',
+    kisa: 'Muafiyet',
+    aciklama: 'Başka kurumda alınan derslerin ÇAKÜ derslerine muafiyeti',
+    color: '#7C3AED',
+    bg: '#F5F3FF',
+  },
+  {
+    id: 'intibak',
+    label: 'Yaz Dönemi Ders İntibak İsteği',
+    kisa: 'Yaz İntibak',
+    aciklama: 'Yaz döneminde başka kurumda alınan derslerin intibakı',
+    color: '#D97706',
+    bg: '#FFFBEB',
+  },
+];
+
 function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
   const isStudent = currentUser?.role === 'student';
   const tabs = isStudent ? STUDENT_TABS : STAFF_TABS;
   const [activeTab, setActiveTab] = useState(isStudent ? 'yeni' : 'onay');
+  const [basvuruTuru, setBasvuruTuru] = useState('muafiyet'); // 'muafiyet' | 'intibak'
   const [courseContents, setCourseContents] = useState([]);
   const [records, setRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
@@ -5846,6 +5871,17 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
     [activeDepartment, isStudent, currentUser?.studentNumber]
   );
 
+  // Seçili başvuru türüne göre kayıtlar (eski kayıtlar 'muafiyet' sayılır)
+  const turRecords = useMemo(
+    function () {
+      return records.filter(function (r) {
+        return (r.basvuruTuru || 'muafiyet') === basvuruTuru;
+      });
+    },
+    [records, basvuruTuru]
+  );
+  const turMeta = BASVURU_TURLERI.find((t) => t.id === basvuruTuru) || BASVURU_TURLERI[0];
+
   const handleSaveThresholds = async function (t) {
     await MuafiyetDB.saveThresholds(
       Object.assign({}, t, { updatedBy: currentUser?.identifier || currentUser?.name || '' })
@@ -5872,45 +5908,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
   // alan eşlemesine göre kayıt verileriyle doldurur ve indirir.
   const handleGenerateDoc = async function (rec) {
     try {
-      const token = localStorage.getItem('caku_auth_token');
-      const authHeaders = token ? { Authorization: 'Bearer ' + token } : {};
-
-      const rr = await fetch(
-        '/api/templates/resolve?module=muafiyet&departmentId=' +
-          encodeURIComponent(rec.departmentId || activeDepartment || ''),
-        { headers: authHeaders, credentials: 'include' }
-      );
-      const rd = await rr.json().catch(() => ({}));
-      const tpl = rd.template;
-      if (!tpl) {
-        alert(
-          'Bu bölüm için muafiyet şablonu bulunamadı.\n' +
-            'Şablonlar modülünden "Ders Muafiyet" modülüne bir .docx şablonu yükleyin.'
-        );
-        return;
-      }
-      if (!tpl.file || tpl.file.extension !== 'docx') {
-        alert('Atanan şablon .docx değil — belge üretimi yalnızca .docx şablonlarla çalışır.');
-        return;
-      }
-      const mapped = (tpl.fields || []).filter(function (f) {
-        return f.variable;
-      });
-      if (mapped.length === 0) {
-        alert(
-          'Şablonun alan eşlemesi yapılmamış.\n' +
-            'Şablonlar modülünde şablonun yanındaki 🧩 (Alanlar) butonuyla ' +
-            'yer tutucuları değişkenlere eşleyin.'
-        );
-        return;
-      }
-
-      const fr = await fetch('/api/templates/' + tpl._id + '/download', {
-        headers: authHeaders,
-        credentials: 'include',
-      });
-      if (!fr.ok) throw new Error('Şablon dosyası indirilemedi.');
-      const buf = await fr.arrayBuffer();
+      // Belge türü: kaydın başvuru türü (muafiyet | intibak); şablon buna göre çözülür
+      const docType = rec.basvuruTuru || 'muafiyet';
+      const turAd = (BASVURU_TURLERI.find((t) => t.id === docType) || {}).label || 'Muafiyet';
 
       // Belgeye yalnızca ONAYLANAN dersler girer; hiç onay yoksa tüm talepler
       const ms = rec.matches || [];
@@ -5918,8 +5918,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         return m.adminDecision === 'confirmed';
       });
       const rowsSrc = confirmed.length > 0 ? confirmed : ms;
-      // AKTS değerlerini önce sayıya normalize et — satırda gösterilen değer
-      // ile toplam AYNI sayısal kaynaktan üretilsin (tutarsızlık olmasın).
+      // AKTS değerlerini önce sayıya normalize et — satır ile toplam AYNI kaynaktan
       const aktsNum = function (v) {
         const n = parseInt(String(v == null ? '' : v).replace(/[^\d]/g, ''), 10);
         return isNaN(n) ? 0 : n;
@@ -5957,11 +5956,33 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         cakuBolum: rec.localDept || departmentInfo?.name || '',
         kaynakToplamAkts: String(sumBy('_kAkts')),
         cakuToplamAkts: String(sumBy('_cAkts')),
+        akademikYil: rec.akademikYil || '',
+        donem: rec.donem || '',
         tarih: new Date().toLocaleDateString('tr-TR'),
       };
 
-      const blob = await window.TemplateEngine.generateDocx(buf, tpl.fields, staticData, rows);
-      window.TemplateEngine.downloadBlob(blob, 'Muafiyet_' + (rec.studentNo || 'kayit') + '.docx');
+      const res = await window.TemplateEngine.produceFromTemplate({
+        module: 'muafiyet',
+        docType,
+        departmentId: rec.departmentId || activeDepartment || '',
+        staticData,
+        rows,
+        filename: turAd.replace(/\s+/g, '_') + '_' + (rec.studentNo || 'kayit') + '.docx',
+      });
+      if (res.ok) return;
+      const mesajlar = {
+        'no-template':
+          turAd +
+          ' için şablon bulunamadı.\nŞablonlar modülünden "Ders Muafiyet" modülü → "' +
+          turAd +
+          '" belge türüne bir .docx şablonu yükleyip 🧩 ile eşleyin.',
+        'not-docx': 'Atanan şablon .docx değil — belge üretimi yalnızca .docx ile çalışır.',
+        'no-mapping':
+          'Şablonun alan eşlemesi yapılmamış.\nŞablonlar modülünde 🧩 (Alanlar) butonuyla ' +
+          'yer tutucuları değişkenlere eşleyin.',
+        'invalid-output': 'Şablondan geçerli belge üretilemedi (şablon yapısı desteklenmiyor).',
+      };
+      alert(mesajlar[res.reason] || 'Belge oluşturulamadı: ' + (res.message || ''));
     } catch (e) {
       console.error('Belge üretim hatası:', e);
       alert('Belge oluşturulamadı: ' + e.message);
@@ -6029,27 +6050,81 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
                 letterSpacing: '-0.5px',
               }}
             >
-              Ders Muafiyet
+              Ders Muafiyet & İntibak
             </h1>
-            <p style={{ color: DS.textSecondary, fontSize: 13 }}>
-              NLP tabanlı otomatik ders eşleştirme ve muafiyet belgesi oluşturma
-            </p>
+            <p style={{ color: DS.textSecondary, fontSize: 13 }}>{turMeta.aciklama}</p>
           </div>
-          {courseContents.length > 0 && (
-            <div
-              style={{
-                fontSize: 12,
-                color: DS.green,
-                background: DS.greenBg,
-                padding: '6px 14px',
-                borderRadius: 20,
-                fontWeight: 600,
-                border: '1px solid ' + DS.greenLight,
-              }}
-            >
-              {courseContents.length} ÇAKÜ dersi yüklü
-            </div>
-          )}
+        </div>
+
+        {/* Başvuru türü seçici — modülü iki bağımsız alana böler */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            marginBottom: 22,
+            flexWrap: 'wrap',
+          }}
+        >
+          {BASVURU_TURLERI.map(function (t) {
+            var sel = basvuruTuru === t.id;
+            var cnt = records.filter(function (r) {
+              return (r.basvuruTuru || 'muafiyet') === t.id;
+            }).length;
+            return (
+              <button
+                key={t.id}
+                onClick={function () {
+                  setBasvuruTuru(t.id);
+                  setActiveTab(isStudent ? 'yeni' : 'onay');
+                }}
+                style={{
+                  flex: '1 1 260px',
+                  textAlign: 'left',
+                  padding: '14px 18px',
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  border: '2px solid ' + (sel ? t.color : DS.border),
+                  background: sel ? t.bg : 'white',
+                  transition: 'all 0.15s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                <span
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    background: sel ? t.color : DS.borderLight,
+                    color: sel ? 'white' : DS.textMuted,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 18,
+                    flexShrink: 0,
+                  }}
+                >
+                  {t.id === 'intibak' ? '☀️' : '📘'}
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 14.5,
+                      fontWeight: 700,
+                      color: sel ? t.color : DS.navy,
+                    }}
+                  >
+                    {t.label}
+                  </span>
+                  <span style={{ fontSize: 11.5, color: DS.textSecondary }}>
+                    {cnt} kayıt · {t.aciklama}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Tab Bar */}
@@ -6063,7 +6138,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         >
           {tabs.map(function (tab) {
             var isActive = activeTab === tab.id;
-            var pendingCount = records.filter(function (r) {
+            var pendingCount = turRecords.filter(function (r) {
               return r.pendingReviewCount > 0;
             }).length;
             return (
@@ -6114,7 +6189,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
                     {pendingCount}
                   </span>
                 )}
-                {tab.id === 'gecmis' && records.length > 0 && (
+                {tab.id === 'gecmis' && turRecords.length > 0 && (
                   <span
                     style={{
                       fontSize: 10,
@@ -6125,7 +6200,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
                       borderRadius: 10,
                     }}
                   >
-                    {records.length}
+                    {turRecords.length}
                   </span>
                 )}
               </button>
@@ -6137,7 +6212,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         {/* Ayarlar: yalnızca eşik kalibrasyonu (katalog/not tablosu yükleme kaldırıldı) */}
         {activeTab === 'ayarlar' && !isStudent && (
           <CalibrationPanel
-            records={records}
+            records={turRecords}
             thresholds={thresholds}
             onSaveThresholds={handleSaveThresholds}
           />
@@ -6145,8 +6220,11 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         {/* Yeni Muafiyet: yalnızca öğrenci oluşturur; akademisyen onaylar */}
         {activeTab === 'yeni' && isStudent && (
           <ManualExemptionForm
+            key={basvuruTuru}
             currentUser={currentUser}
             courseContents={courseContents}
+            basvuruTuru={basvuruTuru}
+            turMeta={turMeta}
             onSave={function (saved) {
               setRecords(function (prev) {
                 return [saved, ...prev];
@@ -6157,7 +6235,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         {/* Onay Bekleyenler: akademisyen — karar bekleyen talepler */}
         {activeTab === 'onay' && !isStudent && (
           <ExemptionHistory
-            records={records.filter(function (r) {
+            records={turRecords.filter(function (r) {
               return r.pendingReviewCount > 0;
             })}
             loading={recordsLoading}
@@ -6169,20 +6247,28 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         )}
         {activeTab === 'gecmis' && (
           <ExemptionHistory
-            records={records}
+            records={turRecords}
             loading={recordsLoading}
             onDelete={isStudent ? null : handleDeleteRecord}
             onUpdateDecision={isStudent ? null : handleUpdateDecision}
             onGenerateDoc={isStudent ? null : handleGenerateDoc}
             emptyText={
               isStudent
-                ? 'Henüz muafiyet talebiniz yok. "Yeni Muafiyet" sekmesinden oluşturabilirsiniz.'
-                : 'Henüz kayıt yok.'
+                ? '"' +
+                  turMeta.label +
+                  '" için henüz talebiniz yok. "Yeni Talep" sekmesinden oluşturabilirsiniz.'
+                : turMeta.label + ' için henüz kayıt yok.'
             }
           />
         )}
         {activeTab === 'esgecmis' && (
-          <MuafiyetGecmisi activeDepartment={activeDepartment} canDelete={!isStudent} />
+          <MuafiyetGecmisi
+            key={basvuruTuru}
+            activeDepartment={activeDepartment}
+            basvuruTuru={basvuruTuru}
+            turMeta={turMeta}
+            canDelete={!isStudent}
+          />
         )}
       </div>
     </div>
@@ -6240,7 +6326,7 @@ const normalizeStatu = (s) => {
   return '';
 };
 
-const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
+const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru, turMeta }) => {
   const [studentName, setStudentName] = useState(currentUser?.name || '');
   const [studentNo, setStudentNo] = useState(
     currentUser?.studentNumber || currentUser?.identifier || ''
@@ -6638,6 +6724,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
         otherDept: rows[0]?.src.dept || '',
         localDept: currentUser?.departmentName || '',
         departmentId: currentUser?.departmentId || '',
+        basvuruTuru: basvuruTuru || 'muafiyet',
         matches,
         status: 'pending',
         approvedCount: 0,
@@ -7186,6 +7273,27 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents }) => {
 
   return (
     <div>
+      {/* Aktif başvuru türü bilgi şeridi */}
+      {turMeta && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 14px',
+            borderRadius: 10,
+            marginBottom: 14,
+            background: turMeta.bg,
+            border: '1px solid ' + turMeta.color + '44',
+          }}
+        >
+          <span style={{ fontSize: 18 }}>{basvuruTuru === 'intibak' ? '☀️' : '📘'}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: turMeta.color }}>
+            {turMeta.label}
+          </span>
+          <span style={{ fontSize: 12, color: DS.textSecondary }}>— {turMeta.aciklama}</span>
+        </div>
+      )}
       {/* Öğrenci bilgileri */}
       <div
         style={{
