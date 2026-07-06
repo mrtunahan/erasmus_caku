@@ -1879,13 +1879,18 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
   const [errorMsg, setErrorMsg] = useState('');
   const [indicators, setIndicators] = useState([]);
   const [rows, setRows] = useState([]); // strateji_izleme kayıtları (yıl)
-  const [aggMode, setAggMode] = useState({}); // { code: 'sum'|'fixed' }
+  const [aggMode, setAggMode] = useState({}); // { code: 'sum'|'fixed'|'yuzde'|'max' }
+  const [facAciklama, setFacAciklama] = useState({}); // { code: fakülte açıklaması }
+  const [baseAgg, setBaseAgg] = useState({});
+  const [baseAck, setBaseAck] = useState({});
+  const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [toast, setToast] = useState('');
   const showToast = (m) => {
     setToast(m);
     setTimeout(() => setToast(''), 3500);
   };
+  const facKey = (facultyName || 'fakulte').replace(/[^\w]/g, '_');
 
   // Fakültedeki bölümler (deptId → ad)
   const deptMap = useMemo(() => {
@@ -1959,6 +1964,36 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
     };
   }, [yil]);
 
+  // Fakülte özeti ayarları: toplama tipi + fakülte açıklaması (yıl + fakülte)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const all = await window.apiRead('strateji_fac_ozet').catch(() => []);
+        const am = {};
+        const ac = {};
+        (Array.isArray(all) ? all : []).forEach((r) => {
+          if (!r || !r.code) return;
+          if (String(r.yil) !== String(yil)) return;
+          if ((r.facKey || '') !== facKey) return;
+          if (r.aggMode) am[r.code] = r.aggMode;
+          if (r.aciklama != null) ac[r.code] = String(r.aciklama);
+        });
+        if (!cancelled) {
+          setAggMode(am);
+          setFacAciklama(ac);
+          setBaseAgg(am);
+          setBaseAck(ac);
+        }
+      } catch (_) {
+        /* yut */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [yil, facKey]);
+
   // Gösterge bazında bölüm kırılımı + toplu değer
   const byCode = useMemo(() => {
     const map = {};
@@ -1970,6 +2005,7 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
     return map;
   }, [rows, deptMap]);
 
+  const round2 = (n) => (Math.round(n * 100) / 100).toString();
   const aggValue = (code) => {
     const parts = byCode[code] || [];
     const nums = parts
@@ -1977,14 +2013,69 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
       .filter((n) => !isNaN(n));
     const mode = aggMode[code] || 'sum';
     if (mode === 'fixed') {
-      // sabit: dolu ilk değer
       const first = parts.find((p) => (p.deger || '') !== '');
       return first ? String(first.deger) : '';
+    }
+    if (mode === 'yuzde') {
+      // yüzde/ortalama: sayısal değerlerin ortalaması
+      return nums.length ? round2(nums.reduce((a, b) => a + b, 0) / nums.length) : '';
+    }
+    if (mode === 'max') {
+      return nums.length ? String(Math.max(...nums)) : '';
     }
     // toplam: sayısalların toplamı; hiç sayısal yoksa dolu değerleri birleştir
     if (nums.length) return String(nums.reduce((a, b) => a + b, 0));
     const filled = parts.map((p) => p.deger).filter((x) => (x || '') !== '');
     return filled.join(' | ');
+  };
+
+  const dirtyCount = useMemo(() => {
+    let n = 0;
+    indicators.forEach((i) => {
+      if ((aggMode[i.code] || 'sum') !== (baseAgg[i.code] || 'sum')) n++;
+      else if ((facAciklama[i.code] || '') !== (baseAck[i.code] || '')) n++;
+    });
+    return n;
+  }, [indicators, aggMode, facAciklama, baseAgg, baseAck]);
+
+  const handleSaveSettings = async () => {
+    setSaving(true);
+    try {
+      const ops = [];
+      indicators.forEach((i) => {
+        const am = aggMode[i.code] || 'sum';
+        const ac = facAciklama[i.code] || '';
+        if (am === (baseAgg[i.code] || 'sum') && ac === (baseAck[i.code] || '')) return;
+        const docId = (yil + '_' + facKey + '_' + i.code).replace(/[^\w]/g, '_');
+        ops.push({
+          collection: 'strateji_fac_ozet',
+          type: 'set',
+          docId,
+          data: {
+            yil: String(yil),
+            facKey,
+            facultyName: facultyName || '',
+            code: i.code,
+            aggMode: am,
+            aciklama: ac,
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      });
+      if (!ops.length) {
+        showToast('Değişiklik yok.');
+        setSaving(false);
+        return;
+      }
+      for (let k = 0; k < ops.length; k += 20) await window.DBWrite.batch(ops.slice(k, k + 20));
+      window.apiInvalidate && window.apiInvalidate('strateji_fac_ozet');
+      setBaseAgg({ ...aggMode });
+      setBaseAck({ ...facAciklama });
+      showToast(ops.length + ' ayar kaydedildi.');
+    } catch (e) {
+      showToast('Kayıt hatası: ' + e.message);
+    }
+    setSaving(false);
   };
 
   const grouped = useMemo(() => {
@@ -2007,7 +2098,8 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
       const dataByKey = {};
       indicators.forEach((i) => {
         const val = aggValue(i.code);
-        if (val !== '') dataByKey[i.code] = { deger: val, aciklama: '' };
+        const ack = facAciklama[i.code] || '';
+        if (val !== '' || ack !== '') dataByKey[i.code] = { deger: val, aciklama: ack };
       });
       const res = await window.TemplateEngine.produceByRowKey({
         module: 'performans',
@@ -2060,9 +2152,26 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
       />
       <InfoBar
         color={C.success}
-        text="Bölümlerin girdiği değerler gösterge bazında toplanır (toplam/sabit seçilebilir). 'Belge Üret' toplu değerlerle tek stratejik plan çıktısı verir."
+        text="Bölümlerin girdiği değerler gösterge bazında toplanır (Toplam / Sabit / Yüzde / Maks. seçilebilir). Açıklamayı fakülte yetkilisi girer. Ayarları kaydedin; 'Toplu Belge Üret' toplu değerler + açıklamalarla tek stratejik plan çıktısı verir."
       />
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button
+          onClick={handleSaveSettings}
+          disabled={saving || dirtyCount === 0}
+          style={{
+            padding: '9px 18px',
+            borderRadius: 8,
+            border: 'none',
+            background: dirtyCount ? C.success : C.border,
+            color: '#fff',
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: dirtyCount ? 'pointer' : 'default',
+            fontFamily: F,
+          }}
+        >
+          {saving ? 'Kaydediliyor…' : dirtyCount ? `Kaydet (${dirtyCount})` : 'Kaydet'}
+        </button>
         <button
           onClick={handleGenerate}
           disabled={generating}
@@ -2137,6 +2246,8 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
                   >
                     <option value="sum">Toplam</option>
                     <option value="fixed">Sabit</option>
+                    <option value="yuzde">Yüzde</option>
+                    <option value="max">Maks.</option>
                   </select>
                   <span
                     style={{
@@ -2159,6 +2270,22 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
                     ))}
                   </div>
                 )}
+                <input
+                  value={facAciklama[it.code] || ''}
+                  onChange={(e) => setFacAciklama((p) => ({ ...p, [it.code]: e.target.value }))}
+                  placeholder="Fakülte açıklaması (belgeye yazılır)"
+                  style={{
+                    width: '100%',
+                    marginTop: 6,
+                    padding: '6px 8px',
+                    borderRadius: 6,
+                    border: `1px solid ${C.border}`,
+                    fontSize: 12,
+                    fontFamily: F,
+                    boxSizing: 'border-box',
+                    background: C.white,
+                  }}
+                />
               </div>
             );
           })}
