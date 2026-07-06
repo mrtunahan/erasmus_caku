@@ -1407,6 +1407,13 @@ function blockKeyOf(code) {
   return m ? m[1] + '.' + m[2] : '';
 }
 
+// Performans göstergelerinin (sabit seed) düz listesi — bağlama dropdown'u için
+function flatSeedGostergeler() {
+  const out = [];
+  GOSTERGELER.forEach((k) => k.gostergeler.forEach((g) => out.push({ id: g.id, ad: g.ad })));
+  return out;
+}
+
 function StratejikPlanIzleme({
   deptId,
   deptName,
@@ -1422,6 +1429,9 @@ function StratejikPlanIzleme({
   const [values, setValues] = useState({});
   const [baseline, setBaseline] = useState({});
   const [assignments, setAssignments] = useState({}); // { blockKey: akademisyenId }
+  const [bindings, setBindings] = useState({}); // { PGcode: gostergeId } — GLOBAL eşleme
+  const [perfRows, setPerfRows] = useState([]); // performance_data (yıl)
+  const [perfQuestions, setPerfQuestions] = useState([]); // [{id, ad}] seed + custom
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [toast, setToast] = useState('');
@@ -1527,6 +1537,81 @@ function StratejikPlanIzleme({
     };
   }, [deptId, yil]);
 
+  // 4) Bağlamalar (GLOBAL: PG kodu → performans gostergeId) + performans
+  // verisi + soru listesi. Bağlı göstergeler bölüm özeti toplamıyla oto-dolar.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [bag, pdata, custom] = await Promise.all([
+          window.apiRead('strateji_baglama').catch(() => []),
+          window.apiRead('performance_data').catch(() => []),
+          window.apiRead('performance_indicators').catch(() => []),
+        ]);
+        const bmap = {};
+        (Array.isArray(bag) ? bag : []).forEach((r) => {
+          if (r && r.code && r.gostergeId) bmap[r.code] = r.gostergeId;
+        });
+        const q = flatSeedGostergeler().concat(
+          (Array.isArray(custom) ? custom : [])
+            .filter((c) => c && c.id && c.ad)
+            .map((c) => ({ id: c.id, ad: c.ad }))
+        );
+        if (!cancelled) {
+          setBindings(bmap);
+          setPerfRows(
+            (Array.isArray(pdata) ? pdata : []).filter((r) => r && String(r.yil) === String(yil))
+          );
+          setPerfQuestions(q);
+        }
+      } catch (_) {
+        /* yut */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [yil]);
+
+  // Bölüm özeti: bir performans göstergesinin, bu bölümün akademisyenlerindeki
+  // yıllık toplamı (12 ay toplanır). Bağlı stratejik plan göstergesi bununla dolar.
+  const perfDeptSum = useMemo(() => {
+    const ids = new Set(akadList.map((a) => a.id));
+    const acc = {};
+    perfRows.forEach((r) => {
+      if (!r || !r.gostergeId || !ids.has(r.akademisyenId)) return;
+      const n = parseFloat(String(r.value).replace(',', '.'));
+      if (!isNaN(n)) acc[r.gostergeId] = (acc[r.gostergeId] || 0) + n;
+    });
+    return acc;
+  }, [perfRows, akadList]);
+
+  // Bir göstergenin ETKİN değeri: bağlıysa bölüm-özeti toplamı, değilse elle girilen
+  const effectiveDeger = (code) => {
+    const gid = bindings[code];
+    if (gid) {
+      const v = perfDeptSum[gid];
+      return v != null ? String(v) : '';
+    }
+    return (values[code] && values[code].deger) || '';
+  };
+
+  const setBinding = async (code, gostergeId) => {
+    setBindings((prev) => ({ ...prev, [code]: gostergeId }));
+    try {
+      const docId = ('bag_' + code).replace(/[^\w]/g, '_');
+      await window.DBWrite.set(
+        'strateji_baglama',
+        docId,
+        { code, gostergeId: gostergeId || '', updatedAt: new Date().toISOString() },
+        false
+      );
+      window.apiInvalidate && window.apiInvalidate('strateji_baglama');
+    } catch (e) {
+      showToast('Eşleme kaydedilemedi: ' + e.message);
+    }
+  };
+
   const setField = (code, field, val) =>
     setValues((prev) => ({ ...prev, [code]: { ...(prev[code] || {}), [field]: val } }));
 
@@ -1598,6 +1683,8 @@ function StratejikPlanIzleme({
     try {
       const ops = [];
       visibleIndicators.forEach((i) => {
+        // Bağlı göstergeler otomatik dolar — elle kaydedilmez
+        if (bindings[i.code]) return;
         const c = values[i.code] || {};
         const b = baseline[i.code] || {};
         if ((c.deger || '') === (b.deger || '') && (c.aciklama || '') === (b.aciklama || ''))
@@ -1638,8 +1725,11 @@ function StratejikPlanIzleme({
       const dataByKey = {};
       visibleIndicators.forEach((i) => {
         const c = values[i.code] || {};
-        if ((c.deger || '') !== '' || (c.aciklama || '') !== '')
-          dataByKey[i.code] = { deger: c.deger || '', aciklama: c.aciklama || '' };
+        // Bağlıysa değer performanstan (bölüm özeti) gelir, açıklama boş;
+        // değilse elle girilen değer + açıklama.
+        const deger = effectiveDeger(i.code);
+        const aciklama = bindings[i.code] ? '' : c.aciklama || '';
+        if (deger !== '' || aciklama !== '') dataByKey[i.code] = { deger, aciklama };
       });
       const res = await window.TemplateEngine.produceByRowKey({
         module: 'performans',
@@ -1843,6 +1933,8 @@ function StratejikPlanIzleme({
                   </div>
                   {h.items.map((it) => {
                     const v = values[it.code] || {};
+                    const bound = bindings[it.code];
+                    const autoVal = effectiveDeger(it.code);
                     return (
                       <div
                         key={it.code}
@@ -1852,7 +1944,7 @@ function StratejikPlanIzleme({
                           gap: 8,
                           alignItems: 'start',
                           padding: '8px 10px',
-                          border: `1px solid ${C.borderLight}`,
+                          border: `1px solid ${bound ? C.successDim : C.borderLight}`,
                           borderRadius: 8,
                           marginBottom: 6,
                           background: C.surface,
@@ -1866,19 +1958,62 @@ function StratejikPlanIzleme({
                               🏛 {it.unit}
                             </div>
                           )}
+                          {isManager && (
+                            <select
+                              value={bound || ''}
+                              onChange={(e) => setBinding(it.code, e.target.value)}
+                              title="Performans sorusuyla eşle (değeri bölüm özetinden oto-dolar)"
+                              style={{
+                                marginTop: 4,
+                                maxWidth: '100%',
+                                padding: '3px 6px',
+                                borderRadius: 6,
+                                border: `1px solid ${bound ? C.success : C.border}`,
+                                background: bound ? C.successDim : C.white,
+                                fontSize: 10.5,
+                                fontFamily: F,
+                                color: C.text,
+                              }}
+                            >
+                              <option value="">🔗 Performans sorusu — (elle gir)</option>
+                              {perfQuestions.map((q) => (
+                                <option key={q.id} value={q.id}>
+                                  {q.ad}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </div>
+                        {bound ? (
+                          <div
+                            title="Bölüm özeti toplamından otomatik"
+                            style={{
+                              ...inpStyle,
+                              textAlign: 'center',
+                              background: C.successDim,
+                              color: C.success,
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            {autoVal || '—'}
+                          </div>
+                        ) : (
+                          <input
+                            value={v.deger || ''}
+                            onChange={(e) => setField(it.code, 'deger', e.target.value)}
+                            disabled={!canEdit}
+                            placeholder="Değer"
+                            style={{ ...inpStyle, textAlign: 'center' }}
+                          />
+                        )}
                         <input
-                          value={v.deger || ''}
-                          onChange={(e) => setField(it.code, 'deger', e.target.value)}
-                          disabled={!canEdit}
-                          placeholder="Değer"
-                          style={{ ...inpStyle, textAlign: 'center' }}
-                        />
-                        <input
-                          value={v.aciklama || ''}
+                          value={bound ? '' : v.aciklama || ''}
                           onChange={(e) => setField(it.code, 'aciklama', e.target.value)}
-                          disabled={!canEdit}
-                          placeholder="Açıklama"
+                          disabled={!canEdit || !!bound}
+                          placeholder={bound ? 'Otomatik (açıklama boş)' : 'Açıklama'}
                           style={inpStyle}
                         />
                       </div>
