@@ -2478,21 +2478,25 @@ const TemplateEngine = (() => {
   async function produceQuarterXlsx(opts) {
     const token = localStorage.getItem('caku_auth_token');
     const headers = token ? { Authorization: 'Bearer ' + token } : {};
-    const url =
+    const resolveUrl = (dep) =>
       '/api/templates/resolve?module=' +
       encodeURIComponent(opts.module) +
       '&docType=' +
       encodeURIComponent(opts.docType || 'uc-aylik') +
       '&departmentId=' +
-      encodeURIComponent(opts.departmentId || '');
-    let tpl;
-    try {
-      const r = await fetch(url, { headers, credentials: 'include' });
-      const d = await r.json().catch(() => ({}));
-      tpl = d.template;
-    } catch (e) {
-      return { ok: false, reason: 'network', message: e.message };
-    }
+      encodeURIComponent(dep || '');
+    const tryResolve = async (dep) => {
+      try {
+        const r = await fetch(resolveUrl(dep), { headers, credentials: 'include' });
+        const d = await r.json().catch(() => ({}));
+        return d.template || null;
+      } catch (_) {
+        return null;
+      }
+    };
+    // Önce verilen bölüm kapsamı; bulunamazsa genel/fakülte/üniversite şablonu
+    let tpl = await tryResolve(opts.departmentId || '');
+    if (!tpl && opts.departmentId) tpl = await tryResolve('');
     if (!tpl) return { ok: false, reason: 'no-template' };
     if (!tpl.file || !/^xlsx?$/.test(tpl.file.extension || '')) {
       return { ok: false, reason: 'not-xlsx' };
@@ -2521,6 +2525,8 @@ const TemplateEngine = (() => {
       const valueByName = opts.valueByName || {};
       const monthLabels = opts.monthLabels || ['', '', ''];
       let filledCount = 0;
+      const matched = [];
+      const unmatched = [];
       const sheetNames = Object.keys(zip.files).filter((n) =>
         /^xl\/worksheets\/sheet\d+\.xml$/.test(n)
       );
@@ -2528,6 +2534,7 @@ const TemplateEngine = (() => {
         let sx = await zip.file(sn).async('string');
         const yellowCols = new Set();
         sx = sx.replace(/<row [^>]*?>[\s\S]*?<\/row>/g, (rowXml) => {
+          const rowNum = parseInt((rowXml.match(/<row r="(\d+)"/) || [])[1] || '0', 10);
           const cells = [
             ...rowXml.matchAll(/<c r="([A-Z]+\d+)"((?:[^>]*?))(?:\/>|>([\s\S]*?)<\/c>)/g),
           ];
@@ -2535,6 +2542,10 @@ const TemplateEngine = (() => {
             .filter((c) => ys.has((c[2].match(/s="(\d+)"/) || [])[1]))
             .sort((a, b) => xlColNum(a[1]) - xlColNum(b[1]));
           if (!yc.length) return rowXml;
+          // Sarı sütunları başlık için topla (satır 1 dahil)
+          yc.forEach((c) => yellowCols.add((c[1].match(/^[A-Z]+/) || [''])[0]));
+          // 1. satır = başlık; veriyle doldurulmaz (aylar aşağıda yazılır)
+          if (rowNum === 1) return rowXml;
           // satır göstergesi adı (ilk sharedString metin hücresi)
           let name = '';
           for (const c of cells) {
@@ -2548,12 +2559,17 @@ const TemplateEngine = (() => {
               }
             }
           }
+          if (!name) return rowXml;
           const vals = valueByName[xlNorm(name)];
-          if (!vals) return rowXml;
+          if (!vals) {
+            // Bu sarı gösterge performansta tanımlı değil → boş bırak, raporla
+            unmatched.push(name.trim());
+            return rowXml;
+          }
+          matched.push(name.trim());
           let out = rowXml;
           yc.forEach((c, idx) => {
             const ref = c[1];
-            yellowCols.add((ref.match(/^[A-Z]+/) || [''])[0]);
             const val = vals[idx] != null && vals[idx] !== '' ? vals[idx] : '';
             const sAttr = (c[2].match(/s="\d+"/) || ['s="0"'])[0];
             const newCell =
@@ -2590,13 +2606,14 @@ const TemplateEngine = (() => {
           });
         zip.file(sn, sx);
       }
-      if (!filledCount) return { ok: false, reason: 'no-match' };
+      // Hiç sarı gösterge yoksa (şablonda sarı alan yok) → gerçek hata
+      if (!matched.length && !unmatched.length) return { ok: false, reason: 'no-yellow' };
       const blob = await zip.generateAsync({
         type: 'blob',
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
       downloadBlob(blob, opts.filename || 'gosterge.xlsx');
-      return { ok: true, filled: filledCount };
+      return { ok: true, filled: filledCount, matched, unmatched };
     } catch (e) {
       return { ok: false, reason: 'fill-error', message: e && e.message };
     }
