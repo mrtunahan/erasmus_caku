@@ -10,13 +10,18 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
 const ANK = {
-  primary: '#1B2A4A',
+  primary: '#0F172A',
   accent: '#7C3AED',
+  accentDark: '#6D28D9',
   accentPale: '#F5F3FF',
-  bg: '#FAFAFA',
+  bg: '#F6F7F9',
+  surface: '#FFFFFF',
+  surfaceAlt: '#FBFAFF',
   text: '#1F2937',
-  textMuted: '#6B7280',
-  border: '#E5E7EB',
+  textMuted: '#64748B',
+  textDim: '#94A3B8',
+  border: '#EAECF0',
+  borderStrong: '#D9DEE6',
   green: '#059669',
   greenLight: '#D1FAE5',
   red: '#DC2626',
@@ -27,6 +32,12 @@ const ANK = {
   tealLight: '#CCFBF1',
   blue: '#2563EB',
   blueLight: '#DBEAFE',
+  // tasarım token'ları
+  radius: 14,
+  shadowSm: '0 1px 2px rgba(16,24,40,0.05), 0 1px 3px rgba(16,24,40,0.04)',
+  shadow: '0 4px 12px rgba(16,24,40,0.06), 0 2px 4px rgba(16,24,40,0.04)',
+  shadowLg: '0 12px 32px rgba(16,24,40,0.10)',
+  headerGrad: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
 };
 
 const AIcon = ({ path, size = 18, color = 'currentColor' }) => (
@@ -399,61 +410,15 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
   ];
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div style={{ marginBottom: 16 }}>
-        <h1
-          style={{
-            fontSize: responsive.val(20, 24, 28),
-            fontWeight: 700,
-            color: ANK.primary,
-            margin: 0,
-          }}
-        >
-          Anketler
-        </h1>
-        <p style={{ fontSize: 13, color: ANK.textMuted, marginTop: 4 }}>
-          {isAdmin ? 'Fakülte' : departmentInfo?.name || 'Bölüm'} yönetici paneli — anket oluştur,
-          ata ve sonuçları izle
-        </p>
-      </div>
-
-      {/* Tabs */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 4,
-          borderBottom: '1px solid ' + ANK.border,
-          marginBottom: 20,
-          flexWrap: 'wrap',
-        }}
-      >
-        {tabs.map((t) => {
-          const active = tab === t.key;
-          return (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 7,
-                padding: '10px 16px',
-                border: 'none',
-                background: 'transparent',
-                borderBottom: '2px solid ' + (active ? ANK.accent : 'transparent'),
-                color: active ? ANK.primary : ANK.textMuted,
-                marginBottom: -1,
-                fontSize: 13,
-                fontWeight: active ? 600 : 500,
-                cursor: 'pointer',
-                fontFamily: "'Inter', sans-serif",
-              }}
-            >
-              <AIcon path={t.icon} size={16} /> {t.label}
-            </button>
-          );
-        })}
-      </div>
+    <div className="ank-root" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <AnkStyles />
+      <PageHeader
+        icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+        title="Anketler"
+        subtitle={`${isAdmin ? 'Fakülte' : departmentInfo?.name || 'Bölüm'} yönetici paneli — anket oluştur, ata ve sonuçları izle`}
+        responsive={responsive}
+      />
+      <SegTabs tabs={tabs} active={tab} onChange={setTab} />
 
       {loading ? (
         <Spinner />
@@ -493,21 +458,23 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
 }
 
 const cardStyle = {
-  background: 'white',
-  borderRadius: 12,
+  background: ANK.surface,
+  borderRadius: ANK.radius,
   border: '1px solid ' + ANK.border,
+  boxShadow: ANK.shadowSm,
   padding: 20,
 };
 const inputStyle = {
   width: '100%',
   padding: '10px 12px',
-  borderRadius: 8,
-  border: '1px solid ' + ANK.border,
+  borderRadius: 10,
+  border: '1px solid ' + ANK.borderStrong,
   fontSize: 13,
   outline: 'none',
   fontFamily: "'Inter', sans-serif",
   boxSizing: 'border-box',
-  background: 'white',
+  background: ANK.surface,
+  transition: 'border-color 0.15s, box-shadow 0.15s',
 };
 const labelStyle = {
   display: 'block',
@@ -518,6 +485,97 @@ const labelStyle = {
   letterSpacing: '0.05em',
   marginBottom: 8,
 };
+
+// ─── Modern çerçeve bileşenleri (temiz görünüm) ───────────────────────────
+// Modül köküne bir kez enjekte edilen stil: focus halkaları, kart hover,
+// segment sekme geçişleri. Root'a .ank-root sınıfı ile kapsanır.
+function AnkStyles() {
+  return (
+    <style>{`
+      .ank-root input:focus, .ank-root select:focus, .ank-root textarea:focus {
+        border-color: ${ANK.accent} !important;
+        box-shadow: 0 0 0 3px rgba(124,58,237,0.12) !important;
+      }
+      .ank-card { transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
+      .ank-card-hover:hover { box-shadow: ${ANK.shadow}; transform: translateY(-1px); border-color: ${ANK.borderStrong}; }
+      .ank-seg { display:inline-flex; gap:2px; padding:4px; background:${ANK.surface}; border:1px solid ${ANK.border}; border-radius:12px; box-shadow:${ANK.shadowSm}; flex-wrap:wrap; }
+      .ank-seg-btn { display:flex; align-items:center; gap:7px; padding:8px 15px; border:none; background:transparent; color:${ANK.textMuted}; font-size:13px; font-weight:600; cursor:pointer; border-radius:9px; font-family:'Inter',sans-serif; transition:all .15s ease; white-space:nowrap; }
+      .ank-seg-btn:hover { color:${ANK.primary}; background:${ANK.bg}; }
+      .ank-seg-btn.active { color:#fff; background:${ANK.headerGrad}; box-shadow:0 2px 6px rgba(124,58,237,0.30); }
+      .ank-btn { transition: filter .15s ease, box-shadow .15s ease, transform .05s ease; }
+      .ank-btn:hover { filter: brightness(1.05); }
+      .ank-btn:active { transform: translateY(1px); }
+    `}</style>
+  );
+}
+
+// Sayfa başlığı — gradyan ikon rozeti + başlık/alt başlık
+function PageHeader({ icon, title, subtitle, right, responsive }) {
+  const rv = responsive || { val: (_a, _b, c) => c };
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        marginBottom: 22,
+        flexWrap: 'wrap',
+      }}
+    >
+      <div
+        style={{
+          width: 46,
+          height: 46,
+          borderRadius: 13,
+          background: ANK.headerGrad,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          boxShadow: '0 6px 16px rgba(124,58,237,0.28)',
+        }}
+      >
+        <AIcon path={icon} size={22} color="#fff" />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <h1
+          style={{
+            fontSize: rv.val(19, 22, 25),
+            fontWeight: 800,
+            color: ANK.primary,
+            margin: 0,
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {title}
+        </h1>
+        {subtitle && (
+          <p style={{ fontSize: 13, color: ANK.textMuted, margin: '3px 0 0' }}>{subtitle}</p>
+        )}
+      </div>
+      {right}
+    </div>
+  );
+}
+
+// Segment (pill) sekme kontrolü
+function SegTabs({ tabs, active, onChange }) {
+  return (
+    <div style={{ marginBottom: 22, overflowX: 'auto' }}>
+      <div className="ank-seg">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => onChange(t.key)}
+            className={'ank-seg-btn' + (active === t.key ? ' active' : '')}
+          >
+            <AIcon path={t.icon} size={16} /> {t.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Spinner() {
   return (
@@ -878,6 +936,7 @@ function AnketlerPaneli({
             return (
               <div
                 key={s.id}
+                className="ank-card ank-card-hover"
                 style={{
                   ...cardStyle,
                   padding: 14,
@@ -1511,9 +1570,40 @@ const iconBtn = (color) => ({
 function EmptyState({ text }) {
   return (
     <div
-      style={{ ...cardStyle, textAlign: 'center', padding: 40, color: ANK.textMuted, fontSize: 13 }}
+      style={{
+        ...cardStyle,
+        textAlign: 'center',
+        padding: '48px 40px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 12,
+        background: ANK.surfaceAlt,
+        borderStyle: 'dashed',
+        borderColor: ANK.borderStrong,
+        boxShadow: 'none',
+      }}
     >
-      {text}
+      <div
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: 14,
+          background: ANK.accentPale,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <AIcon
+          path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          size={24}
+          color={ANK.accent}
+        />
+      </div>
+      <span style={{ color: ANK.textMuted, fontSize: 13.5, maxWidth: 320, lineHeight: 1.5 }}>
+        {text}
+      </span>
     </div>
   );
 }
@@ -1721,6 +1811,7 @@ function AtamaPaneli({
           {assignments.map((a) => (
             <div
               key={a.id}
+              className="ank-card ank-card-hover"
               style={{ ...cardStyle, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}
             >
               <div
@@ -2554,22 +2645,14 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
   }
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div style={{ marginBottom: 16 }}>
-        <h1
-          style={{
-            fontSize: responsive.val(20, 24, 28),
-            fontWeight: 700,
-            color: ANK.primary,
-            margin: 0,
-          }}
-        >
-          Anketlerim
-        </h1>
-        <p style={{ fontSize: 13, color: ANK.textMuted, marginTop: 4 }}>
-          Size atanan anketleri doldurun
-        </p>
-      </div>
+    <div className="ank-root" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <AnkStyles />
+      <PageHeader
+        icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+        title="Anketlerim"
+        subtitle="Size atanan anketleri doldurun"
+        responsive={responsive}
+      />
 
       {myAssignments.length === 0 ? (
         <EmptyState text="Size atanmış anket bulunmuyor." />
@@ -2583,6 +2666,7 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
               <div
                 key={a.id}
                 onClick={() => !done && setActiveId(a.surveyId)}
+                className={'ank-card' + (done ? '' : ' ank-card-hover')}
                 style={{
                   ...cardStyle,
                   padding: 16,
@@ -2590,8 +2674,7 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
                   alignItems: 'center',
                   gap: 14,
                   cursor: done ? 'default' : 'pointer',
-                  opacity: done ? 0.65 : 1,
-                  borderColor: done ? ANK.border : ANK.border,
+                  opacity: done ? 0.7 : 1,
                 }}
               >
                 <div
