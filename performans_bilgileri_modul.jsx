@@ -194,6 +194,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   const [customGostergeler, setCustomGostergeler] = useState([]);
   const [showAddQ, setShowAddQ] = useState(false);
   const [newQ, setNewQ] = useState({ kategori: '', ad: '', birim: 'Sayı', aggType: 'sum' });
+  const [editQId, setEditQId] = useState(''); // düzenlenen özel gösterge id'si
   const [savingQ, setSavingQ] = useState(false);
 
   const [toast, setToast] = useState('');
@@ -292,6 +293,23 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   // Yeni gösterge (soru) ekle — performance_indicators koleksiyonuna yazar,
   // tüm akademisyenlerde ortak görünür. Cevaplar gostergeId ile saklandığından
   // başka modüller de window.PerfData.get(id, …) ile bu cevabı okuyabilir.
+  const startEditQuestion = (g) => {
+    setEditQId(g.id);
+    setNewQ({
+      kategori: g.kategori || '',
+      ad: g.ad || '',
+      birim: g.birim || 'Sayı',
+      aggType: g.aggType === 'fixed' ? 'fixed' : 'sum',
+    });
+    setShowAddQ(true);
+  };
+
+  const cancelQuestion = () => {
+    setEditQId('');
+    setNewQ({ kategori: '', ad: '', birim: 'Sayı', aggType: 'sum' });
+    setShowAddQ(false);
+  };
+
   const addQuestion = async () => {
     const ad = (newQ.ad || '').trim();
     if (!ad) {
@@ -300,24 +318,30 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     }
     setSavingQ(true);
     try {
-      const id = 'cq_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const id =
+        editQId || 'cq_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const existing = editQId ? customGostergeler.find((q) => q.id === editQId) : null;
       const doc = {
         id,
         ad,
         birim: (newQ.birim || 'Sayı').trim(),
         kategori: (newQ.kategori || '').trim() || 'DİĞER GÖSTERGELER',
         aggType: newQ.aggType === 'fixed' ? 'fixed' : 'sum',
-        createdBy: currentUser?.name || '',
-        createdAt: new Date().toISOString(),
+        createdBy: (existing && existing.createdBy) || currentUser?.name || '',
+        createdAt: (existing && existing.createdAt) || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
       await window.DBWrite.set('performance_indicators', id, doc, false);
       window.apiInvalidate && window.apiInvalidate('performance_indicators');
-      setCustomGostergeler((prev) => [...prev, doc]);
+      setCustomGostergeler((prev) =>
+        editQId ? prev.map((q) => (q.id === editQId ? doc : q)) : [...prev, doc]
+      );
       setNewQ({ kategori: '', ad: '', birim: 'Sayı', aggType: 'sum' });
+      setEditQId('');
       setShowAddQ(false);
-      flash('Yeni gösterge eklendi.');
+      flash(editQId ? 'Gösterge güncellendi.' : 'Yeni gösterge eklendi.');
     } catch (e) {
-      flash('Gösterge eklenemedi: ' + e.message);
+      flash('Gösterge kaydedilemedi: ' + e.message);
     }
     setSavingQ(false);
   };
@@ -575,11 +599,21 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     capOwn ? 'own' : capDept ? 'dept' : 'faculty'
   );
   useEffect(() => {
-    // Kullanıcı sistemde akademisyen değilse 'own' sekmesinden kaç.
-    if (activeView === 'own' && !capOwn) {
-      setActiveView(capDept ? 'dept' : 'faculty');
+    // Aktif görünüm kullanıcının YETKİSİNDE değilse en uygun sekmeye geç.
+    // KRİTİK: ilk render'da akademisyen listesi henüz yüklenmemişse capOwn
+    // false olup 'faculty'ye düşülebiliyordu; liste gelince akademisyen
+    // doğrudan Verilerim'e çekilir (Fakülte Genel Toplam'da takılı kalmaz).
+    const allowed = {
+      own: capOwn,
+      dept: capDept,
+      faculty: capFaculty,
+      strateji: capDept || capOwn,
+      'strateji-fac': capFaculty,
+    };
+    if (!allowed[activeView]) {
+      setActiveView(capOwn ? 'own' : capDept ? 'dept' : capFaculty ? 'faculty' : 'own');
     }
-  }, [capOwn, capDept, activeView]);
+  }, [capOwn, capDept, capFaculty, activeView]);
 
   // Bölüm özeti için hangi bölüm gösterilecek:
   //   - Bölüm yetkilisi: activeDepartment (kendi bölümü)
@@ -910,6 +944,8 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                     saving={savingQ}
                     onAdd={addQuestion}
                     categories={mergedGostergeler}
+                    isEdit={!!editQId}
+                    onCancel={cancelQuestion}
                   />
                 )}
 
@@ -934,6 +970,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                       editable
                       inputStyle={inp}
                       onDeleteQuestion={capDept ? deleteQuestion : undefined}
+                      onEditQuestion={capDept ? startEditQuestion : undefined}
                     />
                   ))}
                 </ScrollWrap>
@@ -986,7 +1023,15 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                         cursor: 'pointer',
                       }}
                     >
-                      {(fakulteBolumleri.length ? fakulteBolumleri : BOLUMLER).map((b) => (
+                      {/* Fakülte yetkilisi yalnız kendi fakültesinin bölümlerini
+                          görür; tüm bölümlere (BOLUMLER) düşüş yalnız üni yetkilisi
+                          içindir. */}
+                      {(fakulteBolumleri.length
+                        ? fakulteBolumleri
+                        : isUniAdmin
+                          ? BOLUMLER
+                          : fakulteBolumleri
+                      ).map((b) => (
                         <option key={b} value={b}>
                           {b}
                         </option>
@@ -1013,6 +1058,8 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                     saving={savingQ}
                     onAdd={addQuestion}
                     categories={mergedGostergeler}
+                    isEdit={!!editQId}
+                    onCancel={cancelQuestion}
                   />
                 )}
 
@@ -2320,7 +2367,17 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
 // ═════════════ Yeni Gösterge (Soru) Ekleme Çubuğu ═════════════
 // Yalnızca bölüm/fakülte yetkilisine gösterilir (çağıran taraf yetkiyi kontrol
 // eder). Verilerim ve Bölüm Özeti alanlarında ortak kullanılır.
-function AddQuestionBar({ show, setShow, newQ, setNewQ, saving, onAdd, categories }) {
+function AddQuestionBar({
+  show,
+  setShow,
+  newQ,
+  setNewQ,
+  saving,
+  onAdd,
+  categories,
+  isEdit,
+  onCancel,
+}) {
   return (
     <div style={{ marginBottom: 14 }}>
       {!show ? (
@@ -2413,10 +2470,10 @@ function AddQuestionBar({ show, setShow, newQ, setNewQ, saving, onAdd, categorie
               fontFamily: F,
             }}
           >
-            {saving ? 'Ekleniyor…' : 'Ekle'}
+            {saving ? 'Kaydediliyor…' : isEdit ? 'Güncelle' : 'Ekle'}
           </button>
           <button
-            onClick={() => setShow(false)}
+            onClick={() => (onCancel ? onCancel() : setShow(false))}
             style={{
               padding: '9px 14px',
               borderRadius: 8,
@@ -2502,6 +2559,7 @@ function GostergeTable({
   inputStyle,
   compact = false,
   onDeleteQuestion,
+  onEditQuestion,
 }) {
   return (
     <div style={{ marginBottom: compact ? 6 : 20 }}>
@@ -2582,12 +2640,30 @@ function GostergeTable({
                     }}
                   />
                   <span style={{ whiteSpace: 'normal', lineHeight: 1.3 }}>{g.ad}</span>
+                  {g._custom && onEditQuestion && (
+                    <button
+                      onClick={() => onEditQuestion(g)}
+                      title="Bu göstergeyi düzenle"
+                      style={{
+                        marginLeft: 'auto',
+                        border: 'none',
+                        background: 'transparent',
+                        color: C.accent,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        lineHeight: 1,
+                        flexShrink: 0,
+                      }}
+                    >
+                      ✏️
+                    </button>
+                  )}
                   {g._custom && onDeleteQuestion && (
                     <button
                       onClick={() => onDeleteQuestion(g.id)}
                       title="Bu göstergeyi sil"
                       style={{
-                        marginLeft: 'auto',
+                        marginLeft: onEditQuestion ? 4 : 'auto',
                         border: 'none',
                         background: 'transparent',
                         color: C.danger,
