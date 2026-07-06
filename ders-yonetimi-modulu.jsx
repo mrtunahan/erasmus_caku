@@ -38,6 +38,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
     akts: 6,
     bolognaLink: '',
     statu: '', // Z/S — bilinçli seçim zorunlu, varsayılan yok
+    seviye: 'lisans', // lisans | yukseklisans | doktora
   });
   const [saving, setSaving] = useState(false);
   const [filterClass, setFilterClass] = useState('all');
@@ -96,6 +97,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
       akts: c.akts || 6,
       bolognaLink: c.bolognaLink || '',
       statu: c.statu || (c.sinif === 5 ? 'S' : ''),
+      seviye: c.seviye || 'lisans',
     });
   };
 
@@ -111,6 +113,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
       akts: 6,
       bolognaLink: '',
       statu: '',
+      seviye: 'lisans',
     });
   };
 
@@ -132,6 +135,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
         donem: form.donem,
         bolognaLink: bolognaLink,
         statu: form.statu,
+        seviye: form.seviye || 'lisans',
         departmentId: activeDepartment || 'bilgisayar',
         updatedAt: new Date().toISOString(),
       };
@@ -620,6 +624,16 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                   <option value="">— Seçiniz —</option>
                   <option value="Z">Z (Zorunlu)</option>
                   <option value="S">S (Seçmeli)</option>
+                </Select>
+              </FormField>
+              <FormField label="Seviye">
+                <Select
+                  value={form.seviye}
+                  onChange={(e) => setForm({ ...form, seviye: e.target.value })}
+                >
+                  <option value="lisans">Lisans</option>
+                  <option value="yukseklisans">Yüksek Lisans</option>
+                  <option value="doktora">Doktora</option>
                 </Select>
               </FormField>
               <FormField label="Sınav Süresi (dk)">

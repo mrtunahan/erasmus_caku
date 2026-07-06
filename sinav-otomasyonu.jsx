@@ -2648,7 +2648,7 @@ async function exportToXLSX(
 // ══════════════════════════════════════════════════════════════
 // MAIN: SinavOtomasyonuApp
 // ══════════════════════════════════════════════════════════════
-function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
+function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo, seviye = 'lisans' }) {
   const r = window.useResponsive
     ? window.useResponsive()
     : {
@@ -2956,9 +2956,11 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
         await Promise.all(queries);
 
       // Set courses (aynı code + aynı name olanları filtrele, farklı şubeler korunsun)
-      const rawCourses = coursesSnap
-        ? coursesSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        : [];
+      // SEVİYE filtresi: bu modül örneği yalnız kendi seviyesinin derslerini
+      // gösterir (lisans / yukseklisans / doktora). seviye yoksa 'lisans' say.
+      const rawCourses = (
+        coursesSnap ? coursesSnap.docs.map((d) => ({ id: d.id, ...d.data() })) : []
+      ).filter((c) => (c.seviye || 'lisans') === seviye);
       const courseMap = {};
       rawCourses.forEach((c) => {
         const key = ((c.code || '').trim() + '||' + (c.name || '').trim()).toLowerCase();
@@ -3462,6 +3464,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo }) {
         await DBWrite.add('sinav_dersler', {
           ...formData,
           donem: formData.donem || 'guz',
+          seviye: formData.seviye || seviye, // bu modül örneğinin seviyesi
           studentCount: 0,
           departmentId: selectedDeptId || null,
           createdAt: new Date().toISOString(),

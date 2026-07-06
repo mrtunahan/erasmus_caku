@@ -509,7 +509,15 @@ const Sidebar = ({
 
     // Saf akademisyen
     if (isProfessor) {
-      const base = ['sinav', 'formlar', 'dersprogrami', 'projeler', 'staj', 'performans'];
+      const base = [
+        'sinav',
+        'formlar',
+        'dersprogrami',
+        'lisansustu',
+        'projeler',
+        'staj',
+        'performans',
+      ];
       const allowed = base.concat(commissionModules);
       return DEPARTMENT_MODULES.filter((m) => allowed.includes(m.id));
     }
@@ -1650,7 +1658,7 @@ function AppShell() {
       : isDeptManager || isAdmin || isHierarchyManager
         ? DEPARTMENT_MODULES.filter((m) => m.id !== 'benim').map((m) => m.id)
         : isProfessor
-          ? ['sinav', 'formlar', 'dersprogrami', 'projeler', 'staj', 'performans']
+          ? ['sinav', 'formlar', 'dersprogrami', 'lisansustu', 'projeler', 'staj', 'performans']
           : ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet']; // student
 
     // Çapraz-bölümde Ortak/Yönetim/Hiyerarşi modülleri tamamen gizli.
@@ -1814,6 +1822,7 @@ function AppShell() {
         kullanici: window.KullaniciYonetimiApp,
         staj: window.StajModuluApp,
         dersprogrami: window.DersProgramiApp,
+        lisansustu: window.LisansustuApp,
         komisyonlar: window.KomisyonlarModuluApp,
         benim: window.BenimSayfamApp,
         audit: window.AuditLogModuluApp,
