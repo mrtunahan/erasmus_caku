@@ -99,11 +99,6 @@ const AGG_TYPES = [
   { id: 'max', label: 'Maks.' },
 ];
 
-const findGosterge = (id) => {
-  for (const k of GOSTERGELER) for (const g of k.gostergeler) if (g.id === id) return g;
-  return null;
-};
-
 // Sayısal değeri göstergenin birimine göre biçimlendir.
 // Örn birim='Oran' → "%15", birim='m²' → "15 m²"
 function formatValue(v, birim) {
@@ -194,6 +189,13 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   // Bölüm yetkilisi: toplama kuralları (sum/fixed override)
   const [aggOverrides, setAggOverrides] = useState({}); // { [gostergeId]: "sum" | "fixed" }
 
+  // Dinamik (kullanıcı tanımlı) göstergeler — performance_indicators
+  // koleksiyonundan gelir, sabit GOSTERGELER seed'ine eklenir.
+  const [customGostergeler, setCustomGostergeler] = useState([]);
+  const [showAddQ, setShowAddQ] = useState(false);
+  const [newQ, setNewQ] = useState({ kategori: '', ad: '', birim: 'Sayı', aggType: 'sum' });
+  const [savingQ, setSavingQ] = useState(false);
+
   const [toast, setToast] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -212,10 +214,14 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   useEffect(() => {
     const load = async () => {
       try {
-        const [rows, rules] = await Promise.all([
+        const [rows, rules, customQ] = await Promise.all([
           window.apiRead('performance_data').catch(() => []),
           window.apiRead('performance_agg_rules').catch(() => []),
+          window.apiRead('performance_indicators').catch(() => []),
         ]);
+        setCustomGostergeler(
+          (Array.isArray(customQ) ? customQ : []).filter((q) => q && q.id && q.ad)
+        );
         // Rows → akademisyenData şekline dönüştür
         const nested = {};
         (Array.isArray(rows) ? rows : []).forEach((r) => {
@@ -244,6 +250,92 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     load();
   }, []);
 
+  // Sabit seed + dinamik göstergeler → kategori bazında birleşik liste.
+  // Dinamik gösterge, aynı kategori adı varsa oraya eklenir; yoksa yeni
+  // kategori olarak sonda görünür. Her dinamik gösterge _custom işaretli.
+  const mergedGostergeler = useMemo(() => {
+    const cats = GOSTERGELER.map((k) => ({
+      kategori: k.kategori,
+      hedef: k.hedef,
+      gostergeler: [...k.gostergeler],
+    }));
+    const byName = {};
+    cats.forEach((c) => {
+      byName[c.kategori] = c;
+    });
+    customGostergeler.forEach((q) => {
+      const katAd = q.kategori || 'DİĞER GÖSTERGELER';
+      let cat = byName[katAd];
+      if (!cat) {
+        cat = { kategori: katAd, hedef: q.hedef || '', gostergeler: [] };
+        byName[katAd] = cat;
+        cats.push(cat);
+      }
+      if (!cat.gostergeler.some((g) => g.id === q.id)) {
+        cat.gostergeler.push({
+          id: q.id,
+          ad: q.ad,
+          birim: q.birim || 'Sayı',
+          aggType: q.aggType === 'fixed' ? 'fixed' : 'sum',
+          _custom: true,
+        });
+      }
+    });
+    return cats;
+  }, [customGostergeler]);
+
+  const findG = (id) => {
+    for (const k of mergedGostergeler) for (const g of k.gostergeler) if (g.id === id) return g;
+    return null;
+  };
+
+  // Yeni gösterge (soru) ekle — performance_indicators koleksiyonuna yazar,
+  // tüm akademisyenlerde ortak görünür. Cevaplar gostergeId ile saklandığından
+  // başka modüller de window.PerfData.get(id, …) ile bu cevabı okuyabilir.
+  const addQuestion = async () => {
+    const ad = (newQ.ad || '').trim();
+    if (!ad) {
+      flash('Gösterge adı boş olamaz.');
+      return;
+    }
+    setSavingQ(true);
+    try {
+      const id = 'cq_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const doc = {
+        id,
+        ad,
+        birim: (newQ.birim || 'Sayı').trim(),
+        kategori: (newQ.kategori || '').trim() || 'DİĞER GÖSTERGELER',
+        aggType: newQ.aggType === 'fixed' ? 'fixed' : 'sum',
+        createdBy: currentUser?.name || '',
+        createdAt: new Date().toISOString(),
+      };
+      await window.DBWrite.set('performance_indicators', id, doc, false);
+      window.apiInvalidate && window.apiInvalidate('performance_indicators');
+      setCustomGostergeler((prev) => [...prev, doc]);
+      setNewQ({ kategori: '', ad: '', birim: 'Sayı', aggType: 'sum' });
+      setShowAddQ(false);
+      flash('Yeni gösterge eklendi.');
+    } catch (e) {
+      flash('Gösterge eklenemedi: ' + e.message);
+    }
+    setSavingQ(false);
+  };
+
+  const deleteQuestion = async (id) => {
+    if (!id || !confirm('Bu göstergeyi silmek istediğinize emin misiniz?')) return;
+    try {
+      await window.DBWrite.batch([
+        { collection: 'performance_indicators', type: 'delete', docId: id },
+      ]);
+      window.apiInvalidate && window.apiInvalidate('performance_indicators');
+      setCustomGostergeler((prev) => prev.filter((q) => q.id !== id));
+      flash('Gösterge silindi.');
+    } catch (e) {
+      flash('Silinemedi: ' + e.message);
+    }
+  };
+
   // Diff hesapla — sadece değişen (akademisyenId, gostergeId, yil, ay) hücrelerini yaz
   const collectChangedOps = () => {
     if (!selectedAkademisyen) return [];
@@ -257,7 +349,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
       if (v === b) return;
       const [yil, gostergeId, ay] = k.split('_');
       if (!yil || !gostergeId || !ay) return;
-      const g = findGosterge(gostergeId);
+      const g = findG(gostergeId);
       const docId = `${selectedAkademisyen}_${yil}_${gostergeId}_${ay}`;
       ops.push({
         collection: 'performance_data',
@@ -542,7 +634,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
 
   // Kurallara scope-aware erişim: önce ilgili scope'ta ayar ara, bulamazsa default
   const getAggType = (gostergeId, scope, scopeId) => {
-    const g = findGosterge(gostergeId);
+    const g = findG(gostergeId);
     if (scope && scopeId) {
       const v = aggOverrides[`${scope}::${scopeId}::${gostergeId}`];
       if (v) return v;
@@ -552,7 +644,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
 
   // Bölüm toplamı (seçili yıl + ay) — birim ile formatlanmış
   const calcBolumToplam = (gostergeId, ay) => {
-    const g = findGosterge(gostergeId);
+    const g = findG(gostergeId);
     const aggType = getAggType(gostergeId, 'department', deptForSummary);
     const vals = bolumAkademisyenleri
       .map((a) => {
@@ -571,7 +663,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   // NOT: Yalnızca kullanıcının kendi fakültesindeki bölümler dâhil edilir;
   // fakülte yetkilisi başka fakülteden veri göremez.
   const calcFakulteToplam = (gostergeId, ay) => {
-    const g = findGosterge(gostergeId);
+    const g = findG(gostergeId);
     const aggType = getAggType(gostergeId, 'faculty', facultyIdForSummary);
     const fak = userFacultyName;
     if (!fak) return '—';
@@ -807,8 +899,128 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                   color={C.yellow}
                   text={`Seçili yılın (${selectedYil}) 12 aylık gösterge verilerinizi giriniz. Her yıl ayrı kaydedilir.`}
                 />
+
+                {/* ── Yeni gösterge (soru) ekle ── */}
+                <div style={{ marginBottom: 14 }}>
+                  {!showAddQ ? (
+                    <button
+                      onClick={() => setShowAddQ(true)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        border: `1px dashed ${C.accent}`,
+                        background: C.accentGlow,
+                        color: C.accent,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontFamily: F,
+                      }}
+                    >
+                      + Yeni Gösterge (Soru) Ekle
+                    </button>
+                  ) : (
+                    <div
+                      style={{
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 10,
+                        padding: 14,
+                        background: C.surface,
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 10,
+                        alignItems: 'flex-end',
+                      }}
+                    >
+                      <div style={{ flex: '2 1 220px' }}>
+                        <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
+                          Gösterge Adı *
+                        </label>
+                        <input
+                          value={newQ.ad}
+                          onChange={(e) => setNewQ((p) => ({ ...p, ad: e.target.value }))}
+                          placeholder="Örn. Düzenlenen etkinlik sayısı"
+                          style={{ ...inp, width: '100%', marginTop: 4 }}
+                        />
+                      </div>
+                      <div style={{ flex: '2 1 200px' }}>
+                        <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
+                          Kategori
+                        </label>
+                        <input
+                          value={newQ.kategori}
+                          onChange={(e) => setNewQ((p) => ({ ...p, kategori: e.target.value }))}
+                          placeholder="Boş bırakılırsa: DİĞER GÖSTERGELER"
+                          list="perf-kat-list"
+                          style={{ ...inp, width: '100%', marginTop: 4 }}
+                        />
+                        <datalist id="perf-kat-list">
+                          {mergedGostergeler.map((k, i) => (
+                            <option key={i} value={k.kategori} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <div style={{ flex: '1 1 90px' }}>
+                        <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
+                          Birim
+                        </label>
+                        <input
+                          value={newQ.birim}
+                          onChange={(e) => setNewQ((p) => ({ ...p, birim: e.target.value }))}
+                          style={{ ...inp, width: '100%', marginTop: 4 }}
+                        />
+                      </div>
+                      <div style={{ flex: '1 1 110px' }}>
+                        <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
+                          Toplama
+                        </label>
+                        <select
+                          value={newQ.aggType}
+                          onChange={(e) => setNewQ((p) => ({ ...p, aggType: e.target.value }))}
+                          style={{ ...inp, width: '100%', marginTop: 4 }}
+                        >
+                          <option value="sum">Toplam</option>
+                          <option value="fixed">Sabit</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={addQuestion}
+                        disabled={savingQ}
+                        style={{
+                          padding: '9px 16px',
+                          borderRadius: 8,
+                          border: 'none',
+                          background: C.success,
+                          color: '#fff',
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontFamily: F,
+                        }}
+                      >
+                        {savingQ ? 'Ekleniyor…' : 'Ekle'}
+                      </button>
+                      <button
+                        onClick={() => setShowAddQ(false)}
+                        style={{
+                          padding: '9px 14px',
+                          borderRadius: 8,
+                          border: `1px solid ${C.border}`,
+                          background: C.white,
+                          color: C.textMuted,
+                          fontSize: 12.5,
+                          cursor: 'pointer',
+                          fontFamily: F,
+                        }}
+                      >
+                        Vazgeç
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <ScrollWrap>
-                  {GOSTERGELER.map((kat, ki) => (
+                  {mergedGostergeler.map((kat, ki) => (
                     <GostergeTable
                       key={ki}
                       kat={kat}
@@ -827,6 +1039,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                       }
                       editable
                       inputStyle={inp}
+                      onDeleteQuestion={deleteQuestion}
                     />
                   ))}
                 </ScrollWrap>
@@ -913,7 +1126,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                       >
                         {akad.ad}
                       </div>
-                      {GOSTERGELER.map((kat, ki) => (
+                      {mergedGostergeler.map((kat, ki) => (
                         <GostergeTable
                           key={ki}
                           kat={kat}
@@ -942,7 +1155,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                     BÖLÜM TOPLAM DEĞERLERİ — {selectedYil}
                   </div>
                   <ScrollWrap>
-                    {GOSTERGELER.map((kat, ki) => (
+                    {mergedGostergeler.map((kat, ki) => (
                       <div key={ki} style={{ marginBottom: 16 }}>
                         <div
                           style={{
@@ -1077,7 +1290,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                     FAKÜLTE GENEL TOPLAM — {selectedYil}
                   </div>
                   <ScrollWrap>
-                    {GOSTERGELER.map((kat, ki) => (
+                    {mergedGostergeler.map((kat, ki) => (
                       <div key={ki} style={{ marginBottom: 10 }}>
                         <div
                           style={{
@@ -2135,6 +2348,7 @@ function GostergeTable({
   editable = true,
   inputStyle,
   compact = false,
+  onDeleteQuestion,
 }) {
   return (
     <div style={{ marginBottom: compact ? 6 : 20 }}>
@@ -2215,6 +2429,24 @@ function GostergeTable({
                     }}
                   />
                   <span style={{ whiteSpace: 'normal', lineHeight: 1.3 }}>{g.ad}</span>
+                  {g._custom && onDeleteQuestion && (
+                    <button
+                      onClick={() => onDeleteQuestion(g.id)}
+                      title="Bu göstergeyi sil"
+                      style={{
+                        marginLeft: 'auto',
+                        border: 'none',
+                        background: 'transparent',
+                        color: C.danger,
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        lineHeight: 1,
+                        flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               </td>
               {!compact && (
