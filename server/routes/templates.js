@@ -160,8 +160,17 @@ function canManageTemplate(scope, tpl, deptFacMap) {
 
 function canViewTemplate(scope, tpl, deptFacMap) {
   if (canManageTemplate(scope, tpl, deptFacMap)) return true;
-  // Üniversite geneli (eğer ileride scope='university' eklenirse) herkes okur
+  // Üniversite geneli herkes okur
   if (tpl.scope === 'university') return true;
+  // OKUMA erişimi: kullanıcı, şablonun kapsamına giriyorsa (yönetici olmasa
+  // da) indirebilir — örn. akademisyen kendi bölümüne/fakültesine ait şablonu
+  // görüp belge üretebilir. (canManage yalnız DÜZENLEME içindir.)
+  if (tpl.scope === 'department' && tpl.departmentId && tpl.departmentId === scope.departmentId) {
+    return true;
+  }
+  if (tpl.scope === 'faculty' && tpl.facultyId && tpl.facultyId === scope.facultyId) {
+    return true;
+  }
   return false;
 }
 
