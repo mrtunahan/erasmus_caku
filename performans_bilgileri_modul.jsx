@@ -2608,10 +2608,25 @@ function UcAylikCiktiBar({
       });
       if (!res.ok) {
         if (res.reason === 'no-template')
-          flash("Şablon yüklenmemiş. Şablonlar'a (Performans / Üç Aylık Gösterge) .xlsx yükleyin.");
+          flash(
+            "Şablon bulunamadı. Şablonlar'a (Performans / Üç Aylık Gösterge) .xlsx'i GENEL (Üniversite) kapsamıyla yükleyin ki hem bölüm hem fakülte çıktısı erişebilsin."
+          );
         else if (res.reason === 'not-xlsx') flash('Atanmış şablon .xlsx değil.');
-        else if (res.reason === 'no-match') flash('Şablonda eşleşen sarı gösterge bulunamadı.');
+        else if (res.reason === 'no-yellow')
+          flash('Şablonda sarı (dolgulu) gösterge alanı bulunamadı.');
         else flash('Üretilemedi: ' + (res.message || res.reason));
+      } else {
+        // İndirildi — kısmi doldurma raporu
+        const un = res.unmatched || [];
+        if (un.length) {
+          flash(
+            `İndirildi ✓ ${res.matched?.length || 0} gösterge eşleşti. Performansta TANIMLI OLMAYAN (boş kalan) ${un.length} gösterge: ${un.slice(0, 4).join('; ')}${un.length > 4 ? '…' : ''} — bunları Verilerim'de "Soru Ekle" ile ekleyip veri girin.`
+          );
+        } else {
+          flash(
+            `İndirildi ✓ ${res.matched?.length || 0} gösterge, ${res.filled} hücre dolduruldu.`
+          );
+        }
       }
     } catch (e) {
       flash('Hata: ' + e.message);
@@ -2683,7 +2698,11 @@ function UcAylikCiktiBar({
       >
         {busy ? 'Üretiliyor…' : `${scope === 'faculty' ? 'Fakülte' : 'Bölüm'} çıktısını indir`}
       </button>
-      {toast && <span style={{ fontSize: 11.5, color: C.danger }}>{toast}</span>}
+      {toast && (
+        <div style={{ flexBasis: '100%', fontSize: 11.5, color: C.textMuted, lineHeight: 1.4 }}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
