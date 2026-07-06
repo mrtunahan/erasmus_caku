@@ -1428,6 +1428,66 @@ window.apiRead = apiRead;
 window.apiReadDoc = apiReadDoc;
 
 // ══════════════════════════════════════════════════════════════
+// ── PerfData: Performans cevaplarını modüller arası paylaşımlı okuma ──
+// Performans modülünde girilen değerler performance_data koleksiyonunda
+// { akademisyenId, gostergeId, yil, ay, value } olarak saklanır. Herhangi
+// bir modül bu değerleri STABİL gostergeId ile buradan okuyabilir; böylece
+// bir kez girilen cevap başka modüllerde de doğrudan kullanılabilir.
+//   PerfData.get(gostergeId, { akademisyenId, yil, ay })
+//     - ay verilirse o ayın değeri; verilmezse yılın sayısal TOPLAMI.
+//   PerfData.list({ akademisyenId, yil }) → { gostergeId: yıllıkToplam }
+//   PerfData.questions() → dinamik (kullanıcı tanımlı) göstergeler
+const PerfData = {
+  async _rows() {
+    const r = await apiRead('performance_data').catch(() => []);
+    return Array.isArray(r) ? r : [];
+  },
+  async get(gostergeId, opts) {
+    if (!gostergeId) return '';
+    const o = opts || {};
+    const rows = await this._rows();
+    const matched = rows.filter(
+      (r) =>
+        r &&
+        r.gostergeId === gostergeId &&
+        (o.akademisyenId == null || r.akademisyenId === o.akademisyenId) &&
+        (o.yil == null || String(r.yil) === String(o.yil)) &&
+        (o.ay == null || String(r.ay) === String(o.ay))
+    );
+    if (o.ay != null) {
+      const hit = matched.find((r) => (r.value ?? '') !== '');
+      return hit ? String(hit.value) : '';
+    }
+    // ay yok → yılın sayısal toplamı (sayısal değilse dolu değerleri birleştir)
+    const nums = matched
+      .map((r) => parseFloat(String(r.value).replace(',', '.')))
+      .filter((n) => !isNaN(n));
+    if (nums.length) return String(nums.reduce((a, b) => a + b, 0));
+    const filled = matched.map((r) => r.value).filter((v) => (v ?? '') !== '');
+    return filled.length ? String(filled[0]) : '';
+  },
+  async list(opts) {
+    const o = opts || {};
+    const rows = await this._rows();
+    const acc = {};
+    rows.forEach((r) => {
+      if (!r || !r.gostergeId) return;
+      if (o.akademisyenId != null && r.akademisyenId !== o.akademisyenId) return;
+      if (o.yil != null && String(r.yil) !== String(o.yil)) return;
+      const n = parseFloat(String(r.value).replace(',', '.'));
+      if (!isNaN(n)) acc[r.gostergeId] = (acc[r.gostergeId] || 0) + n;
+      else if ((r.value ?? '') !== '' && acc[r.gostergeId] == null) acc[r.gostergeId] = r.value;
+    });
+    return acc;
+  },
+  async questions() {
+    const q = await apiRead('performance_indicators').catch(() => []);
+    return (Array.isArray(q) ? q : []).filter((x) => x && x.id && x.ad);
+  },
+};
+window.PerfData = PerfData;
+
+// ══════════════════════════════════════════════════════════════
 // ── ŞABLON MOTORU (window.TemplateEngine) ──
 // Word (.docx) şablonlarındaki yer tutucuları (yyyyy, xxxxx, XXXXX, Xxxxx,
 // tek X, {degisken}) tespit eder ve gerçek verilerle doldurup yeni .docx
