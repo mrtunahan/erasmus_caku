@@ -88,6 +88,21 @@ const AYLAR = [
   'ARALIK',
 ];
 
+// Üç aylık periyotlar (çeyrekler) — aylar AYLAR'dan dilimlenir (birebir eşleşme)
+const CEYREKLER = [
+  { id: 'q1', label: '1. Çeyrek (Oca-Şub-Mar)', months: AYLAR.slice(0, 3) },
+  { id: 'q2', label: '2. Çeyrek (Nis-May-Haz)', months: AYLAR.slice(3, 6) },
+  { id: 'q3', label: '3. Çeyrek (Tem-Ağu-Eyl)', months: AYLAR.slice(6, 9) },
+  { id: 'q4', label: '4. Çeyrek (Eki-Kas-Ara)', months: AYLAR.slice(9, 12) },
+];
+// Gösterge adı normalize (xlsx satır adıyla eşleştirmek için — motorla aynı kural)
+const perfNorm = (s) =>
+  String(s || '')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/\s+/g, ' ')
+    .replace(/[^\wçğıöşü ]/gi, '')
+    .trim();
+
 // Yıl seçici için sabit aralık: 2026–2031
 const YILLAR = ['2026', '2027', '2028', '2029', '2030', '2031'];
 
@@ -666,6 +681,16 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   // Faculty yetkilisi/üniversite yetkilisi kendi fakültesi için kural belirler.
   const facultyIdForSummary = useMemo(() => userFacultyName, [userFacultyName]);
 
+  // Üç aylık çıktı için: düz gösterge listesi + fakülte akademisyen id'leri
+  const allGostergeFlat = useMemo(
+    () => mergedGostergeler.flatMap((k) => k.gostergeler.map((g) => ({ id: g.id, ad: g.ad }))),
+    [mergedGostergeler]
+  );
+  const facultyAkademisyenIds = useMemo(() => {
+    if (isUniAdmin) return AKADEMISYENLER.map((a) => a.id);
+    return AKADEMISYENLER.filter((a) => a.fakulte === userFacultyName).map((a) => a.id);
+  }, [AKADEMISYENLER, userFacultyName, isUniAdmin]);
+
   // Kurallara scope-aware erişim: önce ilgili scope'ta ayar ara, bulamazsa default
   const getAggType = (gostergeId, scope, scopeId) => {
     const g = findG(gostergeId);
@@ -1063,6 +1088,21 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                   />
                 )}
 
+                {/* Üç aylık gösterge çıktısı — bölüm kapsamı */}
+                {capDept && (
+                  <UcAylikCiktiBar
+                    scope="dept"
+                    deptId={deptForSummary}
+                    deptName={
+                      departmentInfo?.name || selectedBolum || bolumAkademisyenleri[0]?.bolum
+                    }
+                    yil={selectedYil}
+                    academicianIds={bolumAkademisyenleri.map((a) => a.id)}
+                    gostergeler={allGostergeFlat}
+                    akademisyenData={akademisyenData}
+                  />
+                )}
+
                 {/* Akademisyen bazlı detay */}
                 <ScrollWrap>
                   {bolumAkademisyenleri.map((akad) => (
@@ -1237,6 +1277,17 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                 <InfoBar
                   color={C.purple}
                   text="Her bölümden gelen toplam değerler fakülte düzeyinde birleştirilmiştir. Bölüm özetinde ayarladığınız toplama kuralı burada da geçerlidir."
+                />
+
+                {/* Üç aylık gösterge çıktısı — fakülte kapsamı */}
+                <UcAylikCiktiBar
+                  scope="faculty"
+                  deptId=""
+                  deptName={isUniAdmin ? 'Universite' : userFacultyName}
+                  yil={selectedYil}
+                  academicianIds={facultyAkademisyenIds}
+                  gostergeler={allGostergeFlat}
+                  akademisyenData={akademisyenData}
                 />
 
                 <div style={{ marginTop: 16, borderTop: `2px solid ${C.purple}`, paddingTop: 14 }}>
@@ -2495,6 +2546,144 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+// ═════════════ Üç Aylık Gösterge Çıktısı (xlsx) ═════════════
+// Sarı-alanlı üç aylık gösterge şablonunu (performans / uc-aylik) seçili
+// periyodun 3 ayının kapsam (bölüm/fakülte) toplamlarıyla doldurur, indirir.
+function UcAylikCiktiBar({
+  scope,
+  deptId,
+  deptName,
+  yil,
+  academicianIds,
+  gostergeler,
+  akademisyenData,
+}) {
+  const [period, setPeriod] = useState('q1');
+  const [custom, setCustom] = useState([AYLAR[0], AYLAR[1], AYLAR[2]]);
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState('');
+  const flash = (m) => {
+    setToast(m);
+    setTimeout(() => setToast(''), 3500);
+  };
+  const months = period === 'custom' ? custom : CEYREKLER.find((q) => q.id === period).months;
+
+  const handleGen = async () => {
+    setBusy(true);
+    try {
+      const ids = Array.isArray(academicianIds) ? academicianIds : [];
+      const valueByName = {};
+      (gostergeler || []).forEach((g) => {
+        const sums = months.map((mo) => {
+          let s = 0;
+          let any = false;
+          ids.forEach((aid) => {
+            const v = akademisyenData[aid] && akademisyenData[aid][`${yil}_${g.id}_${mo}`];
+            const n = parseFloat(String(v).replace(',', '.'));
+            if (!isNaN(n)) {
+              s += n;
+              any = true;
+            }
+          });
+          return any ? s : '';
+        });
+        valueByName[perfNorm(g.ad)] = sums;
+      });
+      const res = await window.TemplateEngine.produceQuarterXlsx({
+        module: 'performans',
+        docType: 'uc-aylik',
+        departmentId: scope === 'dept' ? deptId || '' : '',
+        valueByName,
+        monthLabels: months,
+        filename:
+          'Uc_Aylik_Gosterge_' +
+          (deptName || scope || 'ozet').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') +
+          '_' +
+          yil +
+          '.xlsx',
+      });
+      if (!res.ok) {
+        if (res.reason === 'no-template')
+          flash("Şablon yüklenmemiş. Şablonlar'a (Performans / Üç Aylık Gösterge) .xlsx yükleyin.");
+        else if (res.reason === 'not-xlsx') flash('Atanmış şablon .xlsx değil.');
+        else if (res.reason === 'no-match') flash('Şablonda eşleşen sarı gösterge bulunamadı.');
+        else flash('Üretilemedi: ' + (res.message || res.reason));
+      }
+    } catch (e) {
+      flash('Hata: ' + e.message);
+    }
+    setBusy(false);
+  };
+
+  const selStyle = {
+    padding: '6px 10px',
+    borderRadius: 6,
+    border: `1px solid ${C.border}`,
+    fontSize: 12,
+    fontFamily: F,
+    background: C.white,
+  };
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 14,
+        background: C.surfaceAlt,
+        display: 'flex',
+        gap: 10,
+        alignItems: 'center',
+        flexWrap: 'wrap',
+      }}
+    >
+      <span style={{ fontSize: 12, fontWeight: 700, color: C.accent }}>📊 Üç Aylık Çıktı:</span>
+      <select value={period} onChange={(e) => setPeriod(e.target.value)} style={selStyle}>
+        {CEYREKLER.map((q) => (
+          <option key={q.id} value={q.id}>
+            {q.label}
+          </option>
+        ))}
+        <option value="custom">Özel periyot…</option>
+      </select>
+      {period === 'custom' &&
+        [0, 1, 2].map((i) => (
+          <select
+            key={i}
+            value={custom[i]}
+            onChange={(e) => setCustom((p) => p.map((x, k) => (k === i ? e.target.value : x)))}
+            style={selStyle}
+          >
+            {AYLAR.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+        ))}
+      <button
+        onClick={handleGen}
+        disabled={busy}
+        style={{
+          padding: '8px 16px',
+          borderRadius: 8,
+          border: 'none',
+          background: C.success,
+          color: '#fff',
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: 'pointer',
+          fontFamily: F,
+        }}
+      >
+        {busy ? 'Üretiliyor…' : `${scope === 'faculty' ? 'Fakülte' : 'Bölüm'} çıktısını indir`}
+      </button>
+      {toast && <span style={{ fontSize: 11.5, color: C.danger }}>{toast}</span>}
     </div>
   );
 }

@@ -1595,10 +1595,14 @@ window.TEMPLATE_VARS = {
     default: { static: SINAV_STATIC, row: SINAV_ROWS },
   },
   performans: {
-    docTypes: [{ id: 'strateji-izleme', label: 'Stratejik Plan İzleme' }],
-    // Bu belge placeholder eşlemesi KULLANMAZ; gösterge (PG) koduna göre
-    // doldurulur (produceByRowKey). Değişken seti bilgilendirme amaçlı boş.
+    docTypes: [
+      { id: 'strateji-izleme', label: 'Stratejik Plan İzleme' },
+      { id: 'uc-aylik', label: 'Üç Aylık Gösterge (xlsx, sarı alanlar)' },
+    ],
+    // Bu belgeler placeholder eşlemesi KULLANMAZ; gösterge koduna/adına göre
+    // doldurulur (produceByRowKey / produceQuarterXlsx). Değişken seti boş.
     'strateji-izleme': { static: [], row: [], rowKeyFill: true },
+    'uc-aylik': { static: [], row: [], rowKeyFill: true },
     default: { static: [], row: [] },
   },
   _generic: {
@@ -2430,6 +2434,174 @@ const TemplateEngine = (() => {
     }
   }
 
+  // ── ÜÇ AYLIK XLSX DOLDURMA — "sarı" hücreli gösterge tablosu ──
+  // Şablonda SARI dolgulu hücreler (C/D/E gibi ay sütunları) o satırın
+  // göstergesinin aylık değeriyle doldurulur. Satır göstergesi, 1. hücredeki
+  // (A/B) ada göre eşlenir → valueByName[normalizeAd] = [ay1, ay2, ay3].
+  // Başlık satırındaki sarı sütunlar monthLabels ile yeniden adlandırılır.
+  const xlEsc = (s) =>
+    String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  const xlNorm = (s) =>
+    String(s || '')
+      .replace(/&amp;/g, '&')
+      .replace(/&#10;/g, ' ')
+      .toLocaleLowerCase('tr-TR')
+      .replace(/\s+/g, ' ')
+      .replace(/[^\wçğıöşü ]/gi, '')
+      .trim();
+  const xlColNum = (ref) => {
+    const c = (ref.match(/^[A-Z]+/) || [''])[0];
+    let n = 0;
+    for (const ch of c) n = n * 26 + (ch.charCodeAt(0) - 64);
+    return n;
+  };
+  function xlYellowStyleIds(stXml) {
+    const fills = [...stXml.matchAll(/<fill>([\s\S]*?)<\/fill>/g)].map((m) => m[1]);
+    const yf = new Set();
+    fills.forEach((f, i) => {
+      const c = (f.match(/rgb="([0-9A-Fa-f]{8})"/) || [])[1];
+      if (c && /FFFF00$/i.test(c)) yf.add(i);
+    });
+    const xfsB = stXml.match(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/);
+    const xfs = xfsB ? [...xfsB[1].matchAll(/<xf\b[^>]*?\/?>/g)].map((m) => m[0]) : [];
+    const ys = new Set();
+    xfs.forEach((xf, i) => {
+      const fid = (xf.match(/fillId="(\d+)"/) || [])[1];
+      if (fid && yf.has(parseInt(fid, 10))) ys.add(String(i));
+    });
+    return ys;
+  }
+
+  async function produceQuarterXlsx(opts) {
+    const token = localStorage.getItem('caku_auth_token');
+    const headers = token ? { Authorization: 'Bearer ' + token } : {};
+    const url =
+      '/api/templates/resolve?module=' +
+      encodeURIComponent(opts.module) +
+      '&docType=' +
+      encodeURIComponent(opts.docType || 'uc-aylik') +
+      '&departmentId=' +
+      encodeURIComponent(opts.departmentId || '');
+    let tpl;
+    try {
+      const r = await fetch(url, { headers, credentials: 'include' });
+      const d = await r.json().catch(() => ({}));
+      tpl = d.template;
+    } catch (e) {
+      return { ok: false, reason: 'network', message: e.message };
+    }
+    if (!tpl) return { ok: false, reason: 'no-template' };
+    if (!tpl.file || !/^xlsx?$/.test(tpl.file.extension || '')) {
+      return { ok: false, reason: 'not-xlsx' };
+    }
+    let buf;
+    try {
+      const fr = await fetch('/api/templates/' + tpl._id + '/download', {
+        headers,
+        credentials: 'include',
+      });
+      if (!fr.ok) throw new Error('indirilemedi');
+      buf = await fr.arrayBuffer();
+    } catch (e) {
+      return { ok: false, reason: 'download', message: e.message };
+    }
+    try {
+      const JSZip = await ensureJSZip();
+      const zip = await JSZip.loadAsync(buf);
+      const ssFile = zip.file('xl/sharedStrings.xml');
+      const ssXml = ssFile ? await ssFile.async('string') : '';
+      const strings = [...ssXml.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) =>
+        [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((x) => x[1]).join('')
+      );
+      const stFile = zip.file('xl/styles.xml');
+      const ys = stFile ? xlYellowStyleIds(await stFile.async('string')) : new Set();
+      const valueByName = opts.valueByName || {};
+      const monthLabels = opts.monthLabels || ['', '', ''];
+      let filledCount = 0;
+      const sheetNames = Object.keys(zip.files).filter((n) =>
+        /^xl\/worksheets\/sheet\d+\.xml$/.test(n)
+      );
+      for (const sn of sheetNames) {
+        let sx = await zip.file(sn).async('string');
+        const yellowCols = new Set();
+        sx = sx.replace(/<row [^>]*?>[\s\S]*?<\/row>/g, (rowXml) => {
+          const cells = [
+            ...rowXml.matchAll(/<c r="([A-Z]+\d+)"((?:[^>]*?))(?:\/>|>([\s\S]*?)<\/c>)/g),
+          ];
+          const yc = cells
+            .filter((c) => ys.has((c[2].match(/s="(\d+)"/) || [])[1]))
+            .sort((a, b) => xlColNum(a[1]) - xlColNum(b[1]));
+          if (!yc.length) return rowXml;
+          // satır göstergesi adı (ilk sharedString metin hücresi)
+          let name = '';
+          for (const c of cells) {
+            const isS = /t="s"/.test(c[2]);
+            const v = (c[3] || '').match(/<v>(\d+)<\/v>/);
+            if (isS && v) {
+              const txt = strings[parseInt(v[1], 10)] || '';
+              if (txt && isNaN(txt)) {
+                name = txt;
+                break;
+              }
+            }
+          }
+          const vals = valueByName[xlNorm(name)];
+          if (!vals) return rowXml;
+          let out = rowXml;
+          yc.forEach((c, idx) => {
+            const ref = c[1];
+            yellowCols.add((ref.match(/^[A-Z]+/) || [''])[0]);
+            const val = vals[idx] != null && vals[idx] !== '' ? vals[idx] : '';
+            const sAttr = (c[2].match(/s="\d+"/) || ['s="0"'])[0];
+            const newCell =
+              val === ''
+                ? '<c r="' + ref + '" ' + sAttr + '/>'
+                : '<c r="' + ref + '" ' + sAttr + '><v>' + xlEsc(String(val)) + '</v></c>';
+            out = out.replace(
+              new RegExp('<c r="' + ref + '"[^>]*?(?:/>|>[\\s\\S]*?</c>)'),
+              () => newCell
+            );
+            if (val !== '') filledCount++;
+          });
+          return out;
+        });
+        // başlık (1. satır) sarı sütunlarını ay adlarıyla değiştir
+        [...yellowCols]
+          .sort((a, b) => xlColNum(a + '1') - xlColNum(b + '1'))
+          .forEach((col, i) => {
+            if (i > 2) return;
+            const ref = col + '1';
+            const sAttr =
+              (sx.match(new RegExp('<c r="' + ref + '"[^>]*?(s="\\d+")')) || [])[1] || 's="0"';
+            sx = sx.replace(
+              new RegExp('<c r="' + ref + '"[^>]*?(?:/>|>[\\s\\S]*?</c>)'),
+              () =>
+                '<c r="' +
+                ref +
+                '" ' +
+                sAttr +
+                ' t="inlineStr"><is><t>' +
+                xlEsc(monthLabels[i] || '') +
+                '</t></is></c>'
+            );
+          });
+        zip.file(sn, sx);
+      }
+      if (!filledCount) return { ok: false, reason: 'no-match' };
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      downloadBlob(blob, opts.filename || 'gosterge.xlsx');
+      return { ok: true, filled: filledCount };
+    } catch (e) {
+      return { ok: false, reason: 'fill-error', message: e && e.message };
+    }
+  }
+
   return {
     detectPlaceholders,
     generateDocx,
@@ -2437,6 +2609,7 @@ const TemplateEngine = (() => {
     produceFromTemplate,
     parseRowIndicators,
     produceByRowKey,
+    produceQuarterXlsx,
     fillRowsByKey,
   };
 })();
