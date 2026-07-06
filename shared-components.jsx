@@ -356,6 +356,11 @@ const DEPARTMENT_MODULES = [
     icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
   },
   {
+    id: 'lisansustu',
+    label: 'Lisansüstü',
+    icon: 'M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.42a12 12 0 01.84 4.42c0 3.31-3.13 6-7 6s-7-2.69-7-6c0-1.55.42-3.04 1.16-4.42L12 14z',
+  },
+  {
     id: 'projeler',
     label: 'Proje',
     icon: 'M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z',

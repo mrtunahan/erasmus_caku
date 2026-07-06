@@ -84,6 +84,7 @@ window.__lazyModules = {
   },
   staj: { loader: () => import('./staj-modulu.jsx'), component: 'StajModuluApp' },
   dersprogrami: { loader: () => import('./ders-programi.jsx'), component: 'DersProgramiApp' },
+  lisansustu: { loader: () => import('./lisansustu-modulu.jsx'), component: 'LisansustuApp' },
   roadmaps: { loader: () => import('./roadmaps-module.jsx'), component: 'RoadmapsModuleApp' },
   komisyonlar: {
     loader: () => import('./komisyonlar-modulu.jsx'),

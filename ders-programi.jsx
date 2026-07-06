@@ -496,7 +496,9 @@ const CourseChip = ({ course, color }) => {
   );
 };
 
-function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
+function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye = 'lisans' }) {
+  // Seviye eki: lisans geriye-uyumlu (eksiz), lisansüstü ayrı belge uzayı.
+  const seviyeSuffix = seviye && seviye !== 'lisans' ? '_' + seviye : '';
   const [scheduleData, setScheduleData] = useState({});
   const [loading, setLoading] = useState(true);
   const [semester, setSemester] = useState('guz');
@@ -544,11 +546,13 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         return;
       }
       try {
-        // Dersler (sinav_dersler) - sadece aktif bölüm
+        // Dersler (sinav_dersler) - sadece aktif bölüm + bu modülün SEVİYESİ
         const rawCourses = await window.apiRead('sinav_dersler', {
           where: `departmentId:eq:${activeDepartment}`,
         });
-        const courseList = (rawCourses || []).slice();
+        const courseList = (rawCourses || [])
+          .filter((c) => (c.seviye || 'lisans') === seviye)
+          .slice();
         courseList.sort(
           (a, b) => (a.sinif || 0) - (b.sinif || 0) || (a.code || '').localeCompare(b.code || '')
         );
@@ -602,7 +606,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
       setLoading(true);
       try {
         if (activeDepartment) {
-          const docId = `${activeDepartment}_${semester}_${year}`;
+          const docId = `${activeDepartment}_${semester}_${year}${seviyeSuffix}`;
           const result = await window.apiReadDoc('course_schedules', docId);
           setScheduleData(result.exists ? result.data?.slots || {} : {});
         } else {
@@ -627,7 +631,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         alert('Lütfen önce bir bölüm seçin.');
         return null;
       }
-      const docId = `${activeDepartment}_${semester}_${year}`;
+      const docId = `${activeDepartment}_${semester}_${year}${seviyeSuffix}`;
       try {
         let base = {};
         try {
@@ -646,6 +650,7 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
             departmentId: activeDepartment,
             semester,
             year,
+            seviye,
             updatedAt: new Date().toISOString(),
           },
           true
@@ -859,8 +864,12 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo }) {
         const deptId = d.departmentId || parts[0] || '';
         const sem = d.semester || parts[1] || '';
         const yr = String(d.year || parts[2] || '');
+        // docId: dept_sem_year (lisans) veya dept_sem_year_seviye (lisansüstü)
+        const docSeviye = d.seviye || (parts.length >= 4 ? parts[3] : 'lisans');
         const slots = d.slots || {};
         if (sem !== semester || !slots || Object.keys(slots).length === 0) return;
+        // Yalnız bu modülün seviyesindeki programlar (çakışma kendi seviyesi içinde)
+        if ((docSeviye || 'lisans') !== seviye) return;
         if (deptId === activeDepartment) {
           deptYears.push({ year: yr, slots });
         } else {
