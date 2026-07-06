@@ -900,124 +900,18 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                   text={`Seçili yılın (${selectedYil}) 12 aylık gösterge verilerinizi giriniz. Her yıl ayrı kaydedilir.`}
                 />
 
-                {/* ── Yeni gösterge (soru) ekle ── */}
-                <div style={{ marginBottom: 14 }}>
-                  {!showAddQ ? (
-                    <button
-                      onClick={() => setShowAddQ(true)}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: 8,
-                        border: `1px dashed ${C.accent}`,
-                        background: C.accentGlow,
-                        color: C.accent,
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        fontFamily: F,
-                      }}
-                    >
-                      + Yeni Gösterge (Soru) Ekle
-                    </button>
-                  ) : (
-                    <div
-                      style={{
-                        border: `1px solid ${C.border}`,
-                        borderRadius: 10,
-                        padding: 14,
-                        background: C.surface,
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: 10,
-                        alignItems: 'flex-end',
-                      }}
-                    >
-                      <div style={{ flex: '2 1 220px' }}>
-                        <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
-                          Gösterge Adı *
-                        </label>
-                        <input
-                          value={newQ.ad}
-                          onChange={(e) => setNewQ((p) => ({ ...p, ad: e.target.value }))}
-                          placeholder="Örn. Düzenlenen etkinlik sayısı"
-                          style={{ ...inp, width: '100%', marginTop: 4 }}
-                        />
-                      </div>
-                      <div style={{ flex: '2 1 200px' }}>
-                        <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
-                          Kategori
-                        </label>
-                        <input
-                          value={newQ.kategori}
-                          onChange={(e) => setNewQ((p) => ({ ...p, kategori: e.target.value }))}
-                          placeholder="Boş bırakılırsa: DİĞER GÖSTERGELER"
-                          list="perf-kat-list"
-                          style={{ ...inp, width: '100%', marginTop: 4 }}
-                        />
-                        <datalist id="perf-kat-list">
-                          {mergedGostergeler.map((k, i) => (
-                            <option key={i} value={k.kategori} />
-                          ))}
-                        </datalist>
-                      </div>
-                      <div style={{ flex: '1 1 90px' }}>
-                        <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
-                          Birim
-                        </label>
-                        <input
-                          value={newQ.birim}
-                          onChange={(e) => setNewQ((p) => ({ ...p, birim: e.target.value }))}
-                          style={{ ...inp, width: '100%', marginTop: 4 }}
-                        />
-                      </div>
-                      <div style={{ flex: '1 1 110px' }}>
-                        <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
-                          Toplama
-                        </label>
-                        <select
-                          value={newQ.aggType}
-                          onChange={(e) => setNewQ((p) => ({ ...p, aggType: e.target.value }))}
-                          style={{ ...inp, width: '100%', marginTop: 4 }}
-                        >
-                          <option value="sum">Toplam</option>
-                          <option value="fixed">Sabit</option>
-                        </select>
-                      </div>
-                      <button
-                        onClick={addQuestion}
-                        disabled={savingQ}
-                        style={{
-                          padding: '9px 16px',
-                          borderRadius: 8,
-                          border: 'none',
-                          background: C.success,
-                          color: '#fff',
-                          fontSize: 12.5,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          fontFamily: F,
-                        }}
-                      >
-                        {savingQ ? 'Ekleniyor…' : 'Ekle'}
-                      </button>
-                      <button
-                        onClick={() => setShowAddQ(false)}
-                        style={{
-                          padding: '9px 14px',
-                          borderRadius: 8,
-                          border: `1px solid ${C.border}`,
-                          background: C.white,
-                          color: C.textMuted,
-                          fontSize: 12.5,
-                          cursor: 'pointer',
-                          fontFamily: F,
-                        }}
-                      >
-                        Vazgeç
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {/* Yeni gösterge yalnızca bölüm/fakülte yetkilisi ekleyebilir */}
+                {capDept && (
+                  <AddQuestionBar
+                    show={showAddQ}
+                    setShow={setShowAddQ}
+                    newQ={newQ}
+                    setNewQ={setNewQ}
+                    saving={savingQ}
+                    onAdd={addQuestion}
+                    categories={mergedGostergeler}
+                  />
+                )}
 
                 <ScrollWrap>
                   {mergedGostergeler.map((kat, ki) => (
@@ -1039,7 +933,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                       }
                       editable
                       inputStyle={inp}
-                      onDeleteQuestion={deleteQuestion}
+                      onDeleteQuestion={capDept ? deleteQuestion : undefined}
                     />
                   ))}
                 </ScrollWrap>
@@ -1108,6 +1002,19 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                   color={C.warning}
                   text="Bölümdeki tüm akademisyenlerin girdiği değerler toplanır. Her gösterge için toplama kuralını (Topla / Sabit / Ortalama / Maks.) ayarlayabilirsiniz."
                 />
+
+                {/* Yeni gösterge yalnızca bölüm/fakülte yetkilisi ekleyebilir */}
+                {capDept && (
+                  <AddQuestionBar
+                    show={showAddQ}
+                    setShow={setShowAddQ}
+                    newQ={newQ}
+                    setNewQ={setNewQ}
+                    saving={savingQ}
+                    onAdd={addQuestion}
+                    categories={mergedGostergeler}
+                  />
+                )}
 
                 {/* Akademisyen bazlı detay */}
                 <ScrollWrap>
@@ -2277,6 +2184,125 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
           }}
         >
           {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═════════════ Yeni Gösterge (Soru) Ekleme Çubuğu ═════════════
+// Yalnızca bölüm/fakülte yetkilisine gösterilir (çağıran taraf yetkiyi kontrol
+// eder). Verilerim ve Bölüm Özeti alanlarında ortak kullanılır.
+function AddQuestionBar({ show, setShow, newQ, setNewQ, saving, onAdd, categories }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {!show ? (
+        <button
+          onClick={() => setShow(true)}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: `1px dashed ${C.accent}`,
+            background: C.accentGlow,
+            color: C.accent,
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: F,
+          }}
+        >
+          + Yeni Gösterge (Soru) Ekle
+        </button>
+      ) : (
+        <div
+          style={{
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: 14,
+            background: C.surface,
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 10,
+            alignItems: 'flex-end',
+          }}
+        >
+          <div style={{ flex: '2 1 220px' }}>
+            <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
+              Gösterge Adı *
+            </label>
+            <input
+              value={newQ.ad}
+              onChange={(e) => setNewQ((p) => ({ ...p, ad: e.target.value }))}
+              placeholder="Örn. Düzenlenen etkinlik sayısı"
+              style={{ ...inp, width: '100%', marginTop: 4 }}
+            />
+          </div>
+          <div style={{ flex: '2 1 200px' }}>
+            <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>Kategori</label>
+            <input
+              value={newQ.kategori}
+              onChange={(e) => setNewQ((p) => ({ ...p, kategori: e.target.value }))}
+              placeholder="Boş bırakılırsa: DİĞER GÖSTERGELER"
+              list="perf-kat-list"
+              style={{ ...inp, width: '100%', marginTop: 4 }}
+            />
+            <datalist id="perf-kat-list">
+              {(categories || []).map((k, i) => (
+                <option key={i} value={k.kategori} />
+              ))}
+            </datalist>
+          </div>
+          <div style={{ flex: '1 1 90px' }}>
+            <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>Birim</label>
+            <input
+              value={newQ.birim}
+              onChange={(e) => setNewQ((p) => ({ ...p, birim: e.target.value }))}
+              style={{ ...inp, width: '100%', marginTop: 4 }}
+            />
+          </div>
+          <div style={{ flex: '1 1 110px' }}>
+            <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>Toplama</label>
+            <select
+              value={newQ.aggType}
+              onChange={(e) => setNewQ((p) => ({ ...p, aggType: e.target.value }))}
+              style={{ ...inp, width: '100%', marginTop: 4 }}
+            >
+              <option value="sum">Toplam</option>
+              <option value="fixed">Sabit</option>
+            </select>
+          </div>
+          <button
+            onClick={onAdd}
+            disabled={saving}
+            style={{
+              padding: '9px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: C.success,
+              color: '#fff',
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: F,
+            }}
+          >
+            {saving ? 'Ekleniyor…' : 'Ekle'}
+          </button>
+          <button
+            onClick={() => setShow(false)}
+            style={{
+              padding: '9px 14px',
+              borderRadius: 8,
+              border: `1px solid ${C.border}`,
+              background: C.white,
+              color: C.textMuted,
+              fontSize: 12.5,
+              cursor: 'pointer',
+              fontFamily: F,
+            }}
+          >
+            Vazgeç
+          </button>
         </div>
       )}
     </div>
