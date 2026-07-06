@@ -111,6 +111,7 @@ const ALLOWED_COLLECTIONS = [
   'strateji_izleme',
   'strateji_atama',
   'strateji_fac_ozet',
+  'strateji_baglama',
   'audit_logs',
   'notifications',
   'student_clubs',
