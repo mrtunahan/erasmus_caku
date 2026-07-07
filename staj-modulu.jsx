@@ -1510,6 +1510,19 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
       }
     }
 
+    // Aynı etaba birden çok başvuru engellenir: yeni başvuruda o etaba ait
+    // zaten bir kayıt varsa reddet (öğrenci mevcut başvurusunu düzenlemeli).
+    if (!editingId && form.stajEtapId) {
+      const dupe = myApplications.find((a) => (a.stajEtapId || '') === form.stajEtapId);
+      if (dupe) {
+        setSavedMsg(
+          'Bu staj etabına zaten bir başvurunuz var. Yeni başvuru yerine mevcut başvurunuzu düzenleyebilirsiniz.'
+        );
+        setTimeout(() => setSavedMsg(''), 5000);
+        return;
+      }
+    }
+
     // Zorunlu alan kontrolü
     const missingFields = Object.entries(REQUIRED_FIELDS)
       .filter(([key]) => !form[key] || !String(form[key]).trim())
