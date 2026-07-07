@@ -1581,30 +1581,38 @@ function exportMuafiyetWord(record) {
 // ══════════════════════════════════════════════════════════════
 
 const DS = {
-  // Renkler
-  navy: '#1B2A4A',
-  navyLight: '#2D4272',
-  accent: '#3B82F6',
-  accentLight: '#DBEAFE',
+  // Renkler — Material 3 esintili lacivert + teal palet
+  navy: '#00236f', // primary
+  navyLight: '#1e3a8a', // primary-container
+  accent: '#1e3a8a', // etkileşim (buton/sekme)
+  accentLight: '#dce1ff', // focus/hafif
+  tertiary: '#00658a', // teal (intibak)
+  tertiaryLight: '#c9e6ff',
+  tertiaryText: '#004c6e',
   green: '#059669',
   greenLight: '#D1FAE5',
   greenBg: '#ECFDF5',
-  amber: '#D97706',
+  amber: '#B45309',
   amberLight: '#FEF3C7',
-  red: '#DC2626',
-  redLight: '#FEE2E2',
-  text: '#1E293B',
-  textSecondary: '#64748B',
-  textMuted: '#94A3B8',
-  bg: '#F8FAFC',
+  red: '#ba1a1a',
+  redLight: '#ffdad6',
+  text: '#191c1e', // on-surface
+  textSecondary: '#444651', // on-surface-variant
+  textMuted: '#757682', // outline
+  bg: '#f7f9fb', // surface
   bgCard: '#FFFFFF',
-  border: '#E2E8F0',
-  borderLight: '#F1F5F9',
-  shadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
-  shadowMd: '0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05)',
-  shadowLg: '0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.04)',
+  surfaceContainer: '#eceef0',
+  surfaceHigh: '#e6e8ea',
+  border: '#c5c5d3', // outline-variant
+  borderLight: '#e0e3e5',
+  shadow: '0 1px 3px rgba(30,58,138,0.06), 0 1px 2px rgba(30,58,138,0.05)',
+  shadowMd: '0 4px 12px rgba(30,58,138,0.08)',
+  shadowLg: '0 10px 24px rgba(30,58,138,0.10)',
   radius: 12,
   radiusSm: 8,
+  // tipografi
+  fontHead: "'Manrope', 'Inter', sans-serif",
+  fontBody: "'Inter', sans-serif",
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -4960,18 +4968,84 @@ const ExemptionHistory = ({
     return (
       <div
         style={{
-          padding: 60,
+          minHeight: 380,
+          padding: '48px 32px',
           textAlign: 'center',
           background: DS.bgCard,
-          borderRadius: DS.radius,
+          borderRadius: 16,
           border: '1px solid ' + DS.border,
+          boxShadow: '0 4px 20px rgba(30,58,138,0.05)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
-        <div style={{ fontSize: 40, marginBottom: 16 }}>📋</div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: DS.navy, marginBottom: 8 }}>
+        {/* Katmanlı belge illüstrasyonu */}
+        <div
+          style={{
+            position: 'relative',
+            width: 120,
+            height: 120,
+            marginBottom: 24,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: DS.surfaceContainer,
+              border: '1px solid ' + DS.border,
+              borderRadius: 14,
+              transform: 'rotate(4deg)',
+              opacity: 0.55,
+            }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              width: 88,
+              height: 116,
+              background: DS.bgCard,
+              border: '1px solid ' + DS.border,
+              borderRadius: 12,
+              boxShadow: DS.shadow,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              zIndex: 1,
+            }}
+          >
+            <div style={{ fontSize: 40, color: DS.navy, marginBottom: 2 }}>📦</div>
+            <div style={{ width: 44, height: 4, borderRadius: 999, background: DS.surfaceHigh }} />
+            <div style={{ width: 28, height: 4, borderRadius: 999, background: DS.surfaceHigh }} />
+          </div>
+        </div>
+        <div
+          style={{
+            fontSize: 19,
+            fontWeight: 700,
+            fontFamily: DS.fontHead,
+            color: DS.text,
+            marginBottom: 8,
+          }}
+        >
           Henüz kayıt yok
         </div>
-        <div style={{ fontSize: 13, color: DS.textSecondary }}>
+        <div
+          style={{
+            fontSize: 14,
+            color: DS.textSecondary,
+            maxWidth: 420,
+            lineHeight: 1.6,
+            fontFamily: DS.fontBody,
+          }}
+        >
           {emptyText || 'Yeni muafiyet işlemi yaparak ilk kaydınızı oluşturun.'}
         </div>
       </div>
@@ -5806,16 +5880,18 @@ const BASVURU_TURLERI = [
     label: 'Ders Muafiyet İsteği',
     kisa: 'Muafiyet',
     aciklama: 'Başka kurumda alınan derslerin ÇAKÜ derslerine muafiyeti',
-    color: '#7C3AED',
-    bg: '#F5F3FF',
+    color: '#00236f',
+    bg: '#eef1ff',
+    icon: '📘',
   },
   {
     id: 'intibak',
     label: 'Yaz Dönemi Ders İntibak İsteği',
     kisa: 'Yaz İntibak',
     aciklama: 'Yaz döneminde başka kurumda alınan derslerin intibakı',
-    color: '#D97706',
-    bg: '#FFFBEB',
+    color: '#00658a',
+    bg: '#e2f2fb',
+    icon: '☀️',
   },
 ];
 
@@ -6027,6 +6103,8 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         .muafiyet-tab-btn.active::after { width: 100%; }
         .muafiyet-tab-btn:hover { background: ${DS.bg}; }
         input:focus, select:focus { border-color: ${DS.accent} !important; box-shadow: 0 0 0 3px ${DS.accentLight}; }
+        .muafiyet-action-card { transition: box-shadow 0.28s ease, transform 0.18s ease, border-color 0.18s ease; }
+        .muafiyet-action-card:hover { box-shadow: 0 8px 24px rgba(30,58,138,0.10); transform: translateY(-2px); }
       `}</style>
 
       <div className="portal-wrap">
@@ -6042,17 +6120,19 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
           <div>
             <h1
               style={{
-                fontSize: 26,
+                fontSize: 27,
                 fontWeight: 800,
                 color: DS.navy,
-                fontFamily: "'Playfair Display', serif",
+                fontFamily: DS.fontHead,
                 marginBottom: 4,
-                letterSpacing: '-0.5px',
+                letterSpacing: '-0.02em',
               }}
             >
               Ders Muafiyet & İntibak
             </h1>
-            <p style={{ color: DS.textSecondary, fontSize: 13 }}>{turMeta.aciklama}</p>
+            <p style={{ color: DS.textSecondary, fontSize: 13, fontFamily: DS.fontBody }}>
+              {turMeta.aciklama}
+            </p>
           </div>
         </div>
 
@@ -6073,53 +6153,71 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             return (
               <button
                 key={t.id}
+                className="muafiyet-action-card"
                 onClick={function () {
                   setBasvuruTuru(t.id);
                   setActiveTab(isStudent ? 'yeni' : 'onay');
                 }}
                 style={{
-                  flex: '1 1 260px',
+                  flex: '1 1 300px',
                   textAlign: 'left',
-                  padding: '14px 18px',
-                  borderRadius: 12,
+                  padding: '18px 20px',
+                  borderRadius: 16,
                   cursor: 'pointer',
-                  border: '2px solid ' + (sel ? t.color : DS.border),
-                  background: sel ? t.bg : 'white',
-                  transition: 'all 0.15s',
+                  border: (sel ? '2px solid ' : '1px solid ') + (sel ? t.color : DS.border),
+                  background: DS.bgCard,
+                  boxShadow: sel ? '0 4px 20px rgba(30,58,138,0.08)' : DS.shadow,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 12,
+                  gap: 16,
                 }}
               >
                 <span
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 10,
-                    background: sel ? t.color : DS.borderLight,
-                    color: sel ? 'white' : DS.textMuted,
+                    width: 56,
+                    height: 56,
+                    borderRadius: 14,
+                    background: sel ? t.color : t.bg,
+                    color: sel ? 'white' : t.color,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: 18,
+                    fontSize: 26,
                     flexShrink: 0,
+                    boxShadow: sel ? '0 6px 16px ' + t.color + '40' : 'none',
                   }}
                 >
-                  {t.id === 'intibak' ? '☀️' : '📘'}
+                  {t.icon || (t.id === 'intibak' ? '☀️' : '📘')}
                 </span>
-                <span style={{ minWidth: 0 }}>
+                <span style={{ minWidth: 0, flex: 1 }}>
                   <span
                     style={{
                       display: 'block',
-                      fontSize: 14.5,
+                      fontSize: 16,
                       fontWeight: 700,
-                      color: sel ? t.color : DS.navy,
+                      fontFamily: DS.fontHead,
+                      color: sel ? t.color : DS.text,
+                      marginBottom: 6,
                     }}
                   >
                     {t.label}
                   </span>
-                  <span style={{ fontSize: 11.5, color: DS.textSecondary }}>
-                    {cnt} kayıt · {t.aciklama}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        padding: '2px 10px',
+                        borderRadius: 999,
+                        background: sel ? t.color + '18' : DS.surfaceHigh,
+                        color: sel ? t.color : DS.textSecondary,
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {cnt} kayıt
+                    </span>
+                    <span style={{ fontSize: 12, color: DS.textSecondary, opacity: 0.85 }}>
+                      {t.aciklama}
+                    </span>
                   </span>
                 </span>
               </button>
@@ -6157,7 +6255,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
                   fontWeight: isActive ? 700 : 500,
                   cursor: 'pointer',
                   borderRadius: '8px 8px 0 0',
-                  fontFamily: "'Source Sans 3', sans-serif",
+                  fontFamily: DS.fontBody,
                   transition: 'all 0.2s',
                   display: 'flex',
                   alignItems: 'center',
