@@ -795,7 +795,7 @@ function getDeptClassroomsRef() {
 // ══════════════════════════════════════════════════════════════
 // Period Config Modal
 // ══════════════════════════════════════════════════════════════
-const PeriodConfigModal = ({ period, onSave, onClose, departmentId }) => {
+const PeriodConfigModal = ({ period, onSave, onClose, departmentId, seviye = 'lisans' }) => {
   const [examType, setExamType] = useState(period?.examType || 'final');
   const [startDate, setStartDate] = useState(period?.startDate || '');
   const [semester, setSemester] = useState(period?.semester || 'Güz 2024-2025');
@@ -821,6 +821,7 @@ const PeriodConfigModal = ({ period, onSave, onClose, departmentId }) => {
         weeks: selectedType.weeks,
         label: `${selectedType.label} - ${semester}`,
         departmentId: departmentId || null,
+        seviye: period?.seviye || seviye,
       };
       if (period?.id) {
         await DBWrite.update('sinav_donemler', period.id, data);
@@ -2990,15 +2991,21 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo, sev
       const profs = Object.values(profMap);
       setProfessors(profs.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr')));
 
-      // Set periods
-      const perList = periodsSnap ? periodsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) : [];
+      // Set periods — SEVİYE'ye göre filtre (dönemler seviyeye göre ayrık)
+      const perList = (
+        periodsSnap ? periodsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) : []
+      ).filter((p) => (p.seviye || 'lisans') === seviye);
       setPeriods(perList);
       if (perList.length > 0 && !activePeriodId) {
         setActivePeriodId(perList[0].id);
       }
 
-      // Set exams
-      setPlacedExams(examsSnap ? examsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) : []);
+      // Set exams — SEVİYE'ye göre filtre (yerleştirilmiş sınavlar seviyeye ayrık)
+      setPlacedExams(
+        (examsSnap ? examsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) : []).filter(
+          (e) => (e.seviye || 'lisans') === seviye
+        )
+      );
 
       // Set dept resources
       setDeptClassrooms(
@@ -3330,6 +3337,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo, sev
       timeSlot: timeSlot,
       periodId: activePeriodId,
       departmentId: selectedDeptId || null,
+      seviye: courseData.seviye || seviye,
       studentCount: courseData.studentCount || 0,
       supervisor: '',
       room: '',
@@ -3638,7 +3646,8 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo, sev
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {isAdmin &&
+            {seviye === 'lisans' &&
+              isAdmin &&
               courses.length === 0 &&
               selectedDeptId &&
               selectedDept?.name?.toLowerCase().includes('bilgisayar') && (
@@ -4245,6 +4254,7 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo, sev
           <PeriodConfigModal
             period={editingPeriod}
             departmentId={selectedDeptId}
+            seviye={seviye}
             onSave={handlePeriodSave}
             onClose={() => {
               setShowPeriodModal(false);
