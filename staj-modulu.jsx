@@ -4096,9 +4096,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
   const isProfessor = currentUser?.role === 'professor';
-  // Fakülte yetkilisi: rol 'admin' VEYA isFacultyManager bayraklı akademisyen.
-  // Komisyon onay tarihi geçtiğinde tıkanan adımları ilerletmeye yetkilidir.
-  const isFacultyManager = isAdmin || !!currentUser?.isFacultyManager;
+  // Fakülte/üniversite yetkilisi: rol 'admin' VEYA isFacultyManager /
+  // isUniversityAdmin bayraklı akademisyen. Komisyon onay tarihi geçtiğinde
+  // tıkanan adımları ilerletmeye yetkilidir.
+  const isFacultyManager =
+    isAdmin || !!currentUser?.isFacultyManager || !!currentUser?.isUniversityAdmin;
 
   // Fakülte staj yetkilisi: yeni isStajCoordinator bayrağı VEYA (geriye dönük)
   // "Ergün ÇINAR" ismi. Fakülte geneli staj erişimi + SGK onayı verir.
@@ -4995,11 +4997,12 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   };
   // Fakülte yetkilisi devreye girebilir mi? — ilgili son tarih geçmişse:
   //   • Komisyon adımları (idx 0-2): komisyon onay tarihi
-  //   • SGK adımı (idx 3): SGK son tarihi
-  // geçtiğinde fakülte/üniversite yetkilisi adımı ilerletebilir.
+  //   • SGK adımı (idx 3): komisyon onay tarihi VEYA SGK son tarihi (hangisi
+  //     önce geçerse). Süreç zaten geciktiği için komisyon tarihi geçince SGK
+  //     adımı da fakülte/üniversite yetkilisine açılır.
   const canFacultyEscalate = (app, stepIdx) => {
     if (!isFacultyManager || !app) return false;
-    if (stepIdx === 3) return sgkDeadlinePassed(app);
+    if (stepIdx === 3) return onayDeadlinePassed(app) || sgkDeadlinePassed(app);
     if (stepIdx < 3) return onayDeadlinePassed(app);
     return false;
   };
