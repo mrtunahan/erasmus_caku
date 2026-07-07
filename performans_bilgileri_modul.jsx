@@ -1734,12 +1734,15 @@ function StratejikPlanIzleme({
     try {
       const ops = [];
       visibleIndicators.forEach((i) => {
-        // Bağlı göstergeler otomatik dolar — elle kaydedilmez
-        if (bindings[i.code]) return;
+        const bound = !!bindings[i.code];
         const c = values[i.code] || {};
         const b = baseline[i.code] || {};
-        if ((c.deger || '') === (b.deger || '') && (c.aciklama || '') === (b.aciklama || ''))
-          return;
+        // Bağlıysa değer türetilir (kaydedilmez, boş yazılır); yalnız açıklama
+        // elle girilip saklanır. Bağlı değilse değer + açıklama saklanır.
+        const degerToSave = bound ? '' : c.deger || '';
+        const degerBase = bound ? '' : b.deger || '';
+        const aciklamaToSave = c.aciklama || '';
+        if (degerToSave === degerBase && aciklamaToSave === (b.aciklama || '')) return;
         const docId = (yil + '_' + (deptId || 'x') + '_' + i.code).replace(/[^\w]/g, '_');
         ops.push({
           collection: 'strateji_izleme',
@@ -1749,8 +1752,8 @@ function StratejikPlanIzleme({
             yil: String(yil),
             departmentId: deptId || '',
             code: i.code,
-            deger: c.deger || '',
-            aciklama: c.aciklama || '',
+            deger: degerToSave,
+            aciklama: aciklamaToSave,
             updatedAt: new Date().toISOString(),
           },
         });
@@ -1776,10 +1779,10 @@ function StratejikPlanIzleme({
       const dataByKey = {};
       visibleIndicators.forEach((i) => {
         const c = values[i.code] || {};
-        // Bağlıysa değer performanstan (bölüm özeti) gelir, açıklama boş;
-        // değilse elle girilen değer + açıklama.
+        // Bağlıysa değer performanstan (bölüm özeti) gelir; açıklama HER DURUMDA
+        // elle girilebilir (bağlı olsa bile).
         const deger = effectiveDeger(i.code);
-        const aciklama = bindings[i.code] ? '' : c.aciklama || '';
+        const aciklama = c.aciklama || '';
         if (deger !== '' || aciklama !== '') dataByKey[i.code] = { deger, aciklama };
       });
       const res = await window.TemplateEngine.produceByRowKey({
@@ -2061,10 +2064,10 @@ function StratejikPlanIzleme({
                           />
                         )}
                         <input
-                          value={bound ? '' : v.aciklama || ''}
+                          value={v.aciklama || ''}
                           onChange={(e) => setField(it.code, 'aciklama', e.target.value)}
-                          disabled={!canEdit || !!bound}
-                          placeholder={bound ? 'Otomatik (açıklama boş)' : 'Açıklama'}
+                          disabled={!canEdit}
+                          placeholder={bound ? 'Açıklama (değer otomatik)' : 'Açıklama'}
                           style={inpStyle}
                         />
                       </div>
