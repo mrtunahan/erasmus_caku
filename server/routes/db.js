@@ -165,6 +165,7 @@ const STUDENT_WRITABLE = new Set([
   'internship_applications',
   'internship_uploads',
   'internship_notifications',
+  'internship_roadmap',
   'muafiyet_records',
   'portal_posts',
   'portal_posts_comments',
