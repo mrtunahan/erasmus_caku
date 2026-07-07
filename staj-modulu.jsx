@@ -4096,9 +4096,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
   const isProfessor = currentUser?.role === 'professor';
-  // Fakülte yetkilisi: rol 'admin' VEYA isFacultyManager bayraklı akademisyen.
-  // Komisyon onay tarihi geçtiğinde tıkanan adımları ilerletmeye yetkilidir.
-  const isFacultyManager = isAdmin || !!currentUser?.isFacultyManager;
+  // Fakülte/üniversite yetkilisi: rol 'admin' VEYA isFacultyManager /
+  // isUniversityAdmin bayraklı akademisyen. Komisyon onay tarihi geçtiğinde
+  // tıkanan adımları ilerletmeye yetkilidir.
+  const isFacultyManager =
+    isAdmin || !!currentUser?.isFacultyManager || !!currentUser?.isUniversityAdmin;
 
   // Fakülte staj yetkilisi: yeni isStajCoordinator bayrağı VEYA (geriye dönük)
   // "Ergün ÇINAR" ismi. Fakülte geneli staj erişimi + SGK onayı verir.
@@ -4993,15 +4995,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     const sgkDl = getSgkDeadline(roadmap, app);
     return sgkDl ? daysDiff(sgkDl) < 0 : false;
   };
-  // Fakülte yetkilisi devreye girebilir mi? — ilgili son tarih geçmişse:
-  //   • Komisyon adımları (idx 0-2): komisyon onay tarihi
-  //   • SGK adımı (idx 3): SGK son tarihi
-  // geçtiğinde fakülte/üniversite yetkilisi adımı ilerletebilir.
+  // Fakülte yetkilisi devreye girebilir mi? — YALNIZCA SGK adımı (Adım 4 /
+  // idx 3) için: Ergün ÇINAR kendi adımını onaylamayı unutur/gecikirse
+  // (son tarih geçmişse) fakülte/üniversite yetkilisi adımı onaylayıp süreci
+  // devam ettirebilir. Diğer adımlarda (komisyon vb.) eskalasyon YOKTUR.
   const canFacultyEscalate = (app, stepIdx) => {
     if (!isFacultyManager || !app) return false;
-    if (stepIdx === 3) return sgkDeadlinePassed(app);
-    if (stepIdx < 3) return onayDeadlinePassed(app);
-    return false;
+    if (stepIdx !== 3) return false;
+    return onayDeadlinePassed(app) || sgkDeadlinePassed(app);
   };
   // ── Deadline: Ergün ÇINAR SGK son tarihi = staj başlangıç tarihi ──
   const getSgkDeadline = (roadmap, app) => {
