@@ -4734,8 +4734,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       denyCrossDept();
       return;
     }
-    // Adım 4 (index 3) sadece Ergün ÇINAR onaylayabilir
-    if (stepIdx === 3 && !isErgunCinar) {
+    // Adım 4 (index 3): normalde yalnız Ergün ÇINAR onaylar; ANCAK SGK son
+    // tarihi geçmişse fakülte/üniversite yetkilisi de ilerletebilir (eskalasyon).
+    if (stepIdx === 3 && !isErgunCinar && !facultyEscalate) {
       alert('Bu adım (SGK İşlemleri) yalnızca Ergün ÇINAR tarafından onaylanabilir.');
       return;
     }
@@ -4986,10 +4987,22 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     const od = getOnayDeadline(app);
     return od ? daysDiff(od) < 0 : false;
   };
-  // Fakülte yetkilisi devreye girebilir mi? — komisyon adımlarında (SGK/idx 3
-  // hariç) komisyon onay tarihi geçmişse fakülte yetkilisi adımı ilerletebilir.
-  const canFacultyEscalate = (app, stepIdx) =>
-    isFacultyManager && stepIdx !== 3 && onayDeadlinePassed(app);
+  // SGK son tarihi geçti mi? (Adım 4 / idx 3)
+  const sgkDeadlinePassed = (app) => {
+    const roadmap = (app && allRoadmaps[app.id]) || {};
+    const sgkDl = getSgkDeadline(roadmap, app);
+    return sgkDl ? daysDiff(sgkDl) < 0 : false;
+  };
+  // Fakülte yetkilisi devreye girebilir mi? — ilgili son tarih geçmişse:
+  //   • Komisyon adımları (idx 0-2): komisyon onay tarihi
+  //   • SGK adımı (idx 3): SGK son tarihi
+  // geçtiğinde fakülte/üniversite yetkilisi adımı ilerletebilir.
+  const canFacultyEscalate = (app, stepIdx) => {
+    if (!isFacultyManager || !app) return false;
+    if (stepIdx === 3) return sgkDeadlinePassed(app);
+    if (stepIdx < 3) return onayDeadlinePassed(app);
+    return false;
+  };
   // ── Deadline: Ergün ÇINAR SGK son tarihi = staj başlangıç tarihi ──
   const getSgkDeadline = (roadmap, app) => {
     // SGK son tarihi sabit: staj başlangıcı (komisyon bittikten sonra 10 günlük pencere zaten oraya denk gelir)
@@ -8176,9 +8189,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                       </div>
                                     )}
 
-                                    {/* Deadline rozetleri */}
+                                    {/* Deadline rozetleri — komisyon adımları (idx 0-2)
+                                        Komisyon onayı, SGK adımı (idx 3) SGK son tarihi */}
                                     {isPending &&
-                                      idx < 4 &&
+                                      idx < 3 &&
                                       (() => {
                                         const od = getOnayDeadline(selectedApp);
                                         const badge = deadlineBadge(od);
@@ -8202,7 +8216,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                         );
                                       })()}
                                     {isPending &&
-                                      idx === 4 &&
+                                      idx === 3 &&
                                       (() => {
                                         const appRoadmapLocal = allRoadmaps[selectedApp.id] || {};
                                         const sgkDl = getSgkDeadline(appRoadmapLocal, selectedApp);
