@@ -4096,6 +4096,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
   const isProfessor = currentUser?.role === 'professor';
+  // Fakülte yetkilisi: rol 'admin' VEYA isFacultyManager bayraklı akademisyen.
+  // Komisyon onay tarihi geçtiğinde tıkanan adımları ilerletmeye yetkilidir.
+  const isFacultyManager = isAdmin || !!currentUser?.isFacultyManager;
 
   // Fakülte staj yetkilisi: yeni isStajCoordinator bayrağı VEYA (geriye dönük)
   // "Ergün ÇINAR" ismi. Fakülte geneli staj erişimi + SGK onayı verir.
@@ -4723,7 +4726,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Yol haritası adım onayı
   const handleApproveStep = async (appId, stepIdx) => {
-    if (!canActOnDept) {
+    const appForGuard = allApplications.find((a) => a.id === appId);
+    const facultyEscalate = canFacultyEscalate(appForGuard, stepIdx);
+    // Kendi bölümü değilse reddet — ANCAK komisyon tarihi geçmişse fakülte
+    // yetkilisi fakülte geneli devreye girip adımı ilerletebilir.
+    if (!canActOnDept && !facultyEscalate) {
       denyCrossDept();
       return;
     }
@@ -4808,7 +4815,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Yol haritası adım reddi
   const handleRejectStep = async (appId, stepIdx) => {
-    if (!canActOnDept) {
+    const appForGuard = allApplications.find((a) => a.id === appId);
+    if (!canActOnDept && !canFacultyEscalate(appForGuard, stepIdx)) {
       denyCrossDept();
       return;
     }
@@ -4973,6 +4981,15 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // ── Deadline: staj başlangıcından 10 gün önce = komisyon onay son tarihi ──
   const getOnayDeadline = (app) =>
     app?.stajBaslamaTarihi ? addDays(app.stajBaslamaTarihi, -10) : null;
+  // Komisyon onay tarihi geçti mi? (staj başlangıcından 10 gün önce)
+  const onayDeadlinePassed = (app) => {
+    const od = getOnayDeadline(app);
+    return od ? daysDiff(od) < 0 : false;
+  };
+  // Fakülte yetkilisi devreye girebilir mi? — komisyon adımlarında (SGK/idx 3
+  // hariç) komisyon onay tarihi geçmişse fakülte yetkilisi adımı ilerletebilir.
+  const canFacultyEscalate = (app, stepIdx) =>
+    isFacultyManager && stepIdx !== 3 && onayDeadlinePassed(app);
   // ── Deadline: Ergün ÇINAR SGK son tarihi = staj başlangıç tarihi ──
   const getSgkDeadline = (roadmap, app) => {
     // SGK son tarihi sabit: staj başlangıcı (komisyon bittikten sonra 10 günlük pencere zaten oraya denk gelir)
@@ -8210,49 +8227,56 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                         );
                                       })()}
 
-                                    {/* Onayla / Reddet butonları */}
-                                    {canActOnDept && isPending && !(isErgunCinar && idx !== 4) && (
-                                      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                                        <button
-                                          onClick={() => handleApproveStep(selectedApp.id, idx)}
-                                          style={{
-                                            padding: '6px 14px',
-                                            borderRadius: 6,
-                                            border: 'none',
-                                            background: STAJ.green,
-                                            color: 'white',
-                                            fontSize: 11,
-                                            fontWeight: 700,
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 5,
-                                          }}
-                                        >
-                                          <StajIcon path="M5 13l4 4L19 7" size={12} color="white" />
-                                          Onayla
-                                        </button>
-                                        <button
-                                          onClick={() => handleRejectStep(selectedApp.id, idx)}
-                                          style={{
-                                            padding: '6px 14px',
-                                            borderRadius: 6,
-                                            border: '1px solid #FCA5A5',
-                                            background: 'white',
-                                            color: STAJ.red,
-                                            fontSize: 11,
-                                            fontWeight: 700,
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 5,
-                                          }}
-                                        >
-                                          <StajIcon path="M6 18L18 6M6 6l12 12" size={12} />
-                                          Reddet
-                                        </button>
-                                      </div>
-                                    )}
+                                    {/* Onayla / Reddet butonları — kendi bölümü VEYA
+                                        komisyon tarihi geçtiyse fakülte yetkilisi */}
+                                    {(canActOnDept || canFacultyEscalate(selectedApp, idx)) &&
+                                      isPending &&
+                                      !(isErgunCinar && idx !== 4) && (
+                                        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                          <button
+                                            onClick={() => handleApproveStep(selectedApp.id, idx)}
+                                            style={{
+                                              padding: '6px 14px',
+                                              borderRadius: 6,
+                                              border: 'none',
+                                              background: STAJ.green,
+                                              color: 'white',
+                                              fontSize: 11,
+                                              fontWeight: 700,
+                                              cursor: 'pointer',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: 5,
+                                            }}
+                                          >
+                                            <StajIcon
+                                              path="M5 13l4 4L19 7"
+                                              size={12}
+                                              color="white"
+                                            />
+                                            Onayla
+                                          </button>
+                                          <button
+                                            onClick={() => handleRejectStep(selectedApp.id, idx)}
+                                            style={{
+                                              padding: '6px 14px',
+                                              borderRadius: 6,
+                                              border: '1px solid #FCA5A5',
+                                              background: 'white',
+                                              color: STAJ.red,
+                                              fontSize: 11,
+                                              fontWeight: 700,
+                                              cursor: 'pointer',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: 5,
+                                            }}
+                                          >
+                                            <StajIcon path="M6 18L18 6M6 6l12 12" size={12} />
+                                            Reddet
+                                          </button>
+                                        </div>
+                                      )}
                                   </div>
                                 </div>
                               );
