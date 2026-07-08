@@ -789,10 +789,23 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
 
       const day = selectedSlot.day;
       const hi = selectedSlot.hourIndex;
-      const classroom = modalClassroom || '';
+      const key = `${day}_${hi}`;
+      const existing = scheduleData[key];
       const instructor = course.professor || '';
+      // ikinci ders (bölme) birincinin dersliğini paylaşır
+      const classroom = modalClassroom || (existing && existing.classroom) || '';
 
-      // Çakışma kontrolü
+      // Aynı ders / hücre dolu kontrolü
+      if (existing && existing.courseCode === course.code) {
+        alert('Bu ders bu saatte zaten var.');
+        return;
+      }
+      if (existing && existing.ikinci) {
+        alert('Bu hücre dolu (2 ders). Bölmek için önce birini kaldırın.');
+        return;
+      }
+
+      // Çakışma kontrolü (farklı yıl/fakülte) — hücre bölme "zaten var" saymaz
       if (!forceAdd) {
         const otherYearsSlots = deptAllYearsSlots.filter((s) => s.year !== year);
         const warnings = checkSlotConflict(
@@ -803,24 +816,15 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
           otherYearsSlots,
           allFacultySlots
         );
-
-        // Aynı sınıf içinde aynı saat kontrolü
-        const key = `${day}_${hi}`;
-        if (scheduleData[key] && scheduleData[key].courseCode !== course.code) {
-          warnings.unshift(
-            `Bu saatte zaten "${scheduleData[key].courseCode}" dersi var (${year}. Sınıf).`
-          );
-        }
-
         if (warnings.length > 0) {
           setAddSlotWarnings(warnings);
           return; // Çakışma var — admin ise "Geçersiz Kıl" gösterilecek, diğerleri engellenecek
         }
       }
 
-      const key = `${selectedSlot.day}_${selectedSlot.hourIndex}`;
       commitSlots((s) => {
-        s[key] = {
+        const cur = s[key];
+        const yeni = {
           courseCode: course.code || '',
           courseName: course.name || '',
           instructor: course.professor || '',
@@ -828,6 +832,11 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
           courseId: course.id,
           sinif: course.sinif || 0,
         };
+        if (cur && cur.courseCode) {
+          s[key] = { ...cur, ikinci: yeni }; // bölme
+        } else {
+          s[key] = yeni;
+        }
       });
       setShowAddModal(false);
       setModalCourseId('');
