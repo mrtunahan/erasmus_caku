@@ -910,17 +910,22 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
       // code) anahtarlanır ki şablon belgesindeki departmentId hangi biçimde
       // olursa olsun ada çözülsün (aksi halde ham "7gwPii..." id'si basılıyordu).
       const deptNameMap = {};
+      const validDeptIds = new Set();
       const allDeptSources = Array.isArray(depts) ? depts : [];
       (window.DEPARTMENTS || []).forEach((d) => allDeptSources.push(d));
       allDeptSources.forEach((d) => {
         const nm = d && d.name;
         if (!nm) return;
         [d.id, d._id, d._docId, d.code].forEach((k) => {
-          if (k) deptNameMap[String(k)] = nm;
+          if (k) {
+            deptNameMap[String(k)] = nm;
+            validDeptIds.add(String(k));
+          }
         });
       });
       const deptYears = [];
       const faculty = [];
+      const orphans = [];
       (allDocs || []).forEach((d) => {
         const parts = String(d.id || '').split('_');
         const deptId = d.departmentId || parts[0] || '';
@@ -934,13 +939,23 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
         if ((docSeviye || 'lisans') !== seviye) return;
         if (deptId === activeDepartment) {
           deptYears.push({ year: yr, slots });
+        } else if (validDeptIds.has(String(deptId))) {
+          // Yalnız CANLI bir bölüme çözülebilen kayıtları fakülte programına ekle.
+          faculty.push({ deptId, deptName: deptNameMap[String(deptId)], year: yr, slots });
         } else {
-          // Çözülemeyen (yetim) 20 karakterlik üretilmiş id'yi ham basma
-          const resolvedName =
-            deptNameMap[deptId] || (/^[A-Za-z0-9]{16,}$/.test(deptId) ? 'Bölüm' : deptId);
-          faculty.push({ deptId, deptName: resolvedName, year: yr, slots });
+          // Yetim/eski kayıt: hiçbir canlı bölüme bağlanamıyor. Fakülte
+          // programına eklenmez (aksi halde "BIL421Bölüm" gibi hayalet dersler
+          // ve boş bölümde ders görünürdü). Temizlik için konsola raporla.
+          orphans.push({ docId: d.id, deptId, codes: Object.keys(slots).length });
         }
       });
+      if (orphans.length) {
+        console.warn(
+          '[ders-programi] Fakülte programına eklenmeyen yetim kayıtlar ' +
+            '(hiçbir bölüme bağlanamıyor):',
+          orphans
+        );
+      }
       setDeptAllYearsSlots(deptYears);
       setAllFacultySlots(faculty);
       return { deptYears, faculty };
