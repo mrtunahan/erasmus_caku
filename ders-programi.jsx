@@ -249,6 +249,8 @@ function exportFacultySchedule(allFacultySlots, semester) {
       const hi = parseInt(hiStr);
       if (grid[day] && grid[day][hi] !== undefined) {
         grid[day][hi].push({ deptName, year: yr, ...slot });
+        // Bölünmüş hücrenin ikinci dersi ayrı bir satır olarak eklenir
+        if (slot.ikinci) grid[day][hi].push({ deptName, year: yr, ...slot.ikinci });
       }
     });
   });
@@ -352,6 +354,7 @@ function exportDeptSchedule(deptAllYearsSlots, deptName, semester) {
       const hi = parseInt(hiStr);
       if (grid[day] && grid[day][hi] !== undefined) {
         grid[day][hi].push({ year: yr, ...slot });
+        if (slot.ikinci) grid[day][hi].push({ year: yr, ...slot.ikinci });
       }
     });
   });
@@ -395,6 +398,7 @@ function exportDeptSchedule(deptAllYearsSlots, deptName, semester) {
     totalSlots += keys.length;
     Object.values(slots).forEach((s) => {
       if (s.courseCode) allCodes.add(s.courseCode);
+      if (s.ikinci?.courseCode) allCodes.add(s.ikinci.courseCode);
     });
   });
 
@@ -680,26 +684,35 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
         return false;
       }
       const key = `${day}_${hi}`;
+      const existing = scheduleData[key];
+      // Hücre BÖLME: dolu hücreye FARKLI bir ders bırakılırsa, aynı saat/sınıf/
+      // hocada ikinci ders olarak eklenir (KML312 & TLK543 gibi eşdeğer dersler).
+      const splitting = !!(existing && existing.courseCode && !existing.ikinci);
       if (!forceAdd) {
         const otherYearsSlots = deptAllYearsSlots.filter((s) => s.year !== year);
         const warnings = checkSlotConflict(
           day,
           hi,
-          classroom,
+          classroom || existing?.classroom || '',
           course.professor || '',
           otherYearsSlots,
           allFacultySlots
         );
-        if (scheduleData[key] && scheduleData[key].courseCode !== course.code) {
-          warnings.unshift(
-            `Bu saatte zaten "${scheduleData[key].courseCode}" dersi var (${year}. Sınıf).`
-          );
+        if (existing && existing.courseCode === course.code) {
+          alert('Bu ders bu saatte zaten var.');
+          return false;
         }
+        if (existing && existing.ikinci) {
+          alert('Bu hücre dolu (2 ders). Bölmek için önce birini kaldırın.');
+          return false;
+        }
+        // splitting durumunda "zaten ders var" uyarısı VERİLMEZ — bölme kasıtlıdır.
         if (warnings.length > 0) {
           if (isAdmin) {
             if (
               !window.confirm(
-                'Çakışma tespit edildi:\n\n• ' +
+                (splitting ? 'Hücre bölünüyor. ' : '') +
+                  'Çakışma tespit edildi:\n\n• ' +
                   warnings.join('\n• ') +
                   '\n\nYine de yerleştirilsin mi?'
               )
@@ -712,14 +725,22 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
         }
       }
       commitSlots((s) => {
-        s[key] = {
+        const cur = s[key];
+        const yeni = {
           courseCode: course.code || '',
           courseName: course.name || '',
           instructor: course.professor || '',
-          classroom: classroom || '',
+          // ikinci ders varsayılan olarak birincinin dersliğini paylaşır
+          classroom: classroom || (cur && cur.classroom) || '',
           courseId: course.id,
           sinif: course.sinif || 0,
         };
+        if (cur && cur.courseCode) {
+          // Bölme: mevcut birinci ders korunur, ikinci eklenir
+          s[key] = { ...cur, ikinci: yeni };
+        } else {
+          s[key] = yeni;
+        }
       });
       return true;
     },
@@ -828,11 +849,30 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
     ]
   );
 
-  // Slot sil
+  // Slot sil — birinci ders silinince ikinci varsa o birinciye TERFİ eder,
+  // yoksa hücre tamamen boşalır.
   const handleRemoveSlot = useCallback(
     (key) => {
       commitSlots((s) => {
-        delete s[key];
+        if (s[key] && s[key].ikinci) {
+          s[key] = { ...s[key].ikinci };
+        } else {
+          delete s[key];
+        }
+      });
+    },
+    [commitSlots]
+  );
+
+  // Bölünmüş hücrenin İKİNCİ dersini kaldır (birinci kalır)
+  const handleRemoveSecond = useCallback(
+    (key) => {
+      commitSlots((s) => {
+        if (s[key] && s[key].ikinci) {
+          const { ikinci, ...rest } = s[key];
+          void ikinci;
+          s[key] = rest;
+        }
       });
     },
     [commitSlots]
@@ -920,11 +960,15 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
   const courseColors = useMemo(() => {
     const map = {};
     let idx = 0;
-    Object.values(scheduleData).forEach((slot) => {
-      if (slot?.courseCode && !map[slot.courseCode]) {
-        map[slot.courseCode] = SLOT_COLORS[idx % SLOT_COLORS.length];
+    const addCode = (code) => {
+      if (code && !map[code]) {
+        map[code] = SLOT_COLORS[idx % SLOT_COLORS.length];
         idx++;
       }
+    };
+    Object.values(scheduleData).forEach((slot) => {
+      addCode(slot?.courseCode);
+      addCode(slot?.ikinci?.courseCode); // bölünmüş hücrenin ikinci dersi
     });
     return map;
   }, [scheduleData]);
@@ -1549,6 +1593,24 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
                               {slot.instructor}
                             </div>
                           )}
+                          {slot.ikinci && (
+                            <div
+                              style={{
+                                marginTop: 4,
+                                paddingTop: 4,
+                                borderTop: '1px dashed #E5E7EB',
+                              }}
+                            >
+                              <div style={{ fontSize: 13, fontWeight: 600, color: DP.text }}>
+                                {slot.ikinci.courseCode} — {slot.ikinci.courseName}
+                              </div>
+                              {slot.ikinci.instructor && (
+                                <div style={{ fontSize: 11, color: DP.textMuted, marginTop: 1 }}>
+                                  {slot.ikinci.instructor}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                         {editMode && (
                           <button
@@ -1690,11 +1752,14 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
                       const key = `${day}_${hi}`;
                       const slot = scheduleData[key];
                       const isToday = day === todayName;
+                      // Boş hücreye ya da BİRİNCİSİ dolu-İKİNCİSİ boş hücreye
+                      // (bölme için) ders bırakılabilir.
+                      const canDrop = editMode && (!slot || !slot.ikinci);
                       return (
                         <td
                           key={day}
                           onDragOver={
-                            editMode && !slot
+                            canDrop
                               ? (e) => {
                                   e.preventDefault();
                                   e.dataTransfer.dropEffect = 'copy';
@@ -1702,28 +1767,24 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
                               : undefined
                           }
                           onDragEnter={
-                            editMode && !slot
+                            canDrop
                               ? (e) => {
-                                  e.currentTarget.style.background = '#DDD6FE';
+                                  e.currentTarget.style.outline = '2px dashed #7C3AED';
                                 }
                               : undefined
                           }
                           onDragLeave={
-                            editMode && !slot
+                            canDrop
                               ? (e) => {
-                                  e.currentTarget.style.background = isToday
-                                    ? '#EDE9FE'
-                                    : '#F5F3FF';
+                                  e.currentTarget.style.outline = 'none';
                                 }
                               : undefined
                           }
                           onDrop={
-                            editMode && !slot
+                            canDrop
                               ? (e) => {
                                   e.preventDefault();
-                                  e.currentTarget.style.background = isToday
-                                    ? '#EDE9FE'
-                                    : '#F5F3FF';
+                                  e.currentTarget.style.outline = 'none';
                                   try {
                                     const c = JSON.parse(
                                       e.dataTransfer.getData('application/json')
@@ -1848,6 +1909,68 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
                                 >
                                   <DPIcon path="M18 6L6 18M6 6l12 12" size={10} color="#EF4444" />
                                 </button>
+                              )}
+                              {/* İKİNCİ DERS (bölünmüş hücre) */}
+                              {slot.ikinci && (
+                                <div
+                                  style={{
+                                    marginTop: 5,
+                                    paddingTop: 5,
+                                    borderTop: '1px dashed #D1D5DB',
+                                    position: 'relative',
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      color: courseColors[slot.ikinci.courseCode] || DP.text,
+                                      letterSpacing: 0.3,
+                                    }}
+                                  >
+                                    {slot.ikinci.courseCode}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: 10,
+                                      color: DP.text,
+                                      lineHeight: 1.3,
+                                      marginTop: 1,
+                                    }}
+                                  >
+                                    {slot.ikinci.courseName}
+                                  </div>
+                                  {slot.ikinci.instructor && (
+                                    <div style={{ fontSize: 9, color: DP.textMuted, marginTop: 2 }}>
+                                      {slot.ikinci.instructor}
+                                    </div>
+                                  )}
+                                  {editMode && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveSecond(key);
+                                      }}
+                                      style={{
+                                        position: 'absolute',
+                                        top: 4,
+                                        right: 2,
+                                        background: '#FEF2F2',
+                                        border: '1px solid #FECACA',
+                                        borderRadius: 4,
+                                        cursor: 'pointer',
+                                        padding: '1px 3px',
+                                        opacity: 0.8,
+                                      }}
+                                    >
+                                      <DPIcon
+                                        path="M18 6L6 18M6 6l12 12"
+                                        size={10}
+                                        color="#EF4444"
+                                      />
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           ) : editMode ? (
