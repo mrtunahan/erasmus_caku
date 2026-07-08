@@ -906,9 +906,18 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
         window.apiRead('course_schedules'),
         window.apiRead('departments'),
       ]);
+      // Bölüm adı haritası — bölüm TÜM kimlik varyantlarıyla (id, _id, _docId,
+      // code) anahtarlanır ki şablon belgesindeki departmentId hangi biçimde
+      // olursa olsun ada çözülsün (aksi halde ham "7gwPii..." id'si basılıyordu).
       const deptNameMap = {};
-      (depts || []).forEach((d) => {
-        deptNameMap[d.id || d._id] = d.name || d.id || d._id;
+      const allDeptSources = Array.isArray(depts) ? depts : [];
+      (window.DEPARTMENTS || []).forEach((d) => allDeptSources.push(d));
+      allDeptSources.forEach((d) => {
+        const nm = d && d.name;
+        if (!nm) return;
+        [d.id, d._id, d._docId, d.code].forEach((k) => {
+          if (k) deptNameMap[String(k)] = nm;
+        });
       });
       const deptYears = [];
       const faculty = [];
@@ -926,7 +935,10 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
         if (deptId === activeDepartment) {
           deptYears.push({ year: yr, slots });
         } else {
-          faculty.push({ deptId, deptName: deptNameMap[deptId] || deptId, year: yr, slots });
+          // Çözülemeyen (yetim) 20 karakterlik üretilmiş id'yi ham basma
+          const resolvedName =
+            deptNameMap[deptId] || (/^[A-Za-z0-9]{16,}$/.test(deptId) ? 'Bölüm' : deptId);
+          faculty.push({ deptId, deptName: resolvedName, year: yr, slots });
         }
       });
       setDeptAllYearsSlots(deptYears);
