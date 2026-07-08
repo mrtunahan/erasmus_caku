@@ -644,7 +644,11 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
         } catch (_) {
           base = scheduleData;
         }
-        const next = { ...base };
+        // Yeniden-okuma cache/yarış nedeniyle bayat gelirse mevcut yerel
+        // slotları KAYBETME: taze okuma önceliklidir, eksik anahtarlar yerel
+        // scheduleData'dan tamamlanır. (Hücre bölmede birinci dersin silinmesi
+        // bu birleştirmeyle engellenir.)
+        const next = { ...scheduleData, ...base };
         mutator(next);
         await window.DBWrite.set(
           'course_schedules',
