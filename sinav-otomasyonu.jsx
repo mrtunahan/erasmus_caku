@@ -162,7 +162,10 @@ for (let h = 8; h <= 17; h++) {
     TIME_SLOTS.push(`${hh}:${mm}`);
   }
 }
-// TIME_SLOTS: ["08:30","09:00","09:30",...,"18:00","18:30"]
+// Lisans takvimi yalnız bu ilk satırları gösterir (08:30–17:30)
+const LISANS_TIME_SLOT_COUNT = TIME_SLOTS.length;
+// Akşam satırları — YALNIZ lisansüstü görünümünde gösterilir
+['18:00', '18:30', '19:00', '19:30', '20:00'].forEach((t) => TIME_SLOTS.push(t));
 
 const EXAM_TYPES = [
   { value: 'vize', label: 'Vize', weeks: 1 },
@@ -2702,6 +2705,12 @@ function SinavOtomasyonuApp({
 
   const selectedDept = departments.find((d) => d.id === selectedDeptId);
 
+  // Lisans takvimi gündüz satırlarıyla sınırlı; lisansüstü akşam satırları dahil
+  const visibleTimeSlots =
+    seviye === 'lisans' ? TIME_SLOTS.slice(0, LISANS_TIME_SLOT_COUNT) : TIME_SLOTS;
+  // Lisansüstünde sınıf (1-4) kavramı yok — sınıf rozetleri/filtreleri gizlenir
+  const sinifsiz = seviye !== 'lisans';
+
   // activeDepartment prop değiştiğinde senkronize et
   useEffect(() => {
     if (activeDepartment && activeDepartment !== selectedDeptId) {
@@ -3971,26 +3980,28 @@ function SinavOtomasyonuApp({
               </div>
             </div>
 
-            {/* Legend */}
-            <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
-              {Object.entries(SINIF_COLORS).map(([s, color]) => (
-                <div
-                  key={s}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}
-                >
+            {/* Legend — lisansüstünde sınıf ayrımı yok */}
+            {!sinifsiz && (
+              <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+                {Object.entries(SINIF_COLORS).map(([s, color]) => (
                   <div
-                    style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: 4,
-                      background: color.bg,
-                      border: `1px solid ${color.text}30`,
-                    }}
-                  />
-                  <span style={{ color: color.text, fontWeight: 500 }}>{color.label}</span>
-                </div>
-              ))}
-            </div>
+                    key={s}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}
+                  >
+                    <div
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: 4,
+                        background: color.bg,
+                        border: `1px solid ${color.text}30`,
+                      }}
+                    />
+                    <span style={{ color: color.text, fontWeight: 500 }}>{color.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {viewMode === 'calendar' ? (
               <div
@@ -4078,62 +4089,80 @@ function SinavOtomasyonuApp({
                       <option value="bahar">🌸 Bahar Dönemi</option>
                     </select>
                   </div>
-                  <div style={{ marginBottom: 8 }}>
-                    <select
-                      value={filterSinif}
-                      onChange={(e) => setFilterSinif(parseInt(e.target.value))}
-                      style={{
-                        width: '100%',
-                        padding: '4px 8px',
-                        border: `1px solid ${C.border}`,
-                        borderRadius: 6,
-                        fontSize: 12,
-                      }}
-                    >
-                      <option value={0}>Tüm Sınıflar</option>
-                      <option value={1}>1. Sınıf</option>
-                      <option value={2}>2. Sınıf</option>
-                      <option value={3}>3. Sınıf</option>
-                      <option value={4}>4. Sınıf</option>
-                      <option value={5}>Seçmeli Dersler</option>
-                    </select>
-                  </div>
+                  {!sinifsiz && (
+                    <div style={{ marginBottom: 8 }}>
+                      <select
+                        value={filterSinif}
+                        onChange={(e) => setFilterSinif(parseInt(e.target.value))}
+                        style={{
+                          width: '100%',
+                          padding: '4px 8px',
+                          border: `1px solid ${C.border}`,
+                          borderRadius: 6,
+                          fontSize: 12,
+                        }}
+                      >
+                        <option value={0}>Tüm Sınıflar</option>
+                        <option value={1}>1. Sınıf</option>
+                        <option value={2}>2. Sınıf</option>
+                        <option value={3}>3. Sınıf</option>
+                        <option value={4}>4. Sınıf</option>
+                        <option value={5}>Seçmeli Dersler</option>
+                      </select>
+                    </div>
+                  )}
 
-                  {[1, 2, 3, 4, 5].map((sinif) => {
-                    if (filterSinif > 0 && filterSinif !== sinif) return null;
-                    const group = groupedPool[sinif];
-                    if (!group || group.length === 0) return null;
-                    return (
-                      <div key={sinif} style={{ marginBottom: 12 }}>
-                        <div
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: SINIF_COLORS[sinif].text,
-                            background: SINIF_COLORS[sinif].bg,
-                            padding: '4px 8px',
-                            borderRadius: 4,
-                            marginBottom: 6,
-                          }}
-                        >
-                          {SINIF_COLORS[sinif].label} ({group.length})
+                  {/* Lisansüstü: sınıf gruplaması yok — dersler düz liste */}
+                  {sinifsiz && poolCourses.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {poolCourses.map((c, i) => (
+                        <DraggableCourseCard
+                          key={c.id || i}
+                          course={c}
+                          isPlaced={false}
+                          placedCount={c.placedCount}
+                          canDrag={canManage || (isProfessor && c.professor === currentUser?.name)}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {!sinifsiz &&
+                    [1, 2, 3, 4, 5].map((sinif) => {
+                      if (filterSinif > 0 && filterSinif !== sinif) return null;
+                      const group = groupedPool[sinif];
+                      if (!group || group.length === 0) return null;
+                      return (
+                        <div key={sinif} style={{ marginBottom: 12 }}>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: SINIF_COLORS[sinif].text,
+                              background: SINIF_COLORS[sinif].bg,
+                              padding: '4px 8px',
+                              borderRadius: 4,
+                              marginBottom: 6,
+                            }}
+                          >
+                            {SINIF_COLORS[sinif].label} ({group.length})
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {group.map((c, i) => (
+                              <DraggableCourseCard
+                                key={c.id || i}
+                                course={c}
+                                isPlaced={false}
+                                placedCount={c.placedCount}
+                                canDrag={
+                                  canManage || (isProfessor && c.professor === currentUser?.name)
+                                }
+                              />
+                            ))}
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {group.map((c, i) => (
-                            <DraggableCourseCard
-                              key={c.id || i}
-                              course={c}
-                              isPlaced={false}
-                              placedCount={c.placedCount}
-                              canDrag={
-                                canManage || (isProfessor && c.professor === currentUser?.name)
-                              }
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
 
                   {poolCourses.length === 0 && (
                     <div style={{ padding: 20, textAlign: 'center', color: '#999', fontSize: 12 }}>
@@ -4206,7 +4235,7 @@ function SinavOtomasyonuApp({
                         </tr>
                       </thead>
                       <tbody>
-                        {TIME_SLOTS.map((slot, slotIdx) => (
+                        {visibleTimeSlots.map((slot, slotIdx) => (
                           <tr key={slot}>
                             <td
                               style={{
@@ -4234,7 +4263,7 @@ function SinavOtomasyonuApp({
                                 placedExams={turkishifiedPeriodExams}
                                 onDrop={handleDrop}
                                 onExamClick={setEditingExam}
-                                totalSlots={TIME_SLOTS.length}
+                                totalSlots={visibleTimeSlots.length}
                               />
                             ))}
                           </tr>

@@ -32,6 +32,10 @@ const DPIcon = ({ path, size = 18, color = 'currentColor' }) => (
 );
 
 const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'];
+// İlk 9 satır lisans programıdır; sonraki 5 akşam satırı YALNIZ lisansüstü
+// görünümünde gösterilir (slot anahtarı saat İNDEKSİ olduğundan ekleme
+// mevcut verileri bozmaz).
+const LISANS_HOURS_COUNT = 9;
 const HOURS = [
   '08:30-09:15',
   '09:30-10:15',
@@ -42,6 +46,11 @@ const HOURS = [
   '14:30-15:15',
   '15:30-16:15',
   '16:15-17:00',
+  '17:15-18:00',
+  '18:15-19:00',
+  '19:15-20:00',
+  '20:15-21:00',
+  '21:15-22:00',
 ];
 
 const SLOT_COLORS = [
@@ -534,6 +543,8 @@ function DersProgramiApp({
 }) {
   // Seviye eki: lisans geriye-uyumlu (eksiz), lisansüstü ayrı belge uzayı.
   const seviyeSuffix = seviye && seviye !== 'lisans' ? '_' + seviye : '';
+  // Lisans yalnız gündüz satırlarını görür; lisansüstü akşam satırları dahil
+  const visibleHours = seviye === 'lisans' ? HOURS.slice(0, LISANS_HOURS_COUNT) : HOURS;
   const [scheduleData, setScheduleData] = useState({});
   const [loading, setLoading] = useState(true);
   const [semester, setSemester] = useState('guz');
@@ -1220,7 +1231,8 @@ function DersProgramiApp({
       >
         {embedded ? (
           <div style={{ fontSize: 13, color: DP.textMuted }}>
-            {semester === 'guz' ? 'Güz' : 'Bahar'} — {year}. Sınıf
+            {semester === 'guz' ? 'Güz' : 'Bahar'}
+            {seviye === 'lisans' ? ` — ${year}. Sınıf` : ''}
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1421,39 +1433,43 @@ function DersProgramiApp({
           ))}
         </div>
 
-        {/* Year pills */}
-        <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 8, padding: 2 }}>
-          {['1', '2', '3', '4'].map((y) => (
-            <button
-              key={y}
-              onClick={() => setYear(y)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 6,
-                fontSize: 12,
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-                background: year === y ? DP.navy : 'transparent',
-                color: year === y ? 'white' : DP.textMuted,
-                boxShadow: year === y ? '0 1px 3px rgba(27,42,74,0.3)' : 'none',
-              }}
-            >
-              {y}. Sınıf
-            </button>
-          ))}
-        </div>
+        {/* Year pills — lisansüstünde sınıf ayrımı yok, hiçbir şey gösterilmez */}
+        {seviye === 'lisans' && (
+          <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 8, padding: 2 }}>
+            {['1', '2', '3', '4'].map((y) => (
+              <button
+                key={y}
+                onClick={() => setYear(y)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  background: year === y ? DP.navy : 'transparent',
+                  color: year === y ? 'white' : DP.textMuted,
+                  boxShadow: year === y ? '0 1px 3px rgba(27,42,74,0.3)' : 'none',
+                }}
+              >
+                {y}. Sınıf
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Divider */}
-        <div
-          style={{
-            width: 1,
-            height: 24,
-            background: '#E5E7EB',
-            display: responsive.val('none', 'block', 'block'),
-          }}
-        />
+        {seviye === 'lisans' && (
+          <div
+            style={{
+              width: 1,
+              height: 24,
+              background: '#E5E7EB',
+              display: responsive.val('none', 'block', 'block'),
+            }}
+          />
+        )}
 
         {/* Inline stats */}
         <div style={{ display: 'flex', gap: 16, fontSize: 12, color: DP.textMuted }}>
@@ -1638,12 +1654,14 @@ function DersProgramiApp({
             // Mobile: Card-based view
             <div style={{ padding: 12 }}>
               {DAYS.map((day) => {
-                const daySlots = HOURS.map((hour, hi) => {
-                  const key = `${day}_${hi}`;
-                  return scheduleData[key]
-                    ? { ...scheduleData[key], hour, hourIndex: hi, key }
-                    : null;
-                }).filter(Boolean);
+                const daySlots = visibleHours
+                  .map((hour, hi) => {
+                    const key = `${day}_${hi}`;
+                    return scheduleData[key]
+                      ? { ...scheduleData[key], hour, hourIndex: hi, key }
+                      : null;
+                  })
+                  .filter(Boolean);
 
                 if (daySlots.length === 0 && !editMode) return null;
                 const isToday = day === todayName;
@@ -1876,7 +1894,7 @@ function DersProgramiApp({
                 </tr>
               </thead>
               <tbody>
-                {HOURS.map((hour, hi) => (
+                {visibleHours.map((hour, hi) => (
                   <tr key={hi}>
                     <td
                       style={{
@@ -2345,7 +2363,7 @@ function DersProgramiApp({
                     onFocus={(e) => (e.target.style.borderColor = DP.primary)}
                     onBlur={(e) => (e.target.style.borderColor = DP.border)}
                   >
-                    {HOURS.map((h, i) => (
+                    {visibleHours.map((h, i) => (
                       <option key={i} value={i}>
                         {h}
                       </option>
