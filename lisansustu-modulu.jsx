@@ -4,19 +4,17 @@
 //   Otomasyonu'nu (aynı bileşenler) seviye filtresiyle barındırır.
 //   Dersler sinav_dersler'de seviye alanıyla ayrışır; lisans modülleri
 //   yalnız 'lisans', bu modül 'yukseklisans'/'doktora' gösterir.
+//   Sade tasarım: ikon/rozet/gölge yok, düz segment kontroller.
 // ══════════════════════════════════════════════════════════════
 
 const { useState, useEffect } = React;
 
 const LU = {
-  primary: '#7C3AED',
-  primaryDark: '#5B21B6',
+  primary: '#5B21B6',
   text: '#0F172A',
   textMuted: '#64748B',
-  border: '#EAECF0',
+  border: '#D8DCE3',
   surface: '#FFFFFF',
-  bg: '#F6F7F9',
-  grad: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
 };
 
 const LU_LEVELS = [
@@ -24,32 +22,45 @@ const LU_LEVELS = [
   { id: 'doktora', label: 'Doktora' },
 ];
 const LU_VIEWS = [
-  {
-    id: 'program',
-    label: 'Ders Programı',
-    icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
-  },
-  {
-    id: 'sinav',
-    label: 'Sınav Otomasyonu',
-    icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
-  },
+  { id: 'program', label: 'Ders Programı' },
+  { id: 'sinav', label: 'Sınav Otomasyonu' },
 ];
 
-function LUIcon({ path, size = 16 }) {
+// Düz segment kontrol — gradyan, gölge, ikon ve geçiş efekti yok
+function LUSeg({ options, value, onChange }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+    <div
+      style={{
+        display: 'inline-flex',
+        border: `1px solid ${LU.border}`,
+        borderRadius: 8,
+        overflow: 'hidden',
+        background: LU.surface,
+      }}
     >
-      <path d={path} />
-    </svg>
+      {options.map((o, i) => {
+        const active = value === o.id;
+        return (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            style={{
+              padding: '8px 18px',
+              border: 'none',
+              borderLeft: i > 0 ? `1px solid ${LU.border}` : 'none',
+              background: active ? LU.primary : 'transparent',
+              color: active ? '#fff' : LU.text,
+              fontSize: 13,
+              fontWeight: active ? 600 : 500,
+              cursor: 'pointer',
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -71,114 +82,33 @@ function LisansustuApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const Program = window.DersProgramiApp;
   const Sinav = window.SinavOtomasyonuApp;
-
-  const pill = (active) => ({
-    padding: '7px 16px',
-    borderRadius: 9,
-    border: 'none',
-    background: active ? LU.grad : 'transparent',
-    color: active ? '#fff' : LU.textMuted,
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: "'Inter', sans-serif",
-    boxShadow: active ? '0 2px 6px rgba(124,58,237,0.30)' : 'none',
-    transition: 'all .15s ease',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 7,
-  });
-
   const levelLabel = (LU_LEVELS.find((l) => l.id === level) || {}).label || '';
+  const viewLabel = (LU_VIEWS.find((v) => v.id === view) || {}).label || '';
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", color: LU.text }}>
-      {/* Başlık */}
+      {/* Başlık — düz, ikon/rozet yok */}
+      <div style={{ marginBottom: 16 }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
+          Lisansüstü — {viewLabel}
+        </h1>
+        <p style={{ margin: '3px 0 0', fontSize: 13, color: LU.textMuted }}>
+          {departmentInfo?.name || 'Bölüm'} · {levelLabel}
+        </p>
+      </div>
+
+      {/* Seviye + görünüm — tek satır, düz segment kontroller */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
-          gap: 14,
-          marginBottom: 18,
+          gap: 12,
+          marginBottom: 20,
           flexWrap: 'wrap',
+          alignItems: 'center',
         }}
       >
-        <div
-          style={{
-            width: 46,
-            height: 46,
-            borderRadius: 13,
-            background: LU.grad,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            flexShrink: 0,
-            boxShadow: '0 6px 16px rgba(124,58,237,0.28)',
-          }}
-        >
-          <LUIcon
-            path="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.42a12 12 0 01.84 4.42c0 3.31-3.13 6-7 6s-7-2.69-7-6c0-1.55.42-3.04 1.16-4.42L12 14z"
-            size={22}
-          />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 24,
-              fontWeight: 800,
-              letterSpacing: '-0.02em',
-            }}
-          >
-            Lisansüstü
-          </h1>
-          <p style={{ margin: '3px 0 0', fontSize: 13, color: LU.textMuted }}>
-            {departmentInfo?.name || 'Bölüm'} — {levelLabel} · ders programı ve sınav otomasyonu
-          </p>
-        </div>
-      </div>
-
-      {/* Seviye seçici (Yüksek Lisans / Doktora) */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <div
-          style={{
-            display: 'inline-flex',
-            gap: 2,
-            padding: 4,
-            background: LU.surface,
-            border: `1px solid ${LU.border}`,
-            borderRadius: 12,
-            boxShadow: '0 1px 2px rgba(16,24,40,0.05)',
-          }}
-        >
-          {LU_LEVELS.map((l) => (
-            <button key={l.id} onClick={() => setLevel(l.id)} style={pill(level === l.id)}>
-              {l.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Görünüm sekmeleri (Ders Programı / Sınav) */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div
-          style={{
-            display: 'inline-flex',
-            gap: 2,
-            padding: 4,
-            background: LU.surface,
-            border: `1px solid ${LU.border}`,
-            borderRadius: 12,
-            boxShadow: '0 1px 2px rgba(16,24,40,0.05)',
-          }}
-        >
-          {LU_VIEWS.map((v) => (
-            <button key={v.id} onClick={() => setView(v.id)} style={pill(view === v.id)}>
-              <LUIcon path={v.icon} size={15} /> {v.label}
-            </button>
-          ))}
-        </div>
+        <LUSeg options={LU_LEVELS} value={level} onChange={setLevel} />
+        <LUSeg options={LU_VIEWS} value={view} onChange={setView} />
       </div>
 
       {/* İçerik — seviye değişince remount (key) → veriler yeniden yüklenir */}
@@ -193,6 +123,7 @@ function LisansustuApp({ currentUser, activeDepartment, departmentInfo }) {
           activeDepartment={activeDepartment}
           departmentInfo={departmentInfo}
           seviye={level}
+          embedded
         />
       ) : (
         <Sinav
@@ -201,6 +132,7 @@ function LisansustuApp({ currentUser, activeDepartment, departmentInfo }) {
           activeDepartment={activeDepartment}
           departmentInfo={departmentInfo}
           seviye={level}
+          embedded
         />
       )}
     </div>
