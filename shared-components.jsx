@@ -487,6 +487,28 @@ window.profMatchesDept = function (prof, deptId, deptName) {
   }
   return false;
 };
+// Bir bölümün TÜM kimlik varyantlarını döndürür (id, _id, _docId, code).
+// Bölüm kimliği zamanla biçim değiştirmiş olabilir (üretilmiş _docId → slug);
+// eski kimlikle kaydedilmiş veriler (ders, derslik, program) ham eşitlik
+// filtresine takılıp "kaybolur" ya da başka bölüm sanılır. departmentId ile
+// sorgulayan modüller bu varyant listesinin tamamıyla eşleştirmelidir.
+window.deptIdVariants = async function (deptId) {
+  if (!deptId) return [];
+  const key = String(deptId);
+  try {
+    const depts = await window.apiRead('departments');
+    const rec = (depts || []).find(
+      (d) => d && [d.id, d._id, d._docId, d.code].some((k) => k && String(k) === key)
+    );
+    if (!rec) return [key];
+    const set = new Set([rec.id, rec._id, rec._docId, rec.code].filter(Boolean).map(String));
+    set.add(key);
+    return [...set];
+  } catch {
+    return [key];
+  }
+};
+
 window.DEPARTMENT_MODULES = DEPARTMENT_MODULES;
 window.COMMON_MODULES = COMMON_MODULES;
 window.ADMIN_MODULES = ADMIN_MODULES;

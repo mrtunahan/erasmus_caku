@@ -573,9 +573,25 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
         return;
       }
       try {
+        // Bölümün tüm kimlik varyantları — eski kimlikle kaydedilmiş ders/
+        // derslik kayıtları da bulunsun (ham eşitlik filtresi onları kaçırır)
+        const deptVariants = window.deptIdVariants
+          ? await window.deptIdVariants(activeDepartment)
+          : [activeDepartment];
+
         // Dersler (sinav_dersler) - sadece aktif bölüm + bu modülün SEVİYESİ
-        const rawCourses = await window.apiRead('sinav_dersler', {
-          where: `departmentId:eq:${activeDepartment}`,
+        const courseChunks = await Promise.all(
+          deptVariants.map((v) =>
+            window.apiRead('sinav_dersler', { where: `departmentId:eq:${v}` }).catch(() => [])
+          )
+        );
+        const seenCourseIds = new Set();
+        const rawCourses = [];
+        courseChunks.flat().forEach((c) => {
+          const cid = c && (c.id || c._docId);
+          if (!c || (cid && seenCourseIds.has(cid))) return;
+          if (cid) seenCourseIds.add(cid);
+          rawCourses.push(c);
         });
         const courseList = (rawCourses || [])
           .filter((c) => (c.seviye || 'lisans') === seviye)
@@ -591,10 +607,13 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
         // client-side filtrelenir.
         const allProfs = await window.apiRead('professors');
         const deptInfoForFilter = (window.DEPARTMENTS || []).find((x) => x.id === activeDepartment);
+        // Eski kimlikli akademisyen kayıtları da eşleşsin diye tüm varyantlar denenir
         const rawProfs = (allProfs || []).filter((p) =>
-          window.profMatchesDept
-            ? window.profMatchesDept(p, activeDepartment, deptInfoForFilter?.name)
-            : p.departmentId === activeDepartment
+          deptVariants.some((v) =>
+            window.profMatchesDept
+              ? window.profMatchesDept(p, v, deptInfoForFilter?.name)
+              : p.departmentId === v
+          )
         );
         const profMap = {};
         rawProfs.forEach((p) => {
@@ -606,9 +625,21 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
         profList.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
         setProfessors(profList);
 
-        // Derslikler (department_classrooms) - sadece aktif bölüm
-        const roomList = await window.apiRead('department_classrooms', {
-          where: `departmentId:eq:${activeDepartment}`,
+        // Derslikler (department_classrooms) - sadece aktif bölüm (tüm varyantlar)
+        const roomChunks = await Promise.all(
+          deptVariants.map((v) =>
+            window
+              .apiRead('department_classrooms', { where: `departmentId:eq:${v}` })
+              .catch(() => [])
+          )
+        );
+        const seenRoomIds = new Set();
+        const roomList = [];
+        roomChunks.flat().forEach((r) => {
+          const rid = r && (r.id || r._docId);
+          if (!r || (rid && seenRoomIds.has(rid))) return;
+          if (rid) seenRoomIds.add(rid);
+          roomList.push(r);
         });
         roomList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setClassrooms(roomList);
@@ -934,15 +965,22 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
       // olursa olsun ada çözülsün (aksi halde ham "7gwPii..." id'si basılıyordu).
       const deptNameMap = {};
       const validDeptIds = new Set();
+      // Her kimlik varyantı → bölümün KANONİK kimliği (uygulama genelinde
+      // kullanılan biçim: d.id || d._docId — app-shell ile aynı öncelik).
+      // Kanonik olmayan kimlikle kaydedilmiş program dokümanları bayat
+      // yinelenendir; fakülte kümesine alınmaz (hayalet ders + sahte çakışma).
+      const variantToCanon = {};
       const allDeptSources = Array.isArray(depts) ? depts : [];
       (window.DEPARTMENTS || []).forEach((d) => allDeptSources.push(d));
       allDeptSources.forEach((d) => {
         const nm = d && d.name;
         if (!nm) return;
+        const canon = String(d.id || d._docId || d._id || d.code || '');
         [d.id, d._id, d._docId, d.code].forEach((k) => {
           if (k) {
             deptNameMap[String(k)] = nm;
             validDeptIds.add(String(k));
+            if (canon && !variantToCanon[String(k)]) variantToCanon[String(k)] = canon;
           }
         });
       });
@@ -982,7 +1020,17 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
           // ne fakülte kümesine alınır — sahte çakışma ve hayalet ders kaynağı.
           orphans.push({ docId: d.id, deptId, not: 'aktif bölümün eski kimlikli kaydı' });
         } else if (validDeptIds.has(String(deptId))) {
-          // Yalnız CANLI bir bölüme çözülebilen kayıtları fakülte programına ekle.
+          // DİĞER bölümler için de aynı kural: kanonik olmayan (eski) kimlikle
+          // kaydedilmiş doküman bayat yinelenendir — fakülte kümesine alınmaz.
+          const canon = variantToCanon[String(deptId)] || String(deptId);
+          if (canon !== String(deptId)) {
+            orphans.push({
+              docId: d.id,
+              deptId,
+              not: `${deptNameMap[String(deptId)] || 'bölüm'} — eski kimlikli kayıt (kanonik: ${canon})`,
+            });
+            return;
+          }
           faculty.push({ deptId, deptName: deptNameMap[String(deptId)], year: yr, slots });
         } else {
           // Yetim/eski kayıt: hiçbir canlı bölüme bağlanamıyor. Fakülte
