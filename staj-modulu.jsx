@@ -4433,7 +4433,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const filteredApplications = useMemo(() => {
     return allApplications.filter((r) => {
-      if (filterStatus !== 'all' && r.status !== filterStatus) return false;
+      // 'etap:<id>' → staj etabına göre, aksi halde durum filtresi
+      if (filterStatus.startsWith('etap:')) {
+        if ((r.stajEtapId || '') !== filterStatus.slice(5)) return false;
+      } else if (filterStatus !== 'all' && r.status !== filterStatus) return false;
       if (searchTerm) {
         const s = searchTerm.toLowerCase();
         return (
@@ -8617,12 +8620,18 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     cursor: 'pointer',
                   }}
                 >
-                  <option value="all">Tüm Durumlar</option>
-                  {Object.entries(STAJ_STATUS).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v.label}
-                    </option>
-                  ))}
+                  <option value="all">Tüm Kayıtlar</option>
+                  {exportPeriods.length > 0 && (
+                    <optgroup label="Staj Etabına Göre">
+                      {exportPeriods.map((p) => (
+                        <option key={p.id} value={'etap:' + p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <option value="devam">Devam Ediyor</option>
+                  <option value="tamamlandi">Tamamlandı</option>
                 </select>
               </div>
 
@@ -8665,18 +8674,29 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     const uploadCount = Object.keys(studentUploads).filter(
                       (k) => VALID_DOC_KEYS.includes(k) && studentUploads[k]?.fileName
                     ).length;
+                    // Öğrenci bir adımı onaya gönderdiyse (sıra akademisyende)
+                    // kaydın arka planı sarı vurgulanır. İlk başvuru onayı
+                    // bekleyenler (beklemede) de aynı vurguyu alır.
+                    const appStepsMap = allRoadmaps[app.id]?.steps || {};
+                    const awaitingApproval =
+                      app.status !== 'tamamlandi' &&
+                      app.status !== 'reddedildi' &&
+                      (app.status === 'beklemede' ||
+                        Object.values(appStepsMap).some((st) => st?.status === 'pending_approval'));
                     return (
                       <div
                         key={app.id}
                         onClick={() => setSelectedApp(app)}
                         style={{
-                          background: 'white',
+                          background: awaitingApproval ? '#FEF9C3' : 'white',
                           borderRadius: 10,
                           padding: responsive.val(12, 16, 16),
-                          border: '1px solid #E5E7EB',
+                          border: `1px solid ${awaitingApproval ? '#FCD34D' : '#E5E7EB'}`,
                           cursor: 'pointer',
-                          display: 'flex',
-                          flexWrap: 'wrap',
+                          display: 'grid',
+                          // Sabit ilk sütun: orta alan tüm kayıtlarda aynı
+                          // hizadan başlar (sağdaki rozet genişliği hizayı bozmaz)
+                          gridTemplateColumns: `${responsive.val(150, 190, 220)}px minmax(0, 1fr) auto`,
                           alignItems: 'center',
                           gap: 12,
                           transition: 'box-shadow 0.2s',
@@ -8686,13 +8706,13 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         }
                         onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}
                       >
-                        <div style={{ flex: 1, minWidth: 160 }}>
+                        <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 14, fontWeight: 600, color: STAJ.text }}>
                             {app.adSoyad}
                           </div>
                           <div style={{ fontSize: 12, color: STAJ.textMuted }}>{app.ogrenciNo}</div>
                         </div>
-                        <div style={{ flex: 1, minWidth: 140 }}>
+                        <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 13, color: STAJ.text }}>
                             {app.stajYeriAdi || '—'}
                           </div>
@@ -8755,7 +8775,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                             return null;
                           })()}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            justifySelf: 'end',
+                          }}
+                        >
                           {uploadCount > 0 && (
                             <span
                               style={{
