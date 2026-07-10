@@ -523,7 +523,15 @@ const CourseChip = ({ course, color }) => {
   );
 };
 
-function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye = 'lisans' }) {
+function DersProgramiApp({
+  currentUser,
+  activeDepartment,
+  departmentInfo,
+  seviye = 'lisans',
+  // Lisansüstü gibi bir sarmalayıcı içinde gömülü: kendi büyük başlık/ikon
+  // bloğu gizlenir (çifte başlık olmasın), işlevsel butonlar kalır.
+  embedded = false,
+}) {
   // Seviye eki: lisans geriye-uyumlu (eksiz), lisansüstü ayrı belge uzayı.
   const seviyeSuffix = seviye && seviye !== 'lisans' ? '_' + seviye : '';
   const [scheduleData, setScheduleData] = useState({});
@@ -1210,42 +1218,48 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
           marginBottom: 16,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 10,
-              background: 'linear-gradient(135deg, #7C3AED, #A78BFA)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <DPIcon
-              path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              size={20}
-              color="white"
-            />
+        {embedded ? (
+          <div style={{ fontSize: 13, color: DP.textMuted }}>
+            {semester === 'guz' ? 'Güz' : 'Bahar'} — {year}. Sınıf
           </div>
-          <div>
-            <h1
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
               style={{
-                fontSize: responsive.val(18, 22, 26),
-                fontWeight: 700,
-                color: DP.navy,
-                margin: 0,
-                lineHeight: 1.2,
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background: 'linear-gradient(135deg, #7C3AED, #A78BFA)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              Ders Programı
-            </h1>
-            <p style={{ fontSize: 12, color: DP.textMuted, margin: 0 }}>
-              {departmentInfo?.name || 'Bölüm'} — {semester === 'guz' ? 'Güz' : 'Bahar'} — {year}.
-              Sınıf
-            </p>
+              <DPIcon
+                path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                size={20}
+                color="white"
+              />
+            </div>
+            <div>
+              <h1
+                style={{
+                  fontSize: responsive.val(18, 22, 26),
+                  fontWeight: 700,
+                  color: DP.navy,
+                  margin: 0,
+                  lineHeight: 1.2,
+                }}
+              >
+                Ders Programı
+              </h1>
+              <p style={{ fontSize: 12, color: DP.textMuted, margin: 0 }}>
+                {departmentInfo?.name || 'Bölüm'} — {semester === 'guz' ? 'Güz' : 'Bahar'} — {year}.
+                Sınıf
+              </p>
+            </div>
           </div>
-        </div>
+        )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           {conflicts.length > 0 && (
             <button

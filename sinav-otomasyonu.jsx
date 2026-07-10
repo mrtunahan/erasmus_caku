@@ -2649,7 +2649,15 @@ async function exportToXLSX(
 // ══════════════════════════════════════════════════════════════
 // MAIN: SinavOtomasyonuApp
 // ══════════════════════════════════════════════════════════════
-function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo, seviye = 'lisans' }) {
+function SinavOtomasyonuApp({
+  currentUser,
+  activeDepartment,
+  departmentInfo,
+  seviye = 'lisans',
+  // Lisansüstü gibi bir sarmalayıcı içinde gömülü: kendi büyük başlık bloğu
+  // gizlenir (çifte başlık olmasın), işlevsel butonlar kalır.
+  embedded = false,
+}) {
   const r = window.useResponsive
     ? window.useResponsive()
     : {
@@ -3629,22 +3637,28 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo, sev
             marginBottom: 20,
           }}
         >
-          <div>
-            <h2
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                color: C.navy,
-                fontFamily: "'Playfair Display', serif",
-              }}
-            >
-              Sınav Programı Otomasyonu
-            </h2>
-            <p style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-              {selectedDept ? selectedDept.name : 'Dersleri sürükleyerek takvime yerleştirin'}
-              {isDeptManager && currentUser?.departmentName && ` - ${currentUser.departmentName}`}
-            </p>
-          </div>
+          {embedded ? (
+            <div style={{ fontSize: 13, color: '#666' }}>
+              Dersleri sürükleyerek takvime yerleştirin
+            </div>
+          ) : (
+            <div>
+              <h2
+                style={{
+                  fontSize: 22,
+                  fontWeight: 700,
+                  color: C.navy,
+                  fontFamily: "'Playfair Display', serif",
+                }}
+              >
+                Sınav Programı Otomasyonu
+              </h2>
+              <p style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                {selectedDept ? selectedDept.name : 'Dersleri sürükleyerek takvime yerleştirin'}
+                {isDeptManager && currentUser?.departmentName && ` - ${currentUser.departmentName}`}
+              </p>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {seviye === 'lisans' &&
               isAdmin &&
@@ -3668,8 +3682,8 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo, sev
           </div>
         </div>
 
-        {/* Department Manager Info */}
-        {isDeptManager && (
+        {/* Department Manager Info — gömülü modda gizli (bilgi sarmalayıcıda) */}
+        {!embedded && isDeptManager && (
           <Card style={{ marginBottom: 16, background: '#EDE9FE', border: '1px solid #C4B5FD' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <svg
@@ -3696,8 +3710,8 @@ function SinavOtomasyonuApp({ currentUser, activeDepartment, departmentInfo, sev
           </Card>
         )}
 
-        {/* Professor Info */}
-        {isProfessor && departments.length > 0 && selectedDeptId && (
+        {/* Professor Info — gömülü modda gizli */}
+        {!embedded && isProfessor && departments.length > 0 && selectedDeptId && (
           <Card style={{ marginBottom: 16, background: '#DBEAFE', border: '1px solid #93C5FD' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <svg
