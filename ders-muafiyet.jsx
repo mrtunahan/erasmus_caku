@@ -4686,237 +4686,258 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
 // ══════════════════════════════════════════════════════════════
 
 // ── İnceleme Paneli ── (admin insan onayı)
+// Akademisyen karar paneli — öğrencinin gönderdiği veri yapısıyla hizalı:
+// her ders çifti için iki sütunlu karşılaştırma (Karşı Kurum ↔ ÇAKÜ), düz
+// metin ölçütler (içerik %, AKTS, sistem önerisi), belge bağlantıları ve
+// net Onayla/Reddet butonları. Emoji/ikon kullanılmaz.
 const ReviewPanel = ({ record, onDecision }) => {
   const [reviewing, setReviewing] = useState(false);
-  const pendingMatches = (record.matches || []).filter(function (m) {
+  const matches = record.matches || [];
+  if (matches.length === 0) return null;
+  const pendingCount = matches.filter(function (m) {
     return m.tier === 'review' && !m.adminDecision;
-  });
-  if (pendingMatches.length === 0) return null;
+  }).length;
 
-  return (
-    <div
-      style={{
-        marginTop: 12,
-        padding: '14px 16px',
-        borderRadius: DS.radiusSm,
-        background: '#FFFBEB',
-        border: '1px solid #FCD34D',
-      }}
-    >
-      <div
+  const label = {
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.06em',
+    color: DS.textMuted,
+    marginBottom: 4,
+  };
+  const chip = function (text, color, bg) {
+    return (
+      <span
         style={{
-          fontSize: 12,
-          fontWeight: 700,
-          color: DS.amber,
-          marginBottom: 10,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
+          fontSize: 11,
+          fontWeight: 600,
+          color: color,
+          background: bg,
+          padding: '2px 9px',
+          borderRadius: 6,
         }}
       >
-        <span>⏳</span> {pendingMatches.length} ders insan onayı bekliyor
-      </div>
-      {(record.matches || []).map(function (m, idx) {
-        if (m.tier !== 'review') return null;
-        var decided = m.adminDecision;
+        {text}
+      </span>
+    );
+  };
+  const docLink = function (href, text) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: DS.accent,
+          textDecoration: 'underline',
+          textUnderlineOffset: 3,
+        }}
+      >
+        {text}
+      </a>
+    );
+  };
+
+  return (
+    <div style={{ borderTop: '1px solid ' + DS.borderLight, paddingTop: 14 }}>
+      {pendingCount > 0 && (
+        <div style={{ fontSize: 13, fontWeight: 700, color: DS.text, marginBottom: 10 }}>
+          {pendingCount} ders kararınızı bekliyor
+        </div>
+      )}
+      {matches.map(function (m, idx) {
         // İki kayıt şekli desteklenir: öğrenci formu (sourceCourse/localCourse)
         // ve eski sihirbaz (source/target)
         var src = m.sourceCourse || m.source || {};
         var tgt = m.localCourse || m.target || null;
-        var recColor =
-          m.recommendation === 'muaf' ? DS.green : m.recommendation === 'red' ? DS.red : DS.amber;
-        var recBg =
-          m.recommendation === 'muaf'
-            ? DS.greenBg
-            : m.recommendation === 'red'
-              ? DS.redLight
-              : DS.amberLight;
+        var decided = m.adminDecision;
+        var isPending = m.tier === 'review' && !decided;
+        var score = Math.round((m.score || m.contentScore || 0) * 100);
+        var aktsOk = m.aktsPass !== false;
+
+        // Satırın durumu (sol kenar rengi + rozet)
+        var durum, dColor, dBg;
+        if (decided === 'confirmed') {
+          durum = 'Onaylandı';
+          dColor = DS.green;
+          dBg = DS.greenBg;
+        } else if (decided === 'rejected') {
+          durum = 'Reddedildi';
+          dColor = DS.red;
+          dBg = DS.redLight;
+        } else if (m.tier === 'approved') {
+          durum = 'Otomatik muaf';
+          dColor = DS.green;
+          dBg = DS.greenBg;
+        } else if (m.tier === 'rejected') {
+          durum = 'Otomatik red';
+          dColor = DS.red;
+          dBg = DS.redLight;
+        } else {
+          durum = 'Karar bekliyor';
+          dColor = DS.amber;
+          dBg = DS.amberLight;
+        }
+
         return (
           <div
             key={idx}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              flexWrap: 'wrap',
-              padding: '8px 10px',
-              marginBottom: 6,
+              border: '1px solid ' + DS.border,
+              borderLeft: '3px solid ' + dColor,
               borderRadius: DS.radiusSm,
-              background: decided ? (decided === 'confirmed' ? DS.greenBg : DS.redLight) : 'white',
-              border:
-                '1px solid ' +
-                (decided ? (decided === 'confirmed' ? DS.greenLight : DS.redLight) : DS.border),
-              fontSize: 12,
+              padding: '12px 14px',
+              marginBottom: 8,
+              background: 'white',
             }}
           >
-            <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-              <span style={{ fontWeight: 700, color: DS.navy }}>{src.code || '—'}</span>
-              <span style={{ color: DS.textSecondary, marginLeft: 6 }}>{src.name || ''}</span>
-              <span
-                style={{
-                  marginLeft: 8,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: DS.amber,
-                  background: DS.amberLight,
-                  padding: '1px 6px',
-                  borderRadius: 10,
-                }}
-              >
-                %{Math.round((m.score || m.contentScore || 0) * 100)} içerik
-              </span>
-              <span
-                style={{
-                  marginLeft: 4,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: m.aktsPass !== false ? DS.green : DS.red,
-                  background: m.aktsPass !== false ? DS.greenBg : DS.redLight,
-                  padding: '1px 6px',
-                  borderRadius: 10,
-                }}
-              >
-                AKTS {m.aktsPass !== false ? '✓' : '✗'}
-                {src.akts && tgt && tgt.akts ? ' (' + src.akts + '→' + tgt.akts + ')' : ''}
-              </span>
-              {m.recommendation && (
-                <span
-                  style={{
-                    marginLeft: 4,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: recColor,
-                    background: recBg,
-                    padding: '1px 6px',
-                    borderRadius: 10,
-                  }}
-                >
-                  Sistem: {m.recommendation.toLocaleUpperCase('tr')}
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: 11, color: DS.textMuted, flex: '1 1 150px', minWidth: 0 }}>
-              {tgt ? '→ ' + (tgt.code || '') + ' ' + (tgt.name || '') : '→ Eşleşme yok'}
-            </div>
-            {/* Belgeler: öğrencinin yüklediği PDF + Bologna linkleri */}
-            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-              {src.fileUrl && (
-                <a
-                  href={
-                    '/api/files/view/' + String(src.fileUrl).replace('/api/files/download/', '')
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Öğrencinin yüklediği ders içeriği belgesi"
-                  style={{
-                    padding: '3px 9px',
-                    borderRadius: 12,
-                    background: DS.navy,
-                    color: 'white',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    textDecoration: 'none',
-                  }}
-                >
-                  📄 PDF
-                </a>
-              )}
-              {src.bolognaLink && (
-                <a
-                  href={src.bolognaLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Karşı kurum Bologna sayfası"
-                  style={{
-                    padding: '3px 9px',
-                    borderRadius: 12,
-                    background: DS.accentLight,
-                    color: DS.accent,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    textDecoration: 'none',
-                  }}
-                >
-                  🔗 Bologna (Karşı)
-                </a>
-              )}
-              {tgt && tgt.bolognaLink && (
-                <a
-                  href={tgt.bolognaLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="ÇAKÜ dersi Bologna sayfası"
-                  style={{
-                    padding: '3px 9px',
-                    borderRadius: 12,
-                    background: DS.greenBg,
-                    color: DS.green,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    textDecoration: 'none',
-                  }}
-                >
-                  🔗 Bologna (ÇAKÜ)
-                </a>
-              )}
-            </div>
-            {decided ? (
-              <span
-                style={{
-                  padding: '3px 10px',
-                  borderRadius: 20,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  background: decided === 'confirmed' ? DS.greenLight : DS.redLight,
-                  color: decided === 'confirmed' ? DS.green : DS.red,
-                }}
-              >
-                {decided === 'confirmed' ? '✓ Onaylandı' : '✗ Reddedildi'}
-              </span>
-            ) : (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  disabled={reviewing}
-                  onClick={async function () {
-                    setReviewing(true);
-                    await onDecision(record.id, idx, 'confirmed');
-                    setReviewing(false);
-                  }}
-                  style={{
-                    padding: '4px 12px',
-                    borderRadius: 20,
-                    border: 'none',
-                    background: DS.green,
-                    color: 'white',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Onayla
-                </button>
-                <button
-                  disabled={reviewing}
-                  onClick={async function () {
-                    setReviewing(true);
-                    await onDecision(record.id, idx, 'rejected');
-                    setReviewing(false);
-                  }}
-                  style={{
-                    padding: '4px 12px',
-                    borderRadius: 20,
-                    border: 'none',
-                    background: DS.red,
-                    color: 'white',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Reddet
-                </button>
+            {/* Ders karşılaştırması: Karşı kurum ↔ ÇAKÜ */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0,1fr) 20px minmax(0,1fr)',
+                gap: 10,
+                alignItems: 'start',
+              }}
+            >
+              <div>
+                <div style={label}>KARŞI KURUM{src.uni ? ' — ' + src.uni : ''}</div>
+                <div style={{ fontSize: 13.5, color: DS.text }}>
+                  <span style={{ fontWeight: 700, color: DS.navy }}>{src.code || '—'}</span>{' '}
+                  {src.name || ''}
+                </div>
+                <div style={{ fontSize: 12, color: DS.textSecondary, marginTop: 2 }}>
+                  AKTS {src.akts || '—'}
+                  {src.statu ? ' · ' + (src.statu === 'S' ? 'Seçmeli' : 'Zorunlu') : ''}
+                </div>
               </div>
-            )}
+              <div
+                style={{ textAlign: 'center', color: DS.textMuted, fontSize: 14, paddingTop: 18 }}
+              >
+                →
+              </div>
+              <div>
+                <div style={label}>ÇAKÜ DERSİ</div>
+                {tgt ? (
+                  <>
+                    <div style={{ fontSize: 13.5, color: DS.text }}>
+                      <span style={{ fontWeight: 700, color: DS.navy }}>{tgt.code || '—'}</span>{' '}
+                      {tgt.name || ''}
+                    </div>
+                    <div style={{ fontSize: 12, color: DS.textSecondary, marginTop: 2 }}>
+                      AKTS {tgt.akts || '—'}
+                      {tgt.statu ? ' · ' + (tgt.statu === 'S' ? 'Seçmeli' : 'Zorunlu') : ''}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 13, color: DS.textMuted }}>Eşleşme yok</div>
+                )}
+              </div>
+            </div>
+
+            {/* Ölçütler · belgeler · karar */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 10,
+                marginTop: 10,
+                paddingTop: 10,
+                borderTop: '1px dashed ' + DS.borderLight,
+              }}
+            >
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                {chip(
+                  'İçerik %' + score,
+                  score >= 70 ? DS.green : score >= 60 ? DS.amber : DS.red,
+                  score >= 70 ? DS.greenBg : score >= 60 ? DS.amberLight : DS.redLight
+                )}
+                {chip(
+                  aktsOk
+                    ? 'AKTS uygun' +
+                        (src.akts && tgt && tgt.akts ? ' (' + src.akts + '/' + tgt.akts + ')' : '')
+                    : 'AKTS yetersiz' +
+                        (src.akts && tgt && tgt.akts ? ' (' + src.akts + '/' + tgt.akts + ')' : ''),
+                  aktsOk ? DS.green : DS.red,
+                  aktsOk ? DS.greenBg : DS.redLight
+                )}
+                {m.recommendation &&
+                  chip(
+                    'Sistem önerisi: ' + m.recommendation.toLocaleUpperCase('tr'),
+                    m.recommendation === 'muaf'
+                      ? DS.green
+                      : m.recommendation === 'red'
+                        ? DS.red
+                        : DS.amber,
+                    m.recommendation === 'muaf'
+                      ? DS.greenBg
+                      : m.recommendation === 'red'
+                        ? DS.redLight
+                        : DS.amberLight
+                  )}
+              </div>
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                {src.fileUrl &&
+                  docLink(
+                    '/api/files/view/' + String(src.fileUrl).replace('/api/files/download/', ''),
+                    'Ders içeriği (PDF)'
+                  )}
+                {src.bolognaLink && docLink(src.bolognaLink, 'Bologna — karşı kurum')}
+                {tgt && tgt.bolognaLink && docLink(tgt.bolognaLink, 'Bologna — ÇAKÜ')}
+              </div>
+              {isPending ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    disabled={reviewing}
+                    onClick={async function () {
+                      setReviewing(true);
+                      await onDecision(record.id, idx, 'confirmed');
+                      setReviewing(false);
+                    }}
+                    style={{
+                      padding: '7px 18px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: DS.green,
+                      color: 'white',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: reviewing ? 'wait' : 'pointer',
+                      opacity: reviewing ? 0.6 : 1,
+                    }}
+                  >
+                    Onayla
+                  </button>
+                  <button
+                    disabled={reviewing}
+                    onClick={async function () {
+                      setReviewing(true);
+                      await onDecision(record.id, idx, 'rejected');
+                      setReviewing(false);
+                    }}
+                    style={{
+                      padding: '7px 18px',
+                      borderRadius: 8,
+                      border: '1px solid ' + DS.red,
+                      background: 'white',
+                      color: DS.red,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: reviewing ? 'wait' : 'pointer',
+                      opacity: reviewing ? 0.6 : 1,
+                    }}
+                  >
+                    Reddet
+                  </button>
+                </div>
+              ) : (
+                chip(durum, dColor, dBg)
+              )}
+            </div>
           </div>
         );
       })}
@@ -4931,6 +4952,8 @@ const ExemptionHistory = ({
   onUpdateDecision,
   onGenerateDoc,
   emptyText,
+  // Onay Bekleyenler sekmesi: karar paneli tıklamaya gerek kalmadan açık gelir
+  expandAll,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedReview, setExpandedReview] = useState(null);
@@ -5021,7 +5044,7 @@ const ExemptionHistory = ({
               zIndex: 1,
             }}
           >
-            <div style={{ fontSize: 40, color: DS.navy, marginBottom: 2 }}>📦</div>
+            <div style={{ width: 52, height: 5, borderRadius: 999, background: DS.surfaceHigh }} />
             <div style={{ width: 44, height: 4, borderRadius: 999, background: DS.surfaceHigh }} />
             <div style={{ width: 28, height: 4, borderRadius: 999, background: DS.surfaceHigh }} />
           </div>
@@ -5096,7 +5119,42 @@ const ExemptionHistory = ({
                 : new Date(rec.createdAt)
               ).toLocaleDateString('tr-TR')
             : '';
-          var isExpanded = expandedReview === rec.id;
+          var isExpanded = expandAll || expandedReview === rec.id;
+          var ms = rec.matches || [];
+          // Akademisyen kararı esas alınır; eski (otomatik) kayıtlar için
+          // tier bazlı sayım geriye dönük korunur
+          var muafCount =
+            ms.filter(function (m) {
+              return m.adminDecision === 'confirmed';
+            }).length ||
+            (rec.approvedCount ??
+              ms.filter(function (m) {
+                return m.tier === 'approved';
+              }).length);
+          var redCount =
+            ms.filter(function (m) {
+              return m.adminDecision === 'rejected';
+            }).length ||
+            (rec.rejectedCount ??
+              ms.filter(function (m) {
+                return m.tier === 'rejected';
+              }).length);
+          var stat = function (text, color, bg) {
+            return (
+              <span
+                style={{
+                  background: bg,
+                  color: color,
+                  padding: '2px 9px',
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  fontSize: 11.5,
+                }}
+              >
+                {text}
+              </span>
+            );
+          };
           return (
             <div
               key={rec.id}
@@ -5104,146 +5162,74 @@ const ExemptionHistory = ({
                 borderRadius: DS.radius,
                 background: DS.bgCard,
                 border: '1px solid ' + (rec.pendingReviewCount > 0 ? '#FCD34D' : DS.border),
-                boxShadow: DS.shadow,
                 overflow: 'hidden',
-                transition: 'box-shadow 0.2s',
               }}
             >
-              {/* Kart Başlığı */}
+              {/* Kart Başlığı — düz düzen, avatar/emoji yok */}
               <div
                 style={{
-                  padding: '16px 20px',
+                  padding: '14px 20px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 10,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div
-                    style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: '50%',
-                      background: 'linear-gradient(135deg, ' + DS.navy + ', ' + DS.navyLight + ')',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white',
-                      fontSize: 15,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {(rec.studentName || '?')[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, color: DS.navy, fontSize: 15 }}>
-                      {rec.studentName || 'İsimsiz'}
-                      <span
-                        style={{
-                          fontWeight: 400,
-                          color: DS.textMuted,
-                          marginLeft: 8,
-                          fontSize: 13,
-                          fontFamily: "'JetBrains Mono', monospace",
-                        }}
-                      >
-                        #{rec.studentNo || '-'}
-                      </span>
-                    </div>
-                    <div
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: DS.navy, fontSize: 15 }}>
+                    {rec.studentName || 'İsimsiz'}
+                    <span
                       style={{
-                        fontSize: 12,
-                        color: DS.textSecondary,
-                        marginTop: 3,
-                        display: 'flex',
-                        gap: 12,
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
+                        fontWeight: 400,
+                        color: DS.textMuted,
+                        marginLeft: 8,
+                        fontSize: 13,
                       }}
                     >
-                      <span>{rec.otherUniversity || rec.otherUni || '—'}</span>
-                      <span
-                        style={{
-                          background: DS.greenLight,
-                          color: DS.green,
-                          padding: '1px 8px',
-                          borderRadius: 12,
-                          fontWeight: 600,
-                          fontSize: 11,
-                        }}
-                      >
-                        {matchCount} ders
-                      </span>
-                      {(() => {
-                        const ms = rec.matches || [];
-                        // Akademisyen kararı esas alınır; eski (otomatik) kayıtlar
-                        // için tier bazlı sayım geriye dönük korunur
-                        const a =
-                          ms.filter((m) => m.adminDecision === 'confirmed').length ||
-                          (rec.approvedCount ?? ms.filter((m) => m.tier === 'approved').length);
-                        const rj =
-                          ms.filter((m) => m.adminDecision === 'rejected').length ||
-                          (rec.rejectedCount ?? ms.filter((m) => m.tier === 'rejected').length);
-                        return (
-                          <>
-                            {a > 0 && (
-                              <span
-                                style={{
-                                  background: DS.greenBg,
-                                  color: DS.green,
-                                  padding: '1px 8px',
-                                  borderRadius: 12,
-                                  fontWeight: 600,
-                                  fontSize: 11,
-                                }}
-                                title="Otomatik muaf"
-                              >
-                                ✓ {a} muaf
-                              </span>
-                            )}
-                            {rj > 0 && (
-                              <span
-                                style={{
-                                  background: DS.redLight,
-                                  color: DS.red,
-                                  padding: '1px 8px',
-                                  borderRadius: 12,
-                                  fontWeight: 600,
-                                  fontSize: 11,
-                                }}
-                                title="Reddedildi"
-                              >
-                                ✗ {rj} red
-                              </span>
-                            )}
-                          </>
-                        );
-                      })()}
-                      {rec.pendingReviewCount > 0 && (
-                        <span
-                          style={{
-                            background: DS.amberLight,
-                            color: DS.amber,
-                            padding: '1px 8px',
-                            borderRadius: 12,
-                            fontWeight: 600,
-                            fontSize: 11,
-                            cursor: 'pointer',
-                            border: '1px solid #FCD34D',
-                          }}
-                          onClick={function (e) {
-                            e.stopPropagation();
-                            setExpandedReview(isExpanded ? null : rec.id);
-                          }}
-                        >
-                          ⏳ {rec.pendingReviewCount} inceleme {isExpanded ? '▲' : '▼'}
-                        </span>
-                      )}
-                      {dateStr && <span style={{ color: DS.textMuted }}>{dateStr}</span>}
-                    </div>
+                      {rec.studentNo || '-'}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      color: DS.textSecondary,
+                      marginTop: 5,
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span>{rec.otherUniversity || rec.otherUni || '—'}</span>
+                    {dateStr && <span style={{ color: DS.textMuted }}>· {dateStr}</span>}
+                    {stat(matchCount + ' ders', DS.textSecondary, DS.surfaceHigh)}
+                    {muafCount > 0 && stat(muafCount + ' muaf', DS.green, DS.greenBg)}
+                    {redCount > 0 && stat(redCount + ' red', DS.red, DS.redLight)}
+                    {rec.pendingReviewCount > 0 &&
+                      stat(rec.pendingReviewCount + ' onay bekliyor', DS.amber, DS.amberLight)}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {!expandAll && onUpdateDecision && matchCount > 0 && (
+                    <button
+                      onClick={function () {
+                        setExpandedReview(isExpanded ? null : rec.id);
+                      }}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        border: '1px solid ' + DS.border,
+                        background: isExpanded ? DS.surfaceHigh : 'white',
+                        color: DS.navy,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {isExpanded ? 'Kapat' : 'İncele'}
+                    </button>
+                  )}
                   {onGenerateDoc && (
                     <Button
                       small
@@ -5251,7 +5237,6 @@ const ExemptionHistory = ({
                       onClick={function () {
                         onGenerateDoc(rec);
                       }}
-                      icon={<Icons.download />}
                     >
                       Belge Oluştur
                     </Button>
@@ -5264,7 +5249,6 @@ const ExemptionHistory = ({
                         if (confirm('Bu kaydı silmek istediğinizden emin misiniz?'))
                           onDelete(rec.id);
                       }}
-                      icon={<Icons.trash />}
                     >
                       Sil
                     </Button>
@@ -5272,7 +5256,7 @@ const ExemptionHistory = ({
                 </div>
               </div>
 
-              {/* İnceleme Paneli (genişletilebilir) */}
+              {/* İnceleme Paneli — Onay Bekleyenler'de otomatik açık */}
               {isExpanded && onUpdateDecision && (
                 <div style={{ padding: '0 20px 16px' }}>
                   <ReviewPanel
@@ -6101,10 +6085,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
           transform: translateX(-50%);
         }
         .muafiyet-tab-btn.active::after { width: 100%; }
-        .muafiyet-tab-btn:hover { background: ${DS.bg}; }
         input:focus, select:focus { border-color: ${DS.accent} !important; box-shadow: 0 0 0 3px ${DS.accentLight}; }
-        .muafiyet-action-card { transition: box-shadow 0.28s ease, transform 0.18s ease, border-color 0.18s ease; }
-        .muafiyet-action-card:hover { box-shadow: 0 8px 24px rgba(30,58,138,0.10); transform: translateY(-2px); }
       `}</style>
 
       <div className="portal-wrap">
@@ -6262,15 +6243,6 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
                   gap: 6,
                 }}
               >
-                {tab.id === 'yeni' && <span style={{ fontSize: 15 }}>＋</span>}
-                {tab.id === 'onay' && <span style={{ fontSize: 14 }}>⏳</span>}
-                {tab.id === 'gecmis' && <span style={{ fontSize: 14 }}>📋</span>}
-                {tab.id === 'esgecmis' && <span style={{ fontSize: 14 }}>🔁</span>}
-                {tab.id === 'ayarlar' && (
-                  <span style={{ color: isActive ? DS.navy : DS.textMuted }}>
-                    <Icons.settings />
-                  </span>
-                )}
                 {tab.label}
                 {tab.id === 'onay' && pendingCount > 0 && (
                   <span
@@ -6340,6 +6312,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             onDelete={handleDeleteRecord}
             onUpdateDecision={handleUpdateDecision}
             onGenerateDoc={handleGenerateDoc}
+            expandAll
             emptyText="Onay bekleyen talep yok. Öğrenciler yeni talep gönderdiğinde burada listelenir."
           />
         )}
