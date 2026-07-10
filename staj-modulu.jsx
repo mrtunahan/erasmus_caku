@@ -1414,6 +1414,19 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
     }
   };
 
+  // Başlamasına 10 günden az kalan etaplar (komisyon onay penceresi açılmış,
+  // süreç artık Ergün ÇINAR/komisyon tarafında) öğrenciye GÖSTERİLMEZ — yeni
+  // başvuru alınamaz. Öğrencinin mevcut başvurusunun etabı ise düzenleme/
+  // görüntüleme için her zaman görünür kalır.
+  const visiblePeriods = stajPeriods.filter((p) => {
+    if (form.stajEtapId && p.id === form.stajEtapId) return true;
+    if (!p.baslangic) return true;
+    const cutoff = new Date(p.baslangic);
+    if (isNaN(cutoff.getTime())) return true;
+    cutoff.setDate(cutoff.getDate() - 10);
+    return new Date() < cutoff;
+  });
+
   // Öğrencinin mevcut başvurularını ve roadmap verilerini yükle
   useEffect(() => {
     const loadApplications = async () => {
@@ -1520,6 +1533,25 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
         );
         setTimeout(() => setSavedMsg(''), 5000);
         return;
+      }
+    }
+
+    // Başlamasına 10 günden az kalan etaba YENİ başvuru alınmaz (form açıkken
+    // süre dolmuş olabilir — listede gizlemeye ek güvenlik kontrolü).
+    if (!editingId && form.stajEtapId) {
+      const period = stajPeriods.find((p) => p.id === form.stajEtapId);
+      if (period && period.baslangic) {
+        const cutoff = new Date(period.baslangic);
+        if (!isNaN(cutoff.getTime())) {
+          cutoff.setDate(cutoff.getDate() - 10);
+          if (new Date() >= cutoff) {
+            setSavedMsg(
+              'Bu staj etabının başlamasına 10 günden az kaldığı için başvuru dönemi kapanmıştır.'
+            );
+            setTimeout(() => setSavedMsg(''), 5000);
+            return;
+          }
+        }
       }
     }
 
@@ -2635,7 +2667,7 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
         {/* 4. STAJ ETABI SEÇİMİ */}
         <div style={sectionStyle}>
           <div style={sectionTitleStyle}>STAJ ETABI {reqMark}</div>
-          {stajPeriods.length === 0 ? (
+          {visiblePeriods.length === 0 ? (
             <div
               style={{
                 padding: '16px 20px',
@@ -2646,12 +2678,13 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
                 color: '#92400E',
               }}
             >
-              Henüz staj etabı tanımlanmamış. Lütfen bölüm yetkilinize veya staj komisyonuna
-              başvurun.
+              {stajPeriods.length === 0
+                ? 'Henüz staj etabı tanımlanmamış. Lütfen bölüm yetkilinize veya staj komisyonuna başvurun.'
+                : 'Şu anda başvuruya açık staj etabı bulunmuyor. Başlamasına 10 günden az kalan etaplar başvuruya kapanır.'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {stajPeriods.map((period) => {
+              {visiblePeriods.map((period) => {
                 const isSelected = form.stajEtapId === period.id;
                 const start = new Date(period.baslangic);
                 const end = new Date(period.bitis);
