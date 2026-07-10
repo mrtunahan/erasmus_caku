@@ -946,6 +946,21 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
           }
         });
       });
+      // Aktif bölümün TÜM kimlik varyantları: bölümün ESKİ kimlikle (örn.
+      // _docId) kaydedilmiş program dokümanları "başka bölüm" sanılırsa hem
+      // fakülte görünümünde hayalet ders gösterir hem de aynı derslik/saatte
+      // SAHTE fakülte çakışması üretip hücre bölmeyi engeller (Bilgisayar
+      // Müh.'te bölme çalışmıyordu; Elektrik'te eski kayıt yoktu, çalışıyordu).
+      const activeRec = allDeptSources.find(
+        (d) => d && [d.id, d._id, d._docId, d.code].some((k) => k && String(k) === activeDepartment)
+      );
+      const activeVariants = new Set(
+        activeRec
+          ? [activeRec.id, activeRec._id, activeRec._docId, activeRec.code]
+              .filter(Boolean)
+              .map(String)
+          : [String(activeDepartment)]
+      );
       const deptYears = [];
       const faculty = [];
       const orphans = [];
@@ -962,6 +977,10 @@ function DersProgramiApp({ currentUser, activeDepartment, departmentInfo, seviye
         if ((docSeviye || 'lisans') !== seviye) return;
         if (deptId === activeDepartment) {
           deptYears.push({ year: yr, slots });
+        } else if (activeVariants.has(String(deptId))) {
+          // Aktif bölümün eski kimlikli (yinelenen/bayat) kaydı: ne bölüm-içi
+          // ne fakülte kümesine alınır — sahte çakışma ve hayalet ders kaynağı.
+          orphans.push({ docId: d.id, deptId, not: 'aktif bölümün eski kimlikli kaydı' });
         } else if (validDeptIds.has(String(deptId))) {
           // Yalnız CANLI bir bölüme çözülebilen kayıtları fakülte programına ekle.
           faculty.push({ deptId, deptName: deptNameMap[String(deptId)], year: yr, slots });
