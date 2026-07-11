@@ -360,190 +360,211 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         >
           Gözetmen Akademisyenler
         </button>
-      </div>
-
-      {loading ? (
-        <div style={{ padding: 40, textAlign: 'center' }}>Yükleniyor...</div>
-      ) : (
-        <div
+        <button
+          onClick={() => setActiveTab('kilitler')}
           style={{
-            background: 'white',
-            borderRadius: 12,
-            border: '1px solid #E5E7EB',
-            overflow: 'hidden',
+            padding: '12px 16px',
+            background: 'none',
+            border: 'none',
+            borderBottom:
+              activeTab === 'kilitler' ? `2px solid ${C.blue}` : '2px solid transparent',
+            color: activeTab === 'kilitler' ? C.blue : '#6B7280',
+            fontWeight: activeTab === 'kilitler' ? 600 : 500,
+            cursor: 'pointer',
+            fontSize: 14,
           }}
         >
-          <div style={{ overflowX: 'auto' }}>
-            {/* DEPARTMENTS TAB (ADMIN) */}
-            {activeTab === 'departments' && isAdmin && (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead style={{ background: '#F9FAFB' }}>
-                  <tr>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151' }}>
-                      Bölüm Adı
-                    </th>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151' }}>
-                      Yetkili Kişi
-                    </th>
-                    <th
-                      style={{
-                        padding: '12px 16px',
-                        textAlign: 'center',
-                        color: '#374151',
-                        width: 120,
-                      }}
-                    >
-                      İşlem
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {departments.map((d) => (
-                    <tr key={d.id} style={{ borderBottom: '1px solid #E5E7EB' }}>
-                      <td style={{ padding: '12px 16px', fontWeight: 500 }}>{d.name}</td>
-                      <td style={{ padding: '12px 16px' }}>
-                        {d.managerNames?.join(', ') || d.managerName || (
-                          <span style={{ color: '#9CA3AF' }}>Atanmadı</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                          <GhostBtn onClick={() => startDeptEdit(d)}>Düzenle</GhostBtn>
-                          <GhostBtn
-                            onClick={() => handleDeptDelete(d)}
-                            style={{ color: '#DC2626' }}
-                          >
-                            Sil
-                          </GhostBtn>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  <tr>
-                    <td
-                      colSpan={3}
-                      style={{ padding: '12px 16px', textAlign: 'right', background: '#F9FAFB' }}
-                    >
-                      <Btn onClick={() => startDeptEdit()}>+ Yeni Bölüm Tanımla</Btn>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            )}
+          Ders Seçim Kilitleri
+        </button>
+      </div>
 
-            {/* CLASSROOMS TAB */}
-            {activeTab === 'classrooms' && (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead style={{ background: '#F9FAFB' }}>
-                  <tr>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151' }}>
-                      Sınıf/Salon Adı
-                    </th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center', color: '#374151' }}>
-                      Kapasite
-                    </th>
-                    <th
-                      style={{
-                        padding: '12px 16px',
-                        textAlign: 'center',
-                        color: '#374151',
-                        width: 120,
-                      }}
-                    >
-                      İşlem
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {classrooms.map((c) => (
-                    <tr key={c.id} style={{ borderBottom: '1px solid #E5E7EB' }}>
-                      <td style={{ padding: '12px 16px', fontWeight: 500 }}>{c.name}</td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        {c.capacity || '-'}
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                          <GhostBtn onClick={() => startClassEdit(c)}>Düzenle</GhostBtn>
-                          <GhostBtn
-                            onClick={() => handleClassDelete(c)}
-                            style={{ color: '#DC2626' }}
-                          >
-                            Sil
-                          </GhostBtn>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  <tr>
-                    <td
-                      colSpan={3}
-                      style={{ padding: '12px 16px', textAlign: 'right', background: '#F9FAFB' }}
-                    >
-                      <Btn onClick={() => startClassEdit()}>+ Yeni Sınıf Ekle</Btn>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            )}
+      {activeTab === 'kilitler' && (
+        <DersSecimKilitleri activeDepartment={activeDepartment} currentUser={currentUser} />
+      )}
 
-            {/* SUPERVISORS TAB — professors koleksiyonundan roles:gozetmen */}
-            {activeTab === 'supervisors' && (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead style={{ background: '#F9FAFB' }}>
-                  <tr>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151' }}>
-                      Gözetmen Akademisyen
-                    </th>
-                    <th
-                      style={{
-                        padding: '12px 16px',
-                        textAlign: 'center',
-                        color: '#374151',
-                        width: 150,
-                      }}
-                    >
-                      İşlem
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {supervisors.map((s) => (
-                    <tr key={s.id} style={{ borderBottom: '1px solid #E5E7EB' }}>
-                      <td style={{ padding: '12px 16px', fontWeight: 500 }}>{s.name}</td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                          <GhostBtn onClick={() => startSupEdit(s)}>Düzenle</GhostBtn>
-                          <GhostBtn
-                            onClick={() => handleSupRemoveRole(s)}
-                            style={{ color: '#DC2626' }}
-                          >
-                            Çıkar
-                          </GhostBtn>
-                        </div>
-                      </td>
+      {activeTab !== 'kilitler' &&
+        (loading ? (
+          <div style={{ padding: 40, textAlign: 'center' }}>Yükleniyor...</div>
+        ) : (
+          <div
+            style={{
+              background: 'white',
+              borderRadius: 12,
+              border: '1px solid #E5E7EB',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ overflowX: 'auto' }}>
+              {/* DEPARTMENTS TAB (ADMIN) */}
+              {activeTab === 'departments' && isAdmin && (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead style={{ background: '#F9FAFB' }}>
+                    <tr>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151' }}>
+                        Bölüm Adı
+                      </th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151' }}>
+                        Yetkili Kişi
+                      </th>
+                      <th
+                        style={{
+                          padding: '12px 16px',
+                          textAlign: 'center',
+                          color: '#374151',
+                          width: 120,
+                        }}
+                      >
+                        İşlem
+                      </th>
                     </tr>
-                  ))}
-                  {supervisors.length === 0 && (
+                  </thead>
+                  <tbody>
+                    {departments.map((d) => (
+                      <tr key={d.id} style={{ borderBottom: '1px solid #E5E7EB' }}>
+                        <td style={{ padding: '12px 16px', fontWeight: 500 }}>{d.name}</td>
+                        <td style={{ padding: '12px 16px' }}>
+                          {d.managerNames?.join(', ') || d.managerName || (
+                            <span style={{ color: '#9CA3AF' }}>Atanmadı</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                            <GhostBtn onClick={() => startDeptEdit(d)}>Düzenle</GhostBtn>
+                            <GhostBtn
+                              onClick={() => handleDeptDelete(d)}
+                              style={{ color: '#DC2626' }}
+                            >
+                              Sil
+                            </GhostBtn>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                     <tr>
                       <td
-                        colSpan={2}
-                        style={{ padding: 24, textAlign: 'center', color: '#9CA3AF' }}
+                        colSpan={3}
+                        style={{ padding: '12px 16px', textAlign: 'right', background: '#F9FAFB' }}
                       >
-                        Henüz gözetmen atanmamış
+                        <Btn onClick={() => startDeptEdit()}>+ Yeni Bölüm Tanımla</Btn>
                       </td>
                     </tr>
-                  )}
-                  <tr>
-                    <td colSpan={2} style={{ padding: '12px 16px', background: '#F9FAFB' }}>
-                      <Btn onClick={startSupAdd}>+ Yeni Gözetmen Ekle</Btn>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            )}
+                  </tbody>
+                </table>
+              )}
+
+              {/* CLASSROOMS TAB */}
+              {activeTab === 'classrooms' && (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead style={{ background: '#F9FAFB' }}>
+                    <tr>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151' }}>
+                        Sınıf/Salon Adı
+                      </th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center', color: '#374151' }}>
+                        Kapasite
+                      </th>
+                      <th
+                        style={{
+                          padding: '12px 16px',
+                          textAlign: 'center',
+                          color: '#374151',
+                          width: 120,
+                        }}
+                      >
+                        İşlem
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {classrooms.map((c) => (
+                      <tr key={c.id} style={{ borderBottom: '1px solid #E5E7EB' }}>
+                        <td style={{ padding: '12px 16px', fontWeight: 500 }}>{c.name}</td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                          {c.capacity || '-'}
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                            <GhostBtn onClick={() => startClassEdit(c)}>Düzenle</GhostBtn>
+                            <GhostBtn
+                              onClick={() => handleClassDelete(c)}
+                              style={{ color: '#DC2626' }}
+                            >
+                              Sil
+                            </GhostBtn>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <td
+                        colSpan={3}
+                        style={{ padding: '12px 16px', textAlign: 'right', background: '#F9FAFB' }}
+                      >
+                        <Btn onClick={() => startClassEdit()}>+ Yeni Sınıf Ekle</Btn>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+
+              {/* SUPERVISORS TAB — professors koleksiyonundan roles:gozetmen */}
+              {activeTab === 'supervisors' && (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead style={{ background: '#F9FAFB' }}>
+                    <tr>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151' }}>
+                        Gözetmen Akademisyen
+                      </th>
+                      <th
+                        style={{
+                          padding: '12px 16px',
+                          textAlign: 'center',
+                          color: '#374151',
+                          width: 150,
+                        }}
+                      >
+                        İşlem
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {supervisors.map((s) => (
+                      <tr key={s.id} style={{ borderBottom: '1px solid #E5E7EB' }}>
+                        <td style={{ padding: '12px 16px', fontWeight: 500 }}>{s.name}</td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                            <GhostBtn onClick={() => startSupEdit(s)}>Düzenle</GhostBtn>
+                            <GhostBtn
+                              onClick={() => handleSupRemoveRole(s)}
+                              style={{ color: '#DC2626' }}
+                            >
+                              Çıkar
+                            </GhostBtn>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {supervisors.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={2}
+                          style={{ padding: 24, textAlign: 'center', color: '#9CA3AF' }}
+                        >
+                          Henüz gözetmen atanmamış
+                        </td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td colSpan={2} style={{ padding: '12px 16px', background: '#F9FAFB' }}>
+                        <Btn onClick={startSupAdd}>+ Yeni Gözetmen Ekle</Btn>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        ))}
 
       {/* Bölüm Modal */}
       {editingItem && activeTab === 'departments' && (
@@ -761,6 +782,134 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
             </div>
           </Modal>
         )}
+    </div>
+  );
+}
+
+// ── Ders Seçim Kilitleri ──
+// Öğrenci ders seçimini kaydedince kilitlenir; değiştirmesi için bölüm
+// yetkilisi buradan kilidi açar. Yalnız bölümün (tüm kimlik varyantları)
+// kilitli student_courses kayıtları listelenir.
+function DersSecimKilitleri({ activeDepartment, currentUser }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState('');
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      let variants = [activeDepartment];
+      if (window.deptIdVariants) {
+        try {
+          variants = await window.deptIdVariants(activeDepartment);
+        } catch (_) {
+          variants = [activeDepartment];
+        }
+      }
+      const vset = new Set((variants || [activeDepartment]).map(String));
+      const all = await window.apiRead('student_courses');
+      const mine = (all || []).filter(
+        (d) => d && d.locked === true && vset.has(String(d.departmentId))
+      );
+      mine.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+      setRows(mine);
+    } catch (e) {
+      console.error('Kilitler yüklenemedi:', e);
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeDepartment]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const unlock = async (r) => {
+    if (!window.confirm(r.studentNumber + ' için ' + r.termKey + ' seçim kilidi açılsın mı?'))
+      return;
+    setBusyId(r.id || r._docId || r.studentNumber + r.termKey);
+    try {
+      const docId = r.studentNumber + '__' + r.termKey;
+      await window.DBWrite.update('student_courses', docId, { locked: false });
+      if (window.audit)
+        window.audit('ders_secim_kilit_ac', 'student_courses', docId, {
+          meta: { by: currentUser?.name || currentUser?.identifier, term: r.termKey },
+        });
+      setRows((prev) => prev.filter((x) => x !== r));
+    } catch (e) {
+      alert('Kilit açılamadı: ' + e.message);
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Yükleniyor...</div>;
+
+  return (
+    <div
+      style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E7EB', padding: 16 }}
+    >
+      <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 14px' }}>
+        Öğrenci ders seçimini kaydedince kilitlenir. Değişiklik talebinde kilidi buradan açın;
+        öğrenci yeniden düzenleyip kaydedebilir (tekrar kilitlenir).
+      </p>
+      {rows.length === 0 ? (
+        <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
+          Kilitli ders seçimi bulunmuyor.
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: '#F9FAFB', textAlign: 'left' }}>
+                <th style={{ padding: '10px 12px' }}>Öğrenci No</th>
+                <th style={{ padding: '10px 12px' }}>Dönem</th>
+                <th style={{ padding: '10px 12px' }}>Ders</th>
+                <th style={{ padding: '10px 12px' }}>AKTS</th>
+                <th style={{ padding: '10px 12px' }}>Danışman</th>
+                <th style={{ padding: '10px 12px' }} />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr
+                  key={r.id || r._docId || r.studentNumber + r.termKey}
+                  style={{ borderTop: '1px solid #F3F4F6' }}
+                >
+                  <td style={{ padding: '10px 12px', fontWeight: 600 }}>{r.studentNumber}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    {(r.academicYear || '') + ' ' + (r.donem === 'guz' ? 'Güz' : 'Bahar')}
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>{(r.courseIds || []).length} ders</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    {r.totalAkts != null ? r.totalAkts : '—'}
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>{r.advisor || '—'}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                    <button
+                      onClick={() => unlock(r)}
+                      disabled={busyId === (r.id || r._docId || r.studentNumber + r.termKey)}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        border: '1px solid ' + C.blue,
+                        background: 'white',
+                        color: C.blue,
+                        fontWeight: 600,
+                        fontSize: 12.5,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Kilidi Aç
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
