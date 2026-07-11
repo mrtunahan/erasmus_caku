@@ -41,6 +41,40 @@ const upperTr = (s) => String(s == null ? '' : s).toLocaleUpperCase('tr');
 const dispAd = (s) => titleCaseTr(s);
 const dispSoyad = (s) => upperTr(s);
 
+// ── Ortak buton stilleri (sade, tek ton) ──
+const eBtn = {
+  padding: '8px 14px',
+  borderRadius: 8,
+  fontSize: 13,
+  fontWeight: 600,
+  border: 'none',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};
+const eBtnGhost = {
+  ...eBtn,
+  background: C ? C.card : '#fff',
+  color: C ? C.navy : '#0B2341',
+  border: `1px solid ${C ? C.border : '#E5E7EB'}`,
+};
+
+// ── Sade bölüm paneli (gradyan/ikon yok, tek ton) ──
+const eSection = {
+  marginBottom: 20,
+  padding: 20,
+  background: C ? C.card : '#fff',
+  borderRadius: 12,
+  border: `1px solid ${C ? C.border : '#E5E7EB'}`,
+};
+const eSectionTitle = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: C ? C.navy : '#0B2341',
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  marginBottom: 14,
+};
+
 // ── JSZip yükleyici (gerçek .docx üretimi için) ──
 let _jszipPromise = null;
 const loadJSZip = () => {
@@ -2513,40 +2547,10 @@ const TripHistoryModal = ({
             flexShrink: 0,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                background: 'linear-gradient(135deg, #1e3a5f, #2563EB)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-                <rect x="9" y="3" width="6" height="4" rx="1" />
-                <path d="M9 12h6M9 16h4" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#0F172A' }}>
-                Eşleştirme Geçmişi
-              </div>
-              <div style={{ fontSize: 11, color: '#94A3B8' }}>
-                Geçmiş dönemlerdeki ders eşleştirmeleri
-              </div>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: C.navy }}>Eşleştirme Geçmişi</div>
+            <div style={{ fontSize: 11.5, color: C.textMuted }}>
+              Bu bölümde geçmiş dönemlerdeki ders eşleştirmeleri
             </div>
           </div>
           <button
@@ -3242,7 +3246,7 @@ const TripHistoryModal = ({
                                           width: 30,
                                           height: 30,
                                           borderRadius: '50%',
-                                          background: `linear-gradient(135deg, #EFF6FF, ${accent.bg})`,
+                                          background: accent.bg,
                                           display: 'flex',
                                           alignItems: 'center',
                                           justifyContent: 'center',
@@ -3438,8 +3442,7 @@ const TripHistoryModal = ({
                                               width: 18,
                                               height: 18,
                                               borderRadius: '50%',
-                                              background:
-                                                'linear-gradient(135deg, #1e3a5f, #2563EB)',
+                                              background: C.navy,
                                               color: 'white',
                                               fontSize: 9,
                                               fontWeight: 700,
@@ -3750,43 +3753,8 @@ const StudentDetailModal = ({
         </div>
       )}
       {/* ── Öğrenci Bilgileri ── */}
-      <div
-        style={{
-          marginBottom: 24,
-          padding: r.val(16, 20, 24),
-          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-          borderRadius: 14,
-          border: '1px solid #e2e8f0',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: '#475569',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            marginBottom: 16,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#475569"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-          Öğrenci Bilgileri
-        </div>
+      <div style={eSection}>
+        <div style={eSectionTitle}>Öğrenci Bilgileri</div>
         <div
           className="responsive-grid-4"
           style={{
@@ -3822,43 +3790,8 @@ const StudentDetailModal = ({
       </div>
 
       {/* ── Karşı Kurum Bilgileri ── */}
-      <div
-        style={{
-          marginBottom: 24,
-          padding: r.val(16, 20, 24),
-          background: 'linear-gradient(135deg, #eff6ff 0%, #e0f2fe 100%)',
-          borderRadius: 14,
-          border: '1px solid #bfdbfe',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: '#1e40af',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            marginBottom: 16,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#1e40af"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
-          </svg>
-          Karşı Kurum Bilgileri
-        </div>
+      <div style={eSection}>
+        <div style={eSectionTitle}>Karşı Kurum Bilgileri</div>
         <div
           className="responsive-grid-4"
           style={{
@@ -5383,129 +5316,80 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   return (
     <div className="portal-bg">
       <div className="portal-wrap">
-        {/* Read-only banner for students without Erasmus access */}
+        {/* Sayfa başlığı — sade, tek ton */}
+        <div style={{ marginBottom: 20 }}>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: C.navy }}>
+            Erasmus Öğrenim Anlaşması
+          </h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: C.textMuted }}>
+            Ders eşleştirmeleri ve öğrenim anlaşması yönetimi
+          </p>
+        </div>
+
+        {/* Salt-okunur bilgi (Erasmus yetkisi olmayan öğrenci) — sade */}
         {isStudentWithoutErasmus && (
-          <Card>
-            <div
-              style={{
-                padding: 16,
-                background: '#FFF3CD',
-                border: '2px solid #FFC107',
-                borderRadius: 12,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <div style={{ fontSize: 28 }}>&#128274;</div>
-              <div>
-                <div style={{ fontWeight: 700, color: '#856404', fontSize: 16, marginBottom: 4 }}>
-                  Salt Okunur Mod - Erasmus Yetkisi Gerekli
-                </div>
-                <div style={{ fontSize: 13, color: '#856404' }}>
-                  Geçmiş ders eşleştirmelerini görüntüleyebilirsiniz ancak değişiklik yapmak için
-                  Erasmus yetkisi verilmesi gerekmektedir. Yetki almak için bölüm koordinatörünüze
-                  başvurunuz.
-                </div>
-              </div>
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '14px 18px',
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderLeft: `3px solid ${C.navy}`,
+              borderRadius: 10,
+            }}
+          >
+            <div style={{ fontWeight: 600, color: C.navy, fontSize: 14, marginBottom: 3 }}>
+              Salt okunur mod — Erasmus yetkisi gerekli
             </div>
-          </Card>
+            <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.5 }}>
+              Geçmiş ders eşleştirmelerini görüntüleyebilirsiniz; değişiklik yapmak için bölüm
+              koordinatörünüzden Erasmus yetkisi talep edin.
+            </div>
+          </div>
         )}
 
-        {/* Actions Bar */}
+        {/* Eşleştirme Geçmişi — sade kart, gradyan/ikon kutusu yok */}
         <div
           onClick={() => setShowTripHistory(true)}
+          role="button"
+          tabIndex={0}
           style={{
-            background: 'linear-gradient(135deg, #0F2942 0%, #1D4ED8 100%)',
-            borderRadius: 16,
-            padding: '20px 28px',
+            marginBottom: 16,
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: '16px 20px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: 12,
             cursor: 'pointer',
-            boxShadow: '0 4px 24px rgba(29,78,216,0.25)',
-            transition: 'all 0.2s',
             userSelect: 'none',
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-1px)';
-            e.currentTarget.style.boxShadow = '0 8px 32px rgba(29,78,216,0.35)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = '';
-            e.currentTarget.style.boxShadow = '0 4px 24px rgba(29,78,216,0.25)';
-          }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 12,
-                background: 'rgba(255,255,255,0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-                <rect x="9" y="3" width="6" height="4" rx="1" />
-                <path d="M9 12h6M9 16h4" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'white' }}>
-                Eşleştirme Geçmişi
-              </div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>
-                Geçmiş dönemlere ait ders eşleştirmelerini görüntüle
-              </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: C.navy }}>Eşleştirme Geçmişi</div>
+            <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 2 }}>
+              Bu bölümde geçmiş dönemlere ait ders eşleştirmelerini görüntüle
             </div>
           </div>
-          <div
+          <span
             style={{
-              padding: '9px 20px',
-              borderRadius: 10,
-              background: 'rgba(255,255,255,0.15)',
-              border: '1px solid rgba(255,255,255,0.25)',
-              color: 'white',
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: `1px solid ${C.navy}`,
+              color: C.navy,
               fontSize: 13,
               fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
               flexShrink: 0,
+              whiteSpace: 'nowrap',
             }}
           >
-            Görüntüle
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="5" y1="12" x2="19" y2="12" />
-              <polyline points="12 5 19 12 12 19" />
-            </svg>
-          </div>
+            Görüntüle →
+          </span>
         </div>
 
-        {/* Grade Conversion */}
+        {/* Not Dönüşüm Hesaplayıcı */}
         <Card title="Not Dönüşüm Hesaplayıcı">
           <GradeConverter />
         </Card>
@@ -5616,21 +5500,22 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                           flexWrap: 'wrap',
                         }}
                       >
-                        <Btn
+                        <button
                           onClick={
                             isStudentWithoutErasmus ? undefined : () => setSelectedStudent(student)
                           }
-                          variant="secondary"
-                          small
-                          icon={<FileTextIcon />}
-                          style={
-                            isStudentWithoutErasmus
-                              ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' }
-                              : {}
-                          }
+                          disabled={isStudentWithoutErasmus}
+                          style={{
+                            ...eBtn,
+                            background: C.navy,
+                            color: '#fff',
+                            border: `1px solid ${C.navy}`,
+                            opacity: isStudentWithoutErasmus ? 0.45 : 1,
+                            cursor: isStudentWithoutErasmus ? 'not-allowed' : 'pointer',
+                          }}
                         >
                           {canEdit(student) ? 'Detay & Düzenle' : 'Detay'}
-                        </Btn>
+                        </button>
                         <button
                           onClick={
                             isStudentWithoutErasmus
@@ -5639,18 +5524,12 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                           }
                           disabled={isStudentWithoutErasmus}
                           style={{
-                            padding: '8px 12px',
-                            borderRadius: 8,
-                            border: 'none',
-                            background: '#E6F4EA',
-                            color: '#1E7E34',
-                            cursor: isStudentWithoutErasmus ? 'not-allowed' : 'pointer',
-                            fontSize: 13,
-                            fontWeight: 500,
+                            ...eBtnGhost,
                             opacity: isStudentWithoutErasmus ? 0.45 : 1,
+                            cursor: isStudentWithoutErasmus ? 'not-allowed' : 'pointer',
                           }}
                         >
-                          Gidiş
+                          Gidiş belgesi
                         </button>
                         {((student.returnMatches || []).length > 0 || isStudentWithoutErasmus) && (
                           <button
@@ -5661,36 +5540,20 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                             }
                             disabled={isStudentWithoutErasmus}
                             style={{
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              border: 'none',
-                              background: '#FFF3E0',
-                              color: '#E65100',
-                              cursor: isStudentWithoutErasmus ? 'not-allowed' : 'pointer',
-                              fontSize: 13,
-                              fontWeight: 500,
+                              ...eBtnGhost,
                               opacity: isStudentWithoutErasmus ? 0.45 : 1,
+                              cursor: isStudentWithoutErasmus ? 'not-allowed' : 'pointer',
                             }}
                           >
-                            Dönüş
+                            Dönüş belgesi
                           </button>
                         )}
                         {canEdit(student) && (
                           <button
                             onClick={() => handleDeleteStudent(student.id)}
-                            style={{
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              border: 'none',
-                              background: '#FAEBED',
-                              color: C.accent,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                            }}
+                            style={{ ...eBtnGhost, color: C.accent, borderColor: C.accent + '55' }}
                           >
-                            <TrashIcon />
+                            Sil
                           </button>
                         )}
                       </div>
