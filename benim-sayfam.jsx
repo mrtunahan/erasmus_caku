@@ -144,6 +144,43 @@ function bsEventState(ev) {
   return { isPast: isPast, isSoon: isSoon, accent: accent, daysToStart: daysToStart };
 }
 
+// ── Dönem (akademik yarıyıl) yardımcıları ──
+// Öğrencinin aldığı dersler HER DÖNEM değişir; seçim artık (öğrenci, dönem)
+// bazında student_courses koleksiyonunda saklanır. Bulunulan dönem tarihe
+// göre türetilir (TR akademik takvimi: Güz Eylül–Ocak, Bahar Şubat–Ağustos).
+function bsCurrentTerm() {
+  const now = new Date();
+  const m = now.getMonth() + 1;
+  const y = now.getFullYear();
+  let donem, startYear;
+  if (m >= 9) {
+    donem = 'guz';
+    startYear = y;
+  } else if (m === 1) {
+    donem = 'guz';
+    startYear = y - 1;
+  } else {
+    donem = 'bahar';
+    startYear = y - 1;
+  }
+  return { donem, academicYear: startYear + '-' + (startYear + 1) };
+}
+const bsTermKey = (academicYear, donem) => academicYear + '_' + donem;
+const bsTermLabel = (academicYear, donem) =>
+  academicYear + ' ' + (donem === 'guz' ? 'Güz' : 'Bahar');
+// Seçilebilir dönemler: içinde bulunulan akademik yılın iki dönemi +
+// önceki yılın baharı (gecikmiş/geçmiş seçim için).
+function bsTermOptions() {
+  const c = bsCurrentTerm();
+  const startY = parseInt(c.academicYear.split('-')[0], 10);
+  const prevYear = startY - 1 + '-' + startY;
+  return [
+    { academicYear: prevYear, donem: 'bahar' },
+    { academicYear: c.academicYear, donem: 'guz' },
+    { academicYear: c.academicYear, donem: 'bahar' },
+  ];
+}
+
 function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -155,6 +192,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [filterSinif, setFilterSinif] = useState('all');
   const [filterDonem, setFilterDonem] = useState('all');
   const [search, setSearch] = useState('');
+  // Aktif dönem (yarıyıl) — seçim bu döneme göre yüklenir/kaydedilir
+  const [term, setTerm] = useState(() => bsCurrentTerm());
+  const termKey = bsTermKey(term.academicYear, term.donem);
   const [notifications, setNotifications] = useState([]);
   const [notifLoading, setNotifLoading] = useState(false);
   const [calendar, setCalendar] = useState([]);
@@ -190,10 +230,6 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         return;
       }
       setStudentRecord(me);
-      const myIds = Array.isArray(me.myCourseIds) ? me.myCourseIds : [];
-      setSelectedIds(myIds);
-      // Seçim yalnızca ilk kez yapılır; bir kez kaydedildiyse tekrar düzenlenemez
-      setEditMode(myIds.length === 0);
 
       const allRaw = await window.apiRead('sinav_dersler');
       const all = Array.isArray(allRaw) ? allRaw : [];
@@ -240,6 +276,48 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Dönem bazlı seçim yükle: student_courses/{ogrNo__donem}. Bu döneme ait
+  // kayıt yoksa (ilk kez) boş başlar; eski tek-liste (students.myCourseIds)
+  // varsa başlangıç önerisi olarak yalnız İLK açılan dönemde tohumlanır.
+  useEffect(() => {
+    if (!isStudent || !currentUser?.studentNumber) return;
+    let cancelled = false;
+    (async () => {
+      let ids = [];
+      let found = false;
+      try {
+        const res = await window.apiReadDoc(
+          'student_courses',
+          currentUser.studentNumber + '__' + termKey
+        );
+        if (res && res.exists && Array.isArray(res.data?.courseIds)) {
+          ids = res.data.courseIds;
+          found = true;
+        }
+      } catch (_) {
+        /* yok say */
+      }
+      // Eski kalıcı seçim (students.myCourseIds) → yalnız bu dönemde henüz
+      // kayıt yoksa ve dönem bulunulan dönemse başlangıç olarak öner.
+      if (
+        !found &&
+        studentRecord &&
+        Array.isArray(studentRecord.myCourseIds) &&
+        studentRecord.myCourseIds.length &&
+        termKey === bsTermKey(bsCurrentTerm().academicYear, bsCurrentTerm().donem)
+      ) {
+        ids = studentRecord.myCourseIds.slice();
+      }
+      if (!cancelled) {
+        setSelectedIds(ids);
+        setEditMode(!found && ids.length === 0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isStudent, currentUser?.studentNumber, termKey, studentRecord]);
 
   // Bildirimleri yükle (yalnızca seçim tamamlanmışsa anlamlı)
   const loadNotifications = useCallback(async () => {
@@ -345,6 +423,10 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const filteredCourses = useMemo(() => {
     return allCourses
       .filter((c) => {
+        // Yalnız seçili DÖNEMİN dersleri (Güz döneminde Güz dersleri).
+        // 'genel'/boş dönemli dersler her yarıyılda seçilebilir.
+        const cd = c.donem || 'genel';
+        if (cd !== term.donem && cd !== 'genel') return false;
         if (filterSinif !== 'all' && String(c.sinif) !== String(filterSinif)) return false;
         if (filterDonem !== 'all' && c.donem !== filterDonem) return false;
         if (search) {
@@ -360,35 +442,38 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         if (sa !== sb) return sa - sb;
         return (a.code || '').localeCompare(b.code || '');
       });
-  }, [allCourses, filterSinif, filterDonem, search]);
+  }, [allCourses, filterSinif, filterDonem, search, term.donem]);
 
   const toggleCourse = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const handleSave = async () => {
-    if (!studentRecord) return;
+    if (!currentUser?.studentNumber) return;
     if (selectedIds.length === 0) {
       alert('En az bir ders seçmelisiniz.');
       return;
     }
-    if (
-      !confirm(
-        'Seçimleriniz kaydedildikten sonra bir daha değiştirilemez.\n\n' +
-          selectedIds.length +
-          ' ders seçtiniz. Kaydetmek istediğinize emin misiniz?'
-      )
-    ) {
-      return;
-    }
     setSaving(true);
     try {
-      const updated = Object.assign({}, studentRecord, {
-        myCourseIds: selectedIds,
-        myCoursesUpdatedAt: new Date().toISOString(),
-      });
-      await BS_FirebaseDB.updateStudent(studentRecord.id, updated);
-      setStudentRecord(updated);
+      // Seçim DÖNEM bazlı student_courses koleksiyonuna yazılır (öğrenci
+      // yazabilir; her dönem ayrı doküman). Kalıcı kilit yok — istenildiğinde
+      // güncellenebilir; her yarıyıl için ayrı seçim yapılır.
+      const docId = currentUser.studentNumber + '__' + termKey;
+      await window.DBWrite.set(
+        'student_courses',
+        docId,
+        {
+          studentNumber: currentUser.studentNumber,
+          termKey,
+          academicYear: term.academicYear,
+          donem: term.donem,
+          departmentId: studentDeptId,
+          courseIds: selectedIds,
+          updatedAt: new Date().toISOString(),
+        },
+        true
+      );
       try {
         const saved = JSON.parse(localStorage.getItem('caku_current_user') || '{}');
         saved.hasSelectedCourses = true;
@@ -518,9 +603,48 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             fontSize: 14,
           }}
         >
-          <strong>Ders seçimi yapmanız gerekiyor.</strong> Bölümünüze ait derslerden aldığınız
-          dersleri seçip kaydedin. Seçim tamamlanmadan diğer modüllere erişemezsiniz.{' '}
-          <strong>Kaydettikten sonra seçimleriniz kilitlenir ve bir daha değiştirilemez.</strong>
+          <strong>{bsTermLabel(term.academicYear, term.donem)} dönemi ders seçimi.</strong> Bu
+          yarıyılda aldığınız dersleri seçip kaydedin. Her dönem ayrı seçim yaparsınız; seçiminizi
+          istediğinizde güncelleyebilirsiniz.
+        </div>
+
+        {/* Dönem seçici */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 16,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Dönem:</span>
+          <select
+            value={termKey}
+            onChange={(e) => {
+              const o = bsTermOptions().find(
+                (x) => bsTermKey(x.academicYear, x.donem) === e.target.value
+              );
+              if (o) setTerm({ academicYear: o.academicYear, donem: o.donem });
+            }}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid #D1D5DB',
+              fontSize: 13,
+              background: 'white',
+              cursor: 'pointer',
+            }}
+          >
+            {bsTermOptions().map((o) => {
+              const k = bsTermKey(o.academicYear, o.donem);
+              return (
+                <option key={k} value={k}>
+                  {bsTermLabel(o.academicYear, o.donem)}
+                </option>
+              );
+            })}
+          </select>
         </div>
 
         <div
@@ -759,7 +883,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               fontFamily: 'inherit',
             }}
           >
-            {saving ? 'Kaydediliyor…' : 'Kaydet ve Kilitle'}
+            {saving ? 'Kaydediliyor…' : 'Seçimi Kaydet'}
           </button>
         </div>
       </div>
@@ -1320,7 +1444,51 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         }}
       >
         <div style={{ fontSize: 18, fontWeight: 700, color: '#1F2937' }}>
-          Derslerim ({myCourseDetails.length})
+          Derslerim · {bsTermLabel(term.academicYear, term.donem)} ({myCourseDetails.length})
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select
+            value={termKey}
+            onChange={(e) => {
+              const o = bsTermOptions().find(
+                (x) => bsTermKey(x.academicYear, x.donem) === e.target.value
+              );
+              if (o) setTerm({ academicYear: o.academicYear, donem: o.donem });
+            }}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid #D1D5DB',
+              fontSize: 13,
+              background: 'white',
+              cursor: 'pointer',
+            }}
+          >
+            {bsTermOptions().map((o) => {
+              const k = bsTermKey(o.academicYear, o.donem);
+              return (
+                <option key={k} value={k}>
+                  {bsTermLabel(o.academicYear, o.donem)}
+                </option>
+              );
+            })}
+          </select>
+          <button
+            onClick={() => setEditMode(true)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: '1px solid #1B2A4A',
+              background: 'white',
+              color: '#1B2A4A',
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Dersleri Düzenle
+          </button>
         </div>
       </div>
       {myCourseDetails.length === 0 ? (
