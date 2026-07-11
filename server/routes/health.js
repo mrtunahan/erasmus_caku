@@ -1,7 +1,25 @@
 const express = require('express');
 const { getDbSafe } = require('../config/database');
+const { verifyToken } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Ayrıntılı sağlık bilgisi (koleksiyon adları + kayıt sayıları, 'passwords'
+// dahil) yalnız admin'e verilir. Anonim istek yine 200 + status:ok alır
+// (dış uptime izleyicileri bozulmasın), ama envanter dökümü almaz.
+function isAdminReq(req) {
+  const tok =
+    (req.cookies && req.cookies.caku_auth) ||
+    (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')
+      ? req.headers.authorization.split(' ')[1]
+      : null);
+  if (!tok) return false;
+  try {
+    return verifyToken(tok).role === 'admin';
+  } catch (_) {
+    return false;
+  }
+}
 
 // Tüm bilinen koleksiyonlar
 const COLLECTIONS = [
@@ -40,9 +58,14 @@ const COLLECTIONS = [
 router.get('/', async (req, res) => {
   try {
     const db = await getDbSafe();
+    // Anonim/normal kullanıcı: yalnız canlılık — envanter sızdırılmaz
+    if (!isAdminReq(req)) {
+      await db.command({ ping: 1 });
+      return res.json({ status: 'ok', database: 'mongodb' });
+    }
+
     const counts = {};
     let totalDocuments = 0;
-
     await Promise.all(
       COLLECTIONS.map(async (name) => {
         const count = await db.collection(name).countDocuments();
@@ -59,10 +82,8 @@ router.get('/', async (req, res) => {
       collections: counts,
     });
   } catch (err) {
-    res.status(500).json({
-      status: 'error',
-      message: err.message,
-    });
+    console.error('health error:', err);
+    res.status(500).json({ status: 'error' });
   }
 });
 

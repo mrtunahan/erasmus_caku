@@ -5039,10 +5039,20 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
           }
           allStudents = await DB.fetchStudents();
         }
-        // Bölüm bazlı filtreleme: departmentId'si olmayan veriler bilgisayar bölümüne ait
+        // Bölüm bazlı filtreleme — bölümün TÜM kimlik varyantları (id/_id/
+        // _docId/code) ile eşleştir ki eski kimlikle kaydedilmiş öğrenci
+        // kayıtları da doğru bölümde görünsün. Eklemeli: boş departmentId →
+        // "bilgisayar" eski davranışı korunur (görünen öğrenci kaybolmaz).
+        let deptVariants = [activeDepartment];
+        try {
+          if (window.deptIdVariants) deptVariants = await window.deptIdVariants(activeDepartment);
+        } catch (_) {
+          deptVariants = [activeDepartment];
+        }
+        const variantSet = new Set((deptVariants || [activeDepartment]).map(String));
         const fetchedStudents = allStudents.filter((s) => {
-          const deptId = s.departmentId || 'bilgisayar';
-          return deptId === activeDepartment;
+          const deptId = s.departmentId ? String(s.departmentId) : 'bilgisayar';
+          return variantSet.has(deptId) || deptId === activeDepartment;
         });
         setStudents(fetchedStudents);
       } catch (error) {
@@ -5169,9 +5179,20 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
       // Öğrenci yeni 'pending' eşleştirme eklediyse → akademisyenlere bildirim
       const newPending = updAll.filter((m) => m.status === 'pending' && !origById[m.id]);
       if (newPending.length > 0 && window.Notify) {
+        // Bildirim, bölümün KANONİK kimliğine gönderilir — eski kimlikli
+        // öğrencide onaycılar (kanonik id'ye abone) aksi halde haber almıyordu.
+        const rawDept = updated.departmentId || activeDepartment || '';
+        const canonDept = (() => {
+          const list = window.DEPARTMENTS || [];
+          const rec = list.find(
+            (d) =>
+              d && [d.id, d._id, d._docId, d.code].some((k) => k && String(k) === String(rawDept))
+          );
+          return rec ? String(rec.id || rec._docId || rec._id || rawDept) : rawDept;
+        })();
         window.Notify.send({
           recipientType: 'department',
-          recipientId: updated.departmentId || activeDepartment || '',
+          recipientId: canonDept,
           module: 'erasmus',
           type: 'erasmus_match_pending',
           title: 'Yeni Erasmus eşleştirmesi onay bekliyor',
