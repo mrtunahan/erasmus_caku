@@ -2313,49 +2313,34 @@ const TripHistoryModal = ({
   const [searchText, setSearchText] = useState('');
   const [uniSearch, setUniSearch] = useState('');
   const [extraUnis, setExtraUnis] = useState([]);
-  // bölümId → fakülteId haritası (çekirdek bölümler sabit listede facultyId
-  // taşımadığından 'departments' koleksiyonundan tam harita çıkarılır)
-  const [deptFacultyMap, setDeptFacultyMap] = useState({});
 
-  // FAKÜLTE BAZLI ERİŞİM: Erasmus geçmişi fakülteye özeldir. Bir fakültenin
-  // yetkilileri yalnızca kendi fakültesine ait kayıtları görür; başka fakülte
-  // (ör. Mühendislik Fakültesi'ne ait Bilgisayar Müh.) kayıtlarını göremez.
-  // Üniversite yetkilisi tüm fakülteleri görür.
+  // BÖLÜM BAZLI ERİŞİM: Erasmus eşleştirme geçmişi BÖLÜME özeldir. Her bölüm
+  // yalnızca KENDİ kayıtlarını görür — aynı fakültedeki başka bölüm (ör.
+  // Bilgisayar Müh. ile Elektrik-Elektronik) birbirinin geçmişini GÖREMEZ.
+  // Yalnız üniversite yetkilisi tüm bölümleri görür.
   const seeAllFaculties = !!(currentUser && currentUser.isUniversityAdmin);
-  const myFacultyId =
-    (currentUser && currentUser.facultyId) || deptFacultyMap[activeDepartment] || '';
-  const facultyDeptIds = React.useMemo(() => {
-    const set = new Set();
-    if (myFacultyId) {
-      Object.keys(deptFacultyMap).forEach((dId) => {
-        if (deptFacultyMap[dId] === myFacultyId) set.add(dId);
-      });
-    }
-    if (activeDepartment) set.add(activeDepartment);
-    return set;
-  }, [deptFacultyMap, myFacultyId, activeDepartment]);
-
-  // bölüm → fakülte haritasını yükle
+  // Aktif bölümün tüm kimlik varyantları (eski kimlikli kayıtlar da eşleşsin)
+  const [deptVariants, setDeptVariants] = useState(() =>
+    activeDepartment ? [String(activeDepartment)] : []
+  );
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const depts = await window.apiRead('departments');
-        if (cancelled) return;
-        const map = {};
-        (depts || []).forEach((d) => {
-          const id = d.id || d._docId;
-          if (id) map[id] = d.facultyId || '';
-        });
-        setDeptFacultyMap(map);
-      } catch (e) {
-        console.warn('Bölüm→fakülte haritası yüklenemedi:', e?.message);
+      let vs = activeDepartment ? [String(activeDepartment)] : [];
+      if (activeDepartment && window.deptIdVariants) {
+        try {
+          vs = (await window.deptIdVariants(activeDepartment)).map(String);
+        } catch (_) {
+          vs = [String(activeDepartment)];
+        }
       }
+      if (!cancelled) setDeptVariants(vs);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeDepartment]);
+  const deptVariantSet = React.useMemo(() => new Set(deptVariants.map(String)), [deptVariants]);
 
   // Üniversite listesi BÖLÜMÜN eşleştirme geçmişinden (trip_history) beslenir.
   // Böylece hem öğrenci hem akademisyen AYNI listeyi görür (öğrenci artık tüm
@@ -2416,20 +2401,12 @@ const TripHistoryModal = ({
   };
 
   const filteredHistory = history.filter((h) => {
-    // FAKÜLTE BAZLI ERİŞİM süzgeci: üniversite yetkilisi hepsini görür;
-    // diğer yetkililer yalnızca kendi fakültesinin kayıtlarını görür.
+    // BÖLÜM BAZLI ERİŞİM: üniversite yetkilisi hepsini görür; diğer herkes
+    // YALNIZCA aktif bölümün (tüm kimlik varyantları) kayıtlarını görür.
+    // Bölümü çözülemeyen (departmentId'siz) kayıt belirli bir bölüme
+    // gösterilmez — başka bölüme sızma riski kapatılır.
     if (!seeAllFaculties) {
-      const recFaculty = h.facultyId || deptFacultyMap[h.departmentId] || '';
-      const inFaculty =
-        (myFacultyId && recFaculty && recFaculty === myFacultyId) ||
-        (h.departmentId && facultyDeptIds.has(h.departmentId));
-      // Fakülte bağlamı hiç çözülemiyorsa (myFacultyId yok) güvenli taraf:
-      // yalnızca aktif bölümün kayıtları gösterilir.
-      if (myFacultyId) {
-        if (!inFaculty) return false;
-      } else if (activeDepartment && h.departmentId && h.departmentId !== activeDepartment) {
-        return false;
-      }
+      if (!(h.departmentId && deptVariantSet.has(String(h.departmentId)))) return false;
     }
     if (filterType !== 'all' && h.type !== filterType) return false;
     if (searchText) {
