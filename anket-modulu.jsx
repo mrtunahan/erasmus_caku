@@ -2610,6 +2610,19 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
   const completed = (surveyId) => myResponses.some((r) => r.surveyId === surveyId);
 
   const submit = async (surveyId, answers) => {
+    // Kimliği çözülemeyen kullanıcı ('anon') yanıt gönderemez — aksi halde
+    // tüm anonim kullanıcılar tek 'anon' kaydında birbirine karışırdı.
+    if (!myId || myId === 'anon') {
+      toast.show('Oturum kimliğiniz çözülemedi, lütfen yeniden giriş yapın.');
+      return;
+    }
+    // Mükerrer gönderim koruması: kart açıkken (iki sekme / geç yüklenen
+    // myResponses / tekrar tıklama) sunucuya ikinci yanıt gitmesini engelle.
+    if (completed(surveyId)) {
+      setActiveId(null);
+      toast.show('Bu anketi zaten yanıtladınız.');
+      return;
+    }
     await window.DBWrite.add('survey_responses', {
       surveyId,
       userId: myId,

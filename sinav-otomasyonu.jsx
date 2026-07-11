@@ -3013,8 +3013,13 @@ function SinavOtomasyonuApp({
         periodsSnap ? periodsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) : []
       ).filter((p) => (p.seviye || 'lisans') === seviye);
       setPeriods(perList);
-      if (perList.length > 0 && !activePeriodId) {
+      // Aktif dönem seçili değilse VEYA (bölüm/seviye değişimi sonrası) yeni
+      // listede yoksa ilk döneme düş — aksi halde bayat id yüzünden takvim
+      // boş kalıp "dönem bulunamadı" görünüyordu (O4).
+      if (perList.length > 0 && !perList.some((p) => p.id === activePeriodId)) {
         setActivePeriodId(perList[0].id);
+      } else if (perList.length === 0 && activePeriodId) {
+        setActivePeriodId(null);
       }
 
       // Set exams — SEVİYE'ye göre filtre (yerleştirilmiş sınavlar seviyeye ayrık)
