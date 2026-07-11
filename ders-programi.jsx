@@ -750,18 +750,22 @@ function DersProgramiApp({
       }
       const docId = `${activeDepartment}_${semester}_${year}${seviyeSuffix}`;
       try {
-        let base = {};
+        // Yazmadan önce TAZE sunucu durumunu al: cache'i geçersiz kıl ki
+        // başka bir kullanıcının son 15 sn içindeki değişikliği (ekleme/silme)
+        // görünsün. Aksi halde bayat cache üzerinden yazmak eşzamanlı
+        // düzenlemede kayıp güncelleme / silineni diriltme üretiyordu.
+        let base = null; // null = okuma BAŞARISIZ (yerel duruma düş)
         try {
+          if (window.apiInvalidate) window.apiInvalidate('course_schedules');
           const res = await window.apiReadDoc('course_schedules', docId);
-          base = res.exists && res.data?.slots ? res.data.slots : {};
+          base = res && res.exists && res.data?.slots ? res.data.slots : {};
         } catch (_) {
-          base = scheduleData;
+          base = null;
         }
-        // Yeniden-okuma cache/yarış nedeniyle bayat gelirse mevcut yerel
-        // slotları KAYBETME: taze okuma önceliklidir, eksik anahtarlar yerel
-        // scheduleData'dan tamamlanır. (Hücre bölmede birinci dersin silinmesi
-        // bu birleştirmeyle engellenir.)
-        const next = { ...scheduleData, ...base };
+        // Taze okuma başarılıysa sunucu durumu tek doğruluk kaynağıdır
+        // (silinen slotlar yerelden geri EKLENMEZ). Okuma başarısızsa veri
+        // kaybını önlemek için yerel scheduleData'ya düşülür.
+        const next = base !== null ? { ...base } : { ...scheduleData };
         mutator(next);
         await window.DBWrite.set(
           'course_schedules',
