@@ -2317,8 +2317,7 @@ const TripHistoryModal = ({
   // BÖLÜM BAZLI ERİŞİM: Erasmus eşleştirme geçmişi BÖLÜME özeldir. Her bölüm
   // yalnızca KENDİ kayıtlarını görür — aynı fakültedeki başka bölüm (ör.
   // Bilgisayar Müh. ile Elektrik-Elektronik) birbirinin geçmişini GÖREMEZ.
-  // Yalnız üniversite yetkilisi tüm bölümleri görür.
-  const seeAllFaculties = !!(currentUser && currentUser.isUniversityAdmin);
+  // (Admin dahil herkes aktif bölüm bağlamıyla sınırlıdır.)
   // Aktif bölümün tüm kimlik varyantları (eski kimlikli kayıtlar da eşleşsin)
   const [deptVariants, setDeptVariants] = useState(() =>
     activeDepartment ? [String(activeDepartment)] : []
@@ -2401,11 +2400,12 @@ const TripHistoryModal = ({
   };
 
   const filteredHistory = history.filter((h) => {
-    // BÖLÜM BAZLI ERİŞİM: üniversite yetkilisi hepsini görür; diğer herkes
-    // YALNIZCA aktif bölümün (tüm kimlik varyantları) kayıtlarını görür.
-    // Bölümü çözülemeyen (departmentId'siz) kayıt belirli bir bölüme
-    // gösterilmez — başka bölüme sızma riski kapatılır.
-    if (!seeAllFaculties) {
+    // BÖLÜM BAZLI İZOLASYON: eşleştirme geçmişi HANGİ BÖLÜM bağlamında
+    // açıldıysa yalnız o bölümün (tüm kimlik varyantları) kayıtları görünür.
+    // Üniversite yetkilisi de dahil HERKES için geçerli — Elektrik bağlamında
+    // Bilgisayar kaydı görünmez (admin bölüm değiştirerek diğerine bakar).
+    // Bölümü çözülemeyen (departmentId'siz) kayıt hiçbir bölüme gösterilmez.
+    if (activeDepartment) {
       if (!(h.departmentId && deptVariantSet.has(String(h.departmentId)))) return false;
     }
     if (filterType !== 'all' && h.type !== filterType) return false;
