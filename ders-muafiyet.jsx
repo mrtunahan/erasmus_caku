@@ -412,6 +412,11 @@ const THRESHOLD_REVIEW = 0.6; // %60–69 → Akademisyen onayı bekliyor (varsa
 const AKTS_CHECK_ENABLED = true;
 const AKTS_MIN_RATIO = 0.7; // kaynak AKTS ≥ hedef AKTS × 0.7
 
+// Yaz dönemi AKTS tavanı — ÇAKÜ Ön Lisans/Lisans Eğitim-Öğretim Yönetmeliği
+// MADDE 9(1): yaz döneminde toplam 21 AKTS kredi yükü aşılamaz. Yalnız yaz
+// intibak (basvuruTuru === 'intibak') başvurularında uygulanır.
+const YAZ_AKTS_CAP = 21;
+
 // Kalibre edilebilir eşikler — muafiyet_settings/thresholds dokümanından
 // yüklenir (Ayarlar → Eşik Kalibrasyonu). Yüklenmezse varsayılanlar geçerli.
 // decideTier ve tüm UI metinleri bu objeyi okur; modül genelinde tek kaynak.
@@ -6408,6 +6413,12 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
   // Kayıt sonrası gösterilen sonuç paneli — özet + her ders için skor kırılımı.
   const [resultPanel, setResultPanel] = useState(null);
 
+  // Yaz intibakında 21 AKTS tavanı — öğrencinin ÇAKÜ'de saydıracağı derslerin
+  // (kabul edilen kredi yükü) AKTS toplamı üzerinden canlı izlenir (MADDE 9/1).
+  const isIntibak = basvuruTuru === 'intibak';
+  const toplamYazAkts = rows.reduce((t, r) => t + (parseInt(r.cak?.akts, 10) || 0), 0);
+  const aktsTavaniAsildi = isIntibak && toplamYazAkts > YAZ_AKTS_CAP;
+
   const tr = (v) => (typeof v === 'string' ? v.toLocaleUpperCase('tr-TR') : v);
   const updateSide = (rowId, side, field, value) => {
     // URL alanları büyük harfe çevrilmez (link bozulur)
@@ -6647,6 +6658,19 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
   const validate = () => {
     if (!studentName.trim() || !studentNo.trim()) {
       setMsg({ text: 'Öğrenci adı ve numarası zorunlu.', kind: 'error' });
+      return false;
+    }
+    // Yaz intibakı: 21 AKTS kredi yükü tavanı (MADDE 9/1)
+    if (isIntibak && toplamYazAkts > YAZ_AKTS_CAP) {
+      setMsg({
+        text:
+          'Yaz döneminde toplam ' +
+          YAZ_AKTS_CAP +
+          ' AKTS kredi yükü aşılamaz (MADDE 9/1). Seçtiğiniz derslerin ÇAKÜ karşılığı toplamı: ' +
+          toplamYazAkts +
+          ' AKTS. Lütfen ders çıkarın.',
+        kind: 'error',
+      });
       return false;
     }
     for (const r of rows) {
@@ -7476,10 +7500,41 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
         </div>
       )}
 
+      {/* Yaz intibakı: canlı AKTS tavanı göstergesi (MADDE 9/1) */}
+      {isIntibak && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+            padding: '10px 14px',
+            borderRadius: 8,
+            marginBottom: 12,
+            background: aktsTavaniAsildi ? DS.redLight : DS.bg,
+            border: '1px solid ' + (aktsTavaniAsildi ? '#FCA5A5' : DS.border),
+          }}
+        >
+          <span style={{ fontSize: 13, color: aktsTavaniAsildi ? DS.red : DS.textSecondary }}>
+            Yaz dönemi kredi yükü (ÇAKÜ karşılığı)
+          </span>
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: aktsTavaniAsildi ? DS.red : DS.navy,
+            }}
+          >
+            {toplamYazAkts} / {YAZ_AKTS_CAP} AKTS
+            {aktsTavaniAsildi ? ' — tavan aşıldı' : ''}
+          </span>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <button
           onClick={processAndSave}
-          disabled={processing}
+          disabled={processing || aktsTavaniAsildi}
           style={{
             padding: '11px 22px',
             background: DS.accent,
@@ -7488,8 +7543,8 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
             borderRadius: 8,
             fontWeight: 600,
             fontSize: 14,
-            cursor: processing ? 'wait' : 'pointer',
-            opacity: processing ? 0.7 : 1,
+            cursor: processing ? 'wait' : aktsTavaniAsildi ? 'not-allowed' : 'pointer',
+            opacity: processing || aktsTavaniAsildi ? 0.6 : 1,
           }}
         >
           {processing ? 'Eşleştiriliyor…' : 'Eşleştir ve Kaydet'}
