@@ -188,6 +188,265 @@ const STUDENT_WRITABLE = new Set([
 
 const STAFF_ROLES = new Set(['professor', 'bolum_yetkilisi', 'admin']);
 
+// ══════════════════════════════════════════════
+// EK SUNUCU KORUMALARI (DB_AUTH_ENFORCED ile birlikte devrede)
+// ══════════════════════════════════════════════
+
+// Yetki taşıyan alanlar: yalnız admin/üniversite yetkilisi değiştirebilir
+// (isDeptManager'ı fakülte yetkilisi de atayabilir). Yetkisiz yazmalarda bu
+// alanlar mevcut değerlerine SABİTLENİR — böylece sıradan bir akademisyenin
+// kendi kaydına isUniversityAdmin:true yazarak admin'e yükselmesi engellenir,
+// tam-doküman güncelleyen meşru akışlar ise bozulmaz.
+const PRIV_FIELDS = ['isUniversityAdmin', 'isFacultyManager', 'isDeptManager'];
+
+// Yapısal koleksiyonlar: bayraksız (sade) professor rolü yazamaz
+const STRUCTURE_MANAGER_WRITE = new Set(['departments', 'faculties', 'universities']);
+
+// Öğrenci sahiplik alanları — mevcut dokümanda bunlardan biri doluysa
+// değeri JWT kimliğiyle eşleşmek zorundadır
+const OWNER_FIELDS = [
+  '_owner',
+  'ogrenciNo',
+  'studentNo',
+  'studentNumber',
+  'studentId',
+  'userId',
+  'authorId',
+  'createdBy',
+];
+// Sahiplik alanı çözülemese bile öğrenci yazması REDDEDİLEN koleksiyonlar
+const STUDENT_OWNED_STRICT = new Set([
+  'internship_applications',
+  'muafiyet_records',
+  'survey_responses',
+]);
+// docId = staj başvuru id'si olan koleksiyonlar (sahip = başvurunun öğrencisi)
+const APP_OWNED = new Set(['internship_roadmap', 'internship_uploads']);
+// Öğrenci SİLMEsi sahibine (veya moderatöre) kısıtlı koleksiyonlar
+const STUDENT_DELETE_OWNED = new Set(['portal_posts', 'portal_posts_comments']);
+
+// Öğrencilerin hiç okuyamayacağı koleksiyonlar (personel modülleri)
+const STUDENT_READ_DENY = new Set([
+  'performance_data',
+  'performance_indicators',
+  'performance_targets',
+  'performance_forms',
+  'performance_reports',
+  'performance_agg_rules',
+  'strateji_izleme',
+  'strateji_atama',
+  'strateji_fac_ozet',
+  'strateji_baglama',
+]);
+// Öğrenci okumalarında kendi kaydına zorlanan koleksiyonlar (alan → JWT kimliği)
+const STUDENT_READ_SCOPED = {
+  students: 'studentNumber',
+  internship_applications: 'ogrenciNo',
+  muafiyet_records: 'studentNo',
+};
+// Öğrenci okumalarında alan kısıtlaması (e-posta/bayrak gibi alanlar sızmasın)
+const STUDENT_READ_STRIPPED = {
+  professors: ['name', 'title', 'unvan', 'departmentId', 'department'],
+};
+// Tek istekte dönebilecek azami doküman sayısı (bellek/DoS koruması)
+const MAX_READ_LIMIT = 20000;
+
+// Aktör bayrakları (uniAdmin/facManager) — professors üzerinden, 60 sn cache
+const actorFlagsCache = new Map(); // identifier -> { flags, ts }
+async function getActorFlags(db, user) {
+  if (!user) return { admin: false, uniAdmin: false, facManager: false };
+  if (user.role === 'admin') return { admin: true, uniAdmin: true, facManager: true };
+  if (user.role !== 'professor' || !user.identifier) {
+    return { admin: false, uniAdmin: false, facManager: false };
+  }
+  const hit = actorFlagsCache.get(user.identifier);
+  if (hit && Date.now() - hit.ts < 60 * 1000) return hit.flags;
+  let flags = { admin: false, uniAdmin: false, facManager: false };
+  try {
+    const prof = await db.collection('professors').findOne({ name: user.identifier });
+    if (prof) {
+      flags = {
+        admin: false,
+        uniAdmin: !!prof.isUniversityAdmin,
+        facManager: !!prof.isFacultyManager,
+      };
+    }
+  } catch (_) {
+    /* profil okunamazsa yetkisiz varsay */
+  }
+  actorFlagsCache.set(user.identifier, { flags, ts: Date.now() });
+  return flags;
+}
+
+// Doküman bulma, executeSingleOp ile aynı sırada: _id (string) → ObjectId → _docId
+async function findDocByAnyId(db, collectionName, docId) {
+  if (!docId) return null;
+  const col = db.collection(collectionName);
+  const byId = await col.findOne({ _id: docId });
+  if (byId) return byId;
+  if (typeof docId === 'string' && docId.length === 24) {
+    try {
+      const byObjId = await col.findOne({ _id: new ObjectId(docId) });
+      if (byObjId) return byObjId;
+    } catch (_) {
+      /* ObjectId değil */
+    }
+  }
+  return col.findOne({ _docId: docId });
+}
+
+async function findExistingDoc(db, op) {
+  return findDocByAnyId(db, getCollectionName(op), op.docId);
+}
+
+// Staj başvurusu sahipliği: docId'nin işaret ettiği başvurunun öğrencisi mi?
+async function ownsInternshipApp(db, docId, ident) {
+  try {
+    const app = await findDocByAnyId(db, 'internship_applications', docId);
+    return !!app && String(app.ogrenciNo || app.studentNumber || '') === ident;
+  } catch (_) {
+    return false;
+  }
+}
+
+// Öğrencinin portal moderatörü olup olmadığı (kayıt userId/_docId/_id ile aranır)
+async function isPortalModerator(db, identifier) {
+  if (!identifier) return false;
+  try {
+    const doc = await db.collection('portal_moderators').findOne({
+      $or: [{ _id: identifier }, { _docId: identifier }, { userId: identifier }],
+    });
+    return !!doc;
+  } catch (_) {
+    return false;
+  }
+}
+
+// Yazma politikaları (rol-sonrası, doküman-düzeyi). op.data'yı yerinde
+// değiştirebilir (yetki alanlarını sabitleme, sahiplik damgası).
+async function enforceWritePolicies(db, op, user) {
+  if (!DB_AUTH_ENFORCED || !user) return { allow: true };
+
+  // a) Yapısal koleksiyonlar: sade professor yazamaz
+  if (STRUCTURE_MANAGER_WRITE.has(op.collection) && user.role === 'professor') {
+    const flags = await getActorFlags(db, user);
+    if (!flags.uniAdmin && !flags.facManager) {
+      return {
+        allow: false,
+        status: 403,
+        error: `Bu koleksiyonu yalnız yöneticiler düzenleyebilir: ${op.collection}`,
+      };
+    }
+  }
+
+  // b) professors üzerindeki yetki bayrakları — yetkisiz aktörde sabitlenir
+  if (op.collection === 'professors' && op.data && typeof op.data === 'object') {
+    const touchesPriv = PRIV_FIELDS.some((f) => f in op.data);
+    const isReplace = op.type === 'set' && !op.merge; // replace bayrak DÜŞÜREBİLİR de
+    if (touchesPriv || isReplace) {
+      const flags = await getActorFlags(db, user);
+      if (!flags.admin && !flags.uniAdmin) {
+        const existing = await findExistingDoc(db, op);
+        for (const f of PRIV_FIELDS) {
+          if (f === 'isDeptManager' && flags.facManager) continue; // fak. yetkilisi bölüm yetkilisi atayabilir
+          if (existing && f in existing) op.data[f] = existing[f];
+          else delete op.data[f];
+        }
+      }
+    }
+  }
+
+  // c) Öğrenci sahiplik kuralları
+  if (user.role === 'student') {
+    const ident = String(user.identifier || '');
+    if (!ident) {
+      return { allow: false, status: 403, error: 'Kimlik çözülemedi.' };
+    }
+
+    // Yeni kayıt: sahiplik damgası yeterli
+    if (op.type === 'add') {
+      if (op.data && typeof op.data === 'object' && op.data._owner === undefined) {
+        op.data._owner = ident;
+      }
+      return { allow: true };
+    }
+
+    // Moderatör listesine yalnız mevcut moderatör yazabilir (öz-terfi engeli)
+    if (op.collection === 'portal_moderators') {
+      if (await isPortalModerator(db, ident)) return { allow: true };
+      return { allow: false, status: 403, error: 'Moderatör yetkisi gerekli.' };
+    }
+
+    // roadmap/uploads: doküman VAR OLSUN OLMASIN sahip, docId'nin işaret
+    // ettiği staj başvurusundan çözülür (başkasının başvurusuna önden kayıt
+    // açmak da engellenir).
+    if (APP_OWNED.has(op.collection)) {
+      if (await ownsInternshipApp(db, op.docId, ident)) {
+        if (op.data && typeof op.data === 'object' && op.data._owner === undefined) {
+          op.data._owner = ident;
+        }
+        return { allow: true };
+      }
+      return {
+        allow: false,
+        status: 403,
+        error: `Bu kayıt üzerinde işlem yetkiniz yok: ${op.collection}/${op.docId || ''}`,
+      };
+    }
+
+    const existing = await findExistingDoc(db, op);
+    if (!existing) {
+      // Upsert ile yeni doküman: sahipliği damgala
+      if (
+        (op.type === 'set' || op.type === 'update') &&
+        op.data &&
+        typeof op.data === 'object' &&
+        op.data._owner === undefined
+      ) {
+        op.data._owner = ident;
+      }
+      return { allow: true };
+    }
+
+    // Mevcut dokümanda sahiplik ara
+    let ownerSeen = false;
+    let owned = false;
+    for (const f of OWNER_FIELDS) {
+      const v = existing[f];
+      if (v !== undefined && v !== null && v !== '') {
+        ownerSeen = true;
+        if (String(v) === ident) {
+          owned = true;
+          break;
+        }
+      }
+    }
+    if (owned) return { allow: true };
+
+    // Portal içeriği silme: sahip değilse moderatör olmalı
+    if (op.type === 'delete' && STUDENT_DELETE_OWNED.has(op.collection)) {
+      if (await isPortalModerator(db, ident)) return { allow: true };
+      return {
+        allow: false,
+        status: 403,
+        error: 'Bu içeriği yalnız sahibi veya moderatör silebilir.',
+      };
+    }
+
+    if (ownerSeen || STUDENT_OWNED_STRICT.has(op.collection)) {
+      return {
+        allow: false,
+        status: 403,
+        error: `Bu kayıt üzerinde işlem yetkiniz yok: ${op.collection}/${op.docId || ''}`,
+      };
+    }
+    // Sahiplik alanı taşımayan legacy/serbest doküman — mevcut davranış korunur
+    return { allow: true };
+  }
+
+  return { allow: true };
+}
+
 // isUniversityAdmin bayrağı JWT'de yok (role: 'professor') — audit_logs gibi
 // hassas okumalar için professors koleksiyonundan bakılır, 60 sn cache'lenir.
 const uniAdminCache = new Map(); // identifier -> { ok, ts }
@@ -422,6 +681,17 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
   try {
     const db = await getDbSafe();
 
+    // Doküman-düzeyi politikalar: sahiplik (öğrenci IDOR), yetki bayrağı
+    // sabitleme (yetki yükseltme) ve yapısal koleksiyon kısıtları.
+    // Rol/koleksiyon kararı (writeDecision) yukarıda verildi; bu katman
+    // hedef dokümana bakarak karar verir ve gerekirse op.data'yı düzeltir.
+    for (const op of operations) {
+      const pol = await enforceWritePolicies(db, op, req.user);
+      if (!pol.allow) {
+        return res.status(pol.status || 403).json({ error: pol.error });
+      }
+    }
+
     // Etkilenen koleksiyonları topla (gerçek zamanlı yayın için)
     const touched = new Set();
     const addTouched = (op) => {
@@ -484,6 +754,16 @@ router.get('/:collection', async (req, res) => {
     if (!decision.allow) {
       return res.status(decision.status || 403).json({ error: decision.error });
     }
+    // Öğrenci okuma politikası: personel koleksiyonları kapalı, hassas
+    // koleksiyonlar kendi kaydına daraltılır, professors alan-kısıtlı döner.
+    if (DB_AUTH_ENFORCED && user && user.role === 'student') {
+      if (STUDENT_READ_DENY.has(collection)) {
+        return res.status(403).json({ error: `Bu koleksiyona erişim yetkiniz yok: ${collection}` });
+      }
+      if (STUDENT_READ_STRIPPED[collection]) {
+        decision.strip = STUDENT_READ_STRIPPED[collection];
+      }
+    }
 
     const db = await getDbSafe();
     const col = db.collection(collection);
@@ -529,6 +809,15 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
+    // Öğrenci: hassas koleksiyonlarda filtre KENDİ kaydına zorlanır
+    // (istemcinin where'i ne derse desin sunucu daraltır).
+    if (DB_AUTH_ENFORCED && user && user.role === 'student') {
+      const scopeField = STUDENT_READ_SCOPED[collection];
+      if (scopeField) {
+        filter[scopeField] = { $eq: String(user.identifier || '') };
+      }
+    }
+
     let cursor = col.find(filter);
 
     if (req.query.orderBy) {
@@ -538,10 +827,9 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
+    // Sınırsız okuma yok: istenen limit tavana kırpılır, istenmemişse tavan.
     const limitVal = req.query.limit ? parseInt(req.query.limit, 10) : 0;
-    if (limitVal > 0) {
-      cursor = cursor.limit(limitVal);
-    }
+    cursor = cursor.limit(limitVal > 0 ? Math.min(limitVal, MAX_READ_LIMIT) : MAX_READ_LIMIT);
 
     const docs = await cursor.toArray();
 
@@ -584,6 +872,15 @@ router.get('/:collection/:docId', async (req, res) => {
     if (!decision.allow) {
       return res.status(decision.status || 403).json({ error: decision.error });
     }
+    const isStudentReq = DB_AUTH_ENFORCED && user && user.role === 'student';
+    if (isStudentReq) {
+      if (STUDENT_READ_DENY.has(collection)) {
+        return res.status(403).json({ error: `Bu koleksiyona erişim yetkiniz yok: ${collection}` });
+      }
+      if (STUDENT_READ_STRIPPED[collection]) {
+        decision.strip = STUDENT_READ_STRIPPED[collection];
+      }
+    }
 
     const db = await getDbSafe();
     const col = db.collection(collection);
@@ -602,6 +899,19 @@ router.get('/:collection/:docId', async (req, res) => {
 
     if (!doc) {
       return res.json({ exists: false, data: null });
+    }
+
+    // Öğrenci: hassas tek-doküman okuması yalnız KENDİ kaydı için.
+    // roadmap/uploads sahibi, docId'nin işaret ettiği staj başvurusundan çözülür.
+    if (isStudentReq) {
+      const ident = String(user.identifier || '');
+      const scopeField = STUDENT_READ_SCOPED[collection];
+      if (scopeField && String(doc[scopeField] || '') !== ident) {
+        return res.status(403).json({ error: 'Bu kayda erişim yetkiniz yok.' });
+      }
+      if (APP_OWNED.has(collection) && !(await ownsInternshipApp(db, docId, ident))) {
+        return res.status(403).json({ error: 'Bu kayda erişim yetkiniz yok.' });
+      }
     }
 
     const { _id, _docId, ...rest } = doc;
