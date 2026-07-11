@@ -1830,126 +1830,91 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
 
     return (
       <div>
-        {/* ── Hero / Hoşgeldin Banner ── */}
+        {/* ── Başlık + Tek "Yeni Staj Başvurusu" Alanı (turkuaz + beyaz) ── */}
         <div
           style={{
-            position: 'relative',
-            overflow: 'hidden',
             borderRadius: 16,
-            background: `linear-gradient(135deg, ${STAJ.navy} 0%, #0E3A5C 45%, ${STAJ.primary} 100%)`,
+            background: `linear-gradient(135deg, ${STAJ.primaryPale} 0%, #FFFFFF 60%)`,
+            border: `1px solid ${STAJ.primary}33`,
             padding: responsive.val(18, 22, 26),
             marginBottom: 18,
-            color: 'white',
-            boxShadow: '0 6px 20px rgba(8, 145, 178, 0.18)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
           }}
         >
-          {/* Dekoratif daireler */}
-          <div
-            style={{
-              position: 'absolute',
-              top: -40,
-              right: -40,
-              width: 180,
-              height: 180,
-              borderRadius: '50%',
-              background: 'rgba(255,255,255,0.06)',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              bottom: -60,
-              right: 60,
-              width: 140,
-              height: 140,
-              borderRadius: '50%',
-              background: 'rgba(34,211,238,0.12)',
-            }}
-          />
-
-          <div
-            style={{
-              position: 'relative',
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 16,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
-              <div
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 14,
-                  flexShrink: 0,
-                  background: 'rgba(255,255,255,0.15)',
-                  backdropFilter: 'blur(4px)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1px solid rgba(255,255,255,0.25)',
-                }}
-              >
-                <StajIcon
-                  path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  size={24}
-                  color="white"
-                />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: responsive.val(16, 18, 20),
-                    fontWeight: 700,
-                    marginBottom: 4,
-                    letterSpacing: -0.2,
-                  }}
-                >
-                  Staj Başvurusu
-                </div>
-                <div
-                  style={{
-                    fontSize: responsive.val(12, 12, 13),
-                    color: 'rgba(255,255,255,0.82)',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Yeni başvuru oluşturun, başvurularınızı düzenleyin ve staj sürecinin her adımını
-                  buradan takip edin.
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setForm(emptyForm);
-                setEditingId(null);
-                setShowForm(true);
-              }}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
+            <div
               style={{
-                padding: '11px 20px',
-                borderRadius: 10,
-                border: 'none',
-                background: 'white',
-                color: STAJ.primary,
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: 'pointer',
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                flexShrink: 0,
+                background: STAJ.primary,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
-                flexShrink: 0,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                transition: 'transform 0.15s',
+                justifyContent: 'center',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
             >
-              <StajIcon path="M12 5v14M5 12h14" size={16} />
-              Yeni Staj Başvurusu
-            </button>
+              <StajIcon
+                path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                size={22}
+                color="white"
+              />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: responsive.val(17, 19, 21),
+                  fontWeight: 700,
+                  color: STAJ.navy,
+                  marginBottom: 3,
+                  letterSpacing: -0.2,
+                }}
+              >
+                Staj Başvurusu
+              </div>
+              <div
+                style={{
+                  fontSize: responsive.val(12, 12.5, 13),
+                  color: STAJ.textMuted,
+                  lineHeight: 1.5,
+                }}
+              >
+                Başvurunuzu buradan oluşturun ve staj sürecinizin her adımını takip edin.
+              </div>
+            </div>
           </div>
+          <button
+            onClick={() => {
+              setForm(emptyForm);
+              setEditingId(null);
+              setShowForm(true);
+            }}
+            style={{
+              padding: '12px 22px',
+              borderRadius: 10,
+              border: 'none',
+              background: STAJ.primary,
+              color: 'white',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexShrink: 0,
+              boxShadow: '0 4px 12px rgba(8,145,178,0.25)',
+              transition: 'transform 0.15s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          >
+            <StajIcon path="M12 5v14M5 12h14" size={16} color="white" />
+            Yeni Staj Başvurusu
+          </button>
         </div>
 
         {/* ── Özet Rozetleri ── */}
