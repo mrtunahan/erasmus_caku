@@ -123,6 +123,7 @@ const ALLOWED_COLLECTIONS = [
   'faculties',
   'akademik_takvim',
   'document_templates',
+  'student_courses',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -184,6 +185,8 @@ const STUDENT_WRITABLE = new Set([
   'projects',
   'unides_projects',
   'tubitak2209_projects',
+  // Öğrencinin dönem bazlı aldığı dersler (kendi kaydı, per (öğrenci, dönem))
+  'student_courses',
 ]);
 
 const STAFF_ROLES = new Set(['professor', 'bolum_yetkilisi', 'admin']);
@@ -361,6 +364,18 @@ async function enforceWritePolicies(db, op, user) {
     const ident = String(user.identifier || '');
     if (!ident) {
       return { allow: false, status: 403, error: 'Kimlik çözülemedi.' };
+    }
+
+    // student_courses: sahiplik alanı her zaman JWT kimliğine sabitlenir —
+    // öğrenci başkası adına dönem dersi kaydı oluşturamaz.
+    if (
+      op.collection === 'student_courses' &&
+      op.data &&
+      typeof op.data === 'object' &&
+      (op.type === 'add' || op.type === 'set' || op.type === 'update')
+    ) {
+      op.data.studentNumber = ident;
+      op.data._owner = ident;
     }
 
     // Yeni kayıt: sahiplik damgası yeterli

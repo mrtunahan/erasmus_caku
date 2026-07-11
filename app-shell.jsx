@@ -1599,9 +1599,25 @@ function AppShell() {
     let cancelled = false;
     (async () => {
       try {
-        const students = await window.FirebaseDB.fetchStudents();
-        const me = students.find((s) => s.studentNumber === currentUser.studentNumber);
-        const hasCourses = Array.isArray(me?.myCourseIds) && me.myCourseIds.length > 0;
+        // Ders seçimi artık DÖNEM bazlı (student_courses). Öğrenci en az bir
+        // dönem için seçim yaptıysa kapı açılır. Geriye dönük: eski tek-liste
+        // (students.myCourseIds) de kabul edilir (mevcut öğrenciler kilitlenmesin).
+        let hasCourses = false;
+        try {
+          const sel = await window.apiRead('student_courses', {
+            where: 'studentNumber:eq:s:' + currentUser.studentNumber,
+          });
+          hasCourses =
+            Array.isArray(sel) &&
+            sel.some((d) => Array.isArray(d.courseIds) && d.courseIds.length > 0);
+        } catch (_) {
+          /* koleksiyon yoksa aşağıdaki legacy kontrolüne düş */
+        }
+        if (!hasCourses) {
+          const students = await window.FirebaseDB.fetchStudents();
+          const me = students.find((s) => s.studentNumber === currentUser.studentNumber);
+          hasCourses = Array.isArray(me?.myCourseIds) && me.myCourseIds.length > 0;
+        }
         if (!cancelled) {
           setStudentHasCourses(hasCourses);
           setStudentCoursesChecked(true);
