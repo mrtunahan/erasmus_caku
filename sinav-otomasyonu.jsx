@@ -126,27 +126,46 @@ function assignSupervisorsToExams(exams) {
   return assignSupervisorsFromList(DEPT_SUPERVISORS, exams, assignClassroom);
 }
 
-// Genel gözetmen atama: toplam sınav süresine göre dengeli dağıtım
+// Genel gözetmen atama: toplam sınav süresine göre dengeli dağıtım.
+// DETERMİNİSTİK (Y1): rastgele karıştırma yerine sabit sıra (tarih, saat, kod)
+// kullanılır — aynı dönem her export'ta AYNI gözetmen listesini üretir
+// (resmi belge tekrar üretilebilir). Sınavda elle atanmış gözetmen varsa
+// otomatik atama yerine ona saygı duyulur.
 function assignSupervisorsFromList(supervisorNames, exams, classroomFn) {
   const totalMinutes = {};
   supervisorNames.forEach((s) => (totalMinutes[s] = 0));
   const assignments = {};
-  const shuffled = [...exams];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  shuffled.forEach((exam) => {
+  const examKey = (e) => e.id || e.code + e.date + e.timeSlot;
+  const ordered = [...exams].sort((a, b) => {
+    const da = (a.date || '') + (a.timeSlot || '') + (a.code || '');
+    const db = (b.date || '') + (b.timeSlot || '') + (b.code || '');
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+  ordered.forEach((exam) => {
+    const duration = exam.duration || 60;
+    // Elle atanmış gözetmen(ler): virgülle ayrılmış olabilir
+    const manual = String(exam.supervisor || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (manual.length > 0) {
+      manual.forEach((s) => {
+        if (totalMinutes[s] != null) totalMinutes[s] += duration;
+      });
+      assignments[examKey(exam)] = manual;
+      return;
+    }
     const room = classroomFn(exam.studentCount);
     const roomCount = room.split(' - ').length;
     const numSupervisors =
       roomCount >= 3 ? roomCount : roomCount === 2 ? 3 : exam.studentCount < 30 ? 1 : 2;
-    // Toplam süreye göre sırala (en az dakikası olan önce)
-    const sortedSups = [...supervisorNames].sort((a, b) => totalMinutes[a] - totalMinutes[b]);
+    // Toplam süreye göre sırala; eşitlikte ada göre sabit sıra (deterministik)
+    const sortedSups = [...supervisorNames].sort(
+      (a, b) => totalMinutes[a] - totalMinutes[b] || (a < b ? -1 : a > b ? 1 : 0)
+    );
     const assigned = sortedSups.slice(0, Math.min(numSupervisors, sortedSups.length));
-    const duration = exam.duration || 60;
     assigned.forEach((s) => (totalMinutes[s] += duration));
-    assignments[exam.id || exam.code + exam.date + exam.timeSlot] = assigned;
+    assignments[examKey(exam)] = assigned;
   });
   return assignments;
 }
@@ -2198,7 +2217,8 @@ async function exportDeptPrintable(
   });
 
   const enriched = sorted.map((exam) => {
-    const room = assignRoom(exam.studentCount);
+    // Elle atanmış salon varsa ona saygı duy; yoksa otomatik ata (Y1).
+    const room = exam.room || assignRoom(exam.studentCount);
     const [sh, sm] = exam.timeSlot.split(':').map(Number);
     const totalMin = sh * 60 + sm + (exam.duration || 60);
     const eh = String(Math.floor(totalMin / 60)).padStart(2, '0');
@@ -2223,7 +2243,7 @@ async function exportDeptPrintable(
       sure: e.durationStr || '',
       salon: e.assignedRoom || '',
       ogrenciSayisi: e.studentCount != null ? String(e.studentCount) : '',
-      gozetmen: e.supervisors || '',
+      gozetmen: e.supervisor || '',
     }));
     const res = await window.TemplateEngine.produceFromTemplate({
       module: 'sinav',
@@ -2373,7 +2393,8 @@ async function exportToXLSX(
 
   const enriched = sorted.map((exam) => {
     const key = exam.id || exam.code + exam.date + exam.timeSlot;
-    const room = exportAssignClassroom(exam.studentCount);
+    // Elle atanmış salon/gözetmene saygı duy; yoksa otomatik (Y1)
+    const room = exam.room || exportAssignClassroom(exam.studentCount);
     const supervisors = (exportSupervisorMap[key] || []).join(', ');
     const [sh, sm] = exam.timeSlot.split(':').map(Number);
     const totalMin = sh * 60 + sm + (exam.duration || 60);
