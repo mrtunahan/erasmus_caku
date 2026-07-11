@@ -1252,7 +1252,13 @@ const DBWrite = {
     if (parentDocId) op.parentDocId = parentDocId;
     if (subCollection) op.subCollection = subCollection;
     const res = await this._apiCall([op]);
-    if (typeof window !== 'undefined' && window.apiInvalidate) window.apiInvalidate(collection);
+    if (typeof window !== 'undefined' && window.apiInvalidate) {
+      window.apiInvalidate(collection);
+      // Alt-koleksiyon yazması sunucuda `collection_subCollection` adında
+      // saklanır ve okuma da bu bileşik adla yapılır; yalnız üst adı
+      // geçersiz kılmak yorum/bildirim listelerinde bayat okumaya yol açıyordu.
+      if (subCollection) window.apiInvalidate(collection + '_' + subCollection);
+    }
     return res;
   },
   async add(collection, data, parentDocId, subCollection) {
@@ -1271,11 +1277,16 @@ const DBWrite = {
     const res = await this._apiCall(operations);
     if (typeof window !== 'undefined' && window.apiInvalidate) {
       const seen = new Set();
-      (operations || []).forEach((op) => {
-        if (op && op.collection && !seen.has(op.collection)) {
-          seen.add(op.collection);
-          window.apiInvalidate(op.collection);
+      const inv = (name) => {
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          window.apiInvalidate(name);
         }
+      };
+      (operations || []).forEach((op) => {
+        if (!op || !op.collection) return;
+        inv(op.collection);
+        if (op.subCollection) inv(op.collection + '_' + op.subCollection);
       });
     }
     return res;

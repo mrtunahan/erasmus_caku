@@ -2128,13 +2128,19 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
   };
   const facKey = (facultyName || 'fakulte').replace(/[^\w]/g, '_');
 
-  // Fakültedeki bölümler (deptId → ad)
+  // Fakültedeki bölümler (deptId → ad). Bölümün TÜM kimlik varyantlarıyla
+  // (departmentId, id, _id, _docId, code) anahtarlanır — eski kimlikle
+  // kaydedilmiş strateji_izleme satırları aksi halde fakülte özetinden
+  // SESSİZCE düşüp toplam/yüzde/max değerlerini eksik gösteriyordu.
   const deptMap = useMemo(() => {
     const m = {};
     (Array.isArray(departments) ? departments : []).forEach((a) => {
       if (!a || !a.departmentId) return;
       if (!isUniAdmin && facultyName && a.fakulte !== facultyName) return;
-      if (!m[a.departmentId]) m[a.departmentId] = a.bolum || a.departmentId;
+      const name = a.bolum || a.departmentId;
+      [a.departmentId, a.id, a._id, a._docId, a.code].forEach((k) => {
+        if (k && !m[String(k)]) m[String(k)] = name;
+      });
     });
     return m;
   }, [departments, facultyName, isUniAdmin]);

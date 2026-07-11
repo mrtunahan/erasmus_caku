@@ -30,6 +30,11 @@ Thumbs.db
 # Log
 *.log
 npm-debug.log*
+nohup.out
+
+# Runtime / geçici artefaktlar (repoya girmemeli)
+.firebase/
+debug_html/
 
 # Test
 .nyc_output/

@@ -76,6 +76,29 @@ const GRADE_COLORS = {
   5: { bg: '#E1BEE7', text: '#4A148C' },
 };
 
+// Bir slotu ders(ler)ine ayır: birinci + (varsa) bölünmüş ikinci ders.
+// İkinci ders dersliği yoksa birincininkini paylaşır (ortak hücre).
+function slotCourses(slot) {
+  if (!slot || !slot.courseCode) return [];
+  const list = [
+    {
+      courseCode: slot.courseCode,
+      courseName: slot.courseName,
+      instructor: slot.instructor,
+      classroom: slot.classroom,
+    },
+  ];
+  if (slot.ikinci && slot.ikinci.courseCode) {
+    list.push({
+      courseCode: slot.ikinci.courseCode,
+      courseName: slot.ikinci.courseName,
+      instructor: slot.ikinci.instructor,
+      classroom: slot.ikinci.classroom || slot.classroom,
+    });
+  }
+  return list;
+}
+
 // ── Çakışma Tespit Fonksiyonu ──
 // deptAllYearsSlots: bölüm içi tüm sınıfların slotları [{year, slots}]
 // allFacultySlots: fakülte geneli tüm bölüm/sınıf slotları [{deptId, deptName, year, slots}]
@@ -90,7 +113,8 @@ function detectConflicts(deptAllYearsSlots, allFacultySlots) {
     deptAllYearsSlots.forEach(({ year: yr, slots }) => {
       Object.entries(slots).forEach(([key, slot]) => {
         if (!timeMap[key]) timeMap[key] = [];
-        timeMap[key].push({ year: yr, ...slot });
+        // Bölünmüş hücrenin İKİNCİ dersi de ayrı kayıt olarak çakışmaya girer
+        slotCourses(slot).forEach((c) => timeMap[key].push({ year: yr, ...c }));
       });
     });
     Object.entries(timeMap).forEach(([key, entries]) => {
@@ -152,15 +176,17 @@ function detectConflicts(deptAllYearsSlots, allFacultySlots) {
     const globalMap = {};
     allFacultySlots.forEach(({ deptId, deptName, year: yr, slots }) => {
       Object.entries(slots).forEach(([key, slot]) => {
-        if (!slot.classroom) return;
-        const gKey = `${key}__${slot.classroom}`;
-        if (!globalMap[gKey]) globalMap[gKey] = [];
-        globalMap[gKey].push({
-          deptId,
-          deptName,
-          year: yr,
-          courseCode: slot.courseCode,
-          courseName: slot.courseName,
+        slotCourses(slot).forEach((c) => {
+          if (!c.classroom) return;
+          const gKey = `${key}__${c.classroom}`;
+          if (!globalMap[gKey]) globalMap[gKey] = [];
+          globalMap[gKey].push({
+            deptId,
+            deptName,
+            year: yr,
+            courseCode: c.courseCode,
+            courseName: c.courseName,
+          });
         });
       });
     });
@@ -168,6 +194,10 @@ function detectConflicts(deptAllYearsSlots, allFacultySlots) {
       if (entries.length <= 1) return;
       const deptSet = new Set(entries.map((e) => e.deptId));
       if (deptSet.size <= 1) return;
+      // Ortak (aynı kodlu) ders farklı bölümlerde aynı amfide veriliyorsa
+      // bu gerçek çakışma değildir — yanlış pozitifi ele (Y7).
+      const uniqueCodes = new Set(entries.map((e) => e.courseCode));
+      if (uniqueCodes.size <= 1) return;
       const parts = gKey.split('__');
       const classroom = parts[1];
       const [day, hiStr] = parts[0].split('_');
@@ -201,39 +231,49 @@ function checkSlotConflict(
   const key = `${day}_${hourIndex}`;
   const hour = HOURS[hourIndex] || '';
 
-  // Bölüm içi: aynı saat + aynı derslik
+  // Bölüm içi: aynı saat + aynı derslik (bölünmüş ikinci ders dahil)
   if (deptAllYearsSlots && classroom) {
     deptAllYearsSlots.forEach(({ year: yr, slots }) => {
       Object.entries(slots).forEach(([slotKey, slot]) => {
-        if (slotKey === key && slot.classroom === classroom && slot.courseCode) {
-          warnings.push(
-            `Derslik çakışması: ${classroom} bu saatte ${yr}. Sınıf'ta "${slot.courseCode}" dersi için kullanılıyor.`
-          );
-        }
+        if (slotKey !== key) return;
+        slotCourses(slot).forEach((c) => {
+          if (c.classroom === classroom && c.courseCode) {
+            warnings.push(
+              `Derslik çakışması: ${classroom} bu saatte ${yr}. Sınıf'ta "${c.courseCode}" dersi için kullanılıyor.`
+            );
+          }
+        });
       });
     });
   }
-  // Bölüm içi: aynı saat + aynı hoca
+  // Bölüm içi: aynı saat + aynı hoca (bölünmüş ikinci ders dahil)
   if (deptAllYearsSlots && instructor) {
     deptAllYearsSlots.forEach(({ year: yr, slots }) => {
       Object.entries(slots).forEach(([slotKey, slot]) => {
-        if (slotKey === key && slot.instructor === instructor && slot.courseCode) {
-          warnings.push(
-            `Hoca çakışması: ${instructor} bu saatte ${yr}. Sınıf'ta "${slot.courseCode}" dersinde.`
-          );
-        }
+        if (slotKey !== key) return;
+        slotCourses(slot).forEach((c) => {
+          if (c.instructor === instructor && c.courseCode) {
+            warnings.push(
+              `Hoca çakışması: ${instructor} bu saatte ${yr}. Sınıf'ta "${c.courseCode}" dersinde.`
+            );
+          }
+        });
       });
     });
   }
-  // Fakülte geneli: aynı saat + aynı derslik (farklı bölüm)
+  // Fakülte geneli: aynı saat + aynı derslik (farklı bölüm). Boş kod ve aynı
+  // kodlu (ortak) ders yanlış-pozitif üretmesin (Y7).
   if (allFacultySlots && classroom) {
     allFacultySlots.forEach(({ deptName, year: yr, slots }) => {
       Object.entries(slots).forEach(([slotKey, slot]) => {
-        if (slotKey === key && slot.classroom === classroom) {
-          warnings.push(
-            `Fakülte çakışması: ${classroom} bu saatte ${deptName} (${yr}. Sınıf) "${slot.courseCode}" için kullanılıyor.`
-          );
-        }
+        if (slotKey !== key) return;
+        slotCourses(slot).forEach((c) => {
+          if (c.classroom === classroom && c.courseCode) {
+            warnings.push(
+              `Fakülte çakışması: ${classroom} bu saatte ${deptName} (${yr}. Sınıf) "${c.courseCode}" için kullanılıyor.`
+            );
+          }
+        });
       });
     });
   }
@@ -710,18 +750,22 @@ function DersProgramiApp({
       }
       const docId = `${activeDepartment}_${semester}_${year}${seviyeSuffix}`;
       try {
-        let base = {};
+        // Yazmadan önce TAZE sunucu durumunu al: cache'i geçersiz kıl ki
+        // başka bir kullanıcının son 15 sn içindeki değişikliği (ekleme/silme)
+        // görünsün. Aksi halde bayat cache üzerinden yazmak eşzamanlı
+        // düzenlemede kayıp güncelleme / silineni diriltme üretiyordu.
+        let base = null; // null = okuma BAŞARISIZ (yerel duruma düş)
         try {
+          if (window.apiInvalidate) window.apiInvalidate('course_schedules');
           const res = await window.apiReadDoc('course_schedules', docId);
-          base = res.exists && res.data?.slots ? res.data.slots : {};
+          base = res && res.exists && res.data?.slots ? res.data.slots : {};
         } catch (_) {
-          base = scheduleData;
+          base = null;
         }
-        // Yeniden-okuma cache/yarış nedeniyle bayat gelirse mevcut yerel
-        // slotları KAYBETME: taze okuma önceliklidir, eksik anahtarlar yerel
-        // scheduleData'dan tamamlanır. (Hücre bölmede birinci dersin silinmesi
-        // bu birleştirmeyle engellenir.)
-        const next = { ...scheduleData, ...base };
+        // Taze okuma başarılıysa sunucu durumu tek doğruluk kaynağıdır
+        // (silinen slotlar yerelden geri EKLENMEZ). Okuma başarısızsa veri
+        // kaybını önlemek için yerel scheduleData'ya düşülür.
+        const next = base !== null ? { ...base } : { ...scheduleData };
         mutator(next);
         await window.DBWrite.set(
           'course_schedules',
@@ -844,11 +888,21 @@ function DersProgramiApp({
   // Yerleştirilmiş slotun dersliğini satır içi değiştir
   const handleSlotClassroom = useCallback(
     (key, classroom) => {
+      // Akademisyen yalnız kendi dersinin dersliğini değiştirebilir
+      const cur = scheduleData[key];
+      if (isProfessor && currentUser?.name && cur && cur.instructor !== currentUser.name) {
+        alert('Sadece kendi derslerinizin dersliğini değiştirebilirsiniz.');
+        return;
+      }
       commitSlots((s) => {
-        if (s[key]) s[key] = { ...s[key], classroom };
+        // Derslik birinci ve (varsa) ikinci ders için ortaktır — ikisi de güncellenir
+        if (s[key]) {
+          s[key] = { ...s[key], classroom };
+          if (s[key].ikinci) s[key].ikinci = { ...s[key].ikinci, classroom };
+        }
       });
     },
-    [commitSlots]
+    [commitSlots, scheduleData, isProfessor, currentUser]
   );
 
   // Slot ekle — otomatik çakışma önleme (admin hariç herkes engellenir)
@@ -935,10 +989,26 @@ function DersProgramiApp({
     ]
   );
 
+  // Akademisyen yalnız KENDİ dersinin slotuna müdahale edebilir (ekleme
+  // yolundaki kısıtın silme/derslik değiştirme yollarında da karşılığı).
+  const canEditInstructor = useCallback(
+    (instructor) => {
+      if (!isProfessor) return true; // admin / bölüm yetkilisi kısıtsız
+      if (!currentUser?.name) return true;
+      return instructor === currentUser.name;
+    },
+    [isProfessor, currentUser]
+  );
+
   // Slot sil — birinci ders silinince ikinci varsa o birinciye TERFİ eder,
   // yoksa hücre tamamen boşalır.
   const handleRemoveSlot = useCallback(
     (key) => {
+      const cur = scheduleData[key];
+      if (cur && cur.courseCode && !canEditInstructor(cur.instructor)) {
+        alert('Sadece kendi derslerinizi kaldırabilirsiniz.');
+        return;
+      }
       commitSlots((s) => {
         if (s[key] && s[key].ikinci) {
           s[key] = { ...s[key].ikinci };
@@ -947,12 +1017,17 @@ function DersProgramiApp({
         }
       });
     },
-    [commitSlots]
+    [commitSlots, scheduleData, canEditInstructor]
   );
 
   // Bölünmüş hücrenin İKİNCİ dersini kaldır (birinci kalır)
   const handleRemoveSecond = useCallback(
     (key) => {
+      const cur = scheduleData[key];
+      if (cur && cur.ikinci && !canEditInstructor(cur.ikinci.instructor)) {
+        alert('Sadece kendi derslerinizi kaldırabilirsiniz.');
+        return;
+      }
       commitSlots((s) => {
         if (s[key] && s[key].ikinci) {
           const { ikinci, ...rest } = s[key];
@@ -961,7 +1036,7 @@ function DersProgramiApp({
         }
       });
     },
-    [commitSlots]
+    [commitSlots, scheduleData, canEditInstructor]
   );
 
   // Tüm ders programlarını TEK bir koleksiyon okumasıyla yükle
