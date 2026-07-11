@@ -368,6 +368,24 @@ async function enforceWritePolicies(db, op, user) {
       if (op.data && typeof op.data === 'object' && op.data._owner === undefined) {
         op.data._owner = ident;
       }
+      // muafiyet_records: öğrenci yeni başvuruyu ONAYLI/İLERİ FAZDA gönderemez.
+      // Karar ve faz alanları güvenli başlangıç değerlerine sabitlenir.
+      if (op.collection === 'muafiyet_records' && op.data && typeof op.data === 'object') {
+        op.data.status = 'pending';
+        if (op.data.stage && op.data.stage !== 'on_inceleme') op.data.stage = 'on_inceleme';
+        if (Array.isArray(op.data.matches)) {
+          op.data.matches = op.data.matches.map((m) => {
+            const mm = { ...m };
+            delete mm.adminDecision;
+            delete mm.adminDecidedBy;
+            delete mm.adminUpdatedAt;
+            if (mm.tier === 'approved') mm.tier = 'review';
+            return mm;
+          });
+        }
+        op.data.approvedCount = 0;
+        op.data.rejectedCount = 0;
+      }
       return { allow: true };
     }
 
@@ -421,7 +439,52 @@ async function enforceWritePolicies(db, op, user) {
         }
       }
     }
-    if (owned) return { allow: true };
+    if (owned) {
+      // muafiyet_records: sahip öğrenci mevcut kaydında YALNIZ Faz-2 alanlarını
+      // değiştirebilir ve stage'i yalnız on_onay → belge_teslim yönünde
+      // ilerletebilir. adminDecision/tier/status/sayaçlar/matches öğrenciye
+      // KAPALI (kendini onaylama / faz atlama engeli).
+      if (op.collection === 'muafiyet_records' && op.type === 'set') {
+        // Replace/upsert öğrenciye kapalı — diğer alanları (matches, studentNo…)
+        // silip sahipliği kaybettirebilir. Faz-2 yalnız 'update' ile yapılır.
+        return {
+          allow: false,
+          status: 403,
+          error: 'Bu kayıt bu şekilde değiştirilemez.',
+        };
+      }
+      if (
+        op.collection === 'muafiyet_records' &&
+        op.type === 'update' &&
+        op.data &&
+        typeof op.data === 'object'
+      ) {
+        const ALLOWED = new Set([
+          'stage',
+          'stageHistory',
+          'notDonusumLink',
+          'basariBelgesiUrl',
+          'updatedAt',
+          'createdAt',
+          '_owner',
+        ]);
+        const bad = Object.keys(op.data).filter((k) => !ALLOWED.has(k));
+        if (bad.length > 0) {
+          return {
+            allow: false,
+            status: 403,
+            error: `Bu kayıtta şu alanları değiştiremezsiniz: ${bad.join(', ')}`,
+          };
+        }
+        if (
+          'stage' in op.data &&
+          !(existing.stage === 'on_onay' && op.data.stage === 'belge_teslim')
+        ) {
+          return { allow: false, status: 403, error: 'Geçersiz faz geçişi.' };
+        }
+      }
+      return { allow: true };
+    }
 
     // Portal içeriği silme: sahip değilse moderatör olmalı
     if (op.type === 'delete' && STUDENT_DELETE_OWNED.has(op.collection)) {
