@@ -376,6 +376,18 @@ async function enforceWritePolicies(db, op, user) {
     ) {
       op.data.studentNumber = ident;
       op.data._owner = ident;
+      // Kilit: kaydedince locked=true olur. Öğrenci kilitli kaydı DEĞİŞTİREMEZ
+      // ve kilidi kendisi AÇAMAZ — yalnız bölüm yetkilisi (staff) açabilir.
+      if (op.type === 'set' || op.type === 'update') {
+        const existing = await findExistingDoc(db, op);
+        if (existing && existing.locked === true) {
+          return {
+            allow: false,
+            status: 403,
+            error: 'Ders seçiminiz kilitli. Değişiklik için bölüm yetkilinizle iletişime geçin.',
+          };
+        }
+      }
     }
 
     // Yeni kayıt: sahiplik damgası yeterli

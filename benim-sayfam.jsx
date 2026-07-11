@@ -168,18 +168,20 @@ function bsCurrentTerm() {
 const bsTermKey = (academicYear, donem) => academicYear + '_' + donem;
 const bsTermLabel = (academicYear, donem) =>
   academicYear + ' ' + (donem === 'guz' ? 'Güz' : 'Bahar');
-// Seçilebilir dönemler: içinde bulunulan akademik yılın iki dönemi +
-// önceki yılın baharı (gecikmiş/geçmiş seçim için).
+// Seçilebilir dönemler: önceki akademik yıldan 2030-2031'e kadar Güz+Bahar.
 function bsTermOptions() {
   const c = bsCurrentTerm();
   const startY = parseInt(c.academicYear.split('-')[0], 10);
-  const prevYear = startY - 1 + '-' + startY;
-  return [
-    { academicYear: prevYear, donem: 'bahar' },
-    { academicYear: c.academicYear, donem: 'guz' },
-    { academicYear: c.academicYear, donem: 'bahar' },
-  ];
+  const opts = [];
+  for (let y = Math.min(startY - 1, 2024); y <= 2030; y++) {
+    opts.push({ academicYear: y + '-' + (y + 1), donem: 'guz' });
+    opts.push({ academicYear: y + '-' + (y + 1), donem: 'bahar' });
+  }
+  return opts;
 }
+// Yaz dönemi hariç normal yarıyıl AKTS tavanı (öğrenci farklı fakülte/bölüm
+// derslerini de sayabilir; toplam bu tavanı aşamaz).
+const BS_AKTS_CAP = 42;
 
 function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [loading, setLoading] = useState(true);
@@ -195,6 +197,14 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   // Aktif dönem (yarıyıl) — seçim bu döneme göre yüklenir/kaydedilir
   const [term, setTerm] = useState(() => bsCurrentTerm());
   const termKey = bsTermKey(term.academicYear, term.donem);
+  // Cross-faculty: bölüm id → ad haritası + bölüm filtresi
+  const [deptNameMap, setDeptNameMap] = useState({});
+  const [filterDept, setFilterDept] = useState('all');
+  // Danışman: yalnız öğrencinin KENDİ bölümündeki akademisyenler
+  const [advisorOptions, setAdvisorOptions] = useState([]);
+  const [advisor, setAdvisor] = useState('');
+  // Bu dönemin seçimi kilitli mi (kaydedildikten sonra kilitlenir)
+  const [locked, setLocked] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [notifLoading, setNotifLoading] = useState(false);
   const [calendar, setCalendar] = useState([]);
@@ -231,10 +241,64 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       }
       setStudentRecord(me);
 
+      // Öğrenci farklı fakülte/bölüm derslerini de alabilir → TÜM bölümlerin
+      // (lisans) dersleri yüklenir; her ders bölüm/fakülte etiketiyle gösterilir.
       const allRaw = await window.apiRead('sinav_dersler');
-      const all = Array.isArray(allRaw) ? allRaw : [];
-      const mine = all.filter((c) => c.departmentId === studentDeptId);
-      setAllCourses(mine);
+      const all = (Array.isArray(allRaw) ? allRaw : []).filter(
+        (c) => (c.seviye || 'lisans') === 'lisans'
+      );
+      setAllCourses(all);
+
+      // Bölüm id → ad haritası (tüm varyantlar) — ders kartlarında bölüm adı
+      const dnm = {};
+      try {
+        const depts = await window.apiRead('departments');
+        (depts || []).forEach((d) => {
+          const nm = d.name;
+          if (!nm) return;
+          [d.id, d._id, d._docId, d.code].forEach((k) => {
+            if (k) dnm[String(k)] = nm;
+          });
+        });
+      } catch (_) {
+        /* yok say */
+      }
+      (window.DEPARTMENTS || []).forEach((d) => {
+        if (d.id && !dnm[d.id]) dnm[d.id] = d.name || d.id;
+      });
+      setDeptNameMap(dnm);
+
+      // Danışman seçenekleri: yalnız öğrencinin KENDİ bölümündeki akademisyenler
+      try {
+        let variants = [studentDeptId];
+        if (window.deptIdVariants) {
+          try {
+            variants = await window.deptIdVariants(studentDeptId);
+          } catch (_) {
+            variants = [studentDeptId];
+          }
+        }
+        const vset = new Set((variants || [studentDeptId]).map(String));
+        const profs = await window.apiRead('professors');
+        const myProfs = (profs || []).filter((p) => {
+          if (p.departmentId && vset.has(String(p.departmentId))) return true;
+          const extras = Array.isArray(p.additionalDepartments) ? p.additionalDepartments : [];
+          return extras.some((x) => vset.has(String(x)));
+        });
+        const seenN = {};
+        const opts = [];
+        myProfs.forEach((p) => {
+          const nm = (p.name || '').trim();
+          if (nm && !seenN[nm]) {
+            seenN[nm] = true;
+            opts.push(nm);
+          }
+        });
+        opts.sort((a, b) => a.localeCompare(b, 'tr'));
+        setAdvisorOptions(opts);
+      } catch (_) {
+        setAdvisorOptions([]);
+      }
 
       // Akademik takvim (opsiyonel koleksiyon). Kapsam mantığı:
       //   • Bölüm kapsamı (departmentId)  → yalnızca o bölümün öğrencileri
@@ -286,13 +350,17 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     (async () => {
       let ids = [];
       let found = false;
+      let adv = '';
+      let lock = false;
       try {
         const res = await window.apiReadDoc(
           'student_courses',
           currentUser.studentNumber + '__' + termKey
         );
-        if (res && res.exists && Array.isArray(res.data?.courseIds)) {
-          ids = res.data.courseIds;
+        if (res && res.exists && res.data) {
+          if (Array.isArray(res.data.courseIds)) ids = res.data.courseIds;
+          adv = res.data.advisor || '';
+          lock = res.data.locked === true;
           found = true;
         }
       } catch (_) {
@@ -311,6 +379,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       }
       if (!cancelled) {
         setSelectedIds(ids);
+        setAdvisor(adv);
+        setLocked(lock);
+        // Kilitliyse veya kayıt varsa düzenleme kapalı; ilk kez ise açık
         setEditMode(!found && ids.length === 0);
       }
     })();
@@ -341,6 +412,13 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     const map = new Map(allCourses.map((c) => [c.id, c]));
     return selectedIds.map((id) => map.get(id)).filter(Boolean);
   }, [allCourses, selectedIds]);
+
+  // Seçilen derslerin toplam AKTS'si (42 tavanı) — akts/kredi alanından
+  const totalAkts = useMemo(
+    () => myCourseDetails.reduce((t, c) => t + (parseInt(c.akts ?? c.kredi, 10) || 0), 0),
+    [myCourseDetails]
+  );
+  const aktsCapExceeded = totalAkts > BS_AKTS_CAP;
 
   // Akademik takvim: tarihe göre sıralı + yaklaşan (bugün ve sonrası) etkinlikler
   const sortedCalendar = useMemo(() => {
@@ -427,11 +505,13 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         // 'genel'/boş dönemli dersler her yarıyılda seçilebilir.
         const cd = c.donem || 'genel';
         if (cd !== term.donem && cd !== 'genel') return false;
+        if (filterDept !== 'all' && String(c.departmentId) !== String(filterDept)) return false;
         if (filterSinif !== 'all' && String(c.sinif) !== String(filterSinif)) return false;
         if (filterDonem !== 'all' && c.donem !== filterDonem) return false;
         if (search) {
           const q = search.toLowerCase();
-          const hay = `${c.code || ''} ${c.name || ''} ${c.professor || ''}`.toLowerCase();
+          const dep = (deptNameMap[String(c.departmentId)] || '').toLowerCase();
+          const hay = `${c.code || ''} ${c.name || ''} ${c.professor || ''} ${dep}`.toLowerCase();
           if (!hay.includes(q)) return false;
         }
         return true;
@@ -442,7 +522,22 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         if (sa !== sb) return sa - sb;
         return (a.code || '').localeCompare(b.code || '');
       });
-  }, [allCourses, filterSinif, filterDonem, search, term.donem]);
+  }, [allCourses, filterSinif, filterDonem, filterDept, search, term.donem, deptNameMap]);
+
+  // Ders listesinde geçen bölümler (cross-faculty filtre dropdown'ı için)
+  const courseDeptOptions = useMemo(() => {
+    const seen = {};
+    const list = [];
+    allCourses.forEach((c) => {
+      const id = String(c.departmentId || '');
+      if (id && !seen[id]) {
+        seen[id] = true;
+        list.push({ id, name: deptNameMap[id] || id });
+      }
+    });
+    list.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    return list;
+  }, [allCourses, deptNameMap]);
 
   const toggleCourse = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -454,11 +549,38 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       alert('En az bir ders seçmelisiniz.');
       return;
     }
+    if (aktsCapExceeded) {
+      alert(
+        'Toplam ' +
+          BS_AKTS_CAP +
+          ' AKTS aşılamaz. Seçtiğiniz derslerin toplamı: ' +
+          totalAkts +
+          ' AKTS. Lütfen ders çıkarın.'
+      );
+      return;
+    }
+    if (!advisor) {
+      alert('Danışman seçimi zorunludur. Kendi bölümünüzdeki bir akademisyeni seçin.');
+      return;
+    }
+    if (
+      !confirm(
+        'Kaydettikten sonra ders seçim ekranınız KİLİTLENİR. Değişiklik için bölüm ' +
+          'yetkilinizle iletişime geçmeniz gerekir.\n\n' +
+          selectedIds.length +
+          ' ders · ' +
+          totalAkts +
+          ' AKTS · Danışman: ' +
+          advisor +
+          '\n\nKaydetmek istiyor musunuz?'
+      )
+    ) {
+      return;
+    }
     setSaving(true);
     try {
-      // Seçim DÖNEM bazlı student_courses koleksiyonuna yazılır (öğrenci
-      // yazabilir; her dönem ayrı doküman). Kalıcı kilit yok — istenildiğinde
-      // güncellenebilir; her yarıyıl için ayrı seçim yapılır.
+      // Seçim DÖNEM bazlı student_courses koleksiyonuna yazılır. Kaydedince
+      // KİLİTLENİR (locked:true); açmak için bölüm yetkilisi gerekir.
       const docId = currentUser.studentNumber + '__' + termKey;
       await window.DBWrite.set(
         'student_courses',
@@ -470,10 +592,14 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           donem: term.donem,
           departmentId: studentDeptId,
           courseIds: selectedIds,
+          advisor,
+          totalAkts,
+          locked: true,
           updatedAt: new Date().toISOString(),
         },
         true
       );
+      setLocked(true);
       try {
         const saved = JSON.parse(localStorage.getItem('caku_current_user') || '{}');
         saved.hasSelectedCourses = true;
@@ -645,6 +771,49 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               );
             })}
           </select>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginLeft: 8 }}>
+            Danışman:
+          </span>
+          <select
+            value={advisor}
+            onChange={(e) => setAdvisor(e.target.value)}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid ' + (advisor ? '#D1D5DB' : '#FCA5A5'),
+              fontSize: 13,
+              background: 'white',
+              cursor: 'pointer',
+              minWidth: 220,
+            }}
+          >
+            <option value="">Danışman seçin (zorunlu)</option>
+            {advisorOptions.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          {advisorOptions.length === 0 && (
+            <span style={{ fontSize: 12, color: '#9CA3AF' }}>
+              Bölümünüzde tanımlı akademisyen bulunamadı.
+            </span>
+          )}
+          {/* AKTS tavanı göstergesi (42) */}
+          <span
+            style={{
+              marginLeft: 'auto',
+              padding: '6px 14px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 700,
+              background: aktsCapExceeded ? '#FEE2E2' : '#EFF6FF',
+              color: aktsCapExceeded ? '#B91C1C' : '#1B2A4A',
+              border: '1px solid ' + (aktsCapExceeded ? '#FCA5A5' : '#BFDBFE'),
+            }}
+          >
+            {totalAkts} / {BS_AKTS_CAP} AKTS{aktsCapExceeded ? ' — tavan aşıldı' : ''}
+          </span>
         </div>
 
         <div
@@ -662,7 +831,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         >
           <input
             type="text"
-            placeholder="Ders kodu, adı veya akademisyen ara…"
+            placeholder="Ders kodu, adı, akademisyen veya bölüm ara…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
@@ -674,6 +843,25 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               fontFamily: 'inherit',
             }}
           />
+          <select
+            value={filterDept}
+            onChange={(e) => setFilterDept(e.target.value)}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid #D1D5DB',
+              fontSize: 14,
+              maxWidth: 260,
+            }}
+            title="Farklı fakülte/bölüm derslerini görmek için bölüm seçin"
+          >
+            <option value="all">Tüm Bölümler</option>
+            {courseDeptOptions.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
           <select
             value={filterSinif}
             onChange={(e) => setFilterSinif(e.target.value)}
@@ -840,7 +1028,11 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                     {c.professor || 'Akademisyen belirtilmemiş'}
                   </div>
                   <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
-                    Dönem: {BS_DONEM_LABEL[c.donem] || c.donem || '—'}
+                    {(deptNameMap[String(c.departmentId)] || '—') +
+                      ' · ' +
+                      (c.akts || c.kredi ? (c.akts || c.kredi) + ' AKTS' : 'AKTS —') +
+                      ' · ' +
+                      (BS_DONEM_LABEL[c.donem] || c.donem || '—')}
                   </div>
                 </div>
               );
@@ -866,25 +1058,33 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           }}
         >
           <div style={{ fontSize: 13, color: '#6B7280' }}>
-            <strong style={{ color: '#1F2937' }}>{selectedIds.length}</strong> ders seçtiniz
+            <strong style={{ color: '#1F2937' }}>{selectedIds.length}</strong> ders ·{' '}
+            <strong style={{ color: aktsCapExceeded ? '#B91C1C' : '#1F2937' }}>{totalAkts}</strong>{' '}
+            AKTS
+            {!advisor ? ' · danışman seçilmedi' : ''}
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || selectedIds.length === 0}
-            style={{
-              padding: '10px 22px',
-              borderRadius: 8,
-              background: saving || selectedIds.length === 0 ? '#9CA3AF' : '#1B2A4A',
-              color: 'white',
-              border: 'none',
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: saving || selectedIds.length === 0 ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            {saving ? 'Kaydediliyor…' : 'Seçimi Kaydet'}
-          </button>
+          {(() => {
+            const disabled = saving || selectedIds.length === 0 || aktsCapExceeded || !advisor;
+            return (
+              <button
+                onClick={handleSave}
+                disabled={disabled}
+                style={{
+                  padding: '10px 22px',
+                  borderRadius: 8,
+                  background: disabled ? '#9CA3AF' : '#1B2A4A',
+                  color: 'white',
+                  border: 'none',
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {saving ? 'Kaydediliyor…' : 'Seçimi Kaydet ve Kilitle'}
+              </button>
+            );
+          })()}
         </div>
       </div>
     );
@@ -1473,22 +1673,39 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               );
             })}
           </select>
-          <button
-            onClick={() => setEditMode(true)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              border: '1px solid #1B2A4A',
-              background: 'white',
-              color: '#1B2A4A',
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            Dersleri Düzenle
-          </button>
+          {locked ? (
+            <span
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid #FCD34D',
+                background: '#FEF3C7',
+                color: '#92400E',
+                fontSize: 12.5,
+                fontWeight: 600,
+              }}
+              title="Değişiklik için bölüm yetkilinizle iletişime geçin"
+            >
+              Kilitli — düzenlemek için bölüm yetkilinize başvurun
+            </span>
+          ) : (
+            <button
+              onClick={() => setEditMode(true)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: '1px solid #1B2A4A',
+                background: 'white',
+                color: '#1B2A4A',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Dersleri Düzenle
+            </button>
+          )}
         </div>
       </div>
       {myCourseDetails.length === 0 ? (
