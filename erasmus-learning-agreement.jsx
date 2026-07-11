@@ -58,6 +58,23 @@ const eBtnGhost = {
   border: `1px solid ${C ? C.border : '#E5E7EB'}`,
 };
 
+// ── Sade bölüm paneli (gradyan/ikon yok, tek ton) ──
+const eSection = {
+  marginBottom: 20,
+  padding: 20,
+  background: C ? C.card : '#fff',
+  borderRadius: 12,
+  border: `1px solid ${C ? C.border : '#E5E7EB'}`,
+};
+const eSectionTitle = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: C ? C.navy : '#0B2341',
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  marginBottom: 14,
+};
+
 // ── JSZip yükleyici (gerçek .docx üretimi için) ──
 let _jszipPromise = null;
 const loadJSZip = () => {
@@ -2536,7 +2553,7 @@ const TripHistoryModal = ({
                 width: 36,
                 height: 36,
                 borderRadius: 10,
-                background: 'linear-gradient(135deg, #1e3a5f, #2563EB)',
+                background: C.navy,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -3259,7 +3276,7 @@ const TripHistoryModal = ({
                                           width: 30,
                                           height: 30,
                                           borderRadius: '50%',
-                                          background: `linear-gradient(135deg, #EFF6FF, ${accent.bg})`,
+                                          background: accent.bg,
                                           display: 'flex',
                                           alignItems: 'center',
                                           justifyContent: 'center',
@@ -3455,8 +3472,7 @@ const TripHistoryModal = ({
                                               width: 18,
                                               height: 18,
                                               borderRadius: '50%',
-                                              background:
-                                                'linear-gradient(135deg, #1e3a5f, #2563EB)',
+                                              background: C.navy,
                                               color: 'white',
                                               fontSize: 9,
                                               fontWeight: 700,
@@ -3767,43 +3783,8 @@ const StudentDetailModal = ({
         </div>
       )}
       {/* ── Öğrenci Bilgileri ── */}
-      <div
-        style={{
-          marginBottom: 24,
-          padding: r.val(16, 20, 24),
-          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-          borderRadius: 14,
-          border: '1px solid #e2e8f0',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: '#475569',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            marginBottom: 16,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#475569"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-          Öğrenci Bilgileri
-        </div>
+      <div style={eSection}>
+        <div style={eSectionTitle}>Öğrenci Bilgileri</div>
         <div
           className="responsive-grid-4"
           style={{
@@ -3839,43 +3820,8 @@ const StudentDetailModal = ({
       </div>
 
       {/* ── Karşı Kurum Bilgileri ── */}
-      <div
-        style={{
-          marginBottom: 24,
-          padding: r.val(16, 20, 24),
-          background: 'linear-gradient(135deg, #eff6ff 0%, #e0f2fe 100%)',
-          borderRadius: 14,
-          border: '1px solid #bfdbfe',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: '#1e40af',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            marginBottom: 16,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#1e40af"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
-          </svg>
-          Karşı Kurum Bilgileri
-        </div>
+      <div style={eSection}>
+        <div style={eSectionTitle}>Karşı Kurum Bilgileri</div>
         <div
           className="responsive-grid-4"
           style={{
