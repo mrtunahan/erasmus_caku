@@ -465,6 +465,14 @@ router.post('/change-password', async (req, res) => {
     return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır.' });
   }
 
+  // Hız sınırı: hedef hesap başına. Özellikle anonim ilk-kurulum yolunun
+  // (şifresi henüz atanmamış öğrenci) toplu hesap ele geçirme amacıyla
+  // taranmasını yavaşlatır; başarısız denemeler kaydedilir.
+  const chpassKey = `chpass:${role}:${String(identifier || 'self').trim()}`;
+  if (!checkRateLimit(chpassKey)) {
+    return res.status(429).json({ error: 'Çok fazla deneme. 15 dakika sonra tekrar deneyin.' });
+  }
+
   // Çağıranı kimlik doğrula (cookie veya Bearer). Anonim ilk-kurulum akışını
   // bozmamak için zorunlu değil; yetkilendirme kararları için kullanılır.
   let authUser = null;
@@ -512,13 +520,19 @@ router.post('/change-password', async (req, res) => {
       // İlk kurulum (henüz şifre yok) anonim olarak izinli kalır.
       if (doc[identifier] && !isAdmin) {
         if (!currentPassword) {
+          recordAttempt(chpassKey);
           return res.json({ success: false, error: 'Mevcut şifre gerekli.' });
         }
         const valid = await verifyPassword(currentPassword, doc[identifier], identifier);
         if (!valid) {
+          recordAttempt(chpassKey);
           return res.json({ success: false, error: 'Mevcut şifre hatalı.' });
         }
       }
+
+      // Anonim ilk-kurulum da denemedir — aynı hesaba art arda kurulum
+      // denemeleri (yarış) hız sınırına takılsın.
+      if (!authUser) recordAttempt(chpassKey);
 
       await setPasswordDoc('student_passwords', { [identifier]: bcryptHash }, true);
       await auditPasswordChange(

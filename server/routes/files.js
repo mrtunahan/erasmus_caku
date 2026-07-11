@@ -5,9 +5,18 @@ const fs = require('fs');
 const rateLimit = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
 const { softAuth } = require('../middleware/softAuth');
+const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 const softAuthMiddleware = softAuth(getDbSafe);
+
+// Dosya uçları kimlik doğrulaması: yüklenen belgeler (staj PDF'leri, kimlik
+// taramaları vb.) hassastır — indirme/görüntüleme/yükleme/silme artık geçerli
+// oturum ister. Giriş httpOnly cookie (caku_auth) ile yapıldığından <a href>
+// linkleri ve <img>/<iframe> kullanımı etkilenmez (tarayıcı cookie'yi
+// otomatik gönderir). Acil geri dönüş: FILES_AUTH_MODE=off
+const FILES_AUTH_ENFORCED = process.env.FILES_AUTH_MODE !== 'off';
+const fileAuth = FILES_AUTH_ENFORCED ? requireAuth : (req, res, next) => next();
 
 // Modül-bazlı rate limit'ler — yükleme/silme pahalı, indirme sık.
 const downloadLimiter = rateLimit({
@@ -89,42 +98,49 @@ const upload = multer({
 });
 
 // POST /api/files/upload
-router.post('/upload', uploadLimiter, softAuthMiddleware, upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'Dosya gerekli.' });
-  }
-
-  const folder = sanitizeFolder(req.query.folder || req.body.folder) || 'general';
-
-  // Staj modülü yalnızca PDF kabul eder. Hatalı dosyayı diskte bırakmamak için
-  // reddedilen dosyayı sileriz.
-  if (folder.startsWith('staj_belgeler')) {
-    const ext = path.extname(req.file.originalname).toLowerCase();
-    const isPdf = ext === '.pdf' || req.file.mimetype === 'application/pdf';
-    if (!isPdf) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (_) {
-        /* ignore */
-      }
-      return res.status(400).json({
-        error: 'Staj belgeleri yalnızca PDF formatında yüklenebilir.',
-      });
+router.post(
+  '/upload',
+  uploadLimiter,
+  fileAuth,
+  softAuthMiddleware,
+  upload.single('file'),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Dosya gerekli.' });
     }
+
+    const folder = sanitizeFolder(req.query.folder || req.body.folder) || 'general';
+
+    // Staj modülü yalnızca PDF kabul eder. Hatalı dosyayı diskte bırakmamak için
+    // reddedilen dosyayı sileriz.
+    if (folder.startsWith('staj_belgeler')) {
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      const isPdf = ext === '.pdf' || req.file.mimetype === 'application/pdf';
+      if (!isPdf) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (_) {
+          /* ignore */
+        }
+        return res.status(400).json({
+          error: 'Staj belgeleri yalnızca PDF formatında yüklenebilir.',
+        });
+      }
+    }
+
+    const fileName = `${folder}/${req.file.filename}`;
+    const downloadURL = `/api/files/download/${fileName}`;
+
+    res.json({
+      success: true,
+      downloadURL,
+      fileName,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+    });
   }
-
-  const fileName = `${folder}/${req.file.filename}`;
-  const downloadURL = `/api/files/download/${fileName}`;
-
-  res.json({
-    success: true,
-    downloadURL,
-    fileName,
-    originalName: req.file.originalname,
-    size: req.file.size,
-    mimetype: req.file.mimetype,
-  });
-});
+);
 
 // MIME tipi haritası (inline gösterim için)
 const MIME_TYPES = {
@@ -222,7 +238,7 @@ const resolveSafePath = (relativePath) => {
 };
 
 // GET /api/files/download/* - Dosya indirme/görüntüleme (nested folder desteği)
-router.get('/download/*', downloadLimiter, (req, res) => {
+router.get('/download/*', downloadLimiter, fileAuth, (req, res) => {
   const relativePath = req.params[0];
   const filePath = resolveSafePath(relativePath);
   if (!filePath) {
@@ -270,7 +286,7 @@ router.get('/download/*', downloadLimiter, (req, res) => {
 // Office belgeleri (docx/xlsx/pptx) tarayıcılar tarafından inline render
 // edilemez; bu sayfa türe göre uygun viewer'ı yükler veya indirme/dış viewer
 // seçenekleri sunar.
-router.get('/view/*', downloadLimiter, (req, res) => {
+router.get('/view/*', downloadLimiter, fileAuth, (req, res) => {
   const relativePath = req.params[0];
   const filePath = resolveSafePath(relativePath);
   if (!filePath) {
@@ -341,7 +357,7 @@ router.get('/view/*', downloadLimiter, (req, res) => {
 
 // DELETE /api/files/:folder/:filename
 const SAFE_FILENAME = /^[a-zA-Z0-9._-]+$/;
-router.delete('/:folder/:filename', deleteLimiter, softAuthMiddleware, (req, res) => {
+router.delete('/:folder/:filename', deleteLimiter, fileAuth, softAuthMiddleware, (req, res) => {
   const { folder, filename } = req.params;
 
   // Sıkı format kontrolü — yalnızca güvenli karakterler
