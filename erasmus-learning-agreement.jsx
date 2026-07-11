@@ -27,6 +27,20 @@ const FileTextIcon = window.FileTextIcon;
 const PasswordManagementModal = window.PasswordManagementModal;
 const GradeConverter = window.GradeConverter;
 
+// ── Metin normalizasyonu (öğrencinin elle girdiği bilgiler) ──
+// titleCaseTr: her kelimenin ilk harfi büyük, kalanı küçük (TR-locale;
+//   boşluk/tire/eğik çizgi/nokta sonrası da büyütür). upperTr: tamamı büyük.
+// NOT: Bu yalnız kişisel/serbest metinlere uygulanır; üniversite adı gibi
+// KATALOG anahtarı olan değerlere DOKUNULMAZ (eşleşmeyi bozmamak için).
+const titleCaseTr = (s) =>
+  String(s == null ? '' : s)
+    .toLocaleLowerCase('tr')
+    .replace(/(^|[\s\-/.(])([\p{L}])/gu, (m, sep, ch) => sep + ch.toLocaleUpperCase('tr'));
+const upperTr = (s) => String(s == null ? '' : s).toLocaleUpperCase('tr');
+// Görüntüleme yardımcıları: ad → Title, soyad → BÜYÜK
+const dispAd = (s) => titleCaseTr(s);
+const dispSoyad = (s) => upperTr(s);
+
 // ── JSZip yükleyici (gerçek .docx üretimi için) ──
 let _jszipPromise = null;
 const loadJSZip = () => {
@@ -1905,11 +1919,31 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect, activeDepartment }) =>
     const loadDeptCourses = async () => {
       setLoadingCourses(true);
       try {
-        const whereParam = activeDepartment ? `departmentId:eq:${activeDepartment}` : undefined;
-        const deptCourses = await window.apiRead(
-          'sinav_dersler',
-          whereParam ? { where: whereParam } : {}
+        // Ders kataloğu Ders Yönetimi (sinav_dersler) modülünden gelir.
+        // Bölümün tüm kimlik varyantlarıyla çek (eski kimlikli dersler de gelsin).
+        let variants = activeDepartment ? [activeDepartment] : [];
+        if (activeDepartment && window.deptIdVariants) {
+          try {
+            variants = await window.deptIdVariants(activeDepartment);
+          } catch (_) {
+            variants = [activeDepartment];
+          }
+        }
+        const chunks = await Promise.all(
+          (variants.length ? variants : [null]).map((v) =>
+            window
+              .apiRead('sinav_dersler', v ? { where: `departmentId:eq:${v}` } : {})
+              .catch(() => [])
+          )
         );
+        const seen = new Set();
+        const deptCourses = [];
+        chunks.flat().forEach((c) => {
+          const id = c && (c.id || c._docId);
+          if (!c || (id && seen.has(id))) return;
+          if (id) seen.add(id);
+          deptCourses.push(c);
+        });
 
         // Hardcoded katalogdan fallback AKTS (eski veriler için)
         const catalogMap = {};
@@ -2289,19 +2323,22 @@ const TripHistoryModal = ({
     };
   }, []);
 
-  // Dropdown'u beslemek için: UNIVERSITY_CATALOGS + öğrenci kayıtlarında
-  // gerçekten kullanılan kurumlar. Aksi halde kataloğa eklenmemiş yeni
-  // kurumlar (örn. POLITEHNICA Bucuresti) seçilebilir görünmüyor ve
-  // geçmiş erişilemiyor.
+  // Üniversite listesi BÖLÜMÜN eşleştirme geçmişinden (trip_history) beslenir.
+  // Böylece hem öğrenci hem akademisyen AYNI listeyi görür (öğrenci artık tüm
+  // öğrenci kayıtlarını okuyamadığından 'students'a dayalı liste onda eksik
+  // çıkıyordu) hem de her bölüm KENDİ geçmişini görür (bölüme göre süzülür).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const students = await window.apiRead('students');
+        const th = await window.apiRead(
+          'trip_history',
+          activeDepartment ? { where: `departmentId:eq:${activeDepartment}` } : {}
+        );
         if (cancelled) return;
         const set = new Set();
-        (students || []).forEach((s) => {
-          if (s.hostInstitution) set.add(s.hostInstitution);
+        (th || []).forEach((h) => {
+          if (h.hostInstitution) set.add(h.hostInstitution);
         });
         setExtraUnis(Array.from(set));
       } catch (e) {
@@ -2311,7 +2348,7 @@ const TripHistoryModal = ({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeDepartment]);
 
   const uniList = Array.from(
     new Set([...Object.keys(universities || UNIVERSITY_CATALOGS), ...extraUnis])
@@ -3685,7 +3722,7 @@ const StudentDetailModal = ({
     <Modal
       open={true}
       onClose={onClose}
-      title={`${student.firstName} ${student.lastName} - Öğrenim Anlaşması`}
+      title={`${dispAd(student.firstName)} ${dispSoyad(student.lastName)} - Öğrenim Anlaşması`}
       width="min(1000px, 100vw - 32px)"
     >
       {readOnly && (
@@ -3767,15 +3804,17 @@ const StudentDetailModal = ({
           </FormField>
           <FormField label="Ad">
             <Input
-              value={editedStudent.firstName}
+              value={readOnly ? dispAd(editedStudent.firstName) : editedStudent.firstName}
               onChange={(e) => updateStudent('firstName', e.target.value)}
+              onBlur={(e) => updateStudent('firstName', titleCaseTr(e.target.value))}
               disabled={readOnly}
             />
           </FormField>
           <FormField label="Soyad">
             <Input
-              value={editedStudent.lastName}
+              value={readOnly ? dispSoyad(editedStudent.lastName) : editedStudent.lastName}
               onChange={(e) => updateStudent('lastName', e.target.value)}
+              onBlur={(e) => updateStudent('lastName', upperTr(e.target.value))}
               disabled={readOnly}
             />
           </FormField>
@@ -5120,10 +5159,22 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
         (arr || []).map((m) =>
           m.status ? m : { ...m, status: savingAsStudent ? 'pending' : 'approved' }
         );
+      // Elle girilen metinleri normalize et: ad → Title, soyad → BÜYÜK,
+      // ders adları → Title. Ders KODLARI ve KURUM ADI (katalog anahtarı)
+      // dokunulmadan bırakılır.
+      const normCourses = (arr) =>
+        (arr || []).map((c) => (c && c.name ? { ...c, name: titleCaseTr(c.name) } : c));
+      const normMatch = (m) => ({
+        ...m,
+        homeCourses: normCourses(m.homeCourses),
+        hostCourses: normCourses(m.hostCourses),
+      });
       updatedStudent = {
         ...updatedStudent,
-        outgoingMatches: stamp(updatedStudent.outgoingMatches),
-        returnMatches: stamp(updatedStudent.returnMatches),
+        firstName: titleCaseTr(updatedStudent.firstName),
+        lastName: upperTr(updatedStudent.lastName),
+        outgoingMatches: stamp(updatedStudent.outgoingMatches).map(normMatch),
+        returnMatches: stamp(updatedStudent.returnMatches).map(normMatch),
       };
 
       await DB.updateStudent(updatedStudent.id, updatedStudent);
@@ -5520,7 +5571,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                     </td>
                     <td style={{ padding: '16px 24px', fontWeight: 500 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {student.firstName} {student.lastName}
+                        {dispAd(student.firstName)} {dispSoyad(student.lastName)}
                         {student.erasmusAccess && (
                           <span
                             style={{
@@ -5667,7 +5718,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
         {showTripHistory && (
           <TripHistoryModal
             onClose={() => setShowTripHistory(false)}
-            universities={UNIVERSITY_CATALOGS}
+            universities={allUniversities}
             isReadOnly={currentUser?.role !== 'admin'}
             activeDepartment={activeDepartment}
             currentUser={currentUser}
