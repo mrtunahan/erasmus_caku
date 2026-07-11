@@ -5027,7 +5027,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   );
 };
 
-const ReviewPanel = ({ record, onDecision }) => {
+const ReviewPanel = ({ record, onDecision, readOnly }) => {
   const [reviewing, setReviewing] = useState(false);
   const matches = record.matches || [];
   if (matches.length === 0) return null;
@@ -5226,7 +5226,9 @@ const ReviewPanel = ({ record, onDecision }) => {
                 {src.bolognaLink && docLink(src.bolognaLink, 'Bologna — karşı kurum')}
                 {tgt && tgt.bolognaLink && docLink(tgt.bolognaLink, 'Bologna — ÇAKÜ')}
               </div>
-              {isPending ? (
+              {isPending && readOnly ? (
+                chip('Karar bekleniyor', DS.amber, DS.amberLight)
+              ) : isPending ? (
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     disabled={reviewing}
@@ -5552,7 +5554,7 @@ const ExemptionHistory = ({
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  {!expandAll && onUpdateDecision && matchCount > 0 && (
+                  {!expandAll && (onUpdateDecision || isStudent) && matchCount > 0 && (
                     <button
                       onClick={function () {
                         setExpandedReview(isExpanded ? null : rec.id);
@@ -5568,7 +5570,7 @@ const ExemptionHistory = ({
                         cursor: 'pointer',
                       }}
                     >
-                      {isExpanded ? 'Kapat' : 'İncele'}
+                      {isExpanded ? 'Kapat' : isStudent ? 'Talebimi Gör' : 'İncele'}
                     </button>
                   )}
                   {onGenerateDoc && (
@@ -5609,13 +5611,15 @@ const ExemptionHistory = ({
                 </div>
               )}
 
-              {/* İnceleme Paneli — Onay Bekleyenler'de otomatik açık */}
-              {isExpanded && onUpdateDecision && (
+              {/* İnceleme/Talep Paneli — akademisyende karar verilebilir,
+                  öğrencide salt-okunur (talebini nasıl yaptıysa görür) */}
+              {isExpanded && (onUpdateDecision || isStudent) && (
                 <div style={{ padding: '0 20px 16px' }}>
                   <ReviewPanel
                     record={rec}
+                    readOnly={!onUpdateDecision}
                     onDecision={async function (recId, matchIdx, decision) {
-                      await onUpdateDecision(recId, matchIdx, decision);
+                      if (onUpdateDecision) await onUpdateDecision(recId, matchIdx, decision);
                     }}
                   />
                 </div>
@@ -7255,6 +7259,9 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
 
   const renderSide = (row, side, title, color) => {
     const v = row[side];
+    // ÇAKÜ dersi katalogdan seçildiyse (elle giriş değil) kod/AKTS/statü
+    // kataloğa göre kilitlenir — öğrenci değiştiremez.
+    const cakLocked = side === 'cak' && !v.manual && !!v.selKey;
     return (
       <div
         style={{
@@ -7405,7 +7412,8 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
             <input
               value={v.akts}
               onChange={(e) => updateNumeric(row.id, side, 'akts', e.target.value)}
-              style={inputStyle}
+              style={{ ...inputStyle, ...(cakLocked ? { background: '#F3F4F6' } : {}) }}
+              readOnly={cakLocked}
               inputMode="numeric"
               placeholder={
                 side === 'cak' && !v.manual
@@ -7421,7 +7429,12 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
             <select
               value={v.statu}
               onChange={(e) => updateSide(row.id, side, 'statu', e.target.value)}
-              style={{ ...inputStyle, cursor: 'pointer' }}
+              disabled={cakLocked}
+              style={{
+                ...inputStyle,
+                cursor: cakLocked ? 'not-allowed' : 'pointer',
+                ...(cakLocked ? { background: '#F3F4F6' } : {}),
+              }}
             >
               <option value="Z">Z (Zorunlu)</option>
               <option value="S">S (Seçmeli)</option>
