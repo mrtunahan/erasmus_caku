@@ -412,6 +412,11 @@ const THRESHOLD_REVIEW = 0.6; // %60–69 → Akademisyen onayı bekliyor (varsa
 const AKTS_CHECK_ENABLED = true;
 const AKTS_MIN_RATIO = 0.7; // kaynak AKTS ≥ hedef AKTS × 0.7
 
+// Yaz dönemi AKTS tavanı — ÇAKÜ Ön Lisans/Lisans Eğitim-Öğretim Yönetmeliği
+// MADDE 9(1): yaz döneminde toplam 21 AKTS kredi yükü aşılamaz. Yalnız yaz
+// intibak (basvuruTuru === 'intibak') başvurularında uygulanır.
+const YAZ_AKTS_CAP = 21;
+
 // Kalibre edilebilir eşikler — muafiyet_settings/thresholds dokümanından
 // yüklenir (Ayarlar → Eşik Kalibrasyonu). Yüklenmezse varsayılanlar geçerli.
 // decideTier ve tüm UI metinleri bu objeyi okur; modül genelinde tek kaynak.
@@ -1404,6 +1409,35 @@ var MuafiyetDB = {
   async deleteRecord(id) {
     await window.DBWrite.remove('muafiyet_records', String(id));
     if (window.audit) window.audit('muafiyet_record_delete', 'muafiyet_records', String(id), {});
+  },
+
+  // Yaz intibakı faz geçişi: stage değiştir + stageHistory'e kim-ne-zaman
+  // ekle + ek alanlar (başarı belgesi, not-dönüşüm linki, çevrilen notlar) +
+  // denetim kaydı. Faz akışı: on_inceleme → on_onay/on_red → belge_teslim →
+  // tamamlandi.
+  async setStage(recordId, newStage, actor, extra) {
+    var result = await window.apiReadDoc('muafiyet_records', String(recordId));
+    if (!result.exists) throw new Error('Kayıt bulunamadı');
+    var data = result.data;
+    var history = (data.stageHistory || []).slice();
+    var from = data.stage || '';
+    history.push({
+      from: from,
+      to: newStage,
+      by: (actor && (actor.name || actor.identifier)) || '',
+      at: new Date().toISOString(),
+    });
+    var patch = Object.assign({}, extra || {}, {
+      stage: newStage,
+      stageHistory: history,
+      updatedAt: new Date().toISOString(),
+    });
+    await window.DBWrite.update('muafiyet_records', String(recordId), patch);
+    if (window.audit)
+      window.audit('muafiyet_stage', 'muafiyet_records', String(recordId), {
+        meta: { from: from, to: newStage },
+      });
+    return Object.assign({}, data, patch, { id: recordId });
   },
 
   // Akademisyen onayı: tek bir match'in kararını günceller
@@ -4690,6 +4724,309 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
 // her ders çifti için iki sütunlu karşılaştırma (Karşı Kurum ↔ ÇAKÜ), düz
 // metin ölçütler (içerik %, AKTS, sistem önerisi), belge bağlantıları ve
 // net Onayla/Reddet butonları. Emoji/ikon kullanılmaz.
+// Standalone belge yükleyici (form dışından da kullanılır — faz-2 başarı belgesi)
+async function uploadMuafiyetFile(file) {
+  if (!file) return null;
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const token = localStorage.getItem('caku_auth_token');
+    const res = await fetch('/api/files/upload?folder=muafiyet_belgeler', {
+      method: 'POST',
+      headers: token ? { Authorization: 'Bearer ' + token } : {},
+      credentials: 'include',
+      body: fd,
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.downloadURL || null;
+  } catch (e) {
+    console.warn('Belge yüklenemedi:', e.message);
+    return null;
+  }
+}
+
+const eStageBtn = {
+  padding: '8px 16px',
+  borderRadius: 8,
+  border: '1px solid ' + DS.border,
+  background: DS.card || '#fff',
+  color: DS.navy,
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+// ── Yaz İntibakı İki-Fazlı Durum Paneli ──
+// Faz 1: on_inceleme → (akademisyen) on_onay / on_red
+// Faz 2: on_onay → (öğrenci belge yükler) belge_teslim → (akademisyen not
+//        dönüşümü) tamamlandi
+const INTIBAK_STAGES = [
+  { id: 'on_inceleme', label: 'Ön Onay' },
+  { id: 'on_onay', label: 'Yaz Okulu' },
+  { id: 'belge_teslim', label: 'Belge' },
+  { id: 'tamamlandi', label: 'Tamamlandı' },
+];
+const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) => {
+  const [busy, setBusy] = useState(false);
+  const [link, setLink] = useState(record.notDonusumLink || '');
+  const [fileName, setFileName] = useState('');
+  const [file, setFile] = useState(null);
+  const stage = record.stage || 'on_inceleme';
+  const curIdx = INTIBAK_STAGES.findIndex((s) => s.id === stage);
+
+  const act = async (newStage, extra) => {
+    setBusy(true);
+    try {
+      await onStageChange(record.id, newStage, extra);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitBelge = async () => {
+    if (!/^https?:\/\/\S+$/i.test((link || '').trim())) {
+      alert('Yaz okulu üniversitesinin not/döküm sistemi linki gerekli (http/https).');
+      return;
+    }
+    setBusy(true);
+    try {
+      let url = record.basariBelgesiUrl || '';
+      if (file) url = (await uploadMuafiyetFile(file)) || url;
+      if (!url) {
+        alert('Başarı belgesi (PDF) yüklenemedi, tekrar deneyin.');
+        setBusy(false);
+        return;
+      }
+      await onStageChange(record.id, 'belge_teslim', {
+        notDonusumLink: link.trim(),
+        basariBelgesiUrl: url,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chip = (text, color, bg) => (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color,
+        background: bg,
+        padding: '2px 9px',
+        borderRadius: 6,
+      }}
+    >
+      {text}
+    </span>
+  );
+
+  return (
+    <div
+      style={{
+        border: '1px solid ' + DS.border,
+        borderRadius: DS.radiusSm,
+        padding: '12px 14px',
+        marginBottom: 10,
+        background: DS.bg,
+      }}
+    >
+      {/* Faz göstergesi */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          flexWrap: 'wrap',
+          marginBottom: 10,
+        }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 700, color: DS.navy, marginRight: 4 }}>
+          Yaz İntibakı:
+        </span>
+        {stage === 'on_red'
+          ? chip('Ön Onay Reddedildi', DS.red, DS.redLight)
+          : INTIBAK_STAGES.map((s, i) => (
+              <span
+                key={s.id}
+                style={{
+                  fontSize: 11,
+                  fontWeight: i === curIdx ? 700 : 500,
+                  color: i < curIdx ? DS.green : i === curIdx ? DS.navy : DS.textMuted,
+                }}
+              >
+                {i > 0 ? '→ ' : ''}
+                {s.label}
+              </span>
+            ))}
+      </div>
+
+      {/* Faz-1: akademisyen ön onay/red */}
+      {stage === 'on_inceleme' && !isStudent && onStageChange && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            disabled={busy}
+            onClick={() => act('on_onay')}
+            style={{
+              padding: '7px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: DS.green,
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Ön Onay Ver
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => {
+              if (window.confirm('Ön onay reddedilsin mi? (Bölüm kurulu kararı olumsuz)'))
+                act('on_red');
+            }}
+            style={{
+              padding: '7px 16px',
+              borderRadius: 8,
+              border: '1px solid ' + DS.red,
+              background: '#fff',
+              color: DS.red,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Ön Onay Reddet
+          </button>
+        </div>
+      )}
+      {stage === 'on_inceleme' && isStudent && (
+        <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
+          Ön denklik onayı bekleniyor. Bölüm kurulu AKTS ve içerik uyumunu inceleyecek.
+        </div>
+      )}
+
+      {/* Faz-2: öğrenci başarı belgesi + not-dönüşüm linki yükler */}
+      {stage === 'on_onay' && isStudent && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
+            Ön onay verildi. Yaz okulunu başarıyla tamamladıktan sonra başarı belgenizi ve karşı
+            üniversitenin not/döküm sistemi bağlantısını gönderin.
+          </div>
+          <input
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            placeholder="Yaz okulu üniversitesi not/döküm sistemi linki (https://...)"
+            style={{
+              padding: '9px 12px',
+              borderRadius: 8,
+              border: '1px solid ' + DS.border,
+              fontSize: 13,
+              outline: 'none',
+            }}
+          />
+          <label style={{ fontSize: 12.5, color: DS.navy, cursor: 'pointer' }}>
+            <input
+              type="file"
+              accept=".pdf"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setFile(f);
+                setFileName(f ? f.name : '');
+              }}
+            />
+            <span style={{ ...eStageBtn, display: 'inline-block' }}>Başarı belgesi seç (PDF)</span>
+            {fileName ? (
+              <span style={{ marginLeft: 8, color: DS.textMuted }}>{fileName}</span>
+            ) : null}
+          </label>
+          <div>
+            <button
+              disabled={busy}
+              onClick={submitBelge}
+              style={{ ...eStageBtn, background: DS.accent, color: '#fff', border: 'none' }}
+            >
+              Belgeleri Gönder
+            </button>
+          </div>
+        </div>
+      )}
+      {stage === 'on_onay' && !isStudent && (
+        <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
+          Ön onay verildi. Öğrenci yaz okulunu tamamlayıp başarı belgesini yükleyecek.
+        </div>
+      )}
+
+      {/* Faz-2: akademisyen not dönüşümü + tamamla */}
+      {stage === 'belge_teslim' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            {record.basariBelgesiUrl &&
+              (() => {
+                const href =
+                  '/api/files/view/' +
+                  String(record.basariBelgesiUrl).replace('/api/files/download/', '');
+                return (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 12.5, fontWeight: 600, color: DS.accent }}
+                  >
+                    Başarı belgesi (PDF)
+                  </a>
+                );
+              })()}
+            {record.notDonusumLink && (
+              <a
+                href={record.notDonusumLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 12.5, fontWeight: 600, color: DS.accent }}
+              >
+                Karşı üniversite not sistemi
+              </a>
+            )}
+          </div>
+          {isStudent ? (
+            <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
+              Belgeleriniz alındı. Bölüm kurulu notlarınızı ÇAKÜ sistemine dönüştürecek.
+            </div>
+          ) : (
+            <div>
+              <button
+                disabled={busy}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      'Notlar ÇAKÜ sistemine dönüştürülüp kaydedildi mi? İşlem tamamlanacak.'
+                    )
+                  )
+                    act('tamamlandi', { status: 'tamamlandi' });
+                }}
+                style={{ ...eStageBtn, background: DS.green, color: '#fff', border: 'none' }}
+              >
+                Not Dönüşümü Yapıldı — Tamamla
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {stage === 'tamamlandi' &&
+        chip('Tamamlandı — notlar ÇAKÜ sistemine işlendi', DS.green, DS.greenBg)}
+      {stage === 'on_red' && (
+        <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
+          Ön onay reddedildi (ÇAKÜ yaz okulunda aynı ders açık veya AKTS/içerik uyumsuz olabilir).
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ReviewPanel = ({ record, onDecision }) => {
   const [reviewing, setReviewing] = useState(false);
   const matches = record.matches || [];
@@ -4954,6 +5291,10 @@ const ExemptionHistory = ({
   emptyText,
   // Onay Bekleyenler sekmesi: karar paneli tıklamaya gerek kalmadan açık gelir
   expandAll,
+  // Yaz intibakı faz paneli için
+  currentUser,
+  isStudent,
+  onStageChange,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedReview, setExpandedReview] = useState(null);
@@ -5255,6 +5596,18 @@ const ExemptionHistory = ({
                   )}
                 </div>
               </div>
+
+              {/* Yaz intibakı iki-fazlı durum paneli (yalnız intibak kayıtları) */}
+              {(rec.basvuruTuru || 'muafiyet') === 'intibak' && onStageChange && (
+                <div style={{ padding: '0 20px 12px' }}>
+                  <IntibakStagePanel
+                    record={rec}
+                    isStudent={isStudent}
+                    currentUser={currentUser}
+                    onStageChange={onStageChange}
+                  />
+                </div>
+              )}
 
               {/* İnceleme Paneli — Onay Bekleyenler'de otomatik açık */}
               {isExpanded && onUpdateDecision && (
@@ -5963,6 +6316,20 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
+  // Yaz intibakı faz geçişi (ön onay/red, belge teslim, tamamla) — audit'li
+  const handleStageChange = async function (recordId, newStage, extra) {
+    try {
+      const updated = await MuafiyetDB.setStage(recordId, newStage, currentUser, extra);
+      setRecords(function (prev) {
+        return prev.map(function (r) {
+          return r.id === recordId ? Object.assign({}, r, updated, { id: recordId }) : r;
+        });
+      });
+    } catch (err) {
+      alert('Faz güncellenemedi: ' + err.message);
+    }
+  };
+
   // ── Şablondan belge üret ──
   // Şablonlar modülünde 'muafiyet' modülüne atanmış .docx şablonunu çözer,
   // alan eşlemesine göre kayıt verileriyle doldurur ve indirir.
@@ -6306,12 +6673,21 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         {activeTab === 'onay' && !isStudent && (
           <ExemptionHistory
             records={turRecords.filter(function (r) {
-              return r.pendingReviewCount > 0;
+              // Karar bekleyen dersler VEYA yaz intibakında akademisyen aksiyonu
+              // bekleyen faz (ön onay / belge teslim sonrası not dönüşümü).
+              if (r.pendingReviewCount > 0) return true;
+              return (
+                (r.basvuruTuru || 'muafiyet') === 'intibak' &&
+                (r.stage === 'on_inceleme' || r.stage === 'belge_teslim')
+              );
             })}
             loading={recordsLoading}
             onDelete={handleDeleteRecord}
             onUpdateDecision={handleUpdateDecision}
             onGenerateDoc={handleGenerateDoc}
+            onStageChange={handleStageChange}
+            currentUser={currentUser}
+            isStudent={isStudent}
             expandAll
             emptyText="Onay bekleyen talep yok. Öğrenciler yeni talep gönderdiğinde burada listelenir."
           />
@@ -6323,6 +6699,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             onDelete={isStudent ? null : handleDeleteRecord}
             onUpdateDecision={isStudent ? null : handleUpdateDecision}
             onGenerateDoc={isStudent ? null : handleGenerateDoc}
+            onStageChange={handleStageChange}
+            currentUser={currentUser}
+            isStudent={isStudent}
             emptyText={
               isStudent
                 ? '"' +
@@ -6407,6 +6786,12 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
   const [msg, setMsg] = useState({ text: '', kind: '' });
   // Kayıt sonrası gösterilen sonuç paneli — özet + her ders için skor kırılımı.
   const [resultPanel, setResultPanel] = useState(null);
+
+  // Yaz intibakında 21 AKTS tavanı — öğrencinin ÇAKÜ'de saydıracağı derslerin
+  // (kabul edilen kredi yükü) AKTS toplamı üzerinden canlı izlenir (MADDE 9/1).
+  const isIntibak = basvuruTuru === 'intibak';
+  const toplamYazAkts = rows.reduce((t, r) => t + (parseInt(r.cak?.akts, 10) || 0), 0);
+  const aktsTavaniAsildi = isIntibak && toplamYazAkts > YAZ_AKTS_CAP;
 
   const tr = (v) => (typeof v === 'string' ? v.toLocaleUpperCase('tr-TR') : v);
   const updateSide = (rowId, side, field, value) => {
@@ -6649,6 +7034,19 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
       setMsg({ text: 'Öğrenci adı ve numarası zorunlu.', kind: 'error' });
       return false;
     }
+    // Yaz intibakı: 21 AKTS kredi yükü tavanı (MADDE 9/1)
+    if (isIntibak && toplamYazAkts > YAZ_AKTS_CAP) {
+      setMsg({
+        text:
+          'Yaz döneminde toplam ' +
+          YAZ_AKTS_CAP +
+          ' AKTS kredi yükü aşılamaz (MADDE 9/1). Seçtiğiniz derslerin ÇAKÜ karşılığı toplamı: ' +
+          toplamYazAkts +
+          ' AKTS. Lütfen ders çıkarın.',
+        kind: 'error',
+      });
+      return false;
+    }
     for (const r of rows) {
       if (!r.src.name.trim() || !r.cak.name.trim()) {
         setMsg({ text: 'Her ders için iki yan da ders adı zorunlu.', kind: 'error' });
@@ -6803,6 +7201,21 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
         rejectedCount: 0,
         manualEntry: true,
         createdBy: currentUser?.identifier || currentUser?.name || '',
+        // Yaz intibakı iki fazlıdır: başvuru Faz-1 (ön denklik onayı) ile başlar
+        ...(isIntibak
+          ? {
+              stage: 'on_inceleme',
+              yazAktsToplam: toplamYazAkts,
+              stageHistory: [
+                {
+                  from: '',
+                  to: 'on_inceleme',
+                  by: currentUser?.name || currentUser?.identifier || '',
+                  at: new Date().toISOString(),
+                },
+              ],
+            }
+          : {}),
       });
 
       // Sonuç panelini doldur — öğrenci her ders için sistem önerisini görür
@@ -7476,10 +7889,41 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
         </div>
       )}
 
+      {/* Yaz intibakı: canlı AKTS tavanı göstergesi (MADDE 9/1) */}
+      {isIntibak && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+            padding: '10px 14px',
+            borderRadius: 8,
+            marginBottom: 12,
+            background: aktsTavaniAsildi ? DS.redLight : DS.bg,
+            border: '1px solid ' + (aktsTavaniAsildi ? '#FCA5A5' : DS.border),
+          }}
+        >
+          <span style={{ fontSize: 13, color: aktsTavaniAsildi ? DS.red : DS.textSecondary }}>
+            Yaz dönemi kredi yükü (ÇAKÜ karşılığı)
+          </span>
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: aktsTavaniAsildi ? DS.red : DS.navy,
+            }}
+          >
+            {toplamYazAkts} / {YAZ_AKTS_CAP} AKTS
+            {aktsTavaniAsildi ? ' — tavan aşıldı' : ''}
+          </span>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <button
           onClick={processAndSave}
-          disabled={processing}
+          disabled={processing || aktsTavaniAsildi}
           style={{
             padding: '11px 22px',
             background: DS.accent,
@@ -7488,8 +7932,8 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
             borderRadius: 8,
             fontWeight: 600,
             fontSize: 14,
-            cursor: processing ? 'wait' : 'pointer',
-            opacity: processing ? 0.7 : 1,
+            cursor: processing ? 'wait' : aktsTavaniAsildi ? 'not-allowed' : 'pointer',
+            opacity: processing || aktsTavaniAsildi ? 0.6 : 1,
           }}
         >
           {processing ? 'Eşleştiriliyor…' : 'Eşleştir ve Kaydet'}
