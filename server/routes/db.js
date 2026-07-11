@@ -716,7 +716,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
     return res.json({ success: true, ids: addedIds });
   } catch (error) {
     console.error('mongoWrite error:', error);
-    return res.status(500).json({ error: 'Yazma hatası: ' + error.message });
+    return res.status(500).json({ error: 'Yazma sırasında bir hata oluştu.' });
   }
 });
 
@@ -853,7 +853,7 @@ router.get('/:collection', async (req, res) => {
     return res.json(result);
   } catch (error) {
     console.error(`Read ${collection} error:`, error);
-    return res.status(500).json({ error: 'Okuma hatası: ' + error.message });
+    return res.status(500).json({ error: 'Okuma sırasında bir hata oluştu.' });
   }
 });
 
@@ -925,7 +925,7 @@ router.get('/:collection/:docId', async (req, res) => {
     return res.json({ exists: true, data: rest, id: _docId || _id.toString() });
   } catch (error) {
     console.error(`Read ${collection}/${docId} error:`, error);
-    return res.status(500).json({ error: 'Okuma hatası: ' + error.message });
+    return res.status(500).json({ error: 'Okuma sırasında bir hata oluştu.' });
   }
 });
 

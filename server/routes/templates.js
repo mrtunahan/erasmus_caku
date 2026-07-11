@@ -228,7 +228,8 @@ router.get('/', readLimiter, softAuthMiddleware, async (req, res) => {
     });
     res.json(visible.map(publicTemplate));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('templates route error:', err);
+    res.status(500).json({ error: 'İşlem sırasında bir hata oluştu.' });
   }
 });
 
@@ -358,7 +359,8 @@ router.post('/', writeLimiter, softAuthMiddleware, upload.single('file'), async 
     res.json(publicTemplate({ ...doc, _id: result.insertedId }));
   } catch (err) {
     cleanupFile(req.file);
-    res.status(500).json({ error: err.message });
+    console.error('templates route error:', err);
+    res.status(500).json({ error: 'İşlem sırasında bir hata oluştu.' });
   }
 });
 
@@ -460,7 +462,8 @@ async function updateTemplateHandler(req, res) {
     const updated = await db.collection('document_templates').findOne({ _id: tpl._id });
     res.json({ ...publicTemplate(updated), clearedMapping });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('templates route error:', err);
+    res.status(500).json({ error: 'İşlem sırasında bir hata oluştu.' });
   }
 }
 router.patch('/:id', writeLimiter, softAuthMiddleware, updateTemplateHandler);
@@ -534,7 +537,8 @@ router.post(
       res.json(publicTemplate(updated));
     } catch (err) {
       cleanupFile(req.file);
-      res.status(500).json({ error: err.message });
+      console.error('templates route error:', err);
+      res.status(500).json({ error: 'İşlem sırasında bir hata oluştu.' });
     }
   }
 );
@@ -566,7 +570,8 @@ async function deleteTemplateHandler(req, res) {
     await db.collection('document_templates').deleteOne({ _id: tpl._id });
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('templates route error:', err);
+    res.status(500).json({ error: 'İşlem sırasında bir hata oluştu.' });
   }
 }
 router.delete('/:id', writeLimiter, softAuthMiddleware, deleteTemplateHandler);
@@ -600,7 +605,8 @@ router.get('/:id/download', readLimiter, softAuthMiddleware, async (req, res) =>
     );
     fs.createReadStream(p).pipe(res);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('templates route error:', err);
+    res.status(500).json({ error: 'İşlem sırasında bir hata oluştu.' });
   }
 });
 
@@ -641,7 +647,8 @@ router.get('/resolve', readLimiter, async (req, res) => {
     if (!arr.length) return res.json({ template: null });
     res.json({ template: publicTemplate(arr[0]) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('templates route error:', err);
+    res.status(500).json({ error: 'İşlem sırasında bir hata oluştu.' });
   }
 });
 
