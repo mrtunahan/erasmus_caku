@@ -5027,7 +5027,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   );
 };
 
-const ReviewPanel = ({ record, onDecision }) => {
+const ReviewPanel = ({ record, onDecision, readOnly }) => {
   const [reviewing, setReviewing] = useState(false);
   const matches = record.matches || [];
   if (matches.length === 0) return null;
@@ -5226,7 +5226,9 @@ const ReviewPanel = ({ record, onDecision }) => {
                 {src.bolognaLink && docLink(src.bolognaLink, 'Bologna — karşı kurum')}
                 {tgt && tgt.bolognaLink && docLink(tgt.bolognaLink, 'Bologna — ÇAKÜ')}
               </div>
-              {isPending ? (
+              {isPending && readOnly ? (
+                chip('Karar bekleniyor', DS.amber, DS.amberLight)
+              ) : isPending ? (
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     disabled={reviewing}
@@ -5552,7 +5554,7 @@ const ExemptionHistory = ({
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  {!expandAll && onUpdateDecision && matchCount > 0 && (
+                  {!expandAll && (onUpdateDecision || isStudent) && matchCount > 0 && (
                     <button
                       onClick={function () {
                         setExpandedReview(isExpanded ? null : rec.id);
@@ -5568,7 +5570,7 @@ const ExemptionHistory = ({
                         cursor: 'pointer',
                       }}
                     >
-                      {isExpanded ? 'Kapat' : 'İncele'}
+                      {isExpanded ? 'Kapat' : isStudent ? 'Talebimi Gör' : 'İncele'}
                     </button>
                   )}
                   {onGenerateDoc && (
@@ -5609,13 +5611,15 @@ const ExemptionHistory = ({
                 </div>
               )}
 
-              {/* İnceleme Paneli — Onay Bekleyenler'de otomatik açık */}
-              {isExpanded && onUpdateDecision && (
+              {/* İnceleme/Talep Paneli — akademisyende karar verilebilir,
+                  öğrencide salt-okunur (talebini nasıl yaptıysa görür) */}
+              {isExpanded && (onUpdateDecision || isStudent) && (
                 <div style={{ padding: '0 20px 16px' }}>
                   <ReviewPanel
                     record={rec}
+                    readOnly={!onUpdateDecision}
                     onDecision={async function (recId, matchIdx, decision) {
-                      await onUpdateDecision(recId, matchIdx, decision);
+                      if (onUpdateDecision) await onUpdateDecision(recId, matchIdx, decision);
                     }}
                   />
                 </div>
@@ -6219,7 +6223,6 @@ const BASVURU_TURLERI = [
     aciklama: 'Başka kurumda alınan derslerin ÇAKÜ derslerine muafiyeti',
     color: '#00236f',
     bg: '#eef1ff',
-    icon: '📘',
   },
   {
     id: 'intibak',
@@ -6228,7 +6231,6 @@ const BASVURU_TURLERI = [
     aciklama: 'Yaz döneminde başka kurumda alınan derslerin intibakı',
     color: '#00658a',
     bg: '#e2f2fb',
-    icon: '☀️',
   },
 ];
 
@@ -6509,34 +6511,17 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
                 style={{
                   flex: '1 1 300px',
                   textAlign: 'left',
-                  padding: '18px 20px',
-                  borderRadius: 16,
+                  padding: '16px 18px',
+                  borderRadius: 12,
                   cursor: 'pointer',
-                  border: (sel ? '2px solid ' : '1px solid ') + (sel ? t.color : DS.border),
-                  background: DS.bgCard,
-                  boxShadow: sel ? '0 4px 20px rgba(30,58,138,0.08)' : DS.shadow,
+                  border: (sel ? '2px solid ' : '1px solid ') + (sel ? DS.navy : DS.border),
+                  borderLeft: '3px solid ' + (sel ? DS.navy : DS.border),
+                  background: sel ? DS.accentLight + '55' : DS.bgCard,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 16,
                 }}
               >
-                <span
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 14,
-                    background: sel ? t.color : t.bg,
-                    color: sel ? 'white' : t.color,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 26,
-                    flexShrink: 0,
-                    boxShadow: sel ? '0 6px 16px ' + t.color + '40' : 'none',
-                  }}
-                >
-                  {t.icon || (t.id === 'intibak' ? '☀️' : '📘')}
-                </span>
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <span
                     style={{
@@ -6544,7 +6529,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
                       fontSize: 16,
                       fontWeight: 700,
                       fontFamily: DS.fontHead,
-                      color: sel ? t.color : DS.text,
+                      color: sel ? DS.navy : DS.text,
                       marginBottom: 6,
                     }}
                   >
@@ -6555,8 +6540,8 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
                       style={{
                         padding: '2px 10px',
                         borderRadius: 999,
-                        background: sel ? t.color + '18' : DS.surfaceHigh,
-                        color: sel ? t.color : DS.textSecondary,
+                        background: sel ? DS.accentLight : DS.surfaceHigh,
+                        color: sel ? DS.navy : DS.textSecondary,
                         fontSize: 11.5,
                         fontWeight: 600,
                       }}
@@ -7255,6 +7240,9 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
 
   const renderSide = (row, side, title, color) => {
     const v = row[side];
+    // ÇAKÜ dersi katalogdan seçildiyse (elle giriş değil) kod/AKTS/statü
+    // kataloğa göre kilitlenir — öğrenci değiştiremez.
+    const cakLocked = side === 'cak' && !v.manual && !!v.selKey;
     return (
       <div
         style={{
@@ -7405,7 +7393,8 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
             <input
               value={v.akts}
               onChange={(e) => updateNumeric(row.id, side, 'akts', e.target.value)}
-              style={inputStyle}
+              style={{ ...inputStyle, ...(cakLocked ? { background: '#F3F4F6' } : {}) }}
+              readOnly={cakLocked}
               inputMode="numeric"
               placeholder={
                 side === 'cak' && !v.manual
@@ -7421,7 +7410,12 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
             <select
               value={v.statu}
               onChange={(e) => updateSide(row.id, side, 'statu', e.target.value)}
-              style={{ ...inputStyle, cursor: 'pointer' }}
+              disabled={cakLocked}
+              style={{
+                ...inputStyle,
+                cursor: cakLocked ? 'not-allowed' : 'pointer',
+                ...(cakLocked ? { background: '#F3F4F6' } : {}),
+              }}
             >
               <option value="Z">Z (Zorunlu)</option>
               <option value="S">S (Seçmeli)</option>
@@ -7460,7 +7454,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  🔗 {v.bolognaLink}
+                  {v.bolognaLink}
                 </a>
               </div>
             )
@@ -7483,7 +7477,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
                 whiteSpace: 'nowrap',
               }}
             >
-              {v.fromCatalog ? '✓ Katalogdan otomatik doldu' : v.fileName || 'PDF/DOCX seç'}
+              {v.fromCatalog ? 'Katalogdan otomatik doldu' : v.fileName || 'PDF/DOCX seç'}
               <input
                 type="file"
                 accept=".pdf,.docx,.doc"
@@ -7524,7 +7518,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
           }}
         >
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: DS.navy }}>
-            ✓ Talebiniz Akademisyen Onayına Gönderildi
+            Talebiniz Akademisyen Onayına Gönderildi
           </h3>
           <p style={{ margin: '6px 0 0', fontSize: 13, color: DS.textSecondary, lineHeight: 1.6 }}>
             Muafiyet talebiniz kaydedildi ve bölüm akademisyeninin onayına sunuldu. Sistem her ders
@@ -7767,14 +7761,12 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
             padding: '10px 14px',
             borderRadius: 10,
             marginBottom: 14,
-            background: turMeta.bg,
-            border: '1px solid ' + turMeta.color + '44',
+            background: DS.bg,
+            border: '1px solid ' + DS.border,
+            borderLeft: '3px solid ' + DS.navy,
           }}
         >
-          <span style={{ fontSize: 18 }}>{basvuruTuru === 'intibak' ? '☀️' : '📘'}</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: turMeta.color }}>
-            {turMeta.label}
-          </span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: DS.navy }}>{turMeta.label}</span>
           <span style={{ fontSize: 12, color: DS.textSecondary }}>— {turMeta.aciklama}</span>
         </div>
       )}
@@ -7849,8 +7841,8 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
             )}
           </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            {renderSide(row, 'src', 'KARŞI KURUM (Alınan Ders)', '#0EA5E9')}
-            {renderSide(row, 'cak', 'ÇAKÜ (Muaf Olunacak Ders)', '#10B981')}
+            {renderSide(row, 'src', 'KARŞI KURUM (Alınan Ders)', DS.accent)}
+            {renderSide(row, 'cak', 'ÇAKÜ (Muaf Olunacak Ders)', DS.accent)}
           </div>
         </div>
       ))}
