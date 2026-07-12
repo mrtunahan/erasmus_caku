@@ -837,6 +837,23 @@ function emitDbWrite(req, touchedSet) {
 }
 
 // ══════════════════════════════════════════════
+// GET /api/db/student-count - Kayıtlı öğrenci sayısı (salt sayı, herkese açık)
+// Öğrenci rolü tüm `students` kaydını okuyamadığından (STUDENT_READ_SCOPED),
+// portal "Kayıtlı Üyeler" için gerçek toplamı bu uç nokta döner. Hiçbir
+// öğrenci verisi sızdırılmaz — yalnızca adet.
+// NOT: /:collection param rotasından ÖNCE tanımlanmalı, aksi halde onunla eşleşir.
+// ══════════════════════════════════════════════
+router.get('/student-count', async (req, res) => {
+  try {
+    const db = await getDbSafe();
+    const count = await db.collection('students').countDocuments({});
+    return res.json({ count });
+  } catch (err) {
+    return res.status(500).json({ error: 'Sayı alınamadı', count: 0 });
+  }
+});
+
+// ══════════════════════════════════════════════
 // GET /api/db/:collection - Koleksiyon okuma
 // Query params:
 //   where=field:op:value (tekrarlanabilir) - op: eq, ne, gt, gte, lt, lte
