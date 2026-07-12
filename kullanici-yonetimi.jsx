@@ -24,6 +24,8 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   // ad dropdown'unu bu liste besler.
   const [crossPickProfs, setCrossPickProfs] = useState([]);
   const [crossPickLoading, setCrossPickLoading] = useState(false);
+  // Üniversite dışı (bölümsüz) akademisyenler — aktif bölümden bağımsız
+  const [externalProfs, setExternalProfs] = useState([]);
   // ÇAP (çift anadal) öğrenci ekleme modalı
   const [capModalOpen, setCapModalOpen] = useState(false);
   const [capAllStudents, setCapAllStudents] = useState([]);
@@ -119,6 +121,13 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         (fetchedProfs || [])
           .filter(filterByDept)
           .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      );
+      // Üniversite dışı (bölümsüz) akademisyenler — hiçbir bölüm filtresine
+      // takılmadıkları için ayrı tutulur ve aktif bölümden bağımsız gösterilir.
+      setExternalProfs(
+        (fetchedProfs || [])
+          .filter((p) => p.external === true)
+          .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'))
       );
     } catch (error) {
       console.error('Error loading data:', error);
@@ -1471,6 +1480,95 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                 </table>
               </div>
             </Card>
+
+            {/* Üniversite dışı (bölümsüz) akademisyenler — aktif bölümden
+                bağımsız listelenir; "Üniversite Dışı Görevlendirme" ile eklenir. */}
+            <div style={{ marginTop: 20 }}>
+              <Card title="Üniversite Dışı Akademisyenler (bölümsüz)" noPadding>
+                <div style={{ padding: '12px 24px', borderBottom: `1px solid ${C.border}` }}>
+                  <p style={{ fontSize: 12.5, color: C.textMuted, margin: 0, lineHeight: 1.5 }}>
+                    Hiçbir bölüme tabi olmayan, üniversitede ders veren akademisyenler. Bölüm
+                    seçiminden bağımsız olarak burada görünürler.
+                  </p>
+                </div>
+                <div className="responsive-table-wrap" style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: C.bg, borderBottom: `2px solid ${C.border}` }}>
+                        {['Unvan & İsim', 'İşlemler'].map((h, i) => (
+                          <th
+                            key={i}
+                            style={{
+                              padding: '14px 20px',
+                              textAlign: i === 1 ? 'right' : 'left',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: C.navy,
+                              letterSpacing: '0.1em',
+                              textTransform: 'uppercase',
+                            }}
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {externalProfs.map((prof) => (
+                        <tr
+                          key={prof.id || prof._docId}
+                          style={{ borderBottom: `1px solid ${C.border}` }}
+                        >
+                          <td style={{ padding: '14px 20px', fontWeight: 600, color: C.navy }}>
+                            {prof.name}
+                            <span
+                              style={{
+                                marginLeft: 8,
+                                padding: '1px 8px',
+                                borderRadius: 10,
+                                background: '#FEF3C7',
+                                color: '#B45309',
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                              }}
+                            >
+                              Üniversite dışı
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                            <button
+                              onClick={() => handleDeleteProf(prof.id || prof._docId, prof.name)}
+                              style={{
+                                padding: 8,
+                                borderRadius: 8,
+                                border: `1px solid ${C.border}`,
+                                background: 'white',
+                                cursor: 'pointer',
+                                color: C.accent,
+                                display: 'inline-flex',
+                              }}
+                              title="Sil"
+                            >
+                              <TrashIcon />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {externalProfs.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={2}
+                            style={{ padding: 40, textAlign: 'center', color: C.textMuted }}
+                          >
+                            Üniversite dışı görevlendirme ile eklenmiş akademisyen yok.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
           </>
         )}
 
