@@ -116,6 +116,7 @@ const ALLOWED_COLLECTIONS = [
   'notifications',
   'student_clubs',
   'club_documents',
+  'club_followers',
   'surveys',
   'survey_assignments',
   'survey_responses',
@@ -182,6 +183,7 @@ const STUDENT_WRITABLE = new Set([
   'course_group_posts',
   'student_clubs',
   'club_documents',
+  'club_followers',
   'projects',
   'unides_projects',
   'tubitak2209_projects',
@@ -388,6 +390,18 @@ async function enforceWritePolicies(db, op, user) {
           };
         }
       }
+    }
+
+    // club_followers: takip kaydında sahiplik JWT kimliğine sabitlenir —
+    // öğrenci başkası adına takip/çıkma kaydı oluşturamaz.
+    if (
+      op.collection === 'club_followers' &&
+      op.data &&
+      typeof op.data === 'object' &&
+      (op.type === 'add' || op.type === 'set' || op.type === 'update')
+    ) {
+      op.data.studentNumber = ident;
+      op.data._owner = ident;
     }
 
     // Yeni kayıt: sahiplik damgası yeterli
