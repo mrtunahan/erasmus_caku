@@ -3427,6 +3427,59 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // ══════════════════════════════════════════════════════════════
   // DERS DETAY GÖRÜNÜMÜ (Proje listesi)
   // ══════════════════════════════════════════════════════════════
+  // Başlık şeridi için tutarlı buton/etiket stilleri (otomasyon teması).
+  const glassBtn = {
+    background: 'rgba(255,255,255,0.16)',
+    color: 'white',
+    border: '1px solid rgba(255,255,255,0.28)',
+    borderRadius: 9,
+    padding: '9px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 600,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    backdropFilter: 'blur(6px)',
+    whiteSpace: 'nowrap',
+  };
+  const primaryBtn = {
+    background: '#ffffff',
+    color: '#1e40af',
+    border: 'none',
+    borderRadius: 9,
+    padding: '9px 16px',
+    cursor: 'pointer',
+    fontSize: 13.5,
+    fontWeight: 700,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 7,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.16)',
+    whiteSpace: 'nowrap',
+  };
+  const infoPill = {
+    background: 'rgba(255,255,255,0.14)',
+    color: 'white',
+    padding: '4px 11px',
+    borderRadius: 8,
+    fontSize: 12.5,
+    fontWeight: 500,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+  };
+  const bannerNote = {
+    borderRadius: 9,
+    padding: '9px 16px',
+    fontSize: 13,
+    fontWeight: 500,
+    color: 'white',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+  };
+
   return (
     <div style={{ background: PRJ.bg, minHeight: '100vh', padding: '0 0 40px' }}>
       <div
@@ -3470,199 +3523,178 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             style={{
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               flexWrap: 'wrap',
-              gap: 12,
+              gap: 16,
             }}
           >
-            <div>
-              <div
+            {/* Kimlik: kod · ad · akademisyen · bilgi etiketleri */}
+            <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+              <span
                 style={{
-                  color: 'rgba(255,255,255,0.7)',
-                  fontSize: 13,
+                  display: 'inline-block',
+                  color: 'white',
+                  background: 'rgba(255,255,255,0.16)',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  fontSize: 12,
+                  fontWeight: 600,
                   fontFamily: "'JetBrains Mono', monospace",
-                  marginBottom: 4,
+                  padding: '2px 10px',
+                  borderRadius: 7,
+                  marginBottom: 8,
+                  letterSpacing: '0.03em',
                 }}
               >
                 {selectedCourse.code}
-              </div>
+              </span>
               <h1
                 style={{
                   color: 'white',
-                  fontSize: 26,
+                  fontSize: 25,
                   fontWeight: 700,
                   fontFamily: "'Playfair Display', serif",
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
+                  margin: 0,
+                  lineHeight: 1.2,
                 }}
               >
                 {selectedCourse.name}
               </h1>
               {selectedCourse.professor && (
-                <p style={{ color: 'rgba(255,255,255,0.7)', marginTop: 4, fontSize: 14 }}>
+                <p
+                  style={{
+                    color: 'rgba(255,255,255,0.82)',
+                    margin: '6px 0 0',
+                    fontSize: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <PrjIcon path={PRJ_ICONS.user} size={14} color="rgba(255,255,255,0.7)" />
                   {selectedCourse.professor}
                 </p>
               )}
               <div
                 style={{
                   display: 'flex',
-                  gap: 10,
-                  marginTop: 6,
+                  gap: 8,
+                  marginTop: 12,
                   alignItems: 'center',
                   flexWrap: 'wrap',
                 }}
               >
-                <span
-                  style={{
-                    background: 'rgba(255,255,255,0.15)',
-                    color: 'white',
-                    padding: '3px 10px',
-                    borderRadius: 6,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}
-                >
-                  <PrjIcon path={PRJ_ICONS.users} size={12} color="rgba(255,255,255,0.7)" />
+                <span style={infoPill}>
+                  <PrjIcon path={PRJ_ICONS.users} size={13} color="rgba(255,255,255,0.8)" />
                   Grup: {selectedCourse.minGroupSize || 2}-{selectedCourse.maxGroupSize || 3} kişi
                 </span>
                 {selectedCourse.deadline && (
                   <span
                     style={{
+                      ...infoPill,
                       background: isDeadlinePassed
-                        ? 'rgba(220,38,38,0.3)'
-                        : 'rgba(255,255,255,0.15)',
-                      color: 'white',
-                      padding: '3px 10px',
-                      borderRadius: 6,
-                      fontSize: 12,
-                      fontWeight: 500,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
+                        ? 'rgba(220,38,38,0.32)'
+                        : 'rgba(255,255,255,0.14)',
+                      border: isDeadlinePassed ? '1px solid rgba(252,165,165,0.5)' : 'none',
                     }}
                   >
                     <PrjIcon
                       path={PRJ_ICONS.calendar}
-                      size={12}
-                      color={isDeadlinePassed ? '#fca5a5' : 'rgba(255,255,255,0.7)'}
+                      size={13}
+                      color={isDeadlinePassed ? '#fca5a5' : 'rgba(255,255,255,0.8)'}
                     />
                     Son tarih: {selectedCourse.deadline}
-                    {isDeadlinePassed ? ' (Süre doldu)' : ''}
                   </span>
                 )}
-                {isAdmin && (
-                  <button
-                    onClick={function () {
-                      setEditingCourse(selectedCourse);
-                      setShowCourseModal(true);
-                    }}
+                {isDeadlinePassed && (
+                  <span
                     style={{
-                      background: 'rgba(255,255,255,0.15)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 6,
-                      padding: '3px 10px',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 500,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
+                      ...infoPill,
+                      background: 'rgba(220,38,38,0.9)',
+                      fontWeight: 700,
                     }}
                   >
-                    <PrjIcon path={PRJ_ICONS.edit} size={12} color="white" /> Düzenle
-                  </button>
+                    <PrjIcon path={PRJ_ICONS.clock} size={13} color="white" />
+                    Süre doldu
+                  </span>
                 )}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {canManage && projects.length > 0 && (
-                <>
-                  {isDeadlinePassed && (
+
+            {/* İşlem çubuğu: yönet (üst sıra) + ana eylem (alt sıra) */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-end',
+                gap: 10,
+              }}
+            >
+              {(isAdmin || (canManage && projects.length > 0)) && (
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                    justifyContent: 'flex-end',
+                  }}
+                >
+                  {isAdmin && (
                     <button
                       onClick={function () {
-                        setShowBulkScheduleModal(true);
+                        setEditingCourse(selectedCourse);
+                        setShowCourseModal(true);
                       }}
-                      style={{
-                        background: 'linear-gradient(135deg, #7c3aed, #9333ea)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 10,
-                        padding: '10px 18px',
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        boxShadow: '0 4px 10px rgba(124, 58, 237, 0.3)',
-                      }}
+                      style={glassBtn}
                     >
-                      <PrjIcon path={PRJ_ICONS.calendar} size={16} color="white" /> Projeleri Planla
+                      <PrjIcon path={PRJ_ICONS.edit} size={15} color="white" /> Düzenle
                     </button>
                   )}
-                  <button
-                    onClick={function () {
-                      exportProjectsXLSX(projects, selectedCourse.code + '_' + selectedCourse.name);
-                    }}
-                    style={{
-                      background: '#059669',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 10,
-                      padding: '10px 18px',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <PrjIcon path={PRJ_ICONS.download} size={16} color="white" /> XLSX
-                  </button>
-                  <button
-                    onClick={function () {
-                      exportProjectsWord(
-                        projects,
-                        selectedCourse.code + ' - ' + selectedCourse.name
-                      );
-                    }}
-                    style={{
-                      background: '#2563eb',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 10,
-                      padding: '10px 18px',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <PrjIcon path={PRJ_ICONS.download} size={16} color="white" /> Word
-                  </button>
-                </>
+                  {canManage && projects.length > 0 && (
+                    <>
+                      {isDeadlinePassed && (
+                        <button
+                          onClick={function () {
+                            setShowBulkScheduleModal(true);
+                          }}
+                          style={glassBtn}
+                        >
+                          <PrjIcon path={PRJ_ICONS.calendar} size={15} color="white" /> Projeleri
+                          Planla
+                        </button>
+                      )}
+                      <button
+                        onClick={function () {
+                          exportProjectsXLSX(
+                            projects,
+                            selectedCourse.code + '_' + selectedCourse.name
+                          );
+                        }}
+                        style={glassBtn}
+                      >
+                        <PrjIcon path={PRJ_ICONS.download} size={15} color="white" /> XLSX
+                      </button>
+                      <button
+                        onClick={function () {
+                          exportProjectsWord(
+                            projects,
+                            selectedCourse.code + ' - ' + selectedCourse.name
+                          );
+                        }}
+                        style={glassBtn}
+                      >
+                        <PrjIcon path={PRJ_ICONS.download} size={15} color="white" /> Word
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
+
               {isDeadlinePassed && !canManage ? (
                 <div
                   style={{
-                    background: 'rgba(220,38,38,0.2)',
-                    color: 'white',
+                    ...bannerNote,
+                    background: 'rgba(220,38,38,0.22)',
                     border: '1px solid rgba(220,38,38,0.4)',
-                    borderRadius: 10,
-                    padding: '10px 20px',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
                   }}
                 >
                   <PrjIcon path={PRJ_ICONS.calendar} size={16} color="#fca5a5" />
@@ -3671,16 +3703,9 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               ) : !canManage && userExistingProject ? (
                 <div
                   style={{
-                    background: 'rgba(234,88,12,0.2)',
-                    color: 'white',
+                    ...bannerNote,
+                    background: 'rgba(234,88,12,0.22)',
                     border: '1px solid rgba(234,88,12,0.4)',
-                    borderRadius: 10,
-                    padding: '10px 20px',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
                   }}
                 >
                   <PrjIcon path={PRJ_ICONS.info} size={16} color="#fbbf24" />
@@ -3694,22 +3719,9 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   onClick={function () {
                     setShowCreateModal(true);
                   }}
-                  style={{
-                    background: 'rgba(255,255,255,0.2)',
-                    color: 'white',
-                    border: '1px solid rgba(255,255,255,0.3)',
-                    borderRadius: 10,
-                    padding: '10px 20px',
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    backdropFilter: 'blur(8px)',
-                  }}
+                  style={primaryBtn}
                 >
-                  <PrjIcon path={PRJ_ICONS.plus} size={18} color="white" /> Yeni Proje Grubu
+                  <PrjIcon path={PRJ_ICONS.plus} size={18} color="#1e40af" /> Yeni Proje Grubu
                 </button>
               )}
             </div>
