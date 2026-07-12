@@ -1312,6 +1312,34 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
 };
 
 // ══════════════════════════════════════════════════════════════
+// Zorunlu anket kapısı — anket modülünü tembel yükleyip
+// window.AnketZorunluGate bileşenini tam ekran overlay olarak gösterir.
+// Katılımcı (öğrenci/akademisyen) rollerinde mount edilir; doldurulmamış
+// zorunlu anket yoksa kapı null döner (görünmez).
+// ══════════════════════════════════════════════════════════════
+function MandatorySurveyGate({ currentUser, activeDepartment }) {
+  const [Gate, setGate] = useState(() =>
+    typeof window !== 'undefined' ? window.AnketZorunluGate || null : null
+  );
+  useEffect(() => {
+    if (Gate) return;
+    let alive = true;
+    const loader = window.__lazyModules?.anket?.loader;
+    if (!loader) return;
+    loader()
+      .then(() => {
+        if (alive && window.AnketZorunluGate) setGate(() => window.AnketZorunluGate);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [Gate]);
+  if (!Gate) return null;
+  return React.createElement(Gate, { currentUser, activeDepartment });
+}
+
+// ══════════════════════════════════════════════════════════════
 // Main App Shell
 // ══════════════════════════════════════════════════════════════
 function AppShell() {
@@ -1890,6 +1918,10 @@ function AppShell() {
       `,
         }}
       />
+
+      {(currentUser?.role === 'student' || currentUser?.role === 'professor') && (
+        <MandatorySurveyGate currentUser={currentUser} activeDepartment={activeDepartment} />
+      )}
 
       <TopHeader
         currentUser={currentUser}

@@ -11,12 +11,13 @@ const { useState, useEffect, useMemo, useCallback } = React;
 
 const ANK = {
   primary: '#0F172A',
-  accent: '#7C3AED',
-  accentDark: '#6D28D9',
-  accentPale: '#F5F3FF',
+  // Modül teması turkuaz-beyaz (Google Forms şablon galerisiyle uyumlu).
+  accent: '#0D9488',
+  accentDark: '#0F766E',
+  accentPale: '#CCFBF1',
   bg: '#F6F7F9',
   surface: '#FFFFFF',
-  surfaceAlt: '#FBFAFF',
+  surfaceAlt: '#F5FDFB',
   text: '#1F2937',
   textMuted: '#64748B',
   textDim: '#94A3B8',
@@ -37,7 +38,7 @@ const ANK = {
   shadowSm: '0 1px 2px rgba(16,24,40,0.05), 0 1px 3px rgba(16,24,40,0.04)',
   shadow: '0 4px 12px rgba(16,24,40,0.06), 0 2px 4px rgba(16,24,40,0.04)',
   shadowLg: '0 12px 32px rgba(16,24,40,0.10)',
-  headerGrad: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
+  headerGrad: 'linear-gradient(135deg, #2DD4BF 0%, #0D9488 100%)',
 };
 
 const AIcon = ({ path, size = 18, color = 'currentColor' }) => (
@@ -511,14 +512,14 @@ function AnkStyles() {
     <style>{`
       .ank-root input:focus, .ank-root select:focus, .ank-root textarea:focus {
         border-color: ${ANK.accent} !important;
-        box-shadow: 0 0 0 3px rgba(124,58,237,0.12) !important;
+        box-shadow: 0 0 0 3px rgba(13,148,136,0.14) !important;
       }
       .ank-card { transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
       .ank-card-hover:hover { box-shadow: ${ANK.shadow}; transform: translateY(-1px); border-color: ${ANK.borderStrong}; }
       .ank-seg { display:inline-flex; gap:2px; padding:4px; background:${ANK.surface}; border:1px solid ${ANK.border}; border-radius:12px; box-shadow:${ANK.shadowSm}; flex-wrap:wrap; }
       .ank-seg-btn { display:flex; align-items:center; gap:7px; padding:8px 15px; border:none; background:transparent; color:${ANK.textMuted}; font-size:13px; font-weight:600; cursor:pointer; border-radius:9px; font-family:'Inter',sans-serif; transition:all .15s ease; white-space:nowrap; }
       .ank-seg-btn:hover { color:${ANK.primary}; background:${ANK.bg}; }
-      .ank-seg-btn.active { color:#fff; background:${ANK.headerGrad}; box-shadow:0 2px 6px rgba(124,58,237,0.30); }
+      .ank-seg-btn.active { color:#fff; background:${ANK.headerGrad}; box-shadow:0 2px 6px rgba(13,148,136,0.30); }
       .ank-btn { transition: filter .15s ease, box-shadow .15s ease, transform .05s ease; }
       .ank-btn:hover { filter: brightness(1.05); }
       .ank-btn:active { transform: translateY(1px); }
@@ -539,7 +540,7 @@ function AnkStyles() {
       .ank-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; }
       /* Düzenleyici soru kartları — odaklanınca yükselir (elevation) */
       .ank-qcard { transition:box-shadow .18s ease, border-color .18s ease; }
-      .ank-qcard:focus-within { border-color:${ANK.accent} !important; box-shadow:0 0 0 3px rgba(124,58,237,0.10), ${ANK.shadow}; }
+      .ank-qcard:focus-within { border-color:${ANK.accent} !important; box-shadow:0 0 0 3px rgba(13,148,136,0.10), ${ANK.shadow}; }
     `}</style>
   );
 }
@@ -568,7 +569,7 @@ function PageHeader({ icon, title, subtitle, right, responsive, grad, glow }) {
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          boxShadow: '0 6px 16px ' + (glow || 'rgba(124,58,237,0.28)'),
+          boxShadow: '0 6px 16px ' + (glow || 'rgba(13,148,136,0.28)'),
         }}
       >
         <AIcon path={icon} size={22} color="#fff" />
@@ -1780,6 +1781,14 @@ const iconBtn = (color) => ({
   color,
 });
 
+// Son tarih gösterimi: ISO (yyyy-mm-dd) → gg.aa.yyyy; boş/'—' → "Belirtilmedi".
+function fmtDueDate(d) {
+  if (!d || d === '—') return 'Belirtilmedi';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d));
+  if (m) return `${m[3]}.${m[2]}.${m[1]}`;
+  return String(d);
+}
+
 function EmptyState({ text }) {
   return (
     <div
@@ -1836,6 +1845,7 @@ function AtamaPaneli({
   const [targetRole, setTargetRole] = useState(null);
   const [groups, setGroups] = useState([]);
   const [dueDate, setDueDate] = useState('');
+  const [mandatory, setMandatory] = useState(false);
   const [deptId, setDeptId] = useState(isAdmin ? '' : activeDepartment || '');
 
   const deptName = isAdmin
@@ -1858,6 +1868,9 @@ function AtamaPaneli({
         targetRole,
         targetGroup: g,
         dueDate: dueDate || '—',
+        // Zorunlu atamalar katılımcı sisteme girdiğinde tam-ekran kapı olarak
+        // gösterilir; doldurmadan uygulamaya devam edemez.
+        mandatory: !!mandatory,
         departmentId: isAdmin ? deptId : activeDepartment || '',
         departmentName: deptName,
       });
@@ -1866,6 +1879,7 @@ function AtamaPaneli({
     setTargetRole(null);
     setGroups([]);
     setDueDate('');
+    setMandatory(false);
     if (isAdmin) setDeptId('');
   };
 
@@ -1983,16 +1997,54 @@ function AtamaPaneli({
           </div>
         )}
 
+        {/* Zorunlu anket seçeneği */}
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 10,
+            padding: '12px 14px',
+            borderRadius: 10,
+            border: '1px solid ' + (mandatory ? ANK.accent : ANK.border),
+            background: mandatory ? ANK.accentPale : ANK.surface,
+            cursor: 'pointer',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={mandatory}
+            onChange={(e) => setMandatory(e.target.checked)}
+            style={{ marginTop: 2, width: 16, height: 16, cursor: 'pointer' }}
+          />
+          <div>
+            <p
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: mandatory ? ANK.accentDark : ANK.primary,
+                margin: 0,
+              }}
+            >
+              Zorunlu anket
+            </p>
+            <p
+              style={{ fontSize: 11.5, color: ANK.textMuted, margin: '3px 0 0', lineHeight: 1.45 }}
+            >
+              Hedef kişiler sisteme girdiğinde bu anket tam ekran karşılarına çıkar ve tamamlamadan
+              uygulamayı kullanamazlar.
+            </p>
+          </div>
+        </label>
+
         {/* Son tarih + ata */}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
           <div>
-            <label style={labelStyle}>Son tarih</label>
+            <label style={labelStyle}>Son tarih (takvimden)</label>
             <input
-              type="text"
+              type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              placeholder="ör. 31.01.2026"
-              style={{ ...inputStyle, width: 170 }}
+              style={{ ...inputStyle, width: 200, cursor: 'pointer' }}
             />
           </div>
           <button
@@ -2019,69 +2071,145 @@ function AtamaPaneli({
       </div>
 
       {assignments.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <p style={labelStyle}>Mevcut atamalar ({assignments.length})</p>
-          {assignments.map((a) => (
-            <div
-              key={a.id}
-              className="ank-card ank-card-hover"
-              style={{ ...cardStyle, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}
-            >
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 9,
-                  background: ANK.accentPale,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <AIcon path="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" size={18} color={ANK.accent} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p
+          <div className="ank-grid">
+            {assignments.map((a) => {
+              const isStudent = a.targetRole === 'student';
+              return (
+                <div
+                  key={a.id}
+                  className="ank-card ank-card-hover"
                   style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: ANK.primary,
-                    margin: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    ...cardStyle,
+                    padding: 16,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
                   }}
                 >
-                  {a.surveyTitle}
-                </p>
-                <p style={{ fontSize: 12, color: ANK.textMuted, margin: '2px 0 0' }}>
-                  <span
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                        background: ANK.accentPale,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <AIcon path="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" size={19} color={ANK.accent} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p
+                        title={a.surveyTitle}
+                        style={{
+                          fontSize: 14.5,
+                          fontWeight: 700,
+                          color: ANK.primary,
+                          margin: 0,
+                          lineHeight: 1.35,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {a.surveyTitle}
+                      </p>
+                      {a.departmentName && (
+                        <p style={{ fontSize: 12, color: ANK.textMuted, margin: '3px 0 0' }}>
+                          {a.departmentName}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => onRemoveAssignment(a.id)}
+                      title="Atamayı kaldır"
+                      className="ank-btn"
+                      style={iconBtn(ANK.red)}
+                    >
+                      <AIcon
+                        path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
+                        size={14}
+                        color={ANK.red}
+                      />
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    <span
+                      style={{
+                        padding: '2px 9px',
+                        borderRadius: 10,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: isStudent ? ANK.accentPale : ANK.blueLight,
+                        color: isStudent ? ANK.accentDark : ANK.blue,
+                      }}
+                    >
+                      {ROLE_LABEL[a.targetRole] || a.targetRole}
+                    </span>
+                    <span
+                      style={{
+                        padding: '2px 9px',
+                        borderRadius: 10,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: '#F1F5F9',
+                        color: ANK.text,
+                      }}
+                    >
+                      {a.targetGroup}
+                    </span>
+                    {a.mandatory && (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '2px 9px',
+                          borderRadius: 10,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: ANK.redLight,
+                          color: ANK.red,
+                        }}
+                      >
+                        <AIcon
+                          path="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.75-2.98l-6.93-12a2 2 0 00-3.5 0l-6.93 12A2 2 0 005.07 19z"
+                          size={11}
+                          color={ANK.red}
+                        />
+                        Zorunlu
+                      </span>
+                    )}
+                  </div>
+                  <div
                     style={{
-                      padding: '1px 7px',
-                      borderRadius: 9,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      marginRight: 6,
-                      background: a.targetRole === 'student' ? ANK.accentPale : ANK.tealLight,
-                      color: a.targetRole === 'student' ? ANK.accent : ANK.teal,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginTop: 'auto',
+                      paddingTop: 10,
+                      borderTop: '1px solid ' + ANK.border,
+                      fontSize: 12,
+                      color: ANK.textMuted,
                     }}
                   >
-                    {ROLE_LABEL[a.targetRole] || a.targetRole}
-                  </span>
-                  {a.targetGroup}
-                  {a.departmentName ? ' · ' + a.departmentName : ''} · Son: {a.dueDate}
-                </p>
-              </div>
-              <button onClick={() => onRemoveAssignment(a.id)} title="Sil" style={iconBtn(ANK.red)}>
-                <AIcon
-                  path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
-                  size={14}
-                  color={ANK.red}
-                />
-              </button>
-            </div>
-          ))}
+                    <AIcon
+                      path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      size={14}
+                      color={ANK.textDim}
+                    />
+                    Son tarih: <strong style={{ color: ANK.text }}>{fmtDueDate(a.dueDate)}</strong>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -2701,9 +2829,19 @@ function SonuclarPaneli({ surveys }) {
                     </span>
                     {q.text}
                   </p>
-                  {q.type === 'likert' && (
-                    <LikertStackedBar counts={countAnswers(filtered, q.id, opts)} />
-                  )}
+                  {q.type === 'likert' &&
+                    (() => {
+                      const counts = countAnswers(filtered, q.id, opts);
+                      return (
+                        <DonutChart
+                          data={['1', '2', '3', '4', '5'].map((v, idx) => ({
+                            label: LIKERT_LABELS[idx],
+                            value: counts[v] || 0,
+                            color: LIKERT_COLORS[idx],
+                          }))}
+                        />
+                      );
+                    })()}
                   {q.type === 'yesno' &&
                     (() => {
                       const counts = countAnswers(filtered, q.id, opts);
@@ -2922,11 +3060,36 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
                   />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: ANK.primary, margin: 0 }}>
+                  <p
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: ANK.primary,
+                      margin: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                    }}
+                  >
                     {survey.title}
+                    {a.mandatory && (
+                      <span
+                        style={{
+                          padding: '1px 8px',
+                          borderRadius: 10,
+                          background: ANK.redLight,
+                          color: ANK.red,
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                        }}
+                      >
+                        Zorunlu
+                      </span>
+                    )}
                   </p>
                   <p style={{ fontSize: 12, color: ANK.textMuted, margin: '2px 0 0' }}>
-                    {survey.questions?.length || 0} soru · Son: {a.dueDate}
+                    {survey.questions?.length || 0} soru · Son: {fmtDueDate(a.dueDate)}
                   </p>
                 </div>
                 {done ? (
@@ -3087,6 +3250,35 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
         />
       );
     }
+    // Cinsiyet → Erkek / Kadın / Diğer açılır listesi
+    if (f.key === 'cinsiyet' || f.source === 'gender') {
+      return (
+        <select
+          value={values[f.key] || ''}
+          onChange={(e) => onChange(f.key, e.target.value)}
+          style={selectStyle}
+        >
+          <option value="">— Seçin —</option>
+          <option value="Erkek">Erkek</option>
+          <option value="Kadın">Kadın</option>
+          <option value="Diğer">Diğer</option>
+        </select>
+      );
+    }
+    // Sınıf → yalnızca tek haneli bir sayı (1–9)
+    if (f.key === 'sinif' || f.source === 'classNo') {
+      return (
+        <input
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          value={values[f.key] || ''}
+          onChange={(e) => onChange(f.key, e.target.value.replace(/\D/g, '').slice(0, 1))}
+          placeholder="Sınıf (tek rakam)"
+          style={inputStyle}
+        />
+      );
+    }
     return (
       <input
         value={values[f.key] || ''}
@@ -3109,7 +3301,7 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
   );
 }
 
-function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment }) {
+function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced }) {
   const [answers, setAnswers] = useState({});
   const [info, setInfo] = useState({});
   const [saving, setSaving] = useState(false);
@@ -3119,9 +3311,17 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment }) {
 
   const required = survey.questions.filter((q) => q.type !== 'textarea');
   const answered = required.filter((q) => answers[q.id] != null && answers[q.id] !== '').length;
-  const pct = required.length ? Math.round((answered / required.length) * 100) : 100;
+  // Bilgi alanları (bölüm, sınıf, cinsiyet, ders…) da tamamlanmalı.
+  const infoFields = survey.infoFields || [];
+  const infoDone = infoFields.filter((f) => info[f.key] && String(info[f.key]).trim()).length;
+  const totalNeeded = required.length + infoFields.length;
+  const totalDone = answered + infoDone;
+  const pct = totalNeeded ? Math.round((totalDone / totalNeeded) * 100) : 100;
+  // Tüm cevaplar tamamlanmadan gönder butonu aktifleşmez.
+  const canSubmit = totalDone >= totalNeeded;
 
   const submit = async () => {
+    if (!canSubmit) return;
     setSaving(true);
     try {
       await onSubmit(survey.id, { ...info, ...answers });
@@ -3132,34 +3332,58 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment }) {
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-        <button
-          onClick={onCancel}
+      {forced ? (
+        <div
           style={{
-            ...iconBtn(ANK.textMuted),
-            width: 'auto',
-            padding: '7px 12px',
-            gap: 6,
             display: 'flex',
             alignItems: 'center',
-            fontSize: 13,
-            fontFamily: "'Inter', sans-serif",
+            gap: 10,
+            marginBottom: 14,
+            padding: '11px 14px',
+            borderRadius: 10,
+            background: ANK.amberLight,
+            border: '1px solid #FDE68A',
           }}
         >
-          <AIcon path="M15 19l-7-7 7-7" size={15} color={ANK.textMuted} /> Geri
-        </button>
-        <span
-          style={{
-            fontSize: 13,
-            color: ANK.textMuted,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {survey.title}
-        </span>
-      </div>
+          <AIcon
+            path="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.75-2.98l-6.93-12a2 2 0 00-3.5 0l-6.93 12A2 2 0 005.07 19z"
+            size={18}
+            color={ANK.amber}
+          />
+          <span style={{ fontSize: 13, fontWeight: 600, color: ANK.amber }}>
+            Zorunlu anket — devam etmek için bu anketi doldurmanız gerekiyor.
+          </span>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <button
+            onClick={onCancel}
+            style={{
+              ...iconBtn(ANK.textMuted),
+              width: 'auto',
+              padding: '7px 12px',
+              gap: 6,
+              display: 'flex',
+              alignItems: 'center',
+              fontSize: 13,
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            <AIcon path="M15 19l-7-7 7-7" size={15} color={ANK.textMuted} /> Geri
+          </button>
+          <span
+            style={{
+              fontSize: 13,
+              color: ANK.textMuted,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {survey.title}
+          </span>
+        </div>
+      )}
 
       <div
         style={{
@@ -3181,7 +3405,7 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment }) {
         />
       </div>
 
-      <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ borderBottom: '1px solid #F3F4F6', paddingBottom: 16 }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: ANK.primary, margin: '0 0 4px' }}>
             {survey.title}
@@ -3206,47 +3430,58 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment }) {
         <div
           style={{
             display: 'flex',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             gap: 10,
+            flexWrap: 'wrap',
             borderTop: '1px solid #F3F4F6',
             paddingTop: 16,
           }}
         >
-          <button
-            onClick={onCancel}
-            style={{
-              padding: '10px 18px',
-              borderRadius: 8,
-              border: '1px solid ' + ANK.border,
-              background: 'white',
-              color: ANK.text,
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            İptal
-          </button>
-          <button
-            onClick={submit}
-            disabled={saving}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 18px',
-              borderRadius: 8,
-              border: 'none',
-              background: ANK.accent,
-              color: 'white',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: saving ? 'wait' : 'pointer',
-              opacity: saving ? 0.7 : 1,
-            }}
-          >
-            <AIcon path="M5 13l4 4L19 7" size={15} /> {saving ? 'Gönderiliyor…' : 'Anketi gönder'}
-          </button>
+          <span style={{ fontSize: 12, color: canSubmit ? ANK.accentDark : ANK.textMuted }}>
+            {canSubmit
+              ? 'Tüm sorular yanıtlandı — gönderebilirsiniz.'
+              : `${totalDone}/${totalNeeded} tamamlandı — tümü doldurulunca gönderilebilir.`}
+          </span>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {onCancel && (
+              <button
+                onClick={onCancel}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: 8,
+                  border: '1px solid ' + ANK.border,
+                  background: 'white',
+                  color: ANK.text,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                İptal
+              </button>
+            )}
+            <button
+              onClick={submit}
+              disabled={saving || !canSubmit}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 18px',
+                borderRadius: 8,
+                border: 'none',
+                background: ANK.accent,
+                color: 'white',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: saving ? 'wait' : canSubmit ? 'pointer' : 'not-allowed',
+                opacity: saving ? 0.7 : canSubmit ? 1 : 0.45,
+              }}
+            >
+              <AIcon path="M5 13l4 4L19 7" size={15} /> {saving ? 'Gönderiliyor…' : 'Anketi gönder'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -3306,7 +3541,7 @@ function SoruBilesen({ soru, numara, deger, onChange }) {
     return (
       <div>
         {head}
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {opts.map((o) => {
             const sel = deger === o.v;
             return (
@@ -3315,26 +3550,28 @@ function SoruBilesen({ soru, numara, deger, onChange }) {
                 onClick={() => onChange(soru.id, o.v)}
                 title={o.l.replace('\n', ' ')}
                 style={{
-                  flex: 1,
+                  flex: '1 1 92px',
+                  maxWidth: 130,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 3,
-                  padding: '8px 2px',
-                  borderRadius: 8,
+                  gap: 4,
+                  padding: '9px 4px',
+                  borderRadius: 9,
                   cursor: 'pointer',
-                  border: '1px solid ' + (sel ? ANK.accent : ANK.border),
+                  border: '1.5px solid ' + (sel ? ANK.accent : ANK.border),
                   background: sel ? ANK.accentPale : 'white',
-                  color: sel ? ANK.accent : ANK.textMuted,
+                  color: sel ? ANK.accentDark : ANK.textMuted,
                   fontFamily: "'Inter', sans-serif",
                 }}
               >
-                <span style={{ fontSize: 15, fontWeight: 700 }}>{o.v}</span>
+                <span style={{ fontSize: 18, fontWeight: 800 }}>{o.v}</span>
                 <span
                   style={{
-                    fontSize: 9,
+                    fontSize: 10.5,
+                    fontWeight: sel ? 600 : 500,
                     textAlign: 'center',
-                    lineHeight: 1.15,
+                    lineHeight: 1.2,
                     whiteSpace: 'pre-line',
                   }}
                 >
@@ -3378,9 +3615,11 @@ function SoruBilesen({ soru, numara, deger, onChange }) {
               onClick={() => onChange(soru.id, String(v))}
               style={{
                 ...pill(deger === String(v)),
-                width: 42,
-                height: 42,
+                width: 40,
+                height: 40,
                 padding: 0,
+                fontSize: 15,
+                fontWeight: 700,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -3418,11 +3657,11 @@ function SoruBilesen({ soru, numara, deger, onChange }) {
       <div>
         {head}
         <textarea
-          rows={3}
+          rows={2}
           value={deger || ''}
           onChange={(e) => onChange(soru.id, e.target.value)}
           placeholder="Görüşlerinizi buraya yazınız…"
-          style={{ ...inputStyle, resize: 'vertical' }}
+          style={{ ...inputStyle, fontSize: 14, resize: 'vertical' }}
         />
       </div>
     );
@@ -3435,12 +3674,137 @@ function SoruBilesen({ soru, numara, deger, onChange }) {
       <input
         value={deger || ''}
         onChange={(e) => onChange(soru.id, e.target.value)}
-        style={inputStyle}
+        style={{ ...inputStyle, fontSize: 14 }}
       />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// ZORUNLU ANKET KAPISI
+//   Katılımcı (öğrenci/akademisyen) sisteme girdiğinde, kendisine ZORUNLU
+//   olarak atanmış ve henüz doldurmadığı bir anket varsa tam ekran olarak
+//   gösterilir; doldurmadan uygulamayı kullanamaz. app-shell tarafından
+//   kimlik doğrulanmış her katılımcı için mount edilir.
+// ══════════════════════════════════════════════════════════════
+function AnketZorunluGate({ currentUser, activeDepartment }) {
+  const [ready, setReady] = useState(false);
+  const [assignments, setAssignments] = useState([]);
+  const [surveys, setSurveys] = useState([]);
+  const [myResponses, setMyResponses] = useState([]);
+
+  const myRole = currentUser?.role;
+  const myId =
+    currentUser?.id || currentUser?._id || currentUser?.identifier || currentUser?.name || 'anon';
+
+  const isAlumni = !!(
+    currentUser?.isAlumni ||
+    currentUser?.mezun ||
+    currentUser?.status === 'mezun'
+  );
+  const myClass = String(currentUser?.sinif || currentUser?.class || '').trim();
+
+  const load = useCallback(async () => {
+    try {
+      const [a, s, r] = await Promise.all([
+        window.apiRead('survey_assignments'),
+        window.apiRead('surveys'),
+        window.apiRead('survey_responses'),
+      ]);
+      setAssignments(a || []);
+      setSurveys(s || []);
+      setMyResponses((r || []).filter((x) => x.userId === myId));
+    } catch (e) {
+      console.error('Zorunlu anket kontrolü başarısız:', e);
+    } finally {
+      setReady(true);
+    }
+  }, [myId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+  useEffect(() => {
+    const h = () => load();
+    ['surveys', 'survey_assignments', 'survey_responses'].forEach((c) =>
+      window.addEventListener('realtime:' + c, h)
+    );
+    return () =>
+      ['surveys', 'survey_assignments', 'survey_responses'].forEach((c) =>
+        window.removeEventListener('realtime:' + c, h)
+      );
+  }, [load]);
+
+  const matchesGroup = (role, group) => {
+    if (role !== 'student') return true;
+    const g = (group || '').trim();
+    if (!g || g === 'Tüm öğrenciler') return true;
+    if (g === 'Mezun') return isAlumni;
+    if (isAlumni) return false;
+    if (!myClass) return true;
+    return g.startsWith(myClass + '.');
+  };
+
+  // İlk doldurulmamış zorunlu atama
+  const pending = useMemo(() => {
+    if (!myRole || myId === 'anon') return null;
+    const completedIds = new Set(myResponses.map((r) => r.surveyId));
+    for (const a of assignments) {
+      if (!a.mandatory) continue;
+      const role = a.targetRole === 'alumni' ? 'student' : a.targetRole;
+      const group = a.targetRole === 'alumni' ? 'Mezun' : a.targetGroup;
+      if (role !== myRole) continue;
+      if (a.departmentId && activeDepartment && a.departmentId !== activeDepartment) continue;
+      if (!matchesGroup(role, group)) continue;
+      if (completedIds.has(a.surveyId)) continue;
+      const survey = surveys.find((s) => s.id === a.surveyId);
+      if (survey) return { assignment: a, survey };
+    }
+    return null;
+  }, [assignments, surveys, myResponses, myRole, myId, activeDepartment, isAlumni, myClass]);
+
+  const submit = async (surveyId, answers) => {
+    if (!myId || myId === 'anon') return;
+    await window.DBWrite.add('survey_responses', {
+      surveyId,
+      userId: myId,
+      role: myRole,
+      answers,
+      submittedAt: new Date().toISOString(),
+    });
+    await load();
+  };
+
+  if (!ready || !pending) return null;
+
+  return (
+    <div
+      className="ank-root"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 4000,
+        background: 'rgba(15,23,42,0.55)',
+        overflowY: 'auto',
+        padding: '24px 16px',
+        fontFamily: "'Inter', sans-serif",
+      }}
+    >
+      <AnkStyles />
+      <div style={{ maxWidth: 760, margin: '0 auto' }}>
+        <AnketDoldurma
+          survey={pending.survey}
+          onSubmit={submit}
+          onCancel={null}
+          activeDepartment={activeDepartment}
+          forced
+        />
+      </div>
     </div>
   );
 }
 
 if (typeof window !== 'undefined') {
   window.AnketModulu = AnketModulu;
+  window.AnketZorunluGate = AnketZorunluGate;
 }
