@@ -1668,6 +1668,40 @@ function AppShell() {
     };
   }, [currentUser?.studentNumber, currentUser?.role]);
 
+  // Erasmus erişimi yetkili tarafından değiştirildiğinde, öğrencinin çıkış/giriş
+  // yapmasına gerek kalmadan sayfa yenilenince güncel değeri sunucudan senkronla.
+  // currentUser localStorage'dan geri yüklendiği için aksi halde eski (stale)
+  // erasmusAccess değeri kalıyor; öğrenci refresh atınca yetki aktifleşmiyordu.
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'student' || !currentUser.studentNumber) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const students = await window.FirebaseDB.fetchStudents();
+        const me = students.find((s) => s.studentNumber === currentUser.studentNumber);
+        if (!me || cancelled) return;
+        const serverErasmus = me.erasmusAccess === true;
+        if (serverErasmus !== (currentUser.erasmusAccess === true)) {
+          setCurrentUser((prev) => {
+            if (!prev) return prev;
+            const next = { ...prev, erasmusAccess: serverErasmus };
+            try {
+              localStorage.setItem('caku_current_user', JSON.stringify(next));
+            } catch (_) {
+              /* localStorage yoksa yoksay */
+            }
+            return next;
+          });
+        }
+      } catch (_) {
+        /* sessizce geç — hata durumunda mevcut değeri koru */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.studentNumber, currentUser?.role]);
+
   // Routing Protection
   useEffect(() => {
     if (!currentUser) return;

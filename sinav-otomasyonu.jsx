@@ -3937,7 +3937,9 @@ function SinavOtomasyonuApp({
                 <span style={{ fontSize: 12, color: '#666' }}>
                   {periodExams.length}/{courses.length} ders yerleştirildi
                 </span>
-                {periodExams.length > 0 && (
+                {/* Dekanlık/Bölüm çıktıları yalnızca bölüm/fakülte/üniversite
+                    yetkililerinde görünür; sıradan akademisyende gizli. */}
+                {canManage && periodExams.length > 0 && (
                   <>
                     <GhostBtn
                       onClick={() =>
@@ -3982,7 +3984,7 @@ function SinavOtomasyonuApp({
                     </GhostBtn>
                   </>
                 )}
-                {periodExams.length === 0 && (
+                {canManage && periodExams.length === 0 && (
                   <>
                     <GhostBtn
                       onClick={() =>
