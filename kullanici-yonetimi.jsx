@@ -24,6 +24,12 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   // ad dropdown'unu bu liste besler.
   const [crossPickProfs, setCrossPickProfs] = useState([]);
   const [crossPickLoading, setCrossPickLoading] = useState(false);
+  // ÇAP (çift anadal) öğrenci ekleme modalı
+  const [capModalOpen, setCapModalOpen] = useState(false);
+  const [capAllStudents, setCapAllStudents] = useState([]);
+  const [capSearch, setCapSearch] = useState('');
+  const [capLoading, setCapLoading] = useState(false);
+  const [capSaving, setCapSaving] = useState('');
 
   // Password states
   const [studentPasses, setStudentPasses] = useState({});
@@ -96,6 +102,14 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
       const filterStudentByDept = (s) => {
         if (!activeDepartment) return true;
         if (s.departmentId === activeDepartment) return true;
+        // ÇAP (çift anadal) öğrencisi: ek bölüm listesinde aktif bölüm varsa,
+        // bu bölümün öğrencisiymiş gibi listelenir (aynı seviye).
+        if (
+          Array.isArray(s.additionalDepartments) &&
+          s.additionalDepartments.includes(activeDepartment)
+        ) {
+          return true;
+        }
         const dept = normName(s.department || s.departmentName);
         if (!dept) return false;
         return dept === target || (shortTarget && dept === shortTarget);
@@ -182,6 +196,66 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     } catch (error) {
       console.error('Erasmus erişim güncelleme hatası:', error);
       alert('Erişim güncellenirken hata oluştu.');
+    }
+  };
+
+  // ── ÇAP (çift anadal) öğrenci ekleme ──
+  // Başka bölümde kayıtlı bir öğrenciyi, ÇAP yaptığı bu bölüme ek bölüm olarak
+  // ekler. Böylece öğrenci bu bölümün öğrencileriyle aynı seviyede görünür.
+  const openCapModal = async () => {
+    setCapModalOpen(true);
+    setCapSearch('');
+    setCapLoading(true);
+    try {
+      const all = await DB.fetchStudents();
+      // Zaten bu bölümde (ana ya da ek) olan öğrencileri hariç tut.
+      const here = new Set(students.map((s) => s.id || s._docId));
+      const notHere = (all || []).filter((s) => {
+        const id = s.id || s._docId;
+        if (here.has(id)) return false;
+        if (s.departmentId === activeDepartment) return false;
+        if (
+          Array.isArray(s.additionalDepartments) &&
+          s.additionalDepartments.includes(activeDepartment)
+        )
+          return false;
+        return true;
+      });
+      setCapAllStudents(notHere);
+    } catch (e) {
+      console.error('ÇAP öğrenci listesi yüklenemedi:', e);
+      setCapAllStudents([]);
+    } finally {
+      setCapLoading(false);
+    }
+  };
+
+  const handleAddCapStudent = async (student) => {
+    const sid = student.id || student._docId;
+    setCapSaving(sid);
+    try {
+      const prevExtra = Array.isArray(student.additionalDepartments)
+        ? student.additionalDepartments
+        : [];
+      const nextExtra = prevExtra.includes(activeDepartment)
+        ? prevExtra
+        : [...prevExtra, activeDepartment];
+      await DB.updateStudent(sid, { ...student, additionalDepartments: nextExtra });
+      if (window.audit)
+        window.audit('student_cap_add', 'students', sid, {
+          meta: {
+            studentNumber: student.studentNumber,
+            capDepartment: activeDepartment,
+          },
+        });
+      setCapAllStudents((prev) => prev.filter((s) => (s.id || s._docId) !== sid));
+      await loadData();
+      alert('ÇAP öğrencisi bu bölüme eklendi.');
+    } catch (e) {
+      console.error('ÇAP öğrenci ekleme hatası:', e);
+      alert('Eklenirken hata oluştu: ' + e.message);
+    } finally {
+      setCapSaving('');
     }
   };
 
@@ -652,8 +726,13 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                   borderBottom: `1px solid ${C.border}`,
                   display: 'flex',
                   justifyContent: 'flex-end',
+                  gap: 10,
+                  flexWrap: 'wrap',
                 }}
               >
+                <Btn onClick={openCapModal} variant="secondary" icon={<PlusIcon />}>
+                  Çap Öğrencisi Ekle
+                </Btn>
                 <Btn onClick={handleAddStudent} icon={<PlusIcon />}>
                   Yeni Öğrenci Ekle
                 </Btn>
@@ -712,6 +791,23 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                         </td>
                         <td style={{ padding: '14px 20px', fontWeight: 500 }}>
                           {student.firstName} {student.lastName}
+                          {Array.isArray(student.additionalDepartments) &&
+                            student.additionalDepartments.includes(activeDepartment) &&
+                            student.departmentId !== activeDepartment && (
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  padding: '1px 8px',
+                                  borderRadius: 10,
+                                  background: '#FEF3C7',
+                                  color: '#B45309',
+                                  fontSize: 10.5,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                ÇAP
+                              </span>
+                            )}
                           {student.hostInstitution && (
                             <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
                               {student.hostInstitution} - {student.hostCountry}
@@ -870,7 +966,22 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                   }
                   icon={<PlusIcon />}
                 >
-                  Yepyeni Akademisyen Oluştur
+                  Yeni Akademisyen Oluştur
+                </Btn>
+                <Btn
+                  variant="secondary"
+                  onClick={() =>
+                    setEditingProf({
+                      mode: 'external',
+                      name: '',
+                      title: '',
+                      department: '',
+                      departmentId: '',
+                    })
+                  }
+                  icon={<PlusIcon />}
+                >
+                  Üniversite Dışı Görevlendirme
                 </Btn>
               </div>
               <div className="responsive-table-wrap" style={{ overflowX: 'auto' }}>
@@ -967,6 +1078,95 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                                         name: fullName,
                                         departmentId: activeDepartment,
                                       },
+                                    });
+                                  setEditingProf(null);
+                                  loadData();
+                                } catch (e) {
+                                  alert('Kayıt hatası: ' + e.message);
+                                } finally {
+                                  setSaving(false);
+                                }
+                              }}
+                            >
+                              Kaydet
+                            </Btn>
+                            <Btn small variant="secondary" onClick={() => setEditingProf(null)}>
+                              İptal
+                            </Btn>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Üniversite dışı görevlendirme — hiçbir bölüme tabi olmayan
+                        ama üniversitede ders veren akademisyen. departmentId boş,
+                        external:true olarak kaydedilir. */}
+                    {editingProf && editingProf.mode === 'external' && !editingProf.id && (
+                      <tr
+                        style={{
+                          background: 'rgba(180,83,9,0.06)',
+                          borderBottom: `1px solid ${C.border}`,
+                        }}
+                      >
+                        <td style={{ padding: 14 }}>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <Input
+                              value={editingProf.title || ''}
+                              onChange={(e) =>
+                                setEditingProf({ ...editingProf, title: e.target.value })
+                              }
+                              placeholder="Unvan (Öğr. Gör., Dr. vb.)"
+                            />
+                            <Input
+                              autoFocus
+                              value={editingProf.name}
+                              onChange={(e) =>
+                                setEditingProf({ ...editingProf, name: e.target.value })
+                              }
+                              placeholder="Ad Soyad (Örn: Ahmet YILMAZ)"
+                            />
+                          </div>
+                        </td>
+                        <td style={{ padding: 14 }}>
+                          <div
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: 8,
+                              background: '#FEF3C7',
+                              fontSize: 12.5,
+                              color: '#B45309',
+                              fontWeight: 600,
+                            }}
+                          >
+                            Üniversite dışı (bölümsüz)
+                          </div>
+                        </td>
+                        <td style={{ padding: 14, textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                            <Btn
+                              small
+                              disabled={!editingProf.name?.trim() || saving}
+                              onClick={async () => {
+                                if (!editingProf.name?.trim()) {
+                                  alert('Ad zorunlu.');
+                                  return;
+                                }
+                                setSaving(true);
+                                try {
+                                  const fullName = editingProf.title?.trim()
+                                    ? `${editingProf.title.trim()} ${editingProf.name.trim()}`
+                                    : editingProf.name.trim();
+                                  await DB.saveProfessor({
+                                    name: fullName,
+                                    departmentId: '',
+                                    department: '',
+                                    external: true,
+                                    facultyId: currentUser?.facultyId || '',
+                                    universityId: currentUser?.universityId || 'caku',
+                                  });
+                                  if (window.audit)
+                                    window.audit('professor_create_external', 'professors', '', {
+                                      meta: { name: fullName, external: true },
                                     });
                                   setEditingProf(null);
                                   loadData();
@@ -1727,6 +1927,120 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         )}
 
         {/* Çapraz-bölüm akademisyen ekleme modalı */}
+
+        {/* ÇAP (çift anadal) öğrenci ekleme modalı */}
+        {capModalOpen && (
+          <Modal
+            open={true}
+            onClose={() => setCapModalOpen(false)}
+            title={`Çap Öğrencisi Ekle — ${departmentInfo?.name || activeDepartment}`}
+            width={640}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <p style={{ fontSize: 13, color: C.textMuted, margin: 0, lineHeight: 1.5 }}>
+                Başka bölümde kayıtlı bir öğrenciyi bu bölüme ÇAP öğrencisi olarak ekleyin. Eklenen
+                öğrenci, bu bölümün öğrencileriyle aynı seviyede görünür ve bu bölüme erişebilir.
+              </p>
+              <Input
+                autoFocus
+                value={capSearch}
+                onChange={(e) => setCapSearch(e.target.value)}
+                placeholder="Öğrenci no veya ad soyad ile ara…"
+              />
+              <div
+                style={{
+                  maxHeight: 360,
+                  overflowY: 'auto',
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 10,
+                }}
+              >
+                {capLoading ? (
+                  <p style={{ padding: 20, textAlign: 'center', color: C.textMuted, fontSize: 13 }}>
+                    Yükleniyor…
+                  </p>
+                ) : (
+                  (() => {
+                    const q = capSearch.trim().toLocaleLowerCase('tr');
+                    const list = capAllStudents
+                      .filter((s) => {
+                        if (!q) return true;
+                        const name = `${s.firstName || ''} ${s.lastName || ''}`.toLocaleLowerCase(
+                          'tr'
+                        );
+                        return name.includes(q) || String(s.studentNumber || '').includes(q);
+                      })
+                      .slice(0, 100);
+                    if (list.length === 0) {
+                      return (
+                        <p
+                          style={{
+                            padding: 20,
+                            textAlign: 'center',
+                            color: C.textMuted,
+                            fontSize: 13,
+                          }}
+                        >
+                          {capAllStudents.length === 0
+                            ? 'Eklenebilecek başka bölüm öğrencisi bulunamadı.'
+                            : 'Aramayla eşleşen öğrenci yok.'}
+                        </p>
+                      );
+                    }
+                    return list.map((s) => {
+                      const sid = s.id || s._docId;
+                      const deptName =
+                        DEPARTMENTS.find((d) => d.id === s.departmentId)?.name ||
+                        s.department ||
+                        s.departmentName ||
+                        '—';
+                      return (
+                        <div
+                          key={sid}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            padding: '10px 14px',
+                            borderBottom: `1px solid ${C.border}`,
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: C.navy }}>
+                              {s.firstName} {s.lastName}
+                            </div>
+                            <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2 }}>
+                              {s.studentNumber} · {deptName}
+                            </div>
+                          </div>
+                          <Btn
+                            small
+                            disabled={capSaving === sid}
+                            onClick={() => handleAddCapStudent(s)}
+                          >
+                            {capSaving === sid ? 'Ekleniyor…' : 'Ekle'}
+                          </Btn>
+                        </div>
+                      );
+                    });
+                  })()
+                )}
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  paddingTop: 8,
+                  borderTop: `1px solid ${C.border}`,
+                }}
+              >
+                <Btn variant="secondary" onClick={() => setCapModalOpen(false)}>
+                  Kapat
+                </Btn>
+              </div>
+            </div>
+          </Modal>
+        )}
       </div>
     </div>
   );

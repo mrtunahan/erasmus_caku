@@ -5026,6 +5026,10 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   const isStudentWithoutErasmus =
     currentUser?.role === 'student' && currentUser?.erasmusAccess !== true;
 
+  // Öğrenci kaydını silme yalnızca yetkililerde olur; öğrenci (erasmus yetkili
+  // olsa bile) kendi kaydını silemez — "İşlemler" sütununda Sil butonu görmez.
+  const canDeleteStudent = currentUser?.role === 'admin' || currentUser?.role === 'bolum_yetkilisi';
+
   const generateSemesters = () => {
     const semesters = ['all'];
     for (let year = 2024; year <= 2030; year++) {
@@ -5525,7 +5529,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                             Dönüş belgesi
                           </button>
                         )}
-                        {canEdit(student) && (
+                        {canDeleteStudent && (
                           <button
                             onClick={() => handleDeleteStudent(student.id)}
                             style={{ ...eBtnGhost, color: C.accent, borderColor: C.accent + '55' }}

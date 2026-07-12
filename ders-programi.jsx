@@ -1373,46 +1373,50 @@ function DersProgramiApp({
               {conflicts.length} Çakışma
             </button>
           )}
-          <button
-            onClick={async () => {
-              const { deptYears, faculty } = await loadAllSchedules();
-              const ownDeptSlots = (deptYears || []).map((s) => ({
-                deptId: activeDepartment,
-                deptName: departmentInfo?.name || 'Bölüm',
-                year: s.year,
-                slots: s.slots,
-              }));
-              const combined = [...ownDeptSlots, ...(faculty || [])];
-              if (combined.length > 0) {
-                setAllSchedules(combined);
-                setShowFacultyView(true);
-              } else {
-                alert('Fakülte genelinde bu dönem için ders programı bulunamadı.');
-              }
-            }}
-            disabled={loadingFaculty}
-            style={{
-              padding: '7px 12px',
-              borderRadius: 8,
-              border: '1px solid #C4B5FD',
-              background: '#EDE9FE',
-              color: DP.primary,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: loadingFaculty ? 'wait' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              opacity: loadingFaculty ? 0.6 : 1,
-            }}
-          >
-            <DPIcon
-              path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-              size={13}
-              color={DP.primary}
-            />
-            {loadingFaculty ? 'Yükleniyor...' : 'Fakülte Programı'}
-          </button>
+          {/* Fakülte birleşik programı (ve Yazdır/PDF dekanlık çıktısı) yalnızca
+              bölüm/fakülte/üniversite yetkililerinde; sıradan akademisyende gizli. */}
+          {(isAdmin || isDeptManager) && (
+            <button
+              onClick={async () => {
+                const { deptYears, faculty } = await loadAllSchedules();
+                const ownDeptSlots = (deptYears || []).map((s) => ({
+                  deptId: activeDepartment,
+                  deptName: departmentInfo?.name || 'Bölüm',
+                  year: s.year,
+                  slots: s.slots,
+                }));
+                const combined = [...ownDeptSlots, ...(faculty || [])];
+                if (combined.length > 0) {
+                  setAllSchedules(combined);
+                  setShowFacultyView(true);
+                } else {
+                  alert('Fakülte genelinde bu dönem için ders programı bulunamadı.');
+                }
+              }}
+              disabled={loadingFaculty}
+              style={{
+                padding: '7px 12px',
+                borderRadius: 8,
+                border: '1px solid #C4B5FD',
+                background: '#EDE9FE',
+                color: DP.primary,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: loadingFaculty ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                opacity: loadingFaculty ? 0.6 : 1,
+              }}
+            >
+              <DPIcon
+                path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                size={13}
+                color={DP.primary}
+              />
+              {loadingFaculty ? 'Yükleniyor...' : 'Fakülte Programı'}
+            </button>
+          )}
           {(isAdmin || isDeptManager) && deptAllYearsSlots.length > 0 && (
             <button
               onClick={() =>
