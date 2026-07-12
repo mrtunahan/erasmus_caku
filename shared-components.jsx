@@ -4689,6 +4689,9 @@ const LoginModal = ({ onLogin }) => {
             additionalDepartments: Array.isArray(p.additionalDepartments)
               ? p.additionalDepartments
               : [],
+            // Üniversite dışı (bölümsüz) akademisyen — ana bölümü yoktur, yalnız
+            // atandığı bölümlerde sınırlı modül setine erişir.
+            external: !!p.external,
           };
         };
 

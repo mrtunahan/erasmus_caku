@@ -83,6 +83,9 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
       const shortTarget = normName(deptInfo?.shortName);
       const filterByDept = (item) => {
         if (!activeDepartment) return true;
+        // Üniversite dışı akademisyen hiçbir bölümün asıl akademisyeni sayılmaz;
+        // ana listede görünmez (yalnız "Üniversite Dışı Akademisyenler" havuzunda).
+        if (item.external === true) return false;
         if (item.departmentId === activeDepartment) return true;
         // Çapraz-bölüm: ek bölüm listesinde aktifBölüm varsa kabul.
         if (
@@ -1487,20 +1490,23 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
               <Card title="Üniversite Dışı Akademisyenler (bölümsüz)" noPadding>
                 <div style={{ padding: '12px 24px', borderBottom: `1px solid ${C.border}` }}>
                   <p style={{ fontSize: 12.5, color: C.textMuted, margin: 0, lineHeight: 1.5 }}>
-                    Hiçbir bölüme tabi olmayan, üniversitede ders veren akademisyenler. Bölüm
-                    seçiminden bağımsız olarak burada görünürler.
+                    Hiçbir bölüme tabi olmayan, üniversitede ders veren akademisyenler bu havuzda
+                    durur (bölüm seçiminden bağımsız görünür). "Bu bölüme ekle" ile aktif bölüme
+                    dahil edilirler; o bölümün asıl akademisyeni sayılmazlar ancak o bölümde Sınav
+                    Otomasyonu, Ders Programı, Projeler ve Öğrenci Portalı modüllerini
+                    kullanabilirler.
                   </p>
                 </div>
                 <div className="responsive-table-wrap" style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: C.bg, borderBottom: `2px solid ${C.border}` }}>
-                        {['Unvan & İsim', 'İşlemler'].map((h, i) => (
+                        {['Unvan & İsim', 'Erişebildiği Bölümler', 'İşlemler'].map((h, i) => (
                           <th
                             key={i}
                             style={{
                               padding: '14px 20px',
-                              textAlign: i === 1 ? 'right' : 'left',
+                              textAlign: i === 2 ? 'right' : 'left',
                               fontSize: 11,
                               fontWeight: 700,
                               color: C.navy,
@@ -1514,50 +1520,104 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                       </tr>
                     </thead>
                     <tbody>
-                      {externalProfs.map((prof) => (
-                        <tr
-                          key={prof.id || prof._docId}
-                          style={{ borderBottom: `1px solid ${C.border}` }}
-                        >
-                          <td style={{ padding: '14px 20px', fontWeight: 600, color: C.navy }}>
-                            {prof.name}
-                            <span
-                              style={{
-                                marginLeft: 8,
-                                padding: '1px 8px',
-                                borderRadius: 10,
-                                background: '#FEF3C7',
-                                color: '#B45309',
-                                fontSize: 10.5,
-                                fontWeight: 700,
-                              }}
-                            >
-                              Üniversite dışı
-                            </span>
-                          </td>
-                          <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                            <button
-                              onClick={() => handleDeleteProf(prof.id || prof._docId, prof.name)}
-                              style={{
-                                padding: 8,
-                                borderRadius: 8,
-                                border: `1px solid ${C.border}`,
-                                background: 'white',
-                                cursor: 'pointer',
-                                color: C.accent,
-                                display: 'inline-flex',
-                              }}
-                              title="Sil"
-                            >
-                              <TrashIcon />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {externalProfs.map((prof) => {
+                        const assigned = Array.isArray(prof.additionalDepartments)
+                          ? prof.additionalDepartments
+                          : [];
+                        const inActiveDept = assigned.includes(activeDepartment);
+                        return (
+                          <tr
+                            key={prof.id || prof._docId}
+                            style={{ borderBottom: `1px solid ${C.border}` }}
+                          >
+                            <td style={{ padding: '14px 20px', fontWeight: 600, color: C.navy }}>
+                              {prof.name}
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  padding: '1px 8px',
+                                  borderRadius: 10,
+                                  background: '#FEF3C7',
+                                  color: '#B45309',
+                                  fontSize: 10.5,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                Üniversite dışı
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 20px' }}>
+                              {assigned.length === 0 ? (
+                                <span style={{ fontSize: 12, color: C.textMuted }}>
+                                  Henüz bir bölüme eklenmedi
+                                </span>
+                              ) : (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                  {assigned.map((deptId) => (
+                                    <span
+                                      key={deptId}
+                                      style={{
+                                        padding: '2px 9px',
+                                        borderRadius: 10,
+                                        background: C.bg,
+                                        color: C.navy,
+                                        fontSize: 11.5,
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      {DEPARTMENTS.find((d) => d.id === deptId)?.name || deptId}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                              <div
+                                style={{
+                                  display: 'inline-flex',
+                                  gap: 6,
+                                  justifyContent: 'flex-end',
+                                }}
+                              >
+                                {inActiveDept ? (
+                                  <Btn
+                                    small
+                                    variant="secondary"
+                                    onClick={() => removeProfFromActiveDept(prof)}
+                                  >
+                                    Bu bölümden çıkar
+                                  </Btn>
+                                ) : (
+                                  <Btn small onClick={() => addProfToActiveDept(prof)}>
+                                    Bu bölüme ekle
+                                  </Btn>
+                                )}
+                                <button
+                                  onClick={() =>
+                                    handleDeleteProf(prof.id || prof._docId, prof.name)
+                                  }
+                                  style={{
+                                    padding: 8,
+                                    borderRadius: 8,
+                                    border: `1px solid ${C.border}`,
+                                    background: 'white',
+                                    cursor: 'pointer',
+                                    color: C.accent,
+                                    display: 'inline-flex',
+                                  }}
+                                  title="Havuzdan tamamen sil"
+                                >
+                                  <TrashIcon />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                       {externalProfs.length === 0 && (
                         <tr>
                           <td
-                            colSpan={2}
+                            colSpan={3}
                             style={{ padding: 40, textAlign: 'center', color: C.textMuted }}
                           >
                             Üniversite dışı görevlendirme ile eklenmiş akademisyen yok.
