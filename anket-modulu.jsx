@@ -505,6 +505,19 @@ function AnkStyles() {
       .ank-btn { transition: filter .15s ease, box-shadow .15s ease, transform .05s ease; }
       .ank-btn:hover { filter: brightness(1.05); }
       .ank-btn:active { transform: translateY(1px); }
+      /* Şablon galerisi — yatay kaydırılabilir şerit (Google Forms tarzı) */
+      .ank-strip { display:flex; gap:12px; overflow-x:auto; padding:2px 2px 10px; scroll-snap-type:x proximity; }
+      .ank-strip::-webkit-scrollbar { height:8px; }
+      .ank-strip::-webkit-scrollbar-thumb { background:${ANK.border}; border-radius:8px; }
+      .ank-strip::-webkit-scrollbar-thumb:hover { background:${ANK.borderStrong}; }
+      .ank-tpl { position:relative; flex:0 0 236px; scroll-snap-align:start; border:1px solid ${ANK.border}; border-radius:12px; padding:14px 14px 12px; background:${ANK.surface}; display:flex; flex-direction:column; gap:9px; overflow:hidden; transition:box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
+      .ank-tpl::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:${ANK.headerGrad}; }
+      .ank-tpl:hover { box-shadow:${ANK.shadow}; transform:translateY(-2px); border-color:${ANK.borderStrong}; }
+      /* Anket ızgarası — kart hover yükselmesi */
+      .ank-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; }
+      /* Düzenleyici soru kartları — odaklanınca yükselir (elevation) */
+      .ank-qcard { transition:box-shadow .18s ease, border-color .18s ease; }
+      .ank-qcard:focus-within { border-color:${ANK.accent} !important; box-shadow:0 0 0 3px rgba(124,58,237,0.10), ${ANK.shadow}; }
     `}</style>
   );
 }
@@ -751,43 +764,60 @@ function AnketlerPaneli({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={cardStyle}>
-        <p style={labelStyle}>Hazır anket şablonları</p>
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: 10,
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            gap: 8,
             marginBottom: 12,
           }}
         >
+          <p style={{ ...labelStyle, marginBottom: 0 }}>Hazır anket şablonları</p>
+          <span style={{ fontSize: 11, color: ANK.textDim }}>Kaydırarak keşfedin →</span>
+        </div>
+        <div className="ank-strip">
           {Object.entries(PRESET_SURVEYS).map(([key, s]) => {
             const count = presetCount(key);
             return (
-              <div
-                key={key}
-                style={{
-                  border: '1px solid ' + ANK.border,
-                  borderRadius: 10,
-                  padding: 12,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                  background: 'white',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div key={key} className="ank-tpl">
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 9,
+                      background: ANK.accentPale,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <AIcon
+                      path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      size={16}
+                      color={ANK.accent}
+                    />
+                  </div>
                   <p
                     style={{
                       fontSize: 13,
-                      fontWeight: 600,
+                      fontWeight: 700,
                       color: ANK.primary,
                       margin: 0,
                       flex: 1,
                       lineHeight: 1.3,
+                      minHeight: 34,
                     }}
                   >
                     {s.title}
                   </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: ANK.textMuted }}>
+                    {(expandPreset(s).questions || []).length} soru
+                  </span>
                   {count > 0 && (
                     <span
                       style={{
@@ -804,10 +834,7 @@ function AnketlerPaneli({
                     </span>
                   )}
                 </div>
-                <p style={{ fontSize: 11, color: ANK.textMuted, margin: 0 }}>
-                  {(expandPreset(s).questions || []).length} soru
-                </p>
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
                   <button
                     onClick={() => addPreset(key)}
                     style={{
@@ -930,7 +957,7 @@ function AnketlerPaneli({
       {surveys.length === 0 ? (
         <EmptyState text="Henüz anket yüklenmedi. Yukarıdaki şablonlardan ekleyin." />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="ank-grid">
           {surveys.map((s) => {
             const ac = assignments.filter((a) => a.surveyId === s.id).length;
             return (
@@ -939,120 +966,166 @@ function AnketlerPaneli({
                 className="ank-card ank-card-hover"
                 style={{
                   ...cardStyle,
-                  padding: 14,
+                  padding: 16,
                   display: 'flex',
-                  alignItems: 'center',
+                  flexDirection: 'column',
                   gap: 12,
                 }}
               >
-                <div
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 9,
-                    background: ANK.accentPale,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <AIcon
-                    path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    size={18}
-                    color={ANK.accent}
-                  />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div
                     style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: ANK.primary,
-                      margin: 0,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      background: ANK.accentPale,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
                     }}
                   >
-                    {s.title}
-                  </p>
-                  <p style={{ fontSize: 12, color: ANK.textMuted, margin: '2px 0 0' }}>
-                    {s.questions?.length || 0} soru
-                    {ac > 0 && (
-                      <span
-                        style={{
-                          marginLeft: 8,
-                          padding: '1px 8px',
-                          borderRadius: 10,
-                          background: ANK.blueLight,
-                          color: ANK.blue,
-                          fontSize: 11,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {ac} atama
-                      </span>
-                    )}
-                    {(s.linkedCourses || []).slice(0, 3).map((c) => (
-                      <span
-                        key={c.code || c.name}
-                        title={c.name}
-                        style={{
-                          marginLeft: 6,
-                          padding: '1px 8px',
-                          borderRadius: 10,
-                          background: ANK.tealLight,
-                          color: ANK.teal,
-                          fontSize: 11,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {c.code || c.name}
-                      </span>
-                    ))}
-                    {(s.linkedCourses || []).length > 3 && (
-                      <span
-                        style={{
-                          marginLeft: 6,
-                          fontSize: 11,
-                          color: ANK.teal,
-                          fontWeight: 600,
-                        }}
-                      >
-                        +{s.linkedCourses.length - 3} ders
-                      </span>
-                    )}
-                  </p>
+                    <AIcon
+                      path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      size={19}
+                      color={ANK.accent}
+                    />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p
+                      title={s.title}
+                      style={{
+                        fontSize: 14.5,
+                        fontWeight: 700,
+                        color: ANK.primary,
+                        margin: 0,
+                        lineHeight: 1.35,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {s.title}
+                    </p>
+                    <p style={{ fontSize: 12, color: ANK.textMuted, margin: '3px 0 0' }}>
+                      {s.questions?.length || 0} soru
+                    </p>
+                  </div>
                 </div>
-                <button
-                  onClick={() => setEditing({ ...s, _isNew: false })}
-                  title="Düzenle"
-                  style={iconBtn(ANK.accent)}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, minHeight: 22 }}>
+                  {ac > 0 && (
+                    <span
+                      style={{
+                        padding: '2px 9px',
+                        borderRadius: 10,
+                        background: ANK.blueLight,
+                        color: ANK.blue,
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {ac} atama
+                    </span>
+                  )}
+                  {(s.linkedCourses || []).slice(0, 3).map((c) => (
+                    <span
+                      key={c.code || c.name}
+                      title={c.name}
+                      style={{
+                        padding: '2px 9px',
+                        borderRadius: 10,
+                        background: ANK.tealLight,
+                        color: ANK.teal,
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {c.code || c.name}
+                    </span>
+                  ))}
+                  {(s.linkedCourses || []).length > 3 && (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: ANK.teal,
+                        fontWeight: 600,
+                        alignSelf: 'center',
+                      }}
+                    >
+                      +{s.linkedCourses.length - 3} ders
+                    </span>
+                  )}
+                  {ac === 0 && (s.linkedCourses || []).length === 0 && (
+                    <span style={{ fontSize: 11, color: ANK.textDim, alignSelf: 'center' }}>
+                      Henüz atama yok
+                    </span>
+                  )}
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 6,
+                    marginTop: 'auto',
+                    paddingTop: 10,
+                    borderTop: '1px solid ' + ANK.border,
+                  }}
                 >
-                  <AIcon
-                    path="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                    size={13}
-                    color={ANK.accent}
-                  />
-                </button>
-                <button onClick={() => onDuplicate(s)} title="Çoğalt" style={iconBtn(ANK.blue)}>
-                  <AIcon
-                    path={[
-                      'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2',
-                      'M10 8h8a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-8a2 2 0 012-2z',
-                    ]}
-                    size={13}
-                    color={ANK.blue}
-                  />
-                </button>
-                <button onClick={() => onRemove(s.id)} title="Sil" style={iconBtn(ANK.red)}>
-                  <AIcon
-                    path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
-                    size={14}
-                    color={ANK.red}
-                  />
-                </button>
+                  <button
+                    onClick={() => setEditing({ ...s, _isNew: false })}
+                    className="ank-btn"
+                    style={{
+                      flex: 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid ' + ANK.border,
+                      background: ANK.accentPale,
+                      color: ANK.accent,
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    <AIcon
+                      path="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                      size={13}
+                      color={ANK.accent}
+                    />
+                    Düzenle
+                  </button>
+                  <button
+                    onClick={() => onDuplicate(s)}
+                    title="Çoğalt"
+                    className="ank-btn"
+                    style={iconBtn(ANK.blue)}
+                  >
+                    <AIcon
+                      path={[
+                        'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2',
+                        'M10 8h8a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-8a2 2 0 012-2z',
+                      ]}
+                      size={13}
+                      color={ANK.blue}
+                    />
+                  </button>
+                  <button
+                    onClick={() => onRemove(s.id)}
+                    title="Sil"
+                    className="ank-btn"
+                    style={iconBtn(ANK.red)}
+                  >
+                    <AIcon
+                      path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
+                      size={14}
+                      color={ANK.red}
+                    />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -1414,6 +1487,7 @@ function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment,
           {questions.map((q, i) => (
             <div
               key={i}
+              className="ank-qcard"
               style={{
                 border: '1px solid ' + ANK.border,
                 borderRadius: 10,
@@ -1421,6 +1495,7 @@ function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment,
                 display: 'flex',
                 gap: 8,
                 alignItems: 'flex-start',
+                background: ANK.surface,
               }}
             >
               <span
