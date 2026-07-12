@@ -395,16 +395,31 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
     toast.show('Atama kaldırıldı');
   };
 
+  // Üç sekme, üç farklı tasarım: dolgu (turkuaz) · yumuşak çip (amber) ·
+  // çerçeveli (mavi). Hover efekti yok — sabit, temiz görünüm.
   const tabs = [
     {
       key: 'anketler',
       label: 'Anketler',
+      variant: 'solid',
+      color: '#0D9488',
+      pale: '#CCFBF1',
       icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
     },
-    { key: 'atama', label: 'Rol Atama', icon: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8' },
+    {
+      key: 'atama',
+      label: 'Rol Atama',
+      variant: 'soft',
+      color: '#B45309',
+      pale: '#FEF3C7',
+      icon: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8',
+    },
     {
       key: 'sonuclar',
       label: 'Sonuçlar',
+      variant: 'outline',
+      color: '#2563EB',
+      pale: '#DBEAFE',
       icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     },
   ];
@@ -417,6 +432,8 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
         title="Anketler"
         subtitle={`${isAdmin ? 'Fakülte' : departmentInfo?.name || 'Bölüm'} yönetici paneli — anket oluştur, ata ve sonuçları izle`}
         responsive={responsive}
+        grad="linear-gradient(135deg, #2DD4BF 0%, #0D9488 100%)"
+        glow="rgba(13,148,136,0.28)"
       />
       <SegTabs tabs={tabs} active={tab} onChange={setTab} />
 
@@ -505,14 +522,19 @@ function AnkStyles() {
       .ank-btn { transition: filter .15s ease, box-shadow .15s ease, transform .05s ease; }
       .ank-btn:hover { filter: brightness(1.05); }
       .ank-btn:active { transform: translateY(1px); }
-      /* Şablon galerisi — yatay kaydırılabilir şerit (Google Forms tarzı) */
-      .ank-strip { display:flex; gap:12px; overflow-x:auto; padding:2px 2px 10px; scroll-snap-type:x proximity; }
-      .ank-strip::-webkit-scrollbar { height:8px; }
-      .ank-strip::-webkit-scrollbar-thumb { background:${ANK.border}; border-radius:8px; }
-      .ank-strip::-webkit-scrollbar-thumb:hover { background:${ANK.borderStrong}; }
-      .ank-tpl { position:relative; flex:0 0 236px; scroll-snap-align:start; border:1px solid ${ANK.border}; border-radius:12px; padding:14px 14px 12px; background:${ANK.surface}; display:flex; flex-direction:column; gap:9px; overflow:hidden; transition:box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
-      .ank-tpl::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:${ANK.headerGrad}; }
-      .ank-tpl:hover { box-shadow:${ANK.shadow}; transform:translateY(-2px); border-color:${ANK.borderStrong}; }
+      /* Şablon galerisi — Google Forms tarzı yatay şerit (turkuaz-beyaz) */
+      .ank-tpl-strip { display:flex; gap:18px; overflow-x:auto; padding:2px 2px 14px; }
+      .ank-tpl-strip::-webkit-scrollbar { height:8px; }
+      .ank-tpl-strip::-webkit-scrollbar-thumb { background:#B8EDE5; border-radius:8px; }
+      .ank-tpl-strip::-webkit-scrollbar-thumb:hover { background:#0D9488; }
+      .ank-tpl-card { position:relative; display:block; width:172px; border:1px solid #DBEFEB; border-radius:8px; background:#fff; cursor:pointer; overflow:hidden; box-shadow:0 1px 2px rgba(13,148,136,0.06); transition:border-color .15s ease, box-shadow .15s ease; padding:0; }
+      .ank-tpl-card:hover { border-color:#0D9488; box-shadow:0 2px 10px rgba(13,148,136,0.16); }
+      .ank-tpl-upload { border-style:dashed; border-color:#9FE3D8; }
+      .ank-tpl-name { font-size:12.5px; font-weight:700; color:#134E4A; margin:9px 2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:172px; }
+      .ank-tpl-sub { font-size:11px; color:#5B8C86; margin:2px 2px 0; }
+      .ank-tpl-edit { position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:7px; background:rgba(255,255,255,0.94); border:1px solid #DBEFEB; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 1px 3px rgba(13,148,136,0.14); }
+      .ank-tpl-edit:hover { background:#CCFBF1; }
+      .ank-tpl-badge { position:absolute; top:8px; left:8px; min-width:20px; height:20px; padding:0 6px; border-radius:10px; background:#0D9488; color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 3px rgba(13,148,136,0.3); }
       /* Anket ızgarası — kart hover yükselmesi */
       .ank-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; }
       /* Düzenleyici soru kartları — odaklanınca yükselir (elevation) */
@@ -522,8 +544,9 @@ function AnkStyles() {
   );
 }
 
-// Sayfa başlığı — gradyan ikon rozeti + başlık/alt başlık
-function PageHeader({ icon, title, subtitle, right, responsive }) {
+// Sayfa başlığı — gradyan ikon rozeti + başlık/alt başlık.
+// grad/glow opsiyonel: yönetici görünümünde turkuaz rozet için geçilir.
+function PageHeader({ icon, title, subtitle, right, responsive, grad, glow }) {
   const rv = responsive || { val: (_a, _b, c) => c };
   return (
     <div
@@ -540,12 +563,12 @@ function PageHeader({ icon, title, subtitle, right, responsive }) {
           width: 46,
           height: 46,
           borderRadius: 13,
-          background: ANK.headerGrad,
+          background: grad || ANK.headerGrad,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          boxShadow: '0 6px 16px rgba(124,58,237,0.28)',
+          boxShadow: '0 6px 16px ' + (glow || 'rgba(124,58,237,0.28)'),
         }}
       >
         <AIcon path={icon} size={22} color="#fff" />
@@ -571,21 +594,94 @@ function PageHeader({ icon, title, subtitle, right, responsive }) {
   );
 }
 
-// Segment (pill) sekme kontrolü
+// Sekme kontrolü — her sekme farklı bir tasarım taşır (dolgu / yumuşak çip /
+// çerçeveli). Hover efekti yoktur; aktif/pasif durumu renkle ayrışır.
 function SegTabs({ tabs, active, onChange }) {
+  const base = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '9px 18px',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: "'Inter', sans-serif",
+    whiteSpace: 'nowrap',
+  };
+  const tabStyle = (t, on) => {
+    const c = t.color || ANK.accent;
+    if (t.variant === 'solid') {
+      // Dolgu pill — aktifken tam turkuaz
+      return on
+        ? {
+            ...base,
+            borderRadius: 12,
+            background: c,
+            color: '#fff',
+            border: '1px solid ' + c,
+            boxShadow: '0 2px 8px rgba(13,148,136,0.30)',
+          }
+        : {
+            ...base,
+            borderRadius: 12,
+            background: '#fff',
+            color: ANK.textMuted,
+            border: '1px solid ' + ANK.border,
+          };
+    }
+    if (t.variant === 'soft') {
+      // Yumuşak çip — aktifken açık amber zemin, hafif köşe
+      return on
+        ? {
+            ...base,
+            borderRadius: 9,
+            background: t.pale,
+            color: c,
+            border: '1px solid ' + t.pale,
+          }
+        : {
+            ...base,
+            borderRadius: 9,
+            background: '#fff',
+            color: ANK.textMuted,
+            border: '1px dashed ' + ANK.borderStrong,
+          };
+    }
+    // outline — aktifken beyaz zemin + kalın mavi çerçeve, tam yuvarlak
+    return on
+      ? {
+          ...base,
+          borderRadius: 22,
+          background: '#fff',
+          color: c,
+          border: '2px solid ' + c,
+          padding: '8px 17px',
+        }
+      : {
+          ...base,
+          borderRadius: 22,
+          background: '#fff',
+          color: ANK.textMuted,
+          border: '1px solid ' + ANK.border,
+        };
+  };
   return (
-    <div style={{ marginBottom: 22, overflowX: 'auto' }}>
-      <div className="ank-seg">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => onChange(t.key)}
-            className={'ank-seg-btn' + (active === t.key ? ' active' : '')}
-          >
-            <AIcon path={t.icon} size={16} /> {t.label}
+    <div
+      style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 22, overflowX: 'auto' }}
+    >
+      {tabs.map((t) => {
+        const on = active === t.key;
+        return (
+          <button key={t.key} onClick={() => onChange(t.key)} style={tabStyle(t, on)}>
+            <AIcon
+              path={t.icon}
+              size={16}
+              color={on ? (t.variant === 'solid' ? '#fff' : t.color) : ANK.textDim}
+            />
+            {t.label}
           </button>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }
@@ -681,6 +777,70 @@ function buildSurveyFromLines(lines, fallbackTitle) {
   return { title, description, infoFields: [], questions };
 }
 
+// ─── Google Forms tarzı şablon önizleme küçük resmi (turkuaz-beyaz) ─────────
+// Statik, veri gerektirmeyen mini form görseli: turkuaz üst bant + gri
+// alan çizgileri. `blank` → boş form (+) kartı.
+const TQ = {
+  primary: '#0D9488',
+  primaryDark: '#0F766E',
+  grad: 'linear-gradient(135deg, #2DD4BF 0%, #0D9488 100%)',
+  paper: '#ECFEFF',
+  line: '#E2E8F0',
+  name: '#134E4A',
+  sub: '#5B8C86',
+  border: '#CFEEE8',
+};
+function TplThumb({ blank }) {
+  if (blank) {
+    return (
+      <div
+        style={{
+          height: 118,
+          background: '#FFFFFF',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div
+          style={{
+            width: 46,
+            height: 46,
+            borderRadius: '50%',
+            background: TQ.paper,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <AIcon path="M12 5v14M5 12h14" size={26} color={TQ.primary} />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ height: 118, background: TQ.paper, padding: 11 }}>
+      <div
+        style={{
+          height: '100%',
+          background: '#fff',
+          borderRadius: 5,
+          overflow: 'hidden',
+          boxShadow: '0 1px 3px rgba(13,148,136,0.10)',
+        }}
+      >
+        <div style={{ height: 24, background: TQ.grad }} />
+        <div style={{ padding: '9px 10px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <div style={{ width: '58%', height: 6, borderRadius: 3, background: TQ.primary }} />
+          <div style={{ width: '92%', height: 4, borderRadius: 3, background: TQ.line }} />
+          <div style={{ width: '80%', height: 4, borderRadius: 3, background: TQ.line }} />
+          <div style={{ width: '86%', height: 4, borderRadius: 3, background: TQ.line }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AnketlerPaneli({
   surveys,
   assignments,
@@ -763,193 +923,171 @@ function AnketlerPaneli({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={cardStyle}>
+      <div
+        style={{
+          background: '#F7FEFD',
+          borderRadius: ANK.radius,
+          border: '1px solid ' + TQ.border,
+          boxShadow: ANK.shadowSm,
+          padding: 20,
+        }}
+      >
         <div
           style={{
             display: 'flex',
-            alignItems: 'baseline',
+            alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 8,
-            marginBottom: 12,
+            gap: 10,
+            marginBottom: 14,
           }}
         >
-          <p style={{ ...labelStyle, marginBottom: 0 }}>Hazır anket şablonları</p>
-          <span style={{ fontSize: 11, color: ANK.textDim }}>Kaydırarak keşfedin →</span>
+          <p style={{ fontSize: 14, fontWeight: 700, color: TQ.primaryDark, margin: 0 }}>
+            Yeni bir anket hazırlamaya başlayın
+          </p>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: ANK.textMuted,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Şablon galerisi
+            <AIcon path={['M7 15l5 5 5-5', 'M7 9l5-5 5 5']} size={14} color={ANK.textDim} />
+          </span>
         </div>
-        <div className="ank-strip">
+
+        <div className="ank-tpl-strip">
+          {/* Boş anket — sıfırdan başla */}
+          <div style={{ flex: '0 0 172px' }}>
+            <div
+              role="button"
+              tabIndex={0}
+              className="ank-tpl-card"
+              onClick={() =>
+                setEditing({
+                  _isNew: true,
+                  title: '',
+                  description: '',
+                  infoFields: [],
+                  questions: [],
+                })
+              }
+            >
+              <TplThumb blank />
+            </div>
+            <p className="ank-tpl-name">Boş anket</p>
+            <p className="ank-tpl-sub">Sıfırdan başla</p>
+          </div>
+
+          {/* Özel dosyadan yükle — .docx / .json / .txt */}
+          <div style={{ flex: '0 0 172px' }}>
+            <label
+              className="ank-tpl-card ank-tpl-upload"
+              style={{ cursor: importing ? 'wait' : 'pointer' }}
+            >
+              <div
+                style={{
+                  height: 118,
+                  background: '#fff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+              >
+                <div
+                  style={{
+                    width: 46,
+                    height: 46,
+                    borderRadius: '50%',
+                    background: TQ.paper,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <AIcon
+                    path="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    size={22}
+                    color={TQ.primary}
+                  />
+                </div>
+                <span style={{ fontSize: 11, color: TQ.sub, fontWeight: 600 }}>
+                  {importing ? 'İşleniyor…' : '.docx / .json / .txt'}
+                </span>
+              </div>
+              <input
+                type="file"
+                accept=".docx,.json,.txt"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files && e.target.files[0];
+                  e.target.value = '';
+                  if (f) handleFile(f);
+                }}
+              />
+            </label>
+            <p className="ank-tpl-name">Dosyadan yükle</p>
+            <p className="ank-tpl-sub">İçe aktar</p>
+          </div>
+
+          {/* Hazır şablonlar */}
           {Object.entries(PRESET_SURVEYS).map(([key, s]) => {
             const count = presetCount(key);
+            const qn = (expandPreset(s).questions || []).length;
             return (
-              <div key={key} className="ank-tpl">
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 9,
-                      background: ANK.accentPale,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <AIcon
-                      path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      size={16}
-                      color={ANK.accent}
-                    />
-                  </div>
-                  <p
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: ANK.primary,
-                      margin: 0,
-                      flex: 1,
-                      lineHeight: 1.3,
-                      minHeight: 34,
-                    }}
-                  >
-                    {s.title}
-                  </p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: ANK.textMuted }}>
-                    {(expandPreset(s).questions || []).length} soru
-                  </span>
-                  {count > 0 && (
-                    <span
-                      style={{
-                        padding: '1px 8px',
-                        borderRadius: 10,
-                        background: ANK.greenLight,
-                        color: ANK.green,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {count} yüklü
-                    </span>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
-                  <button
-                    onClick={() => addPreset(key)}
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 5,
-                      padding: '7px 10px',
-                      borderRadius: 7,
-                      border: 'none',
-                      background: ANK.accent,
-                      color: 'white',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      fontFamily: "'Inter', sans-serif",
-                    }}
-                  >
-                    <AIcon path="M12 5v14M5 12h14" size={12} /> Yükle
-                  </button>
-                  <button
-                    onClick={() => editPreset(key)}
+              <div key={key} style={{ flex: '0 0 172px' }}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  className="ank-tpl-card"
+                  title="Yükle"
+                  onClick={() => addPreset(key)}
+                >
+                  <TplThumb />
+                  <span
+                    role="button"
+                    tabIndex={0}
                     title="Düzenleyerek yükle"
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 5,
-                      padding: '7px 10px',
-                      borderRadius: 7,
-                      border: '1px solid ' + ANK.border,
-                      background: 'white',
-                      color: ANK.accent,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      fontFamily: "'Inter', sans-serif",
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      editPreset(key);
                     }}
+                    className="ank-tpl-edit"
                   >
                     <AIcon
                       path="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                      size={12}
+                      size={13}
+                      color={TQ.primaryDark}
                     />
-                    Düzenle
-                  </button>
+                  </span>
+                  {count > 0 && <span className="ank-tpl-badge">{count}</span>}
                 </div>
+                <p className="ank-tpl-name" title={s.title}>
+                  {s.title}
+                </p>
+                <p className="ank-tpl-sub">{qn} soru</p>
               </div>
             );
           })}
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <label
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              borderRadius: 8,
-              border: '1px dashed ' + ANK.accent,
-              background: ANK.accentPale,
-              color: ANK.accent,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: importing ? 'wait' : 'pointer',
-              opacity: importing ? 0.6 : 1,
-            }}
-          >
-            <AIcon
-              path="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-              size={14}
-            />
-            {importing ? 'İşleniyor…' : 'Özel anket yükle (.docx / .json / .txt)'}
-            <input
-              type="file"
-              accept=".docx,.json,.txt"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const f = e.target.files && e.target.files[0];
-                e.target.value = '';
-                if (f) handleFile(f);
-              }}
-            />
-          </label>
-          <button
-            onClick={() =>
-              setEditing({
-                _isNew: true,
-                title: '',
-                description: '',
-                infoFields: [],
-                questions: [],
-              })
-            }
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              borderRadius: 8,
-              border: '1px solid ' + ANK.border,
-              background: 'white',
-              color: ANK.primary,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            <AIcon path="M12 5v14M5 12h14" size={14} /> Sıfırdan yeni
-          </button>
-        </div>
-        <p style={{ fontSize: 11, color: ANK.textMuted, margin: '10px 0 0' }}>
-          Word (.docx), JSON ya da düz metin (.txt) dosyalarındaki sorular otomatik tanınır. Yükleme
-          sonrası açılan düzenleyici ile inceleyip kaydedebilirsiniz.
+
+        <p
+          style={{
+            fontSize: 11,
+            color: ANK.textMuted,
+            margin: '12px 0 0',
+            paddingTop: 12,
+            borderTop: '1px solid ' + TQ.border,
+          }}
+        >
+          Bir şablona tıklayın; kalem simgesiyle düzenleyerek yükleyebilirsiniz. Word (.docx), JSON
+          ya da düz metin (.txt) dosyalarındaki sorular otomatik tanınır.
         </p>
       </div>
 
