@@ -35,6 +35,65 @@ const toText = (v) => {
   return String(v);
 };
 
+// İşlem tipi → Türkçe fiil
+const OP_VERB = { add: 'ekledi', set: 'kaydetti', update: 'güncelledi', delete: 'sildi' };
+// Koleksiyon → okunabilir ad (bilinmeyen koleksiyonlar ham gösterilir)
+const COLL_LABEL = {
+  students: 'öğrenci',
+  professors: 'akademisyen',
+  departments: 'bölüm',
+  faculties: 'fakülte',
+  universities: 'üniversite',
+  course_schedules: 'ders programı',
+  sinav_dersler: 'ders',
+  sinav_programi: 'sınav programı',
+  department_classrooms: 'derslik',
+  student_courses: 'ders seçimi',
+  muafiyet_records: 'muafiyet kaydı',
+  muafiyet_history: 'muafiyet geçmişi',
+  internship_applications: 'staj başvurusu',
+  internship_roadmap: 'staj adımı',
+  internship_uploads: 'staj belgesi',
+  internship_periods: 'staj etabı',
+  projects: 'proje',
+  trip_history: 'erasmus geçmişi',
+  survey_responses: 'anket yanıtı',
+  surveys: 'anket',
+  performance_data: 'performans verisi',
+  strateji_izleme: 'stratejik plan',
+  student_clubs: 'öğrenci kulübü',
+  notifications: 'bildirim',
+  document_templates: 'şablon',
+};
+const collLabel = (c) => COLL_LABEL[c] || c || 'kayıt';
+
+// "Ne yaptı" — okunabilir Türkçe açıklama. Sunucu yazma girişlerinde
+// operations listesinden, istemci girişlerinde meta'dan üretir.
+const describeDetail = (l) => {
+  if (Array.isArray(l.operations) && l.operations.length) {
+    const parts = [];
+    const seen = new Set();
+    l.operations.forEach((op) => {
+      if (!op) return;
+      const label = `${collLabel(op.collection)} ${OP_VERB[op.type] || op.type || 'işlem'}`;
+      if (!seen.has(label)) {
+        seen.add(label);
+        parts.push(label);
+      }
+    });
+    let s = parts.join(', ');
+    if (l.status && l.status >= 400) s = '(reddedildi) ' + s;
+    return s || '—';
+  }
+  if (l.meta && typeof l.meta === 'object' && Object.keys(l.meta).length) {
+    return Object.entries(l.meta)
+      .map(([k, v]) => `${k}: ${v && typeof v === 'object' ? JSON.stringify(v) : v}`)
+      .join(' · ');
+  }
+  const parts = [toText(l.action), toText(l.target)].filter(Boolean);
+  return parts.join(' → ') || '—';
+};
+
 function AuditLogModuluApp({ currentUser, activeDepartment }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -285,15 +344,9 @@ function AuditLogModuluApp({ currentUser, activeDepartment }) {
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                     }}
-                    title={(() => {
-                      try {
-                        return JSON.stringify(l.meta || {});
-                      } catch {
-                        return '';
-                      }
-                    })()}
+                    title={describeDetail(l)}
                   >
-                    {l.meta && Object.keys(l.meta).length > 0 ? JSON.stringify(l.meta) : '—'}
+                    {describeDetail(l)}
                   </td>
                 </tr>
               ))}
