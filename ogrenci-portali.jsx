@@ -4134,6 +4134,9 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
   const [pollDeadline, setPollDeadline] = useState('');
   const [courseCode, setCourseCode] = useState('');
   const [showCourseSuggestions, setShowCourseSuggestions] = useState(false);
+  // Bölüm seçimi: boş = herkese açık; bir bölüm seçilirse yalnız o bölüm öğrencileri görür.
+  const [postDept, setPostDept] = useState('');
+  var deptOptions = window.DEPARTMENTS || [];
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -4217,6 +4220,8 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
         contentFormat: 'html',
         tag: tag || '',
         courseCode: cc || '',
+        // Bölüm seçildiyse gönderi yalnız o bölüm öğrencilerine görünür (boş = herkese açık).
+        departmentId: postDept || '',
         tags: allTags,
         authorName: currentUser.name || 'Anonim',
         authorId: getUserId(currentUser),
@@ -4248,6 +4253,7 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
       setContent('');
       setResourceUrl('');
       setCourseCode('');
+      setPostDept('');
       setTags([]);
       setTagInput('');
       setPollOptions(['', '']);
@@ -4360,7 +4366,7 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
         />
       </div>
 
-      {/* Ders Kodu + Tag seçimi */}
+      {/* Ders Kodu · Bölüm · Sınıf — hizalı alanlar */}
       <div
         style={{
           display: 'flex',
@@ -4370,7 +4376,7 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
           alignItems: 'flex-start',
         }}
       >
-        <div style={{ position: 'relative', minWidth: 160 }}>
+        <div style={{ position: 'relative', flex: '1 1 160px', minWidth: 150 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted, marginBottom: 4 }}>
             Ders Kodu
           </div>
@@ -4388,6 +4394,8 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
             placeholder="Örn: BIL301"
             style={{
               width: '100%',
+              height: 36,
+              boxSizing: 'border-box',
               padding: '8px 12px',
               border: '1px solid ' + PC.border,
               borderRadius: 8,
@@ -4439,11 +4447,51 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
             </div>
           )}
         </div>
-        <div>
+        <div style={{ flex: '1 1 180px', minWidth: 160 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted, marginBottom: 4 }}>
+            Bölüm
+          </div>
+          <select
+            value={postDept}
+            onChange={function (e) {
+              setPostDept(e.target.value);
+            }}
+            style={{
+              width: '100%',
+              height: 36,
+              boxSizing: 'border-box',
+              padding: '8px 12px',
+              border: '1px solid ' + PC.border,
+              borderRadius: 8,
+              fontSize: 12,
+              outline: 'none',
+              background: 'white',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="">Herkese açık (tüm bölümler)</option>
+            {deptOptions.map(function (d) {
+              return (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+        <div style={{ flex: '2 1 200px', minWidth: 180 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: PC.textMuted, marginBottom: 4 }}>
             Sınıf
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 4,
+              minHeight: 36,
+              alignItems: 'center',
+            }}
+          >
             {SINIF_TAGS.map(function (t) {
               var isActive = tag === t;
               return (
@@ -4453,7 +4501,7 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
                     setTag(isActive ? '' : t);
                   }}
                   style={{
-                    padding: '4px 10px',
+                    padding: '7px 12px',
                     borderRadius: 6,
                     fontSize: 11,
                     fontWeight: isActive ? 700 : 500,
@@ -4470,6 +4518,19 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
           </div>
         </div>
       </div>
+      {postDept && (
+        <div style={{ fontSize: 11, color: DY.goldDark, marginTop: 6 }}>
+          Bu gönderi yalnızca{' '}
+          <strong>
+            {(
+              deptOptions.find(function (d) {
+                return d.id === postDept;
+              }) || {}
+            ).name || 'seçili bölüm'}
+          </strong>{' '}
+          öğrencilerine gösterilecek.
+        </div>
+      )}
 
       {/* Etiket Ekleme */}
       <div style={{ marginTop: 12 }}>
@@ -7747,13 +7808,31 @@ function OgrenciPortaliApp({ currentUser }) {
       .catch(function () {});
   }, []);
 
-  // Kayıtlı öğrenci sayısını yükle — tüm öğrenci kayıtları sayılır.
-  // (fetchAllStudents ad-soyadı boş olanları elediği için üye sayısı yanlış/
-  // eksik çıkıyordu; burada ham öğrenci listesinin tamamını sayıyoruz.)
+  // Kayıtlı üye sayısı. NOT: sunucu, öğrenci rolünde `students` okumasını
+  // yalnız kendi kaydına daraltır (STUDENT_READ_SCOPED) — bu yüzden öğrencide
+  // students.length her zaman 1 çıkıyordu. Bunun yerine öğrenciye de tam açık
+  // olan portal profillerini (ve gönderi yazarlarını) sayıyoruz.
   useEffect(function () {
-    window.DB.fetchStudents()
-      .then(function (students) {
-        setRegisteredStudentCount((students || []).length);
+    Promise.all([
+      window.apiRead('portal_profiles').catch(function () {
+        return [];
+      }),
+      window.apiRead('portal_posts', { _limit: 500 }).catch(function () {
+        return [];
+      }),
+    ])
+      .then(function (res) {
+        var profiles = res[0] || [];
+        var posts = res[1] || [];
+        var ids = {};
+        profiles.forEach(function (p) {
+          var id = p.userId || p._docId || p.id;
+          if (id) ids[String(id)] = true;
+        });
+        posts.forEach(function (p) {
+          if (p.authorId) ids[String(p.authorId)] = true;
+        });
+        setRegisteredStudentCount(Object.keys(ids).length);
       })
       .catch(function () {});
   }, []);
@@ -8158,6 +8237,16 @@ function OgrenciPortaliApp({ currentUser }) {
           return false;
         });
       }
+      // Bölüm görünürlüğü: bölüme özel gönderiyi yalnız o bölüm öğrencileri görür.
+      // (Herkese açık gönderi = departmentId boş; yazar ve moderatör/yönetici her zaman görür.)
+      var myDeptId =
+        currentUser && currentUser.departmentId ? String(currentUser.departmentId) : '';
+      result = result.filter(function (p) {
+        if (!p.departmentId) return true;
+        if (isModOrAdmin) return true;
+        if (p.authorId === userId) return true;
+        return String(p.departmentId) === myDeptId;
+      });
       // Tam metin arama
       if (searchQuery.trim()) {
         var q = searchQuery.toLowerCase();
@@ -8265,6 +8354,7 @@ function OgrenciPortaliApp({ currentUser }) {
       followData,
       isModOrAdmin,
       userId,
+      currentUser,
     ]
   );
 
@@ -8322,16 +8412,12 @@ function OgrenciPortaliApp({ currentUser }) {
               }}
             >
               Öğrenci Portalı
-              <span style={{ display: 'inline-block', marginLeft: 8 }}>
-                <SvgIcon path={ICONS.daisy} size={28} color={DY.gold} fill={DY.goldLight} />
-              </span>
             </h1>
             <p style={{ color: PC.textMuted, fontSize: 14 }}>
               Yardımlaşma, bilgi paylaşımı ve sosyal etkileşim platformu
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <NotificationBell currentUser={currentUser} />
             {isModOrAdmin && (
               <button
                 onClick={function () {
