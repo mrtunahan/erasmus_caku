@@ -340,6 +340,9 @@ async function fetchProfessorProfile(professorName) {
       additionalDepartments: Array.isArray(doc.additionalDepartments)
         ? doc.additionalDepartments
         : [],
+      // Üniversite dışı (bölümsüz) akademisyen bayrağı — istemci erişim setini
+      // buna göre kısıtlar (yalnız atandığı bölüm + Öğrenci Portalı dahil ders modülleri).
+      external: !!doc.external,
     };
   } catch (e) {
     console.error('fetchProfessorProfile error:', e.message);

@@ -487,6 +487,8 @@ const Sidebar = ({
   const mainDept = currentUser?.departmentId;
   const isOnExtraDept =
     activeDepartment && activeDepartment !== mainDept && extras.includes(activeDepartment);
+  // Üniversite dışı akademisyen: eklendiği bölümde Öğrenci Portalı'na da erişir.
+  const isExternalUser = currentUser?.external === true;
 
   // Öğrenciler ve profesörler için erişilebilir modüller
   const getVisibleModules = () => {
@@ -657,8 +659,10 @@ const Sidebar = ({
       {/* Divider */}
       <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
 
-      {/* Common Modules — çapraz bölümde tamamen gizli (sadece ders modülleri) */}
-      {!isErgunCinar && !studentLocked && !isOnExtraDept && (
+      {/* Common Modules — çapraz bölümde tamamen gizli (sadece ders modülleri).
+          İstisna: üniversite dışı akademisyen eklendiği bölümde yalnız Öğrenci
+          Portalı'nı görür. */}
+      {!isErgunCinar && !studentLocked && (!isOnExtraDept || isExternalUser) && (
         <div style={{ padding: '4px 12px' }}>
           <div
             style={{
@@ -672,7 +676,10 @@ const Sidebar = ({
           >
             Ortak
           </div>
-          {COMMON_MODULES.map((mod) => {
+          {(isOnExtraDept && isExternalUser
+            ? COMMON_MODULES.filter((m) => m.id === 'portal')
+            : COMMON_MODULES
+          ).map((mod) => {
             const isActive = currentRoute === mod.id;
             return (
               <button
@@ -1521,6 +1528,23 @@ function AppShell() {
     [currentUser, adminScope]
   );
 
+  // Aktif bölüm, kullanıcının erişebildiği bölümler arasında değilse ilk
+  // erişilebilir bölüme geç. Özellikle üniversite dışı akademisyen için önemli:
+  // ana bölümü olmadığından varsayılan bölümde kalıp o bölümün tam akademisyen
+  // setine erişmemeli — yalnız atandığı bölüme (ek bölüm) düşmeli.
+  useEffect(() => {
+    if (!currentUser) return;
+    const allowed = computeAvailableDepts(currentUser, adminScope);
+    if (allowed.length > 0 && !allowed.some((d) => d.id === activeDepartment)) {
+      setActiveDepartment(allowed[0].id);
+      try {
+        localStorage.setItem('caku_active_department', allowed[0].id);
+      } catch {
+        /* yok say */
+      }
+    }
+  }, [currentUser, adminScope, activeDepartment]);
+
   // Rol kapsamı değişimi: localStorage'a yaz; fakülte kapsamına geçildiğinde
   // aktif bölüm o fakültenin bir bölümüne otomatik düşer (yetkisiz görünüm
   // kalmasın).
@@ -1579,13 +1603,28 @@ function AppShell() {
       isFacultyManager: user.isFacultyManager || false,
       isDeptManager: user.isDeptManager || false,
       isStajCoordinator: user.isStajCoordinator || false,
+      // Ek bölümler ve üniversite dışı bayrağı refresh sonrası da korunmalı
+      // (aksi halde çapraz-bölüm ve üniversite dışı erişim yenilenince kayboluyordu).
+      additionalDepartments: Array.isArray(user.additionalDepartments)
+        ? user.additionalDepartments
+        : [],
+      external: user.external || false,
     };
     localStorage.setItem('caku_current_user', JSON.stringify(safeUser));
 
-    // Bölüm yetkilisi ise kendi bölümünü aktif yap
+    // Bölüm yetkilisi ise kendi bölümünü aktif yap. Üniversite dışı akademisyenin
+    // ana bölümü yoktur; atandığı ilk bölümü aktif yap (varsayılan bölümde kalıp
+    // yetkisiz görünüm oluşmasın).
     if (user.departmentId) {
       setActiveDepartment(user.departmentId);
       localStorage.setItem('caku_active_department', user.departmentId);
+    } else if (
+      user.external &&
+      Array.isArray(user.additionalDepartments) &&
+      user.additionalDepartments.length > 0
+    ) {
+      setActiveDepartment(user.additionalDepartments[0]);
+      localStorage.setItem('caku_active_department', user.additionalDepartments[0]);
     }
 
     // Redirect based on role
@@ -1725,6 +1764,8 @@ function AppShell() {
       activeDepartment &&
       activeDepartment !== currentUser?.departmentId &&
       extras.includes(activeDepartment);
+    // Üniversite dışı akademisyen: eklendiği bölümde Öğrenci Portalı da açık.
+    const isExternalUser = currentUser?.external === true;
 
     // Modül izin listesi:
     //   • Çapraz-bölüm (ek) → sadece ders-bağlı modüller (Staj/Erasmus/Muafiyet yok)
@@ -1740,7 +1781,12 @@ function AppShell() {
           : ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet']; // student
 
     // Çapraz-bölümde Ortak/Yönetim/Hiyerarşi modülleri tamamen gizli.
-    const allowedCommon = isOnExtraDept ? [] : COMMON_MODULES.map((m) => m.id);
+    // İstisna: üniversite dışı akademisyen eklendiği bölümde Öğrenci Portalı'na erişir.
+    const allowedCommon = isOnExtraDept
+      ? isExternalUser
+        ? ['portal']
+        : []
+      : COMMON_MODULES.map((m) => m.id);
     // Bölüm yetkilisi yönetim modülleri görür ama Audit Log hariç.
     const allowedAdmin = isOnExtraDept
       ? []
