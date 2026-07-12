@@ -65,6 +65,21 @@ const initialsOf = (name) => {
   ).toUpperCase();
 };
 
+// Akademisyen adı ~ topluluk danışmanı (advisor) adı eşleşmesi.
+// Unvan (Prof./Doç./Dr./Öğr. Gör.) ve fazla boşluklardan arındırıp karşılaştırır.
+const stripAcademicTitle = (s) =>
+  (s || '')
+    .replace(/(prof|doç|doc|dr|öğr|ogr|gör|gor|arş|ars|üyesi|uyesi)\.?/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase('tr');
+const advisorMatchesName = (advisor, name) => {
+  const a = stripAcademicTitle(advisor);
+  const b = stripAcademicTitle(name);
+  if (!a || !b) return false;
+  return a === b || a.indexOf(b) >= 0 || b.indexOf(a) >= 0;
+};
+
 const KlpIcon = ({ path, size = 18, color = 'currentColor' }) => (
   <svg
     width={size}
@@ -162,9 +177,22 @@ function LogoAvatar({ club, size = 96, onClick, editable }) {
 // ══════════════════════════════════════════════════════════════
 // ClubCard — beşerli grid'te tek kart
 // ══════════════════════════════════════════════════════════════
-function ClubCard({ club, canEdit, onEdit, onDelete, onLogoChange }) {
+function ClubCard({
+  club,
+  canEdit,
+  onEdit,
+  onDelete,
+  onLogoChange,
+  onOpen,
+  followerCount = 0,
+  isFollowing = false,
+  isStudent = false,
+  onToggleFollow,
+}) {
   const [hover, setHover] = useState(false);
   const fileInputRef = useRef(null);
+  const [g1, g2] = colorForName(club?.name || '');
+  const hasLogo = !!club?.logoURL;
 
   const triggerLogoUpload = () => {
     if (!canEdit) return;
@@ -182,34 +210,73 @@ function ClubCard({ club, canEdit, onEdit, onDelete, onLogoChange }) {
     await onLogoChange(file);
   };
 
+  const stop = (e) => e.stopPropagation();
+
   return (
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onClick={onOpen}
       style={{
         background: 'white',
         borderRadius: 16,
         border: `1px solid ${hover ? KLP.accent : KLP.border}`,
-        padding: '20px 16px 16px',
-        boxShadow: hover ? '0 8px 24px rgba(27,42,74,0.10)' : '0 1px 2px rgba(0,0,0,0.04)',
+        boxShadow: hover ? '0 10px 28px rgba(27,42,74,0.14)' : '0 1px 2px rgba(0,0,0,0.04)',
         transition: 'all 0.2s',
-        transform: hover ? 'translateY(-2px)' : 'none',
+        transform: hover ? 'translateY(-3px)' : 'none',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
+        overflow: 'hidden',
+        cursor: 'pointer',
       }}
     >
+      {/* Topluluk resmiyle uyumlu renkli banner (logo bulanık zemin + renk tonu) */}
+      <div
+        style={{
+          position: 'relative',
+          height: 74,
+          background: `linear-gradient(135deg, ${g1}, ${g2})`,
+          overflow: 'hidden',
+        }}
+      >
+        {hasLogo && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `url("${club.logoURL}")`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              filter: 'blur(7px)',
+              transform: 'scale(1.2)',
+              opacity: 0.55,
+            }}
+          />
+        )}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: `linear-gradient(135deg, ${g1}b0, ${g2}b0)`,
+          }}
+        />
+      </div>
+
       {canEdit && (
         <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6 }}>
           <button
-            onClick={onEdit}
+            onClick={(e) => {
+              stop(e);
+              onEdit();
+            }}
             title="Düzenle"
             style={{
               width: 28,
               height: 28,
               borderRadius: 6,
-              border: '1px solid ' + KLP.border,
-              background: 'white',
+              border: '1px solid rgba(255,255,255,0.6)',
+              background: 'rgba(255,255,255,0.9)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -224,14 +291,17 @@ function ClubCard({ club, canEdit, onEdit, onDelete, onLogoChange }) {
             />
           </button>
           <button
-            onClick={onDelete}
+            onClick={(e) => {
+              stop(e);
+              onDelete();
+            }}
             title="Sil"
             style={{
               width: 28,
               height: 28,
               borderRadius: 6,
-              border: '1px solid ' + KLP.redLight,
-              background: 'white',
+              border: '1px solid rgba(255,255,255,0.6)',
+              background: 'rgba(255,255,255,0.9)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -248,8 +318,18 @@ function ClubCard({ club, canEdit, onEdit, onDelete, onLogoChange }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-        <LogoAvatar club={club} size={84} editable={canEdit} onClick={triggerLogoUpload} />
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          marginTop: -40,
+          marginBottom: 12,
+        }}
+        onClick={canEdit ? stop : undefined}
+      >
+        <div style={{ border: '3px solid white', borderRadius: '50%', background: 'white' }}>
+          <LogoAvatar club={club} size={72} editable={canEdit} onClick={triggerLogoUpload} />
+        </div>
         {canEdit && (
           <input
             ref={fileInputRef}
@@ -261,29 +341,90 @@ function ClubCard({ club, canEdit, onEdit, onDelete, onLogoChange }) {
         )}
       </div>
 
-      <h3
-        style={{
-          fontSize: 14,
-          fontWeight: 700,
-          color: KLP.primary,
-          textAlign: 'center',
-          margin: 0,
-          lineHeight: 1.3,
-          minHeight: 36,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {club.name}
-      </h3>
+      <div style={{ padding: '0 16px 16px' }}>
+        <h3
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: KLP.primary,
+            textAlign: 'center',
+            margin: 0,
+            lineHeight: 1.3,
+            minHeight: 36,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {club.name}
+        </h3>
 
-      <div style={{ height: 1, background: KLP.border, margin: '12px 0 10px' }} />
+        <div style={{ height: 1, background: KLP.border, margin: '10px 0' }} />
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Field label="Akademik Danışman" value={club.advisor} />
-        <Field label="Başkan" value={club.president} />
-        <Field label="Bölüm" value={club.department} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Field label="Akademik Danışman" value={club.advisor} />
+          <Field label="Başkan" value={club.president} />
+          <Field label="Bölüm" value={club.department} />
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            marginTop: 12,
+            paddingTop: 12,
+            borderTop: `1px solid ${KLP.border}`,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 12,
+              color: KLP.textMuted,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              fontWeight: 600,
+            }}
+          >
+            <KlpIcon
+              path="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+              size={13}
+              color={KLP.textMuted}
+            />
+            {followerCount} takipçi
+          </span>
+          {isStudent && (
+            <button
+              onClick={(e) => {
+                stop(e);
+                onToggleFollow && onToggleFollow();
+              }}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 20,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                border: isFollowing ? `1px solid ${KLP.green}` : 'none',
+                background: isFollowing ? KLP.greenLight : KLP.accent,
+                color: isFollowing ? KLP.green : 'white',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              {isFollowing ? (
+                <>
+                  <KlpIcon path="M5 13l4 4L19 7" size={13} color={KLP.green} /> Takiptesin
+                </>
+              ) : (
+                'Takip Et'
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {(club.whatsapp || club.instagram) && (
@@ -292,9 +433,7 @@ function ClubCard({ club, canEdit, onEdit, onDelete, onLogoChange }) {
             display: 'flex',
             justifyContent: 'center',
             gap: 10,
-            marginTop: 12,
-            paddingTop: 12,
-            borderTop: `1px solid ${KLP.border}`,
+            padding: '0 16px 16px',
           }}
         >
           {club.whatsapp && (
@@ -998,6 +1137,389 @@ function DocumentsPanel({ documents, canEdit, onUpload, onAddLink, onDelete }) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// ClubDetailModal — karta tıklayınca büyüyüp ekrana ortalanan detay
+//   • Öğrenci: takip et/bırak, takipçi sayısı, topluluk bilgileri
+//   • Sahip akademisyen / yetkili: takipçi listesi + toplu mesaj
+// ══════════════════════════════════════════════════════════════
+function ClubDetailModal({
+  club,
+  followers,
+  students,
+  isStudent,
+  isFollowing,
+  onToggleFollow,
+  canManage,
+  onSendBulk,
+  onClose,
+}) {
+  const [g1, g2] = colorForName(club?.name || '');
+  const hasLogo = !!club?.logoURL;
+  const [bulkText, setBulkText] = useState('');
+  const [sending, setSending] = useState(false);
+  const stop = (e) => e.stopPropagation();
+
+  const resolveName = (f) => {
+    if (f.studentName) return f.studentName;
+    const s = (students || []).find((x) => String(x.studentNumber) === String(f.studentNumber));
+    const n = s ? `${s.firstName || ''} ${s.lastName || ''}`.trim() : '';
+    return n || f.studentNumber || 'Öğrenci';
+  };
+
+  const send = async () => {
+    const t = bulkText.trim();
+    if (!t) return;
+    setSending(true);
+    try {
+      await onSendBulk(t);
+      setBulkText('');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const infoRow = (label, value) =>
+    value ? (
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0' }}>
+        <span style={{ fontSize: 12, color: KLP.textMuted }}>{label}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: KLP.text, textAlign: 'right' }}>
+          {value}
+        </span>
+      </div>
+    ) : null;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.6)',
+        zIndex: 1500,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <style>{`@keyframes klpPop { from { opacity:0; transform: scale(0.9); } to { opacity:1; transform: scale(1); } }`}</style>
+      <div
+        onClick={stop}
+        style={{
+          background: 'white',
+          borderRadius: 18,
+          width: 'min(560px, calc(100vw - 32px))',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          boxShadow: '0 30px 60px rgba(0,0,0,0.32)',
+          animation: 'klpPop .18s ease',
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        {/* Resimle uyumlu renkli banner */}
+        <div
+          style={{
+            position: 'relative',
+            height: 120,
+            background: `linear-gradient(135deg, ${g1}, ${g2})`,
+            overflow: 'hidden',
+            borderTopLeftRadius: 18,
+            borderTopRightRadius: 18,
+          }}
+        >
+          {hasLogo && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                backgroundImage: `url("${club.logoURL}")`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                filter: 'blur(9px)',
+                transform: 'scale(1.2)',
+                opacity: 0.55,
+              }}
+            />
+          )}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: `linear-gradient(135deg, ${g1}aa, ${g2}aa)`,
+            }}
+          />
+          <button
+            onClick={onClose}
+            title="Kapat"
+            style={{
+              position: 'absolute',
+              top: 12,
+              right: 12,
+              width: 30,
+              height: 30,
+              borderRadius: 8,
+              border: 'none',
+              background: 'rgba(255,255,255,0.9)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <KlpIcon path="M18 6L6 18M6 6l12 12" size={16} color={KLP.text} />
+          </button>
+        </div>
+
+        <div style={{ marginTop: -48, display: 'flex', justifyContent: 'center' }}>
+          <div style={{ border: '4px solid white', borderRadius: '50%', background: 'white' }}>
+            <LogoAvatar club={club} size={88} />
+          </div>
+        </div>
+
+        <div style={{ padding: '10px 24px 24px' }}>
+          <h2
+            style={{
+              fontSize: 20,
+              fontWeight: 800,
+              color: KLP.primary,
+              textAlign: 'center',
+              margin: '4px 0 2px',
+            }}
+          >
+            {club.name}
+          </h2>
+          {club.department && (
+            <p style={{ fontSize: 13, color: KLP.textMuted, textAlign: 'center', margin: 0 }}>
+              {club.department}
+            </p>
+          )}
+
+          {/* İstatistik + takip */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 16,
+              margin: '16px 0',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '10px 22px',
+                borderRadius: 12,
+                background: KLP.accentLight,
+                border: `1px solid ${KLP.accent}30`,
+              }}
+            >
+              <div style={{ fontSize: 24, fontWeight: 800, color: KLP.accent }}>
+                {followers.length}
+              </div>
+              <div style={{ fontSize: 11, color: KLP.textMuted, fontWeight: 600 }}>Takipçi</div>
+            </div>
+            {isStudent && (
+              <button
+                onClick={onToggleFollow}
+                style={{
+                  padding: '11px 22px',
+                  borderRadius: 24,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: isFollowing ? `1px solid ${KLP.green}` : 'none',
+                  background: isFollowing ? KLP.greenLight : KLP.accent,
+                  color: isFollowing ? KLP.green : 'white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {isFollowing ? (
+                  <>
+                    <KlpIcon path="M5 13l4 4L19 7" size={15} color={KLP.green} /> Takiptesin
+                  </>
+                ) : (
+                  <>
+                    <KlpIcon path="M12 5v14M5 12h14" size={15} color="white" /> Takip Et
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* Bilgiler */}
+          <div
+            style={{
+              borderTop: `1px solid ${KLP.border}`,
+              borderBottom: `1px solid ${KLP.border}`,
+              padding: '4px 0',
+            }}
+          >
+            {infoRow('Akademik Danışman', club.advisor)}
+            {infoRow('Başkan', club.president)}
+            {infoRow('Kuruluş', club.foundedYear || club.established)}
+          </div>
+
+          {/* Sosyal */}
+          {(club.whatsapp || club.instagram) && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 16 }}>
+              {club.whatsapp && (
+                <a
+                  href={normalizeSocialUrl(club.whatsapp)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    background: '#25D366',
+                    color: 'white',
+                    textDecoration: 'none',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  WhatsApp
+                </a>
+              )}
+              {club.instagram && (
+                <a
+                  href={normalizeSocialUrl(club.instagram)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    background: 'linear-gradient(45deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5)',
+                    color: 'white',
+                    textDecoration: 'none',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  Instagram
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Sahip akademisyen / yetkili araçları */}
+          {canManage && (
+            <div style={{ marginTop: 20 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: KLP.primary,
+                  marginBottom: 8,
+                }}
+              >
+                Takipçiler ({followers.length})
+              </div>
+              {followers.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: KLP.textMuted, margin: '0 0 12px' }}>
+                  Henüz takipçi yok.
+                </p>
+              ) : (
+                <div
+                  style={{
+                    maxHeight: 140,
+                    overflowY: 'auto',
+                    border: `1px solid ${KLP.border}`,
+                    borderRadius: 10,
+                    marginBottom: 14,
+                  }}
+                >
+                  {followers.map((f) => (
+                    <div
+                      key={f.id || f.studentNumber}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 12px',
+                        borderBottom: `1px solid ${KLP.border}`,
+                        fontSize: 13,
+                        color: KLP.text,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          color: KLP.textMuted,
+                          minWidth: 78,
+                        }}
+                      >
+                        {f.studentNumber}
+                      </span>
+                      {resolveName(f)}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ fontSize: 13, fontWeight: 700, color: KLP.primary, marginBottom: 6 }}>
+                Toplu Mesaj Gönder
+              </div>
+              <textarea
+                value={bulkText}
+                onChange={(e) => setBulkText(e.target.value)}
+                rows={3}
+                placeholder="Takipçilere gönderilecek bildirim metni…"
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: `1px solid ${KLP.border}`,
+                  fontSize: 13,
+                  outline: 'none',
+                  resize: 'vertical',
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <button
+                  onClick={send}
+                  disabled={sending || !bulkText.trim() || followers.length === 0}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: KLP.primary,
+                    color: 'white',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor:
+                      sending || !bulkText.trim() || followers.length === 0
+                        ? 'not-allowed'
+                        : 'pointer',
+                    opacity: sending || !bulkText.trim() || followers.length === 0 ? 0.5 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <KlpIcon path="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" size={14} color="white" />
+                  {sending ? 'Gönderiliyor…' : 'Gönder'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // Ana modül
 // ══════════════════════════════════════════════════════════════
 function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) {
@@ -1008,20 +1530,30 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
   const [documents, setDocuments] = useState([]);
   const [professors, setProfessors] = useState([]);
   const [students, setStudents] = useState([]);
+  const [followers, setFollowers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterDept, setFilterDept] = useState('');
   const [editing, setEditing] = useState(null); // null = kapalı, {} = yeni, {...} = mevcut
+  const [detailClub, setDetailClub] = useState(null); // detay modalı için seçilen topluluk
   const [msg, setMsg] = useState({ text: '', kind: '' });
 
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
+  const isProfessor = currentUser?.role === 'professor';
+  const isStudent = currentUser?.role === 'student';
+  const myStudentNumber = currentUser?.studentNumber || '';
+  const myName = currentUser?.name || currentUser?.identifier || '';
   // Bölüm yetkilisinin bölümü = aktif bölüm (app-shell'den gelir)
   const myDepartmentId = activeDepartment || '';
   const myDepartmentName = departmentInfo?.name || '';
 
+  // Sahip akademisyen: adı topluluğun danışmanıyla (advisor) eşleşen akademisyen.
+  const ownsClub = (club) => isProfessor && club && advisorMatchesName(club.advisor, myName);
+
   const canEditClub = (club) => {
     if (isAdmin) return true;
+    if (ownsClub(club)) return true; // sahip akademisyen yalnız kendi topluluğunu
     if (isDeptManager && club) {
       // departmentId varsa onunla, yoksa (seed verisi) bölüm adıyla eşleştir
       if (club.departmentId && myDepartmentId) return club.departmentId === myDepartmentId;
@@ -1029,6 +1561,15 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
     }
     return false;
   };
+
+  // Bir topluluğun takipçileri + takipçi sayısı + öğrencinin takip durumu
+  const followersOf = (clubId) => followers.filter((f) => String(f.clubId) === String(clubId));
+  const followerCountOf = (clubId) => followersOf(clubId).length;
+  const isFollowing = (clubId) =>
+    followers.some(
+      (f) =>
+        String(f.clubId) === String(clubId) && String(f.studentNumber) === String(myStudentNumber)
+    );
   const canCreate = isAdmin || isDeptManager;
   // Topluluk dokümanları: ekleme/silme/güncelleme YALNIZCA üniversite yetkilisinde.
   // (role==='admin' fakülte/bölüm yöneticilerini de kapsadığından isUniversityAdmin bayrağı kullanılır.)
@@ -1044,11 +1585,12 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [c, d, p, s] = await Promise.all([
+      const [c, d, p, s, f] = await Promise.all([
         window.apiRead('student_clubs'),
         window.apiRead('club_documents'),
         window.apiRead('professors'),
         window.apiRead('students'),
+        window.apiRead('club_followers').catch(() => []),
       ]);
       setClubs((c || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr')));
       setDocuments(
@@ -1056,6 +1598,7 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
       );
       setProfessors(p || []);
       setStudents(s || []);
+      setFollowers(f || []);
     } catch (e) {
       console.error('Kulüpler yüklenemedi:', e);
       showMsg('Veriler yüklenirken hata oluştu.', 'error');
@@ -1072,15 +1615,21 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
   useEffect(() => {
     const onWrite = (e) => {
       const cols = e?.detail?.collections || [];
-      if (cols.includes('student_clubs') || cols.includes('club_documents')) {
+      if (
+        cols.includes('student_clubs') ||
+        cols.includes('club_documents') ||
+        cols.includes('club_followers')
+      ) {
         loadAll();
       }
     };
     window.addEventListener('realtime:student_clubs', onWrite);
     window.addEventListener('realtime:club_documents', onWrite);
+    window.addEventListener('realtime:club_followers', onWrite);
     return () => {
       window.removeEventListener('realtime:student_clubs', onWrite);
       window.removeEventListener('realtime:club_documents', onWrite);
+      window.removeEventListener('realtime:club_followers', onWrite);
     };
   }, []);
 
@@ -1130,6 +1679,76 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
       await loadAll();
     } catch (e) {
       showMsg('Silme hatası: ' + e.message, 'error');
+    }
+  };
+
+  // Öğrenci takip et / takibi bırak. Kayıt id'si (clubId__öğrenciNo) sabittir;
+  // sahiplik sunucuda JWT kimliğine sabitlenir.
+  const handleToggleFollow = async (club) => {
+    if (!isStudent || !myStudentNumber) {
+      showMsg('Takip için öğrenci girişi gerekli.', 'error');
+      return;
+    }
+    const docId = `${club.id}__${myStudentNumber}`;
+    try {
+      if (isFollowing(club.id)) {
+        await window.DBWrite.remove('club_followers', docId);
+      } else {
+        const studentName =
+          `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() || myName;
+        await window.DBWrite.set(
+          'club_followers',
+          docId,
+          {
+            clubId: club.id,
+            clubName: club.name || '',
+            studentNumber: myStudentNumber,
+            studentName,
+            at: new Date().toISOString(),
+          },
+          true
+        );
+      }
+      await loadAll();
+    } catch (e) {
+      showMsg('Takip işlemi başarısız: ' + e.message, 'error');
+    }
+  };
+
+  // Sahip akademisyen / yetkili → topluluğu takip eden öğrencilere toplu bildirim.
+  const handleBulkMessage = async (club, text) => {
+    const list = followersOf(club.id);
+    if (list.length === 0) {
+      showMsg('Bu topluluğun takipçisi yok.', 'error');
+      return;
+    }
+    try {
+      let sent = 0;
+      for (const f of list) {
+        if (!f.studentNumber) continue;
+        if (window.Notify && window.Notify.send) {
+          await window.Notify.send({
+            recipientType: 'user',
+            recipientId: String(f.studentNumber),
+            module: 'topluluk',
+            type: 'bilgi',
+            title: club.name || 'Topluluk',
+            body: text,
+            meta: { clubId: club.id },
+          });
+        } else if (window.StudentNotifier && window.StudentNotifier._addNotification) {
+          await window.StudentNotifier._addNotification(f.studentNumber, {
+            module: 'topluluk',
+            type: 'bilgi',
+            title: club.name || 'Topluluk',
+            body: text,
+          });
+        }
+        sent++;
+      }
+      showMsg(`${sent} takipçiye mesaj gönderildi.`, 'success');
+    } catch (e) {
+      showMsg('Mesaj gönderilemedi: ' + e.message, 'error');
     }
   };
 
@@ -1405,6 +2024,11 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
               onEdit={() => setEditing(c)}
               onDelete={() => handleDelete(c)}
               onLogoChange={(file) => handleLogoChange(c, file)}
+              onOpen={() => setDetailClub(c)}
+              followerCount={followerCountOf(c.id)}
+              isFollowing={isFollowing(c.id)}
+              isStudent={isStudent}
+              onToggleFollow={() => handleToggleFollow(c)}
             />
           ))}
         </div>
@@ -1415,12 +2039,29 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
         <ClubForm
           initial={editing.id ? editing : null}
           isAdmin={isAdmin}
-          lockedDepartmentId={isDeptManager && !isAdmin ? myDepartmentId : ''}
+          lockedDepartmentId={
+            isAdmin ? '' : isDeptManager ? myDepartmentId : editing.departmentId || myDepartmentId
+          }
           departments={FACULTY_DEPARTMENTS}
           professors={professors}
           students={students}
           onSave={handleSave}
           onCancel={() => setEditing(null)}
+        />
+      )}
+
+      {/* Detay modalı — karta tıklayınca büyür, ekrana ortalanır */}
+      {detailClub && (
+        <ClubDetailModal
+          club={detailClub}
+          followers={followersOf(detailClub.id)}
+          students={students}
+          isStudent={isStudent}
+          isFollowing={isFollowing(detailClub.id)}
+          onToggleFollow={() => handleToggleFollow(detailClub)}
+          canManage={canEditClub(detailClub)}
+          onSendBulk={(text) => handleBulkMessage(detailClub, text)}
+          onClose={() => setDetailClub(null)}
         />
       )}
 
