@@ -7808,33 +7808,40 @@ function OgrenciPortaliApp({ currentUser }) {
       .catch(function () {});
   }, []);
 
-  // Kayıtlı üye sayısı. NOT: sunucu, öğrenci rolünde `students` okumasını
-  // yalnız kendi kaydına daraltır (STUDENT_READ_SCOPED) — bu yüzden öğrencide
-  // students.length her zaman 1 çıkıyordu. Bunun yerine öğrenciye de tam açık
-  // olan portal profillerini (ve gönderi yazarlarını) sayıyoruz.
+  // Kayıtlı üye sayısı = gerçek toplam öğrenci sayısı. Öğrenci rolü tüm
+  // `students` kaydını okuyamadığından (sunucu STUDENT_READ_SCOPED ile kendi
+  // kaydına daraltıyor), sunucudaki salt-sayı uç noktasını kullanıyoruz.
   useEffect(function () {
-    Promise.all([
-      window.apiRead('portal_profiles').catch(function () {
-        return [];
-      }),
-      window.apiRead('portal_posts', { _limit: 500 }).catch(function () {
-        return [];
-      }),
-    ])
-      .then(function (res) {
-        var profiles = res[0] || [];
-        var posts = res[1] || [];
-        var ids = {};
-        profiles.forEach(function (p) {
-          var id = p.userId || p._docId || p.id;
-          if (id) ids[String(id)] = true;
-        });
-        posts.forEach(function (p) {
-          if (p.authorId) ids[String(p.authorId)] = true;
-        });
-        setRegisteredStudentCount(Object.keys(ids).length);
+    fetch('/api/db/student-count', { credentials: 'include' })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
       })
-      .catch(function () {});
+      .then(function (data) {
+        if (data && typeof data.count === 'number') {
+          setRegisteredStudentCount(data.count);
+        }
+      })
+      .catch(function () {
+        // Uç nokta yoksa (eski sunucu) portal katılımcılarını say — yedek.
+        Promise.all([
+          window.apiRead('portal_profiles').catch(function () {
+            return [];
+          }),
+          window.apiRead('portal_posts', { _limit: 500 }).catch(function () {
+            return [];
+          }),
+        ]).then(function (res) {
+          var ids = {};
+          (res[0] || []).forEach(function (p) {
+            var id = p.userId || p._docId || p.id;
+            if (id) ids[String(id)] = true;
+          });
+          (res[1] || []).forEach(function (p) {
+            if (p.authorId) ids[String(p.authorId)] = true;
+          });
+          setRegisteredStudentCount(Object.keys(ids).length);
+        });
+      });
   }, []);
 
   // Takip verilerini yükle
