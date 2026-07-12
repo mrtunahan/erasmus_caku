@@ -1142,7 +1142,14 @@ function ProjectCard({
 // ══════════════════════════════════════════════════════════════
 // PROJE OLUŞTURMA MODALI
 // ══════════════════════════════════════════════════════════════
-function CreateProjectModal({ onClose, onCreate, currentUserName, minGroupSize, maxGroupSize }) {
+function CreateProjectModal({
+  onClose,
+  onCreate,
+  currentUserName,
+  minGroupSize,
+  maxGroupSize,
+  departmentId,
+}) {
   var _s = useState,
     _e = React.useEffect;
   var minSize = minGroupSize || 2;
@@ -1159,6 +1166,76 @@ function CreateProjectModal({ onClose, onCreate, currentUserName, minGroupSize, 
   var ms = _s(initialMembers),
     members = ms[0],
     setMembers = ms[1];
+
+  // Öğrenci arkadaşlarını elle yazmasın; bölümdeki öğrenci adlarından öneri sun.
+  var cs = _s([]),
+    classmates = cs[0],
+    setClassmates = cs[1];
+  var ai = _s(-1),
+    activeIdx = ai[0],
+    setActiveIdx = ai[1];
+
+  _e(
+    function () {
+      var alive = true;
+      if (!window.DB || !window.DB.fetchStudents) return undefined;
+      window.DB.fetchStudents()
+        .then(function (list) {
+          if (!alive) return;
+          var names = (list || [])
+            .filter(function (s) {
+              if (!departmentId) return true;
+              if (s.departmentId === departmentId) return true;
+              return (
+                Array.isArray(s.additionalDepartments) &&
+                s.additionalDepartments.indexOf(departmentId) >= 0
+              );
+            })
+            .map(function (s) {
+              return (
+                ((s.firstName || '') + ' ' + (s.lastName || '')).trim() || (s.name || '').trim()
+              );
+            })
+            .filter(function (n) {
+              return n.length > 0;
+            });
+          var uniq = [];
+          names.forEach(function (n) {
+            if (uniq.indexOf(n) < 0) uniq.push(n);
+          });
+          uniq.sort(function (a, b) {
+            return a.localeCompare(b, 'tr');
+          });
+          setClassmates(uniq);
+        })
+        .catch(function () {});
+      return function () {
+        alive = false;
+      };
+    },
+    [departmentId]
+  );
+
+  // Yazılan öne göre (adın tamamı veya bir kelimesi ile başlayan) öğrenci önerileri.
+  var suggestFor = function (query) {
+    var q = (query || '').trim().toLocaleLowerCase('tr');
+    if (!q) return [];
+    var chosen = members.map(function (m) {
+      return (m || '').trim().toLocaleLowerCase('tr');
+    });
+    var me = (currentUserName || '').trim().toLocaleLowerCase('tr');
+    return classmates
+      .filter(function (c) {
+        var nm = c.toLocaleLowerCase('tr');
+        if (nm === me) return false;
+        if (chosen.indexOf(nm) >= 0) return false;
+        if (nm.indexOf(q) === 0) return true;
+        return nm.split(/\s+/).some(function (w) {
+          return w.indexOf(q) === 0;
+        });
+      })
+      .slice(0, 8);
+  };
 
   var addMember = function () {
     if (members.length >= maxSize) return;
@@ -1378,26 +1455,111 @@ function CreateProjectModal({ onClose, onCreate, currentUserName, minGroupSize, 
                 >
                   {idx + 1}
                 </div>
-                <input
-                  type="text"
-                  value={member}
-                  onChange={function (e) {
-                    updateMember(idx, e.target.value);
-                  }}
-                  placeholder={idx === 0 ? 'Sizin adınız' : idx + 1 + '. üye adı'}
-                  disabled={idx === 0}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    border: '1px solid ' + PRJ.border,
-                    borderRadius: 8,
-                    fontSize: 14,
-                    outline: 'none',
-                    fontFamily: "'Source Sans 3', sans-serif",
-                    background: idx === 0 ? '#f9fafb' : 'white',
-                    color: idx === 0 ? PRJ.textMuted : PRJ.text,
-                  }}
-                />
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    type="text"
+                    value={member}
+                    onChange={function (e) {
+                      updateMember(idx, e.target.value);
+                    }}
+                    onFocus={function () {
+                      if (idx !== 0) setActiveIdx(idx);
+                    }}
+                    onBlur={function () {
+                      // Öneriye tıklama onMouseDown ile yakalanır; blur'da gecikmeli kapat.
+                      setTimeout(function () {
+                        setActiveIdx(function (cur) {
+                          return cur === idx ? -1 : cur;
+                        });
+                      }, 120);
+                    }}
+                    placeholder={idx === 0 ? 'Sizin adınız' : 'Ad yazın, listeden seçin…'}
+                    disabled={idx === 0}
+                    autoComplete="off"
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: '8px 12px',
+                      border: '1px solid ' + PRJ.border,
+                      borderRadius: 8,
+                      fontSize: 14,
+                      outline: 'none',
+                      fontFamily: "'Source Sans 3', sans-serif",
+                      background: idx === 0 ? '#f9fafb' : 'white',
+                      color: idx === 0 ? PRJ.textMuted : PRJ.text,
+                    }}
+                  />
+                  {idx !== 0 &&
+                    activeIdx === idx &&
+                    (function () {
+                      var sugg = suggestFor(member);
+                      if (sugg.length === 0) return null;
+                      return (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 'calc(100% + 4px)',
+                            left: 0,
+                            right: 0,
+                            zIndex: 20,
+                            background: 'white',
+                            border: '1px solid ' + PRJ.border,
+                            borderRadius: 8,
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                            maxHeight: 200,
+                            overflowY: 'auto',
+                          }}
+                        >
+                          {sugg.map(function (nm) {
+                            return (
+                              <div
+                                key={nm}
+                                onMouseDown={function (e) {
+                                  e.preventDefault();
+                                  updateMember(idx, nm);
+                                  setActiveIdx(-1);
+                                }}
+                                style={{
+                                  padding: '8px 12px',
+                                  cursor: 'pointer',
+                                  fontSize: 13.5,
+                                  color: PRJ.text,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                }}
+                                onMouseEnter={function (e) {
+                                  e.currentTarget.style.background = PRJ.primaryPale;
+                                }}
+                                onMouseLeave={function (e) {
+                                  e.currentTarget.style.background = 'white';
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: 22,
+                                    height: 22,
+                                    borderRadius: '50%',
+                                    background: PRJ.primary,
+                                    color: 'white',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {nm.charAt(0).toLocaleUpperCase('tr')}
+                                </span>
+                                {nm}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                </div>
                 {idx === 0 && (
                   <span
                     style={{
@@ -3484,7 +3646,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     <div style={{ background: PRJ.bg, minHeight: '100vh', padding: '0 0 40px' }}>
       <div
         style={{
-          background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #60a5fa 100%)',
+          background: 'linear-gradient(135deg, #1e40af 0%, #0e7490 55%, #22d3ee 100%)',
           padding: '32px 0 24px',
           marginBottom: 24,
         }}
@@ -3620,15 +3782,52 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               </div>
             </div>
 
-            {/* İşlem çubuğu: yönet (üst sıra) + ana eylem (alt sıra) */}
+            {/* İşlem çubuğu: ana eylem (üst) + yönetim işlemleri (alt), aralarında
+                belirgin boşluk; sol kimlik bloğu ile üstten aynı hizada. */}
             <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'flex-end',
-                gap: 10,
+                gap: 28,
               }}
             >
+              {isDeadlinePassed && !canManage ? (
+                <div
+                  style={{
+                    ...bannerNote,
+                    background: 'rgba(220,38,38,0.22)',
+                    border: '1px solid rgba(220,38,38,0.4)',
+                  }}
+                >
+                  <PrjIcon path={PRJ_ICONS.calendar} size={16} color="#fca5a5" />
+                  <span>Proje grubu oluşturma süresi doldu ({selectedCourse.deadline})</span>
+                </div>
+              ) : !canManage && userExistingProject ? (
+                <div
+                  style={{
+                    ...bannerNote,
+                    background: 'rgba(234,88,12,0.22)',
+                    border: '1px solid rgba(234,88,12,0.4)',
+                  }}
+                >
+                  <PrjIcon path={PRJ_ICONS.info} size={16} color="#fbbf24" />
+                  <span>
+                    Bu derste zaten bir proje grubundasınız:{' '}
+                    <strong>{userExistingProject.name}</strong>
+                  </span>
+                </div>
+              ) : (
+                <button
+                  onClick={function () {
+                    setShowCreateModal(true);
+                  }}
+                  style={primaryBtn}
+                >
+                  <PrjIcon path={PRJ_ICONS.plus} size={18} color="#1e40af" /> Yeni Proje Grubu
+                </button>
+              )}
+
               {(isAdmin || (canManage && projects.length > 0)) && (
                 <div
                   style={{
@@ -3687,42 +3886,6 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     </>
                   )}
                 </div>
-              )}
-
-              {isDeadlinePassed && !canManage ? (
-                <div
-                  style={{
-                    ...bannerNote,
-                    background: 'rgba(220,38,38,0.22)',
-                    border: '1px solid rgba(220,38,38,0.4)',
-                  }}
-                >
-                  <PrjIcon path={PRJ_ICONS.calendar} size={16} color="#fca5a5" />
-                  <span>Proje grubu oluşturma süresi doldu ({selectedCourse.deadline})</span>
-                </div>
-              ) : !canManage && userExistingProject ? (
-                <div
-                  style={{
-                    ...bannerNote,
-                    background: 'rgba(234,88,12,0.22)',
-                    border: '1px solid rgba(234,88,12,0.4)',
-                  }}
-                >
-                  <PrjIcon path={PRJ_ICONS.info} size={16} color="#fbbf24" />
-                  <span>
-                    Bu derste zaten bir proje grubundasınız:{' '}
-                    <strong>{userExistingProject.name}</strong>
-                  </span>
-                </div>
-              ) : (
-                <button
-                  onClick={function () {
-                    setShowCreateModal(true);
-                  }}
-                  style={primaryBtn}
-                >
-                  <PrjIcon path={PRJ_ICONS.plus} size={18} color="#1e40af" /> Yeni Proje Grubu
-                </button>
               )}
             </div>
           </div>
@@ -4020,6 +4183,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           currentUserName={userName}
           minGroupSize={selectedCourse ? selectedCourse.minGroupSize : undefined}
           maxGroupSize={selectedCourse ? selectedCourse.maxGroupSize : undefined}
+          departmentId={activeDepartment}
         />
       )}
 
