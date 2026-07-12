@@ -18,7 +18,10 @@ function actorFrom(req) {
     req.ip ||
     req.socket?.remoteAddress ||
     null;
-  const username = u.username || u.email || u.name || null;
+  // JWT payload'da kullanıcı adı `identifier` alanında tutulur (akademiyende
+  // ad-soyad, öğrencide öğrenci no). Aktör olarak bunu tercih et — IP'ye
+  // düşmeyi engeller.
+  const username = u.username || u.name || u.email || u.identifier || null;
   const userId = u.userId || u.sub || u.id || null;
   return {
     actor: username || userId || (ip ? `ip:${ip}` : 'anonymous'),
