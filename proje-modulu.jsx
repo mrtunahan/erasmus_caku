@@ -1694,6 +1694,9 @@ function AddCourseModal({
   var scs = useState(''),
     selectedCourseId = scs[0],
     setSelectedCourseId = scs[1];
+  var dds = useState(false),
+    dropdownOpen = dds[0],
+    setDropdownOpen = dds[1];
 
   // Akademisyense sadece kendisine ait dersleri filtrele, admin/bölüm yetkilisiyse hepsini göster
   // Ders Yönetimi'ndeki professor alanı unvanlı/farklı yazılmış olabilir → toleranslı eşleme
@@ -1712,19 +1715,39 @@ function AddCourseModal({
     }
   });
 
-  var onCourseSelect = function (e) {
-    var id = e.target.value;
-    setSelectedCourseId(id);
-    if (!id) return;
-    var c = uniqueCourses.find(function (x) {
-      return x.id === id;
-    });
-    if (c) {
-      setCode(c.code || '');
-      setName(c.name || '');
-      setProf(c.professor || '');
-    }
+  var pickCourse = function (c) {
+    if (!c) return;
+    setSelectedCourseId(c.id);
+    setCode(c.code || '');
+    setName(c.name || '');
+    setProf(c.professor || '');
+    setDropdownOpen(false);
   };
+
+  // Dersleri akademisyene göre gruplayıp, her grubu ders koduna göre sırala.
+  // Gruplar da ilk ders koduna göre sıralanır.
+  var byCode = function (a, b) {
+    return (a.code || '').localeCompare(b.code || '', 'tr', { numeric: true });
+  };
+  var courseGroups = (function () {
+    var map = {};
+    uniqueCourses.forEach(function (c) {
+      var prof = (c.professor || '').trim() || 'Akademisyen atanmamış';
+      if (!map[prof]) map[prof] = [];
+      map[prof].push(c);
+    });
+    var groups = Object.keys(map).map(function (prof) {
+      var list = map[prof].slice().sort(byCode);
+      return { professor: prof, courses: list, firstCode: list[0] ? list[0].code || '' : '' };
+    });
+    groups.sort(function (a, b) {
+      return a.firstCode.localeCompare(b.firstCode, 'tr', { numeric: true });
+    });
+    return groups;
+  })();
+  var selectedCourse = uniqueCourses.find(function (x) {
+    return x.id === selectedCourseId;
+  });
 
   var handleSubmit = function () {
     if (!code.trim() || !name.trim()) {
@@ -1823,32 +1846,173 @@ function AddCourseModal({
             >
               {isProfessor ? 'Derslerinizden Seçin' : "Ders Yönetimi'nden Seç"}
             </label>
-            <select
-              value={selectedCourseId}
-              onChange={onCourseSelect}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                border: '1px solid ' + PRJ.border,
-                borderRadius: 8,
-                fontSize: 14,
-                outline: 'none',
-                fontFamily: "'Source Sans 3', sans-serif",
-                background: 'white',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="">— Ders seçin —</option>
-              {uniqueCourses.map(function (c) {
-                var label = (c.code || '') + ' — ' + (c.name || '');
-                if (c.professor) label += ' (' + c.professor + ')';
-                return (
-                  <option key={c.id} value={c.id}>
-                    {label}
-                  </option>
-                );
-              })}
-            </select>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={function () {
+                  setDropdownOpen(function (o) {
+                    return !o;
+                  });
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: '1px solid ' + (dropdownOpen ? PRJ.primary : PRJ.border),
+                  borderRadius: 8,
+                  fontSize: 14,
+                  outline: 'none',
+                  fontFamily: "'Source Sans 3', sans-serif",
+                  background: 'white',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  textAlign: 'left',
+                }}
+              >
+                {selectedCourse ? (
+                  <span
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      minWidth: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: PRJ.primary,
+                        background: PRJ.primaryPale,
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {selectedCourse.code}
+                    </span>
+                    <span
+                      style={{
+                        color: PRJ.text,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {selectedCourse.name}
+                    </span>
+                  </span>
+                ) : (
+                  <span style={{ color: PRJ.textMuted }}>— Ders seçin —</span>
+                )}
+                <PrjIcon path="M6 9l6 6 6-6" size={18} color={PRJ.textMuted} />
+              </button>
+              {dropdownOpen && (
+                <>
+                  <div
+                    onClick={function () {
+                      setDropdownOpen(false);
+                    }}
+                    style={{ position: 'fixed', inset: 0, zIndex: 30 }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 4px)',
+                      left: 0,
+                      right: 0,
+                      zIndex: 31,
+                      background: 'white',
+                      border: '1px solid ' + PRJ.border,
+                      borderRadius: 10,
+                      boxShadow: '0 12px 32px rgba(0,0,0,0.16)',
+                      maxHeight: 300,
+                      overflowY: 'auto',
+                      padding: 4,
+                    }}
+                  >
+                    {courseGroups.map(function (g) {
+                      return (
+                        <div key={g.professor} style={{ marginBottom: 2 }}>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: PRJ.textMuted,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                              padding: '8px 10px 4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            <PrjIcon path={PRJ_ICONS.user} size={12} color={PRJ.textMuted} />
+                            {g.professor}
+                          </div>
+                          {g.courses.map(function (c) {
+                            var active = c.id === selectedCourseId;
+                            return (
+                              <div
+                                key={c.id}
+                                onClick={function () {
+                                  pickCourse(c);
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 10,
+                                  padding: '8px 10px',
+                                  borderRadius: 8,
+                                  cursor: 'pointer',
+                                  background: active ? PRJ.primaryPale : 'transparent',
+                                }}
+                                onMouseEnter={function (e) {
+                                  if (!active) e.currentTarget.style.background = '#F3F4F6';
+                                }}
+                                onMouseLeave={function (e) {
+                                  if (!active) e.currentTarget.style.background = 'transparent';
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontFamily: "'JetBrains Mono', monospace",
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    color: PRJ.primary,
+                                    background: 'white',
+                                    border: '1px solid ' + PRJ.primary + '40',
+                                    padding: '2px 8px',
+                                    borderRadius: 6,
+                                    flexShrink: 0,
+                                    minWidth: 58,
+                                    textAlign: 'center',
+                                  }}
+                                >
+                                  {c.code || '—'}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 13.5,
+                                    color: PRJ.text,
+                                    fontWeight: active ? 600 : 400,
+                                  }}
+                                >
+                                  {c.name}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
             <p style={{ fontSize: 11, color: PRJ.textMuted, margin: '8px 0 0 0' }}>
               {isProfessor
                 ? 'Sadece size tanımlanmış dersler listelenir. Bir ders seçtiğinizde kod, ad ve hoca bilgisi otomatik doldurulur.'
@@ -3194,7 +3358,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       <div style={{ background: PRJ.bg, minHeight: '100vh', padding: '0 0 40px' }}>
         <div
           style={{
-            background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #60a5fa 100%)',
+            background: 'linear-gradient(180deg, #0e7490 0%, #0891b2 100%)',
             padding: '32px 0 24px',
             marginBottom: 0,
           }}
@@ -3266,7 +3430,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         {/* Kategori Tabları */}
         <div
           style={{
-            background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)',
+            background: 'linear-gradient(180deg, #0891b2 0%, #22d3ee 100%)',
             padding: '0',
             marginBottom: 24,
           }}
@@ -3607,7 +3771,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   };
   const primaryBtn = {
     background: '#ffffff',
-    color: '#1e40af',
+    color: '#0e7490',
     border: 'none',
     borderRadius: 9,
     padding: '9px 16px',
@@ -3646,7 +3810,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     <div style={{ background: PRJ.bg, minHeight: '100vh', padding: '0 0 40px' }}>
       <div
         style={{
-          background: 'linear-gradient(135deg, #1e40af 0%, #0e7490 55%, #22d3ee 100%)',
+          background: 'linear-gradient(135deg, #0e7490 0%, #0891b2 55%, #22d3ee 100%)',
           padding: '32px 0 24px',
           marginBottom: 24,
         }}
@@ -3681,70 +3845,113 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           >
             <PrjIcon path={PRJ_ICONS.back} size={16} color="white" /> Derslere Dön
           </button>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              flexWrap: 'wrap',
-              gap: 16,
-            }}
-          >
-            {/* Kimlik: kod · ad · akademisyen · bilgi etiketleri */}
-            <div style={{ flex: '1 1 300px', minWidth: 0 }}>
-              <span
-                style={{
-                  display: 'inline-block',
-                  color: 'white',
-                  background: 'rgba(255,255,255,0.16)',
-                  border: '1px solid rgba(255,255,255,0.25)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  padding: '2px 10px',
-                  borderRadius: 7,
-                  marginBottom: 8,
-                  letterSpacing: '0.03em',
-                }}
-              >
-                {selectedCourse.code}
-              </span>
-              <h1
-                style={{
-                  color: 'white',
-                  fontSize: 25,
-                  fontWeight: 700,
-                  fontFamily: "'Playfair Display', serif",
-                  margin: 0,
-                  lineHeight: 1.2,
-                }}
-              >
-                {selectedCourse.name}
-              </h1>
-              {selectedCourse.professor && (
-                <p
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Üst satır: kimlik (kod · ad · akademisyen) + ana eylem */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                flexWrap: 'wrap',
+                gap: 16,
+              }}
+            >
+              <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+                <span
                   style={{
-                    color: 'rgba(255,255,255,0.82)',
-                    margin: '6px 0 0',
-                    fontSize: 14,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
+                    display: 'inline-block',
+                    color: 'white',
+                    background: 'rgba(255,255,255,0.16)',
+                    border: '1px solid rgba(255,255,255,0.25)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    padding: '2px 10px',
+                    borderRadius: 7,
+                    marginBottom: 8,
+                    letterSpacing: '0.03em',
                   }}
                 >
-                  <PrjIcon path={PRJ_ICONS.user} size={14} color="rgba(255,255,255,0.7)" />
-                  {selectedCourse.professor}
-                </p>
+                  {selectedCourse.code}
+                </span>
+                <h1
+                  style={{
+                    color: 'white',
+                    fontSize: 25,
+                    fontWeight: 700,
+                    fontFamily: "'Playfair Display', serif",
+                    margin: 0,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {selectedCourse.name}
+                </h1>
+                {selectedCourse.professor && (
+                  <p
+                    style={{
+                      color: 'rgba(255,255,255,0.82)',
+                      margin: '6px 0 0',
+                      fontSize: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <PrjIcon path={PRJ_ICONS.user} size={14} color="rgba(255,255,255,0.7)" />
+                    {selectedCourse.professor}
+                  </p>
+                )}
+              </div>
+
+              {isDeadlinePassed && !canManage ? (
+                <div
+                  style={{
+                    ...bannerNote,
+                    background: 'rgba(220,38,38,0.22)',
+                    border: '1px solid rgba(220,38,38,0.4)',
+                  }}
+                >
+                  <PrjIcon path={PRJ_ICONS.calendar} size={16} color="#fca5a5" />
+                  <span>Proje grubu oluşturma süresi doldu ({selectedCourse.deadline})</span>
+                </div>
+              ) : !canManage && userExistingProject ? (
+                <div
+                  style={{
+                    ...bannerNote,
+                    background: 'rgba(234,88,12,0.22)',
+                    border: '1px solid rgba(234,88,12,0.4)',
+                  }}
+                >
+                  <PrjIcon path={PRJ_ICONS.info} size={16} color="#fbbf24" />
+                  <span>
+                    Bu derste zaten bir proje grubundasınız:{' '}
+                    <strong>{userExistingProject.name}</strong>
+                  </span>
+                </div>
+              ) : (
+                <button
+                  onClick={function () {
+                    setShowCreateModal(true);
+                  }}
+                  style={primaryBtn}
+                >
+                  <PrjIcon path={PRJ_ICONS.plus} size={18} color="#0e7490" /> Yeni Proje Grubu
+                </button>
               )}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  marginTop: 12,
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                }}
-              >
+            </div>
+
+            {/* Alt satır: bilgi etiketleri (Grup · Son tarih · Süre doldu) ile
+                yönetim işlemleri aynı hizada. */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}
+            >
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={infoPill}>
                   <PrjIcon path={PRJ_ICONS.users} size={13} color="rgba(255,255,255,0.8)" />
                   Grup: {selectedCourse.minGroupSize || 2}-{selectedCourse.maxGroupSize || 3} kişi
@@ -3780,53 +3987,6 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   </span>
                 )}
               </div>
-            </div>
-
-            {/* İşlem çubuğu: ana eylem (üst) + yönetim işlemleri (alt), aralarında
-                belirgin boşluk; sol kimlik bloğu ile üstten aynı hizada. */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-end',
-                gap: 28,
-              }}
-            >
-              {isDeadlinePassed && !canManage ? (
-                <div
-                  style={{
-                    ...bannerNote,
-                    background: 'rgba(220,38,38,0.22)',
-                    border: '1px solid rgba(220,38,38,0.4)',
-                  }}
-                >
-                  <PrjIcon path={PRJ_ICONS.calendar} size={16} color="#fca5a5" />
-                  <span>Proje grubu oluşturma süresi doldu ({selectedCourse.deadline})</span>
-                </div>
-              ) : !canManage && userExistingProject ? (
-                <div
-                  style={{
-                    ...bannerNote,
-                    background: 'rgba(234,88,12,0.22)',
-                    border: '1px solid rgba(234,88,12,0.4)',
-                  }}
-                >
-                  <PrjIcon path={PRJ_ICONS.info} size={16} color="#fbbf24" />
-                  <span>
-                    Bu derste zaten bir proje grubundasınız:{' '}
-                    <strong>{userExistingProject.name}</strong>
-                  </span>
-                </div>
-              ) : (
-                <button
-                  onClick={function () {
-                    setShowCreateModal(true);
-                  }}
-                  style={primaryBtn}
-                >
-                  <PrjIcon path={PRJ_ICONS.plus} size={18} color="#1e40af" /> Yeni Proje Grubu
-                </button>
-              )}
 
               {(isAdmin || (canManage && projects.length > 0)) && (
                 <div
