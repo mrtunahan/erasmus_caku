@@ -17,7 +17,7 @@ const PRJ = {
   redLight: '#fee2e2',
   orange: '#ea580c',
   orangeLight: '#ffedd5',
-  bg: '#f0f4ff',
+  bg: '#F0FDFA',
   card: '#ffffff',
   text: '#1f2937',
   textMuted: '#6b7280',
@@ -3358,7 +3358,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       <div style={{ background: PRJ.bg, minHeight: '100vh', padding: '0 0 40px' }}>
         <div
           style={{
-            background: 'linear-gradient(180deg, #0e7490 0%, #0891b2 100%)',
+            background: 'linear-gradient(135deg, #CCFBF1 0%, #F0FDFA 100%)',
             padding: '32px 0 24px',
             marginBottom: 0,
           }}
@@ -3383,7 +3383,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               <div>
                 <h1
                   style={{
-                    color: 'white',
+                    color: '#0F172A',
                     fontSize: 28,
                     fontWeight: 700,
                     fontFamily: "'Playfair Display', serif",
@@ -3392,10 +3392,9 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     gap: 10,
                   }}
                 >
-                  <PrjIcon path={PRJ_ICONS.folder} size={28} color="rgba(255,255,255,0.8)" /> Proje
-                  Grupları
+                  <PrjIcon path={PRJ_ICONS.folder} size={28} color="#0D9488" /> Proje Grupları
                 </h1>
-                <p style={{ color: 'rgba(255,255,255,0.7)', marginTop: 4, fontSize: 14 }}>
+                <p style={{ color: '#475569', marginTop: 4, fontSize: 14 }}>
                   {departmentInfo ? departmentInfo.name + ' - ' : ''}Ders seçerek proje gruplarını
                   görüntüleyin
                 </p>
@@ -3406,9 +3405,9 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     setShowCourseModal(true);
                   }}
                   style={{
-                    background: 'rgba(255,255,255,0.2)',
+                    background: '#0D9488',
                     color: 'white',
-                    border: '1px solid rgba(255,255,255,0.3)',
+                    border: 'none',
                     borderRadius: 10,
                     padding: '10px 20px',
                     cursor: 'pointer',
@@ -3417,7 +3416,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
-                    backdropFilter: 'blur(8px)',
+                    boxShadow: '0 4px 12px rgba(13,148,136,0.25)',
                   }}
                 >
                   <PrjIcon path={PRJ_ICONS.plus} size={18} color="white" /> Yeni Alan Ekle
@@ -3430,9 +3429,10 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         {/* Kategori Tabları */}
         <div
           style={{
-            background: 'linear-gradient(180deg, #0891b2 0%, #22d3ee 100%)',
+            background: '#F0FDFA',
             padding: '0',
             marginBottom: 24,
+            borderBottom: '1px solid #CFF3EC',
           }}
         >
           <div
@@ -3458,10 +3458,10 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     padding: '14px 20px',
                     border: 'none',
                     cursor: 'pointer',
-                    background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent',
-                    color: isActive ? 'white' : 'rgba(255,255,255,0.6)',
+                    background: isActive ? '#FFFFFF' : 'transparent',
+                    color: isActive ? '#0F172A' : '#5B7A76',
                     fontSize: 13,
-                    fontWeight: isActive ? 600 : 400,
+                    fontWeight: isActive ? 700 : 500,
                     fontFamily: "'Source Sans 3', sans-serif",
                     display: 'flex',
                     alignItems: 'center',
@@ -3471,11 +3471,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  <PrjIcon
-                    path={cat.icon}
-                    size={16}
-                    color={isActive ? cat.color : 'rgba(255,255,255,0.5)'}
-                  />
+                  <PrjIcon path={cat.icon} size={16} color={isActive ? cat.color : '#5B7A76'} />
                   {cat.label}
                 </button>
               );
@@ -3754,10 +3750,11 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // DERS DETAY GÖRÜNÜMÜ (Proje listesi)
   // ══════════════════════════════════════════════════════════════
   // Başlık şeridi için tutarlı buton/etiket stilleri (otomasyon teması).
+  // Açık turkuaz-beyaz banner teması: koyu/siyah font, açık zemin butonlar.
   const glassBtn = {
-    background: 'rgba(255,255,255,0.16)',
-    color: 'white',
-    border: '1px solid rgba(255,255,255,0.28)',
+    background: '#FFFFFF',
+    color: '#0F172A',
+    border: '1px solid #99E6DC',
     borderRadius: 9,
     padding: '9px 14px',
     cursor: 'pointer',
@@ -3766,12 +3763,11 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    backdropFilter: 'blur(6px)',
     whiteSpace: 'nowrap',
   };
   const primaryBtn = {
-    background: '#ffffff',
-    color: '#0e7490',
+    background: '#0D9488',
+    color: '#FFFFFF',
     border: 'none',
     borderRadius: 9,
     padding: '9px 16px',
@@ -3781,16 +3777,17 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 7,
-    boxShadow: '0 4px 12px rgba(0,0,0,0.16)',
+    boxShadow: '0 4px 12px rgba(13,148,136,0.25)',
     whiteSpace: 'nowrap',
   };
   const infoPill = {
-    background: 'rgba(255,255,255,0.14)',
-    color: 'white',
+    background: '#FFFFFF',
+    color: '#0F766E',
+    border: '1px solid #A7F3E4',
     padding: '4px 11px',
     borderRadius: 8,
     fontSize: 12.5,
-    fontWeight: 500,
+    fontWeight: 600,
     display: 'inline-flex',
     alignItems: 'center',
     gap: 5,
@@ -3800,7 +3797,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     padding: '9px 16px',
     fontSize: 13,
     fontWeight: 500,
-    color: 'white',
+    color: '#0F172A',
     display: 'inline-flex',
     alignItems: 'center',
     gap: 8,
@@ -3810,9 +3807,10 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     <div style={{ background: PRJ.bg, minHeight: '100vh', padding: '0 0 40px' }}>
       <div
         style={{
-          background: 'linear-gradient(135deg, #0e7490 0%, #0891b2 55%, #22d3ee 100%)',
+          background: 'linear-gradient(135deg, #CCFBF1 0%, #F0FDFA 55%, #FFFFFF 100%)',
           padding: '32px 0 24px',
           marginBottom: 24,
+          borderBottom: '1px solid #CFF3EC',
         }}
       >
         <div
@@ -3829,21 +3827,21 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               setSearchQuery('');
             }}
             style={{
-              background: 'rgba(255,255,255,0.15)',
-              color: 'white',
-              border: 'none',
+              background: '#FFFFFF',
+              color: '#0F172A',
+              border: '1px solid #99E6DC',
               borderRadius: 8,
               padding: '6px 14px',
               cursor: 'pointer',
               fontSize: 13,
-              fontWeight: 500,
+              fontWeight: 600,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
               marginBottom: 12,
             }}
           >
-            <PrjIcon path={PRJ_ICONS.back} size={16} color="white" /> Derslere Dön
+            <PrjIcon path={PRJ_ICONS.back} size={16} color="#0F172A" /> Derslere Dön
           </button>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Üst satır: kimlik (kod · ad · akademisyen) + ana eylem */}
@@ -3860,11 +3858,11 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 <span
                   style={{
                     display: 'inline-block',
-                    color: 'white',
-                    background: 'rgba(255,255,255,0.16)',
-                    border: '1px solid rgba(255,255,255,0.25)',
+                    color: '#0F766E',
+                    background: '#FFFFFF',
+                    border: '1px solid #A7F3E4',
                     fontSize: 12,
-                    fontWeight: 600,
+                    fontWeight: 700,
                     fontFamily: "'JetBrains Mono', monospace",
                     padding: '2px 10px',
                     borderRadius: 7,
@@ -3876,7 +3874,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 </span>
                 <h1
                   style={{
-                    color: 'white',
+                    color: '#0F172A',
                     fontSize: 25,
                     fontWeight: 700,
                     fontFamily: "'Playfair Display', serif",
@@ -3889,7 +3887,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 {selectedCourse.professor && (
                   <p
                     style={{
-                      color: 'rgba(255,255,255,0.82)',
+                      color: '#475569',
                       margin: '6px 0 0',
                       fontSize: 14,
                       display: 'flex',
@@ -3897,7 +3895,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       gap: 6,
                     }}
                   >
-                    <PrjIcon path={PRJ_ICONS.user} size={14} color="rgba(255,255,255,0.7)" />
+                    <PrjIcon path={PRJ_ICONS.user} size={14} color="#5B7A76" />
                     {selectedCourse.professor}
                   </p>
                 )}
@@ -3907,22 +3905,24 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 <div
                   style={{
                     ...bannerNote,
-                    background: 'rgba(220,38,38,0.22)',
-                    border: '1px solid rgba(220,38,38,0.4)',
+                    background: '#FEE2E2',
+                    border: '1px solid #FCA5A5',
+                    color: '#B91C1C',
                   }}
                 >
-                  <PrjIcon path={PRJ_ICONS.calendar} size={16} color="#fca5a5" />
+                  <PrjIcon path={PRJ_ICONS.calendar} size={16} color="#DC2626" />
                   <span>Proje grubu oluşturma süresi doldu ({selectedCourse.deadline})</span>
                 </div>
               ) : !canManage && userExistingProject ? (
                 <div
                   style={{
                     ...bannerNote,
-                    background: 'rgba(234,88,12,0.22)',
-                    border: '1px solid rgba(234,88,12,0.4)',
+                    background: '#FFEDD5',
+                    border: '1px solid #FDBA74',
+                    color: '#9A3412',
                   }}
                 >
-                  <PrjIcon path={PRJ_ICONS.info} size={16} color="#fbbf24" />
+                  <PrjIcon path={PRJ_ICONS.info} size={16} color="#EA580C" />
                   <span>
                     Bu derste zaten bir proje grubundasınız:{' '}
                     <strong>{userExistingProject.name}</strong>
@@ -3935,7 +3935,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   }}
                   style={primaryBtn}
                 >
-                  <PrjIcon path={PRJ_ICONS.plus} size={18} color="#0e7490" /> Yeni Proje Grubu
+                  <PrjIcon path={PRJ_ICONS.plus} size={18} color="#FFFFFF" /> Yeni Proje Grubu
                 </button>
               )}
             </div>
@@ -3953,23 +3953,22 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             >
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={infoPill}>
-                  <PrjIcon path={PRJ_ICONS.users} size={13} color="rgba(255,255,255,0.8)" />
+                  <PrjIcon path={PRJ_ICONS.users} size={13} color="#0F766E" />
                   Grup: {selectedCourse.minGroupSize || 2}-{selectedCourse.maxGroupSize || 3} kişi
                 </span>
                 {selectedCourse.deadline && (
                   <span
                     style={{
                       ...infoPill,
-                      background: isDeadlinePassed
-                        ? 'rgba(220,38,38,0.32)'
-                        : 'rgba(255,255,255,0.14)',
-                      border: isDeadlinePassed ? '1px solid rgba(252,165,165,0.5)' : 'none',
+                      background: isDeadlinePassed ? '#FEE2E2' : '#FFFFFF',
+                      border: isDeadlinePassed ? '1px solid #FCA5A5' : '1px solid #A7F3E4',
+                      color: isDeadlinePassed ? '#B91C1C' : '#0F766E',
                     }}
                   >
                     <PrjIcon
                       path={PRJ_ICONS.calendar}
                       size={13}
-                      color={isDeadlinePassed ? '#fca5a5' : 'rgba(255,255,255,0.8)'}
+                      color={isDeadlinePassed ? '#DC2626' : '#0F766E'}
                     />
                     Son tarih: {selectedCourse.deadline}
                   </span>
@@ -3978,7 +3977,9 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   <span
                     style={{
                       ...infoPill,
-                      background: 'rgba(220,38,38,0.9)',
+                      background: '#DC2626',
+                      border: '1px solid #DC2626',
+                      color: '#FFFFFF',
                       fontWeight: 700,
                     }}
                   >
@@ -4005,7 +4006,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       }}
                       style={glassBtn}
                     >
-                      <PrjIcon path={PRJ_ICONS.edit} size={15} color="white" /> Düzenle
+                      <PrjIcon path={PRJ_ICONS.edit} size={15} color="#0F172A" /> Düzenle
                     </button>
                   )}
                   {canManage && projects.length > 0 && (
@@ -4017,7 +4018,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           }}
                           style={glassBtn}
                         >
-                          <PrjIcon path={PRJ_ICONS.calendar} size={15} color="white" /> Projeleri
+                          <PrjIcon path={PRJ_ICONS.calendar} size={15} color="#0F172A" /> Projeleri
                           Planla
                         </button>
                       )}
@@ -4030,7 +4031,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         }}
                         style={glassBtn}
                       >
-                        <PrjIcon path={PRJ_ICONS.download} size={15} color="white" /> XLSX
+                        <PrjIcon path={PRJ_ICONS.download} size={15} color="#0F172A" /> XLSX
                       </button>
                       <button
                         onClick={function () {
@@ -4041,7 +4042,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         }}
                         style={glassBtn}
                       >
-                        <PrjIcon path={PRJ_ICONS.download} size={15} color="white" /> Word
+                        <PrjIcon path={PRJ_ICONS.download} size={15} color="#0F172A" /> Word
                       </button>
                     </>
                   )}
