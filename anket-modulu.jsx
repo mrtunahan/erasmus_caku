@@ -538,6 +538,8 @@ function AnkStyles() {
       /* Düzenleyici soru kartları — odaklanınca yükselir (elevation) */
       .ank-qcard { transition:box-shadow .18s ease, border-color .18s ease; }
       .ank-qcard:focus-within { border-color:${ANK.accent} !important; box-shadow:0 0 0 3px rgba(13,148,136,0.10), ${ANK.shadow}; }
+      /* Öğrenci Likert seçenek kartları — hover'da vurgulanır */
+      .ank-likert:hover { border-color:${ANK.accent} !important; background:${ANK.accentPale}; }
     `}</style>
   );
 }
@@ -2959,6 +2961,14 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
 
   const completed = (surveyId) => myResponses.some((r) => r.surveyId === surveyId);
 
+  // İki sütunlu görünümde ana alan boş kalmasın: aktif anket yoksa ilk
+  // tamamlanmamış anketi otomatik seç (gönderim sonrası bir sonrakine geçer).
+  useEffect(() => {
+    if (activeId) return;
+    const firstPending = myAssignments.find((a) => !completed(a.surveyId));
+    if (firstPending) setActiveId(firstPending.surveyId);
+  }, [myAssignments, myResponses, activeId]);
+
   const submit = async (surveyId, answers) => {
     // Kimliği çözülemeyen kullanıcı ('anon') yanıt gönderemez — aksi halde
     // tüm anonim kullanıcılar tek 'anon' kaydında birbirine karışırdı.
@@ -2987,31 +2997,18 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
 
   if (loading) return <Spinner />;
 
-  if (activeId) {
-    const survey = surveys.find((s) => s.id === activeId);
-    if (!survey) {
-      setActiveId(null);
-      return null;
-    }
-    return (
-      <>
-        <AnketDoldurma
-          survey={survey}
-          onSubmit={submit}
-          onCancel={() => setActiveId(null)}
-          responsive={responsive}
-          activeDepartment={activeDepartment}
-        />
-        {toast.node}
-      </>
-    );
-  }
+  const pendingList = myAssignments.filter((a) => !completed(a.surveyId));
+  const doneList = myAssignments.filter((a) => completed(a.surveyId));
+  const activeSurvey = activeId ? surveys.find((s) => s.id === activeId) : null;
+  const wide = responsive ? responsive.val(false, false, true) : true;
+
+  const ASSIGN_ICON =
+    'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01';
 
   return (
     <div className="ank-root" style={{ fontFamily: "'Inter', sans-serif" }}>
       <AnkStyles />
       <PageHeader
-        icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
         title="Anketlerim"
         subtitle="Size atanan anketleri doldurun"
         responsive={responsive}
@@ -3020,110 +3017,194 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
       {myAssignments.length === 0 ? (
         <EmptyState text="Size atanmış anket bulunmuyor." />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {myAssignments.map((a) => {
-            const survey = surveys.find((s) => s.id === a.surveyId);
-            if (!survey) return null;
-            const done = completed(a.surveyId);
-            return (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: wide ? 'minmax(0,1fr) 340px' : '1fr',
+            gap: 24,
+            alignItems: 'start',
+          }}
+        >
+          {/* Ana alan — aktif anket formu */}
+          <div style={{ minWidth: 0 }}>
+            {activeSurvey ? (
+              <AnketDoldurma
+                key={activeSurvey.id}
+                survey={activeSurvey}
+                onSubmit={submit}
+                onCancel={null}
+                responsive={responsive}
+                activeDepartment={activeDepartment}
+                embedded
+              />
+            ) : (
+              <EmptyState text="Sağdaki listeden bir anket seçin." />
+            )}
+          </div>
+
+          {/* Yan panel — Anketlerim */}
+          <aside style={{ position: wide ? 'sticky' : 'static', top: 16, minWidth: 0 }}>
+            <div style={{ ...cardStyle, padding: 18 }}>
               <div
-                key={a.id}
-                onClick={() => !done && setActiveId(a.surveyId)}
-                className={'ank-card' + (done ? '' : ' ank-card-hover')}
                 style={{
-                  ...cardStyle,
-                  padding: 16,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 14,
-                  cursor: done ? 'default' : 'pointer',
-                  opacity: done ? 0.7 : 1,
+                  gap: 8,
+                  marginBottom: 16,
+                  color: ANK.accent,
                 }}
               >
-                <div
+                <AIcon path={ASSIGN_ICON} size={20} color={ANK.accent} />
+                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: ANK.primary }}>
+                  Anketlerim
+                </h2>
+              </div>
+
+              {/* Tamamlanmamış */}
+              <div style={{ marginBottom: 18 }}>
+                <h3
                   style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 11,
-                    background: ANK.accentPale,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: ANK.textMuted,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    margin: '0 0 10px',
                   }}
                 >
-                  <AIcon
-                    path="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-                    size={20}
-                    color={ANK.accent}
-                  />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: ANK.primary,
-                      margin: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    {survey.title}
-                    {a.mandatory && (
-                      <span
-                        style={{
-                          padding: '1px 8px',
-                          borderRadius: 10,
-                          background: ANK.redLight,
-                          color: ANK.red,
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                        }}
-                      >
-                        Zorunlu
-                      </span>
-                    )}
+                  Tamamlanmamış Anketler
+                </h3>
+                {pendingList.length === 0 ? (
+                  <p style={{ fontSize: 12.5, color: ANK.textDim, margin: 0 }}>
+                    Bekleyen anket yok.
                   </p>
-                  <p style={{ fontSize: 12, color: ANK.textMuted, margin: '2px 0 0' }}>
-                    {survey.questions?.length || 0} soru · Son: {fmtDueDate(a.dueDate)}
-                  </p>
-                </div>
-                {done ? (
-                  <span
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      padding: '4px 10px',
-                      borderRadius: 20,
-                      background: ANK.tealLight,
-                      color: ANK.teal,
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}
-                  >
-                    <AIcon path="M5 13l4 4L19 7" size={12} /> Tamamlandı
-                  </span>
                 ) : (
-                  <span
-                    style={{
-                      padding: '4px 10px',
-                      borderRadius: 20,
-                      background: ANK.amberLight,
-                      color: ANK.amber,
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Bekliyor
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {pendingList.map((a) => {
+                      const s = surveys.find((x) => x.id === a.surveyId);
+                      if (!s) return null;
+                      const on = activeId === a.surveyId;
+                      return (
+                        <button
+                          key={a.id}
+                          onClick={() => setActiveId(a.surveyId)}
+                          style={{
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            padding: '10px 12px',
+                            borderRadius: 10,
+                            border: '1px solid ' + (on ? ANK.accent : ANK.border),
+                            background: on ? ANK.accentPale : ANK.surface,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 6,
+                            fontFamily: "'Inter', sans-serif",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: ANK.primary,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            {s.title}
+                            {a.mandatory && (
+                              <span
+                                style={{
+                                  padding: '1px 7px',
+                                  borderRadius: 9,
+                                  background: ANK.redLight,
+                                  color: ANK.red,
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                Zorunlu
+                              </span>
+                            )}
+                          </span>
+                          <span
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <span style={{ fontSize: 11.5, color: ANK.textMuted }}>
+                              {s.questions?.length || 0} soru
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: ANK.accent,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 3,
+                              }}
+                            >
+                              {on ? 'Dolduruluyor' : 'Doldur'}
+                              <AIcon path="M9 5l7 7-7 7" size={13} color={ANK.accent} />
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
-            );
-          })}
+
+              {/* Tamamlanmış */}
+              <div>
+                <h3
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: ANK.textMuted,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    margin: '0 0 10px',
+                  }}
+                >
+                  Tamamlanmış Anketler
+                </h3>
+                {doneList.length === 0 ? (
+                  <p style={{ fontSize: 12.5, color: ANK.textDim, margin: 0 }}>Henüz yok.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {doneList.map((a) => {
+                      const s = surveys.find((x) => x.id === a.surveyId);
+                      if (!s) return null;
+                      return (
+                        <div
+                          key={a.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                          }}
+                        >
+                          <AIcon
+                            path="M22 11.08V12a10 10 0 11-5.93-9.14M22 4L12 14.01l-3-3"
+                            size={16}
+                            color={ANK.green}
+                          />
+                          <span style={{ fontSize: 13, color: ANK.text }}>{s.title}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </aside>
         </div>
       )}
 
@@ -3300,13 +3381,17 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
   );
 }
 
-function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced }) {
+function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced, embedded }) {
   const [answers, setAnswers] = useState({});
   const [info, setInfo] = useState({});
   const [saving, setSaving] = useState(false);
 
   const setAns = (id, v) => setAnswers((p) => ({ ...p, [id]: v }));
   const setInfoField = (key, v) => setInfo((p) => ({ ...p, [key]: v }));
+  const resetForm = () => {
+    setAnswers({});
+    setInfo({});
+  };
 
   const required = survey.questions.filter((q) => q.type !== 'textarea');
   const answered = required.filter((q) => answers[q.id] != null && answers[q.id] !== '').length;
@@ -3353,7 +3438,7 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced })
             Zorunlu anket — devam etmek için bu anketi doldurmanız gerekiyor.
           </span>
         </div>
-      ) : (
+      ) : embedded ? null : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <button
             onClick={onCancel}
@@ -3413,13 +3498,22 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced })
         </div>
 
         {survey.infoFields?.length > 0 && (
-          <InfoFieldsForm
-            fields={survey.infoFields}
-            values={info}
-            onChange={setInfoField}
-            activeDepartment={activeDepartment}
-            linkedCourses={survey.linkedCourses}
-          />
+          <div
+            style={{
+              background: ANK.surfaceAlt,
+              border: '1px solid ' + ANK.border,
+              borderRadius: 12,
+              padding: 16,
+            }}
+          >
+            <InfoFieldsForm
+              fields={survey.infoFields}
+              values={info}
+              onChange={setInfoField}
+              activeDepartment={activeDepartment}
+              linkedCourses={survey.linkedCourses}
+            />
+          </div>
         )}
 
         {survey.questions.map((q, i) => (
@@ -3437,29 +3531,33 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced })
             paddingTop: 16,
           }}
         >
-          <span style={{ fontSize: 12, color: canSubmit ? ANK.accentDark : ANK.textMuted }}>
+          <span
+            style={{
+              fontSize: 12,
+              fontStyle: 'italic',
+              color: canSubmit ? ANK.accentDark : ANK.textMuted,
+            }}
+          >
             {canSubmit
               ? 'Tüm sorular yanıtlandı — gönderebilirsiniz.'
-              : `${totalDone}/${totalNeeded} tamamlandı — tümü doldurulunca gönderilebilir.`}
+              : `${totalDone}/${totalNeeded} tamamlandı — lütfen tüm soruları cevaplayın.`}
           </span>
           <div style={{ display: 'flex', gap: 10 }}>
-            {onCancel && (
-              <button
-                onClick={onCancel}
-                style={{
-                  padding: '10px 18px',
-                  borderRadius: 8,
-                  border: '1px solid ' + ANK.border,
-                  background: 'white',
-                  color: ANK.text,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
-              >
-                İptal
-              </button>
-            )}
+            <button
+              onClick={onCancel || resetForm}
+              style={{
+                padding: '10px 18px',
+                borderRadius: 8,
+                border: '1px solid ' + ANK.accent,
+                background: 'white',
+                color: ANK.accent,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {onCancel ? 'İptal' : 'Formu Temizle'}
+            </button>
             <button
               onClick={submit}
               disabled={saving || !canSubmit}
@@ -3467,18 +3565,19 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced })
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '10px 18px',
+                padding: '10px 24px',
                 borderRadius: 8,
                 border: 'none',
                 background: ANK.accent,
                 color: 'white',
                 fontSize: 13,
                 fontWeight: 600,
+                boxShadow: canSubmit ? '0 4px 12px rgba(13,148,136,0.25)' : 'none',
                 cursor: saving ? 'wait' : canSubmit ? 'pointer' : 'not-allowed',
                 opacity: saving ? 0.7 : canSubmit ? 1 : 0.45,
               }}
             >
-              <AIcon path="M5 13l4 4L19 7" size={15} /> {saving ? 'Gönderiliyor…' : 'Anketi gönder'}
+              <AIcon path="M5 13l4 4L19 7" size={15} /> {saving ? 'Gönderiliyor…' : 'Gönder'}
             </button>
           </div>
         </div>
@@ -3490,18 +3589,18 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced })
 // ─── Soru tipi render ──────────────────────────────────────────────────────
 function SoruBilesen({ soru, numara, deger, onChange }) {
   const head = (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
       <span
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          width: 20,
-          height: 20,
+          width: 28,
+          height: 28,
           borderRadius: '50%',
-          background: ANK.accentPale,
-          color: ANK.accent,
-          fontSize: 11,
+          background: ANK.green,
+          color: '#fff',
+          fontSize: 13,
           fontWeight: 700,
           flexShrink: 0,
           marginTop: 1,
@@ -3509,9 +3608,7 @@ function SoruBilesen({ soru, numara, deger, onChange }) {
       >
         {numara}
       </span>
-      <p
-        style={{ fontSize: 13.5, fontWeight: 500, color: ANK.primary, margin: 0, lineHeight: 1.4 }}
-      >
+      <p style={{ fontSize: 15, fontWeight: 600, color: ANK.primary, margin: 0, lineHeight: 1.4 }}>
         {soru.text}
       </p>
     </div>
@@ -3540,7 +3637,13 @@ function SoruBilesen({ soru, numara, deger, onChange }) {
     return (
       <div>
         {head}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))',
+            gap: 10,
+          }}
+        >
           {opts.map((o) => {
             const sel = deger === o.v;
             return (
@@ -3548,29 +3651,31 @@ function SoruBilesen({ soru, numara, deger, onChange }) {
                 key={o.v}
                 onClick={() => onChange(soru.id, o.v)}
                 title={o.l.replace('\n', ' ')}
+                className="ank-likert"
                 style={{
-                  flex: '1 1 92px',
-                  maxWidth: 130,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 4,
-                  padding: '9px 4px',
-                  borderRadius: 9,
+                  justifyContent: 'center',
+                  gap: 6,
+                  minHeight: 78,
+                  padding: '12px 6px',
+                  borderRadius: 10,
                   cursor: 'pointer',
                   border: '1.5px solid ' + (sel ? ANK.accent : ANK.border),
                   background: sel ? ANK.accentPale : 'white',
                   color: sel ? ANK.accentDark : ANK.textMuted,
                   fontFamily: "'Inter', sans-serif",
+                  transition: 'border-color .15s, background .15s',
                 }}
               >
-                <span style={{ fontSize: 18, fontWeight: 800 }}>{o.v}</span>
+                <span style={{ fontSize: 22, fontWeight: 800 }}>{o.v}</span>
                 <span
                   style={{
-                    fontSize: 10.5,
+                    fontSize: 11,
                     fontWeight: sel ? 600 : 500,
                     textAlign: 'center',
-                    lineHeight: 1.2,
+                    lineHeight: 1.25,
                     whiteSpace: 'pre-line',
                   }}
                 >
