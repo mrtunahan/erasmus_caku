@@ -208,6 +208,10 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [notifications, setNotifications] = useState([]);
   const [notifLoading, setNotifLoading] = useState(false);
   const [calendar, setCalendar] = useState([]);
+  // Bölüm yetkilisinin tanımladığı Hızlı Bağlantılar + Kampüs Haritası
+  const [pageSettings, setPageSettings] = useState({ quickLinks: [], campusMapUrl: '' });
+  // Öğrencinin takip ettiği topluluklar (profil kartında gösterilir)
+  const [followedClubs, setFollowedClubs] = useState([]);
   // Aylık takvim görünümü: gösterilen ay (ayın ilk günü, 00:00 yerel)
   const [displayMonth, setDisplayMonth] = useState(() => {
     var d = new Date();
@@ -389,6 +393,57 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       cancelled = true;
     };
   }, [isStudent, currentUser?.studentNumber, termKey, studentRecord]);
+
+  // Bölüm ayarları (Hızlı Bağlantılar + Kampüs Haritası) ve takip edilen topluluklar
+  useEffect(() => {
+    if (!isStudent) return undefined;
+    let alive = true;
+    (async () => {
+      // benim_ayarlar/{deptId} — bölüm id varyantlarını sırayla dene
+      let variants = [studentDeptId];
+      if (window.deptIdVariants) {
+        try {
+          variants = await window.deptIdVariants(studentDeptId);
+        } catch (_) {
+          variants = [studentDeptId];
+        }
+      }
+      for (const v of variants || [studentDeptId]) {
+        try {
+          const doc = await window.apiReadDoc('benim_ayarlar', String(v));
+          if (doc && (Array.isArray(doc.quickLinks) || doc.campusMapUrl)) {
+            if (alive)
+              setPageSettings({
+                quickLinks: Array.isArray(doc.quickLinks) ? doc.quickLinks : [],
+                campusMapUrl: doc.campusMapUrl || '',
+              });
+            break;
+          }
+        } catch (_) {
+          /* bu varyant yok, sonrakine geç */
+        }
+      }
+      // Takip edilen topluluklar
+      try {
+        const follows = await window.apiRead('club_followers', {
+          where: 'studentNumber:eq:s:' + currentUser.studentNumber,
+        });
+        const clubIds = new Set((follows || []).map((f) => String(f.clubId)));
+        if (clubIds.size) {
+          const clubs = await window.apiRead('student_clubs');
+          const mine = (clubs || []).filter((c) => clubIds.has(String(c.id)));
+          if (alive) setFollowedClubs(mine);
+        } else if (alive) {
+          setFollowedClubs([]);
+        }
+      } catch (_) {
+        if (alive) setFollowedClubs([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [isStudent, studentDeptId, currentUser?.studentNumber]);
 
   // Bildirimleri yükle (yalnızca seçim tamamlanmışsa anlamlı)
   const loadNotifications = useCallback(async () => {
@@ -1164,6 +1219,159 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               </div>
             )}
           </div>
+
+          {/* Hızlı Bağlantılar (bölüm yetkilisinin tanımladığı) */}
+          {pageSettings.quickLinks.length > 0 && (
+            <div
+              style={{
+                background: 'white',
+                border: '1px solid #E5E7EB',
+                borderRadius: 14,
+                padding: 18,
+                marginBottom: 20,
+              }}
+            >
+              <h3
+                style={{
+                  margin: '0 0 12px',
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: '#1B2A4A',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#059669"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+                </svg>
+                Hızlı Bağlantılar
+              </h3>
+              <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {pageSettings.quickLinks.map((l, i) => (
+                  <a
+                    key={i}
+                    href={/^https?:\/\//i.test(l.url) ? l.url : 'https://' + l.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '9px 10px',
+                      borderRadius: 8,
+                      textDecoration: 'none',
+                      color: '#1F2937',
+                      fontSize: 13.5,
+                      fontWeight: 500,
+                      transition: 'background 0.15s',
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#6B7280"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
+                    </svg>
+                    {l.label}
+                  </a>
+                ))}
+              </nav>
+            </div>
+          )}
+
+          {/* Takip Ettiğim Topluluklar */}
+          {followedClubs.length > 0 && (
+            <div
+              style={{
+                background: 'white',
+                border: '1px solid #E5E7EB',
+                borderRadius: 14,
+                padding: 18,
+                marginBottom: 20,
+              }}
+            >
+              <h3
+                style={{
+                  margin: '0 0 12px',
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: '#1B2A4A',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#059669"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+                </svg>
+                Takip Ettiğim Topluluklar
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {followedClubs.map((c) => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: '50%',
+                        flexShrink: 0,
+                        background: c.logoURL ? '#fff' : '#1B2A4A',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        overflow: 'hidden',
+                        border: '1px solid #E5E7EB',
+                      }}
+                    >
+                      {c.logoURL ? (
+                        <img
+                          src={c.logoURL}
+                          alt=""
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        (c.name || '?').trim().charAt(0).toLocaleUpperCase('tr')
+                      )}
+                    </div>
+                    <span style={{ fontSize: 13, color: '#1F2937', fontWeight: 500 }}>
+                      {c.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sol (ana) sütun — geniş ekranda order:1 ile solda */}
@@ -1649,6 +1857,52 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             })()}
 
           <style>{`@keyframes bsPopIn { from { opacity: 0; transform: translateY(-100%) scale(0.96); } to { opacity: 1; transform: translateY(-100%) scale(1); } }`}</style>
+
+          {/* Kampüs Haritası (bölüm yetkilisinin tanımladığı) */}
+          {pageSettings.campusMapUrl && (
+            <div
+              style={{
+                background: 'white',
+                border: '1px solid #E5E7EB',
+                borderRadius: 14,
+                padding: 18,
+                marginBottom: 20,
+              }}
+            >
+              <h3
+                style={{
+                  margin: '0 0 12px',
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: '#1B2A4A',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#059669"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4zM8 2v16M16 6v16" />
+                </svg>
+                Kampüs Haritası
+              </h3>
+              <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #E5E7EB' }}>
+                <img
+                  src={pageSettings.campusMapUrl}
+                  alt="Kampüs Haritası"
+                  style={{ width: '100%', height: 'auto', display: 'block' }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Ders listesi */}
           <div
