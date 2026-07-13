@@ -1191,7 +1191,7 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
                   margin: 0,
                 }}
               >
-                Kariyer ve Proje Yol Haritaları 🚀
+                Kariyer ve Proje Yol Haritaları
               </h1>
               <p style={{ fontSize: 14, color: '#64748B', marginTop: 6, margin: 0 }}>
                 Adım adım başvuru rehberi ve kişisel not defteriniz.

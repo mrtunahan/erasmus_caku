@@ -87,15 +87,11 @@ function LisansustuApp({ currentUser, activeDepartment, departmentInfo }) {
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", color: LU.text }}>
-      {/* Başlık — düz, ikon/rozet yok */}
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
-          Lisansüstü — {viewLabel}
-        </h1>
-        <p style={{ margin: '3px 0 0', fontSize: 13, color: LU.textMuted }}>
-          {departmentInfo?.name || 'Bölüm'} · {levelLabel}
-        </p>
-      </div>
+      {/* Başlık — ortak banner */}
+      {React.createElement(window.CakuBanner, {
+        title: 'Lisansüstü — ' + viewLabel,
+        subtitle: (departmentInfo?.name || 'Bölüm') + ' · ' + levelLabel,
+      })}
 
       {/* Seviye + görünüm — tek satır, düz segment kontroller */}
       <div

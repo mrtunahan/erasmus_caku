@@ -8397,33 +8397,21 @@ function OgrenciPortaliApp({ currentUser }) {
         {/* Yukarı Kaydır */}
         <ScrollToTopButton />
 
-        {/* Başlık */}
+        {/* Başlık — ortak banner */}
+        {React.createElement(window.CakuBanner, {
+          title: 'Öğrenci Portalı',
+          subtitle: 'Yardımlaşma, bilgi paylaşımı ve sosyal etkileşim platformu',
+        })}
         <div
           style={{
             marginBottom: 24,
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: isMobile ? 'stretch' : 'flex-start',
-            flexDirection: isMobile ? 'column' : 'row',
-            gap: isMobile ? 12 : 16,
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
           }}
         >
-          <div>
-            <h1
-              style={{
-                fontSize: isMobile ? 22 : 28,
-                fontWeight: 700,
-                color: PC.navy,
-                fontFamily: "'Playfair Display', serif",
-                marginBottom: 4,
-              }}
-            >
-              Öğrenci Portalı
-            </h1>
-            <p style={{ color: PC.textMuted, fontSize: 14 }}>
-              Yardımlaşma, bilgi paylaşımı ve sosyal etkileşim platformu
-            </p>
-          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isModOrAdmin && (
               <button
