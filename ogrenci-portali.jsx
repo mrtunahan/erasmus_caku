@@ -8384,8 +8384,8 @@ function OgrenciPortaliApp({ currentUser }) {
   });
 
   return (
-    <div className="portal-bg">
-      <div className="portal-wrap">
+    <div>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
         {/* Toast Bildirimler */}
         <ToastContainer toasts={toasts} />
         <LevelUpNotification

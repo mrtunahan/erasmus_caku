@@ -3358,72 +3358,43 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       <div style={{ minHeight: '100vh', padding: '0 0 40px' }}>
         <div
           style={{
-            background: 'linear-gradient(135deg, #CCFBF1 0%, #F0FDFA 100%)',
-            padding: '32px 0 24px',
-            marginBottom: 0,
+            maxWidth: 1400,
+            margin: '0 auto',
+            padding: window.innerWidth <= 480 ? '16px 10px 0' : '16px 24px 0',
+            boxSizing: 'border-box',
           }}
         >
-          <div
-            style={{
-              maxWidth: 1400,
-              margin: '0 auto',
-              padding: window.innerWidth <= 480 ? '0 10px' : '0 24px',
-              boxSizing: 'border-box',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: 12,
-              }}
-            >
-              <div>
-                <h1
-                  style={{
-                    color: '#0F172A',
-                    fontSize: 28,
-                    fontWeight: 700,
-                    fontFamily: "'Playfair Display', serif",
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                  }}
-                >
-                  <PrjIcon path={PRJ_ICONS.folder} size={28} color="#0D9488" /> Proje Grupları
-                </h1>
-                <p style={{ color: '#475569', marginTop: 4, fontSize: 14 }}>
-                  {departmentInfo ? departmentInfo.name + ' - ' : ''}Ders seçerek proje gruplarını
-                  görüntüleyin
-                </p>
-              </div>
-              {canManage && (
-                <button
-                  onClick={function () {
-                    setShowCourseModal(true);
-                  }}
-                  style={{
-                    background: '#0D9488',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 10,
-                    padding: '10px 20px',
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    boxShadow: '0 4px 12px rgba(13,148,136,0.25)',
-                  }}
-                >
-                  <PrjIcon path={PRJ_ICONS.plus} size={18} color="white" /> Yeni Alan Ekle
-                </button>
-              )}
-            </div>
-          </div>
+          {React.createElement(window.CakuBanner, {
+            title: 'Proje Grupları',
+            subtitle:
+              (departmentInfo ? departmentInfo.name + ' - ' : '') +
+              'Ders seçerek proje gruplarını görüntüleyin',
+            right: canManage
+              ? React.createElement(
+                  'button',
+                  {
+                    onClick: function () {
+                      setShowCourseModal(true);
+                    },
+                    style: {
+                      background: 'rgba(255,255,255,0.15)',
+                      color: 'white',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                      borderRadius: 10,
+                      padding: '10px 20px',
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    },
+                  },
+                  React.createElement(PrjIcon, { path: PRJ_ICONS.plus, size: 18, color: 'white' }),
+                  ' Yeni Alan Ekle'
+                )
+              : null,
+          })}
         </div>
 
         {/* Kategori Tabları */}

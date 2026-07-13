@@ -3663,35 +3663,27 @@ function SinavOtomasyonuApp({
   return (
     <div>
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
-        {/* Header */}
+        {/* Başlık — ortak banner (embedded modda gizli) */}
+        {!embedded &&
+          React.createElement(window.CakuBanner, {
+            title: 'Sınav Programı Otomasyonu',
+            subtitle: selectedDept
+              ? selectedDept.name + ' — Dersleri sürükleyerek takvime yerleştirin'
+              : 'Dersleri sürükleyerek takvime yerleştirin',
+          })}
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent: embedded ? 'space-between' : 'flex-end',
             alignItems: 'center',
             marginBottom: 20,
+            flexWrap: 'wrap',
+            gap: 12,
           }}
         >
-          {embedded ? (
+          {embedded && (
             <div style={{ fontSize: 13, color: '#666' }}>
               Dersleri sürükleyerek takvime yerleştirin
-            </div>
-          ) : (
-            <div>
-              <h2
-                style={{
-                  fontSize: 22,
-                  fontWeight: 700,
-                  color: C.navy,
-                  fontFamily: "'Playfair Display', serif",
-                }}
-              >
-                Sınav Programı Otomasyonu
-              </h2>
-              <p style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-                {selectedDept ? selectedDept.name : 'Dersleri sürükleyerek takvime yerleştirin'}
-                {isDeptManager && currentUser?.departmentName && ` - ${currentUser.departmentName}`}
-              </p>
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
