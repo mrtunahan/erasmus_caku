@@ -3365,7 +3365,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         >
           <div
             style={{
-              maxWidth: 1000,
+              maxWidth: 1400,
               margin: '0 auto',
               padding: window.innerWidth <= 480 ? '0 10px' : '0 24px',
               boxSizing: 'border-box',
@@ -3437,7 +3437,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         >
           <div
             style={{
-              maxWidth: 1000,
+              maxWidth: 1400,
               margin: '0 auto',
               padding: window.innerWidth <= 480 ? '0 10px' : '0 24px',
               display: 'flex',
@@ -3481,7 +3481,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
         <div
           style={{
-            maxWidth: 1000,
+            maxWidth: 1400,
             margin: '0 auto',
             padding: window.innerWidth <= 480 ? '0 10px' : '0 24px',
             boxSizing: 'border-box',
@@ -3815,7 +3815,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       >
         <div
           style={{
-            maxWidth: 1000,
+            maxWidth: 1400,
             margin: '0 auto',
             padding: window.innerWidth <= 480 ? '0 10px' : '0 24px',
             boxSizing: 'border-box',
@@ -4055,7 +4055,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
       <div
         style={{
-          maxWidth: 1000,
+          maxWidth: 1400,
           margin: '0 auto',
           padding: window.innerWidth <= 480 ? '0 10px' : '0 24px',
           boxSizing: 'border-box',
