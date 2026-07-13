@@ -3355,7 +3355,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         return c.id === activeCategory;
       }) || PROJECT_CATEGORIES[0];
     return (
-      <div style={{ background: PRJ.bg, minHeight: '100vh', padding: '0 0 40px' }}>
+      <div style={{ minHeight: '100vh', padding: '0 0 40px' }}>
         <div
           style={{
             background: 'linear-gradient(135deg, #CCFBF1 0%, #F0FDFA 100%)',
@@ -3804,7 +3804,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   };
 
   return (
-    <div style={{ background: PRJ.bg, minHeight: '100vh', padding: '0 0 40px' }}>
+    <div style={{ minHeight: '100vh', padding: '0 0 40px' }}>
       <div
         style={{
           background: 'linear-gradient(135deg, #CCFBF1 0%, #F0FDFA 55%, #FFFFFF 100%)',

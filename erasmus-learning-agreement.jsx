@@ -5295,8 +5295,8 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   }
 
   return (
-    <div className="portal-bg">
-      <div className="portal-wrap">
+    <div>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
         {/* Sayfa başlığı — sade, tek ton */}
         <div style={{ marginBottom: 20 }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: C.navy }}>

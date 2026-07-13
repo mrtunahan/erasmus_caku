@@ -756,7 +756,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
 
   // ═══════════════════════════════════════════════════════
   return (
-    <div style={{ fontFamily: F, background: C.bg, color: C.text, minHeight: '100vh' }}>
+    <div style={{ fontFamily: F, color: C.text, minHeight: '100vh' }}>
       {/* ── Header ── */}
       <div
         style={{
@@ -786,22 +786,6 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 9,
-                background: `linear-gradient(135deg, ${C.warning}, #D4AF37)`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 16,
-                fontWeight: 800,
-                color: '#fff',
-              }}
-            >
-              ÇÜ
-            </div>
             <div>
               <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#fff' }}>
                 Performans Modülü

@@ -6443,7 +6443,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
   };
 
   return (
-    <div className="portal-bg">
+    <div>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -6457,7 +6457,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         input:focus, select:focus { border-color: ${DS.accent} !important; box-shadow: 0 0 0 3px ${DS.accentLight}; }
       `}</style>
 
-      <div className="portal-wrap">
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
         {/* Başlık */}
         <div
           style={{

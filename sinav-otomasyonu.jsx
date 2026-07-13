@@ -3661,8 +3661,8 @@ function SinavOtomasyonuApp({
   }
 
   return (
-    <div className="portal-bg">
-      <div className="portal-wrap">
+    <div>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
         {/* Header */}
         <div
           style={{
