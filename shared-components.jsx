@@ -514,6 +514,50 @@ window.COMMON_MODULES = COMMON_MODULES;
 window.ADMIN_MODULES = ADMIN_MODULES;
 window.HIERARCHY_MODULES = HIERARCHY_MODULES;
 
+// ── Tüm modüllerde ortak kullanılan başlık banner'ı (tutarlı renk/şekil) ──
+// Lacivert marka gradyanı, beyaz başlık + soluk alt başlık. İkon yok.
+// Kullanım: const CakuBanner = window.CakuBanner; <CakuBanner title="…" subtitle="…" right={…} />
+function CakuBanner({ title, subtitle, right }) {
+  return (
+    <div
+      style={{
+        background: 'linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)',
+        borderRadius: 14,
+        padding: '20px 24px',
+        marginBottom: 24,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 12,
+        boxShadow: '0 6px 20px rgba(27,42,74,0.18)',
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: 24,
+            fontWeight: 800,
+            color: '#FFFFFF',
+            letterSpacing: '-0.01em',
+            lineHeight: 1.2,
+          }}
+        >
+          {title}
+        </h1>
+        {subtitle ? (
+          <p style={{ margin: '5px 0 0', fontSize: 13.5, color: 'rgba(255,255,255,0.72)' }}>
+            {subtitle}
+          </p>
+        ) : null}
+      </div>
+      {right || null}
+    </div>
+  );
+}
+window.CakuBanner = CakuBanner;
+
 // ── Shared Constants ──
 const SEED_PROFESSORS = [
   { name: 'Prof. Dr. Hamit ALYAR', department: 'Fizik', isExternal: true },

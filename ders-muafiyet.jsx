@@ -6458,33 +6458,11 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
       `}</style>
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
-        {/* Başlık */}
-        <div
-          style={{
-            marginBottom: 28,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-end',
-          }}
-        >
-          <div>
-            <h1
-              style={{
-                fontSize: 27,
-                fontWeight: 800,
-                color: DS.navy,
-                fontFamily: DS.fontHead,
-                marginBottom: 4,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              Ders Muafiyet & İntibak
-            </h1>
-            <p style={{ color: DS.textSecondary, fontSize: 13, fontFamily: DS.fontBody }}>
-              {turMeta.aciklama}
-            </p>
-          </div>
-        </div>
+        {/* Başlık — ortak banner */}
+        {React.createElement(window.CakuBanner, {
+          title: 'Ders Muafiyet & İntibak',
+          subtitle: turMeta.aciklama,
+        })}
 
         {/* Başvuru türü seçici — modülü iki bağımsız alana böler */}
         <div

@@ -5441,33 +5441,22 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         />
       )}
 
-      {/* Header */}
+      {/* Header — ortak banner */}
+      {React.createElement(window.CakuBanner, {
+        title: 'Staj Yönetimi',
+        subtitle:
+          (effectiveDeptName ? effectiveDeptName + ' - ' : '') + 'Staj takip ve değerlendirme',
+      })}
       <div
         style={{
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
           gap: 12,
           marginBottom: 24,
         }}
       >
-        <div>
-          <h1
-            style={{
-              fontSize: responsive.val(20, 24, 28),
-              fontWeight: 700,
-              color: STAJ.navy,
-              margin: 0,
-            }}
-          >
-            Staj Yönetimi
-          </h1>
-          <p style={{ fontSize: 13, color: STAJ.textMuted, marginTop: 4 }}>
-            {effectiveDeptName} - Staj takip ve değerlendirme
-          </p>
-        </div>
-
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Bildirim Zili (sadece yöneticilere) */}
           {canManage && (

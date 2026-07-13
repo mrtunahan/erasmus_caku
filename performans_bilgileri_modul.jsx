@@ -757,69 +757,38 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   // ═══════════════════════════════════════════════════════
   return (
     <div style={{ fontFamily: F, color: C.text, minHeight: '100vh' }}>
-      {/* ── Header ── */}
-      <div
-        style={{
-          background: C.headerBg,
-          borderBottom: `2px solid ${C.border}`,
-          padding: '20px 24px 14px',
-          position: 'relative',
-        }}
-      >
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 3,
-            background: `linear-gradient(90deg, ${C.warning}, ${C.success}, ${C.purple})`,
-          }}
-        />
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div>
-              <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#fff' }}>
-                Performans Modülü
-              </h1>
-              <p style={{ margin: '2px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
-                Gösterge İzleme
-              </p>
-            </div>
-          </div>
-          <div
-            style={{
-              padding: '6px 14px',
-              borderRadius: 6,
-              background: 'rgba(255,255,255,0.15)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              color: '#fff',
-              fontSize: 11.5,
-              fontWeight: 600,
-              fontFamily: F,
-            }}
-          >
-            {roleLabel}
-          </div>
-        </div>
-
-        {/* Akademisyen bilgisi — bölüm/fakülte yetkilisi olsa bile gösterilir */}
-        {matchedAkademisyen && (
-          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Giriş yapan:</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>
-              {matchedAkademisyen.ad} — {matchedAkademisyen.bolum}
-            </span>
-          </div>
-        )}
+      {/* ── Header — ortak banner ── */}
+      <div style={{ padding: '16px 16px 0' }}>
+        {React.createElement(window.CakuBanner, {
+          title: 'Performans Modülü',
+          subtitle: 'Gösterge İzleme',
+          right: React.createElement(
+            'div',
+            { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 } },
+            React.createElement(
+              'span',
+              {
+                style: {
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  background: 'rgba(255,255,255,0.15)',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  color: '#fff',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                },
+              },
+              roleLabel
+            ),
+            matchedAkademisyen
+              ? React.createElement(
+                  'span',
+                  { style: { fontSize: 12, color: 'rgba(255,255,255,0.75)' } },
+                  'Giriş yapan: ' + matchedAkademisyen.ad + ' — ' + matchedAkademisyen.bolum
+                )
+              : null
+          ),
+        })}
       </div>
 
       {/* ── Görünüm Sekmesi (yetkiye göre) ── */}

@@ -5297,15 +5297,11 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   return (
     <div>
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
-        {/* Sayfa başlığı — sade, tek ton */}
-        <div style={{ marginBottom: 20 }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: C.navy }}>
-            Erasmus Öğrenim Anlaşması
-          </h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: C.textMuted }}>
-            Ders eşleştirmeleri ve öğrenim anlaşması yönetimi
-          </p>
-        </div>
+        {/* Sayfa başlığı — ortak banner */}
+        {React.createElement(window.CakuBanner, {
+          title: 'Erasmus Öğrenim Anlaşması',
+          subtitle: 'Ders eşleştirmeleri ve öğrenim anlaşması yönetimi',
+        })}
 
         {/* Salt-okunur bilgi (Erasmus yetkisi olmayan öğrenci) — sade */}
         {isStudentWithoutErasmus && (

@@ -472,8 +472,8 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
 
   if (!isAdmin && !isDeptManager) {
     return (
-      <div className="portal-bg">
-        <div className="portal-wrap">
+      <div>
+        <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
           <Card>
             <div style={{ padding: 40, textAlign: 'center', color: C.textMuted }}>
               Bu sayfaya erişim yetkiniz bulunmamaktadır.
@@ -509,8 +509,8 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   ];
 
   return (
-    <div className="portal-bg">
-      <div className="portal-wrap">
+    <div>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
         {/* Section Tabs */}
         <Card>
           <div

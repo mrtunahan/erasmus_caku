@@ -166,28 +166,6 @@ function AuditLogModuluApp({ currentUser, activeDepartment }) {
   return (
     <div style={{ fontFamily: "'Inter', sans-serif" }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 10,
-            background: 'linear-gradient(135deg, #0891B2, #06B6D4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth="2"
-          >
-            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-          </svg>
-        </div>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: AL.navy, margin: 0 }}>Audit Log</h1>
           <p style={{ fontSize: 12, color: AL.textMuted, margin: 0 }}>
