@@ -3397,13 +3397,13 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           })}
         </div>
 
-        {/* Kategori Tabları */}
+        {/* Kategori Tabları — sayfayla bütünleşik (turkuaz zemin kaldırıldı) */}
         <div
           style={{
-            background: '#F0FDFA',
+            background: 'transparent',
             padding: '0',
             marginBottom: 24,
-            borderBottom: '1px solid #CFF3EC',
+            borderBottom: '1px solid #E5E7EB',
           }}
         >
           <div
@@ -3429,8 +3429,8 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     padding: '14px 20px',
                     border: 'none',
                     cursor: 'pointer',
-                    background: isActive ? '#FFFFFF' : 'transparent',
-                    color: isActive ? '#0F172A' : '#5B7A76',
+                    background: 'transparent',
+                    color: isActive ? cat.color : '#64748B',
                     fontSize: 13,
                     fontWeight: isActive ? 700 : 500,
                     fontFamily: "'Source Sans 3', sans-serif",
@@ -3442,7 +3442,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  <PrjIcon path={cat.icon} size={16} color={isActive ? cat.color : '#5B7A76'} />
+                  <PrjIcon path={cat.icon} size={16} color={isActive ? cat.color : '#64748B'} />
                   {cat.label}
                 </button>
               );

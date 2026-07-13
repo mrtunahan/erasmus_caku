@@ -429,12 +429,9 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
     <div className="ank-root" style={{ fontFamily: "'Inter', sans-serif" }}>
       <AnkStyles />
       <PageHeader
-        icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
         title="Anketler"
         subtitle={`${isAdmin ? 'Fakülte' : departmentInfo?.name || 'Bölüm'} yönetici paneli — anket oluştur, ata ve sonuçları izle`}
         responsive={responsive}
-        grad="linear-gradient(135deg, #2DD4BF 0%, #0D9488 100%)"
-        glow="rgba(13,148,136,0.28)"
       />
       <SegTabs tabs={tabs} active={tab} onChange={setTab} />
 
@@ -559,21 +556,23 @@ function PageHeader({ icon, title, subtitle, right, responsive, grad, glow }) {
         flexWrap: 'wrap',
       }}
     >
-      <div
-        style={{
-          width: 46,
-          height: 46,
-          borderRadius: 13,
-          background: grad || ANK.headerGrad,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          boxShadow: '0 6px 16px ' + (glow || 'rgba(13,148,136,0.28)'),
-        }}
-      >
-        <AIcon path={icon} size={22} color="#fff" />
-      </div>
+      {icon && (
+        <div
+          style={{
+            width: 46,
+            height: 46,
+            borderRadius: 13,
+            background: grad || ANK.headerGrad,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: '0 6px 16px ' + (glow || 'rgba(13,148,136,0.28)'),
+          }}
+        >
+          <AIcon path={icon} size={22} color="#fff" />
+        </div>
+      )}
       <div style={{ flex: 1, minWidth: 0 }}>
         <h1
           style={{
