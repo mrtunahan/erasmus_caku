@@ -304,26 +304,6 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         </div>
       </div>
 
-      {/* Bilgi şeridi: bölüm/yetkili ataması artık burada değil */}
-      {isAdmin && (
-        <div
-          style={{
-            background: '#EFF6FF',
-            border: '1px solid #BFDBFE',
-            borderRadius: 8,
-            padding: '10px 14px',
-            marginBottom: 16,
-            fontSize: 12,
-            color: '#1E3A8A',
-            lineHeight: 1.5,
-          }}
-        >
-          <b>Not:</b> Bölüm tanımlama ve bölüm yetkilisi atama işlemleri artık{' '}
-          <b>Fakülte Yönetimi</b> modülünden yapılıyor. Bu sayfa yalnızca sınıf/salon tanımları ve
-          gözetmen akademisyen yönetimi içindir.
-        </div>
-      )}
-
       {/* Tabs */}
       <div
         style={{ display: 'flex', gap: 16, borderBottom: '1px solid #E5E7EB', marginBottom: 24 }}
