@@ -3008,11 +3008,10 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
   return (
     <div className="ank-root" style={{ fontFamily: "'Inter', sans-serif" }}>
       <AnkStyles />
-      <PageHeader
-        title="Anketlerim"
-        subtitle="Size atanan anketleri doldurun"
-        responsive={responsive}
-      />
+      {React.createElement(window.CakuBanner, {
+        title: 'Anketlerim',
+        subtitle: 'Size atanan anketleri doldurun',
+      })}
 
       {myAssignments.length === 0 ? (
         <EmptyState text="Size atanmış anket bulunmuyor." />

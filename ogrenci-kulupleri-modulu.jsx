@@ -1881,22 +1881,12 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Header */}
-      <div style={{ marginBottom: 20 }}>
-        <h1
-          style={{
-            fontSize: responsive.val(20, 24, 28),
-            fontWeight: 700,
-            color: KLP.primary,
-            margin: 0,
-          }}
-        >
-          Öğrenci Toplulukları
-        </h1>
-        <p style={{ fontSize: 13, color: KLP.textMuted, marginTop: 4 }}>
-          Çankırı Karatekin Üniversitesi öğrenci toplulukları rehberi
-          {canCreate ? ' • Yetkili olduğunuz toplulukları düzenleyebilirsiniz' : ''}
-        </p>
-      </div>
+      {React.createElement(window.CakuBanner, {
+        title: 'Öğrenci Toplulukları',
+        subtitle:
+          'Çankırı Karatekin Üniversitesi öğrenci toplulukları rehberi' +
+          (canCreate ? ' • Yetkili olduğunuz toplulukları düzenleyebilirsiniz' : ''),
+      })}
 
       {/* Status mesajı */}
       {msg.text && (
