@@ -8,7 +8,7 @@
 //     harici URL ekler (Karatekin sitesindeki dökümanlar için).
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useMemo, useRef } = React;
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
 const KLP = {
   primary: '#1B2A4A',
@@ -1141,6 +1141,455 @@ function DocumentsPanel({ documents, canEdit, onUpload, onAddLink, onDelete }) {
 //   • Öğrenci: takip et/bırak, takipçi sayısı, topluluk bilgileri
 //   • Sahip akademisyen / yetkili: takipçi listesi + toplu mesaj
 // ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// ClubFeed — topluluk akışı. Sahip akademisyen (canManage) portal "yeni
+// gönderi" alanına benzer bir düzenleyiciyle paylaşım yapar (Duyuru/Etkinlik/
+// Anket + zengin metin + dosya). Ders kodu/bölüm/sınıf alanı YOKTUR. Herkes
+// (takipçiler/öğrenciler) akışı görür. Gönderiler club_posts koleksiyonunda.
+// ══════════════════════════════════════════════════════════════
+const FEED_TYPES = [
+  { id: 'duyuru', label: 'Duyuru', color: '#2563EB', bg: '#DBEAFE' },
+  { id: 'etkinlik', label: 'Etkinlik', color: '#059669', bg: '#D1FAE5' },
+  { id: 'anket', label: 'Anket', color: '#7C3AED', bg: '#EDE9FE' },
+];
+const FEED_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.svg,image/svg+xml';
+
+function fmtFeedDate(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+  } catch (_) {
+    return '';
+  }
+}
+
+function ClubFeed({ club, canManage, currentUser }) {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [type, setType] = useState('duyuru');
+  const [files, setFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const editorRef = useRef(null);
+  const fileRef = useRef(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const all = await window.apiRead('club_posts', { where: 'clubId:eq:s:' + club.id });
+      const mine = (all || []).filter((p) => String(p.clubId) === String(club.id));
+      mine.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+      setPosts(mine);
+    } catch (_) {
+      setPosts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [club.id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const exec = (cmd) => {
+    document.execCommand(cmd, false, null);
+    if (editorRef.current) editorRef.current.focus();
+  };
+
+  const handleFiles = async (e) => {
+    const list = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!list.length) return;
+    setUploading(true);
+    try {
+      for (const file of list) {
+        const form = new FormData();
+        form.append('folder', 'club_posts');
+        form.append('file', file);
+        const res = await fetch('/api/files/upload?folder=' + encodeURIComponent('club_posts'), {
+          method: 'POST',
+          body: form,
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        setFiles((p) => [
+          ...p,
+          {
+            name: json.originalName || file.name,
+            url: json.downloadURL || '',
+            size: json.size || file.size || 0,
+            fileName: json.fileName || '',
+          },
+        ]);
+      }
+    } catch (err) {
+      alert('Dosya yüklenemedi: ' + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeFile = (i) => setFiles((p) => p.filter((_, idx) => idx !== i));
+
+  const submit = async () => {
+    const content = editorRef.current ? editorRef.current.innerHTML.trim() : '';
+    const plain = editorRef.current ? (editorRef.current.textContent || '').trim() : '';
+    if (!plain && files.length === 0) {
+      alert('Bir metin yazın veya dosya ekleyin.');
+      return;
+    }
+    setPosting(true);
+    try {
+      await window.DBWrite.add('club_posts', {
+        clubId: club.id,
+        clubName: club.name || '',
+        type,
+        content,
+        contentFormat: 'html',
+        files,
+        authorName: currentUser?.name || currentUser?.identifier || 'Topluluk',
+        authorRole: currentUser?.role || '',
+        createdAt: new Date().toISOString(),
+      });
+      if (editorRef.current) editorRef.current.innerHTML = '';
+      setFiles([]);
+      setType('duyuru');
+      await load();
+    } catch (e) {
+      alert('Gönderilemedi: ' + e.message);
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const del = async (post) => {
+    if (!confirm('Bu gönderi silinsin mi?')) return;
+    try {
+      await window.DBWrite.remove('club_posts', post.id);
+      await load();
+    } catch (e) {
+      alert('Silinemedi: ' + e.message);
+    }
+  };
+
+  const tbBtn = {
+    width: 30,
+    height: 30,
+    borderRadius: 6,
+    border: '1px solid ' + KLP.border,
+    background: '#fff',
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 700,
+    color: KLP.text,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+
+  return (
+    <div style={{ marginTop: 20, borderTop: `1px solid ${KLP.border}`, paddingTop: 16 }}>
+      <style>{`[contenteditable][data-placeholder]:empty:before{content:attr(data-placeholder);color:#9CA3AF;pointer-events:none;}`}</style>
+      <div style={{ fontSize: 14, fontWeight: 700, color: KLP.primary, marginBottom: 12 }}>
+        Topluluk Akışı
+      </div>
+
+      {/* Düzenleyici — yalnız sahip akademisyen */}
+      {canManage && (
+        <div
+          style={{
+            border: `1px solid ${KLP.border}`,
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 18,
+            background: '#FCFCFD',
+          }}
+        >
+          {/* Tür seçimi (ilk satır) */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+            {FEED_TYPES.map((t) => {
+              const on = type === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setType(t.id)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    border: '1px solid ' + (on ? t.color : KLP.border),
+                    background: on ? t.bg : '#fff',
+                    color: on ? t.color : KLP.textMuted,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Metin düzenleyici */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+            <button
+              onClick={() => exec('bold')}
+              title="Kalın"
+              style={{ ...tbBtn, fontStyle: 'normal' }}
+            >
+              B
+            </button>
+            <button
+              onClick={() => exec('italic')}
+              title="İtalik"
+              style={{ ...tbBtn, fontStyle: 'italic' }}
+            >
+              I
+            </button>
+            <button onClick={() => exec('insertUnorderedList')} title="Liste" style={tbBtn}>
+              ☰
+            </button>
+          </div>
+          <div
+            ref={editorRef}
+            contentEditable
+            data-placeholder="Paylaşmak istediklerinizi yazın…"
+            style={{
+              minHeight: 80,
+              border: `1px solid ${KLP.border}`,
+              borderRadius: 8,
+              padding: '10px 12px',
+              fontSize: 13.5,
+              outline: 'none',
+              background: '#fff',
+              lineHeight: 1.5,
+            }}
+          />
+
+          {/* Eklenen dosyalar */}
+          {files.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+              {files.map((f, i) => (
+                <span
+                  key={i}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 10px',
+                    borderRadius: 8,
+                    background: KLP.accentLight,
+                    color: KLP.primary,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    maxWidth: 220,
+                  }}
+                >
+                  <span
+                    style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  >
+                    {f.name}
+                  </span>
+                  <button
+                    onClick={() => removeFile(i)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      color: KLP.red,
+                      padding: 0,
+                      display: 'flex',
+                    }}
+                    title="Kaldır"
+                  >
+                    <KlpIcon path="M18 6L6 18M6 6l12 12" size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Dosya ekle + paylaş */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              marginTop: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            <input
+              ref={fileRef}
+              type="file"
+              accept={FEED_ACCEPT}
+              multiple
+              style={{ display: 'none' }}
+              onChange={handleFiles}
+            />
+            <button
+              onClick={() => fileRef.current && fileRef.current.click()}
+              disabled={uploading}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: `1px dashed ${KLP.accent}`,
+                background: '#fff',
+                color: KLP.accent,
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: uploading ? 'wait' : 'pointer',
+              }}
+            >
+              <KlpIcon
+                path="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"
+                size={15}
+                color={KLP.accent}
+              />
+              {uploading ? 'Yükleniyor…' : 'Dosya Ekle (PDF/DOCX/XLSX/JPEG/PNG/SVG)'}
+            </button>
+            <button
+              onClick={submit}
+              disabled={posting}
+              style={{
+                padding: '9px 20px',
+                borderRadius: 8,
+                border: 'none',
+                background: KLP.primary,
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: posting ? 'wait' : 'pointer',
+                opacity: posting ? 0.7 : 1,
+              }}
+            >
+              {posting ? 'Paylaşılıyor…' : 'Paylaş'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Akış listesi */}
+      {loading ? (
+        <p style={{ fontSize: 12.5, color: KLP.textMuted, margin: 0 }}>Yükleniyor…</p>
+      ) : posts.length === 0 ? (
+        <p style={{ fontSize: 12.5, color: KLP.textMuted, margin: 0 }}>Henüz paylaşım yok.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {posts.map((p) => {
+            const t = FEED_TYPES.find((x) => x.id === p.type) || FEED_TYPES[0];
+            return (
+              <div
+                key={p.id}
+                style={{ border: `1px solid ${KLP.border}`, borderRadius: 12, padding: 14 }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 8,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <span
+                    style={{
+                      padding: '2px 9px',
+                      borderRadius: 10,
+                      background: t.bg,
+                      color: t.color,
+                      fontSize: 11,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {t.label}
+                  </span>
+                  <span style={{ fontSize: 12, color: KLP.textMuted }}>{p.authorName}</span>
+                  <span style={{ fontSize: 11.5, color: KLP.textMuted }}>
+                    · {fmtFeedDate(p.createdAt)}
+                  </span>
+                  {canManage && (
+                    <button
+                      onClick={() => del(p)}
+                      title="Sil"
+                      style={{
+                        marginLeft: 'auto',
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        color: KLP.red,
+                        padding: 2,
+                        display: 'flex',
+                      }}
+                    >
+                      <KlpIcon
+                        path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
+                        size={14}
+                      />
+                    </button>
+                  )}
+                </div>
+                {p.content && (
+                  <div
+                    style={{ fontSize: 13.5, color: KLP.text, lineHeight: 1.55 }}
+                    dangerouslySetInnerHTML={{ __html: p.content }}
+                  />
+                )}
+                {Array.isArray(p.files) && p.files.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                    {p.files.map((f, i) => (
+                      <a
+                        key={i}
+                        href={f.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          border: `1px solid ${KLP.border}`,
+                          background: '#fff',
+                          color: KLP.primary,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                          maxWidth: 220,
+                        }}
+                      >
+                        <KlpIcon
+                          path="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                          size={14}
+                          color={KLP.accent}
+                        />
+                        <span
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {f.name}
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ClubDetailModal({
   club,
   followers,
@@ -1151,6 +1600,7 @@ function ClubDetailModal({
   canManage,
   onSendBulk,
   onClose,
+  currentUser,
 }) {
   const [g1, g2] = colorForName(club?.name || '');
   const hasLogo = !!club?.logoURL;
@@ -1513,6 +1963,9 @@ function ClubDetailModal({
               </div>
             </div>
           )}
+
+          {/* Topluluk akışı (feed) — sahip akademisyen gönderi paylaşır, herkes görür */}
+          <ClubFeed club={club} canManage={canManage} currentUser={currentUser} />
         </div>
       </div>
     </div>
@@ -2051,6 +2504,7 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
           onToggleFollow={() => handleToggleFollow(detailClub)}
           canManage={canEditClub(detailClub)}
           onSendBulk={(text) => handleBulkMessage(detailClub, text)}
+          currentUser={currentUser}
           onClose={() => setDetailClub(null)}
         />
       )}
