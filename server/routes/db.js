@@ -117,7 +117,9 @@ const ALLOWED_COLLECTIONS = [
   'student_clubs',
   'club_documents',
   'club_followers',
+  'club_posts',
   'benim_ayarlar',
+  'student_profiles',
   'surveys',
   'survey_assignments',
   'survey_responses',
@@ -185,6 +187,7 @@ const STUDENT_WRITABLE = new Set([
   'student_clubs',
   'club_documents',
   'club_followers',
+  'student_profiles',
   'projects',
   'unides_projects',
   'tubitak2209_projects',
@@ -408,6 +411,18 @@ async function enforceWritePolicies(db, op, user) {
     // öğrenci başkası adına takip/çıkma kaydı oluşturamaz.
     if (
       op.collection === 'club_followers' &&
+      op.data &&
+      typeof op.data === 'object' &&
+      (op.type === 'add' || op.type === 'set' || op.type === 'update')
+    ) {
+      op.data.studentNumber = ident;
+      op.data._owner = ident;
+    }
+
+    // student_profiles: öğrencinin kendi profil kaydı (fotoğraf vb.) —
+    // sahiplik JWT kimliğine sabitlenir.
+    if (
+      op.collection === 'student_profiles' &&
       op.data &&
       typeof op.data === 'object' &&
       (op.type === 'add' || op.type === 'set' || op.type === 'update')

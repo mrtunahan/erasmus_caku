@@ -1256,40 +1256,35 @@ function BenimSayfamAyarlari({ activeDepartment }) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// Akademisyen Bilgileri — akademisyen seç, e-posta/dahili/foto ekle.
-// professors koleksiyonundaki ilgili dokümana yazılır; öğrencinin
-// Benim Sayfam "Danışman Bilgileri" alanında görünür.
+// Akademisyen Bilgileri — bu bölümün akademisyenleri kart olarak listelenir;
+// her karttan e-posta/dahili/foto düzenlenir. professors dokümanına yazılır;
+// öğrencinin Benim Sayfam "Danışman Bilgileri" alanında görünür.
+// NOT: Bu sekme yalnızca aktif bölümün (kimliği bu bölüm olan) akademisyenlerini
+// gösterir; danışmanlık da bölüm bazlıdır — bir bölümün öğrencisine yalnızca o
+// bölümün akademisyeni danışman olabilir.
 // ══════════════════════════════════════════════════════════════
-function AkademisyenBilgileri({ professors, onSaved }) {
-  const [selId, setSelId] = useState('');
-  const [email, setEmail] = useState('');
-  const [dahili, setDahili] = useState('');
-  const [photoURL, setPhotoURL] = useState('');
+function AkademisyenKart({ prof, onSaved }) {
+  const profId = prof.id || prof._docId;
+  const [email, setEmail] = useState(prof.email || '');
+  const [dahili, setDahili] = useState(prof.dahili || '');
+  const [photoURL, setPhotoURL] = useState(prof.photoURL || '');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState('');
-  const photoRef = React.useRef(null);
+  const fileRef = React.useRef(null);
 
-  const sorted = (professors || [])
-    .slice()
-    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
-
-  const onSelect = (id) => {
-    setSelId(id);
-    const p = sorted.find((x) => (x.id || x._docId) === id);
-    setEmail(p?.email || '');
-    setDahili(p?.dahili || '');
-    setPhotoURL(p?.photoURL || '');
-    setMsg('');
-  };
+  const dirty =
+    email !== (prof.email || '') ||
+    dahili !== (prof.dahili || '') ||
+    photoURL !== (prof.photoURL || '');
 
   const handlePhoto = async (e) => {
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!file) return;
     if (!/^image\/(png|jpe?g)$/i.test(file.type)) {
-      setMsg('Fotoğraf yalnızca PNG veya JPEG olabilir.');
-      setTimeout(() => setMsg(''), 3000);
+      setMsg('Yalnızca PNG/JPEG');
+      setTimeout(() => setMsg(''), 2500);
       return;
     }
     setUploading(true);
@@ -1306,28 +1301,24 @@ function AkademisyenBilgileri({ professors, onSaved }) {
           credentials: 'include',
         }
       );
-      if (!res.ok) throw new Error('Yükleme başarısız (HTTP ' + res.status + ')');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       const json = await res.json();
       setPhotoURL(json.downloadURL || '');
     } catch (err) {
-      setMsg('Yükleme hatası: ' + err.message);
+      setMsg('Yükleme hatası');
+      setTimeout(() => setMsg(''), 2500);
     } finally {
       setUploading(false);
     }
   };
 
   const save = async () => {
-    if (!selId) {
-      setMsg('Önce bir akademisyen seçin.');
-      setTimeout(() => setMsg(''), 3000);
-      return;
-    }
     setSaving(true);
     setMsg('');
     try {
       await DBWrite.set(
         'professors',
-        String(selId),
+        String(profId),
         {
           email: (email || '').trim(),
           dahili: (dahili || '').trim(),
@@ -1336,12 +1327,11 @@ function AkademisyenBilgileri({ professors, onSaved }) {
         },
         true
       );
-      const p = sorted.find((x) => (x.id || x._docId) === selId);
       if (window.audit)
-        window.audit('professor_info_update', 'professors', String(selId), {
-          meta: { name: p?.name, hasPhoto: !!photoURL },
+        window.audit('professor_info_update', 'professors', String(profId), {
+          meta: { name: prof.name, hasPhoto: !!photoURL },
         });
-      setMsg('Kaydedildi.');
+      setMsg('Kaydedildi');
       if (onSaved) onSaved();
     } catch (e) {
       setMsg('Hata: ' + e.message);
@@ -1352,7 +1342,7 @@ function AkademisyenBilgileri({ professors, onSaved }) {
   };
 
   const inputStyle = {
-    padding: '9px 12px',
+    padding: '8px 10px',
     borderRadius: 8,
     border: '1px solid #D1D5DB',
     fontSize: 13,
@@ -1361,13 +1351,6 @@ function AkademisyenBilgileri({ professors, onSaved }) {
     boxSizing: 'border-box',
     width: '100%',
   };
-  const labelStyle = {
-    display: 'block',
-    fontSize: 12,
-    fontWeight: 600,
-    color: '#6B7280',
-    marginBottom: 6,
-  };
 
   return (
     <div
@@ -1375,147 +1358,179 @@ function AkademisyenBilgileri({ professors, onSaved }) {
         background: 'white',
         border: '1px solid #E5E7EB',
         borderRadius: 12,
-        padding: 20,
-        maxWidth: 560,
+        padding: 16,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        boxShadow: '0 1px 3px rgba(16,24,40,0.05)',
       }}
     >
-      <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 16px', lineHeight: 1.5 }}>
-        Akademisyen seçip iletişim bilgilerini girin. Bu bilgiler, danışmanı bu akademisyen olan
-        öğrencilerin <b>Benim Sayfam → Danışman Bilgileri</b> alanında görünür.
-      </p>
-
-      <div style={{ marginBottom: 16 }}>
-        <label style={labelStyle}>Akademisyen</label>
-        <select
-          value={selId}
-          onChange={(e) => onSelect(e.target.value)}
-          style={{ ...inputStyle, cursor: 'pointer' }}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            flexShrink: 0,
+            background: '#F3F4F6',
+            border: '1px solid #E5E7EB',
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
         >
-          <option value="">— Akademisyen seçin —</option>
-          {sorted.map((p) => (
-            <option key={p.id || p._docId} value={p.id || p._docId}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+          {photoURL ? (
+            <img
+              src={photoURL}
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            <svg
+              width="26"
+              height="26"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#9CA3AF"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" />
+            </svg>
+          )}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, lineHeight: 1.3 }}>
+            {prof.name}
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            style={{ display: 'none' }}
+            onChange={handlePhoto}
+          />
+          <button
+            onClick={() => fileRef.current && fileRef.current.click()}
+            disabled={uploading}
+            style={{
+              marginTop: 4,
+              background: 'none',
+              border: 'none',
+              color: C.blue,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            {uploading ? 'Yükleniyor…' : photoURL ? 'Fotoğrafı değiştir' : 'Fotoğraf ekle'}
+          </button>
+        </div>
       </div>
 
-      {selId && (
-        <>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16 }}>
-            <div
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: '50%',
-                flexShrink: 0,
-                background: '#F3F4F6',
-                border: '1px solid #E5E7EB',
-                overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {photoURL ? (
-                <img
-                  src={photoURL}
-                  alt=""
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <svg
-                  width="30"
-                  height="30"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#9CA3AF"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" />
-                </svg>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <input
-                ref={photoRef}
-                type="file"
-                accept="image/png,image/jpeg"
-                style={{ display: 'none' }}
-                onChange={handlePhoto}
-              />
-              <Btn
-                small
-                variant="secondary"
-                onClick={() => photoRef.current && photoRef.current.click()}
-                disabled={uploading}
-              >
-                {uploading ? 'Yükleniyor…' : 'Fotoğraf Yükle'}
-              </Btn>
-              {photoURL && (
-                <button
-                  onClick={() => setPhotoURL('')}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: 8,
-                    border: '1px solid #FCA5A5',
-                    background: 'white',
-                    color: '#DC2626',
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Kaldır
-                </button>
-              )}
-            </div>
-          </div>
+      <div>
+        <label
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: '#6B7280',
+            display: 'block',
+            marginBottom: 4,
+          }}
+        >
+          E-posta
+        </label>
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="ornek@karatekin.edu.tr"
+          style={inputStyle}
+        />
+      </div>
+      <div>
+        <label
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: '#6B7280',
+            display: 'block',
+            marginBottom: 4,
+          }}
+        >
+          Dahili
+        </label>
+        <input
+          value={dahili}
+          onChange={(e) => setDahili(e.target.value)}
+          placeholder="Örn: 1234"
+          style={inputStyle}
+        />
+      </div>
 
-          <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>E-posta</label>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ornek@karatekin.edu.tr"
-              style={inputStyle}
-            />
-          </div>
-          <div style={{ marginBottom: 18 }}>
-            <label style={labelStyle}>Dahili</label>
-            <input
-              value={dahili}
-              onChange={(e) => setDahili(e.target.value)}
-              placeholder="Örn: 1234"
-              style={inputStyle}
-            />
-          </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
+        <Btn small onClick={save} disabled={saving || !dirty}>
+          {saving ? 'Kaydediliyor…' : 'Kaydet'}
+        </Btn>
+        {msg && (
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color:
+                msg.startsWith('Hata') || msg.includes('hata') || msg.includes('JPEG')
+                  ? '#DC2626'
+                  : '#059669',
+            }}
+          >
+            {msg}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Btn onClick={save} disabled={saving}>
-              {saving ? 'Kaydediliyor…' : 'Kaydet'}
-            </Btn>
-            {msg && (
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color:
-                    msg.startsWith('Hata') || msg.startsWith('Yükleme hatası')
-                      ? '#DC2626'
-                      : '#059669',
-                }}
-              >
-                {msg}
-              </span>
-            )}
-          </div>
-        </>
-      )}
-      {!selId && msg && (
-        <span style={{ fontSize: 13, fontWeight: 500, color: '#DC2626' }}>{msg}</span>
+function AkademisyenBilgileri({ professors, onSaved }) {
+  const sorted = (professors || [])
+    .slice()
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
+
+  return (
+    <div>
+      <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 16px', lineHeight: 1.5 }}>
+        Bu bölümün akademisyenleri. İletişim bilgileri, danışmanı bu akademisyen olan öğrencilerin{' '}
+        <b>Benim Sayfam → Danışman Bilgileri</b> alanında görünür. Danışmanlık bölüm bazlıdır: bir
+        bölümün öğrencisine yalnızca o bölümün akademisyeni danışman olabilir.
+      </p>
+      {sorted.length === 0 ? (
+        <div
+          style={{
+            background: 'white',
+            border: '1px solid #E5E7EB',
+            borderRadius: 12,
+            padding: 40,
+            textAlign: 'center',
+            color: '#9CA3AF',
+            fontSize: 13.5,
+          }}
+        >
+          Bu bölümde akademisyen bulunamadı.
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+            gap: 16,
+          }}
+        >
+          {sorted.map((p) => (
+            <AkademisyenKart key={p.id || p._docId} prof={p} onSaved={onSaved} />
+          ))}
+        </div>
       )}
     </div>
   );
