@@ -252,7 +252,18 @@ const STUDENT_READ_SCOPED = {
 };
 // Öğrenci okumalarında alan kısıtlaması (e-posta/bayrak gibi alanlar sızmasın)
 const STUDENT_READ_STRIPPED = {
-  professors: ['name', 'title', 'unvan', 'departmentId', 'department'],
+  // Danışman iletişim bilgileri (e-posta/dahili/foto) öğrenciye Benim Sayfam'da
+  // gösterilir; bu yüzden bu alanlar da öğrenci okumasına açıktır.
+  professors: [
+    'name',
+    'title',
+    'unvan',
+    'departmentId',
+    'department',
+    'email',
+    'dahili',
+    'photoURL',
+  ],
 };
 // Tek istekte dönebilecek azami doküman sayısı (bellek/DoS koruması)
 const MAX_READ_LIMIT = 20000;

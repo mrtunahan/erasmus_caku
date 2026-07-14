@@ -413,7 +413,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       }
       for (const v of variants || [studentDeptId]) {
         try {
-          const doc = await window.apiReadDoc('benim_ayarlar', String(v));
+          // apiReadDoc { exists, data, id } döner — asıl kayıt data içinde.
+          const res = await window.apiReadDoc('benim_ayarlar', String(v));
+          const doc = res && res.exists ? res.data : res && res.data ? res.data : null;
           if (doc && (Array.isArray(doc.quickLinks) || doc.campusMapUrl)) {
             if (alive)
               setPageSettings({
@@ -1313,9 +1315,27 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             </h3>
             {advisor ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: 12, color: '#757682' }}>Danışman</span>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#191C1E' }}>{advisor}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {advisorProf?.photoURL && (
+                    <img
+                      src={advisorProf.photoURL}
+                      alt=""
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        flexShrink: 0,
+                        border: '1px solid #E5E7EB',
+                      }}
+                    />
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    <span style={{ fontSize: 12, color: '#757682' }}>Danışman</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#191C1E' }}>
+                      {advisor}
+                    </span>
+                  </div>
                 </div>
                 {advisorProf?.dahili && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
