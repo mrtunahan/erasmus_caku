@@ -187,6 +187,7 @@ const STUDENT_WRITABLE = new Set([
   'student_clubs',
   'club_documents',
   'club_followers',
+  'club_posts',
   'student_profiles',
   'projects',
   'unides_projects',
