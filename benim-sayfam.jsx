@@ -212,6 +212,8 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [pageSettings, setPageSettings] = useState({ quickLinks: [], campusMapUrl: '' });
   // Öğrencinin takip ettiği topluluklar (profil kartında gösterilir)
   const [followedClubs, setFollowedClubs] = useState([]);
+  // Danışman iletişim bilgisi için bölüm akademisyenleri
+  const [professors, setProfessors] = useState([]);
   // Aylık takvim görünümü: gösterilen ay (ayın ilk günü, 00:00 yerel)
   const [displayMonth, setDisplayMonth] = useState(() => {
     var d = new Date();
@@ -289,6 +291,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           const extras = Array.isArray(p.additionalDepartments) ? p.additionalDepartments : [];
           return extras.some((x) => vset.has(String(x)));
         });
+        setProfessors(myProfs);
         const seenN = {};
         const opts = [];
         myProfs.forEach((p) => {
@@ -1148,106 +1151,232 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   // ══════════════════════════════════════════════════════════════
   // GÖSTERİM MODU (Ders listesi + bildirimler)
   // ══════════════════════════════════════════════════════════════
+  const cardBox = {
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: 12,
+    padding: 18,
+    boxShadow: '0 1px 3px rgba(16,24,40,0.06)',
+  };
+  const M3navy = '#1B2A4A';
+  const M3green = '#059669';
+  const sectionTitle = {
+    margin: '0 0 14px',
+    fontSize: 16,
+    fontWeight: 700,
+    color: M3navy,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  };
+  const advisorProf = professors.find((p) => (p.name || '').trim() === (advisor || '').trim());
+  const _today = new Date();
+  const isSameDay = (a, b) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  const dayEvents = (cell) => {
+    const c = new Date(cell);
+    c.setHours(0, 0, 0, 0);
+    return (calendar || []).filter((ev) => {
+      if (!ev.date) return false;
+      const s = new Date(ev.date);
+      s.setHours(0, 0, 0, 0);
+      const e = ev.endDate ? new Date(ev.endDate) : new Date(ev.date);
+      e.setHours(0, 0, 0, 0);
+      return c >= s && c <= e;
+    });
+  };
+  const weekdays = ['PZT', 'SAL', 'ÇAR', 'PER', 'CUM', 'CMT', 'PAZ'];
+  const initials = (
+    (studentRecord?.firstName || '').charAt(0) + (studentRecord?.lastName || '').charAt(0)
+  )
+    .toLocaleUpperCase('tr')
+    .trim();
+
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif", color: '#1F2937' }}>
+    <div style={{ fontFamily: "'Inter', sans-serif", color: '#191C1E' }}>
       <div
         style={{
-          display: 'flex',
-          gap: 20,
-          alignItems: 'flex-start',
-          flexDirection: bsCalLayout.isWide ? 'row' : 'column',
+          display: 'grid',
+          gridTemplateColumns: bsCalLayout.isWide ? '300px minmax(0, 1fr) 300px' : '1fr',
+          gap: 24,
+          alignItems: 'start',
         }}
       >
-        {/* Sağ sütun (mavi öğrenci kartı) — geniş ekranda order:2 ile sağda */}
-        <div
-          style={{
-            order: bsCalLayout.isWide ? 2 : 0,
-            width: bsCalLayout.isWide ? 320 : '100%',
-            flexShrink: 0,
-            position: bsCalLayout.isWide ? 'sticky' : 'static',
-            top: 16,
-          }}
-        >
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)',
-              padding: '24px 28px',
-              borderRadius: 14,
-              color: 'white',
-              marginBottom: 20,
-              boxShadow: '0 6px 20px rgba(27,42,74,0.15)',
-            }}
-          >
+        {/* ══ SOL SÜTUN: Profil · Danışman · Bağlantılar · Topluluklar ══ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+          {/* Profil Kartı */}
+          <div style={cardBox}>
             <div
               style={{
-                fontSize: 12,
-                opacity: 0.75,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center',
+                marginBottom: 16,
               }}
             >
-              Benim Sayfam
-            </div>
-            <div style={{ fontSize: 26, fontWeight: 700, marginTop: 4 }}>
-              {studentRecord?.firstName} {studentRecord?.lastName}
-            </div>
-            <div style={{ fontSize: 13, opacity: 0.85, marginTop: 6 }}>
-              {studentRecord?.studentNumber} · {deptName}
-            </div>
-            {advisor && (
-              <div style={{ fontSize: 12.5, opacity: 0.9, marginTop: 8 }}>
-                Danışman: <strong>{advisor}</strong>
-              </div>
-            )}
-            <div style={{ fontSize: 12.5, opacity: 0.9, marginTop: 4 }}>
-              {bsTermLabel(term.academicYear, term.donem)} · {myCourseDetails.length} ders ·{' '}
-              {totalAkts}/{BS_AKTS_CAP} AKTS
-            </div>
-            {locked && (
               <div
                 style={{
-                  marginTop: 12,
-                  padding: '8px 14px',
-                  borderRadius: 8,
-                  background: 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  fontSize: 12,
-                  color: 'rgba(255,255,255,0.92)',
+                  width: 80,
+                  height: 80,
+                  borderRadius: '50%',
+                  background: '#DCE1FF',
+                  padding: 4,
+                  marginBottom: 10,
                 }}
               >
-                Ders seçiminiz kilitli. Değişiklik için bölüm yetkilinizle iletişime geçin.
+                {studentRecord?.photoURL ? (
+                  <img
+                    src={studentRecord.photoURL}
+                    alt=""
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      borderRadius: '50%',
+                      background: M3navy,
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 26,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {initials || '?'}
+                  </div>
+                )}
               </div>
+              <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: M3navy }}>
+                {studentRecord?.firstName} {studentRecord?.lastName}
+              </h2>
+              <p
+                style={{
+                  margin: '4px 0 0',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: '#6B7280',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                {studentRecord?.studentNumber}
+              </p>
+            </div>
+            <div
+              style={{
+                borderTop: '1px solid #E5E7EB',
+                paddingTop: 14,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: 12, color: '#757682' }}>Bölüm</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#191C1E' }}>{deptName}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: 12, color: '#757682' }}>Akademik Dönem</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#191C1E' }}>
+                  {bsTermLabel(term.academicYear, term.donem)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Danışman Bilgileri */}
+          <div style={cardBox}>
+            <h3 style={sectionTitle}>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={M3green}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" />
+              </svg>
+              Danışman Bilgileri
+            </h3>
+            {advisor ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: 12, color: '#757682' }}>Danışman</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: '#191C1E' }}>{advisor}</span>
+                </div>
+                {advisorProf?.dahili && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#6B7280"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.81.36 1.6.7 2.34a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.74-1.74a2 2 0 012.11-.45c.74.34 1.53.57 2.34.7A2 2 0 0122 16.92z" />
+                    </svg>
+                    <span style={{ fontSize: 13.5, color: '#191C1E' }}>
+                      Dahili: {advisorProf.dahili}
+                    </span>
+                  </div>
+                )}
+                {advisorProf?.email && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#6B7280"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6" />
+                    </svg>
+                    <a
+                      href={'mailto:' + advisorProf.email}
+                      style={{ fontSize: 13.5, color: M3green, textDecoration: 'none' }}
+                    >
+                      {advisorProf.email}
+                    </a>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0, lineHeight: 1.5 }}>
+                Danışman seçilmedi. "Dersleri Düzenle" ile kendi bölümünüzden bir danışman
+                seçebilirsiniz.
+              </p>
             )}
           </div>
 
-          {/* Hızlı Bağlantılar (bölüm yetkilisinin tanımladığı) */}
+          {/* Hızlı Bağlantılar */}
           {pageSettings.quickLinks.length > 0 && (
-            <div
-              style={{
-                background: 'white',
-                border: '1px solid #E5E7EB',
-                borderRadius: 14,
-                padding: 18,
-                marginBottom: 20,
-              }}
-            >
-              <h3
-                style={{
-                  margin: '0 0 12px',
-                  fontSize: 15,
-                  fontWeight: 700,
-                  color: '#1B2A4A',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
+            <div style={cardBox}>
+              <h3 style={sectionTitle}>
                 <svg
                   width="18"
                   height="18"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#059669"
+                  stroke={M3green}
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1300,32 +1429,14 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
 
           {/* Takip Ettiğim Topluluklar */}
           {followedClubs.length > 0 && (
-            <div
-              style={{
-                background: 'white',
-                border: '1px solid #E5E7EB',
-                borderRadius: 14,
-                padding: 18,
-                marginBottom: 20,
-              }}
-            >
-              <h3
-                style={{
-                  margin: '0 0 12px',
-                  fontSize: 15,
-                  fontWeight: 700,
-                  color: '#1B2A4A',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
+            <div style={cardBox}>
+              <h3 style={sectionTitle}>
                 <svg
                   width="18"
                   height="18"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#059669"
+                  stroke={M3green}
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1343,7 +1454,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                         height: 30,
                         borderRadius: '50%',
                         flexShrink: 0,
-                        background: c.logoURL ? '#fff' : '#1B2A4A',
+                        background: c.logoURL ? '#fff' : M3navy,
                         color: '#fff',
                         display: 'flex',
                         alignItems: 'center',
@@ -1374,518 +1485,203 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           )}
         </div>
 
-        {/* Sol (ana) sütun — geniş ekranda order:1 ile solda */}
-        <div style={{ order: bsCalLayout.isWide ? 1 : 0, flex: 1, minWidth: 0, width: '100%' }}>
-          {/* Akademik Takvim — Chronos tarzı minimalist aylık görünüm */}
-          <div
-            style={{
-              background: 'white',
-              border: '1px solid #1F2937',
-              borderRadius: 4,
-              padding: 0,
-              marginBottom: 20,
-              overflow: 'hidden',
-              maxWidth: '100%',
-            }}
-          >
+        {/* ══ MERKEZ: Takvim · Kampüs Haritası · Derslerim ══ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
+          {/* Akademik Takvim */}
+          <div style={cardBox}>
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: bsCalLayout.isWide ? '220px minmax(0, 1fr)' : 'minmax(0, 1fr)',
-                gap: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 14,
+                flexWrap: 'wrap',
+                gap: 8,
               }}
             >
-              {/* SOL: Ay başlığı + mini takvimler + ÖNCELİKLİ */}
-              <div
-                style={{
-                  padding: bsCalLayout.isWide ? '28px 20px 24px 24px' : '20px 18px 16px',
-                  borderRight: bsCalLayout.isWide ? '1px solid #1F2937' : 'none',
-                  borderBottom: bsCalLayout.isWide ? 'none' : '1px solid #1F2937',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  minWidth: 0,
-                }}
-              >
-                {/* Büyük ay etiketi */}
-                <div style={{ marginBottom: 18 }}>
-                  <h2
-                    style={{
-                      fontSize: bsCalLayout.isWide ? 64 : 44,
-                      lineHeight: 0.95,
-                      fontWeight: 900,
-                      letterSpacing: '-0.04em',
-                      margin: 0,
-                      color: '#000',
-                    }}
-                  >
-                    {bsMonthShort(displayMonth)}
-                  </h2>
-                  <p
-                    style={{
-                      fontSize: bsCalLayout.isWide ? 22 : 18,
-                      fontWeight: 700,
-                      color: '#6B7280',
-                      margin: '2px 0 0',
-                      letterSpacing: '-0.01em',
-                    }}
-                  >
-                    {displayMonth.getFullYear()}
-                  </p>
-                </div>
-
-                {/* Navigasyon */}
-                <div style={{ display: 'flex', gap: 6, marginBottom: 18 }}>
-                  <button
-                    onClick={goPrevMonth}
-                    aria-label="Önceki ay"
-                    style={{
-                      width: 28,
-                      height: 28,
-                      border: '1px solid #1F2937',
-                      background: 'white',
-                      cursor: 'pointer',
-                      fontSize: 14,
-                      fontFamily: 'inherit',
-                      borderRadius: 0,
-                    }}
-                  >
-                    ‹
-                  </button>
-                  <button
-                    onClick={goToday}
-                    style={{
-                      padding: '4px 10px',
-                      border: '1px solid #1F2937',
-                      background: 'white',
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
-                      fontFamily: 'inherit',
-                      borderRadius: 0,
-                    }}
-                  >
-                    Bugün
-                  </button>
-                  <button
-                    onClick={goNextMonth}
-                    aria-label="Sonraki ay"
-                    style={{
-                      width: 28,
-                      height: 28,
-                      border: '1px solid #1F2937',
-                      background: 'white',
-                      cursor: 'pointer',
-                      fontSize: 14,
-                      fontFamily: 'inherit',
-                      borderRadius: 0,
-                    }}
-                  >
-                    ›
-                  </button>
-                </div>
-
-                {/* Mini takvimler (önceki/sonraki ay) */}
-                {bsCalLayout.isWide &&
-                  [-1, 1].map((delta) => {
-                    const m = new Date(displayMonth);
-                    m.setMonth(m.getMonth() + delta);
-                    const cells = bsMiniMonth(m);
-                    return (
-                      <div key={delta} style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
-                        <div
-                          style={{
-                            writingMode: 'vertical-rl',
-                            transform: 'rotate(180deg)',
-                            fontSize: 10,
-                            fontWeight: 700,
-                            color: '#000',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.16em',
-                            textAlign: 'center',
-                          }}
-                        >
-                          {bsMonthShort(m)}
-                        </div>
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(7, 1fr)',
-                            gap: 1,
-                            flex: 1,
-                            minWidth: 0,
-                            fontSize: 8.5,
-                            lineHeight: '12px',
-                          }}
-                        >
-                          {['P', 'S', 'Ç', 'P', 'C', 'C', 'P'].map((d, i) => (
-                            <span
-                              key={i}
-                              style={{
-                                fontWeight: 700,
-                                color: '#000',
-                                textAlign: 'center',
-                              }}
-                            >
-                              {d}
-                            </span>
-                          ))}
-                          {cells.map((c, i) => {
-                            const inM = c.getMonth() === m.getMonth();
-                            const has = (eventsByDate.get(bsToISO(c)) || []).length > 0;
-                            return (
-                              <span
-                                key={i}
-                                style={{
-                                  color: inM ? '#374151' : 'transparent',
-                                  textAlign: 'center',
-                                  fontWeight: has ? 700 : 400,
-                                  background: has && inM ? '#FEE2E2' : 'transparent',
-                                }}
-                              >
-                                {c.getDate()}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                {/* ÖNCELİKLİ (yaklaşan etkinlikler — başlık listesi) */}
-                <div
-                  style={{
-                    marginTop: bsCalLayout.isWide ? 'auto' : 12,
-                    paddingTop: 14,
-                    borderTop: '1px solid #1F2937',
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: '#000',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.2em',
-                      margin: '0 0 8px',
-                    }}
-                  >
-                    Öncelikli
-                  </p>
-                  {upcomingSoon.length === 0 ? (
-                    <p style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic', margin: 0 }}>
-                      Yaklaşan etkinlik yok.
-                    </p>
-                  ) : (
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                      {upcomingSoon.slice(0, 4).map((ev, i) => {
-                        const st = bsEventState(ev);
-                        return (
-                          <li
-                            key={i}
-                            style={{
-                              fontSize: 11.5,
-                              color: '#1F2937',
-                              padding: '4px 0',
-                              borderBottom:
-                                i < Math.min(3, upcomingSoon.length - 1)
-                                  ? '1px dashed #E5E7EB'
-                                  : 'none',
-                              lineHeight: 1.35,
-                            }}
-                          >
-                            <span
-                              style={{
-                                display: 'inline-block',
-                                width: 6,
-                                height: 6,
-                                borderRadius: '50%',
-                                background: st.accent,
-                                marginRight: 6,
-                                verticalAlign: 'middle',
-                              }}
-                            />
-                            <span style={{ fontWeight: 600 }}>{ev.title}</span>
-                            <span
-                              style={{
-                                display: 'block',
-                                fontSize: 10,
-                                color: '#6B7280',
-                                marginLeft: 12,
-                                marginTop: 2,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.04em',
-                              }}
-                            >
-                              {bsDaysUntilLabel(st.daysToStart)}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-              </div>
-
-              {/* SAĞ: Takvim grid'i */}
-              <div style={{ padding: bsCalLayout.isWide ? '24px 20px' : '16px 12px', minWidth: 0 }}>
-                {/* Gün başlıkları */}
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-                    borderTop: '1px solid #1F2937',
-                    borderLeft: '1px solid #1F2937',
-                  }}
-                >
-                  {['PZT', 'SAL', 'ÇAR', 'PER', 'CUM', 'CMT', 'PAZ'].map((d) => (
-                    <div
-                      key={d}
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 800,
-                        letterSpacing: '0.16em',
-                        textAlign: 'center',
-                        padding: '8px 0',
-                        borderRight: '1px solid #1F2937',
-                        borderBottom: '1px solid #1F2937',
-                        color: '#000',
-                      }}
-                    >
-                      {d}
-                    </div>
-                  ))}
-                </div>
-
-                {/* 6 hafta × 7 gün */}
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-                    borderLeft: '1px solid #1F2937',
-                  }}
-                >
-                  {monthCells.map((d) => {
-                    const iso = bsToISO(d);
-                    const inMonth = d.getMonth() === displayMonth.getMonth();
-                    const isToday = iso === bsToISO(new Date());
-                    const evs = eventsByDate.get(iso) || [];
-                    const prio = bsCellPriority(evs);
-                    let bg = 'white';
-                    if (prio === 'soon')
-                      bg = '#FECACA'; // kırmızı arka plan
-                    else if (prio === 'future')
-                      bg = '#BBF7D0'; // yeşil arka plan
-                    else if (prio === 'past') bg = '#F3F4F6'; // gri (geçmiş)
-                    if (!inMonth) bg = '#FAFAFA';
-
-                    return (
-                      <div
-                        key={iso}
-                        onMouseEnter={
-                          evs.length
-                            ? (e) =>
-                                setHoverInfo({
-                                  ev: { __extra: true, items: evs, date: iso },
-                                  rect: e.currentTarget.getBoundingClientRect(),
-                                })
-                            : undefined
-                        }
-                        onMouseLeave={evs.length ? () => setHoverInfo(null) : undefined}
-                        style={{
-                          borderRight: '1px solid #1F2937',
-                          borderBottom: '1px solid #1F2937',
-                          background: bg,
-                          minHeight: bsCalLayout.isWide ? 80 : 56,
-                          padding: '8px 10px',
-                          position: 'relative',
-                          cursor: evs.length ? 'pointer' : 'default',
-                          // Bugün hücresi kalın siyah ring (mockup)
-                          boxShadow: isToday ? 'inset 0 0 0 3px #000' : 'none',
-                          opacity: inMonth ? 1 : 0.55,
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 14,
-                            fontWeight: isToday ? 800 : 500,
-                            color: inMonth ? '#000' : '#9CA3AF',
-                          }}
-                        >
-                          {d.getDate()}
-                        </span>
-                        {isToday && (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              bottom: 6,
-                              left: 10,
-                              fontSize: 8.5,
-                              fontWeight: 800,
-                              letterSpacing: '0.06em',
-                              color: '#000',
-                            }}
-                          >
-                            BUGÜN
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Hover popover — gün hücresine gelince o günün etkinlikleri detaylı listelenir */}
-          {hoverInfo &&
-            (() => {
-              const hov = hoverInfo;
-              const items = hov.ev && hov.ev.__extra ? hov.ev.items : hov.ev ? [hov.ev] : [];
-              if (!items.length) return null;
-              const firstAccent = bsEventState(items[0]).accent;
-              const W = 320;
-              let left = hov.rect.left + hov.rect.width / 2 - W / 2;
-              if (typeof window !== 'undefined') {
-                left = Math.max(8, Math.min(window.innerWidth - W - 8, left));
-              }
-              const top = hov.rect.top - 10;
-              return (
-                <div
-                  style={{
-                    position: 'fixed',
-                    top: top,
-                    left: left,
-                    transform: 'translateY(-100%)',
-                    width: W,
-                    background: 'white',
-                    borderRadius: 4,
-                    boxShadow: '0 16px 40px rgba(0,0,0,0.18)',
-                    border: '1px solid #1F2937',
-                    borderLeft: '4px solid ' + firstAccent,
-                    padding: 14,
-                    zIndex: 1000,
-                    pointerEvents: 'none',
-                    animation: 'bsPopIn 0.15s ease-out',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 800,
-                      color: '#000',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.16em',
-                      marginBottom: 8,
-                    }}
-                  >
-                    {bsFormatDate(hov.ev.date || items[0].date)} · {items.length} etkinlik
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {items.map((ev, i) => {
-                      const st = bsEventState(ev);
-                      return (
-                        <div
-                          key={i}
-                          style={{
-                            display: 'flex',
-                            gap: 8,
-                            alignItems: 'flex-start',
-                            paddingBottom: i < items.length - 1 ? 8 : 0,
-                            borderBottom: i < items.length - 1 ? '1px dashed #E5E7EB' : 'none',
-                          }}
-                        >
-                          <span
-                            style={{
-                              flexShrink: 0,
-                              marginTop: 6,
-                              width: 8,
-                              height: 8,
-                              borderRadius: '50%',
-                              background: st.accent,
-                            }}
-                          />
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            <div
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 700,
-                                color: '#1F2937',
-                                lineHeight: 1.3,
-                              }}
-                            >
-                              {ev.title}
-                            </div>
-                            {ev.endDate && ev.endDate !== ev.date && (
-                              <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
-                                {bsFormatDate(ev.date)} – {bsFormatDate(ev.endDate)}
-                              </div>
-                            )}
-                            {ev.description && (
-                              <div
-                                style={{
-                                  fontSize: 11.5,
-                                  color: '#4B5563',
-                                  marginTop: 3,
-                                  lineHeight: 1.4,
-                                }}
-                              >
-                                {ev.description}
-                              </div>
-                            )}
-                            <div
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: st.accent,
-                                marginTop: 4,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.06em',
-                              }}
-                            >
-                              {st.isPast ? 'Geçmiş' : bsDaysUntilLabel(st.daysToStart)}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-
-          <style>{`@keyframes bsPopIn { from { opacity: 0; transform: translateY(-100%) scale(0.96); } to { opacity: 1; transform: translateY(-100%) scale(1); } }`}</style>
-
-          {/* Kampüs Haritası (bölüm yetkilisinin tanımladığı) */}
-          {pageSettings.campusMapUrl && (
-            <div
-              style={{
-                background: 'white',
-                border: '1px solid #E5E7EB',
-                borderRadius: 14,
-                padding: 18,
-                marginBottom: 20,
-              }}
-            >
-              <h3
-                style={{
-                  margin: '0 0 12px',
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: '#1B2A4A',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
+              <h3 style={{ ...sectionTitle, margin: 0 }}>
                 <svg
                   width="20"
                   height="20"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#059669"
+                  stroke={M3green}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Akademik Takvim
+              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  onClick={goPrevMonth}
+                  aria-label="Önceki ay"
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: '50%',
+                    border: '1px solid #E5E7EB',
+                    background: '#fff',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#444651"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                </button>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: '#191C1E',
+                    minWidth: 108,
+                    textAlign: 'center',
+                  }}
+                >
+                  {bsMonthLabel(displayMonth)}
+                </span>
+                <button
+                  onClick={goNextMonth}
+                  aria-label="Sonraki ay"
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: '50%',
+                    border: '1px solid #E5E7EB',
+                    background: '#fff',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#444651"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </button>
+                <button
+                  onClick={goToday}
+                  style={{
+                    marginLeft: 4,
+                    background: M3green,
+                    color: '#fff',
+                    border: 'none',
+                    padding: '5px 12px',
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Bugün
+                </button>
+              </div>
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(7, 1fr)',
+                gap: 4,
+                textAlign: 'center',
+                borderTop: '1px solid #E5E7EB',
+                paddingTop: 12,
+              }}
+            >
+              {weekdays.map((w, i) => (
+                <div
+                  key={w}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: i >= 5 ? '#DC2626' : '#757682',
+                    padding: '4px 0',
+                  }}
+                >
+                  {w}
+                </div>
+              ))}
+              {monthCells.map((cell, i) => {
+                const inMonth = cell.getMonth() === displayMonth.getMonth();
+                const isToday = isSameDay(cell, _today);
+                const evs = dayEvents(cell);
+                const hasEv = evs.length > 0;
+                const accent = hasEv ? bsEventState(evs[0]).accent : null;
+                const isWeekendCol = i % 7 >= 5;
+                return (
+                  <div
+                    key={i}
+                    title={
+                      hasEv
+                        ? evs.map((e) => e.title || e.baslik || 'Etkinlik').join(', ')
+                        : undefined
+                    }
+                    style={{
+                      position: 'relative',
+                      padding: '8px 0',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: isToday ? 700 : 400,
+                      cursor: hasEv ? 'default' : 'default',
+                      opacity: inMonth ? 1 : 0.25,
+                      color: isToday ? M3navy : isWeekendCol && inMonth ? '#DC2626' : '#191C1E',
+                      background: isToday ? '#DCE1FF' : 'transparent',
+                      border: isToday ? '2px solid ' + M3navy : '2px solid transparent',
+                    }}
+                  >
+                    {cell.getDate()}
+                    {hasEv && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          bottom: 4,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: 5,
+                          height: 5,
+                          borderRadius: '50%',
+                          background: accent,
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Kampüs Haritası */}
+          {pageSettings.campusMapUrl && (
+            <div style={cardBox}>
+              <h3 style={sectionTitle}>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={M3green}
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1904,228 +1700,201 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             </div>
           )}
 
-          {/* Ders listesi */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 12,
-            }}
-          >
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#1F2937' }}>
-              Derslerim · {bsTermLabel(term.academicYear, term.donem)} ({myCourseDetails.length})
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <select
-                value={termKey}
-                onChange={(e) => {
-                  const o = bsTermOptions().find(
-                    (x) => bsTermKey(x.academicYear, x.donem) === e.target.value
-                  );
-                  if (o) setTerm({ academicYear: o.academicYear, donem: o.donem });
-                }}
+          {/* Derslerim */}
+          <div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
+                marginBottom: 14,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: M3navy }}>
+                  Derslerim
+                </h3>
+                <select
+                  value={termKey}
+                  onChange={(e) => {
+                    const o = bsTermOptions().find(
+                      (x) => bsTermKey(x.academicYear, x.donem) === e.target.value
+                    );
+                    if (o) setTerm({ academicYear: o.academicYear, donem: o.donem });
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #757682',
+                    fontSize: 13,
+                    background: '#fff',
+                    cursor: 'pointer',
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  {bsTermOptions().map((o) => {
+                    const k = bsTermKey(o.academicYear, o.donem);
+                    return (
+                      <option key={k} value={k}>
+                        {bsTermLabel(o.academicYear, o.donem)}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <button
+                onClick={() => setEditMode(true)}
                 style={{
-                  padding: '8px 12px',
+                  background: '#fff',
+                  border: '1px solid ' + M3navy,
+                  color: M3navy,
+                  padding: '8px 14px',
                   borderRadius: 8,
-                  border: '1px solid #D1D5DB',
                   fontSize: 13,
-                  background: 'white',
+                  fontWeight: 600,
                   cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
                 }}
               >
-                {bsTermOptions().map((o) => {
-                  const k = bsTermKey(o.academicYear, o.donem);
-                  return (
-                    <option key={k} value={k}>
-                      {bsTermLabel(o.academicYear, o.donem)}
-                    </option>
-                  );
-                })}
-              </select>
-              {locked ? (
-                <span
-                  style={{
-                    padding: '8px 14px',
-                    borderRadius: 8,
-                    border: '1px solid #FCD34D',
-                    background: '#FEF3C7',
-                    color: '#92400E',
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                  }}
-                  title="Değişiklik için bölüm yetkilinizle iletişime geçin"
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={M3navy}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  Kilitli — düzenlemek için bölüm yetkilinize başvurun
-                </span>
-              ) : (
-                <button
-                  onClick={() => setEditMode(true)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 8,
-                    border: '1px solid #1B2A4A',
-                    background: 'white',
-                    color: '#1B2A4A',
-                    fontWeight: 600,
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  Dersleri Düzenle
-                </button>
-              )}
+                  <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                </svg>
+                Dersleri Düzenle
+              </button>
             </div>
-          </div>
-          {myCourseDetails.length === 0 ? (
-            <div
-              style={{
-                background: 'white',
-                border: '1px dashed #D1D5DB',
-                borderRadius: 12,
-                padding: '40px 24px',
-                textAlign: 'center',
-                color: '#6B7280',
-              }}
-            >
-              Kayıtlı dersiniz bulunmuyor. "Dersleri Düzenle" butonuna tıklayarak dersleri seçin.
-            </div>
-          ) : (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                gap: 12,
-              }}
-            >
-              {myCourseDetails.map((c) => {
-                const sinifInfo = BS_SINIF_COLORS[c.sinif] || BS_SINIF_COLORS[5];
-                return (
+
+            {locked && (
+              <div
+                style={{
+                  marginBottom: 14,
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  background: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  fontSize: 12.5,
+                  color: '#1E3A8A',
+                }}
+              >
+                Ders seçiminiz kilitli. Değişiklik için bölüm yetkilinizle iletişime geçin.
+              </div>
+            )}
+
+            {myCourseDetails.length === 0 ? (
+              <div
+                style={{
+                  ...cardBox,
+                  textAlign: 'center',
+                  color: '#9CA3AF',
+                  fontSize: 13.5,
+                }}
+              >
+                Kayıtlı dersiniz bulunmuyor. "Dersleri Düzenle" butonuna tıklayarak dersleri seçin.
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: bsCalLayout.isWide ? '1fr 1fr' : '1fr',
+                  gap: 14,
+                }}
+              >
+                {myCourseDetails.map((c) => (
                   <div
-                    key={c.id}
+                    key={c.id || c.code}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = M3navy)}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#E5E7EB')}
                     style={{
-                      background: 'white',
+                      background: '#fff',
                       border: '1px solid #E5E7EB',
-                      borderLeft: '4px solid #6366F1',
                       borderRadius: 12,
-                      padding: 14,
+                      padding: 16,
+                      transition: 'border-color 0.15s',
+                      boxShadow: '0 1px 3px rgba(16,24,40,0.05)',
                     }}
                   >
                     <div
                       style={{
-                        display: 'inline-block',
-                        padding: '3px 10px',
-                        borderRadius: 999,
-                        background: sinifInfo.bg,
-                        color: sinifInfo.text,
-                        fontSize: 11,
-                        fontWeight: 600,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: M3navy,
                         marginBottom: 8,
+                        lineHeight: 1.35,
                       }}
                     >
-                      {sinifInfo.label}
-                    </div>
-                    <div
-                      style={{ fontSize: 13, fontWeight: 700, color: '#4338CA', marginBottom: 2 }}
-                    >
-                      {c.code}
+                      {c.code} {c.name}
                     </div>
                     <div
                       style={{
-                        fontSize: 15,
-                        fontWeight: 600,
-                        color: '#1F2937',
-                        marginBottom: 8,
-                        lineHeight: 1.3,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        color: '#444651',
+                        marginBottom: 10,
                       }}
                     >
-                      {c.name}
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
-                      <div
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6B7280' }}
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#757682"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       >
-                        <svg
-                          width="13"
-                          height="13"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-                          <circle cx="12" cy="7" r="4" />
-                        </svg>
+                        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" />
+                      </svg>
+                      <span style={{ fontSize: 12.5 }}>
                         {c.professor || 'Öğretim üyesi belirtilmemiş'}
-                      </div>
-                      <div
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6B7280' }}
-                      >
-                        <svg
-                          width="13"
-                          height="13"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-                          <path d="M6 12v5c3 3 9 3 12 0v-5" />
-                        </svg>
-                        {c.akts || c.kredi
-                          ? `${c.akts || c.kredi} AKTS / Kredi`
-                          : 'AKTS belirtilmemiş'}
-                      </div>
-                      <div
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9CA3AF' }}
-                      >
-                        <svg
-                          width="13"
-                          height="13"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                          <line x1="16" y1="2" x2="16" y2="6" />
-                          <line x1="8" y1="2" x2="8" y2="6" />
-                          <line x1="3" y1="10" x2="21" y2="10" />
-                        </svg>
-                        Dönem: {BS_DONEM_LABEL[c.donem] || c.donem || '—'}
-                      </div>
+                      </span>
                     </div>
-
-                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingTop: 10,
+                        borderTop: '1px solid #F0EDE6',
+                      }}
+                    >
+                      <span style={{ fontSize: 12, color: '#757682' }}>
+                        AKTS: {c.akts || c.kredi || '—'}
+                      </span>
                       {c.bolognaLink ? (
                         <a
                           href={bsNormalizeUrl(c.bolognaLink)}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{
-                            display: 'inline-flex',
+                            display: 'flex',
                             alignItems: 'center',
-                            gap: 6,
+                            gap: 4,
                             fontSize: 12,
-                            fontWeight: 600,
-                            color: '#4338CA',
+                            color: M3green,
                             textDecoration: 'none',
+                            fontWeight: 600,
                           }}
                         >
                           <svg
-                            width="13"
-                            height="13"
+                            width="14"
+                            height="14"
                             viewBox="0 0 24 24"
                             fill="none"
-                            stroke="currentColor"
+                            stroke={M3green}
                             strokeWidth="2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -2133,20 +1902,88 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                             <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
                             <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
                           </svg>
-                          Ders Bologna Sayfası
+                          Bologna linki
                         </a>
                       ) : (
-                        <span style={{ fontSize: 11, color: '#D1D5DB' }}>
-                          Bologna linki tanımlı değil
-                        </span>
+                        <span style={{ fontSize: 12, color: '#9CA3AF' }}>Bologna linki yok</span>
                       )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* ══ SAĞ SÜTUN: Yaklaşan Etkinlikler ══ */}
+        {bsCalLayout.isWide && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+            <div style={cardBox}>
+              <h3 style={sectionTitle}>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={M3green}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 11a9 9 0 019 9M4 4a16 16 0 0116 16M5 19a1 1 0 100-2 1 1 0 000 2z" />
+                </svg>
+                Yaklaşan Etkinlikler
+              </h3>
+              {upcomingEvents.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>
+                  Yaklaşan etkinlik yok.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {upcomingEvents.slice(0, 6).map((ev, i) => {
+                    const st = bsEventState(ev);
+                    const d = new Date(ev.date);
+                    return (
+                      <div
+                        key={i}
+                        style={{
+                          borderBottom:
+                            i < Math.min(upcomingEvents.length, 6) - 1
+                              ? '1px solid #F0EDE6'
+                              : 'none',
+                          paddingBottom: 10,
+                        }}
+                      >
+                        <div
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}
+                        >
+                          <span
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              background: st.accent,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span style={{ fontSize: 11.5, color: '#757682', fontWeight: 600 }}>
+                            {d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}
+                            {st.isSoon ? ' · yaklaşıyor' : ''}
+                          </span>
+                        </div>
+                        <div
+                          style={{ fontSize: 13, fontWeight: 600, color: M3navy, lineHeight: 1.4 }}
+                        >
+                          {ev.title || ev.baslik || 'Etkinlik'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
