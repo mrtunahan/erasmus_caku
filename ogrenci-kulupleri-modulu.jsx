@@ -1163,7 +1163,7 @@ function fmtFeedDate(iso) {
   }
 }
 
-function ClubFeed({ club, canManage, currentUser }) {
+function ClubFeed({ club, canManage, currentUser, followers }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [type, setType] = useState('duyuru');
@@ -1252,6 +1252,39 @@ function ClubFeed({ club, canManage, currentUser }) {
         authorRole: currentUser?.role || '',
         createdAt: new Date().toISOString(),
       });
+
+      // Takipçilere otomatik bildirim: yeni paylaşım çan menüsüne düşer.
+      try {
+        const typeLabel = (FEED_TYPES.find((x) => x.id === type) || {}).label || 'paylaşım';
+        const snippet = plain.length > 90 ? plain.slice(0, 90) + '…' : plain;
+        const body =
+          snippet || (files.length ? files.length + ' dosya paylaşıldı' : 'Yeni paylaşım');
+        const list = Array.isArray(followers) ? followers : [];
+        for (const f of list) {
+          if (!f.studentNumber) continue;
+          if (window.Notify && window.Notify.send) {
+            await window.Notify.send({
+              recipientType: 'user',
+              recipientId: String(f.studentNumber),
+              module: 'topluluk',
+              type: 'bilgi',
+              title: (club.name || 'Topluluk') + ' · ' + typeLabel,
+              body,
+              meta: { clubId: club.id, postType: type },
+            });
+          } else if (window.StudentNotifier && window.StudentNotifier._addNotification) {
+            await window.StudentNotifier._addNotification(f.studentNumber, {
+              module: 'topluluk',
+              type: 'bilgi',
+              title: (club.name || 'Topluluk') + ' · ' + typeLabel,
+              body,
+            });
+          }
+        }
+      } catch (_) {
+        /* bildirim opsiyonel — gönderi zaten kaydedildi */
+      }
+
       if (editorRef.current) editorRef.current.innerHTML = '';
       setFiles([]);
       setType('duyuru');
@@ -1965,7 +1998,12 @@ function ClubDetailModal({
           )}
 
           {/* Topluluk akışı (feed) — sahip akademisyen gönderi paylaşır, herkes görür */}
-          <ClubFeed club={club} canManage={canManage} currentUser={currentUser} />
+          <ClubFeed
+            club={club}
+            canManage={canManage}
+            currentUser={currentUser}
+            followers={followers}
+          />
         </div>
       </div>
     </div>
