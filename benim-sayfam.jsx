@@ -4,7 +4,7 @@
 //   • Seçim tamamlandıktan sonra → kendi dersleri + bildirimler
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 const BS_FirebaseDB = window.DB;
 const BS_Notifier = window.StudentNotifier;
@@ -214,6 +214,12 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [followedClubs, setFollowedClubs] = useState([]);
   // Danışman iletişim bilgisi için bölüm akademisyenleri
   const [professors, setProfessors] = useState([]);
+  // Öğrencinin kendi yüklediği profil fotoğrafı (student_profiles) + yükleme durumu
+  const [studentPhoto, setStudentPhoto] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef(null);
+  // Büyütülebilir görsel (danışman fotoğrafı / kampüs haritası)
+  const [lightbox, setLightbox] = useState(null); // null | { url, zoomable }
   // Aylık takvim görünümü: gösterilen ay (ayın ilk günü, 00:00 yerel)
   const [displayMonth, setDisplayMonth] = useState(() => {
     var d = new Date();
@@ -428,6 +434,14 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           /* bu varyant yok, sonrakine geç */
         }
       }
+      // Kendi profil fotoğrafı (student_profiles)
+      try {
+        const res = await window.apiReadDoc('student_profiles', String(currentUser.studentNumber));
+        const doc = (res && (res.data || (res.exists ? res.data : null))) || null;
+        if (alive && doc && doc.photoURL) setStudentPhoto(doc.photoURL);
+      } catch (_) {
+        /* profil yoksa yoksay */
+      }
       // Takip edilen topluluklar
       try {
         const follows = await window.apiRead('club_followers', {
@@ -467,6 +481,42 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   useEffect(() => {
     if (!editMode && selectedIds.length > 0) loadNotifications();
   }, [editMode, selectedIds.length, loadNotifications]);
+
+  // Öğrenci profil fotoğrafı yükleme (student_profiles/{öğrenciNo})
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file || !currentUser?.studentNumber) return;
+    if (!/^image\/(png|jpe?g)$/i.test(file.type)) {
+      alert('Profil fotoğrafı yalnızca PNG veya JPEG olabilir.');
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const form = new FormData();
+      form.append('folder', 'student/foto');
+      form.append('file', file);
+      const res = await fetch('/api/files/upload?folder=' + encodeURIComponent('student/foto'), {
+        method: 'POST',
+        body: form,
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Yükleme başarısız (HTTP ' + res.status + ')');
+      const json = await res.json();
+      const url = json.downloadURL || '';
+      await window.DBWrite.set(
+        'student_profiles',
+        String(currentUser.studentNumber),
+        { studentNumber: String(currentUser.studentNumber), photoURL: url },
+        true
+      );
+      setStudentPhoto(url);
+    } catch (err) {
+      alert('Fotoğraf yüklenemedi: ' + err.message);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const myCourseDetails = useMemo(() => {
     const map = new Map(allCourses.map((c) => [c.id, c]));
@@ -1219,45 +1269,93 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 marginBottom: 16,
               }}
             >
-              <div
-                style={{
-                  width: 80,
-                  height: 80,
-                  borderRadius: '50%',
-                  background: '#DCE1FF',
-                  padding: 4,
-                  marginBottom: 10,
-                }}
-              >
-                {studentRecord?.photoURL ? (
-                  <img
-                    src={studentRecord.photoURL}
-                    alt=""
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      borderRadius: '50%',
-                      objectFit: 'cover',
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      borderRadius: '50%',
-                      background: M3navy,
-                      color: '#fff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 26,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {initials || '?'}
-                  </div>
-                )}
+              <div style={{ position: 'relative', width: 80, height: 80, marginBottom: 10 }}>
+                <div
+                  style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: '50%',
+                    background: '#DCE1FF',
+                    padding: 4,
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  {studentPhoto || studentRecord?.photoURL ? (
+                    <img
+                      src={studentPhoto || studentRecord.photoURL}
+                      alt=""
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '50%',
+                        background: M3navy,
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 26,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {initials || '?'}
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  style={{ display: 'none' }}
+                  onChange={handlePhotoUpload}
+                />
+                <button
+                  onClick={() => photoInputRef.current && photoInputRef.current.click()}
+                  disabled={uploadingPhoto}
+                  title="Profil fotoğrafı yükle"
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    right: 0,
+                    width: 26,
+                    height: 26,
+                    borderRadius: '50%',
+                    border: '2px solid #fff',
+                    background: M3navy,
+                    color: '#fff',
+                    cursor: uploadingPhoto ? 'wait' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0,
+                  }}
+                >
+                  {uploadingPhoto ? (
+                    <span style={{ fontSize: 9 }}>…</span>
+                  ) : (
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#fff"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                  )}
+                </button>
               </div>
               <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: M3navy }}>
                 {studentRecord?.firstName} {studentRecord?.lastName}
@@ -1320,6 +1418,8 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                     <img
                       src={advisorProf.photoURL}
                       alt=""
+                      onClick={() => setLightbox({ url: advisorProf.photoURL, zoomable: false })}
+                      title="Büyütmek için tıklayın"
                       style={{
                         width: 44,
                         height: 44,
@@ -1327,6 +1427,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                         objectFit: 'cover',
                         flexShrink: 0,
                         border: '1px solid #E5E7EB',
+                        cursor: 'pointer',
                       }}
                     />
                   )}
@@ -1714,7 +1815,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 <img
                   src={pageSettings.campusMapUrl}
                   alt="Kampüs Haritası"
-                  style={{ width: '100%', height: 'auto', display: 'block' }}
+                  onClick={() => setLightbox({ url: pageSettings.campusMapUrl, zoomable: true })}
+                  title="Büyütmek / yakınlaştırmak için tıklayın"
+                  style={{ width: '100%', height: 'auto', display: 'block', cursor: 'zoom-in' }}
                 />
               </div>
             </div>
@@ -2005,6 +2108,110 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           </div>
         )}
       </div>
+
+      {lightbox && (
+        <BSLightbox
+          url={lightbox.url}
+          zoomable={lightbox.zoomable}
+          onClose={() => setLightbox(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Büyütülebilir görsel (danışman fotoğrafı / kampüs haritası) ──
+// Görsel gerçek çözünürlüğüyle gösterilir (kalite bozulmaz). zoomable ise
+// tıklayınca yakınlaşır ve kaydırılarak gezilebilir.
+function BSLightbox({ url, zoomable, onClose }) {
+  const [zoomed, setZoomed] = useState(false);
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.88)',
+        zIndex: 5000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <button
+        onClick={onClose}
+        title="Kapat"
+        style={{
+          position: 'fixed',
+          top: 16,
+          right: 16,
+          width: 40,
+          height: 40,
+          borderRadius: '50%',
+          border: 'none',
+          background: 'rgba(255,255,255,0.16)',
+          color: '#fff',
+          cursor: 'pointer',
+          fontSize: 20,
+          zIndex: 5001,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        ✕
+      </button>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: '94vw',
+          maxHeight: '94vh',
+          overflow: zoomed ? 'auto' : 'visible',
+          borderRadius: 8,
+        }}
+      >
+        <img
+          src={url}
+          alt=""
+          onClick={zoomable ? () => setZoomed((z) => !z) : undefined}
+          style={
+            zoomed
+              ? {
+                  display: 'block',
+                  width: '160vw',
+                  maxWidth: 'none',
+                  height: 'auto',
+                  cursor: 'zoom-out',
+                }
+              : {
+                  display: 'block',
+                  maxWidth: '94vw',
+                  maxHeight: '94vh',
+                  width: 'auto',
+                  height: 'auto',
+                  cursor: zoomable ? 'zoom-in' : 'default',
+                }
+          }
+        />
+      </div>
+      {zoomable && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            color: 'rgba(255,255,255,0.85)',
+            fontSize: 12,
+            background: 'rgba(0,0,0,0.5)',
+            padding: '6px 14px',
+            borderRadius: 20,
+          }}
+        >
+          {zoomed ? 'Küçültmek için görsele tıklayın' : 'Yakınlaştırmak için görsele tıklayın'}
+        </div>
+      )}
     </div>
   );
 }
