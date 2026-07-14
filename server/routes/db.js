@@ -117,6 +117,7 @@ const ALLOWED_COLLECTIONS = [
   'student_clubs',
   'club_documents',
   'club_followers',
+  'benim_ayarlar',
   'surveys',
   'survey_assignments',
   'survey_responses',

@@ -356,13 +356,34 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         >
           Ders Seçim Kilitleri
         </button>
+        <button
+          onClick={() => setActiveTab('benimayar')}
+          style={{
+            padding: '12px 16px',
+            background: 'none',
+            border: 'none',
+            borderBottom:
+              activeTab === 'benimayar' ? `2px solid ${C.blue}` : '2px solid transparent',
+            color: activeTab === 'benimayar' ? C.blue : '#6B7280',
+            fontWeight: activeTab === 'benimayar' ? 600 : 500,
+            cursor: 'pointer',
+            fontSize: 14,
+          }}
+        >
+          Benim Sayfam Ayarları
+        </button>
       </div>
 
       {activeTab === 'kilitler' && (
         <DersSecimKilitleri activeDepartment={activeDepartment} currentUser={currentUser} />
       )}
 
+      {activeTab === 'benimayar' && (
+        <BenimSayfamAyarlari activeDepartment={activeDepartment} currentUser={currentUser} />
+      )}
+
       {activeTab !== 'kilitler' &&
+        activeTab !== 'benimayar' &&
         (loading ? (
           <div style={{ padding: 40, textAlign: 'center' }}>Yükleniyor...</div>
         ) : (
@@ -890,6 +911,245 @@ function DersSecimKilitleri({ activeDepartment, currentUser }) {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// Benim Sayfam Ayarları — bölüm bazlı Hızlı Bağlantılar + Kampüs Haritası.
+// benim_ayarlar/{departmentId} dokümanına yazılır; öğrencinin Benim Sayfam'ı okur.
+// ══════════════════════════════════════════════════════════════
+function BenimSayfamAyarlari({ activeDepartment }) {
+  const [links, setLinks] = useState([]);
+  const [campusMapUrl, setCampusMapUrl] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    (async () => {
+      try {
+        const doc = await window.apiReadDoc('benim_ayarlar', String(activeDepartment));
+        if (!alive) return;
+        setLinks(Array.isArray(doc?.quickLinks) ? doc.quickLinks : []);
+        setCampusMapUrl(doc?.campusMapUrl || '');
+      } catch (_) {
+        if (alive) {
+          setLinks([]);
+          setCampusMapUrl('');
+        }
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [activeDepartment]);
+
+  const addLink = () => setLinks((p) => [...p, { label: '', url: '' }]);
+  const updateLink = (i, k, v) =>
+    setLinks((p) => p.map((l, idx) => (idx === i ? { ...l, [k]: v } : l)));
+  const removeLink = (i) => setLinks((p) => p.filter((_, idx) => idx !== i));
+
+  const save = async () => {
+    setSaving(true);
+    setMsg('');
+    try {
+      const cleanLinks = links
+        .map((l) => ({ label: (l.label || '').trim(), url: (l.url || '').trim() }))
+        .filter((l) => l.label && l.url);
+      await DBWrite.set(
+        'benim_ayarlar',
+        String(activeDepartment),
+        {
+          departmentId: String(activeDepartment),
+          quickLinks: cleanLinks,
+          campusMapUrl: (campusMapUrl || '').trim(),
+          updatedAt: new Date().toISOString(),
+        },
+        true
+      );
+      setLinks(cleanLinks);
+      setMsg('Kaydedildi.');
+      if (window.audit)
+        window.audit('benim_ayarlar_update', 'benim_ayarlar', String(activeDepartment), {
+          meta: { linkCount: cleanLinks.length, hasMap: !!campusMapUrl },
+        });
+    } catch (e) {
+      setMsg('Hata: ' + e.message);
+    } finally {
+      setSaving(false);
+      setTimeout(() => setMsg(''), 3000);
+    }
+  };
+
+  const inputStyle = {
+    padding: '9px 12px',
+    borderRadius: 8,
+    border: '1px solid #D1D5DB',
+    fontSize: 13,
+    outline: 'none',
+    fontFamily: "'Inter', sans-serif",
+    boxSizing: 'border-box',
+  };
+  const labelStyle = {
+    display: 'block',
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#6B7280',
+    marginBottom: 6,
+  };
+
+  if (loading) {
+    return <div style={{ padding: 40, textAlign: 'center', color: '#6B7280' }}>Yükleniyor...</div>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <p style={{ fontSize: 12.5, color: '#6B7280', margin: 0, lineHeight: 1.5 }}>
+        Bu ayarlar bu bölümün öğrencilerinin <b>Benim Sayfam</b> ekranında görünür. Hızlı
+        bağlantılar ve kampüs haritası bölümden bölüme değişebilir.
+      </p>
+
+      {/* Hızlı Bağlantılar */}
+      <div
+        style={{
+          background: 'white',
+          border: '1px solid #E5E7EB',
+          borderRadius: 12,
+          padding: 18,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 14,
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.navy }}>
+            Hızlı Bağlantılar
+          </h3>
+          <Btn small variant="secondary" onClick={addLink}>
+            + Bağlantı Ekle
+          </Btn>
+        </div>
+        {links.length === 0 ? (
+          <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>
+            Henüz bağlantı yok. "Bağlantı Ekle" ile başlayın (ör. Öğrenci Bilgi Sistemi, Kütüphane).
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {links.map((l, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  value={l.label}
+                  onChange={(e) => updateLink(i, 'label', e.target.value)}
+                  placeholder="Ad (ör. Kütüphane)"
+                  style={{ ...inputStyle, flex: '1 1 180px', minWidth: 0 }}
+                />
+                <input
+                  value={l.url}
+                  onChange={(e) => updateLink(i, 'url', e.target.value)}
+                  placeholder="https://…"
+                  style={{ ...inputStyle, flex: '2 1 260px', minWidth: 0 }}
+                />
+                <button
+                  onClick={() => removeLink(i)}
+                  title="Sil"
+                  style={{
+                    padding: 8,
+                    borderRadius: 8,
+                    border: '1px solid #FCA5A5',
+                    background: 'white',
+                    color: '#DC2626',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    flexShrink: 0,
+                  }}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Kampüs Haritası */}
+      <div
+        style={{
+          background: 'white',
+          border: '1px solid #E5E7EB',
+          borderRadius: 12,
+          padding: 18,
+        }}
+      >
+        <h3 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700, color: C.navy }}>
+          Kampüs Haritası
+        </h3>
+        <label style={labelStyle}>Görsel bağlantısı (URL)</label>
+        <input
+          value={campusMapUrl}
+          onChange={(e) => setCampusMapUrl(e.target.value)}
+          placeholder="https://… (kampüs haritası görseli)"
+          style={{ ...inputStyle, width: '100%' }}
+        />
+        {campusMapUrl && (
+          <div
+            style={{
+              marginTop: 12,
+              border: '1px solid #E5E7EB',
+              borderRadius: 8,
+              overflow: 'hidden',
+            }}
+          >
+            <img
+              src={campusMapUrl}
+              alt="Kampüs Haritası önizleme"
+              style={{
+                width: '100%',
+                height: 'auto',
+                display: 'block',
+                maxHeight: 260,
+                objectFit: 'cover',
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Btn onClick={save} disabled={saving}>
+          {saving ? 'Kaydediliyor…' : 'Kaydet'}
+        </Btn>
+        {msg && (
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: msg.startsWith('Hata') ? '#DC2626' : '#059669',
+            }}
+          >
+            {msg}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
