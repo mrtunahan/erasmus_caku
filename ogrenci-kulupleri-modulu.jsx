@@ -1163,7 +1163,8 @@ function fmtFeedDate(iso) {
   }
 }
 
-function ClubFeed({ club, canManage, currentUser, followers }) {
+function ClubFeed({ club, canPost, canManage, currentUser, followers }) {
+  const myAuthor = currentUser?.name || currentUser?.identifier || '';
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [type, setType] = useState('duyuru');
@@ -1262,7 +1263,18 @@ function ClubFeed({ club, canManage, currentUser, followers }) {
         const list = Array.isArray(followers) ? followers : [];
         for (const f of list) {
           if (!f.studentNumber) continue;
-          if (window.Notify && window.Notify.send) {
+          // StudentNotifier'ı tercih et: student_notifications öğrenci-yazılabilir,
+          // böylece başkan (öğrenci) paylaşımı da takipçilere bildirim gönderebilir.
+          // (Merkezi notifications öğrenciye kapalı olduğundan Notify.send yalnız
+          // yedek olarak kullanılır.)
+          if (window.StudentNotifier && window.StudentNotifier._addNotification) {
+            await window.StudentNotifier._addNotification(f.studentNumber, {
+              module: 'topluluk',
+              type: 'bilgi',
+              title: (club.name || 'Topluluk') + ' · ' + typeLabel,
+              body,
+            });
+          } else if (window.Notify && window.Notify.send) {
             await window.Notify.send({
               recipientType: 'user',
               recipientId: String(f.studentNumber),
@@ -1271,13 +1283,6 @@ function ClubFeed({ club, canManage, currentUser, followers }) {
               title: (club.name || 'Topluluk') + ' · ' + typeLabel,
               body,
               meta: { clubId: club.id, postType: type },
-            });
-          } else if (window.StudentNotifier && window.StudentNotifier._addNotification) {
-            await window.StudentNotifier._addNotification(f.studentNumber, {
-              module: 'topluluk',
-              type: 'bilgi',
-              title: (club.name || 'Topluluk') + ' · ' + typeLabel,
-              body,
             });
           }
         }
@@ -1328,8 +1333,8 @@ function ClubFeed({ club, canManage, currentUser, followers }) {
         Topluluk Akışı
       </div>
 
-      {/* Düzenleyici — yalnız sahip akademisyen */}
-      {canManage && (
+      {/* Düzenleyici — sahip akademisyen (danışman) veya topluluk başkanı */}
+      {canPost && (
         <div
           style={{
             border: `1px solid ${KLP.border}`,
@@ -1546,7 +1551,7 @@ function ClubFeed({ club, canManage, currentUser, followers }) {
                   <span style={{ fontSize: 11.5, color: KLP.textMuted }}>
                     · {fmtFeedDate(p.createdAt)}
                   </span>
-                  {canManage && (
+                  {(canManage || (myAuthor && p.authorName === myAuthor)) && (
                     <button
                       onClick={() => del(p)}
                       title="Sil"
@@ -1640,6 +1645,19 @@ function ClubDetailModal({
   const [bulkText, setBulkText] = useState('');
   const [sending, setSending] = useState(false);
   const stop = (e) => e.stopPropagation();
+
+  // Topluluk başkanı (öğrenci) da tıpkı danışman gibi akışa paylaşım yapabilir.
+  // Başkan bir ad olarak saklanır; öğrencinin adıyla eşleştirilir.
+  const normNm = (s) => (s || '').toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim();
+  const myStudent = isStudent
+    ? (students || []).find((s) => String(s.studentNumber) === String(currentUser?.studentNumber))
+    : null;
+  const myFullName = myStudent
+    ? `${myStudent.firstName || ''} ${myStudent.lastName || ''}`.trim()
+    : currentUser?.name || '';
+  const isPresident =
+    isStudent && !!club.president && !!myFullName && normNm(club.president) === normNm(myFullName);
+  const canPost = canManage || isPresident;
 
   const resolveName = (f) => {
     if (f.studentName) return f.studentName;
@@ -2000,6 +2018,7 @@ function ClubDetailModal({
           {/* Topluluk akışı (feed) — sahip akademisyen gönderi paylaşır, herkes görür */}
           <ClubFeed
             club={club}
+            canPost={canPost}
             canManage={canManage}
             currentUser={currentUser}
             followers={followers}
