@@ -5429,7 +5429,7 @@ const LoginModal = ({ onLogin }) => {
                 </div>
               </div>
               <div>
-                <div className="lg-brand-name">Offline Asistan</div>
+                <div className="lg-brand-name">Offlıne Asistan</div>
               </div>
             </div>
 
@@ -6440,7 +6440,7 @@ const LoginModal = ({ onLogin }) => {
           © 2025 ÇAKÜ Bilgisayar Mühendisliği · Offline Asistan
           <br />
           <span className="lg-footer-dev">
-            Offline Asistan Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.
+            Offline Asistan, Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.
           </span>
         </p>
       </div>
