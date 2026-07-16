@@ -5284,6 +5284,79 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
   );
 };
 
+// Muafiyet kaydı transkript alanı — öğrenci TEK SEFERLİK PDF yükler; yüklenince
+// yalnız görüntüleme linki kalır. Personel (isStudent=false) yalnız görüntüler.
+const TranscriptControl = ({ record, isStudent, onUploadTranscript }) => {
+  const [busy, setBusy] = useState(false);
+  const url = record.transcriptUrl || '';
+  const viewHref = url ? '/api/files/view/' + String(url).replace('/api/files/download/', '') : '';
+  const pick = async (e) => {
+    const f = (e.target.files && e.target.files[0]) || null;
+    e.target.value = '';
+    if (!f) return;
+    if (f.type !== 'application/pdf' && !/\.pdf$/i.test(f.name)) {
+      alert('Transkript yalnızca PDF olabilir.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await onUploadTranscript(record.id, f);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        flexWrap: 'wrap',
+        fontSize: 12.5,
+        color: DS.textSecondary,
+      }}
+    >
+      <span style={{ fontWeight: 600 }}>Transkript:</span>
+      {url ? (
+        <a
+          href={viewHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontWeight: 600, color: DS.accent }}
+        >
+          Transkript (PDF)
+        </a>
+      ) : (
+        <span style={{ color: DS.textMuted }}>Yüklenmedi</span>
+      )}
+      {isStudent && !url && onUploadTranscript && (
+        <label style={{ cursor: busy ? 'wait' : 'pointer' }}>
+          <input
+            type="file"
+            accept=".pdf,application/pdf"
+            style={{ display: 'none' }}
+            onChange={pick}
+          />
+          <span
+            style={{
+              ...eStageBtn,
+              display: 'inline-block',
+              padding: '5px 12px',
+              fontSize: 12,
+              opacity: busy ? 0.6 : 1,
+            }}
+          >
+            {busy ? 'Yükleniyor…' : 'Transkript Yükle (PDF)'}
+          </span>
+        </label>
+      )}
+      {isStudent && url && (
+        <span style={{ color: DS.textMuted, fontSize: 11.5 }}>· tek seferlik yüklendi</span>
+      )}
+    </div>
+  );
+};
+
 const ExemptionHistory = ({
   records,
   loading,
@@ -5297,6 +5370,8 @@ const ExemptionHistory = ({
   currentUser,
   isStudent,
   onStageChange,
+  // Öğrenci transkript yükleme (tek seferlik)
+  onUploadTranscript,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedReview, setExpandedReview] = useState(null);
@@ -5598,6 +5673,17 @@ const ExemptionHistory = ({
                   )}
                 </div>
               </div>
+
+              {/* Transkript — öğrenci tek seferlik yükler; herkes görüntüler */}
+              {(onUploadTranscript || rec.transcriptUrl) && (
+                <div style={{ padding: '0 20px 12px' }}>
+                  <TranscriptControl
+                    record={rec}
+                    isStudent={isStudent}
+                    onUploadTranscript={onUploadTranscript}
+                  />
+                </div>
+              )}
 
               {/* Yaz intibakı iki-fazlı durum paneli (yalnız intibak kayıtları) */}
               {(rec.basvuruTuru || 'muafiyet') === 'intibak' && onStageChange && (
@@ -6332,6 +6418,42 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
+  // Öğrenci transkript yükleme — her muafiyet kaydı için TEK SEFERLİK.
+  // Kayıtta transcriptUrl varsa yükleme UI'si gösterilmez (yalnız görüntüleme).
+  const handleUploadTranscript = async function (recordId, file) {
+    const rec = records.find(function (r) {
+      return r.id === recordId;
+    });
+    if (rec && rec.transcriptUrl) {
+      alert(
+        'Bu talep için transkript zaten yüklenmiş. Her muafiyet için yalnızca bir kez yüklenebilir.'
+      );
+      return;
+    }
+    const url = await uploadMuafiyetFile(file);
+    if (!url) {
+      alert('Transkript yüklenemedi. Lütfen tekrar deneyin.');
+      return;
+    }
+    const patch = {
+      transcriptUrl: url,
+      transcriptUploadedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      await window.DBWrite.update('muafiyet_records', String(recordId), patch);
+      setRecords(function (prev) {
+        return prev.map(function (r) {
+          return r.id === recordId ? Object.assign({}, r, patch) : r;
+        });
+      });
+      if (window.audit)
+        window.audit('muafiyet_transcript', 'muafiyet_records', String(recordId), {});
+    } catch (err) {
+      alert('Transkript kaydedilemedi: ' + err.message);
+    }
+  };
+
   // ── Şablondan belge üret ──
   // Şablonlar modülünde 'muafiyet' modülüne atanmış .docx şablonunu çözer,
   // alan eşlemesine göre kayıt verileriyle doldurur ve indirir.
@@ -6663,6 +6785,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
             onUpdateDecision={isStudent ? null : handleUpdateDecision}
             onGenerateDoc={isStudent ? null : handleGenerateDoc}
             onStageChange={handleStageChange}
+            onUploadTranscript={handleUploadTranscript}
             currentUser={currentUser}
             isStudent={isStudent}
             emptyText={

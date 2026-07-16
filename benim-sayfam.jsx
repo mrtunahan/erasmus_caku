@@ -218,6 +218,12 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [studentPhoto, setStudentPhoto] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef(null);
+  // Öğrenci iletişim bilgileri (student_profiles) — telefon / e-posta / adres
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactAddress, setContactAddress] = useState('');
+  const [editContact, setEditContact] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
   // Büyütülebilir görsel (danışman fotoğrafı / kampüs haritası)
   const [lightbox, setLightbox] = useState(null); // null | { url, zoomable }
   // Aylık takvim görünümü: gösterilen ay (ayın ilk günü, 00:00 yerel)
@@ -438,7 +444,12 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       try {
         const res = await window.apiReadDoc('student_profiles', String(currentUser.studentNumber));
         const doc = (res && (res.data || (res.exists ? res.data : null))) || null;
-        if (alive && doc && doc.photoURL) setStudentPhoto(doc.photoURL);
+        if (alive && doc) {
+          if (doc.photoURL) setStudentPhoto(doc.photoURL);
+          setContactPhone(doc.phone || '');
+          setContactEmail(doc.email || '');
+          setContactAddress(doc.address || '');
+        }
       } catch (_) {
         /* profil yoksa yoksay */
       }
@@ -515,6 +526,36 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       alert('Fotoğraf yüklenemedi: ' + err.message);
     } finally {
       setUploadingPhoto(false);
+    }
+  };
+
+  // İletişim bilgilerini kaydet (student_profiles/{öğrenciNo}) — merge:true
+  // olduğundan photoURL gibi diğer alanlar korunur.
+  const handleSaveContact = async () => {
+    if (!currentUser?.studentNumber) return;
+    const email = contactEmail.trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert('Geçerli bir e-posta adresi girin.');
+      return;
+    }
+    setSavingContact(true);
+    try {
+      await window.DBWrite.set(
+        'student_profiles',
+        String(currentUser.studentNumber),
+        {
+          studentNumber: String(currentUser.studentNumber),
+          phone: contactPhone.trim(),
+          email: email,
+          address: contactAddress.trim(),
+        },
+        true
+      );
+      setEditContact(false);
+    } catch (err) {
+      alert('İletişim bilgileri kaydedilemedi: ' + err.message);
+    } finally {
+      setSavingContact(false);
     }
   };
 
@@ -1392,6 +1433,165 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* İletişim Bilgilerim — öğrencinin kendi telefon/e-posta/adresi */}
+          <div style={cardBox}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+              }}
+            >
+              <h3 style={{ ...sectionTitle, margin: 0 }}>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={M3green}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0122 16.92z" />
+                </svg>
+                İletişim Bilgilerim
+              </h3>
+              {!editContact && (
+                <button
+                  onClick={() => setEditContact(true)}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: 8,
+                    border: '1px solid ' + M3navy + '33',
+                    background: '#fff',
+                    color: M3navy,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Düzenle
+                </button>
+              )}
+            </div>
+
+            {editContact ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
+                {[
+                  {
+                    label: 'Telefon',
+                    val: contactPhone,
+                    set: setContactPhone,
+                    ph: 'örn. 0555 123 45 67',
+                    type: 'tel',
+                  },
+                  {
+                    label: 'E-posta',
+                    val: contactEmail,
+                    set: setContactEmail,
+                    ph: 'ornek@ogrenci.karatekin.edu.tr',
+                    type: 'email',
+                  },
+                ].map((f) => (
+                  <div key={f.label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: 12, color: '#757682' }}>{f.label}</label>
+                    <input
+                      type={f.type}
+                      value={f.val}
+                      onChange={(e) => f.set(e.target.value)}
+                      placeholder={f.ph}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #D1D5DB',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        fontFamily: "'Inter', sans-serif",
+                      }}
+                    />
+                  </div>
+                ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 12, color: '#757682' }}>Adres</label>
+                  <textarea
+                    value={contactAddress}
+                    onChange={(e) => setContactAddress(e.target.value)}
+                    placeholder="Açık adresiniz"
+                    rows={3}
+                    style={{
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #D1D5DB',
+                      fontSize: 13.5,
+                      outline: 'none',
+                      resize: 'vertical',
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={handleSaveContact}
+                    disabled={savingContact}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: M3navy,
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: savingContact ? 'wait' : 'pointer',
+                    }}
+                  >
+                    {savingContact ? 'Kaydediliyor…' : 'Kaydet'}
+                  </button>
+                  <button
+                    onClick={() => setEditContact(false)}
+                    disabled={savingContact}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      border: '1px solid #D1D5DB',
+                      background: '#fff',
+                      color: '#374151',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Vazgeç
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
+                {[
+                  { label: 'Telefon', val: contactPhone },
+                  { label: 'E-posta', val: contactEmail },
+                  { label: 'Adres', val: contactAddress },
+                ].map((f) => (
+                  <div key={f.label} style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: 12, color: '#757682' }}>{f.label}</span>
+                    <span
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: f.val ? '#191C1E' : '#9CA3AF',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {f.val || 'Belirtilmemiş'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Danışman Bilgileri */}
