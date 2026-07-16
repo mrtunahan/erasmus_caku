@@ -1010,20 +1010,29 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
 
   React.useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const facs = await window.apiRead('faculties');
-        if (cancelled) return;
-        const map = {};
-        (facs || []).forEach((f) => {
-          const id = f._docId || f.id || (f._id && f._id.toString());
-          if (id) map[id] = f.name || id;
-        });
-        setFacultyNames(map);
-      } catch (_) {
-        /* yok say */
+    // strict + yeniden deneme: geçici okuma hatasında apiRead [] döndürüp
+    // facultyNames'i boş bıraktığından "Fen Fakültesi" başlığı ham id'ye
+    // düşüyordu. Hata artık "fakülte yok" ile karıştırılmaz.
+    const loadFacultyNames = async () => {
+      const MAX_TRIES = 5;
+      for (let attempt = 1; attempt <= MAX_TRIES && !cancelled; attempt++) {
+        try {
+          const facs = await window.apiRead.strict('faculties');
+          if (cancelled) return;
+          const map = {};
+          (facs || []).forEach((f) => {
+            const id = f._docId || f.id || (f._id && f._id.toString());
+            if (id) map[id] = f.name || id;
+          });
+          setFacultyNames(map);
+          return; // başarılı — yeniden denemeye gerek yok
+        } catch (_) {
+          if (cancelled || attempt === MAX_TRIES) return;
+          await new Promise((r) => setTimeout(r, attempt * 1000));
+        }
       }
-    })();
+    };
+    loadFacultyNames();
     return () => {
       cancelled = true;
     };
@@ -1376,40 +1385,59 @@ function AppShell() {
   // çekirdek bölüm (renk/ikon dolu) korunur; yalnızca eksik olanlar eklenir.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const dbDepts = await window.apiRead('departments');
-        if (cancelled || !Array.isArray(dbDepts) || !DEPARTMENTS) return;
-        const existingIds = new Set(DEPARTMENTS.map((d) => d.id));
-        // Türkçe-locale-aware ad normalize. Aynı isimle hem sabit listede
-        // hem DB'de iki kayıt varsa duplicate görünüyordu (ör. 'Gıda Mühendisliği').
-        const norm = (s) =>
-          (s || '').toString().toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
-        const existingNames = new Set(DEPARTMENTS.map((d) => norm(d.name)));
-        let added = 0;
-        dbDepts.forEach((d) => {
-          const id = d.id || d._docId;
-          if (!id || existingIds.has(id)) return;
-          if (existingNames.has(norm(d.name))) return; // ad bazlı dedup
-          DEPARTMENTS.push({
-            id,
-            name: d.name || id,
-            shortName: d.shortName || d.name || id,
-            color: d.color || '#64748B',
-            icon:
-              d.icon ||
-              'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
-            facultyId: d.facultyId || '',
+    // ÖNEMLİ: apiRead (cache'li) geçici hatalarda [] döndürür. Bu birleştirme
+    // yalnız BİR kez çalıştığından, o tek okuma bir ağ dalgalanması / rate-limit
+    // (açılışta ~30-50 paralel okuma) / 5xx nedeniyle boş dönerse yalnızca DB'de
+    // tanımlı fakülteler (ör. Fen Fakültesi) hiç eklenmez ve sağ menüden
+    // "kaybolur". Bunu önlemek için strict okuma (hata → [] yerine THROW) +
+    // yeniden deneme kullanılır; böylece geçici hata "bölüm yok" ile
+    // karıştırılmaz. Birleştirme idempotenttir (id/ad bazlı dedup).
+    const mergeDbDepartments = async () => {
+      const MAX_TRIES = 5;
+      for (let attempt = 1; attempt <= MAX_TRIES && !cancelled; attempt++) {
+        try {
+          const dbDepts = await window.apiRead.strict('departments');
+          if (cancelled || !DEPARTMENTS) return;
+          if (!Array.isArray(dbDepts)) throw new Error('Beklenmeyen yanıt biçimi');
+          const existingIds = new Set(DEPARTMENTS.map((d) => d.id));
+          // Türkçe-locale-aware ad normalize. Aynı isimle hem sabit listede
+          // hem DB'de iki kayıt varsa duplicate görünüyordu (ör. 'Gıda Mühendisliği').
+          const norm = (s) =>
+            (s || '').toString().toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
+          const existingNames = new Set(DEPARTMENTS.map((d) => norm(d.name)));
+          let added = 0;
+          dbDepts.forEach((d) => {
+            const id = d.id || d._docId;
+            if (!id || existingIds.has(id)) return;
+            if (existingNames.has(norm(d.name))) return; // ad bazlı dedup
+            DEPARTMENTS.push({
+              id,
+              name: d.name || id,
+              shortName: d.shortName || d.name || id,
+              color: d.color || '#64748B',
+              icon:
+                d.icon ||
+                'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+              facultyId: d.facultyId || '',
+            });
+            existingIds.add(id);
+            existingNames.add(norm(d.name));
+            added++;
           });
-          existingIds.add(id);
-          existingNames.add(norm(d.name));
-          added++;
-        });
-        if (added > 0) setDeptVersion((v) => v + 1);
-      } catch (e) {
-        console.warn('DB bölümleri yüklenemedi (sabit listeyle devam):', e?.message);
+          if (added > 0) setDeptVersion((v) => v + 1);
+          return; // başarılı okuma — yeniden denemeye gerek yok
+        } catch (e) {
+          if (cancelled) return;
+          if (attempt === MAX_TRIES) {
+            console.warn('DB bölümleri yüklenemedi (sabit listeyle devam):', e?.message);
+            return;
+          }
+          // Artan bekleme (1s, 2s, 3s, 4s) ile yeniden dene.
+          await new Promise((r) => setTimeout(r, attempt * 1000));
+        }
       }
-    })();
+    };
+    mergeDbDepartments();
     return () => {
       cancelled = true;
     };
