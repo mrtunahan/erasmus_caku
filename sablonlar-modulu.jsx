@@ -1016,7 +1016,7 @@ function AddTemplateModal(props) {
 
 // ══════════════════════════════════════════════════════════════
 // Alan Eşleme Sihirbazı — .docx şablonundaki yer tutucuları
-// (yyyyy, xxxxx, XXXXX, tek X, {degisken}) tespit eder; yükleyen yetkili
+// ({{Alan Adı}} biçiminde) tespit eder; yükleyen yetkili
 // her birini modülün değişkenlerine ya da sabit metne eşler. Eşleme
 // document_templates.fields'a kaydedilir; hedef modül çıktı üretirken
 // window.TemplateEngine.generateDocx bu eşlemeyi kullanır.
@@ -1139,8 +1139,9 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
             color: '#92400E',
           }}
         >
-          Belgede yer tutucu bulunamadı. Şablonda değişken alanları <b>xxxxx</b>, <b>yyyyy</b>,{' '}
-          <b>XXXXX</b> ya da <b>{'{degiskenAdi}'}</b> biçiminde yazın ve şablonu yeniden yükleyin.
+          Belgede yer tutucu bulunamadı. Şablonda değişken alanları çift süslü parantez içinde{' '}
+          <b>{'{{Ders Kodu}}'}</b>, <b>{'{{Öğrenci No}}'}</b> biçiminde yazın (içinde boşluk ve
+          Türkçe harf serbest) ve şablonu yeniden yükleyin.
         </div>
       ) : (
         <div
