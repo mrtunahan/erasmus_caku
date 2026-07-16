@@ -1955,6 +1955,72 @@ const TemplateEngine = (() => {
     return null; // atla / row (bu geçişte değil)
   }
 
+  // ── Tür-kelimesi ikilenmesini önleme (tüm şablonlarda) ──
+  // Şablon çoğu zaman yer tutucudan SONRA tür kelimesini statik yazar
+  // ("{{Karşı kurum}} Üniversitesi", "{{Çakü Bölüm}} Mühendisliği …"). Öğrenci
+  // değeri tam yazınca ("Bursa Uludağ Üniversitesi") çıktı ikilenir
+  // ("… Üniversitesi Üniversitesi"). Değerin son kelimesi, yer tutucudan hemen
+  // sonra gelen statik kelimeyle aynı "tür"deyse, değerden o kelimeyi kırparız.
+  // Kök bazlı eşleşme, Türkçe çekim eklerini (Üniversite/Üniversitesi,
+  // Bölüm/Bölümü, Mühendislik/Mühendisliği) tolere eder.
+  const _TYPE_WORD_ROOTS = [
+    'ünivers',
+    'fakült',
+    'bölüm',
+    'enstit',
+    'yükseko',
+    'mühendis',
+    'dekan',
+    'rektör',
+    'müdürl',
+    'başkan',
+    'anabilim',
+    'meslek',
+  ];
+  function _typeWordRoot(word) {
+    const w = (word || '')
+      .replace(/İ/g, 'i')
+      .replace(/I/g, 'ı')
+      .toLowerCase()
+      .replace(/[^0-9a-zçğıöşü]/g, '');
+    if (!w) return null;
+    for (const r of _TYPE_WORD_ROOTS) if (w.startsWith(r)) return r;
+    return null;
+  }
+  // xml içinde pos'tan sonraki İLK görünür kelime (etiketleri atlayarak); ancak
+  // paragraf/hücre/satır sınırı geçilirse "yok" sayılır (ayrı bağlam).
+  function _firstVisibleWordAfter(xml, pos) {
+    let text = '';
+    let i = pos;
+    while (i < xml.length && text.length < 60) {
+      if (xml[i] === '<') {
+        const close = xml.indexOf('>', i);
+        if (close < 0) break;
+        const tag = xml.slice(i, close + 1);
+        if (/<\/?w:(p|tc|tr|tbl|body)\b/.test(tag)) break;
+        i = close + 1;
+      } else {
+        text += xml[i];
+        i++;
+      }
+    }
+    const m = decodeEnt(text).replace(/^\s+/, '').match(/^\S+/);
+    return m ? m[0] : '';
+  }
+  function dedupeTrailingTypeWord(value, xml, posEnd) {
+    if (!value) return value;
+    const words = String(value).trim().split(/\s+/);
+    if (words.length < 2) return value; // tek kelimeyi kırpma
+    const lastRoot = _typeWordRoot(words[words.length - 1]);
+    if (!lastRoot) return value;
+    const nextWord = _firstVisibleWordAfter(xml, posEnd);
+    if (nextWord && _typeWordRoot(nextWord) === lastRoot) {
+      words.pop();
+      return words.join(' ');
+    }
+    return value;
+  }
+
   // Şablonu verilerle doldurup .docx Blob döndürür.
   //   fields: eşleme kayıtları (detect sırası korunmuş)
   //   staticData: { degiskenId: değer }
@@ -2102,7 +2168,12 @@ const TemplateEngine = (() => {
       .filter(
         (f) => f._pos && (exclStart < 0 || f._pos.end <= exclStart || f._pos.start >= exclEnd)
       )
-      .map((f) => ({ ...f, _value: resolveValue(f, staticData) }))
+      .map((f) => {
+        const raw = resolveValue(f, staticData);
+        // Tür-kelimesi ikilenmesini önle (örn. "… Üniversitesi Üniversitesi").
+        const val = raw == null ? raw : dedupeTrailingTypeWord(raw, xml, f._pos.end);
+        return { ...f, _value: val };
+      })
       .filter((f) => f._value !== null);
 
     let out;
