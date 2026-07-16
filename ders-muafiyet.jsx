@@ -6887,6 +6887,9 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
   const [msg, setMsg] = useState({ text: '', kind: '' });
   // Kayıt sonrası gösterilen sonuç paneli — özet + her ders için skor kırılımı.
   const [resultPanel, setResultPanel] = useState(null);
+  // Transkript (e-Devlet karekodlu PDF) — yeni talep gönderilirken zorunlu.
+  const [transcriptFile, setTranscriptFile] = useState(null);
+  const [transcriptName, setTranscriptName] = useState('');
 
   // Yaz intibakında 21 AKTS tavanı — öğrencinin ÇAKÜ'de saydıracağı derslerin
   // (kabul edilen kredi yükü) AKTS toplamı üzerinden canlı izlenir (MADDE 9/1).
@@ -7135,6 +7138,15 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
       setMsg({ text: 'Öğrenci adı ve numarası zorunlu.', kind: 'error' });
       return false;
     }
+    // Transkript yalnızca ders muafiyetinde zorunludur; yaz intibakında dersler
+    // sonradan alındığından belge Faz-2'de (başarı belgesi) yüklenir.
+    if (!isIntibak && !transcriptFile) {
+      setMsg({
+        text: "Transkript zorunlu — e-Devlet'ten alınan karekodlu (doğrulama karekodlu) PDF transkriptinizi yükleyin.",
+        kind: 'error',
+      });
+      return false;
+    }
     // Yaz intibakı: 21 AKTS kredi yükü tavanı (MADDE 9/1)
     if (isIntibak && toplamYazAkts > YAZ_AKTS_CAP) {
       setMsg({
@@ -7286,6 +7298,17 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
       const recIncele = matches.filter((m) => m.recommendation === 'incele').length;
       const recRed = matches.filter((m) => m.recommendation === 'red').length;
 
+      // Transkript (e-Devlet karekodlu PDF) — talebe bağlı, tek seferlik.
+      // Muafiyette zorunlu (validate); intibakta dosya yoksa atlanır.
+      let transcriptUrl = '';
+      if (transcriptFile) {
+        transcriptUrl = await uploadMuafiyetFile(transcriptFile);
+        if (!transcriptUrl) {
+          setMsg({ text: 'Transkript yüklenemedi. Lütfen tekrar deneyin.', kind: 'error' });
+          return;
+        }
+      }
+
       const record = await MuafiyetDB.saveRecord({
         studentName,
         studentNo,
@@ -7295,6 +7318,8 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
         localDept: currentUser?.departmentName || '',
         departmentId: currentUser?.departmentId || '',
         basvuruTuru: basvuruTuru || 'muafiyet',
+        transcriptUrl,
+        transcriptUploadedAt: new Date().toISOString(),
         matches,
         status: 'pending',
         approvedCount: 0,
@@ -7915,6 +7940,76 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
           />
         </div>
       </div>
+
+      {/* Transkript (e-Devlet karekodlu PDF) — yalnız ders muafiyetinde zorunlu */}
+      {!isIntibak && (
+        <div
+          style={{
+            background: 'white',
+            border: '1px solid ' + DS.border,
+            borderRadius: 10,
+            padding: 16,
+            marginBottom: 18,
+          }}
+        >
+          <label style={labelStyle}>Transkript (e-Devlet karekodlu PDF) *</label>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flexWrap: 'wrap',
+              marginTop: 6,
+            }}
+          >
+            <label style={{ cursor: 'pointer' }}>
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = (e.target.files && e.target.files[0]) || null;
+                  e.target.value = '';
+                  if (!f) return;
+                  if (f.type !== 'application/pdf' && !/\.pdf$/i.test(f.name)) {
+                    setMsg({ text: 'Transkript yalnızca PDF olabilir.', kind: 'error' });
+                    return;
+                  }
+                  setTranscriptFile(f);
+                  setTranscriptName(f.name);
+                }}
+              />
+              <span
+                style={{
+                  display: 'inline-block',
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  border: '1px solid ' + DS.border,
+                  background: DS.card || '#fff',
+                  color: DS.navy,
+                  fontSize: 13,
+                  fontWeight: 600,
+                }}
+              >
+                {transcriptFile ? 'Transkripti Değiştir' : 'Transkript Seç (PDF)'}
+              </span>
+            </label>
+            {transcriptName ? (
+              <span style={{ fontSize: 12.5, color: DS.green, fontWeight: 600 }}>
+                ✓ {transcriptName}
+              </span>
+            ) : (
+              <span style={{ fontSize: 12.5, color: DS.textMuted }}>Henüz dosya seçilmedi</span>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: DS.textSecondary, marginTop: 8, lineHeight: 1.5 }}>
+            Transkriptinizi <b>e-Devlet</b> üzerinden alınan <b>karekodlu (doğrulama karekodlu)</b>{' '}
+            PDF hâliyle yükleyin. Karekod, belgenin resmî doğrulanabilirliğini sağlar; karekodsuz
+            veya taranmış nüshalar kabul edilmez. Her talep için transkript yalnızca <b>bir kez</b>{' '}
+            yüklenir.
+          </div>
+        </div>
+      )}
 
       {/* Ders satırları */}
       {rows.map((row, idx) => (
