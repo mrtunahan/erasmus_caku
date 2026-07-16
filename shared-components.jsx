@@ -2476,8 +2476,10 @@ const TemplateEngine = (() => {
       }
       return { ok: false, reason: 'invalid-output', message: e && e.message };
     }
-    downloadBlob(blob, opts.filename || 'belge.docx');
-    return { ok: true };
+    // opts.noDownload: yalnız blob istenir (ör. snapshot yükleme) — indirme yok.
+    if (!opts.noDownload) downloadBlob(blob, opts.filename || 'belge.docx');
+    // blob geri döndürülür ki çağıran (ör. dilekçe snapshot'ı) yükleyebilsin.
+    return { ok: true, blob, filename: opts.filename || 'belge.docx' };
   }
 
   // ── SATIR-KODU (PG) DOLDURMA — Stratejik Plan İzleme gibi "boşluk doldurma"
