@@ -1591,12 +1591,12 @@ window.PerfData = PerfData;
 // Kaynak↔ÇAKÜ ders tablosu ortak satır değişkenleri (muafiyet/erasmus)
 const DERS_ESLESME_ROWS = [
   { id: 'kDersKod', label: 'Karşı/Yurtdışı Ders Kodu' },
-  { id: 'kDersAd', label: 'Karşı/Yurtdışı Ders Adı' },
+  { id: 'kDersAd', label: 'Karşı/Yurtdışı Ders Adı', format: 'title' },
   { id: 'kDersAkts', label: 'Karşı Ders AKTS' },
   { id: 'kDersDonem', label: 'Karşı Ders Dönemi (Güz/Bahar)' },
   { id: 'kDersNot', label: 'Karşı Başarı Notu' },
   { id: 'cDersKod', label: 'ÇAKÜ Ders Kodu' },
-  { id: 'cDersAd', label: 'ÇAKÜ Ders Adı' },
+  { id: 'cDersAd', label: 'ÇAKÜ Ders Adı', format: 'title' },
   { id: 'cDersAkts', label: 'ÇAKÜ Ders AKTS' },
   { id: 'cDersDonem', label: 'ÇAKÜ Ders Dönemi (Güz/Bahar)' },
   { id: 'cDersNot', label: 'ÇAKÜ Başarı Notu' },
@@ -1604,11 +1604,11 @@ const DERS_ESLESME_ROWS = [
 ];
 const OGR_KURUM_STATIC = [
   { id: 'ogrenciNo', label: 'Öğrenci Numarası' },
-  { id: 'ogrenciAdSoyad', label: 'Öğrenci Adı Soyadı' },
-  { id: 'kaynakUniversite', label: 'Karşı/Yurtdışı Üniversite' },
-  { id: 'kaynakFakulte', label: 'Karşı Fakülte' },
-  { id: 'kaynakBolum', label: 'Karşı Bölüm' },
-  { id: 'cakuBolum', label: 'ÇAKÜ Bölüm Adı' },
+  { id: 'ogrenciAdSoyad', label: 'Öğrenci Adı Soyadı', format: 'name' },
+  { id: 'kaynakUniversite', label: 'Karşı/Yurtdışı Üniversite', format: 'title' },
+  { id: 'kaynakFakulte', label: 'Karşı Fakülte', format: 'title' },
+  { id: 'kaynakBolum', label: 'Karşı Bölüm', format: 'title' },
+  { id: 'cakuBolum', label: 'ÇAKÜ Bölüm Adı', format: 'title' },
   { id: 'kaynakToplamAkts', label: 'Karşı Toplam AKTS' },
   { id: 'cakuToplamAkts', label: 'ÇAKÜ Toplam AKTS' },
   { id: 'akademikYil', label: 'Akademik Yıl (örn 2025-2026)' },
@@ -1626,12 +1626,12 @@ const MUAFIYET_STATIC = [
 
 // Sınav programı şablon değişkenleri (Bölüm ve Dekanlık çıktısı ortak set)
 const SINAV_STATIC = [
-  { id: 'bolumAd', label: 'Bölüm Adı' },
+  { id: 'bolumAd', label: 'Bölüm Adı', format: 'title' },
   { id: 'donemAd', label: 'Dönem/Sınav Adı (örn. Bütünleme - Bahar 2025-2026)' },
   { id: 'tarih', label: 'Bugünün Tarihi' },
 ];
 const SINAV_ROWS = [
-  { id: 'dersAd', label: 'Dersin Adı' },
+  { id: 'dersAd', label: 'Dersin Adı', format: 'title' },
   { id: 'dersKod', label: 'Dersin Kodu' },
   { id: 'baslangic', label: 'Başlangıç Tarih-Saat' },
   { id: 'bitis', label: 'Bitiş Tarih-Saat' },
@@ -1660,16 +1660,16 @@ window.TEMPLATE_VARS = {
     gidis: {
       static: [
         ...OGR_KURUM_STATIC,
-        { id: 'hostUlke', label: 'Gidilen Ülke' },
-        { id: 'hostKurum', label: 'Gidilen Kurum' },
+        { id: 'hostUlke', label: 'Gidilen Ülke', format: 'title' },
+        { id: 'hostKurum', label: 'Gidilen Kurum', format: 'title' },
       ],
       row: DERS_ESLESME_ROWS,
     },
     donus: {
       static: [
         ...OGR_KURUM_STATIC,
-        { id: 'hostUlke', label: 'Gidilen Ülke' },
-        { id: 'hostKurum', label: 'Gidilen Kurum' },
+        { id: 'hostUlke', label: 'Gidilen Ülke', format: 'title' },
+        { id: 'hostKurum', label: 'Gidilen Kurum', format: 'title' },
       ],
       row: DERS_ESLESME_ROWS,
     },
@@ -1700,8 +1700,8 @@ window.TEMPLATE_VARS = {
     default: {
       static: [
         { id: 'tarih', label: 'Bugünün Tarihi' },
-        { id: 'bolumAd', label: 'Bölüm Adı' },
-        { id: 'hazirlayan', label: 'Hazırlayan (yetkili adı)' },
+        { id: 'bolumAd', label: 'Bölüm Adı', format: 'title' },
+        { id: 'hazirlayan', label: 'Hazırlayan (yetkili adı)', format: 'name' },
       ],
       row: [],
     },
@@ -2018,6 +2018,44 @@ const TemplateEngine = (() => {
       words.pop();
       return words.join(' ');
     }
+    return value;
+  }
+
+  // ── Türkçe-duyarlı harf normalizasyonu (tüm şablonlarda) ──
+  // JS'in standart toLowerCase/toUpperCase'i Türkçe'de yanlıştır (I→i, İ→i̇).
+  // Bu yüzden i/İ/ı/I özel olarak eşlenir.
+  function _trLower(s) {
+    return String(s).replace(/İ/g, 'i').replace(/I/g, 'ı').toLocaleLowerCase('tr-TR');
+  }
+  function _trUpper(s) {
+    return String(s).replace(/i/g, 'İ').replace(/ı/g, 'I').toLocaleUpperCase('tr-TR');
+  }
+  // Her kelimenin ilk harfi büyük, kalanı küçük (kelime başı = başta ya da
+  // harf/rakam olmayan bir karakterden sonra gelen ilk harf). Parantez/tire
+  // sonrası da doğru büyütülür: "(şube 1-2)" → "(Şube 1-2)".
+  function _titleCaseTr(s) {
+    return _trLower(s).replace(
+      /(^|[^0-9a-zçğıöşü])([a-zçğıöşü])/g,
+      (_m, pre, ch) => pre + _trUpper(ch)
+    );
+  }
+  // Ad-soyad: son kelime SOYAD (tümü büyük), önceki kelimeler ad (ilk harf
+  // büyük): "gizem yurtseven" → "Gizem YURTSEVEN".
+  function _nameCaseTr(s) {
+    const parts = String(s).trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return String(s);
+    if (parts.length === 1) return _titleCaseTr(parts[0]);
+    const last = parts.pop();
+    return parts.map(_titleCaseTr).join(' ') + ' ' + _trUpper(last);
+  }
+  function formatCaseTr(value, mode) {
+    if (value == null) return value;
+    const s = String(value);
+    if (!s.trim() || !mode || mode === 'none') return value;
+    if (mode === 'name') return _nameCaseTr(s);
+    if (mode === 'title') return _titleCaseTr(s);
+    if (mode === 'upper') return _trUpper(s);
+    if (mode === 'lower') return _trLower(s);
     return value;
   }
 
@@ -2392,9 +2430,27 @@ const TemplateEngine = (() => {
     } catch (e) {
       return { ok: false, reason: 'download', message: e.message };
     }
+    // Değişken-bazlı Türkçe harf normalizasyonu: katalogdaki `format` etiketine
+    // göre değerler biçimlenir (ad→'name', ders/kurum adları→'title', kod/akts/
+    // tarih→dokunma). Motor tüm modüllerce paylaşıldığından her şablonda geçerli.
+    const _vars =
+      (window.templateVarsFor && window.templateVarsFor(opts.module, opts.docType)) || {};
+    const _fmtById = {};
+    [...(_vars.static || []), ...(_vars.row || [])].forEach((v) => {
+      if (v && v.format) _fmtById[v.id] = v.format;
+    });
+    const _applyFmt = (obj) => {
+      if (!obj || typeof obj !== 'object') return obj;
+      const out = {};
+      for (const k in obj) out[k] = _fmtById[k] ? formatCaseTr(obj[k], _fmtById[k]) : obj[k];
+      return out;
+    };
+    const _staticData = _applyFmt(opts.staticData || {});
+    const _rows = (opts.rows || []).map(_applyFmt);
+
     let blob;
     try {
-      blob = await generateDocx(buf, tpl.fields, opts.staticData || {}, opts.rows || [], {
+      blob = await generateDocx(buf, tpl.fields, _staticData, _rows, {
         stripRowBold: !!opts.stripRowBold,
       });
     } catch (e) {
