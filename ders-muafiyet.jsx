@@ -5691,6 +5691,36 @@ const ExemptionHistory = ({
                 </div>
               )}
 
+              {/* Onaylı dilekçe (snapshot) — öğrenci salt-okunur indirir;
+                  akademisyenin ürettiği kopyayla birebir aynıdır. */}
+              {rec.dilekceUrl && (
+                <div
+                  style={{
+                    padding: '0 20px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    flexWrap: 'wrap',
+                    fontSize: 12.5,
+                    color: DS.textSecondary,
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>Dilekçe:</span>
+                  <a
+                    href={
+                      '/api/files/view/' +
+                      String(rec.dilekceUrl).replace('/api/files/download/', '')
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontWeight: 600, color: DS.accent }}
+                  >
+                    {isStudent ? 'Dilekçemi Görüntüle / İndir' : 'Onaylı Dilekçe'}
+                  </a>
+                  <span style={{ color: DS.textMuted, fontSize: 11.5 }}>· salt-okunur kopya</span>
+                </div>
+              )}
+
               {/* Yaz intibakı iki-fazlı durum paneli (yalnız intibak kayıtları) */}
               {(rec.basvuruTuru || 'muafiyet') === 'intibak' && onStageChange && (
                 <div style={{ padding: '0 20px 12px' }}>
@@ -6541,7 +6571,35 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         rows,
         filename: turAd.replace(/\s+/g, '_') + '_' + (rec.studentNo || 'kayit') + '.docx',
       });
-      if (res.ok) return;
+      if (res.ok) {
+        // Dilekçeyi değişmez kopya (snapshot) olarak sakla → öğrenci bunu
+        // salt-okunur indirir; kendi tarafında yeniden üretmez/değiştiremez.
+        // Akademisyen belgeyi zaten indirdi; snapshot başarısız olsa da akış
+        // bloklanmaz.
+        try {
+          const docFile = new File([res.blob], res.filename || 'dilekce.docx', {
+            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          });
+          const url = await uploadMuafiyetFile(docFile);
+          if (url) {
+            const patch = {
+              dilekceUrl: url,
+              dilekceUploadedAt: new Date().toISOString(),
+              dilekceBy: currentUser?.name || currentUser?.identifier || '',
+              updatedAt: new Date().toISOString(),
+            };
+            await window.DBWrite.update('muafiyet_records', String(rec.id), patch);
+            setRecords(function (prev) {
+              return prev.map(function (r) {
+                return r.id === rec.id ? Object.assign({}, r, patch) : r;
+              });
+            });
+          }
+        } catch (e) {
+          console.warn('Dilekçe snapshot kaydedilemedi:', e && e.message);
+        }
+        return;
+      }
       const mesajlar = {
         'no-template':
           turAd +
