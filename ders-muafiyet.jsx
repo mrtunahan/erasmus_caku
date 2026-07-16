@@ -5,6 +5,12 @@
 
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
+// Türkçe-duyarlı görüntüleme biçimlendirmesi (ekranlarda; shared-components'ten).
+// Veriyi değiştirmez — yalnız gösterimi düzeltir; eşleştirme küçük-harfe
+// duyarsız olduğundan güvenlidir. Geçmiş (BÜYÜK harf) kayıtlar da düzelir.
+const fmtName = (v) => (window.formatCaseTr ? window.formatCaseTr(v, 'name') : v || '');
+const fmtTitle = (v) => (window.formatCaseTr ? window.formatCaseTr(v, 'title') : v || '');
+
 // ── Shared bileşenlerden import ──
 const _C = window.C;
 const _Card = window.Card;
@@ -5140,10 +5146,10 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
               }}
             >
               <div>
-                <div style={label}>KARŞI KURUM{src.uni ? ' — ' + src.uni : ''}</div>
+                <div style={label}>KARŞI KURUM{src.uni ? ' — ' + fmtTitle(src.uni) : ''}</div>
                 <div style={{ fontSize: 13.5, color: DS.text }}>
                   <span style={{ fontWeight: 700, color: DS.navy }}>{src.code || '—'}</span>{' '}
-                  {src.name || ''}
+                  {fmtTitle(src.name)}
                 </div>
                 <div style={{ fontSize: 12, color: DS.textSecondary, marginTop: 2 }}>
                   AKTS {src.akts || '—'}
@@ -5161,7 +5167,7 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
                   <>
                     <div style={{ fontSize: 13.5, color: DS.text }}>
                       <span style={{ fontWeight: 700, color: DS.navy }}>{tgt.code || '—'}</span>{' '}
-                      {tgt.name || ''}
+                      {fmtTitle(tgt.name)}
                     </div>
                     <div style={{ fontSize: 12, color: DS.textSecondary, marginTop: 2 }}>
                       AKTS {tgt.akts || '—'}
@@ -5596,7 +5602,7 @@ const ExemptionHistory = ({
               >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 700, color: DS.navy, fontSize: 15 }}>
-                    {rec.studentName || 'İsimsiz'}
+                    {fmtName(rec.studentName) || 'İsimsiz'}
                     <span
                       style={{
                         fontWeight: 400,
@@ -5619,7 +5625,7 @@ const ExemptionHistory = ({
                       flexWrap: 'wrap',
                     }}
                   >
-                    <span>{rec.otherUniversity || rec.otherUni || '—'}</span>
+                    <span>{fmtTitle(rec.otherUniversity || rec.otherUni) || '—'}</span>
                     {dateStr && <span style={{ color: DS.textMuted }}>· {dateStr}</span>}
                     {stat(matchCount + ' ders', DS.textSecondary, DS.surfaceHigh)}
                     {muafCount > 0 && stat(muafCount + ' muaf', DS.green, DS.greenBg)}
@@ -6234,15 +6240,15 @@ const MuafiyetGecmisi = ({ activeDepartment, basvuruTuru, turMeta, canDelete }) 
               <div style={{ flex: '2 1 260px', minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: DS.navy }}>
                   {e.sourceCourse?.code ? e.sourceCourse.code + ' — ' : ''}
-                  {e.sourceCourse?.name}
+                  {fmtTitle(e.sourceCourse?.name)}
                   <span style={{ color: DS.textMuted, fontWeight: 500, margin: '0 6px' }}>→</span>
                   <span style={{ color: DS.green }}>
                     {e.cakuCourse?.code ? e.cakuCourse.code + ' — ' : ''}
-                    {e.cakuCourse?.name}
+                    {fmtTitle(e.cakuCourse?.name)}
                   </span>
                 </div>
                 <div style={{ fontSize: 11, color: DS.textSecondary, marginTop: 3 }}>
-                  {e.sourceUniversity || 'Kaynak kurum belirtilmemiş'}
+                  {fmtTitle(e.sourceUniversity) || 'Kaynak kurum belirtilmemiş'}
                   {e.sourceCourse?.akts && e.cakuCourse?.akts
                     ? ' · AKTS ' + e.sourceCourse.akts + ' → ' + e.cakuCourse.akts
                     : ''}
@@ -6899,8 +6905,11 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
 
   const tr = (v) => (typeof v === 'string' ? v.toLocaleUpperCase('tr-TR') : v);
   const updateSide = (rowId, side, field, value) => {
-    // URL alanları büyük harfe çevrilmez (link bozulur)
-    const v = field === 'bolognaLink' ? value : tr(value);
+    // Yalnız ders KODU ve statü (Z/S) büyük harfe çevrilir — kodlar öyle
+    // olmalıdır. Ders adı / üniversite / fakülte / bölüm gibi metinler doğal
+    // yazılır (girişte zorla BÜYÜK harf kaldırıldı; eşleştirme küçük-harfe
+    // duyarsız olduğundan güvenli, ekranlar da düzgün görünür).
+    const v = field === 'code' || field === 'statu' ? tr(value) : value;
     setRows((prev) =>
       prev.map((r) => (r.id === rowId ? { ...r, [side]: { ...r[side], [field]: v } } : r))
     );
@@ -7927,7 +7936,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
           <label style={labelStyle}>Öğrenci Adı Soyadı *</label>
           <input
             value={studentName}
-            onChange={(e) => setStudentName(tr(e.target.value))}
+            onChange={(e) => setStudentName(e.target.value)}
             style={inputStyle}
           />
         </div>

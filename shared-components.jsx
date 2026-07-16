@@ -2843,9 +2843,13 @@ const TemplateEngine = (() => {
     produceByRowKey,
     produceQuarterXlsx,
     fillRowsByKey,
+    formatCaseTr,
   };
 })();
 window.TemplateEngine = TemplateEngine;
+// Türkçe-duyarlı harf biçimlendirmesini modüllere aç (ekran görüntüsü için):
+//   window.formatCaseTr(value, 'name' | 'title' | 'upper' | 'lower')
+window.formatCaseTr = TemplateEngine.formatCaseTr;
 
 // ══════════════════════════════════════════════════════════════
 // ── Merkezi Bildirim Sistemi (notifications koleksiyonu) ─────
