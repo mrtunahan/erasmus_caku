@@ -6498,6 +6498,18 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
           return a + (r[key] || 0);
         }, 0);
       };
+      // Öğrencinin iletişim bilgilerini (Benim Sayfam → student_profiles)
+      // belge üretimine dahil et. Kayıt yoksa alanlar boş kalır (şablon
+      // eşlemesi "Sabit metin"/"Atla" ile de doldurulabilir).
+      let ogrProfil = {};
+      if (rec.studentNo) {
+        try {
+          const pr = await window.apiReadDoc('student_profiles', String(rec.studentNo));
+          ogrProfil = (pr && (pr.data || (pr.exists ? pr.data : null))) || {};
+        } catch (_) {
+          ogrProfil = {};
+        }
+      }
       const staticData = {
         ogrenciNo: rec.studentNo || '',
         ogrenciAdSoyad: rec.studentName || '',
@@ -6510,6 +6522,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         akademikYil: rec.akademikYil || '',
         donem: rec.donem || '',
         tarih: new Date().toLocaleDateString('tr-TR'),
+        ogrenciTelefon: ogrProfil.phone || '',
+        ogrenciEposta: ogrProfil.email || '',
+        ogrenciAdres: ogrProfil.address || '',
       };
 
       const res = await window.TemplateEngine.produceFromTemplate({

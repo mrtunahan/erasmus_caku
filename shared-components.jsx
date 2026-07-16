@@ -1615,6 +1615,14 @@ const OGR_KURUM_STATIC = [
   { id: 'donem', label: 'Dönem (Güz/Bahar)' },
   { id: 'tarih', label: 'Bugünün Tarihi' },
 ];
+// Ders Muafiyet: öğrencinin kendi iletişim bilgileri (Benim Sayfam'daki
+// student_profiles kaydından belge üretiminde otomatik doldurulur).
+const MUAFIYET_STATIC = [
+  ...OGR_KURUM_STATIC,
+  { id: 'ogrenciTelefon', label: 'Öğrenci Telefon' },
+  { id: 'ogrenciEposta', label: 'Öğrenci E-posta' },
+  { id: 'ogrenciAdres', label: 'Öğrenci Adres' },
+];
 
 // Sınav programı şablon değişkenleri (Bölüm ve Dekanlık çıktısı ortak set)
 const SINAV_STATIC = [
@@ -1639,10 +1647,10 @@ window.TEMPLATE_VARS = {
       { id: 'muafiyet', label: 'Ders Muafiyet İsteği' },
       { id: 'intibak', label: 'Yaz Dönemi Ders İntibak İsteği' },
     ],
-    muafiyet: { static: OGR_KURUM_STATIC, row: DERS_ESLESME_ROWS },
-    intibak: { static: OGR_KURUM_STATIC, row: DERS_ESLESME_ROWS },
+    muafiyet: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
+    intibak: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
     // Geriye dönük: docType='default' ile kaydedilmiş eski şablonlar
-    default: { static: OGR_KURUM_STATIC, row: DERS_ESLESME_ROWS },
+    default: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
   },
   erasmus: {
     docTypes: [
