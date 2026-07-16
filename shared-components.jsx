@@ -1571,8 +1571,8 @@ window.PerfData = PerfData;
 
 // ══════════════════════════════════════════════════════════════
 // ── ŞABLON MOTORU (window.TemplateEngine) ──
-// Word (.docx) şablonlarındaki yer tutucuları (yyyyy, xxxxx, XXXXX, Xxxxx,
-// tek X, {degisken}) tespit eder ve gerçek verilerle doldurup yeni .docx
+// Word (.docx) şablonlarındaki yer tutucuları ({{Alan Adı}} biçiminde)
+// tespit eder ve gerçek verilerle doldurup yeni .docx
 // üretir. Şablonlar modülü tespit+eşleme için, hedef modüller (muafiyet vb.)
 // çıktı üretimi için kullanır.
 //
@@ -1738,14 +1738,12 @@ const TemplateEngine = (() => {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-  // Yer tutucu deseni: {degisken} | xxxx+ | yyyy+ | tek başına X
-  // (Xxxxx büyük/küçük karışımı [xX]{4,} ile yakalanır)
-  // Sayı kuralı: 1-2 haneli, bitişiğinde harf/rakam/nokta/virgül olmayan
-  // sayılar yer tutucudur ("Kodu 7" içindeki 7 gibi). "12. maddesi",
-  // "12.04.2026", "2024-2025" gibi gerçek sayılar nokta/rakam bitişikliği
-  // nedeniyle dışlanır; yanlış tespit edilenler "Atla" ile dokunulmadan kalır.
-  const TOKEN_RX =
-    /\{[A-Za-z0-9_çğıöşüÇĞİÖŞÜ]+\}|[xX]{4,}|[yY]{4,}|(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9])X(?![A-Za-zÇĞİÖŞÜçğıöşü0-9])|(?<![A-Za-zÇĞİÖŞÜçğıöşü0-9.])\d{1,2}(?![A-Za-zÇĞİÖŞÜçğıöşü0-9.])/g;
+  // Yer tutucu deseni: YALNIZCA çift süslü parantez → {{Alan Adı}}
+  // İçine boşluk, nokta, Türkçe harf vb. serbestçe yazılabilir (yalnız { } ve
+  // satır sonu hariç). Eski xxxx / tek X / 1-2 haneli sayı sezgileri kaldırıldı:
+  // normal metinle (tarih, metindeki X vb.) çakışıp yanlış tespit üretiyordu.
+  // Artık standart, çakışmayan tek biçim: {{ ... }}.
+  const TOKEN_RX = /\{\{[^{}\n]+\}\}/g;
 
   async function readDocumentXml(arrayBuffer) {
     const JSZip = await ensureJSZip();
