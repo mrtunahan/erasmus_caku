@@ -1363,14 +1363,23 @@ function AppShell() {
   const [currentUser, setCurrentUser] = useState(null);
   const [activeDepartment, setActiveDepartment] = useState('bilgisayar');
   // Çift rolü olan yetkililer için aktif kapsam: 'university' (tüm fakülteler)
-  // veya 'faculty' (yalnız kendi fakültesi). TopHeader'daki rol anahtarıyla
-  // değişir; localStorage'da saklanır.
+  // veya 'faculty' (yalnız kendi fakültesi).
+  //
+  // ÖNEMLİ: Kapsamı değiştiren UI (TopHeader rol anahtarı) kaldırıldı;
+  // handleScopeChange artık hiçbir yere bağlı değil. Bu yüzden localStorage'da
+  // kalmış eski bir 'faculty' değeri, üniversite adminini kendi fakültesine
+  // (ör. Mühendislik) kilitleyip diğer fakülteleri (ör. Fen) KALICI olarak
+  // gizliyordu ve geri almanın hiçbir yolu yoktu. Kapsam anahtarı yeniden
+  // eklenene kadar her zaman 'university' ile başla ve takılı kalan değeri
+  // temizle. (Yalnız fakülte yetkilileri zaten computeAvailableDepts'teki
+  // isFacMgr dalıyla doğru kısıtlanır; adminScope onları etkilemez.)
   const [adminScope, setAdminScope] = useState(() => {
     try {
-      return localStorage.getItem('adminScope') || 'university';
+      if (localStorage.getItem('adminScope')) localStorage.removeItem('adminScope');
     } catch {
-      return 'university';
+      /* yok say */
     }
+    return 'university';
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
