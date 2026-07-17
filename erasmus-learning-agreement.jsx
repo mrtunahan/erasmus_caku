@@ -4660,6 +4660,36 @@ function erasmusStaticData(student, rows) {
   };
 }
 
+// Üretilen Erasmus belgesini memur çıktı görünümü için kalıcı sakla (snapshot).
+// produceFromTemplate blob'u döndürür; /api/files'e yüklenip memur_outputs'a yazılır.
+const _snapshotErasmusDoc = async (res, student, docLabel) => {
+  try {
+    if (!res || !res.blob || !window.uploadGeneratedDoc || !window.recordMemurOutput) return;
+    const url = await window.uploadGeneratedDoc(
+      res.blob,
+      res.filename || 'erasmus.docx',
+      'erasmus_ciktilari'
+    );
+    if (!url) return;
+    const ad = ((student.firstName || '') + ' ' + (student.lastName || '')).trim();
+    const sid = student.id || student.studentNo || student.studentNumber || '';
+    await window.recordMemurOutput({
+      module: 'erasmus',
+      sourceId: sid + ':' + docLabel,
+      title:
+        (window.formatCaseTr ? window.formatCaseTr(ad, 'name') : ad) +
+        (student.studentNo || student.studentNumber
+          ? '  ·  ' + (student.studentNo || student.studentNumber)
+          : ''),
+      subtitle: [docLabel, student.hostInstitution].filter(Boolean).join('  ·  '),
+      url,
+      departmentId: student.departmentId || '',
+    });
+  } catch (e) {
+    console.warn('Erasmus snapshot kaydedilemedi:', e && e.message);
+  }
+};
+
 const generateOutgoingWordDoc = async (student) => {
   if (!student.outgoingMatches || student.outgoingMatches.length === 0) {
     alert('Bu öğrencinin henüz gidiş eşleştirmesi bulunmamaktadır.');
@@ -4681,7 +4711,10 @@ const generateOutgoingWordDoc = async (student) => {
       stripRowBold: true,
       filename: `${erasmusUpperSurname(student.lastName)}_${student.firstName}_Gidis_Degerlendirme.docx`,
     });
-    if (res.ok) return;
+    if (res.ok) {
+      await _snapshotErasmusDoc(res, student, 'Gidiş Değerlendirme');
+      return;
+    }
     if (res.reason === 'no-mapping') {
       alert(
         'Erasmus GİDİŞ şablonunun alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp 🧩 ile alanları eşleyin. Şimdilik yerleşik biçim kullanılacak.'
@@ -4805,7 +4838,10 @@ const generateReturnWordDoc = async (student) => {
       stripRowBold: true,
       filename: `${erasmusUpperSurname(student.lastName)}_${student.firstName}_Donus_Muafiyet.docx`,
     });
-    if (res.ok) return;
+    if (res.ok) {
+      await _snapshotErasmusDoc(res, student, 'Dönüş Muafiyet');
+      return;
+    }
     if (res.reason === 'no-mapping') {
       alert(
         'Erasmus DÖNÜŞ şablonunun alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp 🧩 ile alanları eşleyin. Şimdilik yerleşik biçim kullanılacak.'
