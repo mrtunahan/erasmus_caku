@@ -1385,7 +1385,6 @@ function MandatorySurveyGate({ currentUser, activeDepartment }) {
 function MemurModuleOutputs({ route, currentUser }) {
   const moduleLabel = (DEPARTMENT_MODULES.find((m) => m.id === route) || {}).label || route;
   const [items, setItems] = useState(null); // null = yükleniyor
-  const [supported, setSupported] = useState(true);
 
   const scopeDeptIds = useMemo(
     () => new Set(computeAvailableDepts(currentUser).map((d) => d.id)),
@@ -1397,40 +1396,59 @@ function MemurModuleOutputs({ route, currentUser }) {
     (async () => {
       setItems(null);
       const toView = (u) => '/api/files/view/' + String(u).replace('/api/files/download/', '');
+      const memurFacultyId = currentUser?.facultyId || '';
+      // Ortak kapsam eşleşmesi: kaydın fakültesi memurun fakültesiyle aynıysa,
+      // ya da bölümü memurun kapsamındaysa, ya da kapsamsız (genel) ise göster.
+      const inScope = (rec) => {
+        if (rec.facultyId && memurFacultyId && rec.facultyId === memurFacultyId) return true;
+        if (rec.departmentId && scopeDeptIds.has(rec.departmentId)) return true;
+        if (!rec.facultyId && !rec.departmentId) return true;
+        return false;
+      };
+      // 1) Ortak memur_outputs koleksiyonu (tüm modüller — snapshot'lar).
+      const outs = await window
+        .apiRead('memur_outputs', { where: 'module:eq:s:' + route })
+        .catch(() => []);
+      const list = (outs || [])
+        .filter(inScope)
+        .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
+        .map((o) => ({
+          id: 'mo_' + (o.id || o.sourceId),
+          title: o.title || '(başlıksız)',
+          sub: o.subtitle || '',
+          files: [{ label: 'Belge', url: toView(o.url) }],
+        }));
+      // 2) Muafiyet: eski dilekceUrl kayıtları (memur_outputs'a yazılmamış olabilir).
       if (route === 'muafiyet') {
-        setSupported(true);
         const recs = await window
           .apiRead('muafiyet_records', { orderBy: 'createdAt:desc' })
           .catch(() => []);
-        const list = (recs || [])
-          .filter((r) => r.dilekceUrl) // yalnız akademisyen çıktısı üretilmiş olanlar
+        const seen = new Set((outs || []).map((o) => String(o.sourceId)));
+        (recs || [])
+          .filter((r) => r.dilekceUrl && !seen.has(String(r.id)))
           .filter(
             (r) => !r.departmentId || scopeDeptIds.size === 0 || scopeDeptIds.has(r.departmentId)
           )
-          .map((r) => ({
-            id: r.id,
-            title:
-              (window.formatCaseTr ? window.formatCaseTr(r.studentName, 'name') : r.studentName) +
-              (r.studentNo ? '  ·  ' + r.studentNo : ''),
-            sub: [r.otherUniversity || r.otherUni, r.localDept].filter(Boolean).join('  →  '),
-            files: [
-              r.dilekceUrl && { label: 'Dilekçe', url: toView(r.dilekceUrl) },
-              r.transcriptUrl && { label: 'Transkript', url: toView(r.transcriptUrl) },
-            ].filter(Boolean),
-          }));
-        if (alive) setItems(list);
-      } else {
-        // Bu modül çıktısını henüz kalıcı saklamıyor (anlık üretilip indiriliyor).
-        if (alive) {
-          setSupported(false);
-          setItems([]);
-        }
+          .forEach((r) => {
+            list.push({
+              id: r.id,
+              title:
+                (window.formatCaseTr ? window.formatCaseTr(r.studentName, 'name') : r.studentName) +
+                (r.studentNo ? '  ·  ' + r.studentNo : ''),
+              sub: [r.otherUniversity || r.otherUni, r.localDept].filter(Boolean).join('  →  '),
+              files: [
+                r.dilekceUrl && { label: 'Dilekçe', url: toView(r.dilekceUrl) },
+                r.transcriptUrl && { label: 'Transkript', url: toView(r.transcriptUrl) },
+              ].filter(Boolean),
+            });
+          });
       }
+      if (alive) setItems(list);
     })();
     return () => {
       alive = false;
     };
-  }, [route, scopeDeptIds]);
+  }, [route, scopeDeptIds, currentUser]);
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -1446,7 +1464,7 @@ function MemurModuleOutputs({ route, currentUser }) {
 
       {items === null ? (
         <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>Yükleniyor…</div>
-      ) : !supported ? (
+      ) : items.length === 0 ? (
         <div
           style={{
             background: 'white',
@@ -1459,23 +1477,8 @@ function MemurModuleOutputs({ route, currentUser }) {
             lineHeight: 1.6,
           }}
         >
-          <b>{moduleLabel}</b> modülünde henüz kalıcı saklanan bir çıktı yok. Bu modül belgeleri
-          anlık üretip indiriyor; memur görünümü, çıktı kalıcı saklanmaya başlayınca burada
-          listelenecektir.
-        </div>
-      ) : items.length === 0 ? (
-        <div
-          style={{
-            background: 'white',
-            border: '1px solid #E5E7EB',
-            borderRadius: 12,
-            padding: 32,
-            textAlign: 'center',
-            color: '#9CA3AF',
-            fontSize: 13.5,
-          }}
-        >
-          Kapsamınızda görüntülenecek çıktı bulunamadı.
+          Henüz görüntülenecek <b>{moduleLabel}</b> çıktısı yok. Akademisyen bu modülde bir belge
+          ürettiğinde (ör. "Belge Oluştur") kopyası burada listelenir.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

@@ -128,6 +128,8 @@ const ALLOWED_COLLECTIONS = [
   'akademik_takvim',
   'document_templates',
   'student_courses',
+  // Memur çıktı görünümü: modüllerin ürettiği belgelerin (snapshot) ortak kaydı.
+  'memur_outputs',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.

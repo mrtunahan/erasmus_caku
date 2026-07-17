@@ -1750,7 +1750,29 @@ function StratejikPlanIzleme({
           yil +
           '.docx',
       });
-      if (!res.ok) {
+      if (res.ok) {
+        // Memur çıktı görünümü için snapshot sakla.
+        try {
+          if (res.blob && window.uploadGeneratedDoc && window.recordMemurOutput) {
+            const url = await window.uploadGeneratedDoc(
+              res.blob,
+              res.filename,
+              'performans_ciktilari'
+            );
+            if (url)
+              await window.recordMemurOutput({
+                module: 'performans',
+                sourceId: 'strateji-izleme:' + (deptId || 'bolum') + ':' + yil,
+                title: 'Stratejik Plan İzleme — ' + (deptName || 'Bölüm') + ' (' + yil + ')',
+                subtitle: 'Performans çıktısı',
+                url,
+                departmentId: deptId || '',
+              });
+          }
+        } catch (e) {
+          console.warn('Performans snapshot kaydedilemedi:', e && e.message);
+        }
+      } else {
         if (res.reason === 'no-template')
           showToast('Şablon bulunamadı. Şablonlar modülüne yükleyin.');
         else if (res.reason === 'invalid-output')
@@ -2308,7 +2330,30 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
           yil +
           '.docx',
       });
-      if (!res.ok) showToast('Belge üretilemedi (' + res.reason + ').');
+      if (res.ok) {
+        try {
+          if (res.blob && window.uploadGeneratedDoc && window.recordMemurOutput) {
+            const url = await window.uploadGeneratedDoc(
+              res.blob,
+              res.filename,
+              'performans_ciktilari'
+            );
+            if (url)
+              await window.recordMemurOutput({
+                module: 'performans',
+                sourceId: 'strateji-izleme-fakulte:' + yil,
+                title:
+                  'Stratejik Plan İzleme (Fakülte) — ' + (facultyName || '') + ' (' + yil + ')',
+                subtitle: 'Fakülte geneli performans çıktısı',
+                url,
+              });
+          }
+        } catch (e) {
+          console.warn('Performans snapshot kaydedilemedi:', e && e.message);
+        }
+      } else {
+        showToast('Belge üretilemedi (' + res.reason + ').');
+      }
     } catch (e) {
       showToast('Hata: ' + e.message);
     }
@@ -2578,6 +2623,33 @@ function UcAylikCiktiBar({
           flash('Şablonda sarı (dolgulu) gösterge alanı bulunamadı.');
         else flash('Üretilemedi: ' + (res.message || res.reason));
       } else {
+        // Memur çıktı görünümü için snapshot sakla.
+        try {
+          if (res.blob && window.uploadGeneratedDoc && window.recordMemurOutput) {
+            const url = await window.uploadGeneratedDoc(
+              res.blob,
+              res.filename,
+              'performans_ciktilari'
+            );
+            if (url)
+              await window.recordMemurOutput({
+                module: 'performans',
+                sourceId:
+                  'uc-aylik:' + (scope === 'dept' ? deptId || 'bolum' : 'fakulte') + ':' + yil,
+                title:
+                  'Üç Aylık Gösterge — ' +
+                  (deptName || (scope === 'dept' ? 'Bölüm' : 'Fakülte')) +
+                  ' (' +
+                  yil +
+                  ')',
+                subtitle: 'Performans (xlsx) çıktısı',
+                url,
+                departmentId: scope === 'dept' ? deptId || '' : '',
+              });
+          }
+        } catch (e) {
+          console.warn('Performans snapshot kaydedilemedi:', e && e.message);
+        }
         // İndirildi — kısmi doldurma raporu
         const un = res.unmatched || [];
         if (un.length) {

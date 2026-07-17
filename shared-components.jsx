@@ -2644,8 +2644,8 @@ const TemplateEngine = (() => {
         type: 'blob',
         mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       });
-      downloadBlob(blob, opts.filename || 'belge.docx');
-      return { ok: true };
+      if (!opts.noDownload) downloadBlob(blob, opts.filename || 'belge.docx');
+      return { ok: true, blob, filename: opts.filename || 'belge.docx' };
     } catch (e) {
       return { ok: false, reason: 'invalid-output', message: e && e.message };
     }
@@ -2829,8 +2829,15 @@ const TemplateEngine = (() => {
         type: 'blob',
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
-      downloadBlob(blob, opts.filename || 'gosterge.xlsx');
-      return { ok: true, filled: filledCount, matched, unmatched };
+      if (!opts.noDownload) downloadBlob(blob, opts.filename || 'gosterge.xlsx');
+      return {
+        ok: true,
+        filled: filledCount,
+        matched,
+        unmatched,
+        blob,
+        filename: opts.filename || 'gosterge.xlsx',
+      };
     } catch (e) {
       return { ok: false, reason: 'fill-error', message: e && e.message };
     }
@@ -2852,6 +2859,67 @@ window.TemplateEngine = TemplateEngine;
 // Türkçe-duyarlı harf biçimlendirmesini modüllere aç (ekran görüntüsü için):
 //   window.formatCaseTr(value, 'name' | 'title' | 'upper' | 'lower')
 window.formatCaseTr = TemplateEngine.formatCaseTr;
+
+// ══════════════════════════════════════════════════════════════
+// Memur çıktı akışı — modüllerin ürettiği belgeyi kalıcı saklayıp memur
+// görünümünde (MemurModuleOutputs) salt-okunur listelemek için ortak yardımcılar.
+// ══════════════════════════════════════════════════════════════
+// Üretilen bir Blob'u /api/files'e yükler; indirme URL'sini döndürür.
+window.uploadGeneratedDoc = async function (blob, filename, folder) {
+  const token = localStorage.getItem('caku_auth_token');
+  const fd = new FormData();
+  const type = (blob && blob.type) || 'application/octet-stream';
+  fd.append('file', new File([blob], filename || 'belge.docx', { type }));
+  const res = await fetch(
+    '/api/files/upload?folder=' + encodeURIComponent(folder || 'memur_ciktilari'),
+    {
+      method: 'POST',
+      headers: token ? { Authorization: 'Bearer ' + token } : {},
+      credentials: 'include',
+      body: fd,
+    }
+  );
+  if (!res.ok) throw new Error('Yükleme başarısız (HTTP ' + res.status + ')');
+  const data = await res.json();
+  return data.downloadURL || null;
+};
+
+// Bir modül çıktısını (snapshot) 'memur_outputs' koleksiyonuna yazar. sourceId
+// varsa upsert edilir (yeniden üretimde tekrar oluşmaz). facultyId verilmezse
+// departmentId'den türetilir (kapsam eşleşmesi için).
+window.recordMemurOutput = async function (o) {
+  if (!o || !o.module || !o.url) return;
+  const cu = window.__currentUser || {};
+  let facultyId = o.facultyId || '';
+  if (!facultyId && o.departmentId) {
+    const d = (window.DEPARTMENTS || []).find((x) => x.id === o.departmentId);
+    facultyId = (d && d.facultyId) || '';
+  }
+  // Bölüm yoksa (ör. fakülte geneli çıktı) üreten kullanıcının fakültesini kullan
+  // — böylece yalnız aynı fakültenin memurları görür.
+  if (!facultyId) facultyId = cu.facultyId || '';
+  const id = o.module + '__' + (o.sourceId || 'x' + Date.now());
+  try {
+    await window.DBWrite.set(
+      'memur_outputs',
+      id,
+      {
+        module: o.module,
+        sourceId: o.sourceId || '',
+        title: o.title || '',
+        subtitle: o.subtitle || '',
+        url: o.url,
+        departmentId: o.departmentId || '',
+        facultyId,
+        createdBy: cu.name || cu.identifier || '',
+        updatedAt: new Date().toISOString(),
+      },
+      true
+    );
+  } catch (e) {
+    console.warn('memur_outputs kaydedilemedi:', e && e.message);
+  }
+};
 
 // ══════════════════════════════════════════════════════════════
 // ── Merkezi Bildirim Sistemi (notifications koleksiyonu) ─────
