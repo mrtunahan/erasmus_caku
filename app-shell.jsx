@@ -1377,6 +1377,161 @@ function MandatorySurveyGate({ currentUser, activeDepartment }) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// Memur — atandığı modülün akademisyen çıktılarını SALT-OKUNUR listeler.
+// Faz 2: muafiyet (dilekçe + transkript snapshot'ları) tam desteklenir; çıktısını
+// henüz kalıcı saklamayan modüller için bilgi mesajı gösterilir. Kapsam: memurun
+// fakültesinin bölümleri (computeAvailableDepts). Düzenleme/üretim YOK.
+// ══════════════════════════════════════════════════════════════
+function MemurModuleOutputs({ route, currentUser }) {
+  const moduleLabel = (DEPARTMENT_MODULES.find((m) => m.id === route) || {}).label || route;
+  const [items, setItems] = useState(null); // null = yükleniyor
+  const [supported, setSupported] = useState(true);
+
+  const scopeDeptIds = useMemo(
+    () => new Set(computeAvailableDepts(currentUser).map((d) => d.id)),
+    [currentUser]
+  );
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setItems(null);
+      const toView = (u) => '/api/files/view/' + String(u).replace('/api/files/download/', '');
+      if (route === 'muafiyet') {
+        setSupported(true);
+        const recs = await window
+          .apiRead('muafiyet_records', { orderBy: 'createdAt:desc' })
+          .catch(() => []);
+        const list = (recs || [])
+          .filter((r) => r.dilekceUrl) // yalnız akademisyen çıktısı üretilmiş olanlar
+          .filter(
+            (r) => !r.departmentId || scopeDeptIds.size === 0 || scopeDeptIds.has(r.departmentId)
+          )
+          .map((r) => ({
+            id: r.id,
+            title:
+              (window.formatCaseTr ? window.formatCaseTr(r.studentName, 'name') : r.studentName) +
+              (r.studentNo ? '  ·  ' + r.studentNo : ''),
+            sub: [r.otherUniversity || r.otherUni, r.localDept].filter(Boolean).join('  →  '),
+            files: [
+              r.dilekceUrl && { label: 'Dilekçe', url: toView(r.dilekceUrl) },
+              r.transcriptUrl && { label: 'Transkript', url: toView(r.transcriptUrl) },
+            ].filter(Boolean),
+          }));
+        if (alive) setItems(list);
+      } else {
+        // Bu modül çıktısını henüz kalıcı saklamıyor (anlık üretilip indiriliyor).
+        if (alive) {
+          setSupported(false);
+          setItems([]);
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [route, scopeDeptIds]);
+
+  return (
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#1B2A4A' }}>
+          {moduleLabel} — Çıktılar
+        </div>
+        <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 4 }}>
+          Memur görünümü — akademisyenin ürettiği çıktıları salt-okunur görüntüleyip
+          indirebilirsiniz. Düzenleme yapılamaz.
+        </div>
+      </div>
+
+      {items === null ? (
+        <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>Yükleniyor…</div>
+      ) : !supported ? (
+        <div
+          style={{
+            background: 'white',
+            border: '1px solid #E5E7EB',
+            borderRadius: 12,
+            padding: 32,
+            textAlign: 'center',
+            color: '#6B7280',
+            fontSize: 13.5,
+            lineHeight: 1.6,
+          }}
+        >
+          <b>{moduleLabel}</b> modülünde henüz kalıcı saklanan bir çıktı yok. Bu modül belgeleri
+          anlık üretip indiriyor; memur görünümü, çıktı kalıcı saklanmaya başlayınca burada
+          listelenecektir.
+        </div>
+      ) : items.length === 0 ? (
+        <div
+          style={{
+            background: 'white',
+            border: '1px solid #E5E7EB',
+            borderRadius: 12,
+            padding: 32,
+            textAlign: 'center',
+            color: '#9CA3AF',
+            fontSize: 13.5,
+          }}
+        >
+          Kapsamınızda görüntülenecek çıktı bulunamadı.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {items.map((it) => (
+            <div
+              key={it.id}
+              style={{
+                background: 'white',
+                border: '1px solid #E5E7EB',
+                borderRadius: 12,
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#1B2A4A' }}>{it.title}</div>
+                {it.sub && (
+                  <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{it.sub}</div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {it.files.map((f, i) => (
+                  <a
+                    key={i}
+                    href={f.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      padding: '7px 13px',
+                      borderRadius: 8,
+                      border: '1px solid #0F766E33',
+                      background: '#CCFBF1',
+                      color: '#0F766E',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {f.label} indir / görüntüle
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // Main App Shell
 // ══════════════════════════════════════════════════════════════
 function AppShell() {
@@ -1995,30 +2150,11 @@ function AppShell() {
       );
     }
 
-    // Memur — Faz 1'de yalnız 'staj' modülü tam çalışır (koordinatör paneli).
-    // Diğer atanan modüllerin salt-okunur çıktı görünümü Faz 2'de gelecek; o
-    // zamana dek ham modülü (öğrenci gibi) render etmek yerine bilgi göster.
+    // Memur — 'staj' tam koordinatör paneli; diğer atanan modüller için
+    // akademisyen çıktılarının SALT-OKUNUR görünümü (MemurModuleOutputs).
     const _isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
     if (_isMemur && route !== 'staj') {
-      return (
-        <div
-          style={{
-            padding: '48px 20px',
-            textAlign: 'center',
-            color: '#6B7280',
-            maxWidth: 560,
-            margin: '0 auto',
-          }}
-        >
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#1B2A4A', marginBottom: 8 }}>
-            Atanan modül çıktıları yakında
-          </div>
-          <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
-            Bu modül için memur görünümü (akademisyenin ürettiği çıktıları salt-okunur
-            görüntüleme/indirme) hazırlanıyor. Şu an memurlar için yalnızca Staj modülü etkindir.
-          </div>
-        </div>
-      );
+      return <MemurModuleOutputs route={route} currentUser={currentUser} />;
     }
 
     // Lazy loading
