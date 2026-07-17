@@ -388,6 +388,22 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         >
           Akademisyen Bilgileri
         </button>
+        <button
+          onClick={() => setActiveTab('memurbilgi')}
+          style={{
+            padding: '12px 16px',
+            background: 'none',
+            border: 'none',
+            borderBottom:
+              activeTab === 'memurbilgi' ? `2px solid ${C.blue}` : '2px solid transparent',
+            color: activeTab === 'memurbilgi' ? C.blue : '#6B7280',
+            fontWeight: activeTab === 'memurbilgi' ? 600 : 500,
+            cursor: 'pointer',
+            fontSize: 14,
+          }}
+        >
+          Memur Bilgileri
+        </button>
       </div>
 
       {activeTab === 'kilitler' && (
@@ -402,9 +418,12 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         <AkademisyenBilgileri professors={professors} onSaved={loadData} />
       )}
 
+      {activeTab === 'memurbilgi' && <MemurBilgileri currentUser={currentUser} />}
+
       {activeTab !== 'kilitler' &&
         activeTab !== 'benimayar' &&
         activeTab !== 'akademisyenbilgi' &&
+        activeTab !== 'memurbilgi' &&
         (loading ? (
           <div style={{ padding: 40, textAlign: 'center' }}>Yükleniyor...</div>
         ) : (
@@ -1530,6 +1549,132 @@ function AkademisyenBilgileri({ professors, onSaved }) {
           {sorted.map((p) => (
             <AkademisyenKart key={p.id || p._docId} prof={p} onSaved={onSaved} />
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Memur Bilgileri sekmesi — sisteme eklenen memurları listeler; bölüm/fakülte
+// yetkilisi modül çıktılarını memura yönlendirir (memurModules). Ekleme/silme
+// Fakülte Yönetimi'ndedir. Memur, atandığı modülde akademisyen çıktısını
+// salt-okunur görür/indirir.
+function MemurBilgileri({ currentUser }) {
+  const myFacultyId = currentUser?.facultyId || '';
+  const [memurlar, setMemurlar] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const MEMUR_ASSIGNABLE = useMemo(
+    () => (window.DEPARTMENT_MODULES || []).filter((m) => m.id !== 'benim'),
+    []
+  );
+  const load = () => {
+    setLoading(true);
+    window
+      .apiRead('professors')
+      .then((all) => {
+        const list = (all || [])
+          .filter((p) => p.isMemur && (!myFacultyId || (p.facultyId || '') === myFacultyId))
+          .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
+        setMemurlar(list);
+      })
+      .catch(() => setMemurlar([]))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => {
+    load();
+  }, [myFacultyId]);
+
+  const toggleModule = async (memur, moduleId) => {
+    const cur = Array.isArray(memur.memurModules) ? memur.memurModules : [];
+    const has = cur.includes(moduleId);
+    const next = has ? cur.filter((m) => m !== moduleId) : cur.concat(moduleId);
+    const patch = { memurModules: next };
+    // 'staj' atanınca/kaldırılınca staj koordinatör bayrağını senkronla (Ergün
+    // Çınar paneli + SGK onayı).
+    if (moduleId === 'staj') {
+      patch.isStajCoordinator = !has;
+      if (!has) patch.facultyId = memur.facultyId || myFacultyId;
+    }
+    try {
+      await DBWrite.set('professors', memur.id, patch, true);
+      load();
+    } catch (e) {
+      alert('Güncelleme hatası: ' + e.message);
+    }
+  };
+
+  return (
+    <div>
+      <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 16px', lineHeight: 1.5 }}>
+        Sisteme eklenen memurlar. Memur <b>akademisyen değildir</b>; yalnızca kendisine atanan
+        modülde akademisyenin ürettiği çıktıyı <b>salt-okunur</b> görüntüler/indirir. Aşağıdan
+        istediğiniz modül çıktılarını memura yönlendirebilirsiniz. (Yeni memur ekleme/silme{' '}
+        <b>Fakülte Yönetimi → Memurlar</b> alanındadır.)
+      </p>
+      {loading ? (
+        <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>Yükleniyor...</div>
+      ) : memurlar.length === 0 ? (
+        <div
+          style={{
+            background: 'white',
+            border: '1px solid #E5E7EB',
+            borderRadius: 12,
+            padding: 40,
+            textAlign: 'center',
+            color: '#9CA3AF',
+            fontSize: 13.5,
+          }}
+        >
+          Henüz memur eklenmemiş. Fakülte Yönetimi → Memurlar alanından ekleyebilirsiniz.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {memurlar.map((m) => {
+            const mods = Array.isArray(m.memurModules) ? m.memurModules : [];
+            return (
+              <div
+                key={m.id}
+                style={{
+                  background: 'white',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 12,
+                  padding: 16,
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#1B2A4A', marginBottom: 8 }}>
+                  {m.name}
+                </div>
+                <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 8 }}>
+                  Atandığı modül çıktıları (tıklayarak aç/kapat):
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {MEMUR_ASSIGNABLE.map((mod) => {
+                    const on = mods.includes(mod.id);
+                    return (
+                      <button
+                        key={mod.id}
+                        type="button"
+                        onClick={() => toggleModule(m, mod.id)}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 20,
+                          fontSize: 11.5,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          border: '1px solid ' + (on ? '#0F766E' : '#E5E7EB'),
+                          background: on ? '#CCFBF1' : 'white',
+                          color: on ? '#0F766E' : '#6B7280',
+                        }}
+                      >
+                        {on ? '✓ ' : ''}
+                        {mod.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

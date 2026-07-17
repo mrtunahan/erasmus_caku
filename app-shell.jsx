@@ -44,6 +44,14 @@ function computeAvailableDepts(currentUser, adminScope) {
   // Ergün ÇINAR — tüm bölümler (fakülte geneli staj erişimi)
   if (isErgun) return allDepts;
 
+  // Memur (staj dışı) — kendi fakültesinin bölümleri. Staj memuru zaten
+  // yukarıda isErgun (isStajCoordinator) dalından tüm bölümleri aldı.
+  const isMemur = currentUser.role === 'memur' || !!currentUser.isMemur;
+  if (isMemur) {
+    if (myFaculty) return allDepts.filter((d) => (d.facultyId || '') === myFaculty);
+    return allDepts;
+  }
+
   // Öğrenci — yalnız kendi bölümü
   if (isStudent) {
     return allDepts.filter((d) => d.id === mainDept);
@@ -388,17 +396,19 @@ const TopHeader = ({
               {currentUser?.name || 'Kullanıcı'}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
-              {currentUser?.isUniversityAdmin
-                ? 'Üniversite Yetkilisi'
-                : currentUser?.isFacultyManager
-                  ? 'Fakülte Yetkilisi'
-                  : currentUser?.role === 'admin'
-                    ? 'Fakülte Yöneticisi'
-                    : currentUser?.role === 'professor'
-                      ? 'Akademisyen'
-                      : currentUser?.role === 'bolum_yetkilisi'
-                        ? 'Bölüm Yetkilisi'
-                        : `Öğrenci`}
+              {currentUser?.role === 'memur' || currentUser?.isMemur
+                ? 'Memur'
+                : currentUser?.isUniversityAdmin
+                  ? 'Üniversite Yetkilisi'
+                  : currentUser?.isFacultyManager
+                    ? 'Fakülte Yetkilisi'
+                    : currentUser?.role === 'admin'
+                      ? 'Fakülte Yöneticisi'
+                      : currentUser?.role === 'professor'
+                        ? 'Akademisyen'
+                        : currentUser?.role === 'bolum_yetkilisi'
+                          ? 'Bölüm Yetkilisi'
+                          : `Öğrenci`}
             </div>
           </div>
         )}
@@ -472,6 +482,8 @@ const Sidebar = ({
   const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
 
   const isErgunCinar = isErgunCinarUser(currentUser);
+  // Memur — yalnız atandığı modülleri görür; Ortak/Yönetim bölümleri gizli.
+  const isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
 
   // Ortak helper: rol + bayrak + additionalDepartments hepsini birden yönetir.
   const availableDepts = computeAvailableDepts(currentUser, adminScope);
@@ -492,6 +504,15 @@ const Sidebar = ({
 
   // Öğrenciler ve profesörler için erişilebilir modüller
   const getVisibleModules = () => {
+    // Memur — yalnız atandığı modüller. 'staj' atanmışsa staj modülü koordinatör
+    // (Ergün Çınar) panelini gösterir; diğer modüller salt-okunur çıktı görünümü
+    // (Faz 2). Öğrenci/akademisyen dallarına düşmez.
+    const isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
+    if (isMemur) {
+      const mods = Array.isArray(currentUser?.memurModules) ? currentUser.memurModules : [];
+      return DEPARTMENT_MODULES.filter((m) => mods.includes(m.id));
+    }
+
     if (isErgunCinar) return DEPARTMENT_MODULES.filter((m) => m.id === 'staj');
 
     // Çapraz-bölümde (ana bölümü değil ek bölüm) — yetkili/admin olsa bile
@@ -662,7 +683,7 @@ const Sidebar = ({
       {/* Common Modules — çapraz bölümde tamamen gizli (sadece ders modülleri).
           İstisna: üniversite dışı akademisyen eklendiği bölümde yalnız Öğrenci
           Portalı'nı görür. */}
-      {!isErgunCinar && !studentLocked && (!isOnExtraDept || isExternalUser) && (
+      {!isErgunCinar && !isMemur && !studentLocked && (!isOnExtraDept || isExternalUser) && (
         <div style={{ padding: '4px 12px' }}>
           <div
             style={{
@@ -1640,6 +1661,9 @@ function AppShell() {
       isFacultyManager: user.isFacultyManager || false,
       isDeptManager: user.isDeptManager || false,
       isStajCoordinator: user.isStajCoordinator || false,
+      // Memur rolü — yenileme sonrası da korunmalı (aksi halde rol/erişim kaybolur).
+      isMemur: user.isMemur || false,
+      memurModules: Array.isArray(user.memurModules) ? user.memurModules : [],
       // Ek bölümler ve üniversite dışı bayrağı refresh sonrası da korunmalı
       // (aksi halde çapraz-bölüm ve üniversite dışı erişim yenilenince kayboluyordu).
       additionalDepartments: Array.isArray(user.additionalDepartments)
@@ -1672,7 +1696,12 @@ function AppShell() {
         userName.includes('çınar') ||
         userName.includes('cinar') ||
         userName.includes('cınar'));
-    if (isErgun) {
+    // Memur → ilk atandığı modül (staj varsa staj). Böylece erişemediği
+    // 'portal' rotasında takılı kalmaz.
+    const memurMods = Array.isArray(user.memurModules) ? user.memurModules : [];
+    if (user.isMemur || user.role === 'memur') {
+      navigate(memurMods.includes('staj') ? 'staj' : memurMods[0] || 'staj');
+    } else if (isErgun) {
       navigate('staj');
     } else {
       navigate('portal');
@@ -1961,6 +1990,32 @@ function AppShell() {
                 __html: '@keyframes spin { to { transform: rotate(360deg) } }',
               }}
             />
+          </div>
+        </div>
+      );
+    }
+
+    // Memur — Faz 1'de yalnız 'staj' modülü tam çalışır (koordinatör paneli).
+    // Diğer atanan modüllerin salt-okunur çıktı görünümü Faz 2'de gelecek; o
+    // zamana dek ham modülü (öğrenci gibi) render etmek yerine bilgi göster.
+    const _isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
+    if (_isMemur && route !== 'staj') {
+      return (
+        <div
+          style={{
+            padding: '48px 20px',
+            textAlign: 'center',
+            color: '#6B7280',
+            maxWidth: 560,
+            margin: '0 auto',
+          }}
+        >
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1B2A4A', marginBottom: 8 }}>
+            Atanan modül çıktıları yakında
+          </div>
+          <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+            Bu modül için memur görünümü (akademisyenin ürettiği çıktıları salt-okunur
+            görüntüleme/indirme) hazırlanıyor. Şu an memurlar için yalnızca Staj modülü etkindir.
           </div>
         </div>
       );
