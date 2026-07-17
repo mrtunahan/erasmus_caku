@@ -17,6 +17,11 @@ const COMMON_MODULES = window.COMMON_MODULES;
 const ADMIN_MODULES = window.ADMIN_MODULES;
 const HIERARCHY_MODULES = window.HIERARCHY_MODULES || [];
 
+// Tüm roller için oturum boşta-kalma (idle) süresi: 10 dk işlemsizlik sonrası
+// otomatik çıkış → yeniden giriş gerekir.
+const IDLE_LIMIT_MS = 10 * 60 * 1000;
+const IDLE_ACTIVITY_KEY = 'caku_last_activity';
+
 // Sidebar/RightSidebar/route-guard için ortak: kullanıcının erişebileceği
 // bölümler. Kurallar:
 //   • Öğrenci → yalnız kendi bölümü
@@ -1681,7 +1686,16 @@ function AppShell() {
   // Restore session from localStorage + JWT auth state
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('caku_current_user');
+      let saved = localStorage.getItem('caku_current_user');
+      // 10 dk boşta-kalma: son etkinlikten bu yana >= 10 dk geçtiyse oturumu
+      // geçersiz say (sekme kapalı kalmış olabilir) → giriş ekranı gösterilir.
+      const lastAct = parseInt(localStorage.getItem(IDLE_ACTIVITY_KEY) || '0', 10);
+      if (saved && lastAct && Date.now() - lastAct >= IDLE_LIMIT_MS) {
+        localStorage.removeItem('caku_auth_token');
+        localStorage.removeItem('caku_current_user');
+        localStorage.removeItem(IDLE_ACTIVITY_KEY);
+        saved = null;
+      }
       if (saved) {
         const user = JSON.parse(saved);
         // Bölüm yetkilisi için: eski oturumda yanlış departmentId varsa düzelt
@@ -1876,10 +1890,57 @@ function AppShell() {
   };
 
   const handleLogout = async () => {
-    await Auth.signOut();
+    try {
+      await Auth.signOut();
+    } catch (_) {
+      /* çıkış API'si hata verse de yerel oturum temizlenir */
+    }
+    try {
+      localStorage.removeItem('caku_auth_token');
+      localStorage.removeItem('caku_current_user');
+      localStorage.removeItem(IDLE_ACTIVITY_KEY);
+    } catch (_) {
+      /* yok say */
+    }
     setCurrentUser(null);
     navigate('portal');
   };
+
+  // ── Oturum boşta-kalma (idle) denetimi — TÜM roller ──
+  // 10 dk boyunca kullanıcı etkinliği (fare/klavye/dokunma/kaydırma) olmazsa
+  // otomatik çıkış yapılır. Son etkinlik zaman damgası localStorage'da tutulur
+  // (sekmeler arası paylaşım + geri-yüklemede kontrol). Uyku/arka plan
+  // throttling'e dayanıklı olması için tek setTimeout yerine periyodik kontrol.
+  useEffect(() => {
+    if (!currentUser) return;
+    const bump = () => {
+      try {
+        localStorage.setItem(IDLE_ACTIVITY_KEY, String(Date.now()));
+      } catch (_) {
+        /* yok say */
+      }
+    };
+    bump(); // oturum başında/etkinlikte işaretle
+    let lastWrite = Date.now();
+    const onActivity = () => {
+      const now = Date.now();
+      if (now - lastWrite < 5000) return; // en çok 5 sn'de bir yaz (performans)
+      lastWrite = now;
+      bump();
+    };
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+    events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
+    const check = setInterval(() => {
+      const last = parseInt(localStorage.getItem(IDLE_ACTIVITY_KEY) || '0', 10);
+      if (last && Date.now() - last >= IDLE_LIMIT_MS) {
+        handleLogout();
+      }
+    }, 30000); // 30 sn'de bir kontrol
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, onActivity));
+      clearInterval(check);
+    };
+  }, [currentUser]);
 
   // ── Lazy Loading State ──
   const [loadedModules, setLoadedModules] = useState({});
