@@ -1395,7 +1395,16 @@ function MemurModuleOutputs({ route, currentUser }) {
     let alive = true;
     (async () => {
       setItems(null);
-      const toView = (u) => '/api/files/view/' + String(u).replace('/api/files/download/', '');
+      // PDF tarayıcıda önizlenir (/view); Office belgeleri (.docx/.xlsx) Office
+      // Online ile açılamadığından doğrudan indirilir (/download?download=true).
+      const toView = (u) => {
+        const rel = String(u || '')
+          .replace('/api/files/download/', '')
+          .replace('/api/files/view/', '');
+        return /\.pdf$/i.test(rel)
+          ? '/api/files/view/' + rel
+          : '/api/files/download/' + rel + '?download=true';
+      };
       const memurFacultyId = currentUser?.facultyId || '';
       // Ortak kapsam eşleşmesi: kaydın fakültesi memurun fakültesiyle aynıysa,
       // ya da bölümü memurun kapsamındaysa, ya da kapsamsız (genel) ise göster.

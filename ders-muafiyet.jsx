@@ -11,6 +11,18 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 const fmtName = (v) => (window.formatCaseTr ? window.formatCaseTr(v, 'name') : v || '');
 const fmtTitle = (v) => (window.formatCaseTr ? window.formatCaseTr(v, 'title') : v || '');
 
+// Dosya bağlantısı: PDF tarayıcıda önizlenir (/view); Office belgeleri
+// (.docx/.xlsx) Office Online ile açılamadığından doğrudan indirilir.
+const fileHref = (u) => {
+  const rel = String(u || '')
+    .replace('/api/files/download/', '')
+    .replace('/api/files/view/', '');
+  if (!rel) return '#';
+  return /\.pdf$/i.test(rel)
+    ? '/api/files/view/' + rel
+    : '/api/files/download/' + rel + '?download=true';
+};
+
 // ── Shared bileşenlerden import ──
 const _C = window.C;
 const _Card = window.Card;
@@ -5707,15 +5719,12 @@ const ExemptionHistory = ({
                 >
                   <span style={{ fontWeight: 600 }}>Dilekçe:</span>
                   <a
-                    href={
-                      '/api/files/view/' +
-                      String(rec.dilekceUrl).replace('/api/files/download/', '')
-                    }
+                    href={fileHref(rec.dilekceUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ fontWeight: 600, color: DS.accent }}
                   >
-                    {isStudent ? 'Dilekçemi Görüntüle / İndir' : 'Onaylı Dilekçe'}
+                    {isStudent ? 'Dilekçemi İndir' : 'Onaylı Dilekçeyi İndir'}
                   </a>
                   <span style={{ color: DS.textMuted, fontSize: 11.5 }}>· salt-okunur kopya</span>
                 </div>
