@@ -2255,6 +2255,7 @@ function AppShell() {
         anket: window.AnketModulu,
         univ: window.UnvYonetimiApp,
         fakulte: window.FakYonetimiApp,
+        akreditasyon: window.AkreditasyonApp,
       };
       const FallbackComponent = fallback[route];
       if (FallbackComponent)
