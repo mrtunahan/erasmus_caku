@@ -120,6 +120,10 @@ window.__lazyModules = {
     loader: () => import('./fak-yonetimi-modulu.jsx'),
     component: 'FakYonetimiApp',
   },
+  akreditasyon: {
+    loader: () => import('./akreditasyon-modulu.jsx'),
+    component: 'AkreditasyonApp',
+  },
 };
 
 // ── Phase 3: App Shell (routing & navigation) ──

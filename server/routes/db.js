@@ -130,6 +130,10 @@ const ALLOWED_COLLECTIONS = [
   'student_courses',
   // Memur çıktı görünümü: modüllerin ürettiği belgelerin (snapshot) ortak kaydı.
   'memur_outputs',
+  // Akreditasyon: çerçeve tanımları (MÜDEK vb. — ölçütler VERİ olarak) ve
+  // program bazlı değerlendirme kayıtları (durum/not/kanıt).
+  'akreditasyon_frameworks',
+  'akreditasyon_assessments',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
