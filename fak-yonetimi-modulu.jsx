@@ -379,6 +379,72 @@ function FakYonetimiApp({ currentUser }) {
     }
   };
 
+  // ── Memurlar (öğrenci/akademisyen dışı üçüncü rol) ──
+  // Fakülte yetkilisi memur ekler/siler ve atandıkları modül çıktılarını belirler.
+  // Memurlar 'professors' koleksiyonunda isMemur:true ile tutulur; akademisyen
+  // sayılmaz. Atanabilir modüller (çıktı üreten): 'benim' hariç tüm bölüm modülleri.
+  const MEMUR_ASSIGNABLE = useMemo(
+    () => (window.DEPARTMENT_MODULES || []).filter((m) => m.id !== 'benim'),
+    []
+  );
+  const memurlar = useMemo(
+    () => professors.filter((p) => p.isMemur && (p.facultyId || '') === myFacultyId),
+    [professors, myFacultyId]
+  );
+  const [newMemurName, setNewMemurName] = useState('');
+  const addMemur = async () => {
+    const name = newMemurName.trim();
+    if (!name) return;
+    const norm = (s) => (s || '').toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim();
+    if (professors.some((p) => norm(p.name) === norm(name))) {
+      showMsg('Bu isimde bir kayıt (akademisyen/memur) zaten var.', 'error');
+      return;
+    }
+    try {
+      await window.DBWrite.add('professors', {
+        name,
+        isMemur: true,
+        facultyId: myFacultyId,
+        departmentId: '',
+        memurModules: [],
+        createdAt: new Date().toISOString(),
+      });
+      setNewMemurName('');
+      await load();
+      showMsg(`${name} memur olarak eklendi. Varsayılan şifreyle giriş yapabilir.`);
+    } catch (e) {
+      showMsg('Ekleme hatası: ' + e.message, 'error');
+    }
+  };
+  const deleteMemur = async (memur) => {
+    if (!confirm(`${memur.name} memur kaydı silinsin mi?`)) return;
+    try {
+      await window.DBWrite.remove('professors', memur.id);
+      await load();
+      showMsg('Memur silindi.');
+    } catch (e) {
+      showMsg('Silme hatası: ' + e.message, 'error');
+    }
+  };
+  const toggleMemurModule = async (memur, moduleId) => {
+    const cur = Array.isArray(memur.memurModules) ? memur.memurModules : [];
+    const has = cur.includes(moduleId);
+    const next = has ? cur.filter((m) => m !== moduleId) : cur.concat(moduleId);
+    const patch = { memurModules: next };
+    // 'staj' atanınca/kaldırılınca staj koordinatör bayrağını senkronla — böylece
+    // memur, staj modülünde Ergün Çınar paneline (SGK onayı dahil) sahip olur.
+    if (moduleId === 'staj') {
+      patch.isStajCoordinator = !has;
+      if (!has) patch.facultyId = myFacultyId;
+    }
+    try {
+      await window.DBWrite.set('professors', memur.id, patch, true);
+      await load();
+    } catch (e) {
+      showMsg('Güncelleme hatası: ' + e.message, 'error');
+    }
+  };
+
   if (!isFacultyManager) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
@@ -557,6 +623,141 @@ function FakYonetimiApp({ currentUser }) {
           placeholder="Staj yetkilisi eklemek için akademisyen ara…"
           onPick={(p) => assignStajCoordinator(p)}
         />
+      </div>
+
+      {/* Memurlar (üçüncü rol) — ekle/sil + modül çıktısı atama */}
+      <div style={{ ...fCard, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 9,
+              background: FAK.blueLight,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <FIcon
+              path="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+              size={20}
+              color={FAK.blue}
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 15, fontWeight: 700, color: FAK.primary, margin: 0 }}>Memurlar</p>
+            <p style={{ fontSize: 12, color: FAK.textMuted, margin: '2px 0 0' }}>
+              Akademisyen değildir. Yalnızca atandıkları modülde akademisyenin ürettiği çıktıyı
+              salt-okunur görür/indirir. (Staj atanırsa Ergün Çınar paneline sahip olur.)
+            </p>
+          </div>
+        </div>
+
+        {memurlar.length === 0 ? (
+          <p style={{ fontSize: 12, color: FAK.textMuted, margin: '0 0 10px' }}>
+            Henüz memur eklenmedi.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+            {memurlar.map((m) => {
+              const mods = Array.isArray(m.memurModules) ? m.memurModules : [];
+              return (
+                <div
+                  key={m.id}
+                  style={{
+                    border: '1px solid ' + FAK.border,
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: FAK.primary }}>
+                      {m.name}
+                    </span>
+                    <span
+                      onClick={() => deleteMemur(m)}
+                      title="Memuru sil"
+                      style={{ cursor: 'pointer', color: FAK.red, display: 'flex' }}
+                    >
+                      <FIcon
+                        path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        size={15}
+                        color={FAK.red}
+                      />
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: FAK.textMuted, marginBottom: 6 }}>
+                    Atandığı modül çıktıları (tıklayarak aç/kapat):
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {MEMUR_ASSIGNABLE.map((mod) => {
+                      const on = mods.includes(mod.id);
+                      return (
+                        <button
+                          key={mod.id}
+                          type="button"
+                          onClick={() => toggleMemurModule(m, mod.id)}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 20,
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            border: '1px solid ' + (on ? FAK.accent : FAK.border),
+                            background: on ? FAK.accentPale : 'white',
+                            color: on ? FAK.accent : FAK.textMuted,
+                          }}
+                        >
+                          {on ? '✓ ' : ''}
+                          {mod.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={newMemurName}
+            onChange={(e) => setNewMemurName(e.target.value)}
+            placeholder="Yeni memur adı soyadı"
+            style={{ ...fInput, flex: 1 }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') addMemur();
+            }}
+          />
+          <button
+            type="button"
+            onClick={addMemur}
+            style={{
+              padding: '10px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: FAK.primary,
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Memur Ekle
+          </button>
+        </div>
       </div>
 
       {departments.length === 0 ? (

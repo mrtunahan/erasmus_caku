@@ -337,6 +337,9 @@ async function fetchProfessorProfile(professorName) {
       isFacultyManager: !!doc.isFacultyManager,
       isDeptManager: !!doc.isDeptManager,
       isStajCoordinator: !!doc.isStajCoordinator,
+      // Memur rolü — akademisyenden sayılmaz; yalnız atandığı modüllere erişir.
+      isMemur: !!doc.isMemur,
+      memurModules: Array.isArray(doc.memurModules) ? doc.memurModules : [],
       additionalDepartments: Array.isArray(doc.additionalDepartments)
         ? doc.additionalDepartments
         : [],

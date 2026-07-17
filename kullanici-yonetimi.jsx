@@ -119,16 +119,17 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         if (!dept) return false;
         return dept === target || (shortTarget && dept === shortTarget);
       };
+      // Memurlar akademisyen değildir — akademisyen listelerinde/ders atamada
+      // görünmezler. En kaynakta ayıklanır ki tüm alt kullanımları kapsasın.
+      const visibleProfs = (fetchedProfs || []).filter((p) => !p.isMemur);
       setStudents((fetchedStudents || []).filter(filterStudentByDept));
       setProfessors(
-        (fetchedProfs || [])
-          .filter(filterByDept)
-          .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        visibleProfs.filter(filterByDept).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
       );
       // Üniversite dışı (bölümsüz) akademisyenler — hiçbir bölüm filtresine
       // takılmadıkları için ayrı tutulur ve aktif bölümden bağımsız gösterilir.
       setExternalProfs(
-        (fetchedProfs || [])
+        visibleProfs
           .filter((p) => p.external === true)
           .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'))
       );
@@ -285,7 +286,9 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
       const deptName = dept?.name || '';
       const all = await DB.fetchProfessors();
       // O bölümün akademisyenleri (id eşleşmesi VEYA ad eşleşmesi VEYA ek bölümde)
+      // Memurlar akademisyen değildir — çapraz-bölüm ekleme havuzunda görünmez.
       const filtered = (all || []).filter((p) => {
+        if (p.isMemur) return false;
         if (p.departmentId === deptId) return true;
         if (Array.isArray(p.additionalDepartments) && p.additionalDepartments.includes(deptId))
           return true;

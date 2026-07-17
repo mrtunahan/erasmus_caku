@@ -4853,10 +4853,17 @@ const LoginModal = ({ onLogin }) => {
           // baseRole akademisyen kimliğini korur (gerekirse referans için).
           const hierMgr = !!(p.isUniversityAdmin || p.isFacultyManager);
           // Bayrak → istemci rolü çözümlemesi:
+          //   isMemur → 'memur' (akademisyen DEĞİL; yalnız atandığı modüller)
           //   isUniversityAdmin / isFacultyManager → 'admin' (yönetim kabuğu)
           //   isDeptManager → 'bolum_yetkilisi' (bölüm yetkilisi modülleri)
           //   diğer durumda akademisyen rolü korunur.
-          const effectiveRole = hierMgr ? 'admin' : p.isDeptManager ? 'bolum_yetkilisi' : u.role;
+          const effectiveRole = p.isMemur
+            ? 'memur'
+            : hierMgr
+              ? 'admin'
+              : p.isDeptManager
+                ? 'bolum_yetkilisi'
+                : u.role;
           return {
             ...u,
             role: effectiveRole,
@@ -4869,6 +4876,9 @@ const LoginModal = ({ onLogin }) => {
             isFacultyManager: !!p.isFacultyManager,
             isDeptManager: !!p.isDeptManager,
             isStajCoordinator: !!p.isStajCoordinator,
+            // Memur rolü + atandığı modüller (yalnız bunların çıktısına erişir).
+            isMemur: !!p.isMemur,
+            memurModules: Array.isArray(p.memurModules) ? p.memurModules : [],
             additionalDepartments: Array.isArray(p.additionalDepartments)
               ? p.additionalDepartments
               : [],
