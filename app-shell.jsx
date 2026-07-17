@@ -3,7 +3,7 @@
 // Fakülte bazlı navigasyon, bölüm seçimi ve kimlik doğrulama
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useCallback, useRef } = React;
+const { useState, useEffect, useCallback, useRef, useMemo } = React;
 
 // ── Shared bileşenlerden import (window üzerinden) ──
 const C = window.C;
