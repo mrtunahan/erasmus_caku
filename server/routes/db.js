@@ -134,6 +134,8 @@ const ALLOWED_COLLECTIONS = [
   // program bazlı değerlendirme kayıtları (durum/not/kanıt).
   'akreditasyon_frameworks',
   'akreditasyon_assessments',
+  // Kiracı (tenant) kimliği — beyaz etiket: uygulama/kurum/fakülte adları vb.
+  'tenant_config',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -163,7 +165,8 @@ const READABLE_COLLECTIONS = [...ALLOWED_COLLECTIONS];
 // ══════════════════════════════════════════════
 const DB_AUTH_ENFORCED = process.env.DB_AUTH_MODE !== 'off';
 
-const PUBLIC_READ = new Set(['universities', 'faculties', 'departments']);
+// tenant_config: giriş ekranı (kimliksiz) marka/kurum adını okuyabilmeli.
+const PUBLIC_READ = new Set(['universities', 'faculties', 'departments', 'tenant_config']);
 // Giriş ekranındaki akademisyen adı araması için gerekli asgari alanlar
 const PUBLIC_READ_STRIPPED = { professors: ['name', 'title', 'departmentId'] };
 const ADMIN_READ = new Set(['audit_logs']);
@@ -216,7 +219,12 @@ const STAFF_ROLES = new Set(['professor', 'bolum_yetkilisi', 'admin']);
 const PRIV_FIELDS = ['isUniversityAdmin', 'isFacultyManager', 'isDeptManager'];
 
 // Yapısal koleksiyonlar: bayraksız (sade) professor rolü yazamaz
-const STRUCTURE_MANAGER_WRITE = new Set(['departments', 'faculties', 'universities']);
+const STRUCTURE_MANAGER_WRITE = new Set([
+  'departments',
+  'faculties',
+  'universities',
+  'tenant_config',
+]);
 
 // Öğrenci sahiplik alanları — mevcut dokümanda bunlardan biri doluysa
 // değeri JWT kimliğiyle eşleşmek zorundadır

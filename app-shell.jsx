@@ -274,10 +274,10 @@ const TopHeader = ({
                 lineHeight: 1.2,
               }}
             >
-              {FACULTY.name}
+              {window.TENANT?.facultyName || FACULTY.name}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: isMobile ? 10 : 11 }}>
-              {FACULTY.university}
+              {window.TENANT?.universityName || FACULTY.university}
             </div>
           </div>
         </div>

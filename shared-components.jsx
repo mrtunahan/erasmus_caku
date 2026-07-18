@@ -1516,6 +1516,43 @@ window.apiRead = apiRead;
 window.apiReadDoc = apiReadDoc;
 
 // ══════════════════════════════════════════════════════════════
+// Kiracı (tenant) kimliği — beyaz etiket temeli (bkz. docs/hardcoded-envanter.md)
+// Uygulama/kurum/fakülte adları DB'deki tenant_config/main dokümanından gelir;
+// kayıt yoksa aşağıdaki varsayılanlar geçerlidir (sıfır regresyon). Yüklenince
+// FACULTY sabiti senkronlanır ve 'tenant:loaded' eventi yayınlanır (giriş
+// ekranı gibi erken render olan bileşenler bu eventle tazelenir).
+// ══════════════════════════════════════════════════════════════
+window.TENANT = {
+  appName: 'Offline Asistan',
+  universityName: FACULTY.university,
+  facultyName: FACULTY.name,
+  unitName: 'ÇAKÜ Bilgisayar Mühendisliği',
+  developerNote: 'Offline Asistan, Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.',
+  logoUrl: 'logo.png',
+  studentEmailDomain: 'ogrenci.karatekin.edu.tr',
+};
+(async () => {
+  try {
+    const rows = await apiRead('tenant_config');
+    const cfg = (rows || []).find((r) => (r.id || r._docId) === 'main') || (rows || [])[0];
+    if (!cfg) return;
+    Object.keys(window.TENANT).forEach((k) => {
+      if (cfg[k] != null && cfg[k] !== '') window.TENANT[k] = cfg[k];
+    });
+    // Eski kullanım yerleri FACULTY sabitini okuyor — yerinde senkronla.
+    FACULTY.name = window.TENANT.facultyName;
+    FACULTY.university = window.TENANT.universityName;
+    try {
+      window.dispatchEvent(new CustomEvent('tenant:loaded'));
+    } catch (_) {
+      /* yok say */
+    }
+  } catch (_) {
+    /* config yoksa varsayılanlarla devam */
+  }
+})();
+
+// ══════════════════════════════════════════════════════════════
 // ── PerfData: Performans cevaplarını modüller arası paylaşımlı okuma ──
 // Performans modülünde girilen değerler performance_data koleksiyonunda
 // { akademisyenId, gostergeId, yil, ay, value } olarak saklanır. Herhangi
@@ -4491,6 +4528,14 @@ const Badge = ({ children, color, bg }) => (
 // ── Login Modal ──
 const LoginModal = ({ onLogin }) => {
   const [activeTab, setActiveTab] = useState('student'); // student, professor, admin
+  // Kiracı kimliği (marka/kurum adları) DB'den geç yüklenebilir — event ile tazele.
+  const [, setTenantTick] = useState(0);
+  useEffect(() => {
+    const h = () => setTenantTick((t) => t + 1);
+    window.addEventListener('tenant:loaded', h);
+    return () => window.removeEventListener('tenant:loaded', h);
+  }, []);
+  const T = window.TENANT || {};
   const [identifier, setIdentifier] = useState(''); // studentNo or professorName
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -5652,7 +5697,7 @@ const LoginModal = ({ onLogin }) => {
                 </div>
               </div>
               <div>
-                <div className="lg-brand-name">Offlıne Asistan</div>
+                <div className="lg-brand-name">{T.appName || 'Offline Asistan'}</div>
               </div>
             </div>
 
@@ -6660,11 +6705,9 @@ const LoginModal = ({ onLogin }) => {
         </div>
 
         <p className="lg-footer">
-          © 2025 ÇAKÜ Bilgisayar Mühendisliği · Offline Asistan
+          © {new Date().getFullYear()} {T.unitName || ''} · {T.appName || ''}
           <br />
-          <span className="lg-footer-dev">
-            Offline Asistan, Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.
-          </span>
+          <span className="lg-footer-dev">{T.developerNote || ''}</span>
         </p>
       </div>
     </div>
