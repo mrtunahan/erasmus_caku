@@ -1,17 +1,31 @@
 // ══════════════════════════════════════════════════════════════
-// ÇAKÜ — Akreditasyon Modülü (ilk hedef: MÜDEK)
+// ÇAKÜ — Akreditasyon: Kanıt/Veri Havuzu (ilk hedef: MÜDEK ÖDR)
 //
 // Kullanıcı: FAKÜLTE YETKİLİSİ (isFacultyManager) — kendi fakültesindeki tüm
-// programların (bölümlerin) akreditasyon hazırlığını tek yerden yürütür.
+// programların (bölümlerin) akreditasyon belgelerini tek yerden hazırlar.
+//
+// FELSEFE — "HAVUZ":
+//   Bu modül bir kontrol listesi DEĞİLDİR. Amaç, istenen raporu (önce MÜDEK
+//   ÖDR) üretmek için gereken kanıt parçalarını NEREDEN GELİRSE GELSİN tek
+//   havuzda toplamaktır:
+//     • metin   — serbest açıklama / paragraf
+//     • tablo   — satır/sütun tablosu (öğretim planı, kadro, vb.)
+//     • dosya   — belge/görsel yükle (PDF, docx, resim…)
+//     • link    — dış URL + O SAYFADAN yapıştırılan içerik/tablo (otomatik
+//                 kazıma YOK; tarayıcı/sunucu güvenliği gereği kullanıcı
+//                 ilgili kısmı yapıştırır ya da ekran görüntüsü/PDF yükler)
+//     • sistem  — Offline Asistan verisinden anlık görüntü (KanıtSağlayıcı)
+//   Her kanıt bir ÖLÇÜT'e (1..10) ve bir PROGRAM'a (veya "fakülte geneli")
+//   etiketlenir. "Rapor Oluştur (ÖDR)" havuzu ölçüt ölçüt toplayıp şablonu
+//   doldurur.
 //
 // MİMARİ İLKELER (ticarileşmeye hazırlık):
-//   1. Ölçütler VERİ'dir: çerçeve 'akreditasyon_frameworks' koleksiyonundan
-//      okunur (seed: server/seed-mudek-framework.js). Kodda ölçüt metni yok.
-//   2. KanıtSağlayıcı adaptörü: modül sistem verisine DOĞRUDAN değil, yalnız
-//      bu adaptör üzerinden bağlanır. Modül tek başına satıldığında aynı
-//      sorgular Excel import'u / başka sistem kaynağıyla cevaplanabilir.
-//   3. Kiracı disiplini: her kayıt universityId/facultyId/departmentId taşır;
-//      kurum adı, bölüm listesi, kişi adı kodda sabit DEĞİLDİR.
+//   1. Ölçütler VERİ'dir: çerçeve 'akreditasyon_frameworks'ten okunur
+//      (seed: server/seed-mudek-framework.js). Kodda ölçüt metni yok.
+//   2. KanıtSağlayıcı adaptörü: sistem verisine yalnız bu adaptör üzerinden
+//      bağlanılır; modül tek satılırsa aynı sorgular başka kaynağa bağlanır.
+//   3. Kiracı disiplini: her kayıt universityId/facultyId taşır; kurum/bölüm/
+//      kişi adı kodda SABİT değildir.
 // ══════════════════════════════════════════════════════════════
 
 const { useState, useEffect, useMemo, useCallback } = React;
@@ -32,11 +46,15 @@ const AKR = {
   bg: '#F8F9FB',
 };
 
-const AKR_STATUS = [
-  { id: 'eksik', label: 'Eksik', color: AKR.red, bg: AKR.redLight },
-  { id: 'kismen', label: 'Kısmen', color: AKR.amber, bg: AKR.amberLight },
-  { id: 'tam', label: 'Tam', color: AKR.green, bg: AKR.greenLight },
+// Havuz kanıt türleri
+const HAVUZ_TYPES = [
+  { id: 'metin', label: 'Metin', icon: '📝', desc: 'Serbest açıklama / paragraf' },
+  { id: 'tablo', label: 'Tablo', icon: '▦', desc: 'Satır/sütun tablosu' },
+  { id: 'dosya', label: 'Dosya', icon: '📎', desc: 'Belge/görsel yükle' },
+  { id: 'link', label: 'Bağlantı', icon: '🔗', desc: 'Dış URL + yapıştırılan içerik' },
+  { id: 'sistem', label: 'Sistemden', icon: '⚙️', desc: 'Offline Asistan verisi (anlık)' },
 ];
+const typeMeta = (t) => HAVUZ_TYPES.find((x) => x.id === t) || HAVUZ_TYPES[0];
 
 // Dosya bağlantısı: PDF önizlenir, Office belgeleri doğrudan indirilir.
 const akrFileHref = (u) => {
@@ -50,12 +68,9 @@ const akrFileHref = (u) => {
 };
 
 // ══════════════════════════════════════════════════════════════
-// KanıtSağlayıcı — kaynak-bağımsız kanıt sorguları.
+// KanıtSağlayıcı — kaynak-bağımsız sistem sorguları ('sistem' türü kullanır).
 // Sözleşme: fetch(key, ctx) → { label, count, detail } | null
 //   ctx: { departmentId, departmentName, facultyId }
-// Varsayılan kaynak: Offline Asistan koleksiyonları. Modül tek başına
-// kurulduğunda 'queries' başka bir kaynakla (import edilen veri) değiştirilir;
-// modülün geri kalanı hiç değişmez.
 // ══════════════════════════════════════════════════════════════
 const KanitSaglayici = {
   source: 'offline-asistan',
@@ -68,6 +83,17 @@ const KanitSaglayici = {
       return null;
     }
   },
+  // Kullanıcıya gösterilecek insan-okur etiketler (sistem kaynağı seçimi)
+  catalog: [
+    { key: 'ogrenciler', label: 'Kayıtlı öğrenci sayısı' },
+    { key: 'kadro', label: 'Öğretim elemanı sayısı' },
+    { key: 'muafiyet', label: 'Muafiyet/intibak dosyası' },
+    { key: 'ders_programi', label: 'Ders programı kaydı' },
+    { key: 'sinavlar', label: 'Sınav kaydı' },
+    { key: 'anketler', label: 'Anket (ölçme aracı)' },
+    { key: 'performans', label: 'Performans göstergesi / veri' },
+    { key: 'stajlar', label: 'Staj başvurusu' },
+  ],
   queries: {
     ogrenciler: async ({ departmentId }) => {
       const list = await window.apiRead('students', {
@@ -127,232 +153,180 @@ const KanitSaglayici = {
 };
 window.KanitSaglayici = KanitSaglayici;
 
-// ── Alt ölçüt satırı ──
-function AkrSubRow({ sub, state, onStatus, onNote, onAddLink, onUpload, onRemoveEvidence }) {
-  const [noteOpen, setNoteOpen] = useState(false);
-  const [linkInput, setLinkInput] = useState('');
+// Boş tablo yapısı
+const emptyTable = () => ({ headers: ['Sütun 1', 'Sütun 2'], rows: [['', '']] });
+
+// ══════════════════════════════════════════════════════════════
+// Küçük düzenlenebilir tablo editörü
+// ══════════════════════════════════════════════════════════════
+function TableEditor({ table, onChange }) {
+  const t = table && Array.isArray(table.headers) ? table : emptyTable();
+  const setHeader = (ci, val) => {
+    const headers = t.headers.slice();
+    headers[ci] = val;
+    onChange({ ...t, headers });
+  };
+  const setCell = (ri, ci, val) => {
+    const rows = t.rows.map((r) => r.slice());
+    rows[ri][ci] = val;
+    onChange({ ...t, rows });
+  };
+  const addCol = () => {
+    onChange({
+      headers: t.headers.concat('Sütun ' + (t.headers.length + 1)),
+      rows: t.rows.map((r) => r.concat('')),
+    });
+  };
+  const removeCol = (ci) => {
+    if (t.headers.length <= 1) return;
+    onChange({
+      headers: t.headers.filter((_h, i) => i !== ci),
+      rows: t.rows.map((r) => r.filter((_c, i) => i !== ci)),
+    });
+  };
+  const addRow = () => onChange({ ...t, rows: t.rows.concat([t.headers.map(() => '')]) });
+  const removeRow = (ri) => onChange({ ...t, rows: t.rows.filter((_r, i) => i !== ri) });
+
+  const cellStyle = {
+    border: '1px solid ' + AKR.border,
+    padding: 0,
+  };
+  const inputStyle = {
+    width: '100%',
+    border: 'none',
+    padding: '6px 8px',
+    fontSize: 12.5,
+    outline: 'none',
+    fontFamily: "'Inter', sans-serif",
+    background: 'transparent',
+    boxSizing: 'border-box',
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ overflowX: 'auto', border: '1px solid ' + AKR.border, borderRadius: 8 }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 320 }}>
+          <thead>
+            <tr>
+              {t.headers.map((h, ci) => (
+                <th key={ci} style={{ ...cellStyle, background: AKR.bg, position: 'relative' }}>
+                  <input
+                    value={h}
+                    onChange={(e) => setHeader(ci, e.target.value)}
+                    style={{ ...inputStyle, fontWeight: 700, color: AKR.navy }}
+                  />
+                  {t.headers.length > 1 && (
+                    <span
+                      onClick={() => removeCol(ci)}
+                      title="Sütunu sil"
+                      style={{
+                        position: 'absolute',
+                        top: 2,
+                        right: 3,
+                        cursor: 'pointer',
+                        color: AKR.textMuted,
+                        fontSize: 11,
+                      }}
+                    >
+                      ×
+                    </span>
+                  )}
+                </th>
+              ))}
+              <th style={{ ...cellStyle, background: AKR.bg, width: 30 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {t.rows.map((r, ri) => (
+              <tr key={ri}>
+                {t.headers.map((_h, ci) => (
+                  <td key={ci} style={cellStyle}>
+                    <input
+                      value={r[ci] || ''}
+                      onChange={(e) => setCell(ri, ci, e.target.value)}
+                      style={inputStyle}
+                    />
+                  </td>
+                ))}
+                <td style={{ ...cellStyle, textAlign: 'center' }}>
+                  <span
+                    onClick={() => removeRow(ri)}
+                    title="Satırı sil"
+                    style={{ cursor: 'pointer', color: AKR.textMuted, fontSize: 13 }}
+                  >
+                    ×
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" onClick={addRow} style={miniBtn}>
+          + Satır
+        </button>
+        <button type="button" onClick={addCol} style={miniBtn}>
+          + Sütun
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const miniBtn = {
+  padding: '5px 12px',
+  borderRadius: 7,
+  border: '1px solid ' + AKR.border,
+  background: 'white',
+  color: AKR.accent,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+// Tabloyu düz metne çevir (rapor üretimi + önizleme)
+function tableToText(table) {
+  if (!table || !Array.isArray(table.headers)) return '';
+  const lines = [table.headers.join(' | ')];
+  (table.rows || []).forEach((r) =>
+    lines.push(table.headers.map((_h, i) => r[i] || '').join(' | '))
+  );
+  return lines.join('\n');
+}
+
+// ══════════════════════════════════════════════════════════════
+// Kanıt ekle/düzenle modalı
+// ══════════════════════════════════════════════════════════════
+function HavuzEditor({ initial, criteria, departments, defaults, ctxForSystem, onSave, onClose }) {
+  const [type, setType] = useState(initial?.type || 'metin');
+  const [title, setTitle] = useState(initial?.title || '');
+  const [olcutNo, setOlcutNo] = useState(
+    initial ? initial.olcutNo || 0 : defaults.olcutNo || (criteria[0] ? criteria[0].no : 0)
+  );
+  const [departmentId, setDepartmentId] = useState(
+    initial ? initial.departmentId || '' : defaults.departmentId || ''
+  );
+  const [content, setContent] = useState(initial?.content || '');
+  const [sourceUrl, setSourceUrl] = useState(initial?.sourceUrl || '');
+  const [table, setTable] = useState(initial?.table || emptyTable());
+  const [fileUrl, setFileUrl] = useState(initial?.fileUrl || '');
+  const [fileLabel, setFileLabel] = useState(initial?.fileLabel || '');
   const [uploading, setUploading] = useState(false);
-  const st = state.status || '';
-  const evidence = state.evidence || [];
+  const [sysKeys, setSysKeys] = useState(initial?.systemKeys || []);
+  const [sysBusy, setSysBusy] = useState(false);
+  const [err, setErr] = useState('');
 
   const pickFile = async (e) => {
     const f = (e.target.files && e.target.files[0]) || null;
     e.target.value = '';
     if (!f) return;
     setUploading(true);
-    try {
-      await onUpload(f);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <div
-      style={{
-        borderTop: '1px solid ' + AKR.border,
-        padding: '12px 0',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-      }}
-    >
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div
-          style={{
-            flex: '1 1 380px',
-            minWidth: 0,
-            fontSize: 13,
-            color: AKR.text,
-            lineHeight: 1.55,
-          }}
-        >
-          {sub.text}
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          {AKR_STATUS.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => onStatus(st === s.id ? '' : s.id)}
-              style={{
-                padding: '4px 11px',
-                borderRadius: 16,
-                fontSize: 11.5,
-                fontWeight: 600,
-                cursor: 'pointer',
-                border: '1px solid ' + (st === s.id ? s.color : AKR.border),
-                background: st === s.id ? s.bg : 'white',
-                color: st === s.id ? s.color : AKR.textMuted,
-              }}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Kanıtlar + not */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-        {evidence.map((ev, i) => (
-          <span
-            key={i}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '3px 9px',
-              borderRadius: 14,
-              background: AKR.accentPale,
-              border: '1px solid ' + AKR.accent + '33',
-              fontSize: 11.5,
-            }}
-          >
-            <a
-              href={ev.type === 'file' ? akrFileHref(ev.url) : ev.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: AKR.accent, fontWeight: 600, textDecoration: 'none' }}
-            >
-              {ev.type === 'file' ? '📎 ' : '🔗 '}
-              {ev.label}
-            </a>
-            <span
-              onClick={() => onRemoveEvidence(i)}
-              title="Kanıtı kaldır"
-              style={{ cursor: 'pointer', color: AKR.textMuted }}
-            >
-              ×
-            </span>
-          </span>
-        ))}
-        <label
-          style={{
-            cursor: uploading ? 'wait' : 'pointer',
-            fontSize: 11.5,
-            color: AKR.accent,
-            fontWeight: 600,
-          }}
-        >
-          <input type="file" style={{ display: 'none' }} onChange={pickFile} />
-          {uploading ? 'Yükleniyor…' : '+ Dosya'}
-        </label>
-        <span
-          onClick={() => setLinkInput(linkInput ? '' : 'https://')}
-          style={{ cursor: 'pointer', fontSize: 11.5, color: AKR.accent, fontWeight: 600 }}
-        >
-          + Bağlantı
-        </span>
-        <span
-          onClick={() => setNoteOpen(!noteOpen)}
-          style={{ cursor: 'pointer', fontSize: 11.5, color: AKR.textMuted, fontWeight: 600 }}
-        >
-          {state.note ? '✎ Not (dolu)' : '✎ Not'}
-        </span>
-      </div>
-
-      {linkInput !== '' && (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input
-            value={linkInput}
-            onChange={(e) => setLinkInput(e.target.value)}
-            placeholder="https://… (kanıt bağlantısı)"
-            style={{
-              flex: 1,
-              padding: '7px 10px',
-              borderRadius: 7,
-              border: '1px solid ' + AKR.border,
-              fontSize: 12.5,
-              outline: 'none',
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && /^https?:\/\/\S+$/i.test(linkInput)) {
-                onAddLink(linkInput);
-                setLinkInput('');
-              }
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => {
-              if (/^https?:\/\/\S+$/i.test(linkInput)) {
-                onAddLink(linkInput);
-                setLinkInput('');
-              }
-            }}
-            style={{
-              padding: '7px 13px',
-              borderRadius: 7,
-              border: 'none',
-              background: AKR.navy,
-              color: 'white',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Ekle
-          </button>
-        </div>
-      )}
-
-      {noteOpen && (
-        <textarea
-          value={state.note || ''}
-          onChange={(e) => onNote(e.target.value)}
-          placeholder="Bu alt ölçütle ilgili notlar / eksikler / yapılacaklar…"
-          rows={2}
-          style={{
-            padding: '8px 10px',
-            borderRadius: 7,
-            border: '1px solid ' + AKR.border,
-            fontSize: 12.5,
-            outline: 'none',
-            resize: 'vertical',
-            fontFamily: "'Inter', sans-serif",
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── Ölçüt kartı (akordeon) ──
-function AkrCriterionCard({ criterion, assessment, ctx, onPatch }) {
-  const [open, setOpen] = useState(false);
-  const [autoEvidence, setAutoEvidence] = useState(null); // null=yüklenmedi
-
-  const subStates = assessment.items || {};
-  const done = criterion.sub.filter((s) => (subStates[s.id] || {}).status === 'tam').length;
-  const partial = criterion.sub.filter((s) => (subStates[s.id] || {}).status === 'kismen').length;
-
-  // Otomatik kanıtlar — kart açılınca bir kez, adaptörden.
-  useEffect(() => {
-    if (!open || autoEvidence !== null || !criterion.evidenceKeys?.length) return;
-    let alive = true;
-    (async () => {
-      const results = [];
-      for (const key of criterion.evidenceKeys) {
-        const r = await KanitSaglayici.fetch(key, ctx);
-        if (r) results.push(r);
-      }
-      if (alive) setAutoEvidence(results);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [open, criterion, ctx, autoEvidence]);
-
-  const patchSub = (subId, patch) => {
-    const cur = subStates[subId] || {};
-    onPatch({ items: { ...subStates, [subId]: { ...cur, ...patch } } });
-  };
-
-  const uploadEvidence = async (subId, file) => {
+    setErr('');
     try {
       const token = localStorage.getItem('caku_auth_token');
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', f);
       const res = await fetch('/api/files/upload?folder=akreditasyon_kanitlar', {
         method: 'POST',
         headers: token ? { Authorization: 'Bearer ' + token } : {},
@@ -362,159 +336,576 @@ function AkrCriterionCard({ criterion, assessment, ctx, onPatch }) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (!data.downloadURL) throw new Error('URL alınamadı');
-      const cur = subStates[subId] || {};
-      const evidence = (cur.evidence || []).concat({
-        type: 'file',
-        label: file.name,
-        url: data.downloadURL,
-      });
-      patchSub(subId, { evidence });
-    } catch (e) {
-      alert('Kanıt yüklenemedi: ' + e.message);
+      setFileUrl(data.downloadURL);
+      setFileLabel(f.name);
+      if (!title) setTitle(f.name);
+    } catch (e2) {
+      setErr('Dosya yüklenemedi: ' + e2.message);
+    } finally {
+      setUploading(false);
     }
   };
 
+  // 'sistem' — seçilen göstergeleri anlık çek, tabloya yaz (snapshot)
+  const snapshotSystem = async () => {
+    if (sysKeys.length === 0) {
+      setErr('En az bir gösterge seçin.');
+      return;
+    }
+    setSysBusy(true);
+    setErr('');
+    try {
+      const rows = [];
+      for (const key of sysKeys) {
+        const r = await KanitSaglayici.fetch(key, ctxForSystem);
+        const cat = KanitSaglayici.catalog.find((c) => c.key === key);
+        rows.push([
+          cat ? cat.label : key,
+          r ? String(r.count) + (r.detail ? ' (' + r.detail + ')' : '') : 'veri yok',
+        ]);
+      }
+      const stamp = new Date().toLocaleString('tr-TR');
+      setTable({ headers: ['Gösterge', 'Değer (' + stamp + ')'], rows });
+      if (!title) setTitle('Sistem verisi — ' + stamp);
+    } finally {
+      setSysBusy(false);
+    }
+  };
+
+  const submit = () => {
+    if (!title.trim()) {
+      setErr('Başlık girin.');
+      return;
+    }
+    if (type === 'dosya' && !fileUrl) {
+      setErr('Bir dosya yükleyin.');
+      return;
+    }
+    if (type === 'link' && !/^https?:\/\/\S+$/i.test(sourceUrl)) {
+      setErr('Geçerli bir URL girin (https://…).');
+      return;
+    }
+    const rec = {
+      type,
+      title: title.trim(),
+      olcutNo: Number(olcutNo) || 0,
+      departmentId: departmentId || '',
+      content: type === 'metin' || type === 'link' ? content : '',
+      sourceUrl: type === 'link' ? sourceUrl.trim() : '',
+      fileUrl: type === 'dosya' ? fileUrl : '',
+      fileLabel: type === 'dosya' ? fileLabel : '',
+      table: type === 'tablo' || type === 'sistem' ? table : null,
+      systemKeys: type === 'sistem' ? sysKeys : [],
+    };
+    onSave(rec);
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.45)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '40px 16px',
+        overflowY: 'auto',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'white',
+          borderRadius: 14,
+          width: '100%',
+          maxWidth: 620,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        <div
+          style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid ' + AKR.border,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: AKR.navy }}>
+            {initial ? 'Kanıtı Düzenle' : 'Havuza Kanıt Ekle'}
+          </h3>
+          <span
+            onClick={onClose}
+            style={{ cursor: 'pointer', color: AKR.textMuted, fontSize: 20, lineHeight: 1 }}
+          >
+            ×
+          </span>
+        </div>
+
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Tür seçimi */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {HAVUZ_TYPES.map((tp) => (
+              <button
+                key={tp.id}
+                type="button"
+                onClick={() => setType(tp.id)}
+                title={tp.desc}
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: 9,
+                  border: '1px solid ' + (type === tp.id ? AKR.accent : AKR.border),
+                  background: type === tp.id ? AKR.accentPale : 'white',
+                  color: type === tp.id ? AKR.accent : AKR.textMuted,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {tp.icon} {tp.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Ölçüt + program etiketi */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <label
+              style={{ flex: '1 1 240px', fontSize: 12, color: AKR.textMuted, fontWeight: 600 }}
+            >
+              Ölçüt
+              <select
+                value={olcutNo}
+                onChange={(e) => setOlcutNo(e.target.value)}
+                style={selectStyle}
+              >
+                <option value={0}>Genel / etiketsiz</option>
+                {criteria.map((c) => (
+                  <option key={c.no} value={c.no}>
+                    Ölçüt {c.no} — {c.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label
+              style={{ flex: '1 1 200px', fontSize: 12, color: AKR.textMuted, fontWeight: 600 }}
+            >
+              Program
+              <select
+                value={departmentId}
+                onChange={(e) => setDepartmentId(e.target.value)}
+                style={selectStyle}
+              >
+                <option value="">Fakülte geneli (tüm programlar)</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {/* Başlık */}
+          <label style={{ fontSize: 12, color: AKR.textMuted, fontWeight: 600 }}>
+            Başlık
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Kanıtı tanımlayan kısa başlık"
+              style={inputBox}
+            />
+          </label>
+
+          {/* Türe özel alanlar */}
+          {type === 'metin' && (
+            <label style={{ fontSize: 12, color: AKR.textMuted, fontWeight: 600 }}>
+              İçerik
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                rows={6}
+                placeholder="Rapora girecek metin / açıklama…"
+                style={{ ...inputBox, resize: 'vertical' }}
+              />
+            </label>
+          )}
+
+          {type === 'link' && (
+            <>
+              <label style={{ fontSize: 12, color: AKR.textMuted, fontWeight: 600 }}>
+                Kaynak URL
+                <input
+                  value={sourceUrl}
+                  onChange={(e) => setSourceUrl(e.target.value)}
+                  placeholder="https://… (kanıtın alındığı sayfa)"
+                  style={inputBox}
+                />
+              </label>
+              <label style={{ fontSize: 12, color: AKR.textMuted, fontWeight: 600 }}>
+                Yapıştırılan içerik
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  rows={5}
+                  placeholder="O sayfadan ilgili metni/tabloyu buraya yapıştırın. (Otomatik çekme yapılmaz — istediğiniz kısmı siz yapıştırırsınız ya da ekran görüntüsü/PDF'yi 'Dosya' türüyle eklersiniz.)"
+                  style={{ ...inputBox, resize: 'vertical' }}
+                />
+              </label>
+            </>
+          )}
+
+          {type === 'dosya' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label
+                style={{
+                  ...miniBtn,
+                  alignSelf: 'flex-start',
+                  cursor: uploading ? 'wait' : 'pointer',
+                }}
+              >
+                <input type="file" style={{ display: 'none' }} onChange={pickFile} />
+                {uploading ? 'Yükleniyor…' : fileUrl ? 'Dosyayı Değiştir' : '📎 Dosya Seç ve Yükle'}
+              </label>
+              {fileUrl && (
+                <a
+                  href={akrFileHref(fileUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: AKR.accent,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                  }}
+                >
+                  📎 {fileLabel}
+                </a>
+              )}
+            </div>
+          )}
+
+          {type === 'tablo' && <TableEditor table={table} onChange={setTable} />}
+
+          {type === 'sistem' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 11.5, color: AKR.textMuted }}>
+                Seçili programın sistem verisinden anlık görüntü alınır ve tabloya yazılır. Rapor
+                anındaki değeri sabitler (snapshot).
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {KanitSaglayici.catalog.map((c) => {
+                  const on = sysKeys.includes(c.key);
+                  return (
+                    <button
+                      key={c.key}
+                      type="button"
+                      onClick={() =>
+                        setSysKeys(on ? sysKeys.filter((k) => k !== c.key) : sysKeys.concat(c.key))
+                      }
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: 14,
+                        border: '1px solid ' + (on ? AKR.accent : AKR.border),
+                        background: on ? AKR.accentPale : 'white',
+                        color: on ? AKR.accent : AKR.textMuted,
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={snapshotSystem}
+                disabled={sysBusy}
+                style={{ ...miniBtn, alignSelf: 'flex-start' }}
+              >
+                {sysBusy ? 'Çekiliyor…' : '⚙️ Anlık Görüntü Al'}
+              </button>
+              {table && table.rows && table.rows.length > 0 && (
+                <div
+                  style={{ overflowX: 'auto', border: '1px solid ' + AKR.border, borderRadius: 8 }}
+                >
+                  <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12.5 }}>
+                    <thead>
+                      <tr>
+                        {table.headers.map((h, i) => (
+                          <th
+                            key={i}
+                            style={{
+                              border: '1px solid ' + AKR.border,
+                              padding: '6px 8px',
+                              background: AKR.bg,
+                              color: AKR.navy,
+                              textAlign: 'left',
+                            }}
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {table.rows.map((r, ri) => (
+                        <tr key={ri}>
+                          {r.map((c, ci) => (
+                            <td
+                              key={ci}
+                              style={{ border: '1px solid ' + AKR.border, padding: '6px 8px' }}
+                            >
+                              {c}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {err && <div style={{ color: AKR.red, fontSize: 12.5 }}>{err}</div>}
+        </div>
+
+        <div
+          style={{
+            padding: '14px 20px',
+            borderTop: '1px solid ' + AKR.border,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 8,
+          }}
+        >
+          <button type="button" onClick={onClose} style={{ ...miniBtn, color: AKR.textMuted }}>
+            Vazgeç
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            style={{
+              padding: '8px 20px',
+              borderRadius: 8,
+              border: 'none',
+              background: AKR.navy,
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {initial ? 'Kaydet' : 'Havuza Ekle'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const selectStyle = {
+  display: 'block',
+  width: '100%',
+  marginTop: 4,
+  padding: '8px 10px',
+  borderRadius: 8,
+  border: '1px solid ' + AKR.border,
+  fontSize: 13,
+  background: 'white',
+  fontFamily: "'Inter', sans-serif",
+  color: AKR.text,
+};
+const inputBox = {
+  display: 'block',
+  width: '100%',
+  marginTop: 4,
+  padding: '8px 10px',
+  borderRadius: 8,
+  border: '1px solid ' + AKR.border,
+  fontSize: 13,
+  outline: 'none',
+  boxSizing: 'border-box',
+  fontFamily: "'Inter', sans-serif",
+  color: AKR.text,
+};
+
+// ══════════════════════════════════════════════════════════════
+// Havuz kanıt kartı
+// ══════════════════════════════════════════════════════════════
+function HavuzCard({ item, criteria, departments, onEdit, onDelete }) {
+  const tp = typeMeta(item.type);
+  const crit = criteria.find((c) => c.no === (item.olcutNo || 0));
+  const dept = departments.find((d) => d.id === item.departmentId);
   return (
     <div
       style={{
         background: 'white',
         border: '1px solid ' + AKR.border,
         borderRadius: 12,
-        overflow: 'hidden',
+        padding: 14,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
       }}
     >
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '14px 18px',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          textAlign: 'left',
-        }}
-      >
-        <span
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 9,
-            background: done === criterion.sub.length ? AKR.greenLight : AKR.bg,
-            color: done === criterion.sub.length ? AKR.green : AKR.navy,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 13,
-            fontWeight: 800,
-            flexShrink: 0,
-          }}
-        >
-          {criterion.no}
-        </span>
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'block', fontSize: 14.5, fontWeight: 700, color: AKR.navy }}>
-            {criterion.title}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <span style={{ fontSize: 18, lineHeight: 1 }}>{tp.icon}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: AKR.navy, wordBreak: 'break-word' }}>
+            {item.title}
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 5 }}>
+            <span style={pill(AKR.navy, AKR.bg)}>
+              {item.olcutNo ? 'Ölçüt ' + item.olcutNo : 'Genel'}
+            </span>
+            <span style={pill(AKR.accent, AKR.accentPale)}>
+              {dept ? dept.name : 'Fakülte geneli'}
+            </span>
+            <span style={pill(AKR.textMuted, AKR.bg)}>{tp.label}</span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+          <span onClick={onEdit} title="Düzenle" style={iconBtn}>
+            ✎
           </span>
-          <span style={{ fontSize: 11.5, color: AKR.textMuted }}>
-            {done}/{criterion.sub.length} tam{partial ? ' · ' + partial + ' kısmen' : ''}
+          <span onClick={onDelete} title="Sil" style={{ ...iconBtn, color: AKR.red }}>
+            🗑
           </span>
-        </span>
-        <span
-          style={{
-            color: AKR.textMuted,
-            transform: open ? 'rotate(180deg)' : 'none',
-            transition: 'transform 0.15s',
-            fontSize: 12,
-          }}
-        >
-          ▼
-        </span>
-      </button>
+        </div>
+      </div>
 
-      {open && (
-        <div style={{ padding: '0 18px 14px' }}>
-          {/* Sistemden otomatik kanıt özeti (KanıtSağlayıcı) */}
-          {criterion.evidenceKeys?.length > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 6,
-                padding: '10px 12px',
-                background: AKR.bg,
-                borderRadius: 9,
-                marginBottom: 4,
-                fontSize: 11.5,
-              }}
+      {/* İçerik önizleme */}
+      {item.type === 'metin' && item.content && <div style={previewText}>{item.content}</div>}
+      {item.type === 'link' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {item.sourceUrl && (
+            <a
+              href={item.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: AKR.accent, fontSize: 12, fontWeight: 600, wordBreak: 'break-all' }}
             >
-              <span style={{ fontWeight: 700, color: AKR.textMuted }}>Sistemden kanıt:</span>
-              {autoEvidence === null ? (
-                <span style={{ color: AKR.textMuted }}>yükleniyor…</span>
-              ) : autoEvidence.length === 0 ? (
-                <span style={{ color: AKR.textMuted }}>veri bulunamadı</span>
-              ) : (
-                autoEvidence.map((ev, i) => (
-                  <span key={i} style={{ color: AKR.accent, fontWeight: 600 }}>
-                    {ev.label}: {ev.count}
-                    {ev.detail ? ' (' + ev.detail + ')' : ''}
-                  </span>
-                ))
-              )}
-            </div>
+              🔗 {item.sourceUrl}
+            </a>
           )}
-
-          {criterion.sub.map((sub) => (
-            <AkrSubRow
-              key={sub.id}
-              sub={sub}
-              state={subStates[sub.id] || {}}
-              onStatus={(status) => patchSub(sub.id, { status })}
-              onNote={(note) => patchSub(sub.id, { note })}
-              onAddLink={(url) => {
-                const cur = subStates[sub.id] || {};
-                patchSub(sub.id, {
-                  evidence: (cur.evidence || []).concat({
-                    type: 'link',
-                    label: url.replace(/^https?:\/\//, '').slice(0, 40),
-                    url,
-                  }),
-                });
-              }}
-              onUpload={(file) => uploadEvidence(sub.id, file)}
-              onRemoveEvidence={(idx) => {
-                const cur = subStates[sub.id] || {};
-                patchSub(sub.id, { evidence: (cur.evidence || []).filter((_x, i) => i !== idx) });
-              }}
-            />
-          ))}
+          {item.content && <div style={previewText}>{item.content}</div>}
+        </div>
+      )}
+      {item.type === 'dosya' && item.fileUrl && (
+        <a
+          href={akrFileHref(item.fileUrl)}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: AKR.accent, fontSize: 12.5, fontWeight: 600, textDecoration: 'none' }}
+        >
+          📎 {item.fileLabel || 'Dosya'}
+        </a>
+      )}
+      {(item.type === 'tablo' || item.type === 'sistem') && item.table && (
+        <div style={{ overflowX: 'auto', border: '1px solid ' + AKR.border, borderRadius: 8 }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+            <thead>
+              <tr>
+                {(item.table.headers || []).map((h, i) => (
+                  <th
+                    key={i}
+                    style={{
+                      border: '1px solid ' + AKR.border,
+                      padding: '5px 7px',
+                      background: AKR.bg,
+                      color: AKR.navy,
+                      textAlign: 'left',
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(item.table.rows || []).slice(0, 6).map((r, ri) => (
+                <tr key={ri}>
+                  {(item.table.headers || []).map((_h, ci) => (
+                    <td key={ci} style={{ border: '1px solid ' + AKR.border, padding: '5px 7px' }}>
+                      {r[ci] || ''}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   );
 }
 
+const pill = (color, bg) => ({
+  padding: '2px 9px',
+  borderRadius: 12,
+  background: bg,
+  color,
+  fontSize: 11,
+  fontWeight: 700,
+});
+const iconBtn = {
+  cursor: 'pointer',
+  fontSize: 14,
+  color: AKR.textMuted,
+  padding: 2,
+};
+const previewText = {
+  fontSize: 12.5,
+  color: AKR.text,
+  lineHeight: 1.5,
+  whiteSpace: 'pre-wrap',
+  maxHeight: 90,
+  overflow: 'hidden',
+  background: AKR.bg,
+  borderRadius: 8,
+  padding: '8px 10px',
+};
+
 // ══════════════════════════════════════════════════════════════
-// Ana uygulama
+// Ana uygulama — Kanıt/Veri Havuzu
 // ══════════════════════════════════════════════════════════════
 function AkreditasyonApp({ currentUser }) {
   const isFacultyManager = !!currentUser?.isFacultyManager;
   const myFacultyId = currentUser?.facultyId || '';
   const myUniversityId = currentUser?.universityId || '';
 
-  const [framework, setFramework] = useState(null); // çerçeve (VERİ)
+  const [framework, setFramework] = useState(null);
   const [departments, setDepartments] = useState([]);
-  const [selDept, setSelDept] = useState('');
-  const [assessment, setAssessment] = useState(null); // {items:{subId:{status,note,evidence}}}
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
+
+  const [progDept, setProgDept] = useState('__all'); // '__all' | '' (fakülte geneli) | deptId
+  const [filterOlcut, setFilterOlcut] = useState('all'); // 'all' | number
+  const [filterType, setFilterType] = useState('all');
+  const [editor, setEditor] = useState(null); // {mode:'new'|'edit', item?}
+  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
-  // Çerçeve + fakülte bölümleri
+  const criteria = useMemo(
+    () => (framework?.criteria || []).map((c) => ({ no: c.no, title: c.title })),
+    [framework]
+  );
+
+  const loadItems = useCallback(async () => {
+    if (!myFacultyId) return;
+    const list = await window.apiRead('akreditasyon_havuz', {
+      where: 'facultyId:eq:s:' + myFacultyId,
+    });
+    setItems((list || []).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')));
+  }, [myFacultyId]);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -530,7 +921,7 @@ function AkreditasyonApp({ currentUser }) {
           .filter((d) => (d.facultyId || '') === myFacultyId)
           .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
         setDepartments(mine);
-        if (mine.length > 0) setSelDept((prev) => prev || mine[0].id);
+        await loadItems();
       } finally {
         if (alive) setLoading(false);
       }
@@ -538,93 +929,176 @@ function AkreditasyonApp({ currentUser }) {
     return () => {
       alive = false;
     };
-  }, [myFacultyId]);
+  }, [myFacultyId, loadItems]);
 
-  // Seçili programın değerlendirme kaydı
-  const assessmentId = framework && selDept ? (framework.id || 'mudek-genel') + '__' + selDept : '';
-  useEffect(() => {
-    if (!assessmentId) return;
-    let alive = true;
-    (async () => {
-      try {
-        const res = await window.apiReadDoc('akreditasyon_assessments', assessmentId);
-        const doc = (res && res.exists && res.data) || {};
-        if (alive) {
-          setAssessment({ items: doc.items || {} });
-          setDirty(false);
-        }
-      } catch (_e) {
-        if (alive) {
-          setAssessment({ items: {} });
-          setDirty(false);
-        }
+  // Görünen kanıtlar (program + ölçüt + tür filtresi)
+  const visible = useMemo(() => {
+    return items.filter((it) => {
+      if (progDept !== '__all') {
+        if (progDept === '') {
+          if (it.departmentId) return false;
+        } else if (it.departmentId !== progDept) return false;
       }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [assessmentId]);
+      if (filterOlcut !== 'all' && (it.olcutNo || 0) !== filterOlcut) return false;
+      if (filterType !== 'all' && it.type !== filterType) return false;
+      return true;
+    });
+  }, [items, progDept, filterOlcut, filterType]);
 
-  const save = useCallback(async () => {
-    if (!assessmentId || !assessment) return;
-    setSaving(true);
+  // Ölçüt bazlı sayaç (üst şerit)
+  const perOlcutCount = useMemo(() => {
+    const scoped = items.filter((it) => {
+      if (progDept === '__all') return true;
+      if (progDept === '') return !it.departmentId;
+      return it.departmentId === progDept;
+    });
+    const m = {};
+    scoped.forEach((it) => {
+      const k = it.olcutNo || 0;
+      m[k] = (m[k] || 0) + 1;
+    });
+    return m;
+  }, [items, progDept]);
+
+  const ctxForSystem = useMemo(() => {
+    const d = departments.find((x) => x.id === (progDept !== '__all' ? progDept : ''));
+    return {
+      departmentId: progDept !== '__all' && progDept !== '' ? progDept : '',
+      departmentName: d?.name || '',
+      facultyId: myFacultyId,
+    };
+  }, [progDept, departments, myFacultyId]);
+
+  const saveItem = async (rec) => {
+    setBusy(true);
     try {
-      await window.DBWrite.set(
-        'akreditasyon_assessments',
-        assessmentId,
-        {
-          frameworkId: framework.id || 'mudek-genel',
-          departmentId: selDept,
+      if (editor?.item?.id) {
+        await window.DBWrite.update('akreditasyon_havuz', String(editor.item.id), {
+          ...rec,
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        await window.DBWrite.add('akreditasyon_havuz', {
+          ...rec,
           facultyId: myFacultyId,
           universityId: myUniversityId,
-          items: assessment.items,
-          updatedBy: currentUser?.name || currentUser?.identifier || '',
+          createdBy: currentUser?.name || currentUser?.identifier || '',
+          createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-        },
-        true
-      );
-      setDirty(false);
+        });
+      }
+      await loadItems();
+      setEditor(null);
       setMsg('Kaydedildi ✓');
-      setTimeout(() => setMsg(''), 2500);
+      setTimeout(() => setMsg(''), 2000);
     } catch (e) {
-      setMsg('Kaydedilemedi: ' + e.message);
+      alert('Kaydedilemedi: ' + e.message);
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
-  }, [assessmentId, assessment, framework, selDept, myFacultyId, myUniversityId, currentUser]);
+  };
 
-  const selDeptObj = departments.find((d) => d.id === selDept);
-  const ctx = useMemo(
-    () => ({
-      departmentId: selDept,
-      departmentName: selDeptObj?.name || '',
-      facultyId: myFacultyId,
-    }),
-    [selDept, selDeptObj, myFacultyId]
-  );
+  const deleteItem = async (item) => {
+    if (!confirm('"' + item.title + '" havuzdan silinsin mi?')) return;
+    try {
+      await window.DBWrite.remove('akreditasyon_havuz', String(item.id));
+      await loadItems();
+    } catch (e) {
+      alert('Silinemedi: ' + e.message);
+    }
+  };
 
-  // İlerleme özeti
-  const progress = useMemo(() => {
-    if (!framework || !assessment) return { total: 0, tam: 0, kismen: 0 };
-    let total = 0;
-    let tam = 0;
-    let kismen = 0;
-    framework.criteria.forEach((c) =>
-      c.sub.forEach((s) => {
-        total++;
-        const st = (assessment.items[s.id] || {}).status;
-        if (st === 'tam') tam++;
-        else if (st === 'kismen') kismen++;
-      })
-    );
-    return { total, tam, kismen };
-  }, [framework, assessment]);
+  // ── ÖDR / rapor üretimi — havuzu ölçüt ölçüt toplar, şablonu doldurur ──
+  // Şablon token'ları (odr-sablon.docx + TEMPLATE_VARS) korunur:
+  //   olcut{n}Durum / olcut{n}Not / olcut{n}Kanit  ← havuz kanıtlarından üretilir.
+  const [genBusy, setGenBusy] = useState(false);
+  const generateReport = async () => {
+    if (!framework) return;
+    const targetDept = progDept !== '__all' && progDept !== '' ? progDept : '';
+    const deptObj = departments.find((d) => d.id === targetDept);
+    // Rapora giren kanıtlar: seçili program + fakülte geneli
+    const pool = items.filter((it) => !it.departmentId || it.departmentId === targetDept);
+
+    const staticData = {
+      programAd: deptObj?.name || 'Fakülte geneli',
+      fakulteAd: window.TENANT?.facultyName || '',
+      universiteAd: window.TENANT?.universityName || '',
+      cerceve: ((framework.name || '') + ' ' + (framework.version || '')).trim(),
+      tarih: new Date().toLocaleDateString('tr-TR'),
+      hazirlayan: currentUser?.name || currentUser?.identifier || '',
+    };
+
+    let totalKanit = 0;
+    for (let n = 1; n <= 10; n++) {
+      const forCrit = pool.filter((it) => (it.olcutNo || 0) === n);
+      totalKanit += forCrit.length;
+      const notes = [];
+      const evid = [];
+      const breakdown = {};
+      forCrit.forEach((it) => {
+        breakdown[it.type] = (breakdown[it.type] || 0) + 1;
+        if (it.type === 'metin' && it.content) notes.push(it.title + ': ' + it.content);
+        else if (it.type === 'link') {
+          notes.push(it.title + (it.content ? ': ' + it.content : ''));
+          if (it.sourceUrl) evid.push(it.title + ' → ' + it.sourceUrl);
+        } else if (it.type === 'tablo' || it.type === 'sistem') {
+          notes.push(it.title + ':\n' + tableToText(it.table));
+        } else if (it.type === 'dosya') {
+          evid.push(it.title + ' (' + (it.fileLabel || 'dosya') + ')');
+        }
+      });
+      const bd = HAVUZ_TYPES.filter((t) => breakdown[t.id])
+        .map((t) => breakdown[t.id] + ' ' + t.label.toLowerCase())
+        .join(', ');
+      staticData['olcut' + n + 'Durum'] = forCrit.length
+        ? forCrit.length + ' kanıt · ' + bd
+        : '— (kanıt girilmedi)';
+      staticData['olcut' + n + 'Not'] = notes.join('\n\n') || '—';
+      staticData['olcut' + n + 'Kanit'] = evid.join('\n') || '—';
+    }
+    staticData.ilerlemeOzet = totalKanit + ' kanıt havuzda';
+
+    const rows = [];
+    for (let n = 1; n <= 10; n++) {
+      const c = criteria.find((x) => x.no === n);
+      rows.push({
+        olcutNo: n,
+        olcutBaslik: c?.title || '',
+        olcutDurum: staticData['olcut' + n + 'Durum'],
+        olcutNot: staticData['olcut' + n + 'Not'],
+        olcutKanit: staticData['olcut' + n + 'Kanit'],
+      });
+    }
+
+    setGenBusy(true);
+    try {
+      const res = await window.TemplateEngine.produceFromTemplate({
+        module: 'akreditasyon',
+        docType: 'odr',
+        departmentId: targetDept || undefined,
+        staticData,
+        rows,
+        filename:
+          'ODR_' + (deptObj?.name || 'fakulte').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') + '.docx',
+      });
+      if (res.ok) return;
+      const msgs = {
+        'no-template':
+          'ÖDR şablonu bulunamadı.\n"Hazır Şablonu Kur" ile sistemle gelen iskeleti tek tıkla kurabilir, ya da Şablonlar modülünden "Akreditasyon → ÖDR" türüne kendi .docx şablonunuzu yükleyip eşleyebilirsiniz.',
+        'no-mapping':
+          'Şablonun alan eşlemesi yapılmamış.\nŞablonlar modülünde 🧩 (Alanlar) ile yer tutucuları eşleyin.',
+        'not-docx': 'Atanan şablon .docx değil — rapor üretimi yalnızca .docx ile çalışır.',
+        'invalid-output': 'Şablondan geçerli belge üretilemedi.',
+      };
+      alert(msgs[res.reason] || 'Rapor üretilemedi: ' + (res.message || res.reason));
+    } catch (e) {
+      alert('Rapor üretilemedi: ' + e.message);
+    } finally {
+      setGenBusy(false);
+    }
+  };
 
   // ── Paketli ÖDR iskelet şablonunun TEK TIKLA kurulumu ──
-  // public/odr-sablon.docx (scripts/build-odr-sablon.py üretir) çekilir,
-  // Şablonlar sistemine yüklenir ve eşlemesi OTOMATİK yazılır — kullanıcı
-  // Word düzenlemez, sihirbazda eşleme yapmaz. Token adları build script'iyle
-  // birebir aynı tutulmalıdır.
   const ODR_TOKEN_MAP = useMemo(() => {
     const m = {
       '{{Üniversite Adı}}': 'static:universiteAd',
@@ -696,102 +1170,12 @@ function AkreditasyonApp({ currentUser }) {
         throw new Error(d.error || 'Eşleme kaydedilemedi.');
       }
       alert(
-        'Hazır ÖDR şablonu kuruldu ve eşlendi ✓\n"Rapor Oluştur (ÖDR)" artık doğrudan çalışır. İsterseniz Şablonlar modülünden iskeleti kendi ÖDR belgenizle değiştirebilirsiniz.'
+        'Hazır ÖDR şablonu kuruldu ve eşlendi ✓\n"Rapor Oluştur (ÖDR)" artık doğrudan çalışır. Dilerseniz Şablonlar modülünden iskeleti kendi ÖDR belgenizle değiştirebilirsiniz.'
       );
     } catch (e) {
       alert('Kurulum hatası: ' + e.message);
     } finally {
       setInstallingTpl(false);
-    }
-  };
-
-  // ── ÖDR / rapor üretimi — Şablonlar modülüne yüklenen HERHANGİ bir .docx
-  // şablonunu doldurur ({{...}} + alan eşleme). Değerlendirme verisi hem
-  // numaralı statik değişkenler (bölüm-tarzı ÖDR) hem satır değişkenleri
-  // (tablo-tarzı özet) olarak sunulur; şablon hangisini kullanırsa o dolar.
-  const [generatingReport, setGeneratingReport] = useState(false);
-  const generateReport = async () => {
-    if (!framework || !assessment || !selDept) return;
-    const items = assessment.items || {};
-    const per = framework.criteria.map((c) => {
-      let tam = 0;
-      let kismen = 0;
-      let eksik = 0;
-      const notes = [];
-      const evid = [];
-      c.sub.forEach((s, si) => {
-        const st = items[s.id] || {};
-        if (st.status === 'tam') tam++;
-        else if (st.status === 'kismen') kismen++;
-        else eksik++;
-        const tag = c.no + '.' + (si + 1);
-        if (st.note) notes.push(tag + ': ' + st.note);
-        (st.evidence || []).forEach((ev) => evid.push(tag + ': ' + (ev.label || ev.url)));
-      });
-      const durum =
-        tam +
-        '/' +
-        c.sub.length +
-        ' tam' +
-        (kismen ? ' · ' + kismen + ' kısmen' : '') +
-        (eksik ? ' · ' + eksik + ' eksik' : '');
-      return {
-        no: c.no,
-        baslik: c.title,
-        durum,
-        not: notes.join(' | ') || '—',
-        kanit: evid.join(' | ') || '—',
-      };
-    });
-    const pctNow = progress.total ? Math.round((progress.tam / progress.total) * 100) : 0;
-    const staticData = {
-      programAd: selDeptObj?.name || '',
-      fakulteAd: window.TENANT?.facultyName || '',
-      universiteAd: window.TENANT?.universityName || '',
-      cerceve: ((framework.name || '') + ' ' + (framework.version || '')).trim(),
-      tarih: new Date().toLocaleDateString('tr-TR'),
-      hazirlayan: currentUser?.name || currentUser?.identifier || '',
-      ilerlemeOzet:
-        progress.tam + '/' + progress.total + ' tam · ' + progress.kismen + ' kısmen · %' + pctNow,
-    };
-    per.forEach((p, i) => {
-      const n = i + 1;
-      staticData['olcut' + n + 'Durum'] = p.durum;
-      staticData['olcut' + n + 'Not'] = p.not;
-      staticData['olcut' + n + 'Kanit'] = p.kanit;
-    });
-    const rows = per.map((p) => ({
-      olcutNo: p.no,
-      olcutBaslik: p.baslik,
-      olcutDurum: p.durum,
-      olcutNot: p.not,
-      olcutKanit: p.kanit,
-    }));
-    setGeneratingReport(true);
-    try {
-      const res = await window.TemplateEngine.produceFromTemplate({
-        module: 'akreditasyon',
-        docType: 'odr',
-        departmentId: selDept,
-        staticData,
-        rows,
-        filename:
-          'ODR_' + (selDeptObj?.name || 'program').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') + '.docx',
-      });
-      if (res.ok) return;
-      const msgs = {
-        'no-template':
-          'ÖDR şablonu bulunamadı.\nŞablonlar modülünden "Akreditasyon" → "Öz Değerlendirme Raporu (ÖDR)" türüne bir .docx şablonu yükleyin ({{...}} yer tutucularıyla) ve 🧩 ile alanları eşleyin. Herhangi bir şablon (MÜDEK ÖDR dahil) kullanılabilir.',
-        'no-mapping':
-          'Şablonun alan eşlemesi yapılmamış.\nŞablonlar modülünde 🧩 (Alanlar) butonuyla yer tutucuları değişkenlere eşleyin.',
-        'not-docx': 'Atanan şablon .docx değil — rapor üretimi yalnızca .docx ile çalışır.',
-        'invalid-output': 'Şablondan geçerli belge üretilemedi (şablon yapısı desteklenmiyor).',
-      };
-      alert(msgs[res.reason] || 'Rapor üretilemedi: ' + (res.message || res.reason));
-    } catch (e) {
-      alert('Rapor üretilemedi: ' + e.message);
-    } finally {
-      setGeneratingReport(false);
     }
   };
 
@@ -810,23 +1194,12 @@ function AkreditasyonApp({ currentUser }) {
       <div style={{ padding: 60, textAlign: 'center', color: AKR.textMuted }}>Yükleniyor…</div>
     );
   }
-  if (!framework) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
-        <h2 style={{ color: AKR.navy, fontSize: 18, marginBottom: 8 }}>Çerçeve tanımı yok</h2>
-        <p style={{ color: AKR.textMuted, fontSize: 13.5 }}>
-          Akreditasyon çerçevesi (MÜDEK) henüz yüklenmemiş. Sunucuda{' '}
-          <code>node server/seed-mudek-framework.js</code> çalıştırın.
-        </p>
-      </div>
-    );
-  }
 
-  const pct = progress.total ? Math.round((progress.tam / progress.total) * 100) : 0;
+  const totalCount = items.length;
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif", color: AKR.text, maxWidth: 1000 }}>
-      {/* Başlık + program seçici */}
+    <div style={{ fontFamily: "'Inter', sans-serif", color: AKR.text, maxWidth: 1040 }}>
+      {/* Başlık + eylemler */}
       <div
         style={{
           display: 'flex',
@@ -834,62 +1207,39 @@ function AkreditasyonApp({ currentUser }) {
           justifyContent: 'space-between',
           gap: 12,
           flexWrap: 'wrap',
-          marginBottom: 16,
+          marginBottom: 14,
         }}
       >
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: AKR.navy }}>
-            Akreditasyon — {framework.shortName || framework.name}
+            Kanıt Havuzu{framework ? ' — ' + (framework.shortName || framework.name) : ''}
           </h2>
           <p style={{ fontSize: 12.5, color: AKR.textMuted, margin: '4px 0 0' }}>
-            {framework.name} · {framework.version}
+            Rapor (ÖDR) için gereken kanıtları her yerden toplayın · {totalCount} kayıt
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select
-            value={selDept}
-            onChange={(e) => {
-              if (dirty && !confirm('Kaydedilmemiş değişiklikler var. Yine de geçilsin mi?'))
-                return;
-              setSelDept(e.target.value);
-            }}
-            style={{
-              padding: '9px 12px',
-              borderRadius: 8,
-              border: '1px solid ' + AKR.border,
-              fontSize: 13,
-              background: 'white',
-              fontFamily: "'Inter', sans-serif",
-            }}
-          >
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
           <button
             type="button"
-            onClick={save}
-            disabled={saving || !dirty}
+            onClick={() => setEditor({ mode: 'new' })}
             style={{
               padding: '9px 18px',
               borderRadius: 8,
               border: 'none',
-              background: dirty ? AKR.navy : AKR.border,
-              color: dirty ? 'white' : AKR.textMuted,
+              background: AKR.navy,
+              color: 'white',
               fontSize: 13,
               fontWeight: 600,
-              cursor: dirty ? 'pointer' : 'default',
+              cursor: 'pointer',
             }}
           >
-            {saving ? 'Kaydediliyor…' : 'Kaydet'}
+            + Kanıt Ekle
           </button>
           <button
             type="button"
             onClick={generateReport}
-            disabled={generatingReport || !selDept}
-            title="Şablonlar modülüne yüklü ÖDR şablonunu değerlendirme verisiyle doldurur"
+            disabled={genBusy}
+            title="Havuzdaki kanıtlardan ÖDR şablonunu doldurur"
             style={{
               padding: '9px 18px',
               borderRadius: 8,
@@ -898,16 +1248,16 @@ function AkreditasyonApp({ currentUser }) {
               color: AKR.accent,
               fontSize: 13,
               fontWeight: 600,
-              cursor: generatingReport ? 'wait' : 'pointer',
+              cursor: genBusy ? 'wait' : 'pointer',
             }}
           >
-            {generatingReport ? 'Üretiliyor…' : 'Rapor Oluştur (ÖDR)'}
+            {genBusy ? 'Üretiliyor…' : 'Rapor Oluştur (ÖDR)'}
           </button>
           <button
             type="button"
             onClick={installBundledTemplate}
             disabled={installingTpl}
-            title="Sistemle gelen hazır ÖDR iskeletini tek tıkla kurar (Word düzenleme ve eşleme gerekmez)"
+            title="Sistemle gelen hazır ÖDR iskeletini tek tıkla kurar"
             style={{
               padding: '9px 14px',
               borderRadius: 8,
@@ -925,79 +1275,147 @@ function AkreditasyonApp({ currentUser }) {
         </div>
       </div>
 
-      {departments.length === 0 ? (
+      {/* Filtre şeridi */}
+      <div
+        style={{
+          background: 'white',
+          border: '1px solid ' + AKR.border,
+          borderRadius: 12,
+          padding: '12px 14px',
+          marginBottom: 14,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+        }}
+      >
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select
+            value={progDept}
+            onChange={(e) => setProgDept(e.target.value)}
+            style={{ ...selectStyle, width: 'auto', marginTop: 0 }}
+          >
+            <option value="__all">Tüm programlar</option>
+            <option value="">Fakülte geneli</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            style={{ ...selectStyle, width: 'auto', marginTop: 0 }}
+          >
+            <option value="all">Tüm türler</option>
+            {HAVUZ_TYPES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.icon} {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* Ölçüt sekmeleri */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setFilterOlcut('all')}
+            style={critTab(filterOlcut === 'all')}
+          >
+            Tümü
+          </button>
+          {criteria.map((c) => (
+            <button
+              key={c.no}
+              type="button"
+              onClick={() => setFilterOlcut(c.no)}
+              title={c.title}
+              style={critTab(filterOlcut === c.no)}
+            >
+              {c.no}
+              {perOlcutCount[c.no] ? ' · ' + perOlcutCount[c.no] : ''}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setFilterOlcut(0)}
+            style={critTab(filterOlcut === 0)}
+          >
+            Genel{perOlcutCount[0] ? ' · ' + perOlcutCount[0] : ''}
+          </button>
+        </div>
+      </div>
+
+      {/* Kanıt listesi */}
+      {visible.length === 0 ? (
         <div
           style={{
             background: 'white',
-            border: '1px solid ' + AKR.border,
+            border: '1px dashed ' + AKR.border,
             borderRadius: 12,
-            padding: 40,
+            padding: 48,
             textAlign: 'center',
             color: AKR.textMuted,
           }}
         >
-          Fakültenizde tanımlı bölüm bulunamadı.
+          <div style={{ fontSize: 30, marginBottom: 8 }}>🗂️</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: AKR.navy, marginBottom: 4 }}>
+            {totalCount === 0 ? 'Havuz boş' : 'Bu filtreye uygun kanıt yok'}
+          </div>
+          <div style={{ fontSize: 12.5 }}>
+            {totalCount === 0
+              ? '"+ Kanıt Ekle" ile metin, tablo, dosya, dış bağlantı veya sistem verisi ekleyin.'
+              : 'Filtreyi değiştirin ya da yeni kanıt ekleyin.'}
+          </div>
         </div>
       ) : (
-        <>
-          {/* İlerleme */}
-          <div
-            style={{
-              background: 'white',
-              border: '1px solid ' + AKR.border,
-              borderRadius: 12,
-              padding: '14px 18px',
-              marginBottom: 14,
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: 12.5,
-                marginBottom: 8,
-              }}
-            >
-              <span style={{ fontWeight: 700, color: AKR.navy }}>
-                {selDeptObj?.name || ''} — hazırlık durumu
-              </span>
-              <span style={{ color: AKR.textMuted }}>
-                {progress.tam}/{progress.total} tam · {progress.kismen} kısmen · %{pct}
-              </span>
-            </div>
-            <div style={{ height: 8, borderRadius: 4, background: AKR.bg, overflow: 'hidden' }}>
-              <div
-                style={{
-                  width: pct + '%',
-                  height: '100%',
-                  background: pct === 100 ? AKR.green : AKR.accent,
-                  transition: 'width 0.3s',
-                }}
-              />
-            </div>
-          </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: 12,
+          }}
+        >
+          {visible.map((it) => (
+            <HavuzCard
+              key={it.id}
+              item={it}
+              criteria={criteria}
+              departments={departments}
+              onEdit={() => setEditor({ mode: 'edit', item: it })}
+              onDelete={() => deleteItem(it)}
+            />
+          ))}
+        </div>
+      )}
 
-          {/* Ölçütler */}
-          {assessment && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {framework.criteria.map((c) => (
-                <AkrCriterionCard
-                  key={c.id}
-                  criterion={c}
-                  assessment={assessment}
-                  ctx={ctx}
-                  onPatch={(patch) => {
-                    setAssessment((prev) => ({ ...prev, ...patch }));
-                    setDirty(true);
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </>
+      {editor && (
+        <HavuzEditor
+          initial={editor.mode === 'edit' ? editor.item : null}
+          criteria={criteria}
+          departments={departments}
+          defaults={{
+            olcutNo: filterOlcut !== 'all' ? filterOlcut : criteria[0] ? criteria[0].no : 0,
+            departmentId: progDept !== '__all' ? progDept : '',
+          }}
+          ctxForSystem={ctxForSystem}
+          onSave={saveItem}
+          onClose={() => !busy && setEditor(null)}
+        />
       )}
     </div>
   );
 }
+
+const critTab = (active) => ({
+  padding: '5px 12px',
+  borderRadius: 8,
+  border: '1px solid ' + (active ? AKR.navy : AKR.border),
+  background: active ? AKR.navy : 'white',
+  color: active ? 'white' : AKR.textMuted,
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: 'pointer',
+});
 
 window.AkreditasyonApp = AkreditasyonApp;
