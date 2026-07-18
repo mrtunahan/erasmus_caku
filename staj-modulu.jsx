@@ -91,8 +91,8 @@ const STAJ_ROADMAP_STEPS = [
     title: 'SGK İşlemleri',
     duration: '3-5 Gün',
     result: 'SGK kaydı tamamlandı',
-    desc: "Bu adımda Ergün ÇINAR'ın onayı ile bir sonraki adıma geçebilirsiniz. Ergün ÇINAR, Staj Kayıtları alanında kendisine tanımlanan alanda onay verecektir. Onay alındıktan sonra SGK giriş bildirgeniz üniversite tarafından yapılacaktır.",
-    approver: 'Ergün ÇINAR',
+    desc: 'Bu adımda Fakülte Staj Yetkilisinin onayı ile bir sonraki adıma geçebilirsiniz. Staj yetkilisi, Staj Kayıtları alanında kendisine tanımlanan alanda onay verecektir. Onay alındıktan sonra SGK giriş bildirgeniz üniversite tarafından yapılacaktır.',
+    approver: 'Fakülte Staj Yetkilisi',
   },
   {
     id: 5,

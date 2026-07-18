@@ -16,26 +16,27 @@ olarak kalır — sıfır regresyon). Seed: `server/seed-tenant-config.js`.
 | LoginModal marka + footer                | "Offline Asistan", "© ÇAKÜ Bilgisayar Mühendisliği", geliştirici satırı | `TENANT.appName/unitName/developerNote`                |
 | `app-shell.jsx` TopHeader                | `FACULTY.name` / `FACULTY.university`                                   | `TENANT` öncelikli okunuyor                            |
 
-## Dalga 2 — Yapısal varsayılanlar (orta risk, planlı)
+## Dalga 2 — Yapısal varsayılanlar
 
-| Yer                                    | İçerik                                                           | Not                                                                                                                                               |
-| -------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shared-components.jsx` `DEPARTMENTS`  | 6 Mühendislik bölümü sabit listesi (renk/ikon dahil)             | DB `departments` zaten birleşiyor (merge); sabit listeyi tamamen DB'ye devretmek TÜM modüllerin başlangıç sırasına bağlı — dikkatli geçiş gerekir |
-| `app-shell.jsx:1557`                   | `useState('bilgisayar')` varsayılan aktif bölüm                  | `TENANT.defaultDepartmentId` veya "ilk erişilebilir bölüm" mantığı                                                                                |
-| `shared-components.jsx` öğrenci girişi | `departmentId \|\| 'bilgisayar'` fallback'leri (3 yer)           | Bölüm zorunlu hale getirilince kaldırılabilir                                                                                                     |
-| `index.html`                           | `<title>ÇAKÜ Yönetim Sistemi</title>`, yükleme ekranı alt yazısı | Build-time; `VITE_APP_NAME` env'e bağlanabilir                                                                                                    |
+| Yer                                    | İçerik                                                 | Durum / Not                                                                                                                                                                                  |
+| -------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index.html` başlık                    | `<title>ÇAKÜ Yönetim Sistemi</title>`                  | ✅ Statik başlık ürün adına çevrildi; uygulama açılınca `document.title` TENANT'tan senkronlanıyor                                                                                           |
+| `index.html` yükleme alt yazısı        | "Çankırı Karatekin Üniversitesi" (JS öncesi anlık)     | ⏸ Bilinçli bırakıldı — yalnız ilk yükleme anında görünür; kurulum paketinde tek satır `sed` ile değiştirilecek                                                                               |
+| `shared-components.jsx` `DEPARTMENTS`  | 6 Mühendislik bölümü sabit listesi (renk/ikon dahil)   | ⏸ **Bilinçli ertelendi (satış netleşince):** DB `departments` merge mekanizması bugünkü ihtiyacı karşılıyor; tam devir TÜM modüllerin açılış sırasını etkiler — canlı sistemde gereksiz risk |
+| `app-shell.jsx`                        | `useState('bilgisayar')` varsayılan aktif bölüm        | ⏸ Ertelendi — mevcut "erişilemeyen bölümde isen ilk erişilebilire geç" düzeltici effect'i bu varsayılanı zaten telafi ediyor (kendi kendini onarır)                                          |
+| `shared-components.jsx` öğrenci girişi | `departmentId \|\| 'bilgisayar'` fallback'leri (3 yer) | ⏸ Ertelendi — kayıt akışında bölüm seçimi zorunlu; fallback yalnız eski/bozuk kayıtlar için                                                                                                  |
 
 ## Dalga 3 — Kişi / veri kalıntıları (düşük öncelik)
 
-| Yer                                                | İçerik                                                       | Not                                                                       |
-| -------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| `app-shell.jsx` `isErgunCinarUser`                 | "Ergün Çınar" isim eşleştirmesi (geriye dönük)               | Tüm kayıtlar `isStajCoordinator`/`isMemur` bayrağına geçince kaldırılır   |
-| `staj-modulu.jsx`                                  | "Ergün ÇINAR" onaylayıcı metinleri                           | Metni "Fakülte Staj Yetkilisi" + atanan kişinin adı yap                   |
-| `shared-components.jsx` `SEED_PROFESSORS`          | ÇAKÜ akademisyen listesi (login fallback)                    | DB erişilemezse kullanılan yedek; kurulum paketinde boşaltılır            |
-| `shared-components.jsx` müfredat sabitleri (~596+) | Bilgisayar Müh. ders listesi                                 | Ders yönetimi DB'sine devir                                               |
-| LoginModal admin dalı                              | "A. Tunahan KORKMAZ" sabit admin adı                         | Admin sekmesi zaten kaldırıldı; ölü kod, temizlenebilir                   |
-| `ders-muafiyet.jsx` yerleşik Word biçimi           | "Çankırı Karatekin Üniversitesi..." başlık + yönetmelik atfı | Şablon sistemi ({{...}}) yerleşik biçimin yerini alıyor; şablonla çözülür |
-| `benim-sayfam.jsx`                                 | `@ogrenci.karatekin.edu.tr` e-posta placeholder'ı            | `TENANT.studentEmailDomain`                                               |
+| Yer                                                | İçerik                                                       | Not                                                                                          |
+| -------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `staj-modulu.jsx` öğrenci akış metinleri           | "Ergün ÇINAR" onaylayıcı metinleri                           | ✅ "Fakülte Staj Yetkilisi" yapıldı (kişi-bağımsız)                                          |
+| `benim-sayfam.jsx`                                 | `@ogrenci.karatekin.edu.tr` e-posta placeholder'ı            | ✅ `TENANT.studentEmailDomain`'e bağlandı                                                    |
+| `app-shell.jsx` `isErgunCinarUser`                 | "Ergün Çınar" isim eşleştirmesi (geriye dönük)               | ⏸ Migration (migrate-memur-ergun.js) prod'da çalışıp tüm kayıtlar bayrağa geçince kaldırılır |
+| `shared-components.jsx` `SEED_PROFESSORS`          | ÇAKÜ akademisyen listesi (login fallback)                    | ⏸ DB erişilemezse kullanılan yedek; kurulum paketinde boşaltılır                             |
+| `shared-components.jsx` müfredat sabitleri (~596+) | Bilgisayar Müh. ders listesi                                 | ⏸ Ders yönetimi DB'sine devir (satış öncesi)                                                 |
+| LoginModal admin dalı                              | "A. Tunahan KORKMAZ" sabit admin adı                         | ⏸ Ölü kod (admin sekmesi kaldırıldı); ayrı temizlik PR'ında                                  |
+| `ders-muafiyet.jsx` yerleşik Word biçimi           | "Çankırı Karatekin Üniversitesi..." başlık + yönetmelik atfı | ⏸ Şablon sistemi ({{...}}) yerleşik biçimin yerini alıyor; şablonla çözülür                  |
 
 ## Kural (yeni kod için)
 

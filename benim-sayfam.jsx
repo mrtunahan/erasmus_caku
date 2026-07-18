@@ -1493,7 +1493,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                     label: 'E-posta',
                     val: contactEmail,
                     set: setContactEmail,
-                    ph: 'ornek@ogrenci.karatekin.edu.tr',
+                    ph: 'ornek@' + (window.TENANT?.studentEmailDomain || 'ogrenci.edu.tr'),
                     type: 'email',
                   },
                 ].map((f) => (
