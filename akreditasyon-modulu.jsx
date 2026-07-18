@@ -1888,8 +1888,38 @@ function AkreditasyonApp({ currentUser }) {
     return { bodyHTML, filename };
   }, [framework, items, progDept, criteria, departments, currentUser]);
 
-  // Şablon önizlemesi — SENİN yüklediğin ÖDR .docx'ini gösterir. Eşlenmişse
-  // havuz verisiyle DOLU, değilse ham. mammoth ile .docx→HTML. Havuz/kapsam
+  // Yüklü ÖDR şablonlarını listele (kullanıcı hangisini önizleyeceğini SEÇER —
+  // "Hazır Şablonu Kur" ile gelen iskelet varsayılan olsa bile senin yüklediğin
+  // belgeyi seçebilirsin). En yeni yüklenen varsayılan seçilir.
+  const [tplList, setTplList] = useState([]);
+  const [tplChoiceId, setTplChoiceId] = useState('');
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const token = localStorage.getItem('caku_auth_token');
+        const r = await fetch('/api/templates', {
+          headers: token ? { Authorization: 'Bearer ' + token } : {},
+          credentials: 'include',
+        });
+        const all = await r.json().catch(() => []);
+        const odr = (all || []).filter(
+          (t) => t.module === 'akreditasyon' && (t.docType || 'default') === 'odr'
+        );
+        if (!alive) return;
+        setTplList(odr);
+        setTplChoiceId((prev) => prev || (odr[0] ? odr[0]._id : ''));
+      } catch (_e) {
+        /* liste alınamadı */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Şablon önizlemesi — SEÇİLİ ÖDR .docx'ini gösterir. Eşlenmişse havuz
+  // verisiyle DOLU, değilse ham. mammoth ile .docx→HTML. Havuz/kapsam/seçim
   // değiştikçe (debounce) yeniden üretilir → "gelen kanıtlara göre interaktif".
   const [tplPreview, setTplPreview] = useState({ status: 'loading' });
   useEffect(() => {
@@ -1898,41 +1928,43 @@ function AkreditasyonApp({ currentUser }) {
     const timer = setTimeout(async () => {
       if (alive) setTplPreview((p) => ({ ...p, status: p.html ? 'refreshing' : 'loading' }));
       try {
-        const { targetDept, staticData, rows } = buildOdrData();
-        const tpl = await akrResolveTemplate(targetDept || '');
+        const { staticData, rows } = buildOdrData();
+        let tpl = tplChoiceId ? tplList.find((t) => t._id === tplChoiceId) : null;
+        if (!tpl) tpl = await akrResolveTemplate('');
         if (!alive) return;
         if (!tpl) {
           setTplPreview({ status: 'none' });
           return;
         }
+        if (!tpl.file || tpl.file.extension !== 'docx') {
+          setTplPreview({ status: 'error', message: 'Seçili şablon .docx değil.' });
+          return;
+        }
         await akrEnsureMammoth();
+        const buf = await akrDownloadTemplateBuf(tpl._id);
         let arrbuf = null;
         let filled = false;
         let note = '';
-        try {
-          const res = await window.TemplateEngine.produceFromTemplate({
-            module: 'akreditasyon',
-            docType: 'odr',
-            departmentId: targetDept || undefined,
-            staticData,
-            rows,
-            noDownload: true,
-          });
-          if (res.ok && res.blob) {
-            arrbuf = await res.blob.arrayBuffer();
+        const mapped = (tpl.fields || []).some((f) => f.variable);
+        if (mapped) {
+          try {
+            const blob = await window.TemplateEngine.generateDocx(
+              buf,
+              tpl.fields,
+              staticData,
+              rows,
+              {}
+            );
+            arrbuf = await blob.arrayBuffer();
             filled = true;
-          } else if (res.reason === 'no-mapping') {
-            note =
-              'Şablon henüz eşlenmemiş — belge HAM gösteriliyor. Kanıtların otomatik dolması için Şablonlar modülünde 🧩 ile {{...}} alanlarını eşleyin.';
-          } else if (res.reason === 'not-docx') {
-            note = 'Atanan şablon .docx değil.';
-          } else if (res.reason === 'invalid-output') {
+          } catch (_e) {
             note = 'Şablon dolduruldu ama yapısı önizlemeye uygun değil — ham gösteriliyor.';
           }
-        } catch (_e) {
-          /* dolu üretilemedi → ham göster */
+        } else {
+          note =
+            'Bu şablon eşlenmemiş — belge HAM gösteriliyor. Kanıtların otomatik dolması için Şablonlar modülünde 🧩 ile {{...}} alanlarını değişkenlere eşleyin.';
         }
-        if (!arrbuf) arrbuf = await akrDownloadTemplateBuf(tpl._id);
+        if (!arrbuf) arrbuf = buf;
         const out = await window.mammoth.convertToHtml({ arrayBuffer: arrbuf });
         if (!alive) return;
         setTplPreview({
@@ -1945,12 +1977,36 @@ function AkreditasyonApp({ currentUser }) {
       } catch (e) {
         if (alive) setTplPreview({ status: 'error', message: e.message });
       }
-    }, 500);
+    }, 400);
     return () => {
       alive = false;
       clearTimeout(timer);
     };
-  }, [framework, items, progDept]);
+  }, [framework, items, progDept, tplChoiceId, tplList]);
+
+  // Seçili şablonu havuz verisiyle doldurup indir (Word butonu).
+  const downloadWordChosen = async () => {
+    const tpl = tplChoiceId ? tplList.find((t) => t._id === tplChoiceId) : null;
+    if (!tpl || !(tpl.fields || []).some((f) => f.variable)) return generateNativeODR();
+    setGenBusy(true);
+    try {
+      const { staticData, rows, filename } = buildOdrData();
+      const buf = await akrDownloadTemplateBuf(tpl._id);
+      const blob = await window.TemplateEngine.generateDocx(buf, tpl.fields, staticData, rows, {});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (e) {
+      alert('İndirilemedi: ' + e.message);
+    } finally {
+      setGenBusy(false);
+    }
+  };
 
   const generateNativeODR = async () => {
     if (!framework) return;
@@ -2481,8 +2537,7 @@ function AkreditasyonApp({ currentUser }) {
             ? 'ŞABLONDAN · kanıtlarla dolu'
             : 'ŞABLONDAN · ham (eşleme gerekli)'
           : 'JENERİK ÖNİZLEME';
-        const downloadWord = () =>
-          templateMode && tplPreview.filled ? generateReport() : generateNativeODR();
+        const downloadWord = () => (templateMode ? downloadWordChosen() : generateNativeODR());
         return (
           <div
             style={{
@@ -2502,10 +2557,43 @@ function AkreditasyonApp({ currentUser }) {
                 flexShrink: 0,
               }}
             >
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>
-                {headerLabel}
-                {busyPrev ? ' · güncelleniyor…' : ''}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                {tplList.length > 0 && (
+                  <select
+                    value={tplChoiceId}
+                    onChange={(e) => setTplChoiceId(e.target.value)}
+                    title="Önizlenecek ÖDR şablonu"
+                    style={{
+                      maxWidth: 240,
+                      padding: '5px 8px',
+                      borderRadius: 7,
+                      border: 'none',
+                      background: 'rgba(255,255,255,0.9)',
+                      color: '#1B2A4A',
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    {tplList.map((t) => (
+                      <option key={t._id} value={t._id}>
+                        {t.name || t.file?.originalName || 'Şablon'}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    color: 'rgba(255,255,255,0.75)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {headerLabel}
+                  {busyPrev ? ' · güncelleniyor…' : ''}
+                </span>
+              </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   type="button"
