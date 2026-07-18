@@ -581,6 +581,132 @@ async function buildAndDownloadDocx(bodyXml, filename) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// ÖDR HTML önizleme — belge görünümü (aynı havuz verisinden). Hem canlı
+// önizleme panelinde hem "Yazdır / PDF" penceresinde kullanılır.
+// ══════════════════════════════════════════════════════════════
+function htmlTable(t) {
+  if (!t || !Array.isArray(t.headers)) return '';
+  const th = t.headers
+    .map(
+      (h) =>
+        '<th style="border:1px solid #334155;padding:5px 7px;background:#eef2f7;text-align:left;font-weight:700;">' +
+        wEsc(h) +
+        '</th>'
+    )
+    .join('');
+  const tb = (t.rows || [])
+    .map(
+      (r) =>
+        '<tr>' +
+        t.headers
+          .map(
+            (_h, i) =>
+              '<td style="border:1px solid #334155;padding:5px 7px;">' + wEsc(r[i] || '') + '</td>'
+          )
+          .join('') +
+        '</tr>'
+    )
+    .join('');
+  return (
+    '<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:11px;">' +
+    '<thead><tr>' +
+    th +
+    '</tr></thead><tbody>' +
+    tb +
+    '</tbody></table>'
+  );
+}
+
+function reportItemHTML(it, origin) {
+  let h = '<div style="font-weight:700;margin:12px 0 3px;">' + wEsc(it.title) + '</div>';
+  if (it.type === 'metin') {
+    if (it.content)
+      h +=
+        '<p style="margin:0 0 6px;white-space:pre-wrap;line-height:1.6;">' +
+        wEsc(it.content) +
+        '</p>';
+  } else if (it.type === 'link') {
+    if (it.content)
+      h +=
+        '<p style="margin:0 0 4px;white-space:pre-wrap;line-height:1.6;">' +
+        wEsc(it.content) +
+        '</p>';
+    if (it.sourceUrl)
+      h +=
+        '<p style="margin:0 0 6px;font-style:italic;color:#475569;font-size:11px;">Kaynak: ' +
+        wEsc(it.sourceUrl) +
+        '</p>';
+  } else if (it.type === 'dosya') {
+    const href = it.fileUrl ? origin + akrFileHref(it.fileUrl) : '';
+    h +=
+      '<p style="margin:0 0 6px;">📎 <a href="' +
+      wEsc(href) +
+      '" style="color:#0F766E;">' +
+      wEsc(it.fileLabel || 'Dosya') +
+      '</a></p>';
+  } else if (it.type === 'tablo' || it.type === 'sistem') {
+    h += htmlTable(it.table);
+  }
+  return h;
+}
+
+// Belge gövdesi (başlık bloğu + ölçüt bölümleri) — HTML string.
+function buildReportBodyHTML({ scopeLabel, identity, criteria, pool, origin }) {
+  const H = [];
+  H.push(
+    '<div style="text-align:center;border-bottom:2px solid #1B2A4A;padding-bottom:16px;margin-bottom:22px;">' +
+      '<div style="font-size:22px;font-weight:800;color:#1B2A4A;letter-spacing:0.5px;">ÖZ DEĞERLENDİRME RAPORU</div>' +
+      (identity.universiteAd
+        ? '<div style="font-size:15px;font-weight:700;margin-top:8px;">' +
+          wEsc(identity.universiteAd) +
+          '</div>'
+        : '') +
+      (identity.fakulteAd
+        ? '<div style="font-size:13px;color:#475569;">' + wEsc(identity.fakulteAd) + '</div>'
+        : '') +
+      '<div style="font-size:14px;font-weight:700;color:#0F766E;margin-top:4px;">' +
+      wEsc(scopeLabel) +
+      '</div>' +
+      '</div>'
+  );
+  H.push(
+    '<div style="font-size:11.5px;color:#334155;margin-bottom:20px;line-height:1.7;">' +
+      'Çerçeve: ' +
+      wEsc(identity.cerceve) +
+      '<br/>' +
+      'Rapor Tarihi: ' +
+      wEsc(identity.tarih) +
+      '<br/>' +
+      'Hazırlayan: ' +
+      wEsc(identity.hazirlayan) +
+      '<br/>' +
+      'Havuzdaki kanıt sayısı: ' +
+      pool.length +
+      '</div>'
+  );
+  for (let n = 1; n <= 10; n++) {
+    const c = criteria.find((x) => x.no === n);
+    const forCrit = pool.filter((it) => (it.olcutNo || 0) === n);
+    H.push(
+      '<h2 style="font-size:15px;font-weight:800;color:#1B2A4A;margin:22px 0 6px;border-bottom:1px solid #cbd5e1;padding-bottom:4px;">' +
+        'ÖLÇÜT ' +
+        n +
+        '. ' +
+        wEsc(String(c?.title || '').toUpperCase()) +
+        '</h2>'
+    );
+    if (forCrit.length === 0) {
+      H.push(
+        '<p style="font-style:italic;color:#94a3b8;font-size:12px;margin:4px 0 10px;">Bu ölçüt için havuzda henüz kanıt girilmemiştir.</p>'
+      );
+    } else {
+      forCrit.forEach((it) => H.push(reportItemHTML(it, origin)));
+    }
+  }
+  return H.join('');
+}
+
+// ══════════════════════════════════════════════════════════════
 // Kanıt ekle/düzenle modalı
 // ══════════════════════════════════════════════════════════════
 function HavuzEditor({
@@ -1297,6 +1423,134 @@ const previewText = {
 };
 
 // ══════════════════════════════════════════════════════════════
+// ÖDR canlı önizleme — tam ekran belge görünümü + araç çubuğu
+// ══════════════════════════════════════════════════════════════
+function ODRPreview({ bodyHTML, filename, onDownloadDocx, onClose }) {
+  const printReport = () => {
+    const w = window.open('', '_blank');
+    if (!w) {
+      alert('Yazdırma penceresi açılamadı (açılır pencere engelleyici olabilir).');
+      return;
+    }
+    w.document.write(
+      '<html><head><meta charset="utf-8"><title>' +
+        wEsc(filename || 'ODR') +
+        '</title><style>@page{margin:20mm;}body{font-family:Inter,Arial,sans-serif;color:#0f172a;line-height:1.5;}table{page-break-inside:avoid;}h2{page-break-after:avoid;}</style></head><body>' +
+        bodyHTML +
+        '</body></html>'
+    );
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 350);
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: '#cbd5e1',
+        zIndex: 1100,
+        display: 'flex',
+        flexDirection: 'column',
+        fontFamily: "'Inter', sans-serif",
+      }}
+    >
+      <div
+        style={{
+          height: 56,
+          flexShrink: 0,
+          background: 'white',
+          borderBottom: '1px solid ' + AKR.border,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 20px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 15, fontWeight: 800, color: AKR.navy }}>ÖDR Önizleme</span>
+          <span style={{ fontSize: 12, color: AKR.textMuted }}>{filename}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={printReport}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: '1px solid ' + AKR.border,
+              background: 'white',
+              color: AKR.navy,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            🖨️ Yazdır / PDF
+          </button>
+          <button
+            type="button"
+            onClick={onDownloadDocx}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: AKR.accent,
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            ⬇️ Word (.docx) İndir
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: '1px solid ' + AKR.border,
+              background: 'white',
+              color: AKR.textMuted,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Kapat
+          </button>
+        </div>
+      </div>
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '32px 16px',
+          display: 'flex',
+          justifyContent: 'center',
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            maxWidth: 820,
+            background: 'white',
+            padding: '56px 64px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+            color: '#0f172a',
+            fontSize: 13,
+            height: 'fit-content',
+          }}
+          dangerouslySetInnerHTML={{ __html: bodyHTML }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // Ana uygulama — Kanıt/Veri Havuzu
 // ══════════════════════════════════════════════════════════════
 function AkreditasyonApp({ currentUser }) {
@@ -1539,6 +1793,31 @@ function AkreditasyonApp({ currentUser }) {
   // Havuzdaki her kanıt türüne göre belgeye basılır: metin→paragraf,
   // link→paragraf+kaynak, dosya→bağlantı satırı, tablo/sistem→Word tablosu.
   const [nativeBusy, setNativeBusy] = useState(false);
+  const [preview, setPreview] = useState(null); // { bodyHTML, filename }
+
+  const openPreview = () => {
+    if (!framework) return;
+    const { isAll, deptObj, pool } = selectReportPool();
+    const scopeLabel = deptObj?.name || (isAll ? 'Tüm Programlar' : 'Fakülte Geneli');
+    const identity = {
+      universiteAd: window.TENANT?.universityName || '',
+      fakulteAd: window.TENANT?.facultyName || '',
+      cerceve: ((framework.name || '') + ' ' + (framework.version || '')).trim(),
+      tarih: new Date().toLocaleDateString('tr-TR'),
+      hazirlayan: currentUser?.name || currentUser?.identifier || '',
+    };
+    const bodyHTML = buildReportBodyHTML({
+      scopeLabel,
+      identity,
+      criteria,
+      pool,
+      origin: window.location.origin,
+    });
+    const filename =
+      'ODR_' + (deptObj?.name || 'fakulte').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') + '.docx';
+    setPreview({ bodyHTML, filename });
+  };
+
   const generateNativeODR = async () => {
     if (!framework) return;
     const { isAll, deptObj, pool } = selectReportPool();
@@ -1823,9 +2102,8 @@ function AkreditasyonApp({ currentUser }) {
           </div>
           <button
             type="button"
-            onClick={generateNativeODR}
-            disabled={nativeBusy}
-            title="Havuzdaki kanıtları GERÇEK Word tablolarıyla doğrudan .docx'e döker (şablon gerektirmez)"
+            onClick={openPreview}
+            title="ÖDR'yi belge görünümünde önizle; oradan Word indir veya PDF olarak yazdır"
             style={{
               padding: '9px 18px',
               borderRadius: 8,
@@ -1834,10 +2112,28 @@ function AkreditasyonApp({ currentUser }) {
               color: AKR.accent,
               fontSize: 13,
               fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            👁️ ÖDR Önizle
+          </button>
+          <button
+            type="button"
+            onClick={generateNativeODR}
+            disabled={nativeBusy}
+            title="Havuzdaki kanıtları GERÇEK Word tablolarıyla doğrudan .docx'e döker (şablon gerektirmez)"
+            style={{
+              padding: '9px 14px',
+              borderRadius: 8,
+              border: '1px solid ' + AKR.border,
+              background: 'white',
+              color: AKR.textMuted,
+              fontSize: 12.5,
+              fontWeight: 600,
               cursor: nativeBusy ? 'wait' : 'pointer',
             }}
           >
-            {nativeBusy ? 'Üretiliyor…' : 'Rapor Oluştur (ÖDR)'}
+            {nativeBusy ? 'Üretiliyor…' : '⬇️ Word İndir'}
           </button>
           <button
             type="button"
@@ -2006,6 +2302,15 @@ function AkreditasyonApp({ currentUser }) {
           ctxForSystem={ctxForSystem}
           onSave={saveItem}
           onClose={() => !busy && setEditor(null)}
+        />
+      )}
+
+      {preview && (
+        <ODRPreview
+          bodyHTML={preview.bodyHTML}
+          filename={preview.filename}
+          onDownloadDocx={generateNativeODR}
+          onClose={() => setPreview(null)}
         />
       )}
     </div>
