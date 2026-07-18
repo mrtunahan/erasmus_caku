@@ -150,11 +150,162 @@ const KanitSaglayici = {
       return { label: 'Öğretim elemanı', count: mine.length };
     },
   },
+  // Gerçek satır üreten sorgular — ÖDR'nin ağır tablolarını (kadro, eğitim
+  // planı) sistemden hazır DOLDURMAK için. { headers:[], rows:[[]] } döner.
+  tables: {
+    kadro: async ({ departmentId, departmentName }) => {
+      const list = await window.apiRead('professors');
+      const mine = (list || []).filter(
+        (p) =>
+          !p.isMemur &&
+          (window.profMatchesDept
+            ? window.profMatchesDept(p, departmentId, departmentName)
+            : p.departmentId === departmentId)
+      );
+      mine.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
+      return {
+        headers: ['Unvan', 'Ad Soyad', 'E-posta', 'Uzmanlık / Alan', 'Kadro'],
+        rows: mine.map((p) => [
+          p.title || p.unvan || '',
+          p.name || '',
+          p.email || '',
+          p.field || p.uzmanlik || p.expertise || '',
+          p.tamZamanli === false ? 'Yarı zamanlı' : 'Tam zamanlı',
+        ]),
+      };
+    },
+    egitim_plani: async ({ departmentId }) => {
+      const list = await window.apiRead('course_schedules', {
+        where: 'departmentId:eq:s:' + departmentId,
+      });
+      const rows = (list || [])
+        .slice()
+        .sort(
+          (a, b) =>
+            (Number(a.yariyil || a.semester || 0) || 0) -
+              (Number(b.yariyil || b.semester || 0) || 0) ||
+            String(a.code || a.dersKodu || '').localeCompare(
+              String(b.code || b.dersKodu || ''),
+              'tr'
+            )
+        )
+        .map((c) => [
+          String(c.yariyil || c.semester || ''),
+          c.code || c.dersKodu || '',
+          c.name || c.dersAdi || c.title || '',
+          String(c.teori ?? c.T ?? ''),
+          String(c.uygulama ?? c.U ?? ''),
+          String(c.kredi ?? c.credit ?? ''),
+          String(c.akts ?? c.ects ?? ''),
+          c.zorunlu === false || c.secmeli ? 'S' : 'Z',
+        ]);
+      return {
+        headers: ['Yarıyıl', 'Ders Kodu', 'Ders Adı', 'T', 'U', 'Kredi', 'AKTS', 'Z/S'],
+        rows,
+      };
+    },
+  },
+  async fetchTable(key, ctx) {
+    const q = this.tables[key];
+    if (!q) return null;
+    try {
+      return await q(ctx);
+    } catch (_e) {
+      return null;
+    }
+  },
 };
 window.KanitSaglayici = KanitSaglayici;
 
 // Boş tablo yapısı
 const emptyTable = () => ({ headers: ['Sütun 1', 'Sütun 2'], rows: [['', '']] });
+
+// ══════════════════════════════════════════════════════════════
+// ÖDR hazır tablo şablonları — MÜDEK ÖDR'nin ağır/standart tabloları için
+// başlıkları doğru kurulu boş iskeletler. Bazıları sistemden doldurulabilir
+// (systemTableKey → KanıtSağlayıcı.tables). Kullanıcı tek tıkla ekler, doldurur.
+// ══════════════════════════════════════════════════════════════
+const ODR_TABLE_PRESETS = [
+  {
+    id: 'pea',
+    olcutNo: 2,
+    title: 'Program Eğitim Amaçları (PEA)',
+    table: {
+      headers: ['No', 'Program Eğitim Amacı'],
+      rows: [
+        ['1', ''],
+        ['2', ''],
+        ['3', ''],
+      ],
+    },
+  },
+  {
+    id: 'pea-misyon',
+    olcutNo: 2,
+    title: 'PEA — Kurum/Fakülte Misyonu İlişkisi',
+    table: {
+      headers: ['Program Eğitim Amacı', 'İlgili Misyon Unsuru'],
+      rows: [
+        ['', ''],
+        ['', ''],
+      ],
+    },
+  },
+  {
+    id: 'pc',
+    olcutNo: 3,
+    title: 'Program Çıktıları (PÇ)',
+    table: {
+      headers: ['No', 'Program Çıktısı'],
+      rows: [
+        ['1', ''],
+        ['2', ''],
+        ['3', ''],
+      ],
+    },
+  },
+  {
+    id: 'pc-pea',
+    olcutNo: 3,
+    title: 'Program Çıktısı – Program Eğitim Amacı İlişkisi',
+    table: {
+      headers: ['Program Çıktısı', 'PEA 1', 'PEA 2', 'PEA 3'],
+      rows: [
+        ['PÇ 1', '', '', ''],
+        ['PÇ 2', '', '', ''],
+      ],
+    },
+  },
+  {
+    id: 'pc-ders',
+    olcutNo: 5,
+    title: 'Program Çıktısı – Ders İlişki Matrisi',
+    table: {
+      headers: ['Ders', 'PÇ1', 'PÇ2', 'PÇ3', 'PÇ4', 'PÇ5'],
+      rows: [['', '', '', '', '', '']],
+    },
+  },
+  {
+    id: 'egitim-plani',
+    olcutNo: 5,
+    title: 'Eğitim Planı (Öğretim Planı)',
+    systemTableKey: 'egitim_plani',
+    table: {
+      headers: ['Yarıyıl', 'Ders Kodu', 'Ders Adı', 'T', 'U', 'Kredi', 'AKTS', 'Z/S'],
+      rows: [['', '', '', '', '', '', '', '']],
+    },
+  },
+  {
+    id: 'kadro',
+    olcutNo: 6,
+    title: 'Öğretim Kadrosu',
+    systemTableKey: 'kadro',
+    table: {
+      headers: ['Unvan', 'Ad Soyad', 'E-posta', 'Uzmanlık / Alan', 'Kadro'],
+      rows: [['', '', '', '', '']],
+    },
+  },
+];
 
 // ══════════════════════════════════════════════════════════════
 // Küçük düzenlenebilir tablo editörü
@@ -298,24 +449,53 @@ function tableToText(table) {
 // ══════════════════════════════════════════════════════════════
 // Kanıt ekle/düzenle modalı
 // ══════════════════════════════════════════════════════════════
-function HavuzEditor({ initial, criteria, departments, defaults, ctxForSystem, onSave, onClose }) {
-  const [type, setType] = useState(initial?.type || 'metin');
-  const [title, setTitle] = useState(initial?.title || '');
+function HavuzEditor({
+  initial,
+  preset,
+  criteria,
+  departments,
+  defaults,
+  ctxForSystem,
+  onSave,
+  onClose,
+}) {
+  // Hazır tablo şablonu (preset) düzenleme değil, ön-doldurulmuş yeni kayıttır.
+  const base = initial || preset || null;
+  const [type, setType] = useState(preset ? 'tablo' : initial?.type || 'metin');
+  const [title, setTitle] = useState(base?.title || '');
   const [olcutNo, setOlcutNo] = useState(
-    initial ? initial.olcutNo || 0 : defaults.olcutNo || (criteria[0] ? criteria[0].no : 0)
+    base ? base.olcutNo || 0 : defaults.olcutNo || (criteria[0] ? criteria[0].no : 0)
   );
   const [departmentId, setDepartmentId] = useState(
     initial ? initial.departmentId || '' : defaults.departmentId || ''
   );
   const [content, setContent] = useState(initial?.content || '');
   const [sourceUrl, setSourceUrl] = useState(initial?.sourceUrl || '');
-  const [table, setTable] = useState(initial?.table || emptyTable());
+  const [table, setTable] = useState(base?.table || emptyTable());
   const [fileUrl, setFileUrl] = useState(initial?.fileUrl || '');
   const [fileLabel, setFileLabel] = useState(initial?.fileLabel || '');
   const [uploading, setUploading] = useState(false);
   const [sysKeys, setSysKeys] = useState(initial?.systemKeys || []);
   const [sysBusy, setSysBusy] = useState(false);
+  const [tblSysBusy, setTblSysBusy] = useState(false);
   const [err, setErr] = useState('');
+
+  // Preset sistemden doldurulabilir mi? (kadro / eğitim planı)
+  const fillFromSystem = async () => {
+    if (!preset?.systemTableKey) return;
+    setTblSysBusy(true);
+    setErr('');
+    try {
+      const res = await KanitSaglayici.fetchTable(preset.systemTableKey, ctxForSystem);
+      if (!res || !res.rows || res.rows.length === 0) {
+        setErr('Seçili program için sistemde bu tabloya ait veri bulunamadı.');
+        return;
+      }
+      setTable(res);
+    } finally {
+      setTblSysBusy(false);
+    }
+  };
 
   const pickFile = async (e) => {
     const f = (e.target.files && e.target.files[0]) || null;
@@ -436,7 +616,11 @@ function HavuzEditor({ initial, criteria, departments, defaults, ctxForSystem, o
           }}
         >
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: AKR.navy }}>
-            {initial ? 'Kanıtı Düzenle' : 'Havuza Kanıt Ekle'}
+            {initial
+              ? 'Kanıtı Düzenle'
+              : preset
+                ? 'Hazır Tablo: ' + preset.title
+                : 'Havuza Kanıt Ekle'}
           </h3>
           <span
             onClick={onClose}
@@ -447,29 +631,31 @@ function HavuzEditor({ initial, criteria, departments, defaults, ctxForSystem, o
         </div>
 
         <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Tür seçimi */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {HAVUZ_TYPES.map((tp) => (
-              <button
-                key={tp.id}
-                type="button"
-                onClick={() => setType(tp.id)}
-                title={tp.desc}
-                style={{
-                  padding: '7px 12px',
-                  borderRadius: 9,
-                  border: '1px solid ' + (type === tp.id ? AKR.accent : AKR.border),
-                  background: type === tp.id ? AKR.accentPale : 'white',
-                  color: type === tp.id ? AKR.accent : AKR.textMuted,
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                {tp.icon} {tp.label}
-              </button>
-            ))}
-          </div>
+          {/* Tür seçimi — hazır tabloda sabittir (gizli) */}
+          {!preset && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {HAVUZ_TYPES.map((tp) => (
+                <button
+                  key={tp.id}
+                  type="button"
+                  onClick={() => setType(tp.id)}
+                  title={tp.desc}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: 9,
+                    border: '1px solid ' + (type === tp.id ? AKR.accent : AKR.border),
+                    background: type === tp.id ? AKR.accentPale : 'white',
+                    color: type === tp.id ? AKR.accent : AKR.textMuted,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {tp.icon} {tp.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Ölçüt + program etiketi */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -588,7 +774,26 @@ function HavuzEditor({ initial, criteria, departments, defaults, ctxForSystem, o
             </div>
           )}
 
-          {type === 'tablo' && <TableEditor table={table} onChange={setTable} />}
+          {type === 'tablo' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {preset?.systemTableKey && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={fillFromSystem}
+                    disabled={tblSysBusy}
+                    style={{ ...miniBtn, borderColor: AKR.accent }}
+                  >
+                    {tblSysBusy ? 'Dolduruluyor…' : '⚙️ Sistemden Doldur'}
+                  </button>
+                  <span style={{ fontSize: 11.5, color: AKR.textMuted }}>
+                    Seçili programın güncel verisini tabloya yazar; sonra elle düzenleyebilirsiniz.
+                  </span>
+                </div>
+              )}
+              <TableEditor table={table} onChange={setTable} />
+            </div>
+          )}
 
           {type === 'sistem' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -889,7 +1094,8 @@ function AkreditasyonApp({ currentUser }) {
   const [progDept, setProgDept] = useState('__all'); // '__all' | '' (fakülte geneli) | deptId
   const [filterOlcut, setFilterOlcut] = useState('all'); // 'all' | number
   const [filterType, setFilterType] = useState('all');
-  const [editor, setEditor] = useState(null); // {mode:'new'|'edit', item?}
+  const [editor, setEditor] = useState(null); // {mode:'new'|'edit'|'preset', item?, preset?}
+  const [presetMenu, setPresetMenu] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -1235,6 +1441,80 @@ function AkreditasyonApp({ currentUser }) {
           >
             + Kanıt Ekle
           </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setPresetMenu((v) => !v)}
+              title="MÜDEK ÖDR'nin standart tablolarını başlıklarıyla hazır ekler"
+              style={{
+                padding: '9px 14px',
+                borderRadius: 8,
+                border: '1px solid ' + AKR.border,
+                background: 'white',
+                color: AKR.navy,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              ▦ Hazır Tablo ▾
+            </button>
+            {presetMenu && (
+              <>
+                <div
+                  onClick={() => setPresetMenu(false)}
+                  style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    marginTop: 6,
+                    minWidth: 300,
+                    background: 'white',
+                    border: '1px solid ' + AKR.border,
+                    borderRadius: 10,
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.14)',
+                    zIndex: 41,
+                    padding: 6,
+                    maxHeight: 360,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {ODR_TABLE_PRESETS.map((ps) => (
+                    <button
+                      key={ps.id}
+                      type="button"
+                      onClick={() => {
+                        setPresetMenu(false);
+                        setEditor({ mode: 'preset', preset: ps });
+                      }}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '9px 11px',
+                        border: 'none',
+                        background: 'none',
+                        borderRadius: 7,
+                        cursor: 'pointer',
+                        fontSize: 12.5,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = AKR.bg)}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                    >
+                      <span style={{ fontWeight: 700, color: AKR.navy }}>{ps.title}</span>
+                      <span style={{ color: AKR.textMuted, marginLeft: 6 }}>
+                        · Ölçüt {ps.olcutNo}
+                        {ps.systemTableKey ? ' · sistemden doldurulabilir' : ''}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <button
             type="button"
             onClick={generateReport}
@@ -1392,6 +1672,7 @@ function AkreditasyonApp({ currentUser }) {
       {editor && (
         <HavuzEditor
           initial={editor.mode === 'edit' ? editor.item : null}
+          preset={editor.mode === 'preset' ? editor.preset : null}
           criteria={criteria}
           departments={departments}
           defaults={{
