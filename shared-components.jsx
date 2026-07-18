@@ -1542,6 +1542,13 @@ window.TENANT = {
     // Eski kullanım yerleri FACULTY sabitini okuyor — yerinde senkronla.
     FACULTY.name = window.TENANT.facultyName;
     FACULTY.university = window.TENANT.universityName;
+    // Sekme başlığı da kiracıya göre (index.html'deki statik başlık yalnız
+    // ilk yükleme anında görünür).
+    try {
+      document.title = window.TENANT.appName;
+    } catch (_) {
+      /* yok say */
+    }
     try {
       window.dispatchEvent(new CustomEvent('tenant:loaded'));
     } catch (_) {
