@@ -1422,27 +1422,30 @@ const previewText = {
   padding: '8px 10px',
 };
 
+// Belge HTML'ini ayrı pencerede yazdır (PDF'e aktarma).
+function printHTML(bodyHTML, filename) {
+  const w = window.open('', '_blank');
+  if (!w) {
+    alert('Yazdırma penceresi açılamadı (açılır pencere engelleyici olabilir).');
+    return;
+  }
+  w.document.write(
+    '<html><head><meta charset="utf-8"><title>' +
+      wEsc(filename || 'ODR') +
+      '</title><style>@page{margin:20mm;}body{font-family:Inter,Arial,sans-serif;color:#0f172a;line-height:1.5;}table{page-break-inside:avoid;}h2{page-break-after:avoid;}</style></head><body>' +
+      bodyHTML +
+      '</body></html>'
+  );
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 350);
+}
+
 // ══════════════════════════════════════════════════════════════
 // ÖDR canlı önizleme — tam ekran belge görünümü + araç çubuğu
 // ══════════════════════════════════════════════════════════════
 function ODRPreview({ bodyHTML, filename, onDownloadDocx, onClose }) {
-  const printReport = () => {
-    const w = window.open('', '_blank');
-    if (!w) {
-      alert('Yazdırma penceresi açılamadı (açılır pencere engelleyici olabilir).');
-      return;
-    }
-    w.document.write(
-      '<html><head><meta charset="utf-8"><title>' +
-        wEsc(filename || 'ODR') +
-        '</title><style>@page{margin:20mm;}body{font-family:Inter,Arial,sans-serif;color:#0f172a;line-height:1.5;}table{page-break-inside:avoid;}h2{page-break-after:avoid;}</style></head><body>' +
-        bodyHTML +
-        '</body></html>'
-    );
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 350);
-  };
+  const printReport = () => printHTML(bodyHTML, filename);
 
   return (
     <div
@@ -1818,6 +1821,37 @@ function AkreditasyonApp({ currentUser }) {
     setPreview({ bodyHTML, filename });
   };
 
+  // Sağ panel canlı önizleme — havuz/kapsam değiştikçe yeniden üretilir.
+  const livePreview = useMemo(() => {
+    if (!framework) return { bodyHTML: '', filename: 'ODR.docx' };
+    const isAll = progDept === '__all';
+    const targetDept = !isAll && progDept !== '' ? progDept : '';
+    const deptObj = departments.find((d) => d.id === targetDept);
+    const scopeLabel = deptObj?.name || (isAll ? 'Tüm Programlar' : 'Fakülte Geneli');
+    const pool = items.filter((it) => {
+      if (isAll) return true;
+      if (targetDept === '') return !it.departmentId;
+      return !it.departmentId || it.departmentId === targetDept;
+    });
+    const identity = {
+      universiteAd: window.TENANT?.universityName || '',
+      fakulteAd: window.TENANT?.facultyName || '',
+      cerceve: ((framework.name || '') + ' ' + (framework.version || '')).trim(),
+      tarih: new Date().toLocaleDateString('tr-TR'),
+      hazirlayan: currentUser?.name || currentUser?.identifier || '',
+    };
+    const bodyHTML = buildReportBodyHTML({
+      scopeLabel,
+      identity,
+      criteria,
+      pool,
+      origin: window.location.origin,
+    });
+    const filename =
+      'ODR_' + (deptObj?.name || 'fakulte').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') + '.docx';
+    return { bodyHTML, filename };
+  }, [framework, items, progDept, criteria, departments, currentUser]);
+
   const generateNativeODR = async () => {
     if (!framework) return;
     const { isAll, deptObj, pool } = selectReportPool();
@@ -1987,212 +2021,166 @@ function AkreditasyonApp({ currentUser }) {
   }
 
   const totalCount = items.length;
+  const coveredCount = criteria.filter((c) => perOlcutCount[c.no]).length;
+  const selCrit = criteria.find((c) => c.no === filterOlcut);
+  const selTitle =
+    filterOlcut === 'all'
+      ? 'Tüm Kanıtlar'
+      : filterOlcut === 0
+        ? 'Genel / Etiketsiz'
+        : selCrit
+          ? 'Ölçüt ' + selCrit.no + ': ' + selCrit.title
+          : 'Ölçüt ' + filterOlcut;
+
+  const navItem = (active, label, count, done) => (
+    <button
+      type="button"
+      onClick={label.onClick}
+      title={label.title || ''}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        width: '100%',
+        textAlign: 'left',
+        padding: '8px 12px',
+        border: 'none',
+        borderLeft: '3px solid ' + (active ? AKR.navy : 'transparent'),
+        background: active ? AKR.accentPale : 'transparent',
+        color: active ? AKR.navy : AKR.text,
+        fontSize: 12.5,
+        fontWeight: active ? 700 : 500,
+        cursor: 'pointer',
+      }}
+      onMouseEnter={(e) => {
+        if (!active) e.currentTarget.style.background = AKR.bg;
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.background = 'transparent';
+      }}
+    >
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          flexShrink: 0,
+          background: done ? AKR.green : count ? AKR.accent : AKR.border,
+        }}
+      />
+      <span style={{ flex: 1, minWidth: 0 }}>{label.text}</span>
+      {count ? (
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: active ? AKR.navy : AKR.textMuted,
+            background: active ? 'white' : AKR.bg,
+            borderRadius: 10,
+            padding: '1px 7px',
+          }}
+        >
+          {count}
+        </span>
+      ) : null}
+    </button>
+  );
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif", color: AKR.text, maxWidth: 1040 }}>
-      {/* Başlık + eylemler */}
+    <div
+      style={{
+        fontFamily: "'Inter', sans-serif",
+        color: AKR.text,
+        display: 'grid',
+        gridTemplateColumns: '248px minmax(0,1fr) minmax(0,1fr)',
+        gap: 0,
+        height: 'calc(100vh - 150px)',
+        minHeight: 540,
+        border: '1px solid ' + AKR.border,
+        borderRadius: 12,
+        overflow: 'hidden',
+        background: 'white',
+      }}
+    >
+      {/* ── SOL: Ölçüt gezinme ── */}
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          flexWrap: 'wrap',
-          marginBottom: 14,
-        }}
-      >
-        <div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: AKR.navy }}>
-            Kanıt Havuzu{framework ? ' — ' + (framework.shortName || framework.name) : ''}
-          </h2>
-          <p style={{ fontSize: 12.5, color: AKR.textMuted, margin: '4px 0 0' }}>
-            Rapor (ÖDR) için gereken kanıtları her yerden toplayın · {totalCount} kayıt
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => setEditor({ mode: 'new' })}
-            style={{
-              padding: '9px 18px',
-              borderRadius: 8,
-              border: 'none',
-              background: AKR.navy,
-              color: 'white',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            + Kanıt Ekle
-          </button>
-          <div style={{ position: 'relative' }}>
-            <button
-              type="button"
-              onClick={() => setPresetMenu((v) => !v)}
-              title="MÜDEK ÖDR'nin standart tablolarını başlıklarıyla hazır ekler"
-              style={{
-                padding: '9px 14px',
-                borderRadius: 8,
-                border: '1px solid ' + AKR.border,
-                background: 'white',
-                color: AKR.navy,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              ▦ Hazır Tablo ▾
-            </button>
-            {presetMenu && (
-              <>
-                <div
-                  onClick={() => setPresetMenu(false)}
-                  style={{ position: 'fixed', inset: 0, zIndex: 40 }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    marginTop: 6,
-                    minWidth: 300,
-                    background: 'white',
-                    border: '1px solid ' + AKR.border,
-                    borderRadius: 10,
-                    boxShadow: '0 12px 32px rgba(0,0,0,0.14)',
-                    zIndex: 41,
-                    padding: 6,
-                    maxHeight: 360,
-                    overflowY: 'auto',
-                  }}
-                >
-                  {ODR_TABLE_PRESETS.map((ps) => (
-                    <button
-                      key={ps.id}
-                      type="button"
-                      onClick={() => {
-                        setPresetMenu(false);
-                        setEditor({ mode: 'preset', preset: ps });
-                      }}
-                      style={{
-                        display: 'block',
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '9px 11px',
-                        border: 'none',
-                        background: 'none',
-                        borderRadius: 7,
-                        cursor: 'pointer',
-                        fontSize: 12.5,
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = AKR.bg)}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                    >
-                      <span style={{ fontWeight: 700, color: AKR.navy }}>{ps.title}</span>
-                      <span style={{ color: AKR.textMuted, marginLeft: 6 }}>
-                        · Ölçüt {ps.olcutNo}
-                        {ps.systemTableKey ? ' · sistemden doldurulabilir' : ''}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={openPreview}
-            title="ÖDR'yi belge görünümünde önizle; oradan Word indir veya PDF olarak yazdır"
-            style={{
-              padding: '9px 18px',
-              borderRadius: 8,
-              border: '1px solid ' + AKR.accent,
-              background: AKR.accentPale,
-              color: AKR.accent,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            👁️ ÖDR Önizle
-          </button>
-          <button
-            type="button"
-            onClick={generateNativeODR}
-            disabled={nativeBusy}
-            title="Havuzdaki kanıtları GERÇEK Word tablolarıyla doğrudan .docx'e döker (şablon gerektirmez)"
-            style={{
-              padding: '9px 14px',
-              borderRadius: 8,
-              border: '1px solid ' + AKR.border,
-              background: 'white',
-              color: AKR.textMuted,
-              fontSize: 12.5,
-              fontWeight: 600,
-              cursor: nativeBusy ? 'wait' : 'pointer',
-            }}
-          >
-            {nativeBusy ? 'Üretiliyor…' : '⬇️ Word İndir'}
-          </button>
-          <button
-            type="button"
-            onClick={generateReport}
-            disabled={genBusy}
-            title="Kendi Word şablonunuz varsa: Şablonlar modülüne yüklü ÖDR şablonunu havuz verisiyle doldurur"
-            style={{
-              padding: '9px 14px',
-              borderRadius: 8,
-              border: '1px solid ' + AKR.border,
-              background: 'white',
-              color: AKR.textMuted,
-              fontSize: 12.5,
-              fontWeight: 600,
-              cursor: genBusy ? 'wait' : 'pointer',
-            }}
-          >
-            {genBusy ? 'Dolduruluyor…' : 'Şablona Doldur'}
-          </button>
-          <button
-            type="button"
-            onClick={installBundledTemplate}
-            disabled={installingTpl}
-            title="'Şablona Doldur' yolu için sistemle gelen hazır ÖDR iskeletini tek tıkla kurar"
-            style={{
-              padding: '9px 14px',
-              borderRadius: 8,
-              border: '1px solid ' + AKR.border,
-              background: 'white',
-              color: AKR.textMuted,
-              fontSize: 12.5,
-              fontWeight: 600,
-              cursor: installingTpl ? 'wait' : 'pointer',
-            }}
-          >
-            {installingTpl ? 'Kuruluyor…' : 'Hazır Şablonu Kur'}
-          </button>
-          {msg && <span style={{ fontSize: 12, color: AKR.green, fontWeight: 600 }}>{msg}</span>}
-        </div>
-      </div>
-
-      {/* Filtre şeridi */}
-      <div
-        style={{
-          background: 'white',
-          border: '1px solid ' + AKR.border,
-          borderRadius: 12,
-          padding: '12px 14px',
-          marginBottom: 14,
+          borderRight: '1px solid ' + AKR.border,
+          background: AKR.bg,
           display: 'flex',
           flexDirection: 'column',
-          gap: 10,
+          minHeight: 0,
         }}
       >
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ padding: '14px 14px 10px' }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: AKR.navy }}>
+            {framework ? framework.shortName || framework.name : 'Kanıt Havuzu'}
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: 11,
+              color: AKR.textMuted,
+              margin: '8px 0 4px',
+            }}
+          >
+            <span>Kanıtlı ölçüt</span>
+            <span style={{ fontWeight: 700, color: AKR.navy }}>{coveredCount}/10</span>
+          </div>
+          <div style={{ height: 6, borderRadius: 3, background: AKR.border, overflow: 'hidden' }}>
+            <div
+              style={{
+                width: coveredCount * 10 + '%',
+                height: '100%',
+                background: AKR.green,
+                transition: 'width .3s',
+              }}
+            />
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingBottom: 8 }}>
+          {navItem(
+            filterOlcut === 'all',
+            { text: 'Tüm Kanıtlar', onClick: () => setFilterOlcut('all') },
+            totalCount,
+            false
+          )}
+          <div
+            style={{
+              padding: '10px 14px 4px',
+              fontSize: 10.5,
+              fontWeight: 700,
+              letterSpacing: '.05em',
+              color: AKR.textMuted,
+            }}
+          >
+            ÖLÇÜTLER
+          </div>
+          {criteria.map((c) =>
+            navItem(
+              filterOlcut === c.no,
+              {
+                text: c.no + '. ' + c.title,
+                title: c.title,
+                onClick: () => setFilterOlcut(c.no),
+              },
+              perOlcutCount[c.no] || 0,
+              !!perOlcutCount[c.no]
+            )
+          )}
+          {navItem(
+            filterOlcut === 0,
+            { text: 'Genel / Etiketsiz', onClick: () => setFilterOlcut(0) },
+            perOlcutCount[0] || 0,
+            false
+          )}
+        </div>
+        <div style={{ borderTop: '1px solid ' + AKR.border, padding: 10 }}>
           <select
             value={progDept}
             onChange={(e) => setProgDept(e.target.value)}
-            style={{ ...selectStyle, width: 'auto', marginTop: 0 }}
+            style={{ ...selectStyle, marginTop: 0, fontSize: 12 }}
           >
             <option value="__all">Tüm programlar</option>
             <option value="">Fakülte geneli</option>
@@ -2202,92 +2190,263 @@ function AkreditasyonApp({ currentUser }) {
               </option>
             ))}
           </select>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            style={{ ...selectStyle, width: 'auto', marginTop: 0 }}
-          >
-            <option value="all">Tüm türler</option>
-            {HAVUZ_TYPES.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.icon} {t.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        {/* Ölçüt sekmeleri */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => setFilterOlcut('all')}
-            style={critTab(filterOlcut === 'all')}
-          >
-            Tümü
-          </button>
-          {criteria.map((c) => (
-            <button
-              key={c.no}
-              type="button"
-              onClick={() => setFilterOlcut(c.no)}
-              title={c.title}
-              style={critTab(filterOlcut === c.no)}
-            >
-              {c.no}
-              {perOlcutCount[c.no] ? ' · ' + perOlcutCount[c.no] : ''}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setFilterOlcut(0)}
-            style={critTab(filterOlcut === 0)}
-          >
-            Genel{perOlcutCount[0] ? ' · ' + perOlcutCount[0] : ''}
-          </button>
         </div>
       </div>
 
-      {/* Kanıt listesi */}
-      {visible.length === 0 ? (
+      {/* ── ORTA: Kanıt düzenleme ── */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          borderRight: '1px solid ' + AKR.border,
+        }}
+      >
         <div
           style={{
-            background: 'white',
-            border: '1px dashed ' + AKR.border,
-            borderRadius: 12,
-            padding: 48,
-            textAlign: 'center',
-            color: AKR.textMuted,
+            padding: '14px 18px',
+            borderBottom: '1px solid ' + AKR.border,
+            background: AKR.bg,
           }}
         >
-          <div style={{ fontSize: 30, marginBottom: 8 }}>🗂️</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: AKR.navy, marginBottom: 4 }}>
-            {totalCount === 0 ? 'Havuz boş' : 'Bu filtreye uygun kanıt yok'}
-          </div>
-          <div style={{ fontSize: 12.5 }}>
-            {totalCount === 0
-              ? '"+ Kanıt Ekle" ile metin, tablo, dosya, dış bağlantı veya sistem verisi ekleyin.'
-              : 'Filtreyi değiştirin ya da yeni kanıt ekleyin.'}
+          <div style={{ fontSize: 15, fontWeight: 800, color: AKR.navy }}>{selTitle}</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() =>
+                setEditor({
+                  mode: 'new',
+                })
+              }
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: 'none',
+                background: AKR.navy,
+                color: 'white',
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              + Kanıt Ekle
+            </button>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setPresetMenu((v) => !v)}
+                title="MÜDEK ÖDR'nin standart tablolarını hazır ekler"
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid ' + AKR.border,
+                  background: 'white',
+                  color: AKR.navy,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                ▦ Hazır Tablo ▾
+              </button>
+              {presetMenu && (
+                <>
+                  <div
+                    onClick={() => setPresetMenu(false)}
+                    style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      marginTop: 6,
+                      minWidth: 300,
+                      background: 'white',
+                      border: '1px solid ' + AKR.border,
+                      borderRadius: 10,
+                      boxShadow: '0 12px 32px rgba(0,0,0,0.14)',
+                      zIndex: 41,
+                      padding: 6,
+                      maxHeight: 320,
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {ODR_TABLE_PRESETS.map((ps) => (
+                      <button
+                        key={ps.id}
+                        type="button"
+                        onClick={() => {
+                          setPresetMenu(false);
+                          setEditor({ mode: 'preset', preset: ps });
+                        }}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '9px 11px',
+                          border: 'none',
+                          background: 'none',
+                          borderRadius: 7,
+                          cursor: 'pointer',
+                          fontSize: 12.5,
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = AKR.bg)}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                      >
+                        <span style={{ fontWeight: 700, color: AKR.navy }}>{ps.title}</span>
+                        <span style={{ color: AKR.textMuted, marginLeft: 6 }}>
+                          · Ölçüt {ps.olcutNo}
+                          {ps.systemTableKey ? ' · sistemden' : ''}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              style={{
+                ...selectStyle,
+                width: 'auto',
+                marginTop: 0,
+                fontSize: 12,
+                padding: '7px 10px',
+              }}
+            >
+              <option value="all">Tüm türler</option>
+              {HAVUZ_TYPES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.icon} {t.label}
+                </option>
+              ))}
+            </select>
+            {msg && (
+              <span
+                style={{ fontSize: 12, color: AKR.green, fontWeight: 600, alignSelf: 'center' }}
+              >
+                {msg}
+              </span>
+            )}
           </div>
         </div>
-      ) : (
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: 16 }}>
+          {visible.length === 0 ? (
+            <div
+              style={{
+                border: '1px dashed ' + AKR.border,
+                borderRadius: 12,
+                padding: 40,
+                textAlign: 'center',
+                color: AKR.textMuted,
+              }}
+            >
+              <div style={{ fontSize: 28, marginBottom: 8 }}>🗂️</div>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: AKR.navy, marginBottom: 4 }}>
+                {totalCount === 0 ? 'Havuz boş' : 'Bu bölümde kanıt yok'}
+              </div>
+              <div style={{ fontSize: 12 }}>
+                “+ Kanıt Ekle” ile metin, tablo, dosya, bağlantı veya sistem verisi ekleyin.
+                <br />
+                İpucu: ekran görüntüsünü ya da bir tabloyu <b>Ctrl+V</b> ile doğrudan
+                yapıştırabilirsiniz.
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {visible.map((it) => (
+                <HavuzCard
+                  key={it.id}
+                  item={it}
+                  criteria={criteria}
+                  departments={departments}
+                  onEdit={() => setEditor({ mode: 'edit', item: it })}
+                  onDelete={() => deleteItem(it)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── SAĞ: Canlı ÖDR önizleme ── */}
+      <div
+        style={{ display: 'flex', flexDirection: 'column', minHeight: 0, background: '#525659' }}
+      >
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: 12,
+            padding: '10px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            flexShrink: 0,
           }}
         >
-          {visible.map((it) => (
-            <HavuzCard
-              key={it.id}
-              item={it}
-              criteria={criteria}
-              departments={departments}
-              onEdit={() => setEditor({ mode: 'edit', item: it })}
-              onDelete={() => deleteItem(it)}
-            />
-          ))}
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>
+            ÖDR ÖNİZLEME (canlı)
+          </span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              onClick={() => printHTML(livePreview.bodyHTML, livePreview.filename)}
+              title="PDF olarak yazdır"
+              style={rpBtn}
+            >
+              🖨️ PDF
+            </button>
+            <button
+              type="button"
+              onClick={generateNativeODR}
+              disabled={nativeBusy}
+              title="Word (.docx) indir"
+              style={rpBtn}
+            >
+              {nativeBusy ? '…' : '⬇️ Word'}
+            </button>
+            <button type="button" onClick={openPreview} title="Tam ekran önizleme" style={rpBtn}>
+              ⛶
+            </button>
+          </div>
         </div>
-      )}
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '0 16px 24px' }}>
+          <div
+            style={{
+              background: 'white',
+              padding: '40px 44px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
+              color: '#0f172a',
+              fontSize: 12.5,
+              borderRadius: 2,
+            }}
+            dangerouslySetInnerHTML={{ __html: livePreview.bodyHTML }}
+          />
+          <div
+            style={{
+              marginTop: 10,
+              textAlign: 'center',
+              display: 'flex',
+              gap: 8,
+              justifyContent: 'center',
+            }}
+          >
+            <button type="button" onClick={generateReport} disabled={genBusy} style={rpLink}>
+              {genBusy ? 'Dolduruluyor…' : 'Kendi Word şablonuma doldur'}
+            </button>
+            <span style={{ color: 'rgba(255,255,255,0.4)' }}>·</span>
+            <button
+              type="button"
+              onClick={installBundledTemplate}
+              disabled={installingTpl}
+              style={rpLink}
+            >
+              {installingTpl ? 'Kuruluyor…' : 'Hazır şablonu kur'}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {editor && (
         <HavuzEditor
@@ -2317,15 +2476,26 @@ function AkreditasyonApp({ currentUser }) {
   );
 }
 
-const critTab = (active) => ({
-  padding: '5px 12px',
-  borderRadius: 8,
-  border: '1px solid ' + (active ? AKR.navy : AKR.border),
-  background: active ? AKR.navy : 'white',
-  color: active ? 'white' : AKR.textMuted,
-  fontSize: 12,
+// Sağ (önizleme) panel araç çubuğu butonları
+const rpBtn = {
+  padding: '5px 10px',
+  borderRadius: 7,
+  border: 'none',
+  background: 'rgba(255,255,255,0.9)',
+  color: '#1B2A4A',
+  fontSize: 11.5,
   fontWeight: 700,
   cursor: 'pointer',
-});
+};
+const rpLink = {
+  background: 'none',
+  border: 'none',
+  color: 'rgba(255,255,255,0.75)',
+  fontSize: 11,
+  fontWeight: 600,
+  cursor: 'pointer',
+  textDecoration: 'underline',
+  padding: 0,
+};
 
 window.AkreditasyonApp = AkreditasyonApp;
