@@ -1691,6 +1691,38 @@ const SINAV_ROWS = [
   { id: 'gozetmen', label: 'Gözetmen(ler)' },
 ];
 
+// Akreditasyon ÖDR değişkenleri — şablon HANGİ biçimde gelirse gelsin
+// doldurulabilsin diye iki yol birden sunulur:
+//   • Bölüm-tarzı şablonlar (ÖDR gibi her ölçüt ayrı bölüm): ölçüt başına
+//     NUMARALI statik değişkenler (olcut1Durum … olcut10Kanit).
+//   • Tablo-tarzı şablonlar: SATIR değişkenleri (ölçüt başına bir satır
+//     çoğaltılır — mevcut satır-klonlama motoru).
+// Numaralı statikler ilk 10 ölçütü kapsar (MÜDEK=10); daha fazla ölçütlü
+// çerçevelerde tablo-tarzı satır değişkenleri sınırsız çalışır.
+const AKREDITASYON_STATIC = [
+  { id: 'programAd', label: 'Program (Bölüm) Adı', format: 'title' },
+  { id: 'fakulteAd', label: 'Fakülte Adı', format: 'title' },
+  { id: 'universiteAd', label: 'Üniversite Adı', format: 'title' },
+  { id: 'cerceve', label: 'Çerçeve Adı/Sürümü (örn. MÜDEK Genel Ölçütler)' },
+  { id: 'tarih', label: 'Rapor Tarihi' },
+  { id: 'hazirlayan', label: 'Hazırlayan (fakülte yetkilisi)', format: 'name' },
+  { id: 'ilerlemeOzet', label: 'İlerleme Özeti (X/Y tam · %Z)' },
+];
+for (let _i = 1; _i <= 10; _i++) {
+  AKREDITASYON_STATIC.push(
+    { id: 'olcut' + _i + 'Durum', label: 'Ölçüt ' + _i + ' — Durum Özeti' },
+    { id: 'olcut' + _i + 'Not', label: 'Ölçüt ' + _i + ' — Notlar' },
+    { id: 'olcut' + _i + 'Kanit', label: 'Ölçüt ' + _i + ' — Kanıt Listesi' }
+  );
+}
+const AKREDITASYON_ROWS = [
+  { id: 'olcutNo', label: 'Ölçüt No' },
+  { id: 'olcutBaslik', label: 'Ölçüt Başlığı' },
+  { id: 'olcutDurum', label: 'Ölçüt Durum Özeti' },
+  { id: 'olcutNot', label: 'Ölçüt Notları' },
+  { id: 'olcutKanit', label: 'Ölçüt Kanıt Listesi' },
+];
+
 window.TEMPLATE_VARS = {
   muafiyet: {
     docTypes: [
@@ -1744,6 +1776,11 @@ window.TEMPLATE_VARS = {
     'strateji-izleme': { static: [], row: [], rowKeyFill: true },
     'uc-aylik': { static: [], row: [], rowKeyFill: true },
     default: { static: [], row: [] },
+  },
+  akreditasyon: {
+    docTypes: [{ id: 'odr', label: 'Öz Değerlendirme Raporu (ÖDR)' }],
+    odr: { static: AKREDITASYON_STATIC, row: AKREDITASYON_ROWS },
+    default: { static: AKREDITASYON_STATIC, row: AKREDITASYON_ROWS },
   },
   _generic: {
     docTypes: [{ id: 'default', label: 'Belge' }],

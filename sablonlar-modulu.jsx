@@ -21,6 +21,7 @@ const SB_MODULES = [
   { id: 'projeler', label: 'Proje Performans', color: '#8B5CF6' },
   { id: 'formlar', label: 'Formlar', color: '#64748B' },
   { id: 'performans', label: 'Performans', color: '#0D9488' },
+  { id: 'akreditasyon', label: 'Akreditasyon', color: '#0F766E' },
   { id: 'anket', label: 'Anketler', color: '#06B6D4' },
 ];
 // Bir modülün belge türleri (shared TEMPLATE_VARS'tan)

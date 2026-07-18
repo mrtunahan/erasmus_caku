@@ -620,6 +620,96 @@ function AkreditasyonApp({ currentUser }) {
     return { total, tam, kismen };
   }, [framework, assessment]);
 
+  // ── ÖDR / rapor üretimi — Şablonlar modülüne yüklenen HERHANGİ bir .docx
+  // şablonunu doldurur ({{...}} + alan eşleme). Değerlendirme verisi hem
+  // numaralı statik değişkenler (bölüm-tarzı ÖDR) hem satır değişkenleri
+  // (tablo-tarzı özet) olarak sunulur; şablon hangisini kullanırsa o dolar.
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const generateReport = async () => {
+    if (!framework || !assessment || !selDept) return;
+    const items = assessment.items || {};
+    const per = framework.criteria.map((c) => {
+      let tam = 0;
+      let kismen = 0;
+      let eksik = 0;
+      const notes = [];
+      const evid = [];
+      c.sub.forEach((s, si) => {
+        const st = items[s.id] || {};
+        if (st.status === 'tam') tam++;
+        else if (st.status === 'kismen') kismen++;
+        else eksik++;
+        const tag = c.no + '.' + (si + 1);
+        if (st.note) notes.push(tag + ': ' + st.note);
+        (st.evidence || []).forEach((ev) => evid.push(tag + ': ' + (ev.label || ev.url)));
+      });
+      const durum =
+        tam +
+        '/' +
+        c.sub.length +
+        ' tam' +
+        (kismen ? ' · ' + kismen + ' kısmen' : '') +
+        (eksik ? ' · ' + eksik + ' eksik' : '');
+      return {
+        no: c.no,
+        baslik: c.title,
+        durum,
+        not: notes.join(' | ') || '—',
+        kanit: evid.join(' | ') || '—',
+      };
+    });
+    const pctNow = progress.total ? Math.round((progress.tam / progress.total) * 100) : 0;
+    const staticData = {
+      programAd: selDeptObj?.name || '',
+      fakulteAd: window.TENANT?.facultyName || '',
+      universiteAd: window.TENANT?.universityName || '',
+      cerceve: ((framework.name || '') + ' ' + (framework.version || '')).trim(),
+      tarih: new Date().toLocaleDateString('tr-TR'),
+      hazirlayan: currentUser?.name || currentUser?.identifier || '',
+      ilerlemeOzet:
+        progress.tam + '/' + progress.total + ' tam · ' + progress.kismen + ' kısmen · %' + pctNow,
+    };
+    per.forEach((p, i) => {
+      const n = i + 1;
+      staticData['olcut' + n + 'Durum'] = p.durum;
+      staticData['olcut' + n + 'Not'] = p.not;
+      staticData['olcut' + n + 'Kanit'] = p.kanit;
+    });
+    const rows = per.map((p) => ({
+      olcutNo: p.no,
+      olcutBaslik: p.baslik,
+      olcutDurum: p.durum,
+      olcutNot: p.not,
+      olcutKanit: p.kanit,
+    }));
+    setGeneratingReport(true);
+    try {
+      const res = await window.TemplateEngine.produceFromTemplate({
+        module: 'akreditasyon',
+        docType: 'odr',
+        departmentId: selDept,
+        staticData,
+        rows,
+        filename:
+          'ODR_' + (selDeptObj?.name || 'program').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') + '.docx',
+      });
+      if (res.ok) return;
+      const msgs = {
+        'no-template':
+          'ÖDR şablonu bulunamadı.\nŞablonlar modülünden "Akreditasyon" → "Öz Değerlendirme Raporu (ÖDR)" türüne bir .docx şablonu yükleyin ({{...}} yer tutucularıyla) ve 🧩 ile alanları eşleyin. Herhangi bir şablon (MÜDEK ÖDR dahil) kullanılabilir.',
+        'no-mapping':
+          'Şablonun alan eşlemesi yapılmamış.\nŞablonlar modülünde 🧩 (Alanlar) butonuyla yer tutucuları değişkenlere eşleyin.',
+        'not-docx': 'Atanan şablon .docx değil — rapor üretimi yalnızca .docx ile çalışır.',
+        'invalid-output': 'Şablondan geçerli belge üretilemedi (şablon yapısı desteklenmiyor).',
+      };
+      alert(msgs[res.reason] || 'Rapor üretilemedi: ' + (res.message || res.reason));
+    } catch (e) {
+      alert('Rapor üretilemedi: ' + e.message);
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
   if (!isFacultyManager) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
@@ -709,6 +799,24 @@ function AkreditasyonApp({ currentUser }) {
             }}
           >
             {saving ? 'Kaydediliyor…' : 'Kaydet'}
+          </button>
+          <button
+            type="button"
+            onClick={generateReport}
+            disabled={generatingReport || !selDept}
+            title="Şablonlar modülüne yüklü ÖDR şablonunu değerlendirme verisiyle doldurur"
+            style={{
+              padding: '9px 18px',
+              borderRadius: 8,
+              border: '1px solid ' + AKR.accent,
+              background: AKR.accentPale,
+              color: AKR.accent,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: generatingReport ? 'wait' : 'pointer',
+            }}
+          >
+            {generatingReport ? 'Üretiliyor…' : 'Rapor Oluştur (ÖDR)'}
           </button>
           {msg && <span style={{ fontSize: 12, color: AKR.green, fontWeight: 600 }}>{msg}</span>}
         </div>
