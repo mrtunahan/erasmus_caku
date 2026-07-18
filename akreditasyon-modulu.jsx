@@ -220,6 +220,26 @@ window.KanitSaglayici = KanitSaglayici;
 // Boş tablo yapısı
 const emptyTable = () => ({ headers: ['Sütun 1', 'Sütun 2'], rows: [['', '']] });
 
+// Sekmeyle ayrılmış metni (Excel/web tablosu Ctrl+C) tabloya ayrıştır.
+// İlk satır başlık kabul edilir; sütun sayısı en geniş satıra hizalanır.
+function parseTabularText(text) {
+  const lines = String(text || '')
+    .replace(/\r/g, '')
+    .split('\n')
+    .filter((l) => l.trim() !== '');
+  if (lines.length === 0) return null;
+  const matrix = lines.map((l) => l.split('\t'));
+  const cols = matrix.reduce((m, r) => Math.max(m, r.length), 0);
+  const pad = (r) => {
+    const c = r.slice(0, cols);
+    while (c.length < cols) c.push('');
+    return c.map((x) => x.trim());
+  };
+  const headers = pad(matrix[0]).map((h, i) => h || 'Sütun ' + (i + 1));
+  const rows = matrix.slice(1).map(pad);
+  return { headers, rows: rows.length ? rows : [headers.map(() => '')] };
+}
+
 // ══════════════════════════════════════════════════════════════
 // ÖDR hazır tablo şablonları — MÜDEK ÖDR'nin ağır/standart tabloları için
 // başlıkları doğru kurulu boş iskeletler. Bazıları sistemden doldurulabilir
@@ -595,14 +615,30 @@ function HavuzEditor({
   const [err, setErr] = useState('');
 
   // Preset sistemden doldurulabilir mi? (kadro / eğitim planı)
+  // Bağlam, sayfa filtresi DEĞİL, bu modaldaki Program seçimidir — böylece
+  // "Tüm programlar" görünümünde bile doğru programın verisi çekilir.
   const fillFromSystem = async () => {
     if (!preset?.systemTableKey) return;
+    if (!departmentId) {
+      setErr('Bu tablo bir programa özgüdür. Lütfen yukarıdan bir Program seçin.');
+      return;
+    }
     setTblSysBusy(true);
     setErr('');
     try {
-      const res = await KanitSaglayici.fetchTable(preset.systemTableKey, ctxForSystem);
+      const dObj = departments.find((d) => d.id === departmentId);
+      const ctx = {
+        departmentId,
+        departmentName: dObj?.name || '',
+        facultyId: ctxForSystem?.facultyId || '',
+      };
+      const res = await KanitSaglayici.fetchTable(preset.systemTableKey, ctx);
       if (!res || !res.rows || res.rows.length === 0) {
-        setErr('Seçili program için sistemde bu tabloya ait veri bulunamadı.');
+        setErr(
+          'Seçili program (' +
+            (dObj?.name || departmentId) +
+            ') için sistemde bu tabloya ait veri bulunamadı. Kayıtların bu bölüme bağlı olduğundan emin olun.'
+        );
         return;
       }
       setTable(res);
@@ -611,10 +647,7 @@ function HavuzEditor({
     }
   };
 
-  const pickFile = async (e) => {
-    const f = (e.target.files && e.target.files[0]) || null;
-    e.target.value = '';
-    if (!f) return;
+  const uploadFile = async (f) => {
     setUploading(true);
     setErr('');
     try {
@@ -633,10 +666,58 @@ function HavuzEditor({
       setFileUrl(data.downloadURL);
       setFileLabel(f.name);
       if (!title) setTitle(f.name);
+      return true;
     } catch (e2) {
       setErr('Dosya yüklenemedi: ' + e2.message);
+      return false;
     } finally {
       setUploading(false);
+    }
+  };
+
+  const pickFile = async (e) => {
+    const f = (e.target.files && e.target.files[0]) || null;
+    e.target.value = '';
+    if (f) await uploadFile(f);
+  };
+
+  // Ctrl+V yakala: pano bir GÖRSEL içeriyorsa (ekran görüntüsü) → dosya olarak
+  // yükle + tür 'dosya'. Pano SEKMELİ/çok satırlı METİN içeriyorsa (Excel/web
+  // tablosu) → tablo olarak ayrıştır + tür 'tablo'. Not: tarayıcı güvenliği
+  // gereği bir web LİNKİNDEN içerik otomatik ÇEKİLEMEZ; kopyalanan içeriği
+  // yapıştırmak bu işi güvenli biçimde yapmanın yoludur.
+  const handlePaste = async (e) => {
+    if (preset) return; // hazır tabloda yapıştırma tabloyu bozmasın
+    const cd = e.clipboardData;
+    if (!cd) return;
+    // 1) Görsel var mı?
+    const imgItem = Array.from(cd.items || []).find(
+      (it) => it.type && it.type.startsWith('image/')
+    );
+    if (imgItem) {
+      const blob = imgItem.getAsFile();
+      if (blob) {
+        e.preventDefault();
+        const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const file = new File([blob], 'ekran-goruntusu-' + stamp + '.' + ext, { type: blob.type });
+        setType('dosya');
+        await uploadFile(file);
+      }
+      return;
+    }
+    // 2) Tablo gibi metin mi? Güvenilir sinyal = SEKME (Excel/web tablosu
+    //    kopyalayınca hücreler sekmeyle gelir). Yalnız çok satırlı düz metin
+    //    (paragraf) tabloya ÇEVRİLMEZ — kullanıcının metnini bozmamak için.
+    const text = cd.getData('text/plain') || '';
+    if (/\t/.test(text)) {
+      const parsed = parseTabularText(text);
+      if (parsed && parsed.rows.length > 0) {
+        e.preventDefault();
+        setType('tablo');
+        setTable(parsed);
+        if (!title) setTitle('Yapıştırılan tablo');
+      }
     }
   };
 
@@ -649,9 +730,15 @@ function HavuzEditor({
     setSysBusy(true);
     setErr('');
     try {
+      const dObj = departments.find((d) => d.id === departmentId);
+      const ctx = {
+        departmentId,
+        departmentName: dObj?.name || '',
+        facultyId: ctxForSystem?.facultyId || '',
+      };
       const rows = [];
       for (const key of sysKeys) {
-        const r = await KanitSaglayici.fetch(key, ctxForSystem);
+        const r = await KanitSaglayici.fetch(key, ctx);
         const cat = KanitSaglayici.catalog.find((c) => c.key === key);
         rows.push([
           cat ? cat.label : key,
@@ -711,6 +798,7 @@ function HavuzEditor({
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        onPaste={handlePaste}
         style={{
           background: 'white',
           borderRadius: 14,
@@ -768,6 +856,22 @@ function HavuzEditor({
                   {tp.icon} {tp.label}
                 </button>
               ))}
+            </div>
+          )}
+
+          {!preset && (
+            <div
+              style={{
+                fontSize: 11.5,
+                color: AKR.textMuted,
+                background: AKR.bg,
+                borderRadius: 8,
+                padding: '7px 10px',
+              }}
+            >
+              💡 İpucu: Buraya <b>Ctrl+V</b> ile bir <b>ekran görüntüsü</b> yapıştırırsanız dosya
+              olarak eklenir; Excel/web'den kopyaladığınız bir <b>tablo</b> yapıştırırsanız otomatik
+              tabloya dönüşür.
             </div>
           )}
 
@@ -1331,13 +1435,26 @@ function AkreditasyonApp({ currentUser }) {
   // ── ÖDR / rapor üretimi — havuzu ölçüt ölçüt toplar, şablonu doldurur ──
   // Şablon token'ları (odr-sablon.docx + TEMPLATE_VARS) korunur:
   //   olcut{n}Durum / olcut{n}Not / olcut{n}Kanit  ← havuz kanıtlarından üretilir.
+  // Rapora girecek kanıt havuzu — filtre durumuna göre:
+  //   "Tüm programlar" → HER kayıt (hiçbir şey düşmez; test/genel bakış).
+  //   "Fakülte geneli" → yalnız programsız (genel) kayıtlar.
+  //   Belirli program  → o programın kayıtları + fakülte-geneli kayıtlar.
+  const selectReportPool = () => {
+    const isAll = progDept === '__all';
+    const targetDept = !isAll && progDept !== '' ? progDept : '';
+    const deptObj = departments.find((d) => d.id === targetDept);
+    const pool = items.filter((it) => {
+      if (isAll) return true;
+      if (targetDept === '') return !it.departmentId;
+      return !it.departmentId || it.departmentId === targetDept;
+    });
+    return { isAll, targetDept, deptObj, pool };
+  };
+
   const [genBusy, setGenBusy] = useState(false);
   const generateReport = async () => {
     if (!framework) return;
-    const targetDept = progDept !== '__all' && progDept !== '' ? progDept : '';
-    const deptObj = departments.find((d) => d.id === targetDept);
-    // Rapora giren kanıtlar: seçili program + fakülte geneli
-    const pool = items.filter((it) => !it.departmentId || it.departmentId === targetDept);
+    const { targetDept, deptObj, pool } = selectReportPool();
 
     const staticData = {
       programAd: deptObj?.name || 'Fakülte geneli',
@@ -1424,10 +1541,9 @@ function AkreditasyonApp({ currentUser }) {
   const [nativeBusy, setNativeBusy] = useState(false);
   const generateNativeODR = async () => {
     if (!framework) return;
-    const targetDept = progDept !== '__all' && progDept !== '' ? progDept : '';
-    const deptObj = departments.find((d) => d.id === targetDept);
-    const pool = items.filter((it) => !it.departmentId || it.departmentId === targetDept);
+    const { isAll, deptObj, pool } = selectReportPool();
     const origin = window.location.origin;
+    const scopeLabel = deptObj?.name || (isAll ? 'Tüm Programlar' : 'Fakülte Geneli');
 
     setNativeBusy(true);
     try {
@@ -1438,7 +1554,7 @@ function AkreditasyonApp({ currentUser }) {
         parts.push(wP(window.TENANT.universityName, { bold: true, size: 28, center: true }));
       if (window.TENANT?.facultyName)
         parts.push(wP(window.TENANT.facultyName, { size: 24, center: true }));
-      parts.push(wP(deptObj?.name || 'Fakülte geneli', { bold: true, size: 26, center: true }));
+      parts.push(wP(scopeLabel, { bold: true, size: 26, center: true }));
       parts.push(wP(''));
       parts.push(
         wP('Çerçeve: ' + ((framework.name || '') + ' ' + (framework.version || '')).trim())
