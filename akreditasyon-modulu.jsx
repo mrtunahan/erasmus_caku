@@ -436,7 +436,7 @@ const miniBtn = {
   cursor: 'pointer',
 };
 
-// Tabloyu düz metne çevir (rapor üretimi + önizleme)
+// Tabloyu düz metne çevir (önizleme + yedek)
 function tableToText(table) {
   if (!table || !Array.isArray(table.headers)) return '';
   const lines = [table.headers.join(' | ')];
@@ -444,6 +444,120 @@ function tableToText(table) {
     lines.push(table.headers.map((_h, i) => r[i] || '').join(' | '))
   );
   return lines.join('\n');
+}
+
+// ══════════════════════════════════════════════════════════════
+// Yerel .docx üretimi — GERÇEK Word tabloları. ÖDR şablon gerektirmeden
+// havuzdaki kanıtlardan (metin/link/dosya/tablo/sistem) doğrudan belge üretir.
+// WordprocessingML el ile kurulur, JSZip ile paketlenir.
+// ══════════════════════════════════════════════════════════════
+const wEsc = (s) =>
+  String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+// Paragraf — çok satırlı metin <w:br/> ile bölünür.
+function wP(text, opts = {}) {
+  const { bold, size, italic, center, color } = opts;
+  let rpr = '';
+  if (bold) rpr += '<w:b/>';
+  if (italic) rpr += '<w:i/>';
+  if (color) rpr += '<w:color w:val="' + color + '"/>';
+  if (size) rpr += '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/>';
+  const ppr = center ? '<w:pPr><w:jc w:val="center"/></w:pPr>' : '';
+  if (text == null || text === '') return '<w:p>' + ppr + '</w:p>';
+  const runs = String(text)
+    .split('\n')
+    .map(
+      (line, i) => (i > 0 ? '<w:br/>' : '') + '<w:t xml:space="preserve">' + wEsc(line) + '</w:t>'
+    )
+    .join('');
+  return '<w:p>' + ppr + '<w:r><w:rPr>' + rpr + '</w:rPr>' + runs + '</w:r></w:p>';
+}
+
+function wCell(text, header) {
+  const shade = header ? '<w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/>' : '';
+  return (
+    '<w:tc><w:tcPr><w:tcW w:w="0" w:type="auto"/>' +
+    shade +
+    '</w:tcPr>' +
+    wP(text, { bold: !!header, size: 18 }) +
+    '</w:tc>'
+  );
+}
+
+function wTable(headers, rows) {
+  const borders =
+    '<w:tblBorders>' +
+    ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
+      .map((s) => '<w:' + s + ' w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>')
+      .join('') +
+    '</w:tblBorders>';
+  const grid = '<w:tblGrid>' + headers.map(() => '<w:gridCol/>').join('') + '</w:tblGrid>';
+  const headRow = '<w:tr>' + headers.map((h) => wCell(h, true)).join('') + '</w:tr>';
+  const bodyRows = (rows || [])
+    .map((r) => '<w:tr>' + headers.map((_h, i) => wCell(r[i] || '', false)).join('') + '</w:tr>')
+    .join('');
+  return (
+    '<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/>' +
+    borders +
+    '</w:tblPr>' +
+    grid +
+    headRow +
+    bodyRows +
+    '</w:tbl>'
+  );
+}
+
+async function akrEnsureJSZip() {
+  if (window.JSZip) return window.JSZip;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+    s.onload = res;
+    s.onerror = () => rej(new Error('JSZip yüklenemedi'));
+    document.head.appendChild(s);
+  });
+  return window.JSZip;
+}
+
+async function buildAndDownloadDocx(bodyXml, filename) {
+  const JSZip = await akrEnsureJSZip();
+  const docXml =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:body>' +
+    bodyXml +
+    '<w:sectPr/></w:body></w:document>';
+  const CT =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+    '</Types>';
+  const RELS =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+    '</Relationships>';
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', CT);
+  zip.file('_rels/.rels', RELS);
+  zip.file('word/document.xml', docXml);
+  const blob = await zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1304,6 +1418,82 @@ function AkreditasyonApp({ currentUser }) {
     }
   };
 
+  // ── Yerel ÖDR üretimi — GERÇEK Word tabloları, şablon gerektirmez ──
+  // Havuzdaki her kanıt türüne göre belgeye basılır: metin→paragraf,
+  // link→paragraf+kaynak, dosya→bağlantı satırı, tablo/sistem→Word tablosu.
+  const [nativeBusy, setNativeBusy] = useState(false);
+  const generateNativeODR = async () => {
+    if (!framework) return;
+    const targetDept = progDept !== '__all' && progDept !== '' ? progDept : '';
+    const deptObj = departments.find((d) => d.id === targetDept);
+    const pool = items.filter((it) => !it.departmentId || it.departmentId === targetDept);
+    const origin = window.location.origin;
+
+    setNativeBusy(true);
+    try {
+      const parts = [];
+      parts.push(wP('ÖZ DEĞERLENDİRME RAPORU', { bold: true, size: 36, center: true }));
+      parts.push(wP(''));
+      if (window.TENANT?.universityName)
+        parts.push(wP(window.TENANT.universityName, { bold: true, size: 28, center: true }));
+      if (window.TENANT?.facultyName)
+        parts.push(wP(window.TENANT.facultyName, { size: 24, center: true }));
+      parts.push(wP(deptObj?.name || 'Fakülte geneli', { bold: true, size: 26, center: true }));
+      parts.push(wP(''));
+      parts.push(
+        wP('Çerçeve: ' + ((framework.name || '') + ' ' + (framework.version || '')).trim())
+      );
+      parts.push(wP('Rapor Tarihi: ' + new Date().toLocaleDateString('tr-TR')));
+      parts.push(wP('Hazırlayan: ' + (currentUser?.name || currentUser?.identifier || '')));
+      parts.push(wP('Havuzdaki kanıt sayısı: ' + pool.length));
+      parts.push(wP(''));
+
+      for (let n = 1; n <= 10; n++) {
+        const c = criteria.find((x) => x.no === n);
+        const forCrit = pool.filter((it) => (it.olcutNo || 0) === n);
+        parts.push(
+          wP('ÖLÇÜT ' + n + '. ' + String(c?.title || '').toUpperCase(), { bold: true, size: 24 })
+        );
+        if (forCrit.length === 0) {
+          parts.push(
+            wP('Bu ölçüt için havuzda henüz kanıt girilmemiştir.', {
+              italic: true,
+              color: '6B7280',
+            })
+          );
+          parts.push(wP(''));
+          continue;
+        }
+        forCrit.forEach((it) => {
+          parts.push(wP(it.title, { bold: true, size: 22 }));
+          if (it.type === 'metin') {
+            if (it.content) parts.push(wP(it.content));
+          } else if (it.type === 'link') {
+            if (it.content) parts.push(wP(it.content));
+            if (it.sourceUrl) parts.push(wP('Kaynak: ' + it.sourceUrl, { italic: true }));
+          } else if (it.type === 'dosya') {
+            const href = it.fileUrl ? origin + akrFileHref(it.fileUrl) : '';
+            parts.push(wP('📎 ' + (it.fileLabel || 'Dosya') + (href ? ' — ' + href : '')));
+          } else if (it.type === 'tablo' || it.type === 'sistem') {
+            if (it.table && Array.isArray(it.table.headers)) {
+              parts.push(wTable(it.table.headers, it.table.rows));
+              parts.push(wP(''));
+            }
+          }
+        });
+        parts.push(wP(''));
+      }
+
+      const filename =
+        'ODR_' + (deptObj?.name || 'fakulte').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') + '.docx';
+      await buildAndDownloadDocx(parts.join(''), filename);
+    } catch (e) {
+      alert('ÖDR üretilemedi: ' + e.message);
+    } finally {
+      setNativeBusy(false);
+    }
+  };
+
   // ── Paketli ÖDR iskelet şablonunun TEK TIKLA kurulumu ──
   const ODR_TOKEN_MAP = useMemo(() => {
     const m = {
@@ -1517,9 +1707,9 @@ function AkreditasyonApp({ currentUser }) {
           </div>
           <button
             type="button"
-            onClick={generateReport}
-            disabled={genBusy}
-            title="Havuzdaki kanıtlardan ÖDR şablonunu doldurur"
+            onClick={generateNativeODR}
+            disabled={nativeBusy}
+            title="Havuzdaki kanıtları GERÇEK Word tablolarıyla doğrudan .docx'e döker (şablon gerektirmez)"
             style={{
               padding: '9px 18px',
               borderRadius: 8,
@@ -1528,16 +1718,34 @@ function AkreditasyonApp({ currentUser }) {
               color: AKR.accent,
               fontSize: 13,
               fontWeight: 600,
+              cursor: nativeBusy ? 'wait' : 'pointer',
+            }}
+          >
+            {nativeBusy ? 'Üretiliyor…' : 'Rapor Oluştur (ÖDR)'}
+          </button>
+          <button
+            type="button"
+            onClick={generateReport}
+            disabled={genBusy}
+            title="Kendi Word şablonunuz varsa: Şablonlar modülüne yüklü ÖDR şablonunu havuz verisiyle doldurur"
+            style={{
+              padding: '9px 14px',
+              borderRadius: 8,
+              border: '1px solid ' + AKR.border,
+              background: 'white',
+              color: AKR.textMuted,
+              fontSize: 12.5,
+              fontWeight: 600,
               cursor: genBusy ? 'wait' : 'pointer',
             }}
           >
-            {genBusy ? 'Üretiliyor…' : 'Rapor Oluştur (ÖDR)'}
+            {genBusy ? 'Dolduruluyor…' : 'Şablona Doldur'}
           </button>
           <button
             type="button"
             onClick={installBundledTemplate}
             disabled={installingTpl}
-            title="Sistemle gelen hazır ÖDR iskeletini tek tıkla kurar"
+            title="'Şablona Doldur' yolu için sistemle gelen hazır ÖDR iskeletini tek tıkla kurar"
             style={{
               padding: '9px 14px',
               borderRadius: 8,
