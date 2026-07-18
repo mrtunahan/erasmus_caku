@@ -557,6 +557,22 @@ async function akrEnsureDocxPreview() {
   return window.docx;
 }
 
+// docx-preview A4 sayfası kapsayıcıdan genişse, kapsayıcıya SIĞDIR (zoom ile
+// küçült — zoom layout'u da daraltır, yatay kaydırma/sola taşma olmaz).
+function akrFitDocx(container) {
+  if (!container) return;
+  const wrap = container.querySelector('.docx-wrapper');
+  const page = wrap && wrap.querySelector('section');
+  if (!wrap || !page) return;
+  wrap.style.zoom = '';
+  wrap.style.padding = '0';
+  const pageW = page.offsetWidth;
+  const availW = container.clientWidth;
+  if (pageW && availW && pageW > availW) {
+    wrap.style.zoom = (availW / pageW).toFixed(3);
+  }
+}
+
 // .docx blob'unu ayrı pencerede render edip yazdır (PDF'e aktarma).
 async function printDocxBlob(blob, filename) {
   const w = window.open('', '_blank');
@@ -1512,6 +1528,7 @@ function ODRPreview({ bodyHTML, blob, filename, onDownloadDocx, onClose }) {
           inWrapper: true,
           ignoreLastRenderedPageBreak: true,
         });
+        if (!cancelled) requestAnimationFrame(() => akrFitDocx(fsRef.current));
       } catch (e) {
         if (!cancelled && fsRef.current)
           fsRef.current.innerHTML =
@@ -2033,6 +2050,7 @@ function AkreditasyonApp({ currentUser }) {
           inWrapper: true,
           ignoreLastRenderedPageBreak: true,
         });
+        if (!cancelled) requestAnimationFrame(() => akrFitDocx(panelRef.current));
       } catch (e) {
         if (!cancelled && panelRef.current)
           panelRef.current.innerHTML =
@@ -2622,7 +2640,15 @@ function AkreditasyonApp({ currentUser }) {
               <div style={prevBanner('#fef3c7', '#92400e')}>{tplPreview.note}</div>
             )}
 
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '12px 16px 24px' }}>
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                minHeight: 0,
+                padding: '12px 16px 24px',
+              }}
+            >
               {templateMode ? (
                 <div ref={panelRef} style={{ minHeight: 0 }} />
               ) : busyPrev ? (
