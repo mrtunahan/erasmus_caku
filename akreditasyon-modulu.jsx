@@ -542,6 +542,38 @@ async function akrEnsureJSZip() {
   return window.JSZip;
 }
 
+// mammoth.js — .docx → HTML (şablon önizlemesini gerçek belgeyle göstermek için).
+async function akrEnsureMammoth() {
+  if (window.mammoth) return window.mammoth;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
+    s.onload = res;
+    s.onerror = () => rej(new Error('mammoth yüklenemedi'));
+    document.head.appendChild(s);
+  });
+  return window.mammoth;
+}
+
+// Atanan ÖDR şablonunu çöz (Şablonlar sistemi).
+async function akrResolveTemplate(departmentId) {
+  const token = localStorage.getItem('caku_auth_token');
+  const headers = token ? { Authorization: 'Bearer ' + token } : {};
+  const url =
+    '/api/templates/resolve?module=akreditasyon&docType=odr&departmentId=' +
+    encodeURIComponent(departmentId || '');
+  const r = await fetch(url, { headers, credentials: 'include' });
+  const d = await r.json().catch(() => ({}));
+  return d.template || null;
+}
+async function akrDownloadTemplateBuf(id) {
+  const token = localStorage.getItem('caku_auth_token');
+  const headers = token ? { Authorization: 'Bearer ' + token } : {};
+  const fr = await fetch('/api/templates/' + id + '/download', { headers, credentials: 'include' });
+  if (!fr.ok) throw new Error('Şablon indirilemedi (HTTP ' + fr.status + ')');
+  return fr.arrayBuffer();
+}
+
 async function buildAndDownloadDocx(bodyXml, filename) {
   const JSZip = await akrEnsureJSZip();
   const docXml =
@@ -1708,11 +1740,10 @@ function AkreditasyonApp({ currentUser }) {
     return { isAll, targetDept, deptObj, pool };
   };
 
-  const [genBusy, setGenBusy] = useState(false);
-  const generateReport = async () => {
-    if (!framework) return;
+  // Havuzdan ÖDR şablon verisini (staticData + rows) üret — hem "Şablona
+  // Doldur" indirmesi hem sağ paneldeki şablon önizlemesi aynı veriyi kullanır.
+  const buildOdrData = () => {
     const { targetDept, deptObj, pool } = selectReportPool();
-
     const staticData = {
       programAd: deptObj?.name || 'Fakülte geneli',
       fakulteAd: window.TENANT?.facultyName || '',
@@ -1721,7 +1752,6 @@ function AkreditasyonApp({ currentUser }) {
       tarih: new Date().toLocaleDateString('tr-TR'),
       hazirlayan: currentUser?.name || currentUser?.identifier || '',
     };
-
     let totalKanit = 0;
     for (let n = 1; n <= 10; n++) {
       const forCrit = pool.filter((it) => (it.olcutNo || 0) === n);
@@ -1751,7 +1781,6 @@ function AkreditasyonApp({ currentUser }) {
       staticData['olcut' + n + 'Kanit'] = evid.join('\n') || '—';
     }
     staticData.ilerlemeOzet = totalKanit + ' kanıt havuzda';
-
     const rows = [];
     for (let n = 1; n <= 10; n++) {
       const c = criteria.find((x) => x.no === n);
@@ -1763,7 +1792,15 @@ function AkreditasyonApp({ currentUser }) {
         olcutKanit: staticData['olcut' + n + 'Kanit'],
       });
     }
+    const filename =
+      'ODR_' + (deptObj?.name || 'fakulte').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') + '.docx';
+    return { targetDept, deptObj, staticData, rows, filename };
+  };
 
+  const [genBusy, setGenBusy] = useState(false);
+  const generateReport = async () => {
+    if (!framework) return;
+    const { targetDept, staticData, rows, filename } = buildOdrData();
     setGenBusy(true);
     try {
       const res = await window.TemplateEngine.produceFromTemplate({
@@ -1772,8 +1809,7 @@ function AkreditasyonApp({ currentUser }) {
         departmentId: targetDept || undefined,
         staticData,
         rows,
-        filename:
-          'ODR_' + (deptObj?.name || 'fakulte').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') + '.docx',
+        filename,
       });
       if (res.ok) return;
       const msgs = {
@@ -1851,6 +1887,70 @@ function AkreditasyonApp({ currentUser }) {
       'ODR_' + (deptObj?.name || 'fakulte').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') + '.docx';
     return { bodyHTML, filename };
   }, [framework, items, progDept, criteria, departments, currentUser]);
+
+  // Şablon önizlemesi — SENİN yüklediğin ÖDR .docx'ini gösterir. Eşlenmişse
+  // havuz verisiyle DOLU, değilse ham. mammoth ile .docx→HTML. Havuz/kapsam
+  // değiştikçe (debounce) yeniden üretilir → "gelen kanıtlara göre interaktif".
+  const [tplPreview, setTplPreview] = useState({ status: 'loading' });
+  useEffect(() => {
+    if (!framework) return;
+    let alive = true;
+    const timer = setTimeout(async () => {
+      if (alive) setTplPreview((p) => ({ ...p, status: p.html ? 'refreshing' : 'loading' }));
+      try {
+        const { targetDept, staticData, rows } = buildOdrData();
+        const tpl = await akrResolveTemplate(targetDept || '');
+        if (!alive) return;
+        if (!tpl) {
+          setTplPreview({ status: 'none' });
+          return;
+        }
+        await akrEnsureMammoth();
+        let arrbuf = null;
+        let filled = false;
+        let note = '';
+        try {
+          const res = await window.TemplateEngine.produceFromTemplate({
+            module: 'akreditasyon',
+            docType: 'odr',
+            departmentId: targetDept || undefined,
+            staticData,
+            rows,
+            noDownload: true,
+          });
+          if (res.ok && res.blob) {
+            arrbuf = await res.blob.arrayBuffer();
+            filled = true;
+          } else if (res.reason === 'no-mapping') {
+            note =
+              'Şablon henüz eşlenmemiş — belge HAM gösteriliyor. Kanıtların otomatik dolması için Şablonlar modülünde 🧩 ile {{...}} alanlarını eşleyin.';
+          } else if (res.reason === 'not-docx') {
+            note = 'Atanan şablon .docx değil.';
+          } else if (res.reason === 'invalid-output') {
+            note = 'Şablon dolduruldu ama yapısı önizlemeye uygun değil — ham gösteriliyor.';
+          }
+        } catch (_e) {
+          /* dolu üretilemedi → ham göster */
+        }
+        if (!arrbuf) arrbuf = await akrDownloadTemplateBuf(tpl._id);
+        const out = await window.mammoth.convertToHtml({ arrayBuffer: arrbuf });
+        if (!alive) return;
+        setTplPreview({
+          status: 'ok',
+          html: out.value || '',
+          filled,
+          note,
+          tplName: tpl.name || '',
+        });
+      } catch (e) {
+        if (alive) setTplPreview({ status: 'error', message: e.message });
+      }
+    }, 500);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [framework, items, progDept]);
 
   const generateNativeODR = async () => {
     if (!framework) return;
@@ -2371,82 +2471,128 @@ function AkreditasyonApp({ currentUser }) {
         </div>
       </div>
 
-      {/* ── SAĞ: Canlı ÖDR önizleme ── */}
-      <div
-        style={{ display: 'flex', flexDirection: 'column', minHeight: 0, background: '#525659' }}
-      >
-        <div
-          style={{
-            padding: '10px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8,
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>
-            ÖDR ÖNİZLEME (canlı)
-          </span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              type="button"
-              onClick={() => printHTML(livePreview.bodyHTML, livePreview.filename)}
-              title="PDF olarak yazdır"
-              style={rpBtn}
-            >
-              🖨️ PDF
-            </button>
-            <button
-              type="button"
-              onClick={generateNativeODR}
-              disabled={nativeBusy}
-              title="Word (.docx) indir"
-              style={rpBtn}
-            >
-              {nativeBusy ? '…' : '⬇️ Word'}
-            </button>
-            <button type="button" onClick={openPreview} title="Tam ekran önizleme" style={rpBtn}>
-              ⛶
-            </button>
-          </div>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '0 16px 24px' }}>
+      {/* ── SAĞ: ÖDR önizleme (öncelik: yüklediğin şablon) ── */}
+      {(() => {
+        const templateMode = tplPreview.status === 'ok';
+        const busyPrev = tplPreview.status === 'loading' || tplPreview.status === 'refreshing';
+        const shownHTML = templateMode ? tplPreview.html : livePreview.bodyHTML;
+        const headerLabel = templateMode
+          ? tplPreview.filled
+            ? 'ŞABLONDAN · kanıtlarla dolu'
+            : 'ŞABLONDAN · ham (eşleme gerekli)'
+          : 'JENERİK ÖNİZLEME';
+        const downloadWord = () =>
+          templateMode && tplPreview.filled ? generateReport() : generateNativeODR();
+        return (
           <div
             style={{
-              background: 'white',
-              padding: '40px 44px',
-              boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
-              color: '#0f172a',
-              fontSize: 12.5,
-              borderRadius: 2,
-            }}
-            dangerouslySetInnerHTML={{ __html: livePreview.bodyHTML }}
-          />
-          <div
-            style={{
-              marginTop: 10,
-              textAlign: 'center',
               display: 'flex',
-              gap: 8,
-              justifyContent: 'center',
+              flexDirection: 'column',
+              minHeight: 0,
+              background: '#525659',
             }}
           >
-            <button type="button" onClick={generateReport} disabled={genBusy} style={rpLink}>
-              {genBusy ? 'Dolduruluyor…' : 'Kendi Word şablonuma doldur'}
-            </button>
-            <span style={{ color: 'rgba(255,255,255,0.4)' }}>·</span>
-            <button
-              type="button"
-              onClick={installBundledTemplate}
-              disabled={installingTpl}
-              style={rpLink}
+            <div
+              style={{
+                padding: '10px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+                flexShrink: 0,
+              }}
             >
-              {installingTpl ? 'Kuruluyor…' : 'Hazır şablonu kur'}
-            </button>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>
+                {headerLabel}
+                {busyPrev ? ' · güncelleniyor…' : ''}
+              </span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => printHTML(shownHTML, livePreview.filename)}
+                  title="PDF olarak yazdır"
+                  style={rpBtn}
+                >
+                  🖨️ PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadWord}
+                  disabled={nativeBusy || genBusy}
+                  title="Word (.docx) indir"
+                  style={rpBtn}
+                >
+                  {nativeBusy || genBusy ? '…' : '⬇️ Word'}
+                </button>
+                <button
+                  type="button"
+                  onClick={openPreview}
+                  title="Tam ekran jenerik önizleme"
+                  style={rpBtn}
+                >
+                  ⛶
+                </button>
+              </div>
+            </div>
+
+            {/* Durum şeridi */}
+            {tplPreview.status === 'none' && (
+              <div style={prevBanner('#fef3c7', '#92400e')}>
+                ÖDR şablonu atanmadı. Kendi ÖDR <b>.docx</b>'inizi Şablonlar → Akreditasyon/ÖDR
+                türüne yükleyin (ya da aşağıdan “Hazır şablonu kur”). Şimdilik jenerik önizleme.
+              </div>
+            )}
+            {tplPreview.status === 'error' && (
+              <div style={prevBanner('#fee2e2', '#991b1b')}>
+                Şablon önizlenemedi: {tplPreview.message}. Jenerik önizleme gösteriliyor.
+              </div>
+            )}
+            {templateMode && tplPreview.note && (
+              <div style={prevBanner('#fef3c7', '#92400e')}>{tplPreview.note}</div>
+            )}
+
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '12px 16px 24px' }}>
+              {busyPrev && !shownHTML ? (
+                <div style={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center', padding: 40 }}>
+                  Şablon önizlemesi hazırlanıyor…
+                </div>
+              ) : (
+                <div
+                  style={{
+                    background: 'white',
+                    padding: '40px 44px',
+                    boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
+                    color: '#0f172a',
+                    fontSize: 12.5,
+                    lineHeight: 1.5,
+                    borderRadius: 2,
+                  }}
+                  dangerouslySetInnerHTML={{ __html: shownHTML }}
+                />
+              )}
+              <div
+                style={{
+                  marginTop: 12,
+                  textAlign: 'center',
+                  display: 'flex',
+                  gap: 8,
+                  justifyContent: 'center',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={installBundledTemplate}
+                  disabled={installingTpl}
+                  style={rpLink}
+                >
+                  {installingTpl ? 'Kuruluyor…' : 'Hazır şablonu kur'}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {editor && (
         <HavuzEditor
@@ -2497,5 +2643,15 @@ const rpLink = {
   textDecoration: 'underline',
   padding: 0,
 };
+const prevBanner = (bg, color) => ({
+  margin: '0 16px 8px',
+  padding: '8px 12px',
+  borderRadius: 8,
+  background: bg,
+  color,
+  fontSize: 11.5,
+  lineHeight: 1.5,
+  flexShrink: 0,
+});
 
 window.AkreditasyonApp = AkreditasyonApp;
