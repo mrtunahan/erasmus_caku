@@ -1026,6 +1026,7 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
   const [fields, setFields] = useState(null); // null=yükleniyor
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [autoCount, setAutoCount] = useState(0); // etiketten otomatik eşlenen alan sayısı
 
   const vars = window.templateVarsFor
     ? window.templateVarsFor(tpl.module, tpl.docType)
@@ -1048,13 +1049,54 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
         const detected = await window.TemplateEngine.detectPlaceholders(buf);
         // Kayıtlı eşlemeleri (token + sıra) üzerine bindir
         const saved = tpl.fields || [];
-        const merged = detected.map((d) => {
+        let merged = detected.map((d) => {
           const s = saved.find(
             (x) => x.token === d.token && x.tokenOccurrence === d.tokenOccurrence
           );
           return s ? { ...d, variable: s.variable || '', value: s.value || '' } : d;
         });
-        if (alive) setFields(merged);
+
+        // ── OTOMATİK EŞLEME ──
+        // Yer tutucu adı ({{...}} içi) bir değişken ETİKETİYLE eşleşiyorsa
+        // otomatik bağla — kullanıcı yalnızca kontrol edip Kaydet'e basar.
+        // Kural: normalize edilmiş (küçük harf, yalnız harf/rakam) tam eşleşme;
+        // yoksa etiketin parantezli açıklaması atılarak eşleşme; yoksa etiket
+        // yer tutucuyla başlıyorsa (>=4 karakter) öneki kabul et.
+        const normTr = (s) =>
+          (s || '')
+            .replace(/İ/g, 'i')
+            .replace(/I/g, 'ı')
+            .toLocaleLowerCase('tr-TR')
+            .replace(/[^0-9a-zçğıöşü]/g, '');
+        const candidates = [
+          ...(vars.static || []).map((v) => ({ key: 'static:' + v.id, label: v.label })),
+          ...(vars.row || []).map((v) => ({ key: 'row:' + v.id, label: v.label })),
+        ];
+        const byNorm = {};
+        candidates.forEach((c) => {
+          const full = normTr(c.label);
+          const base = normTr(c.label.replace(/\(.*?\)/g, ''));
+          if (full && !byNorm[full]) byNorm[full] = c.key;
+          if (base && !byNorm[base]) byNorm[base] = c.key;
+        });
+        let auto = 0;
+        merged = merged.map((f) => {
+          if (f.variable) return f;
+          const inner = normTr(String(f.token).replace(/^\{\{|\}\}$/g, ''));
+          if (!inner) return f;
+          let hit = byNorm[inner];
+          if (!hit && inner.length >= 4) {
+            const cand = candidates.find((c) => normTr(c.label).startsWith(inner));
+            hit = cand && cand.key;
+          }
+          if (!hit) return f;
+          auto++;
+          return { ...f, variable: hit };
+        });
+        if (alive) {
+          setAutoCount(auto);
+          setFields(merged);
+        }
       } catch (e) {
         if (alive) {
           setError(e.message);
@@ -1126,6 +1168,24 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
         içindir: o satır, ders sayısı kadar çoğaltılır. Eşlemek istemediklerinizi "Atla" bırakın;
         sabit bir metin yazmak için "Sabit metin" seçin.
       </p>
+
+      {autoCount > 0 && (
+        <div
+          style={{
+            padding: '9px 12px',
+            marginBottom: 12,
+            borderRadius: 8,
+            background: '#ECFDF5',
+            border: '1px solid #A7F3D0',
+            color: '#047857',
+            fontSize: 12.5,
+            fontWeight: 600,
+          }}
+        >
+          ⚡ {autoCount} alan, yer tutucu adı değişken etiketiyle eşleştiği için otomatik eşlendi —
+          kontrol edip Kaydet'e basmanız yeterli.
+        </div>
+      )}
 
       {fields === null ? (
         <p style={{ padding: 24, textAlign: 'center', color: '#6B7280' }}>Belge inceleniyor…</p>

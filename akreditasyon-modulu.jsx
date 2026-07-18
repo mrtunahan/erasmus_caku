@@ -620,6 +620,91 @@ function AkreditasyonApp({ currentUser }) {
     return { total, tam, kismen };
   }, [framework, assessment]);
 
+  // ── Paketli ÖDR iskelet şablonunun TEK TIKLA kurulumu ──
+  // public/odr-sablon.docx (scripts/build-odr-sablon.py üretir) çekilir,
+  // Şablonlar sistemine yüklenir ve eşlemesi OTOMATİK yazılır — kullanıcı
+  // Word düzenlemez, sihirbazda eşleme yapmaz. Token adları build script'iyle
+  // birebir aynı tutulmalıdır.
+  const ODR_TOKEN_MAP = useMemo(() => {
+    const m = {
+      '{{Üniversite Adı}}': 'static:universiteAd',
+      '{{Fakülte Adı}}': 'static:fakulteAd',
+      '{{Program (Bölüm) Adı}}': 'static:programAd',
+      '{{Çerçeve}}': 'static:cerceve',
+      '{{Rapor Tarihi}}': 'static:tarih',
+      '{{Hazırlayan}}': 'static:hazirlayan',
+      '{{İlerleme Özeti}}': 'static:ilerlemeOzet',
+    };
+    for (let i = 1; i <= 10; i++) {
+      m['{{Ölçüt ' + i + ' — Durum Özeti}}'] = 'static:olcut' + i + 'Durum';
+      m['{{Ölçüt ' + i + ' — Notlar}}'] = 'static:olcut' + i + 'Not';
+      m['{{Ölçüt ' + i + ' — Kanıt Listesi}}'] = 'static:olcut' + i + 'Kanit';
+    }
+    return m;
+  }, []);
+  const [installingTpl, setInstallingTpl] = useState(false);
+  const installBundledTemplate = async () => {
+    if (
+      !confirm(
+        'Sistemle gelen hazır ÖDR iskelet şablonu Şablonlar modülüne kurulacak ve alan eşlemesi otomatik yapılacak. Devam edilsin mi?'
+      )
+    )
+      return;
+    setInstallingTpl(true);
+    try {
+      const fr = await fetch('/odr-sablon.docx');
+      if (!fr.ok) throw new Error('Paketli şablon dosyası bulunamadı (odr-sablon.docx).');
+      const blob = await fr.blob();
+      const buf = await blob.arrayBuffer();
+      const detected = await window.TemplateEngine.detectPlaceholders(buf);
+      const fields = detected.map((d) => ({
+        token: d.token,
+        tokenOccurrence: d.tokenOccurrence,
+        context: d.context || '',
+        variable: ODR_TOKEN_MAP[d.token] || '',
+        value: '',
+      }));
+      const token = localStorage.getItem('caku_auth_token');
+      const authH = token ? { Authorization: 'Bearer ' + token } : {};
+      const fd = new FormData();
+      fd.append(
+        'file',
+        new File([blob], 'ODR_Iskelet_Sablonu.docx', {
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        })
+      );
+      fd.append('name', 'ÖDR İskelet Şablonu (hazır)');
+      fd.append('module', 'akreditasyon');
+      fd.append('docType', 'odr');
+      fd.append('description', 'Sistemle gelen hazır ÖDR iskeleti — eşleme otomatik yapıldı.');
+      const cr = await fetch('/api/templates', {
+        method: 'POST',
+        headers: authH,
+        credentials: 'include',
+        body: fd,
+      });
+      const created = await cr.json().catch(() => ({}));
+      if (!cr.ok) throw new Error(created.error || 'Şablon yüklenemedi.');
+      const ur = await fetch('/api/templates/' + created._id + '/update', {
+        method: 'POST',
+        headers: { ...authH, 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ fields }),
+      });
+      if (!ur.ok) {
+        const d = await ur.json().catch(() => ({}));
+        throw new Error(d.error || 'Eşleme kaydedilemedi.');
+      }
+      alert(
+        'Hazır ÖDR şablonu kuruldu ve eşlendi ✓\n"Rapor Oluştur (ÖDR)" artık doğrudan çalışır. İsterseniz Şablonlar modülünden iskeleti kendi ÖDR belgenizle değiştirebilirsiniz.'
+      );
+    } catch (e) {
+      alert('Kurulum hatası: ' + e.message);
+    } finally {
+      setInstallingTpl(false);
+    }
+  };
+
   // ── ÖDR / rapor üretimi — Şablonlar modülüne yüklenen HERHANGİ bir .docx
   // şablonunu doldurur ({{...}} + alan eşleme). Değerlendirme verisi hem
   // numaralı statik değişkenler (bölüm-tarzı ÖDR) hem satır değişkenleri
@@ -817,6 +902,24 @@ function AkreditasyonApp({ currentUser }) {
             }}
           >
             {generatingReport ? 'Üretiliyor…' : 'Rapor Oluştur (ÖDR)'}
+          </button>
+          <button
+            type="button"
+            onClick={installBundledTemplate}
+            disabled={installingTpl}
+            title="Sistemle gelen hazır ÖDR iskeletini tek tıkla kurar (Word düzenleme ve eşleme gerekmez)"
+            style={{
+              padding: '9px 14px',
+              borderRadius: 8,
+              border: '1px solid ' + AKR.border,
+              background: 'white',
+              color: AKR.textMuted,
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: installingTpl ? 'wait' : 'pointer',
+            }}
+          >
+            {installingTpl ? 'Kuruluyor…' : 'Hazır Şablonu Kur'}
           </button>
           {msg && <span style={{ fontSize: 12, color: AKR.green, fontWeight: 600 }}>{msg}</span>}
         </div>

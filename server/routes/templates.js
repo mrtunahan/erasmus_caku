@@ -46,6 +46,7 @@ const ALLOWED_MODULES = new Set([
   'formlar',
   'performans',
   'anket',
+  'akreditasyon',
 ]);
 
 // İzinli dosya uzantıları + MIME
