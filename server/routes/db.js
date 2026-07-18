@@ -134,6 +134,10 @@ const ALLOWED_COLLECTIONS = [
   // program bazlı değerlendirme kayıtları (durum/not/kanıt).
   'akreditasyon_frameworks',
   'akreditasyon_assessments',
+  // Akreditasyon Kanıt/Veri Havuzu: rapor (ÖDR) için her yerden toplanan
+  // kanıt parçaları — metin, tablo, dosya, dış bağlantı+yapıştırılan içerik,
+  // sistemden çekilen anlık görüntü. Ölçüt (1..10) ve program etiketli.
+  'akreditasyon_havuz',
   // Kiracı (tenant) kimliği — beyaz etiket: uygulama/kurum/fakülte adları vb.
   'tenant_config',
 ];
