@@ -1864,7 +1864,9 @@ function AkreditasyonApp({ currentUser }) {
 
   const loadItems = useCallback(async () => {
     if (!myFacultyId) return;
-    const list = await window.apiRead('akreditasyon_havuz', {
+    // Yazma sonrası bayat cache'i atla — yeni kanıt refresh gerekmeden görünsün.
+    const read = window.apiRead.fresh || window.apiRead;
+    const list = await read('akreditasyon_havuz', {
       where: 'facultyId:eq:s:' + myFacultyId,
     });
     setItems((list || []).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')));
@@ -2744,30 +2746,35 @@ function AkreditasyonApp({ currentUser }) {
                 </option>
               ))}
             </select>
-            {typeof filterOlcut === 'number' && filterOlcut >= 1 && (
-              <button
-                type="button"
-                onClick={() => requestAiDraft(filterOlcut)}
-                disabled={!aiStatus.configured || (aiDraft && aiDraft.loading)}
-                title={
-                  aiStatus.configured
-                    ? 'Bu ölçütün kanıtlarından AI ile ÖDR taslak metni yaz (düzenleyip onaylarsınız)'
-                    : 'AI yapılandırılmamış — sunucu .env dosyasına bir sağlayıcı anahtarı eklenmeli'
-                }
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: '1px solid ' + (aiStatus.configured ? '#7C3AED' : AKR.border),
-                  background: aiStatus.configured ? '#F5F3FF' : '#F3F4F6',
-                  color: aiStatus.configured ? '#6D28D9' : AKR.textMuted,
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  cursor: aiStatus.configured ? 'pointer' : 'not-allowed',
-                }}
-              >
-                ✨ AI Taslak
-              </button>
-            )}
+            {(() => {
+              const critSel = typeof filterOlcut === 'number' && filterOlcut >= 1;
+              const enabled = aiStatus.configured && critSel && !(aiDraft && aiDraft.loading);
+              const tip = !aiStatus.configured
+                ? 'AI yapılandırılmamış — sunucu .env dosyasına bir sağlayıcı anahtarı eklenmeli'
+                : !critSel
+                  ? 'Önce soldan bir ölçüt (1–10) seçin; AI o ölçütün kanıtlarından taslak yazar'
+                  : 'Bu ölçütün kanıtlarından AI ile ÖDR taslak metni yaz (düzenleyip onaylarsınız)';
+              return (
+                <button
+                  type="button"
+                  onClick={() => critSel && requestAiDraft(filterOlcut)}
+                  disabled={!enabled}
+                  title={tip}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid ' + (enabled ? '#7C3AED' : AKR.border),
+                    background: enabled ? '#F5F3FF' : '#F3F4F6',
+                    color: enabled ? '#6D28D9' : AKR.textMuted,
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: enabled ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  ✨ AI Taslak{aiDraft && aiDraft.loading ? ' …' : ''}
+                </button>
+              );
+            })()}
             {msg && (
               <span
                 style={{ fontSize: 12, color: AKR.green, fontWeight: 600, alignSelf: 'center' }}
