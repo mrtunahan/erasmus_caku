@@ -23,6 +23,15 @@ const aiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Durum sorgusu ucuz ama yine de sınırlı (istemci açılışta bir kez çağırır).
+const statusLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  message: { error: 'Çok fazla istek. Lütfen biraz bekleyin.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Öğrenci AI üretimini kullanamaz (personel aracı).
 function requireStaff(req, res, next) {
   if (req.user && req.user.role && req.user.role !== 'student') return next();
@@ -32,7 +41,7 @@ function requireStaff(req, res, next) {
 const clip = (s, n) => String(s == null ? '' : s).slice(0, n);
 
 // GET /api/ai/status — istemci butonu buna göre etkinleşir.
-router.get('/status', aiLimiter, requireAuth, (req, res) => {
+router.get('/status', statusLimiter, requireAuth, (req, res) => {
   const provider = activeProvider();
   res.json({
     configured: aiConfigured(),
