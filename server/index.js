@@ -10,6 +10,7 @@ const dbRoutes = require('./routes/db');
 const fileRoutes = require('./routes/files');
 const templateRoutes = require('./routes/templates');
 const semanticRoutes = require('./routes/semantic');
+const aiRoutes = require('./routes/ai');
 const {
   helmetMiddleware,
   authRateLimiter,
@@ -120,6 +121,7 @@ app.use('/api/db', dbRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/semantic', semanticRoutes);
+app.use('/api/ai', aiRoutes);
 
 // 404 + merkezi hata yakalayıcı (route'lardan sonra mount edilmeli)
 app.use(notFoundHandler);

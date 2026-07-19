@@ -1653,6 +1653,167 @@ function ODRPreview({ bodyHTML, blob, filename, onDownloadDocx, onClose }) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// AI taslak modalı — üretilen metni DÜZENLE + onayla (insan-onaylı).
+// ══════════════════════════════════════════════════════════════
+function AiDraftModal({ draft, criteria, onSave, onRetry, onClose }) {
+  const [text, setText] = useState(draft.text || '');
+  useEffect(() => {
+    setText(draft.text || '');
+  }, [draft.text]);
+  const c = criteria.find((x) => x.no === draft.criterionNo);
+  const title = 'Ölçüt ' + draft.criterionNo + (c ? ' — ' + c.title : '');
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.45)',
+        zIndex: 1050,
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '40px 16px',
+        overflowY: 'auto',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'white',
+          borderRadius: 14,
+          width: '100%',
+          maxWidth: 680,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        <div
+          style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid ' + AKR.border,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#6D28D9' }}>
+              ✨ AI Taslak — {title}
+            </h3>
+            <p style={{ margin: '3px 0 0', fontSize: 11.5, color: AKR.textMuted }}>
+              Yapay zekâ taslağıdır — düzenleyip onaylayın. Kanıtta olmayan yerler <b>[EKSİK: …]</b>{' '}
+              ile işaretlenir.
+            </p>
+          </div>
+          <span
+            onClick={onClose}
+            style={{ cursor: 'pointer', color: AKR.textMuted, fontSize: 20, lineHeight: 1 }}
+          >
+            ×
+          </span>
+        </div>
+
+        <div style={{ padding: 20 }}>
+          {draft.loading ? (
+            <div style={{ padding: 40, textAlign: 'center', color: AKR.textMuted }}>
+              Taslak üretiliyor… (birkaç saniye)
+            </div>
+          ) : draft.error ? (
+            <div style={{ color: AKR.red, fontSize: 13, lineHeight: 1.6 }}>
+              Taslak üretilemedi: {draft.error}
+              <div style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  style={{ ...miniBtn, borderColor: '#7C3AED' }}
+                >
+                  Tekrar dene
+                </button>
+              </div>
+            </div>
+          ) : (
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={16}
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                borderRadius: 10,
+                border: '1px solid ' + AKR.border,
+                fontSize: 13,
+                lineHeight: 1.6,
+                outline: 'none',
+                resize: 'vertical',
+                boxSizing: 'border-box',
+                fontFamily: "'Inter', sans-serif",
+                color: AKR.text,
+              }}
+            />
+          )}
+        </div>
+
+        {!draft.loading && !draft.error && (
+          <div
+            style={{
+              padding: '14px 20px',
+              borderTop: '1px solid ' + AKR.border,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    navigator.clipboard.writeText(text);
+                  } catch (_e) {
+                    /* pano yok */
+                  }
+                }}
+                style={{ ...miniBtn, color: AKR.textMuted }}
+              >
+                Panoya kopyala
+              </button>
+              <button
+                type="button"
+                onClick={onRetry}
+                style={{ ...miniBtn, color: '#6D28D9', borderColor: '#7C3AED' }}
+              >
+                ↻ Yeniden üret
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => onSave(text)}
+              disabled={!text.trim()}
+              style={{
+                padding: '9px 20px',
+                borderRadius: 8,
+                border: 'none',
+                background: text.trim() ? AKR.navy : AKR.border,
+                color: text.trim() ? 'white' : AKR.textMuted,
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: text.trim() ? 'pointer' : 'default',
+              }}
+            >
+              Havuza “metin” olarak ekle
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // Ana uygulama — Kanıt/Veri Havuzu
 // ══════════════════════════════════════════════════════════════
 function AkreditasyonApp({ currentUser }) {
@@ -1672,6 +1833,29 @@ function AkreditasyonApp({ currentUser }) {
   const [presetMenu, setPresetMenu] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [aiStatus, setAiStatus] = useState({ configured: false, provider: null });
+  const [aiDraft, setAiDraft] = useState(null); // {loading,text,error,criterionNo,departmentId}
+
+  // AI yapılandırma durumu (buton buna göre etkinleşir)
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const token = localStorage.getItem('caku_auth_token');
+        const r = await fetch('/api/ai/status', {
+          headers: token ? { Authorization: 'Bearer ' + token } : {},
+          credentials: 'include',
+        });
+        const d = await r.json().catch(() => ({}));
+        if (alive) setAiStatus({ configured: !!d.configured, provider: d.provider || null });
+      } catch (_e) {
+        /* durum alınamadı */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const criteria = useMemo(
     () => (framework?.criteria || []).map((c) => ({ no: c.no, title: c.title })),
@@ -2088,6 +2272,88 @@ function AkreditasyonApp({ currentUser }) {
     }
   };
 
+  // ── AI: bir ölçüt için ÖDR taslak metni yaz (insan-onaylı) ──
+  const requestAiDraft = async (criterionNo) => {
+    const c = criteria.find((x) => x.no === criterionNo);
+    const isAll = progDept === '__all';
+    const scopedDept = !isAll && progDept !== '' ? progDept : '';
+    const deptObj = departments.find((d) => d.id === scopedDept);
+    const forCrit = items.filter((it) => {
+      if ((it.olcutNo || 0) !== criterionNo) return false;
+      if (isAll) return true;
+      if (scopedDept === '') return !it.departmentId;
+      return !it.departmentId || it.departmentId === scopedDept;
+    });
+    const evidence = forCrit.map((it) => ({
+      type: it.type,
+      title: it.title,
+      content:
+        it.type === 'metin'
+          ? it.content || ''
+          : it.type === 'link'
+            ? (it.content || '') + (it.sourceUrl ? '\nKaynak: ' + it.sourceUrl : '')
+            : it.type === 'dosya'
+              ? 'Ekli dosya: ' + (it.fileLabel || '')
+              : it.type === 'tablo' || it.type === 'sistem'
+                ? tableToText(it.table)
+                : '',
+    }));
+    setAiDraft({ loading: true, text: '', error: '', criterionNo, departmentId: scopedDept });
+    try {
+      const token = localStorage.getItem('caku_auth_token');
+      const r = await fetch('/api/ai/accreditation-draft', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: 'Bearer ' + token } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          frameworkName: framework?.name || 'MÜDEK',
+          criterionNo,
+          criterionTitle: c?.title || '',
+          programName: deptObj?.name || (isAll ? 'Tüm programlar' : 'Fakülte geneli'),
+          evidence,
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+      setAiDraft((prev) =>
+        prev && prev.criterionNo === criterionNo
+          ? { ...prev, loading: false, text: d.text || '', provider: d.provider }
+          : prev
+      );
+    } catch (e) {
+      setAiDraft((prev) => (prev ? { ...prev, loading: false, error: e.message } : prev));
+    }
+  };
+
+  const saveAiDraftAsEvidence = async (text) => {
+    if (!aiDraft) return;
+    const cno = aiDraft.criterionNo;
+    const c = criteria.find((x) => x.no === cno);
+    try {
+      await window.DBWrite.add('akreditasyon_havuz', {
+        type: 'metin',
+        title: 'AI Taslak — Ölçüt ' + cno + (c ? ' (' + c.title + ')' : ''),
+        content: text,
+        olcutNo: cno,
+        departmentId: aiDraft.departmentId || '',
+        facultyId: myFacultyId,
+        universityId: myUniversityId,
+        createdBy: currentUser?.name || currentUser?.identifier || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      await loadItems();
+      setAiDraft(null);
+      setMsg('AI taslağı havuza eklendi ✓');
+      setTimeout(() => setMsg(''), 2500);
+    } catch (e) {
+      alert('Eklenemedi: ' + e.message);
+    }
+  };
+
   const generateNativeODR = async () => {
     if (!framework) return;
     const { isAll, deptObj, pool } = selectReportPool();
@@ -2478,6 +2744,30 @@ function AkreditasyonApp({ currentUser }) {
                 </option>
               ))}
             </select>
+            {typeof filterOlcut === 'number' && filterOlcut >= 1 && (
+              <button
+                type="button"
+                onClick={() => requestAiDraft(filterOlcut)}
+                disabled={!aiStatus.configured || (aiDraft && aiDraft.loading)}
+                title={
+                  aiStatus.configured
+                    ? 'Bu ölçütün kanıtlarından AI ile ÖDR taslak metni yaz (düzenleyip onaylarsınız)'
+                    : 'AI yapılandırılmamış — sunucu .env dosyasına bir sağlayıcı anahtarı eklenmeli'
+                }
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid ' + (aiStatus.configured ? '#7C3AED' : AKR.border),
+                  background: aiStatus.configured ? '#F5F3FF' : '#F3F4F6',
+                  color: aiStatus.configured ? '#6D28D9' : AKR.textMuted,
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: aiStatus.configured ? 'pointer' : 'not-allowed',
+                }}
+              >
+                ✨ AI Taslak
+              </button>
+            )}
             {msg && (
               <span
                 style={{ fontSize: 12, color: AKR.green, fontWeight: 600, alignSelf: 'center' }}
@@ -2697,6 +2987,16 @@ function AkreditasyonApp({ currentUser }) {
           filename={preview.filename}
           onDownloadDocx={() => (preview.blob ? downloadWordChosen() : generateNativeODR())}
           onClose={() => setPreview(null)}
+        />
+      )}
+
+      {aiDraft && (
+        <AiDraftModal
+          draft={aiDraft}
+          criteria={criteria}
+          onSave={saveAiDraftAsEvidence}
+          onRetry={() => requestAiDraft(aiDraft.criterionNo)}
+          onClose={() => setAiDraft(null)}
         />
       )}
     </div>
