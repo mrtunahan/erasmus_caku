@@ -32,7 +32,7 @@ function requireStaff(req, res, next) {
 const clip = (s, n) => String(s == null ? '' : s).slice(0, n);
 
 // GET /api/ai/status — istemci butonu buna göre etkinleşir.
-router.get('/status', requireAuth, (req, res) => {
+router.get('/status', aiLimiter, requireAuth, (req, res) => {
   const provider = activeProvider();
   res.json({
     configured: aiConfigured(),
