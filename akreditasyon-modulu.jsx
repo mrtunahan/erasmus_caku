@@ -1863,13 +1863,16 @@ function AkreditasyonApp({ currentUser }) {
   );
 
   const loadItems = useCallback(async () => {
-    if (!myFacultyId) return;
     // Yazma sonrası bayat cache'i atla — yeni kanıt refresh gerekmeden görünsün.
     const read = window.apiRead.fresh || window.apiRead;
-    const list = await read('akreditasyon_havuz', {
-      where: 'facultyId:eq:s:' + myFacultyId,
-    });
-    setItems((list || []).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')));
+    // TÜM havuzu oku, fakülteyi İSTEMCİDE filtrele. Sunucu where-filtresi
+    // facultyId biçim/uyuşmazlığında kanıtları gizleyebiliyordu; burada
+    // fakültesiz (eski) kayıtlar ve fakültesi eşleşenler her hâlükârda görünür.
+    const list = await read('akreditasyon_havuz');
+    const mine = (list || []).filter(
+      (it) => !myFacultyId || !it.facultyId || it.facultyId === myFacultyId
+    );
+    setItems(mine.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')));
   }, [myFacultyId]);
 
   useEffect(() => {
@@ -2748,12 +2751,14 @@ function AkreditasyonApp({ currentUser }) {
             </select>
             {(() => {
               const critSel = typeof filterOlcut === 'number' && filterOlcut >= 1;
-              const enabled = aiStatus.configured && critSel && !(aiDraft && aiDraft.loading);
-              const tip = !aiStatus.configured
-                ? 'AI yapılandırılmamış — sunucu .env dosyasına bir sağlayıcı anahtarı eklenmeli'
-                : !critSel
-                  ? 'Önce soldan bir ölçüt (1–10) seçin; AI o ölçütün kanıtlarından taslak yazar'
-                  : 'Bu ölçütün kanıtlarından AI ile ÖDR taslak metni yaz (düzenleyip onaylarsınız)';
+              // Buton /status'a BAĞLI DEĞİL — yalnız ölçüt seçili olmalı. AI
+              // gerçekten yapılandırılmamışsa sunucu net hata döner, modalda görünür.
+              const enabled = critSel && !(aiDraft && aiDraft.loading);
+              const tip = !critSel
+                ? 'Önce soldan bir ölçüt (1–10) seçin; AI o ölçütün kanıtlarından taslak yazar'
+                : aiStatus.configured
+                  ? 'Bu ölçütün kanıtlarından AI ile ÖDR taslak metni yaz (düzenleyip onaylarsınız)'
+                  : 'Bu ölçütün kanıtlarından AI taslağı dener (AI yapılandırılmamışsa hata mesajı gösterilir)';
               return (
                 <button
                   type="button"
