@@ -2067,6 +2067,11 @@ const TemplateEngine = (() => {
     'başkan',
     'anabilim',
     'meslek',
+    // İngilizce karşılıklar (Erasmus yurtdışı kurum adları) — "University
+    // University", "Faculty of Faculty", "Department of Department" tekrarını da önle.
+    'univers',
+    'facult',
+    'departmen',
   ];
   function _typeWordRoot(word) {
     const w = (word || '')
@@ -2343,6 +2348,20 @@ const TemplateEngine = (() => {
         );
         return f ? f.variable.slice(4) : null;
       });
+      // STATİK alan tekrarlanan satırın İÇİNDE ise (örn. Erasmus "{{dönem}}"
+      // hücresi ders satırında) her klonda doldurulmalı — yoksa yer tutucu
+      // olduğu gibi kalır. Bu alanları tpl'e göre konumlandırıp klon başına uygula.
+      const rowStaticRels = staticFields
+        .filter((f) => f._pos && f._pos.start >= rowRegion.start && f._pos.end <= rowRegion.end)
+        .map((f) => {
+          const raw = resolveValue(f, staticData);
+          const val = raw == null ? '' : dedupeTrailingTypeWord(raw, xml, f._pos.end);
+          return {
+            ...f,
+            _pos: { start: f._pos.start - rowRegion.start, end: f._pos.end - rowRegion.start },
+            _value: val == null ? '' : val,
+          };
+        });
       const renderedRows = (rows || [])
         .map((rowData) => {
           const merge = rowData._merge || null;
@@ -2354,7 +2373,7 @@ const TemplateEngine = (() => {
               st === 'continue' ? '' : rowData[varId] != null ? String(rowData[varId]) : '';
             return { ...f, _value: val };
           });
-          let r = applyReplacements(rowRegion.tpl, rowRepls);
+          let r = applyReplacements(rowRegion.tpl, rowRepls.concat(rowStaticRels));
           if (stripRowBold) r = stripBoldRuns(r);
           // vMerge enjeksiyonu — hücre indeksleri şablonla aynı kaldığından
           // (replacement yalnızca token metnini değiştirir) sondan başa uygula
