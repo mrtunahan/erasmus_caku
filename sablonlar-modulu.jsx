@@ -1072,6 +1072,7 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           ...(vars.static || []).map((v) => ({ key: 'static:' + v.id, label: v.label })),
           ...(vars.row || []).map((v) => ({ key: 'row:' + v.id, label: v.label })),
         ];
+        const candKeys = new Set(candidates.map((c) => c.key));
         const byNorm = {};
         candidates.forEach((c) => {
           const full = normTr(c.label);
@@ -1079,6 +1080,38 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           if (full && !byNorm[full]) byNorm[full] = c.key;
           if (base && !byNorm[base]) byNorm[base] = c.key;
         });
+        // Yaygın Türkçe yer-tutucu adları → değişken TAKMA ADLARI. Etiketle birebir
+        // eşleşmeyen ama anlamı belli tokenlar (Erasmus/muafiyet şablonları) için.
+        // Yalnız hedef değişken bu modülde geçerliyse uygulanır (candKeys kontrolü).
+        const TOKEN_ALIASES = {
+          öğrencino: 'static:ogrenciNo',
+          öğrencinumarası: 'static:ogrenciNo',
+          öğrenciadsoyad: 'static:ogrenciAdSoyad',
+          adsoyad: 'static:ogrenciAdSoyad',
+          eğitimyılı: 'static:akademikYil',
+          akademikyıl: 'static:akademikYil',
+          karşıülke: 'static:hostUlke',
+          gidilenülke: 'static:hostUlke',
+          karşıkurum: 'static:kaynakUniversite',
+          gidilenkurum: 'static:hostKurum',
+          karşıüniversite: 'static:kaynakUniversite',
+          karşıfakülte: 'static:kaynakFakulte',
+          karşıbölüm: 'static:kaynakBolum',
+          çakübölüm: 'static:cakuBolum',
+          karşıderskodu: 'row:kDersKod',
+          karşıdersadı: 'row:kDersAd',
+          karşıdersakts: 'row:kDersAkts',
+          karşıdersdönemi: 'row:kDersDonem',
+          dönem: 'static:donem',
+          çaküderskodu: 'row:cDersKod',
+          çaküdersadı: 'row:cDersAd',
+          çaküdersakts: 'row:cDersAkts',
+          çaküdersdönemi: 'row:cDersDonem',
+          çaküdersstatü: 'row:cDersStatu',
+          çaküdersstatüsü: 'row:cDersStatu',
+          karşıtoplamakts: 'static:kaynakToplamAkts',
+          çakütoplamakts: 'static:cakuToplamAkts',
+        };
         let auto = 0;
         merged = merged.map((f) => {
           if (f.variable) return f;
@@ -1088,6 +1121,9 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           if (!hit && inner.length >= 4) {
             const cand = candidates.find((c) => normTr(c.label).startsWith(inner));
             hit = cand && cand.key;
+          }
+          if (!hit && TOKEN_ALIASES[inner] && candKeys.has(TOKEN_ALIASES[inner])) {
+            hit = TOKEN_ALIASES[inner];
           }
           if (!hit) return f;
           auto++;
