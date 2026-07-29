@@ -2362,7 +2362,13 @@ const TemplateEngine = (() => {
             _value: val == null ? '' : val,
           };
         });
-      const renderedRows = (rows || [])
+      // TÜM satır değişkenleri boş olan satırları render ETME — çağıran boş
+      // satır geçse bile çıktıda hayalet/boş satır oluşmasın (motor güvencesi).
+      const rowVarIds = rowRegion.rowFieldRel.map((f) => f.variable.slice(4));
+      const nonEmptyRows = (rows || []).filter((rd) =>
+        rowVarIds.some((id) => rd[id] != null && String(rd[id]).trim() !== '')
+      );
+      const renderedRows = nonEmptyRows
         .map((rowData) => {
           const merge = rowData._merge || null;
           const rowRepls = rowRegion.rowFieldRel.map((f) => {
