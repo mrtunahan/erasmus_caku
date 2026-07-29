@@ -1641,7 +1641,9 @@ window.PerfData = PerfData;
 // Kaynak↔ÇAKÜ ders tablosu ortak satır değişkenleri (muafiyet/erasmus)
 const DERS_ESLESME_ROWS = [
   { id: 'kDersKod', label: 'Karşı/Yurtdışı Ders Kodu' },
-  { id: 'kDersAd', label: 'Karşı/Yurtdışı Ders Adı', format: 'title' },
+  // Yurtdışı ders adı İngilizce olabilir — Türkçe başlık-kasası "TIMISOARA →
+  // Tımısoara" gibi bozar; olduğu gibi bırakılır (İngilizce İngilizce kalsın).
+  { id: 'kDersAd', label: 'Karşı/Yurtdışı Ders Adı' },
   { id: 'kDersAkts', label: 'Karşı Ders AKTS' },
   { id: 'kDersDonem', label: 'Karşı Ders Dönemi (Güz/Bahar)' },
   { id: 'kDersNot', label: 'Karşı Başarı Notu' },
@@ -1655,9 +1657,11 @@ const DERS_ESLESME_ROWS = [
 const OGR_KURUM_STATIC = [
   { id: 'ogrenciNo', label: 'Öğrenci Numarası' },
   { id: 'ogrenciAdSoyad', label: 'Öğrenci Adı Soyadı', format: 'name' },
-  { id: 'kaynakUniversite', label: 'Karşı/Yurtdışı Üniversite', format: 'title' },
-  { id: 'kaynakFakulte', label: 'Karşı Fakülte', format: 'title' },
-  { id: 'kaynakBolum', label: 'Karşı Bölüm', format: 'title' },
+  // Yurtdışı kurum/fakülte/bölüm adları İngilizce — Türkçe kasa dönüşümü
+  // uygulanmaz (İngilizce İngilizce kalsın). ÇAKÜ tarafı Türkçe → 'title'.
+  { id: 'kaynakUniversite', label: 'Karşı/Yurtdışı Üniversite' },
+  { id: 'kaynakFakulte', label: 'Karşı Fakülte' },
+  { id: 'kaynakBolum', label: 'Karşı Bölüm' },
   { id: 'cakuBolum', label: 'ÇAKÜ Bölüm Adı', format: 'title' },
   { id: 'kaynakToplamAkts', label: 'Karşı Toplam AKTS' },
   { id: 'cakuToplamAkts', label: 'ÇAKÜ Toplam AKTS' },

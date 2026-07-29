@@ -4580,11 +4580,33 @@ const ERASMUS_HOME_COLS = [
   'cDersStatu',
 ];
 
+// "Elective I / II / III" gibi seçmeli ders adlarındaki ROMEN rakamlarını
+// normal sayıya çevir (I→1, II→2 …). Yalnız seçmeli derslerde ve tek başına
+// duran romen tokenlarında uygulanır ("Vision" gibi kelimeler bozulmaz).
+const ERASMUS_ROMAN = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 };
+function erasmusFixCourseName(name) {
+  let s = String(name || '');
+  if (/elective|seçmeli/i.test(s)) {
+    s = s.replace(/\b([ivx]+)\b/gi, (m) => {
+      const n = ERASMUS_ROMAN[m.toLowerCase()];
+      return n ? String(n) : m;
+    });
+  }
+  return s;
+}
+// Boş ders kodu → "-" (öğrenci boş bıraktığında çıktıda tire görünsün).
+function erasmusCode(course) {
+  const c = course ? String(course.code || '').trim() : '';
+  return c || '-';
+}
+
 function erasmusRowsFromMatches(matches, gradeMode, donem) {
   const rows = [];
   (matches || []).forEach((match) => {
     const hostL = match.hostCourses || [];
     const homeL = match.homeCourses || [];
+    // Tamamen boş eşleşmeyi atla (çıktıda "ilk satır boş" sorununun kaynağı).
+    if (hostL.length === 0 && homeL.length === 0) return;
     const maxLen = Math.max(hostL.length, homeL.length, 1);
     // Hangi taraf birleşecek? (tek karşı çok)
     const hostMerges = hostL.length === 1 && homeL.length > 1;
@@ -4611,13 +4633,13 @@ function erasmusRowsFromMatches(matches, gradeMode, donem) {
         });
       }
       rows.push({
-        kDersKod: hc ? hc.code || '' : '',
-        kDersAd: hc ? hc.name || '' : '',
+        kDersKod: hc ? erasmusCode(hc) : '',
+        kDersAd: hc ? erasmusFixCourseName(hc.name || '') : '',
         kDersAkts: hc ? String(hc.credits ?? '') : '',
         kDersDonem: hc ? erasmusCourseDonem(hc, donem) : '',
         kDersNot: kNot,
-        cDersKod: mc ? mc.code || '' : '',
-        cDersAd: mc ? mc.name || '' : '',
+        cDersKod: mc ? erasmusCode(mc) : '',
+        cDersAd: mc ? erasmusFixCourseName(mc.name || '') : '',
         cDersAkts: mc ? String(mc.credits ?? '') : '',
         cDersDonem: mc ? erasmusCourseDonem(mc, donem) : '',
         cDersNot: cNot,
@@ -4628,7 +4650,14 @@ function erasmusRowsFromMatches(matches, gradeMode, donem) {
       });
     }
   });
-  return rows;
+  // Her iki tarafı da tamamen boş olan satırları ele (çıktıda boş satır kalmasın).
+  return rows.filter(
+    (r) =>
+      (r.kDersKod && r.kDersKod !== '-') ||
+      r.kDersAd ||
+      (r.cDersKod && r.cDersKod !== '-') ||
+      r.cDersAd
+  );
 }
 
 // "Faculty of Engineering..." gibi değerlerin başındaki İngilizce etiket
