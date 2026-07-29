@@ -1732,9 +1732,14 @@ window.TEMPLATE_VARS = {
     docTypes: [
       { id: 'muafiyet', label: 'Ders Muafiyet İsteği' },
       { id: 'intibak', label: 'Yaz Dönemi Ders İntibak İsteği' },
+      { id: 'yatay', label: 'Yatay Geçiş İsteği' },
+      { id: 'dikey', label: 'Dikey Geçiş İsteği' },
     ],
     muafiyet: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
     intibak: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
+    // Yatay/dikey geçiş — muafiyet ile aynı alt yapı (aynı değişken seti).
+    yatay: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
+    dikey: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
     // Geriye dönük: docType='default' ile kaydedilmiş eski şablonlar
     default: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
   },

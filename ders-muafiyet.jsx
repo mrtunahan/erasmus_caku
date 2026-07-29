@@ -6363,6 +6363,22 @@ const BASVURU_TURLERI = [
     color: '#00658a',
     bg: '#e2f2fb',
   },
+  {
+    id: 'yatay',
+    label: 'Yatay Geçiş İsteği',
+    kisa: 'Yatay Geçiş',
+    aciklama: 'Yatay geçişle gelen öğrencinin önceki kurumda aldığı derslerin muafiyeti',
+    color: '#6d28d9',
+    bg: '#f3e8ff',
+  },
+  {
+    id: 'dikey',
+    label: 'Dikey Geçiş İsteği',
+    kisa: 'Dikey Geçiş',
+    aciklama: 'Dikey geçişle (önlisans→lisans) gelen öğrencinin derslerinin muafiyeti',
+    color: '#0f766e',
+    bg: '#ccfbf1',
+  },
 ];
 
 function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
