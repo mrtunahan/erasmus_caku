@@ -3131,14 +3131,6 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
       step: 6,
     },
     {
-      id: 'ek2_belgesi',
-      title: 'Ek-2 Belgesi (İmzalı/Mühürlü)',
-      desc: "İmzalı ve mühürlü Ek-2 belgesini PDF olarak yükleyiniz. Ek-2'ye Formlar modülünden erişebilirsiniz. Yalnızca PDF formatı kabul edilmektedir.",
-      icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-      step: 6,
-      formLink: true,
-    },
-    {
       id: 'staj_teslim_belgesi',
       title: 'Staj Teslim Belgesi',
       desc: 'Staj teslim belgesini PDF olarak yükleyiniz. Formlar modülünden erişebilirsiniz. Yalnızca PDF formatı kabul edilmektedir.',
