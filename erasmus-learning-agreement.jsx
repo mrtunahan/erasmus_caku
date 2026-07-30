@@ -4675,6 +4675,9 @@ function erasmusStaticData(student, rows) {
   return {
     ogrenciNo: student.studentNumber || '',
     ogrenciAdSoyad: erasmusAdSoyad(student),
+    ogrenciAdSoyadTamlanan: window.trGenitive
+      ? window.trGenitive(erasmusAdSoyad(student))
+      : erasmusAdSoyad(student),
     kaynakUniversite: student.hostInstitution || '',
     kaynakFakulte: erasmusStripLabel(student.hostFaculty, 'Faculty of'),
     kaynakBolum: erasmusStripLabel(student.hostDepartment, 'Department of'),

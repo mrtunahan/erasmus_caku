@@ -1088,6 +1088,8 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           öğrencinumarası: 'static:ogrenciNo',
           öğrenciadsoyad: 'static:ogrenciAdSoyad',
           adsoyad: 'static:ogrenciAdSoyad',
+          öğrenciadsoyadtamlanan: 'static:ogrenciAdSoyadTamlanan',
+          adsoyadtamlanan: 'static:ogrenciAdSoyadTamlanan',
           eğitimyılı: 'static:akademikYil',
           akademikyıl: 'static:akademikYil',
           karşıülke: 'static:hostUlke',
