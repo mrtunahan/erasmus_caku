@@ -6574,6 +6574,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
       const staticData = {
         ogrenciNo: rec.studentNo || '',
         ogrenciAdSoyad: rec.studentName || '',
+        ogrenciAdSoyadTamlanan: window.trGenitive
+          ? window.trGenitive(rec.studentName || '')
+          : rec.studentName || '',
         kaynakUniversite: rec.otherUni || rec.otherUniversity || '',
         kaynakFakulte: rec.otherFaculty || '',
         kaynakBolum: rec.otherDept || rec.otherDepartment || '',

@@ -1657,6 +1657,8 @@ const DERS_ESLESME_ROWS = [
 const OGR_KURUM_STATIC = [
   { id: 'ogrenciNo', label: 'Öğrenci Numarası' },
   { id: 'ogrenciAdSoyad', label: 'Öğrenci Adı Soyadı', format: 'name' },
+  // "…'nın/…'nin" ilgi ekli hâl (şablonda elle 'nun yazmaya gerek kalmaz).
+  { id: 'ogrenciAdSoyadTamlanan', label: "Öğrenci Adı Soyadı (–'nın ekli)" },
   // Yurtdışı kurum/fakülte/bölüm adları İngilizce — Türkçe kasa dönüşümü
   // uygulanmaz (İngilizce İngilizce kalsın). ÇAKÜ tarafı Türkçe → 'title'.
   { id: 'kaynakUniversite', label: 'Karşı/Yurtdışı Üniversite' },
@@ -2985,6 +2987,32 @@ window.TemplateEngine = TemplateEngine;
 // Türkçe-duyarlı harf biçimlendirmesini modüllere aç (ekran görüntüsü için):
 //   window.formatCaseTr(value, 'name' | 'title' | 'upper' | 'lower')
 window.formatCaseTr = TemplateEngine.formatCaseTr;
+
+// Türkçe İLGİ (genitive / "–in") ekini kurala göre ekler: ünlü uyumu + son
+// harf (ünlüyle biterse kaynaştırma 'n'). Özel ad olduğu için kesme (') ile.
+//   ÖZKAN → ÖZKAN'ın · SAMAST → SAMAST'ın · EĞİ → EĞİ'nin · Oğuz → Oğuz'un
+// Ad-soyad verilirse SON kelimeye (soyada) göre çekimlenir.
+window.trGenitive = function (name) {
+  const s = String(name == null ? '' : name).trim();
+  if (!s) return s;
+  const lower = s.toLocaleLowerCase('tr-TR');
+  const vowels = 'aeıioöuü';
+  let lastV = '';
+  for (let i = lower.length - 1; i >= 0; i--) {
+    if (vowels.indexOf(lower[i]) >= 0) {
+      lastV = lower[i];
+      break;
+    }
+  }
+  const endsVowel = vowels.indexOf(lower[lower.length - 1]) >= 0;
+  let sv = 'ı';
+  if (lastV === 'a' || lastV === 'ı') sv = 'ı';
+  else if (lastV === 'e' || lastV === 'i') sv = 'i';
+  else if (lastV === 'o' || lastV === 'u') sv = 'u';
+  else if (lastV === 'ö' || lastV === 'ü') sv = 'ü';
+  const suf = (endsVowel ? 'n' : '') + sv + 'n';
+  return s + '’' + suf;
+};
 
 // ══════════════════════════════════════════════════════════════
 // Memur çıktı akışı — modüllerin ürettiği belgeyi kalıcı saklayıp memur
