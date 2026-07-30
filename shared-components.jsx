@@ -2201,6 +2201,11 @@ const TemplateEngine = (() => {
         rowFieldRel.forEach((f) => {
           plain = plain.replace(f.token, '');
         });
+        // Satır-değişkeni OLMAYAN ama satır içinde kalan {{...}} yer tutucularını
+        // (ör. statik "{{dönem}}") da temizle — bunlar başlık kelimesi değildir.
+        // Yoksa satır tamamı placeholder olsa bile motor yanlışlıkla İŞARETÇİ
+        // moduna geçip ilk satırı "başlık" sanıyor (dönem dolmuyor, boş satır).
+        plain = plain.replace(/\{\{[^{}\n]*\}\}/g, '');
         const isMarkerMode = /[A-Za-zÇĞİÖŞÜçğıöşü]{3}/.test(plain);
 
         if (!isMarkerMode) {
