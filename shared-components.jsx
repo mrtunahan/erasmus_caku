@@ -341,6 +341,11 @@ const DEPARTMENT_MODULES = [
   },
   { id: 'muafiyet', label: 'Ders Muafiyet', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
   {
+    id: 'capyandal',
+    label: 'ÇAP / Yandal',
+    icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  },
+  {
     id: 'staj',
     label: 'Staj',
     icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
@@ -1729,6 +1734,28 @@ const AKREDITASYON_ROWS = [
   { id: 'olcutKanit', label: 'Ölçüt Kanıt Listesi' },
 ];
 
+// ÇAP/Yandal dilekçe değişkenleri — şablondaki yer tutucularla birebir.
+// Sistemden gelenler (ad-soyad, no, fakülte, bölüm, iletişim) otomatik dolar;
+// gelmeyenleri (uyruk, doğum tarihi, AGNO, sınıf, dönem, tercihler) öğrenci girer.
+const CAPYANDAL_STATIC = [
+  { id: 'ogrenciAdSoyad', label: 'Öğrenci Adı Soyadı', format: 'name' },
+  { id: 'ogrenciNo', label: 'Öğrenci Numarası' },
+  { id: 'uyruk', label: 'Uyruğu', format: 'title' },
+  { id: 'dogumTarihi', label: 'Doğum Tarihi' },
+  { id: 'telCep', label: 'Telefon (GSM)' },
+  { id: 'telEv', label: 'Telefon (Ev)' },
+  { id: 'eposta', label: 'E-posta' },
+  { id: 'adres', label: 'Adres' },
+  { id: 'fakulte', label: 'Fakülte', format: 'title' },
+  { id: 'bolum', label: 'Bölüm', format: 'title' },
+  { id: 'bitirdigiSinif', label: 'Bitirdiği Sınıf' },
+  { id: 'genelNotOrt', label: 'Genel Not Ortalaması (AGNO)' },
+  { id: 'okudugiDonem', label: 'Okuduğu Dönem Sayısı' },
+  { id: 'tercih1', label: '1. Tercih (Bölüm)', format: 'title' },
+  { id: 'tercih2', label: '2. Tercih (Bölüm)', format: 'title' },
+  { id: 'tarih', label: 'Günün Tarihi' },
+];
+
 window.TEMPLATE_VARS = {
   muafiyet: {
     docTypes: [
@@ -1744,6 +1771,17 @@ window.TEMPLATE_VARS = {
     dikey: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
     // Geriye dönük: docType='default' ile kaydedilmiş eski şablonlar
     default: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
+  },
+  // ÇAP (Çift Anadal) / Yandal başvuru dilekçeleri — alanlar şablondaki
+  // yer tutucularla birebir: kimlik/iletişim + öğrencilik + 2 tercih.
+  capyandal: {
+    docTypes: [
+      { id: 'cap', label: 'ÇAP (Çift Anadal) Başvuru Dilekçesi' },
+      { id: 'yandal', label: 'Yandal Başvuru Dilekçesi' },
+    ],
+    cap: { static: CAPYANDAL_STATIC, row: [] },
+    yandal: { static: CAPYANDAL_STATIC, row: [] },
+    default: { static: CAPYANDAL_STATIC, row: [] },
   },
   erasmus: {
     docTypes: [

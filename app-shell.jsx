@@ -551,7 +551,7 @@ const Sidebar = ({
     }
     // Öğrenci: ders seçimi yapılana kadar yalnızca "Benim Sayfam" görünür
     if (studentLocked) return DEPARTMENT_MODULES.filter((m) => m.id === 'benim');
-    const stdBase = ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet'];
+    const stdBase = ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet', 'capyandal'];
     const stdAllowed = stdBase.concat(commissionModules);
     return DEPARTMENT_MODULES.filter((m) => stdAllowed.includes(m.id));
   };
@@ -2072,7 +2072,7 @@ function AppShell() {
         ? DEPARTMENT_MODULES.filter((m) => m.id !== 'benim').map((m) => m.id)
         : isProfessor
           ? ['sinav', 'formlar', 'dersprogrami', 'lisansustu', 'projeler', 'staj', 'performans']
-          : ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet']; // student
+          : ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet', 'capyandal']; // student
 
     // Çapraz-bölümde Ortak/Yönetim/Hiyerarşi modülleri tamamen gizli.
     // İstisna: üniversite dışı akademisyen eklendiği bölümde Öğrenci Portalı'na erişir.
@@ -2240,6 +2240,7 @@ function AppShell() {
         erasmus: window.ErasmusLearningAgreementApp,
         sinav: window.SinavOtomasyonuApp,
         muafiyet: window.DersMuafiyetApp,
+        capyandal: window.CapYandalApp,
 
         portal: window.OgrenciPortaliApp,
         projeler: window.ProjeModuluApp,
