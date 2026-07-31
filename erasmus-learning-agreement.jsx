@@ -4717,6 +4717,23 @@ const _snapshotErasmusDoc = async (res, student, docLabel) => {
       url,
       departmentId: student.departmentId || '',
     });
+    // Belge Akışı: otomatik yönlendirme kuralı varsa uygula (memura düşer)
+    if (window.belgeOtoYonlendir) {
+      await window.belgeOtoYonlendir({
+        module: 'erasmus',
+        docType: docLabel && /dönüş|donus/i.test(docLabel) ? 'donus' : 'gidis',
+        sourceId: sid + ':' + docLabel,
+        title:
+          (window.formatCaseTr ? window.formatCaseTr(ad, 'name') : ad) +
+          (student.studentNo || student.studentNumber
+            ? '  ·  ' + (student.studentNo || student.studentNumber)
+            : ''),
+        subtitle: [docLabel, student.hostInstitution].filter(Boolean).join('  ·  '),
+        url,
+        ogrenciNo: student.studentNo || student.studentNumber || '',
+        departmentId: student.departmentId || '',
+      });
+    }
   } catch (e) {
     console.warn('Erasmus snapshot kaydedilemedi:', e && e.message);
   }
@@ -5593,6 +5610,48 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                             Dönüş belgesi
                           </button>
                         )}
+                        {/* Belge Akışı: üretilmiş Erasmus belgesini bir göreve yönlendir */}
+                        {!isStudentWithoutErasmus &&
+                          window.BelgeGonderButonu &&
+                          React.createElement(window.BelgeGonderButonu, {
+                            label: 'Belgeyi Gönder',
+                            resolveBelge: async () => {
+                              const sid =
+                                student.id || student.studentNo || student.studentNumber || '';
+                              const ad = (
+                                (student.firstName || '') +
+                                ' ' +
+                                (student.lastName || '')
+                              ).trim();
+                              // Snapshot kayıtları: erasmus__<sid>:<Gidiş|Dönüş Değerlendirme>
+                              const list = await window.apiRead('memur_outputs').catch(() => []);
+                              const mine = (list || [])
+                                .filter(
+                                  (o) =>
+                                    o.module === 'erasmus' &&
+                                    String(o.sourceId || '').indexOf(String(sid)) === 0
+                                )
+                                .sort((a2, b2) =>
+                                  String(b2.updatedAt || '').localeCompare(
+                                    String(a2.updatedAt || '')
+                                  )
+                                );
+                              const son = mine[0];
+                              if (!son) return null;
+                              return {
+                                module: 'erasmus',
+                                docType: /dönüş|donus/i.test(String(son.sourceId))
+                                  ? 'donus'
+                                  : 'gidis',
+                                sourceId: son.sourceId,
+                                title: son.title || ad,
+                                subtitle: son.subtitle || '',
+                                url: son.url,
+                                ogrenciNo: student.studentNo || student.studentNumber || '',
+                                departmentId: student.departmentId || '',
+                              };
+                            },
+                          })}
                         {canDeleteStudent && (
                           <button
                             onClick={() => handleDeleteStudent(student.id)}
