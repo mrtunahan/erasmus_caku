@@ -743,9 +743,15 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
                   <span>
                     <b>Nasıl ilerlemeliyim?</b>
                     <br />
-                    <b>1.</b> Dilekçenizi indirin. &nbsp;<b>2.</b> Çıktısını alıp <b>imzalayın</b>.
-                    &nbsp;<b>3.</b> İmzalı dilekçeyi aşağıdan sisteme yükleyin. &nbsp;<b>4.</b>{' '}
-                    İmzalı dilekçenin aslını <b>bölüm sekreterine elden teslim edin</b>.
+                    <b>1.</b> Başvurunuz <b>akademisyen tarafından onaylandıktan sonra</b> dilekçe
+                    indirme butonu aktif olur. &nbsp;<b>2.</b> Dilekçenizi indirin. &nbsp;<b>3.</b>{' '}
+                    Çıktısını alıp <b>imzalayın</b>. &nbsp;<b>4.</b> İmzalı dilekçeyi aşağıdan
+                    sisteme yükleyin. &nbsp;<b>5.</b> İmzalı dilekçenin aslını{' '}
+                    <b>
+                      ve dilekçede belirtilen ekleri (
+                      {(tur?.ekler || []).map((e) => e.title).join(', ') || 'gerekli belgeler'})
+                    </b>{' '}
+                    birlikte <b>bölüm sekreterine elden teslim edin</b>.
                   </span>
                 </div>
 
@@ -764,7 +770,23 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
                   <span style={{ flex: '1 1 220px', fontSize: 12.5, color: CY.text }}>
                     <b>1.</b> Başvuru dilekçeniz
                   </span>
-                  {rec.dilekceUrl ? (
+                  {/* İndirme YALNIZCA akademisyen onayından sonra açılır. */}
+                  {rec.status !== 'approved' ? (
+                    <span
+                      style={{
+                        ...cyBtn(false),
+                        cursor: 'not-allowed',
+                        color: CY.textMuted,
+                        borderStyle: 'dashed',
+                      }}
+                      title="Başvurunuz onaylandıktan sonra indirebilirsiniz"
+                    >
+                      🔒{' '}
+                      {rec.status === 'rejected'
+                        ? 'Başvuru reddedildi'
+                        : 'Onay bekleniyor — indirme kapalı'}
+                    </span>
+                  ) : rec.dilekceUrl ? (
                     <a
                       href={cyFileHref(rec.dilekceUrl)}
                       target="_blank"
@@ -780,7 +802,9 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
                       ⬇️ Dilekçeyi İndir
                     </a>
                   ) : (
-                    <span style={cyPill(CY.textMuted, CY.bg)}>Henüz oluşturulmadı</span>
+                    <span style={cyPill(CY.amber, CY.amberLight)}>
+                      Onaylandı — dilekçe hazırlanıyor
+                    </span>
                   )}
                 </div>
 
@@ -819,34 +843,49 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
                       📎 {rec.imzaliDilekceAd || 'Görüntüle'}
                     </a>
                   )}
-                  <label
-                    style={{
-                      ...cyBtn(false),
-                      cursor: signing ? 'wait' : 'pointer',
-                      color: CY.navy,
-                    }}
-                  >
-                    <input
-                      type="file"
-                      style={{ display: 'none' }}
-                      onChange={async (e) => {
-                        const f = (e.target.files && e.target.files[0]) || null;
-                        e.target.value = '';
-                        if (!f) return;
-                        setSigning(true);
-                        try {
-                          await onUploadSigned(rec, f);
-                        } finally {
-                          setSigning(false);
-                        }
+                  {/* Yükleme de onaydan sonra açılır (indiremediğiniz belgeyi imzalayamazsınız) */}
+                  {rec.status !== 'approved' ? (
+                    <span
+                      style={{
+                        ...cyBtn(false),
+                        cursor: 'not-allowed',
+                        color: CY.textMuted,
+                        borderStyle: 'dashed',
                       }}
-                    />
-                    {signing
-                      ? 'Yükleniyor…'
-                      : rec.imzaliDilekceUrl
-                        ? 'Değiştir'
-                        : '⬆️ İmzalı Dilekçe Yükle'}
-                  </label>
+                      title="Önce başvurunuzun onaylanması gerekir"
+                    >
+                      🔒 Onay sonrası yüklenebilir
+                    </span>
+                  ) : (
+                    <label
+                      style={{
+                        ...cyBtn(false),
+                        cursor: signing ? 'wait' : 'pointer',
+                        color: CY.navy,
+                      }}
+                    >
+                      <input
+                        type="file"
+                        style={{ display: 'none' }}
+                        onChange={async (e) => {
+                          const f = (e.target.files && e.target.files[0]) || null;
+                          e.target.value = '';
+                          if (!f) return;
+                          setSigning(true);
+                          try {
+                            await onUploadSigned(rec, f);
+                          } finally {
+                            setSigning(false);
+                          }
+                        }}
+                      />
+                      {signing
+                        ? 'Yükleniyor…'
+                        : rec.imzaliDilekceUrl
+                          ? 'Değiştir'
+                          : '⬆️ İmzalı Dilekçe Yükle'}
+                    </label>
+                  )}
                 </div>
               </div>
             </div>
