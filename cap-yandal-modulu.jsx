@@ -183,14 +183,44 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
         /* profil yoksa boş kalır */
       }
       try {
-        const list = await window.apiRead('departments');
-        if (alive) {
-          const myFac = currentUser?.facultyId || '';
-          const mine = (list || [])
-            .filter((d) => !myFac || (d.facultyId || '') === myFac)
-            .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
-          setDepts(mine.length ? mine : list || []);
-        }
+        const list = (await window.apiRead('departments')) || [];
+        if (!alive) return;
+        // Öğrencinin fakültesi: kullanıcıda yoksa KENDİ bölüm kaydından çöz.
+        // (ÇAP/Yandal dilekçesi "…Fakültesine ait bölümlerden biri" der —
+        // liste öğrencinin fakültesiyle sınırlı olmalı, tüm üniversite değil.)
+        const myDeptId = String(currentUser?.departmentId || '');
+        const own = list.find(
+          (d) =>
+            String(d.id || d._docId || '') === myDeptId ||
+            (sysBolum && String(d.name || '') === String(sysBolum))
+        );
+        const myFac = String(currentUser?.facultyId || own?.facultyId || '');
+        let scoped = myFac ? list.filter((d) => String(d.facultyId || '') === myFac) : list;
+        if (!scoped.length) scoped = list;
+        // MÜKERRER TEMİZLİĞİ: aynı bölüm birden çok kayıt olarak gelebiliyor
+        // (farklı id, aynı ad). Ada göre (Türkçe-duyarlı normalize) tekilleştir.
+        const norm = (s) =>
+          String(s || '')
+            .trim()
+            .replace(/İ/g, 'i')
+            .replace(/I/g, 'ı')
+            .toLocaleLowerCase('tr-TR')
+            .replace(/\s+/g, ' ');
+        const ownKey = norm(sysBolum);
+        const seen = new Set();
+        const uniq = [];
+        scoped.forEach((d) => {
+          const nm = String(d.name || '').trim();
+          if (!nm) return;
+          const key = norm(nm);
+          // Öğrencinin KENDİ bölümü tercih olamaz — listeden çıkar.
+          if (ownKey && key === ownKey) return;
+          if (seen.has(key)) return;
+          seen.add(key);
+          uniq.push(d);
+        });
+        uniq.sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr'));
+        setDepts(uniq);
       } catch (_e) {
         /* bölüm listesi alınamadı — serbest metin girilir */
       }
@@ -198,7 +228,7 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
     return () => {
       alive = false;
     };
-  }, [sysOgrNo, currentUser?.facultyId]);
+  }, [sysOgrNo, currentUser?.facultyId, currentUser?.departmentId, sysBolum]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
