@@ -403,7 +403,15 @@ function GelenBelgelerApp({ currentUser }) {
   );
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif", color: GB.text, maxWidth: 1000 }}>
+    <div
+      style={{
+        fontFamily: "'Inter', sans-serif",
+        color: GB.text,
+        maxWidth: 1400,
+        margin: '0 auto',
+        padding: '0 4px 40px',
+      }}
+    >
       {window.CakuBanner &&
         React.createElement(window.CakuBanner, {
           title: 'Gelen Belgeler',

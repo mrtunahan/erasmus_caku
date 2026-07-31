@@ -704,11 +704,27 @@ const FONTS_LINK =
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap';
 
 // ── Styles ──
+// Tipografi tek noktadan: modüllerin bir kısmı kökünde 'Inter' tanımlıyor, bir
+// kısmı tanımlamıyordu; tanımlamayanlar 'Source Sans 3' + tarayıcı varsayılanı
+// 16px ile açılıyor, böylece rolden role (hangi modülleri gördüğüne göre) farklı
+// font ve punto çıkıyordu. Taban aileyi/puntoyu burada sabitliyoruz — Inter'in
+// x-yüksekliği daha büyük olduğundan 16px Source Sans 3 ≈ 14px Inter, yani
+// punto değil yalnızca tutarlılık değişiyor.
+const APP_FONT_STACK = "'Inter', 'Source Sans 3', sans-serif";
+const APP_FONT_SIZE = 14;
+
 const sharedStyles = {
   global: `
     @import url('${FONTS_LINK}');
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Source Sans 3', sans-serif; -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: ${APP_FONT_STACK};
+      font-size: ${APP_FONT_SIZE}px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Form elemanları fontu miras almaz — rol/modül farkı olmasın diye zorluyoruz. */
+    input, select, textarea, button { font-family: inherit; }
   `,
 };
 
@@ -8680,6 +8696,9 @@ window.StudentNotifier = StudentNotifier;
 // ── Export to window ──
 window.C = C;
 window.FONTS_LINK = FONTS_LINK;
+// Tüm rollerde aynı tipografi — modüller de bu değerleri kullanabilsin.
+window.APP_FONT_STACK = APP_FONT_STACK;
+window.APP_FONT_SIZE = APP_FONT_SIZE;
 window.sharedStyles = sharedStyles;
 window.HOME_INSTITUTION_CATALOG = HOME_INSTITUTION_CATALOG;
 window.GRADE_CONVERSION = GRADE_CONVERSION;
