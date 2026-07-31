@@ -153,7 +153,9 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
     bitirdigiSinif: '',
     genelNotOrt: '',
     okudugiDonem: '',
+    tercih1Fakulte: '',
     tercih1: '',
+    tercih2Fakulte: '',
     tercih2: '',
   });
   const [ekler, setEkler] = useState({}); // {ekId: {url, name}}
@@ -161,6 +163,7 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState({ text: '', kind: '' });
   const [depts, setDepts] = useState([]);
+  const [faculties, setFaculties] = useState([]);
 
   // İletişim bilgilerini Benim Sayfam (student_profiles) kaydından ön-doldur
   useEffect(() => {
@@ -183,22 +186,12 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
         /* profil yoksa boş kalır */
       }
       try {
-        const list = (await window.apiRead('departments')) || [];
+        // ÇAP/Yandal başka FAKÜLTEDE de yapılabilir → tüm fakülte + bölümler.
+        const [facList, deptList] = await Promise.all([
+          window.apiRead('faculties'),
+          window.apiRead('departments'),
+        ]);
         if (!alive) return;
-        // Öğrencinin fakültesi: kullanıcıda yoksa KENDİ bölüm kaydından çöz.
-        // (ÇAP/Yandal dilekçesi "…Fakültesine ait bölümlerden biri" der —
-        // liste öğrencinin fakültesiyle sınırlı olmalı, tüm üniversite değil.)
-        const myDeptId = String(currentUser?.departmentId || '');
-        const own = list.find(
-          (d) =>
-            String(d.id || d._docId || '') === myDeptId ||
-            (sysBolum && String(d.name || '') === String(sysBolum))
-        );
-        const myFac = String(currentUser?.facultyId || own?.facultyId || '');
-        let scoped = myFac ? list.filter((d) => String(d.facultyId || '') === myFac) : list;
-        if (!scoped.length) scoped = list;
-        // MÜKERRER TEMİZLİĞİ: aynı bölüm birden çok kayıt olarak gelebiliyor
-        // (farklı id, aynı ad). Ada göre (Türkçe-duyarlı normalize) tekilleştir.
         const norm = (s) =>
           String(s || '')
             .trim()
@@ -206,29 +199,30 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
             .replace(/I/g, 'ı')
             .toLocaleLowerCase('tr-TR')
             .replace(/\s+/g, ' ');
-        const ownKey = norm(sysBolum);
-        const seen = new Set();
-        const uniq = [];
-        scoped.forEach((d) => {
-          const nm = String(d.name || '').trim();
-          if (!nm) return;
-          const key = norm(nm);
-          // Öğrencinin KENDİ bölümü tercih olamaz — listeden çıkar.
-          if (ownKey && key === ownKey) return;
-          if (seen.has(key)) return;
-          seen.add(key);
-          uniq.push(d);
-        });
-        uniq.sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr'));
-        setDepts(uniq);
+        // Mükerrer temizliği (aynı ad, farklı id kayıtları olabiliyor)
+        const dedupe = (arr) => {
+          const seen = new Set();
+          const out = [];
+          (arr || []).forEach((it) => {
+            const nm = String(it.name || '').trim();
+            if (!nm) return;
+            const k = norm(nm);
+            if (seen.has(k)) return;
+            seen.add(k);
+            out.push(it);
+          });
+          return out.sort((a, b) => String(a.name).localeCompare(String(b.name), 'tr'));
+        };
+        setFaculties(dedupe(facList));
+        setDepts(dedupe(deptList));
       } catch (_e) {
-        /* bölüm listesi alınamadı — serbest metin girilir */
+        /* liste alınamadı — alanlar boş kalır */
       }
     })();
     return () => {
       alive = false;
     };
-  }, [sysOgrNo, currentUser?.facultyId, currentUser?.departmentId, sysBolum]);
+  }, [sysOgrNo]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -259,7 +253,8 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
       ['bitirdigiSinif', 'Bitirdiği sınıf'],
       ['genelNotOrt', 'Genel not ortalaması'],
       ['okudugiDonem', 'Okuduğu dönem sayısı'],
-      ['tercih1', '1. tercih'],
+      ['tercih1Fakulte', '1. tercih fakültesi'],
+      ['tercih1', '1. tercih bölümü'],
     ];
     for (const [k, adi] of zorunlu) {
       if (!String(form[k] || '').trim()) {
@@ -292,7 +287,7 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
       });
       setMsg({ text: 'Başvurunuz gönderildi ✓', kind: 'ok' });
       setEkler({});
-      setForm((f) => ({ ...f, tercih1: '', tercih2: '' }));
+      setForm((f) => ({ ...f, tercih1Fakulte: '', tercih1: '', tercih2Fakulte: '', tercih2: '' }));
       if (onSaved) await onSaved();
     } catch (e) {
       setMsg({ text: 'Gönderilemedi: ' + e.message, kind: 'error' });
@@ -301,7 +296,11 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
     }
   };
 
-  const deptOptions = depts.map((d) => d.name).filter(Boolean);
+  // Fakülte adından id çöz (bölüm listesini o fakülteye göre süzmek için)
+  const facIdByName = (nm) => {
+    const f = faculties.find((x) => String(x.name || '') === String(nm || ''));
+    return f ? f.id || f._docId || '' : '';
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -459,33 +458,62 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
           {tur.kisa} Yapmak İstediği Bölüm Tercihleri
         </div>
         <div style={{ fontSize: 11.5, color: CY.textMuted, marginBottom: 12 }}>
-          Sıra önemlidir. 1. tercih zorunludur.
+          Sıra önemlidir. 1. tercih zorunludur. İstediğiniz fakülte ve bölümü seçebilirsiniz.
         </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))',
-            gap: 12,
-          }}
-        >
-          {['tercih1', 'tercih2'].map((k, i) => (
-            <label key={k} style={cyLabel}>
-              {i + 1}. Tercih {i === 0 ? '*' : ''}
-              <input
-                list="cy-dept-list"
-                value={form[k]}
-                onChange={(e) => set(k, e.target.value)}
-                placeholder="Bölüm adı"
-                style={cyInput}
-              />
-            </label>
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {[1, 2].map((n) => {
+            const fk = 'tercih' + n + 'Fakulte';
+            const bk = 'tercih' + n;
+            const selFacId = facIdByName(form[fk]);
+            const opts = form[fk]
+              ? depts.filter((d) => String(d.facultyId || '') === String(selFacId))
+              : depts;
+            return (
+              <div
+                key={n}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))',
+                  gap: 12,
+                }}
+              >
+                <label style={cyLabel}>
+                  {n}. Tercih — Fakülte {n === 1 ? '*' : ''}
+                  <select
+                    value={form[fk]}
+                    onChange={(e) => {
+                      set(fk, e.target.value);
+                      set(bk, ''); // fakülte değişince bölüm sıfırlanır
+                    }}
+                    style={cyInput}
+                  >
+                    <option value="">Fakülte seçiniz…</option>
+                    {faculties.map((f) => (
+                      <option key={f.id || f.name} value={f.name}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={cyLabel}>
+                  {n}. Tercih — Bölüm {n === 1 ? '*' : ''}
+                  <select
+                    value={form[bk]}
+                    onChange={(e) => set(bk, e.target.value)}
+                    style={cyInput}
+                  >
+                    <option value="">{form[fk] ? 'Bölüm seçiniz…' : 'Önce fakülte seçiniz'}</option>
+                    {opts.map((d) => (
+                      <option key={d.id || d.name} value={d.name}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            );
+          })}
         </div>
-        <datalist id="cy-dept-list">
-          {deptOptions.map((n) => (
-            <option key={n} value={n} />
-          ))}
-        </datalist>
       </div>
 
       {/* Ekler */}
@@ -565,8 +593,9 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
 // ══════════════════════════════════════════════════════════════
 // Başvuru detay kartı (öğrenci + akademisyen ortak)
 // ══════════════════════════════════════════════════════════════
-function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, busyId }) {
+function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSigned, busyId }) {
   const [open, setOpen] = useState(false);
+  const [signing, setSigning] = useState(false);
   const st = CY_DURUMLAR[rec.status || 'pending'] || CY_DURUMLAR.pending;
   const satir = (k, v) =>
     v ? (
@@ -622,8 +651,18 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, busyId }) {
             {satir('Bitirdiği Sınıf', rec.bitirdigiSinif)}
             {satir('AGNO', rec.genelNotOrt)}
             {satir('Okuduğu Dönem', rec.okudugiDonem)}
-            {satir('1. Tercih', rec.tercih1)}
-            {satir('2. Tercih', rec.tercih2)}
+            {satir(
+              '1. Tercih',
+              [rec.tercih1, rec.tercih1Fakulte && '(' + rec.tercih1Fakulte + ')']
+                .filter(Boolean)
+                .join(' ')
+            )}
+            {satir(
+              '2. Tercih',
+              [rec.tercih2, rec.tercih2Fakulte && '(' + rec.tercih2Fakulte + ')']
+                .filter(Boolean)
+                .join(' ')
+            )}
           </div>
           {rec.adres && (
             <div style={{ fontSize: 12.5, marginBottom: 12 }}>
@@ -663,21 +702,159 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, busyId }) {
             })}
           </div>
 
-          {rec.dilekceUrl && (
-            <div style={{ marginBottom: 12 }}>
-              <a
-                href={cyFileHref(rec.dilekceUrl)}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ fontSize: 12.5, color: CY.accent, fontWeight: 700 }}
+          {/* ── ÖĞRENCİ: dilekçe akışı (indir → imzala → yükle → sekretere ver) ── */}
+          {!isStaff && (
+            <div
+              style={{
+                border: '1px solid ' + CY.border,
+                borderRadius: 12,
+                overflow: 'hidden',
+                marginBottom: 4,
+              }}
+            >
+              <div
+                style={{
+                  padding: '10px 14px',
+                  background: CY.bg,
+                  borderBottom: '1px solid ' + CY.border,
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  color: CY.navy,
+                }}
               >
-                ⬇️ Oluşturulan dilekçeyi indir
-              </a>
+                Dilekçe İşlemleri
+              </div>
+              <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Bilgi kartı — süreç anlatımı */}
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 10,
+                    padding: '10px 12px',
+                    background: CY.amberLight,
+                    border: '1px solid ' + CY.amber + '44',
+                    borderRadius: 10,
+                    fontSize: 12,
+                    color: '#7c4a03',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <span style={{ fontSize: 15, lineHeight: 1.2 }}>ℹ️</span>
+                  <span>
+                    <b>Nasıl ilerlemeliyim?</b>
+                    <br />
+                    <b>1.</b> Dilekçenizi indirin. &nbsp;<b>2.</b> Çıktısını alıp <b>imzalayın</b>.
+                    &nbsp;<b>3.</b> İmzalı dilekçeyi aşağıdan sisteme yükleyin. &nbsp;<b>4.</b>{' '}
+                    İmzalı dilekçenin aslını <b>bölüm sekreterine elden teslim edin</b>.
+                  </span>
+                </div>
+
+                {/* 1) Oluşturulan dilekçe */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                    padding: '10px 12px',
+                    border: '1px solid ' + CY.border,
+                    borderRadius: 10,
+                  }}
+                >
+                  <span style={{ flex: '1 1 220px', fontSize: 12.5, color: CY.text }}>
+                    <b>1.</b> Başvuru dilekçeniz
+                  </span>
+                  {rec.dilekceUrl ? (
+                    <a
+                      href={cyFileHref(rec.dilekceUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        ...cyBtn(false),
+                        color: CY.accent,
+                        borderColor: CY.accent,
+                        textDecoration: 'none',
+                        display: 'inline-block',
+                      }}
+                    >
+                      ⬇️ Dilekçeyi İndir
+                    </a>
+                  ) : (
+                    <span style={cyPill(CY.textMuted, CY.bg)}>Henüz oluşturulmadı</span>
+                  )}
+                </div>
+
+                {/* 2) İmzalı dilekçe yükleme */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                    padding: '10px 12px',
+                    border: '1px dashed ' + (rec.imzaliDilekceUrl ? CY.green : CY.border),
+                    borderRadius: 10,
+                    background: rec.imzaliDilekceUrl ? CY.greenLight + '66' : 'white',
+                  }}
+                >
+                  <span style={{ flex: '1 1 220px', fontSize: 12.5, color: CY.text }}>
+                    <b>2.</b> İmzalı dilekçe
+                    {rec.imzaliDilekceUrl ? (
+                      <span style={{ ...cyPill(CY.green, CY.greenLight), marginLeft: 8 }}>
+                        ✓ Yüklendi
+                      </span>
+                    ) : (
+                      <span style={{ ...cyPill(CY.amber, CY.amberLight), marginLeft: 8 }}>
+                        Bekleniyor
+                      </span>
+                    )}
+                  </span>
+                  {rec.imzaliDilekceUrl && (
+                    <a
+                      href={cyFileHref(rec.imzaliDilekceUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: 12, color: CY.accent, fontWeight: 600 }}
+                    >
+                      📎 {rec.imzaliDilekceAd || 'Görüntüle'}
+                    </a>
+                  )}
+                  <label
+                    style={{
+                      ...cyBtn(false),
+                      cursor: signing ? 'wait' : 'pointer',
+                      color: CY.navy,
+                    }}
+                  >
+                    <input
+                      type="file"
+                      style={{ display: 'none' }}
+                      onChange={async (e) => {
+                        const f = (e.target.files && e.target.files[0]) || null;
+                        e.target.value = '';
+                        if (!f) return;
+                        setSigning(true);
+                        try {
+                          await onUploadSigned(rec, f);
+                        } finally {
+                          setSigning(false);
+                        }
+                      }}
+                    />
+                    {signing
+                      ? 'Yükleniyor…'
+                      : rec.imzaliDilekceUrl
+                        ? 'Değiştir'
+                        : '⬆️ İmzalı Dilekçe Yükle'}
+                  </label>
+                </div>
+              </div>
             </div>
           )}
 
+          {/* ── AKADEMİSYEN: dilekçe üret + öğrencinin imzalı dilekçesi + karar ── */}
           {isStaff && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <button
                 type="button"
                 onClick={() => onDilekce(rec)}
@@ -686,6 +863,38 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, busyId }) {
               >
                 {busyId === rec.id ? 'Üretiliyor…' : '📄 Dilekçe Oluştur'}
               </button>
+
+              {/* Öğrencinin yüklediği İMZALI dilekçe */}
+              {rec.imzaliDilekceUrl ? (
+                <a
+                  href={cyFileHref(rec.imzaliDilekceUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={rec.imzaliDilekceAd || ''}
+                  style={{
+                    ...cyBtn(false),
+                    color: CY.green,
+                    borderColor: CY.green,
+                    background: CY.greenLight + '66',
+                    textDecoration: 'none',
+                    display: 'inline-block',
+                  }}
+                >
+                  ✒️ İmzalı Dilekçe (indir)
+                </a>
+              ) : (
+                <span
+                  style={{
+                    ...cyBtn(false),
+                    cursor: 'default',
+                    color: CY.textMuted,
+                    borderStyle: 'dashed',
+                  }}
+                >
+                  ✒️ İmzalı dilekçe yüklenmedi
+                </span>
+              )}
+
               {(rec.status || 'pending') === 'pending' && (
                 <>
                   <button
@@ -777,6 +986,23 @@ function CapYandalApp({ currentUser, activeDepartment, departmentInfo }) {
       setTimeout(() => setMsg(''), 2500);
     } catch (e) {
       alert('Güncellenemedi: ' + e.message);
+    }
+  };
+
+  // Öğrenci imzalı dilekçesini yükler (indir → imzala → yükle → sekretere ver)
+  const uploadSigned = async (rec, file) => {
+    try {
+      const url = await cyUploadFile(file);
+      await window.DBWrite.update('cap_yandal_basvurular', String(rec.id), {
+        imzaliDilekceUrl: url,
+        imzaliDilekceAd: file.name,
+        imzaliDilekceAt: new Date().toISOString(),
+      });
+      await load();
+      setMsg('İmzalı dilekçe yüklendi ✓');
+      setTimeout(() => setMsg(''), 3000);
+    } catch (e) {
+      alert('Yüklenemedi: ' + e.message);
     }
   };
 
@@ -895,6 +1121,7 @@ function CapYandalApp({ currentUser, activeDepartment, departmentInfo }) {
             isStaff={!isStudent}
             onDecision={setDecision}
             onDilekce={makeDilekce}
+            onUploadSigned={uploadSigned}
             busyId={busyId}
           />
         ))}
