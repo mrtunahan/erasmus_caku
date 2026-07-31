@@ -636,7 +636,7 @@ function BelgeGonderButonu({ belge, resolveBelge, label, onSent }) {
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} style={btn}>
-        📤 {label || 'Gönder'}
+        {label || 'Gönder'}
       </button>
     );
   }

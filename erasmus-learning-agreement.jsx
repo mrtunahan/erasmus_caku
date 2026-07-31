@@ -5098,6 +5098,12 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
     loadStudents();
   }, [activeDepartment]);
 
+  // Öğrenci BAŞVURUSUNU YAPTIKTAN sonra (ders eşleştirmesi girilmişse) düzenleme
+  // kapanır; yeniden açmak modülden sorumlu akademisyenin/bölüm yetkilisinin
+  // onayına bağlıdır (duzenlemeAcik bayrağı).
+  const basvuruKilitli = (student) =>
+    (student?.outgoingMatches || []).length > 0 && student?.duzenlemeAcik !== true;
+
   const canEdit = (student) => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
@@ -5105,7 +5111,40 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
     if (currentUser.role === 'bolum_yetkilisi') return true;
     // Erasmus yetkisi olmayan öğrenciler hiçbir değişiklik yapamaz
     if (currentUser.role === 'student' && currentUser.erasmusAccess !== true) return false;
+    if (currentUser.role === 'student' && basvuruKilitli(student)) return false;
     return currentUser.role === 'student' && student.studentNumber === currentUser.studentNumber;
+  };
+
+  // Yetkili, öğrencinin düzenleme iznini açar/kapatır.
+  const toggleDuzenleme = async (student) => {
+    const ac = student?.duzenlemeAcik !== true;
+    if (
+      !confirm(
+        ac
+          ? 'Öğrencinin başvurusunu yeniden düzenlemesine izin verilsin mi?'
+          : 'Öğrencinin düzenleme izni kapatılsın mı?'
+      )
+    )
+      return;
+    try {
+      await window.DBWrite.set(
+        'students',
+        String(student.id),
+        {
+          duzenlemeAcik: ac,
+          duzenlemeAcanKisi: currentUser?.name || currentUser?.identifier || '',
+          duzenlemeAcilmaTarihi: new Date().toISOString(),
+        },
+        true
+      );
+      if (window.apiInvalidate) window.apiInvalidate('students');
+      setStudents((prev) =>
+        (prev || []).map((s) => (s.id === student.id ? { ...s, duzenlemeAcik: ac } : s))
+      );
+      alert(ac ? 'Düzenleme izni açıldı.' : 'Düzenleme izni kapatıldı.');
+    } catch (e) {
+      alert('Güncellenemedi: ' + e.message);
+    }
   };
 
   const isStudentWithoutErasmus =
@@ -5611,7 +5650,42 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                           </button>
                         )}
                         {/* Belge Akışı: üretilmiş Erasmus belgesini bir göreve yönlendir */}
-                        {!isStudentWithoutErasmus &&
+                        {/* Yetkili: öğrencinin düzenleme iznini aç/kapat */}
+                        {!isStudentRole && (student.outgoingMatches || []).length > 0 && (
+                          <button
+                            onClick={() => toggleDuzenleme(student)}
+                            title={
+                              student.duzenlemeAcik === true
+                                ? 'Öğrenci şu an düzenleyebiliyor — kapatmak için tıklayın'
+                                : 'Öğrencinin yeniden düzenlemesine izin ver'
+                            }
+                            style={{
+                              ...eBtnGhost,
+                              color: student.duzenlemeAcik === true ? '#B45309' : C.navy,
+                              borderColor: student.duzenlemeAcik === true ? '#B45309' : undefined,
+                            }}
+                          >
+                            {student.duzenlemeAcik === true
+                              ? 'Düzenlemeyi Kapat'
+                              : 'Düzenlemeye İzin Ver'}
+                          </button>
+                        )}
+                        {/* Öğrenci: başvuru kilitli bilgisi */}
+                        {isStudentRole && basvuruKilitli(student) && (
+                          <span
+                            style={{
+                              ...eBtnGhost,
+                              cursor: 'default',
+                              color: '#B45309',
+                              borderColor: '#B4530955',
+                              background: '#FEF3C7',
+                            }}
+                            title="Başvurunuz gönderildi. Yeniden düzenlemek için bölüm yetkilisi/sorumlu akademisyenden izin isteyiniz."
+                          >
+                            🔒 Düzenleme kapalı
+                          </span>
+                        )}
+                        {!isStudentRole &&
                           window.BelgeGonderButonu &&
                           React.createElement(window.BelgeGonderButonu, {
                             label: 'Belgeyi Gönder',
