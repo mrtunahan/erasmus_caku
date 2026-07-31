@@ -15,6 +15,7 @@ const SB_Btn = window.Btn;
 const SB_MODULES = [
   { id: 'erasmus', label: 'Erasmus', color: '#3B82F6' },
   { id: 'muafiyet', label: 'Ders Muafiyet', color: '#10B981' },
+  { id: 'capyandal', label: 'ÇAP / Yandal', color: '#6D28D9' },
   { id: 'staj', label: 'Staj', color: '#0EA5E9' },
   { id: 'sinav', label: 'Sınav Otomasyonu', color: '#DC2626' },
   { id: 'dersprogrami', label: 'Ders Programı', color: '#F59E0B' },
