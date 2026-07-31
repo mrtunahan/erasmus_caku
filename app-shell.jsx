@@ -2219,6 +2219,9 @@ function AppShell() {
   // TopHeader'daki bölüm seçici için kullanılabilir bölüm listesi.
   // Ortak computeAvailableDepts helper'ı (Sidebar/RightSidebar ile aynı kurallar).
   const topAvailableDepts = computeAvailableDepts(currentUser, adminScope);
+  // RightSidebar tek bölümlü kullanıcılarda render edilmiyor (aynı kural orada da
+  // var). İçerik genişliğini rollere göre eşitlemek için burada da biliyoruz.
+  const rightRailVisible = topAvailableDepts.length > 1;
 
   // Render active module
   // Çapraz-bölümde modüllere AKADEMİSYEN olarak görünür: tüm yetki bayrakları
@@ -2396,6 +2399,16 @@ function AppShell() {
             flex: 1,
             minWidth: 0,
             padding: isMobile ? 12 : 24,
+            // Sağ raf (bölüm seçici) yalnızca çok bölümlü rollerde çıkıyor; rafsız
+            // rollerde içerik sütunu 240px daha genişleyip sayfa oranı role göre
+            // değişiyordu. Ekran yeterince genişse rafın yerini boş bırakarak
+            // içerik genişliğini tüm rollerde eşitliyoruz; dar ekranda ise
+            // sıkıştırmamak için bu telafiyi uygulamıyoruz.
+            paddingRight:
+              !isMobile && !rightRailVisible && windowWidth >= 1500 ? 24 + 240 : undefined,
+            // Kısa modüllerde sayfa yüksekliği sidebar'ın altında kalmasın —
+            // sidebar'lı/sidebar'sız her rolde aynı taban yükseklik.
+            minHeight: isMobile ? undefined : 'calc(100vh - 64px)',
             overflowY: 'auto',
           }}
         >

@@ -180,7 +180,15 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
       : 'Yalnızca kendi bölümünüzün şablonlarını yönetirsiniz.';
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif", color: '#1F2937', maxWidth: 1100 }}>
+    <div
+      style={{
+        fontFamily: "'Inter', sans-serif",
+        color: '#1F2937',
+        maxWidth: 1400,
+        margin: '0 auto',
+        padding: '0 4px 40px',
+      }}
+    >
       {/* Başlık */}
       <div
         style={{

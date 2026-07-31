@@ -962,7 +962,7 @@ function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   return (
     <div
-      style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '16px 12px' : '24px 16px' }}
+      style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '0 0 24px' : '0 4px 40px' }}
     >
       {/* Başlık — ortak banner (ikon kaldırıldı) */}
       {React.createElement(window.CakuBanner, {

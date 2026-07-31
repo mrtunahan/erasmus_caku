@@ -1158,7 +1158,7 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
         .rm-ext-link:hover { opacity: 1; transform: translateY(-1px); }
       `}</style>
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
         {/* ── Premium Unified Header ── */}
         <div
           style={{

@@ -284,7 +284,15 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
       : 'Eklediğiniz duyuru/etkinlikler bölümünüzdeki öğrencilere görünür.';
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif", color: '#1F2937', maxWidth: 920 }}>
+    <div
+      style={{
+        fontFamily: "'Inter', sans-serif",
+        color: '#1F2937',
+        maxWidth: 1400,
+        margin: '0 auto',
+        padding: '0 4px 40px',
+      }}
+    >
       {/* Başlık */}
       <div
         style={{
