@@ -5727,6 +5727,25 @@ const ExemptionHistory = ({
                     {isStudent ? 'Dilekçemi İndir' : 'Onaylı Dilekçeyi İndir'}
                   </a>
                   <span style={{ color: DS.textMuted, fontSize: 11.5 }}>· salt-okunur kopya</span>
+                  {/* Belge Akışı: dilekçeyi bir göreve yönlendir (memur/bölüm/öğrenci) */}
+                  {!isStudent &&
+                    window.BelgeGonderButonu &&
+                    React.createElement(window.BelgeGonderButonu, {
+                      belge: {
+                        module: 'muafiyet',
+                        docType: rec.basvuruTuru || 'muafiyet',
+                        sourceId: String(rec.id),
+                        title:
+                          (window.formatCaseTr
+                            ? window.formatCaseTr(rec.studentName, 'name')
+                            : rec.studentName || '') +
+                          (rec.studentNo ? '  ·  ' + rec.studentNo : ''),
+                        subtitle: 'Muafiyet dilekçesi',
+                        url: rec.dilekceUrl,
+                        ogrenciNo: rec.studentNo || '',
+                        departmentId: rec.departmentId || '',
+                      },
+                    })}
                 </div>
               )}
 
@@ -6617,6 +6636,22 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
               updatedAt: new Date().toISOString(),
             };
             await window.DBWrite.update('muafiyet_records', String(rec.id), patch);
+            // Belge Akışı: otomatik yönlendirme kuralı varsa uygula (memura düşer)
+            if (window.belgeOtoYonlendir) {
+              await window.belgeOtoYonlendir({
+                module: 'muafiyet',
+                docType: docType,
+                sourceId: String(rec.id),
+                title:
+                  (window.formatCaseTr
+                    ? window.formatCaseTr(rec.studentName, 'name')
+                    : rec.studentName || '') + (rec.studentNo ? '  ·  ' + rec.studentNo : ''),
+                subtitle: turAd,
+                url: url,
+                ogrenciNo: rec.studentNo || '',
+                departmentId: rec.departmentId || '',
+              });
+            }
             setRecords(function (prev) {
               return prev.map(function (r) {
                 return r.id === rec.id ? Object.assign({}, r, patch) : r;

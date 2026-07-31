@@ -578,7 +578,7 @@ window.CakuBanner = CakuBanner;
 // Üretilen bir belgeyi bir GÖREVE yönlendirir. Her modül tek satırla kullanır:
 //   <BelgeGonderButonu belge={{module, docType, sourceId, title, subtitle, url,
 //                              ogrenciNo, departmentId, facultyId}} />
-function BelgeGonderButonu({ belge, label, onSent }) {
+function BelgeGonderButonu({ belge, resolveBelge, label, onSent }) {
   const [open, setOpen] = React.useState(false);
   const [rol, setRol] = React.useState('memur');
   const [not, setNot] = React.useState('');
@@ -587,13 +587,19 @@ function BelgeGonderButonu({ belge, label, onSent }) {
   const roller = window.BELGE_HEDEF_ROLLERI || [];
 
   const gonder = async () => {
-    if (!belge || !belge.url) {
-      alert('Önce belgenin oluşturulmuş olması gerekir.');
-      return;
-    }
     setBusy(true);
     try {
-      const r = await window.belgeYonlendir({ ...belge, hedefRol: rol, not });
+      // Belge anlık üretiliyorsa (ör. Erasmus) URL çağrı anında çözülür.
+      let b = belge;
+      if (resolveBelge) {
+        b = await resolveBelge();
+      }
+      if (!b || !b.url) {
+        alert('Önce belgeyi oluşturun — gönderilecek bir belge bulunamadı.');
+        setBusy(false);
+        return;
+      }
+      const r = await window.belgeYonlendir({ ...b, hedefRol: rol, not });
       if (!r || !r.ok) throw new Error((r && r.reason) || 'gönderilemedi');
       setOk(r.zatenVar ? 'Bu göreve zaten gönderilmiş' : 'Gönderildi ✓');
       setNot('');
