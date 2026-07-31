@@ -486,6 +486,30 @@ const Sidebar = ({
   // Üni/fakülte yetkilisi — modül görünürlüğünde admin gibi davranır
   const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
 
+  // Faz 2 — "Gelen Belgeler" bekleyen sayısı (sidebar rozeti). Gelen kutusu
+  // ekranıyla AYNI filtreyi (window.belgeGelenKutusu) kullanır.
+  const [gelenBelgeSayisi, setGelenBelgeSayisi] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const hesapla = async () => {
+      try {
+        if (!window.belgeGelenKutusu || !window.apiRead) return;
+        const list = await window.apiRead('memur_outputs');
+        if (!alive) return;
+        const gelen = window.belgeGelenKutusu(list || [], currentUser) || [];
+        setGelenBelgeSayisi(gelen.filter((i) => i.gonderim.durum === 'bekliyor').length);
+      } catch (_e) {
+        /* sayaç kritik değil */
+      }
+    };
+    hesapla();
+    const t = setInterval(hesapla, 60000); // dakikada bir tazele
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [currentUser, currentRoute]);
+
   const isErgunCinar = isErgunCinarUser(currentUser);
   // Memur — yalnız atandığı modülleri görür; Ortak/Yönetim bölümleri gizli.
   const isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
@@ -551,7 +575,16 @@ const Sidebar = ({
     }
     // Öğrenci: ders seçimi yapılana kadar yalnızca "Benim Sayfam" görünür
     if (studentLocked) return DEPARTMENT_MODULES.filter((m) => m.id === 'benim');
-    const stdBase = ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet', 'capyandal'];
+    const stdBase = [
+      'benim',
+      'erasmus',
+      'projeler',
+      'formlar',
+      'staj',
+      'muafiyet',
+      'capyandal',
+      'gelenbelgeler',
+    ];
     const stdAllowed = stdBase.concat(commissionModules);
     return DEPARTMENT_MODULES.filter((m) => stdAllowed.includes(m.id));
   };
@@ -676,7 +709,21 @@ const Sidebar = ({
               }}
             >
               <NavIcon path={mod.icon} size={18} />
-              {mod.label}
+              <span style={{ flex: 1 }}>{mod.label}</span>
+              {mod.id === 'gelenbelgeler' && gelenBelgeSayisi > 0 && (
+                <span
+                  style={{
+                    background: '#B45309',
+                    color: 'white',
+                    borderRadius: 10,
+                    padding: '1px 7px',
+                    fontSize: 10.5,
+                    fontWeight: 800,
+                  }}
+                >
+                  {gelenBelgeSayisi}
+                </span>
+              )}
             </button>
           );
         })}
@@ -2072,7 +2119,16 @@ function AppShell() {
         ? DEPARTMENT_MODULES.filter((m) => m.id !== 'benim').map((m) => m.id)
         : isProfessor
           ? ['sinav', 'formlar', 'dersprogrami', 'lisansustu', 'projeler', 'staj', 'performans']
-          : ['benim', 'erasmus', 'projeler', 'formlar', 'staj', 'muafiyet', 'capyandal']; // student
+          : [
+              'benim',
+              'erasmus',
+              'projeler',
+              'formlar',
+              'staj',
+              'muafiyet',
+              'capyandal',
+              'gelenbelgeler',
+            ]; // student
 
     // Çapraz-bölümde Ortak/Yönetim/Hiyerarşi modülleri tamamen gizli.
     // İstisna: üniversite dışı akademisyen eklendiği bölümde Öğrenci Portalı'na erişir.
@@ -2241,6 +2297,7 @@ function AppShell() {
         sinav: window.SinavOtomasyonuApp,
         muafiyet: window.DersMuafiyetApp,
         capyandal: window.CapYandalApp,
+        gelenbelgeler: window.GelenBelgelerApp,
 
         portal: window.OgrenciPortaliApp,
         projeler: window.ProjeModuluApp,

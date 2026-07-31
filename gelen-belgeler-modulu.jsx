@@ -1,0 +1,438 @@
+// ══════════════════════════════════════════════════════════════
+// ÇAKÜ — Gelen Belgeler (Evrak Akışı)
+//
+// TEK bileşen, DÖRT rol: memur · bölüm yetkilisi · akademisyen · öğrenci.
+// Hangi belgenin kime düştüğüne shared-components'teki window.belgeGelenKutusu
+// karar verir (rol + kapsam eşleşmesi) — böylece bu ekran ve sidebar rozeti
+// aynı mantığı kullanır.
+//
+// Yönlendirme GÖREVE yapılır (kişiye değil): personel değişse de akış bozulmaz.
+// Alıcı işlemi: Görüldü / Tamamlandı.
+//
+// Faz 2: "Gönderdiklerim" sekmesi — gönderen, belgesini kimin görüp
+// tamamladığını takip eder.
+// ══════════════════════════════════════════════════════════════
+
+const { useState, useEffect, useMemo, useCallback } = React;
+
+const GB = {
+  navy: '#1B2A4A',
+  accent: '#0F766E',
+  accentPale: '#CCFBF1',
+  text: '#1F2937',
+  textMuted: '#6B7280',
+  border: '#E5E7EB',
+  green: '#059669',
+  greenLight: '#D1FAE5',
+  amber: '#B45309',
+  amberLight: '#FEF3C7',
+  bg: '#F8F9FB',
+};
+
+const GB_DURUM = {
+  bekliyor: { label: 'Bekliyor', color: GB.amber, bg: GB.amberLight },
+  goruldu: { label: 'Görüldü', color: '#1D4ED8', bg: '#DBEAFE' },
+  tamamlandi: { label: 'Tamamlandı', color: GB.green, bg: GB.greenLight },
+};
+
+const GB_MODUL_ADI = {
+  muafiyet: 'Ders Muafiyet',
+  capyandal: 'ÇAP / Yandal',
+  erasmus: 'Erasmus',
+  staj: 'Staj',
+  akreditasyon: 'Akreditasyon',
+  performans: 'Performans',
+  sinav: 'Sınav',
+};
+
+const gbFileHref = (u) => {
+  const rel = String(u || '')
+    .replace('/api/files/download/', '')
+    .replace('/api/files/view/', '');
+  if (!rel) return '#';
+  return /\.pdf$/i.test(rel)
+    ? '/api/files/view/' + rel
+    : '/api/files/download/' + rel + '?download=true';
+};
+
+const gbPill = (color, bg) => ({
+  padding: '2px 10px',
+  borderRadius: 12,
+  background: bg,
+  color,
+  fontSize: 11,
+  fontWeight: 700,
+  whiteSpace: 'nowrap',
+});
+const gbBtn = (color) => ({
+  padding: '7px 14px',
+  borderRadius: 8,
+  border: '1px solid ' + (color || GB.border),
+  background: 'white',
+  color: color || GB.textMuted,
+  fontSize: 12.5,
+  fontWeight: 600,
+  cursor: 'pointer',
+  textDecoration: 'none',
+  display: 'inline-block',
+});
+
+// ── Gelen belge kartı ──
+function GbKart({ item, onDurum, busy }) {
+  const { doc, gonderim, index } = item;
+  const st = GB_DURUM[gonderim.durum || 'bekliyor'] || GB_DURUM.bekliyor;
+  const tarih = gonderim.gonderilmeTarihi
+    ? new Date(gonderim.gonderilmeTarihi).toLocaleDateString('tr-TR')
+    : '';
+  const docId = doc.id || doc._docId || doc.module + '__' + doc.sourceId;
+
+  return (
+    <div
+      style={{
+        background: 'white',
+        border: '1px solid ' + GB.border,
+        borderLeft: '3px solid ' + st.color,
+        borderRadius: 12,
+        padding: 16,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={gbPill(GB.accent, GB.accentPale)}>
+              {GB_MODUL_ADI[doc.module] || doc.module}
+            </span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: GB.navy }}>
+              {doc.title || '(başlıksız belge)'}
+            </span>
+          </div>
+          {doc.subtitle && (
+            <div style={{ fontSize: 12, color: GB.textMuted, marginTop: 4 }}>{doc.subtitle}</div>
+          )}
+          <div style={{ fontSize: 11.5, color: GB.textMuted, marginTop: 6 }}>
+            {gonderim.gonderenAd ? 'Gönderen: ' + gonderim.gonderenAd : ''}
+            {tarih ? '  ·  ' + tarih : ''}
+            {gonderim.hedefAd ? '  ·  Hedef: ' + gonderim.hedefAd : ''}
+          </div>
+          {gonderim.not && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: '7px 10px',
+                background: GB.bg,
+                borderRadius: 8,
+                fontSize: 12,
+                color: GB.text,
+              }}
+            >
+              📝 {gonderim.not}
+            </div>
+          )}
+        </div>
+        <span style={gbPill(st.color, st.bg)}>{st.label}</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <a
+          href={gbFileHref(doc.url)}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={gbBtn(GB.accent)}
+        >
+          ⬇️ Belgeyi Aç / İndir
+        </a>
+        {gonderim.durum !== 'goruldu' && gonderim.durum !== 'tamamlandi' && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDurum(docId, index, 'goruldu')}
+            style={gbBtn('#1D4ED8')}
+          >
+            👁️ Görüldü
+          </button>
+        )}
+        {gonderim.durum !== 'tamamlandi' && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDurum(docId, index, 'tamamlandi')}
+            style={gbBtn(GB.green)}
+          >
+            ✓ Tamamlandı
+          </button>
+        )}
+        {gonderim.durum === 'tamamlandi' && gonderim.durumBy && (
+          <span style={{ fontSize: 11.5, color: GB.textMuted, alignSelf: 'center' }}>
+            {gonderim.durumBy} tarafından tamamlandı
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Faz 2: Gönderdiklerim (takip) kartı ──
+function GbGonderdigimKart({ doc }) {
+  const gs = doc.gonderimler || [];
+  return (
+    <div
+      style={{
+        background: 'white',
+        border: '1px solid ' + GB.border,
+        borderRadius: 12,
+        padding: 16,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={gbPill(GB.accent, GB.accentPale)}>
+          {GB_MODUL_ADI[doc.module] || doc.module}
+        </span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: GB.navy }}>
+          {doc.title || '(başlıksız belge)'}
+        </span>
+        <a
+          href={gbFileHref(doc.url)}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ ...gbBtn(GB.accent), marginLeft: 'auto', padding: '5px 11px', fontSize: 12 }}
+        >
+          ⬇️ Aç
+        </a>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {gs.map((g, i) => {
+          const st = GB_DURUM[g.durum || 'bekliyor'] || GB_DURUM.bekliyor;
+          return (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                flexWrap: 'wrap',
+                padding: '7px 10px',
+                background: GB.bg,
+                borderRadius: 8,
+                fontSize: 12,
+              }}
+            >
+              <span style={{ fontWeight: 700, color: GB.navy }}>{g.hedefAd || g.hedefRol}</span>
+              <span style={gbPill(st.color, st.bg)}>{st.label}</span>
+              {g.durumBy && <span style={{ color: GB.textMuted }}>· {g.durumBy}</span>}
+              {g.durumTarihi && (
+                <span style={{ color: GB.textMuted }}>
+                  · {new Date(g.durumTarihi).toLocaleDateString('tr-TR')}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+function GelenBelgelerApp({ currentUser }) {
+  const [docs, setDocs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState('gelen');
+  const [filtre, setFiltre] = useState('acik'); // 'acik' | 'hepsi'
+  const [msg, setMsg] = useState('');
+
+  const isStudent = currentUser?.role === 'student';
+  const myId = String(currentUser?.identifier || '');
+
+  const load = useCallback(async () => {
+    try {
+      const read = window.apiRead.fresh || window.apiRead;
+      const list = await read('memur_outputs');
+      setDocs(list || []);
+    } catch (_e) {
+      setDocs([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      await load();
+      if (alive) setLoading(false);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [load]);
+
+  const gelen = useMemo(() => {
+    const all = window.belgeGelenKutusu ? window.belgeGelenKutusu(docs, currentUser) : [];
+    return filtre === 'acik' ? all.filter((i) => i.gonderim.durum !== 'tamamlandi') : all;
+  }, [docs, currentUser, filtre]);
+
+  // Faz 2 — gönderen takibi: bu kullanıcının gönderdiği belgeler
+  const gonderdiklerim = useMemo(
+    () =>
+      (docs || []).filter((d) =>
+        (d.gonderimler || []).some((g) => String(g.gonderen || '') === myId)
+      ),
+    [docs, myId]
+  );
+
+  const setDurum = async (docId, idx, durum) => {
+    setBusy(true);
+    try {
+      const r = await window.belgeDurumGuncelle(docId, idx, durum);
+      if (!r || !r.ok) throw new Error((r && r.reason) || 'güncellenemedi');
+      await load();
+      setMsg(
+        durum === 'tamamlandi' ? 'Tamamlandı olarak işaretlendi ✓' : 'Görüldü olarak işaretlendi'
+      );
+      setTimeout(() => setMsg(''), 2500);
+    } catch (e) {
+      alert('İşaretlenemedi: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) {
+    return <div style={{ padding: 60, textAlign: 'center', color: GB.textMuted }}>Yükleniyor…</div>;
+  }
+
+  const bekleyen = gelen.filter((i) => i.gonderim.durum === 'bekliyor').length;
+  const tabs = isStudent
+    ? [{ id: 'gelen', label: 'Gelen Belgeler' }]
+    : [
+        { id: 'gelen', label: 'Gelen Belgeler' },
+        { id: 'giden', label: 'Gönderdiklerim' },
+      ];
+
+  const bosKutu = (metin) => (
+    <div
+      style={{
+        background: 'white',
+        border: '1px dashed ' + GB.border,
+        borderRadius: 12,
+        padding: 44,
+        textAlign: 'center',
+        color: GB.textMuted,
+      }}
+    >
+      <div style={{ fontSize: 28, marginBottom: 8 }}>📭</div>
+      <div style={{ fontSize: 13.5, fontWeight: 600, color: GB.navy, marginBottom: 4 }}>
+        Belge yok
+      </div>
+      <div style={{ fontSize: 12 }}>{metin}</div>
+    </div>
+  );
+
+  return (
+    <div style={{ fontFamily: "'Inter', sans-serif", color: GB.text, maxWidth: 1000 }}>
+      {window.CakuBanner &&
+        React.createElement(window.CakuBanner, {
+          title: 'Gelen Belgeler',
+          subtitle: 'Size yönlendirilen belgeler — indirin, işleyin, durumunu işaretleyin',
+        })}
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 4,
+          borderBottom: '1px solid ' + GB.border,
+          margin: '18px 0',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}
+      >
+        {tabs.map((t) => {
+          const on = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              style={{
+                padding: '10px 16px',
+                border: 'none',
+                background: 'none',
+                borderBottom: '2px solid ' + (on ? GB.navy : 'transparent'),
+                color: on ? GB.navy : GB.textMuted,
+                fontSize: 13.5,
+                fontWeight: on ? 700 : 600,
+                cursor: 'pointer',
+              }}
+            >
+              {t.label}
+              {t.id === 'gelen' && bekleyen > 0 && (
+                <span style={{ ...gbPill(GB.amber, GB.amberLight), marginLeft: 8 }}>
+                  {bekleyen}
+                </span>
+              )}
+            </button>
+          );
+        })}
+        {tab === 'gelen' && (
+          <button
+            type="button"
+            onClick={() => setFiltre(filtre === 'acik' ? 'hepsi' : 'acik')}
+            style={{
+              marginLeft: 'auto',
+              ...gbBtn(GB.border),
+              color: GB.textMuted,
+              padding: '5px 12px',
+              fontSize: 12,
+            }}
+          >
+            {filtre === 'acik' ? 'Tamamlananları da göster' : 'Yalnız açık olanlar'}
+          </button>
+        )}
+        {msg && (
+          <span style={{ marginLeft: 10, fontSize: 12, color: GB.green, fontWeight: 600 }}>
+            {msg}
+          </span>
+        )}
+      </div>
+
+      {tab === 'gelen' &&
+        (gelen.length === 0 ? (
+          bosKutu(
+            filtre === 'acik'
+              ? 'Bekleyen belgeniz yok. Tamamlananları görmek için sağ üstteki düğmeyi kullanın.'
+              : 'Size yönlendirilmiş belge bulunmuyor.'
+          )
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {gelen.map((it, i) => (
+              <GbKart
+                key={(it.doc.id || i) + '_' + it.index}
+                item={it}
+                onDurum={setDurum}
+                busy={busy}
+              />
+            ))}
+          </div>
+        ))}
+
+      {tab === 'giden' &&
+        !isStudent &&
+        (gonderdiklerim.length === 0 ? (
+          bosKutu('Henüz belge yönlendirmediniz.')
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {gonderdiklerim.map((d, i) => (
+              <GbGonderdigimKart key={d.id || i} doc={d} />
+            ))}
+          </div>
+        ))}
+    </div>
+  );
+}
+
+window.GelenBelgelerApp = GelenBelgelerApp;

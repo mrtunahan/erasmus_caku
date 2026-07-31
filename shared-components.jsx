@@ -391,6 +391,11 @@ const DEPARTMENT_MODULES = [
 // Ortak modüller (tüm bölümler için)
 const COMMON_MODULES = [
   {
+    id: 'gelenbelgeler',
+    label: 'Gelen Belgeler',
+    icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  },
+  {
     id: 'portal',
     label: 'Öğrenci Portalı',
     icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
@@ -568,6 +573,108 @@ function CakuBanner({ title, subtitle, right }) {
   );
 }
 window.CakuBanner = CakuBanner;
+
+// ── Belge Gönder butonu (ortak) ──
+// Üretilen bir belgeyi bir GÖREVE yönlendirir. Her modül tek satırla kullanır:
+//   <BelgeGonderButonu belge={{module, docType, sourceId, title, subtitle, url,
+//                              ogrenciNo, departmentId, facultyId}} />
+function BelgeGonderButonu({ belge, label, onSent }) {
+  const [open, setOpen] = React.useState(false);
+  const [rol, setRol] = React.useState('memur');
+  const [not, setNot] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [ok, setOk] = React.useState('');
+  const roller = window.BELGE_HEDEF_ROLLERI || [];
+
+  const gonder = async () => {
+    if (!belge || !belge.url) {
+      alert('Önce belgenin oluşturulmuş olması gerekir.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await window.belgeYonlendir({ ...belge, hedefRol: rol, not });
+      if (!r || !r.ok) throw new Error((r && r.reason) || 'gönderilemedi');
+      setOk(r.zatenVar ? 'Bu göreve zaten gönderilmiş' : 'Gönderildi ✓');
+      setNot('');
+      setTimeout(() => {
+        setOk('');
+        setOpen(false);
+      }, 1800);
+      if (onSent) onSent();
+    } catch (e) {
+      alert('Gönderilemedi: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const btn = {
+    padding: '7px 14px',
+    borderRadius: 8,
+    border: '1px solid #7C3AED',
+    background: '#F5F3FF',
+    color: '#6D28D9',
+    fontSize: 12.5,
+    fontWeight: 700,
+    cursor: 'pointer',
+  };
+  const sel = {
+    padding: '7px 10px',
+    borderRadius: 8,
+    border: '1px solid #E5E7EB',
+    fontSize: 12.5,
+    fontFamily: "'Inter', sans-serif",
+  };
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} style={btn}>
+        📤 {label || 'Gönder'}
+      </button>
+    );
+  }
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        gap: 6,
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        padding: '6px 8px',
+        border: '1px solid #7C3AED55',
+        background: '#F5F3FF',
+        borderRadius: 10,
+      }}
+    >
+      <select value={rol} onChange={(e) => setRol(e.target.value)} style={sel}>
+        {roller.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.label}
+          </option>
+        ))}
+      </select>
+      <input
+        value={not}
+        onChange={(e) => setNot(e.target.value)}
+        placeholder="Not (isteğe bağlı)"
+        style={{ ...sel, width: 160 }}
+      />
+      <button type="button" onClick={gonder} disabled={busy} style={btn}>
+        {busy ? 'Gönderiliyor…' : 'Gönder'}
+      </button>
+      <button
+        type="button"
+        onClick={() => setOpen(false)}
+        style={{ ...sel, cursor: 'pointer', background: 'white' }}
+      >
+        Vazgeç
+      </button>
+      {ok && <span style={{ fontSize: 12, color: '#059669', fontWeight: 700 }}>{ok}</span>}
+    </span>
+  );
+}
+window.BelgeGonderButonu = BelgeGonderButonu;
 
 // ── Shared Constants ──
 const SEED_PROFESSORS = [
@@ -3079,6 +3186,174 @@ window.uploadGeneratedDoc = async function (blob, filename, folder) {
 // Bir modül çıktısını (snapshot) 'memur_outputs' koleksiyonuna yazar. sourceId
 // varsa upsert edilir (yeniden üretimde tekrar oluşmaz). facultyId verilmezse
 // departmentId'den türetilir (kapsam eşleşmesi için).
+// ══════════════════════════════════════════════════════════════
+// BELGE AKIŞI (Evrak Yönlendirme)
+//
+// Üretilen her belge memur_outputs'a snapshot olarak yazılır (aşağıdaki
+// recordMemurOutput). Bu katman ona YÖNLENDİRME ekler: belge bir GÖREVE
+// (rol + kapsam) gönderilir, alıcı "Görüldü/Tamamlandı" işaretler.
+//
+// Kişi değil GÖREV hedeflenir → personel değişse de yönlendirme bozulmaz.
+//   hedefRol : 'memur' | 'bolum_yetkilisi' | 'akademisyen' | 'ogrenci'
+//   kapsamTip: 'bolum' | 'fakulte' | 'ogrenci'
+//   kapsamId : departmentId | facultyId | öğrenci no
+// ══════════════════════════════════════════════════════════════
+window.BELGE_HEDEF_ROLLERI = [
+  { id: 'memur', label: 'Memur', kapsam: 'bolum' },
+  { id: 'bolum_yetkilisi', label: 'Bölüm Yetkilisi', kapsam: 'bolum' },
+  { id: 'akademisyen', label: 'Akademisyen', kapsam: 'bolum' },
+  { id: 'ogrenci', label: 'Öğrenci (belgenin sahibi)', kapsam: 'ogrenci' },
+];
+
+// Otomatik yönlendirme kuralları: 'modul' veya 'modul:belgeTuru' → hedef rol.
+// Kural varsa belge üretildiğinde/onaylandığında kendiliğinden düşer; yoksa
+// kullanıcı "Gönder" ile elle yönlendirir. (Faz 1: kod içi varsayılanlar.)
+window.BELGE_OTO_KURALLAR = {
+  'capyandal:cap': 'memur',
+  'capyandal:yandal': 'memur',
+  'muafiyet:muafiyet': 'memur',
+  'muafiyet:intibak': 'memur',
+  'muafiyet:yatay': 'memur',
+  'muafiyet:dikey': 'memur',
+  'erasmus:gidis': 'memur',
+  'erasmus:donus': 'memur',
+};
+
+// Bir belgeyi bir GÖREVE yönlendir. Aynı hedefe tekrar gönderim yinelenmez.
+//   belgeYonlendir({ module, docType, sourceId, title, subtitle, url,
+//                    ogrenciNo, departmentId, facultyId,
+//                    hedefRol, kapsamId, not })
+window.belgeYonlendir = async function (o) {
+  if (!o || !o.module || !o.url || !o.hedefRol) return { ok: false, reason: 'eksik-parametre' };
+  const cu = window.__currentUser || {};
+  const rolDef = (window.BELGE_HEDEF_ROLLERI || []).find((r) => r.id === o.hedefRol);
+  const kapsamTip = rolDef ? rolDef.kapsam : 'bolum';
+  let kapsamId = o.kapsamId || '';
+  if (!kapsamId) {
+    if (kapsamTip === 'ogrenci') kapsamId = o.ogrenciNo || '';
+    else if (kapsamTip === 'fakulte') kapsamId = o.facultyId || cu.facultyId || '';
+    else kapsamId = o.departmentId || cu.departmentId || '';
+  }
+  const docId = o.module + '__' + (o.sourceId || 'x' + Date.now());
+  try {
+    // Mevcut kaydı oku (gönderim geçmişi korunur)
+    let mevcut = {};
+    try {
+      const r = await window.apiReadDoc('memur_outputs', docId);
+      mevcut = (r && r.data) || {};
+    } catch (_e) {
+      mevcut = {};
+    }
+    const gonderimler = Array.isArray(mevcut.gonderimler) ? mevcut.gonderimler.slice() : [];
+    const ayni = gonderimler.find(
+      (g) => g.hedefRol === o.hedefRol && String(g.kapsamId || '') === String(kapsamId)
+    );
+    if (ayni) return { ok: true, zatenVar: true };
+    gonderimler.push({
+      hedefRol: o.hedefRol,
+      hedefAd: o.hedefAd || (rolDef ? rolDef.label : o.hedefRol),
+      kapsamTip,
+      kapsamId: String(kapsamId || ''),
+      not: o.not || '',
+      gonderen: cu.identifier || '',
+      gonderenAd: cu.name || cu.identifier || '',
+      gonderilmeTarihi: new Date().toISOString(),
+      durum: 'bekliyor',
+    });
+    await window.DBWrite.set(
+      'memur_outputs',
+      docId,
+      {
+        module: o.module,
+        docType: o.docType || '',
+        sourceId: o.sourceId || '',
+        title: o.title || mevcut.title || '',
+        subtitle: o.subtitle || mevcut.subtitle || '',
+        url: o.url,
+        ogrenciNo: o.ogrenciNo || mevcut.ogrenciNo || '',
+        departmentId: o.departmentId || mevcut.departmentId || '',
+        facultyId: o.facultyId || mevcut.facultyId || cu.facultyId || '',
+        gonderimler,
+        updatedAt: new Date().toISOString(),
+      },
+      true
+    );
+    if (window.apiInvalidate) window.apiInvalidate('memur_outputs');
+    return { ok: true };
+  } catch (e) {
+    console.warn('belgeYonlendir hatası:', e && e.message);
+    return { ok: false, reason: e && e.message };
+  }
+};
+
+// Otomatik kural varsa uygula (modül üretim/onay anında çağırır).
+window.belgeOtoYonlendir = async function (o) {
+  const key = (o.module || '') + ':' + (o.docType || '');
+  const rol = (window.BELGE_OTO_KURALLAR || {})[key] || (window.BELGE_OTO_KURALLAR || {})[o.module];
+  if (!rol) return { ok: false, reason: 'kural-yok' };
+  return window.belgeYonlendir({ ...o, hedefRol: rol, not: o.not || 'Otomatik yönlendirme' });
+};
+
+// Alıcı durum günceller: 'goruldu' | 'tamamlandi'
+window.belgeDurumGuncelle = async function (docId, gonderimIndex, durum) {
+  const cu = window.__currentUser || {};
+  try {
+    const r = await window.apiReadDoc('memur_outputs', docId);
+    const doc = (r && r.data) || {};
+    const gonderimler = Array.isArray(doc.gonderimler) ? doc.gonderimler.slice() : [];
+    if (!gonderimler[gonderimIndex]) return { ok: false };
+    gonderimler[gonderimIndex] = {
+      ...gonderimler[gonderimIndex],
+      durum,
+      durumTarihi: new Date().toISOString(),
+      durumBy: cu.name || cu.identifier || '',
+    };
+    await window.DBWrite.set('memur_outputs', docId, { gonderimler }, true);
+    if (window.apiInvalidate) window.apiInvalidate('memur_outputs');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: e && e.message };
+  }
+};
+
+// Kullanıcıya gelen belgeleri süz (rol + kapsam eşleşmesi). Tek yerden karar
+// verilir ki Gelen Belgeler ekranı ve bildirim rozeti aynı mantığı kullansın.
+window.belgeGelenKutusu = function (list, user) {
+  const u = user || window.__currentUser || {};
+  const isStudent = u.role === 'student';
+  const myNo = String(u.studentNumber || u.identifier || '');
+  const myDept = String(u.departmentId || '');
+  const myFac = String(u.facultyId || '');
+  const isMemur = u.role === 'memur' || !!u.isMemur;
+  const memurModules = Array.isArray(u.memurModules) ? u.memurModules : [];
+  const out = [];
+  (list || []).forEach((doc) => {
+    (doc.gonderimler || []).forEach((g, idx) => {
+      let uygun = false;
+      if (g.hedefRol === 'ogrenci') {
+        uygun = isStudent && String(g.kapsamId || '') === myNo;
+      } else if (isStudent) {
+        uygun = false;
+      } else if (g.hedefRol === 'memur') {
+        uygun =
+          isMemur &&
+          (memurModules.length === 0 || memurModules.indexOf(doc.module) >= 0) &&
+          (String(g.kapsamId) === myDept || String(g.kapsamId) === myFac || !g.kapsamId);
+      } else if (g.hedefRol === 'bolum_yetkilisi') {
+        uygun = !!u.isDeptManager && (String(g.kapsamId) === myDept || !g.kapsamId);
+      } else if (g.hedefRol === 'akademisyen') {
+        uygun = !isMemur && (String(g.kapsamId) === myDept || !g.kapsamId);
+      }
+      if (uygun) out.push({ doc, gonderim: g, index: idx });
+    });
+  });
+  return out.sort((a, b) =>
+    String(b.gonderim.gonderilmeTarihi || '').localeCompare(
+      String(a.gonderim.gonderilmeTarihi || '')
+    )
+  );
+};
+
 window.recordMemurOutput = async function (o) {
   if (!o || !o.module || !o.url) return;
   const cu = window.__currentUser || {};
