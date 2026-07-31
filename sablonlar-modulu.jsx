@@ -1113,6 +1113,22 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           çaküdersstatüsü: 'row:cDersStatu',
           karşıtoplamakts: 'static:kaynakToplamAkts',
           çakütoplamakts: 'static:cakuToplamAkts',
+          // ÇAP/Yandal dilekçe yer tutucuları
+          gününtarihi: 'static:tarih',
+          uyruğu: 'static:uyruk',
+          doğumtarihi: 'static:dogumTarihi',
+          telcep: 'static:telCep',
+          telev: 'static:telEv',
+          email: 'static:eposta',
+          adres: 'static:adres',
+          fakülte: 'static:fakulte',
+          bölüm: 'static:bolum',
+          öğrno: 'static:ogrenciNo',
+          bitirdiğisınıf: 'static:bitirdigiSinif',
+          genelnotort: 'static:genelNotOrt',
+          okuduğudönem: 'static:okudugiDonem',
+          tercih1: 'static:tercih1',
+          tercih2: 'static:tercih2',
         };
         let auto = 0;
         merged = merged.map((f) => {

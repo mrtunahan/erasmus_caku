@@ -39,6 +39,7 @@ if (!fs.existsSync(TEMPLATES_DIR)) fs.mkdirSync(TEMPLATES_DIR, { recursive: true
 const ALLOWED_MODULES = new Set([
   'erasmus',
   'muafiyet',
+  'capyandal',
   'staj',
   'sinav',
   'dersprogrami',

@@ -140,6 +140,8 @@ const ALLOWED_COLLECTIONS = [
   'akreditasyon_havuz',
   // Kiracı (tenant) kimliği — beyaz etiket: uygulama/kurum/fakülte adları vb.
   'tenant_config',
+  // ÇAP (Çift Anadal) / Yandal başvuruları — öğrenci dilekçe bilgileri + ekler.
+  'cap_yandal_basvurular',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -207,6 +209,8 @@ const STUDENT_WRITABLE = new Set([
   'tubitak2209_projects',
   // Öğrencinin dönem bazlı aldığı dersler (kendi kaydı, per (öğrenci, dönem))
   'student_courses',
+  // ÇAP/Yandal başvurusu — öğrenci kendi başvurusunu oluşturur/günceller.
+  'cap_yandal_basvurular',
 ]);
 
 const STAFF_ROLES = new Set(['professor', 'bolum_yetkilisi', 'admin']);
