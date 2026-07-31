@@ -934,6 +934,23 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
                 </span>
               )}
 
+              {rec.dilekceUrl &&
+                window.BelgeGonderButonu &&
+                React.createElement(window.BelgeGonderButonu, {
+                  belge: {
+                    module: 'capyandal',
+                    docType: rec.turu || 'cap',
+                    sourceId: String(rec.id),
+                    title:
+                      (rec.ogrenciAdSoyad || '') + (rec.ogrenciNo ? '  ·  ' + rec.ogrenciNo : ''),
+                    subtitle: (rec.turu === 'yandal' ? 'Yandal' : 'ÇAP') + ' başvuru dilekçesi',
+                    url: rec.dilekceUrl,
+                    ogrenciNo: rec.ogrenciNo || '',
+                    departmentId: rec.departmentId || '',
+                    facultyId: rec.facultyId || '',
+                  },
+                })}
+
               {(rec.status || 'pending') === 'pending' && (
                 <>
                   <button
@@ -1020,6 +1037,20 @@ function CapYandalApp({ currentUser, activeDepartment, departmentInfo }) {
         decidedBy: currentUser?.name || currentUser?.identifier || '',
         decidedAt: new Date().toISOString(),
       });
+      // Onaylandıysa otomatik yönlendirme kuralını uygula (varsa)
+      if (status === 'approved' && rec.dilekceUrl && window.belgeOtoYonlendir) {
+        await window.belgeOtoYonlendir({
+          module: 'capyandal',
+          docType: rec.turu || 'cap',
+          sourceId: String(rec.id),
+          title: (rec.ogrenciAdSoyad || '') + (rec.ogrenciNo ? '  ·  ' + rec.ogrenciNo : ''),
+          subtitle: (rec.turu === 'yandal' ? 'Yandal' : 'ÇAP') + ' başvuru dilekçesi',
+          url: rec.dilekceUrl,
+          ogrenciNo: rec.ogrenciNo || '',
+          departmentId: rec.departmentId || '',
+          facultyId: rec.facultyId || '',
+        });
+      }
       await load();
       setMsg(status === 'approved' ? 'Onaylandı ✓' : 'Reddedildi');
       setTimeout(() => setMsg(''), 2500);
