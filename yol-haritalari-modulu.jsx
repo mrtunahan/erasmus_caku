@@ -91,163 +91,458 @@ function yhBosHarita(moduleId, moduleLabel, departmentId) {
 const yhDocId = (r) => r?._docId || r?.id || (r?._id && String(r._id)) || null;
 
 // ══════════════════════════════════════════════════════════════
-// Adım kartı — stajdaki roadmap kartının aynı görsel dili:
-// tıklayınca açılan, süre/sonuç rozetli, sıra numaralı kart.
+// Adım kartı — stajdaki yol haritasının görsel dili: yol kenarında
+// duran, tıklayınca açılan kart. KİLİT YOK: her adım her zaman açılabilir,
+// çünkü bu haritalar bilgilendirme amaçlıdır, bir süreç durumu tutmaz.
 // ══════════════════════════════════════════════════════════════
-function YhAdimKarti({ step, index, total, isOpen, onToggle }) {
+function YhAdimKarti({ step, isOpen, onToggle, isMobile }) {
   const links = Array.isArray(step.links) ? step.links.filter((l) => l && l.label) : [];
   return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
-      {/* Sol şerit: numara + bağlantı çizgisi */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 30 }}>
-        <div
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: '50%',
-            background: isOpen ? YH.accent : YH.accentSoft,
-            color: isOpen ? '#fff' : YH.accent,
-            border: `2px solid ${isOpen ? YH.accent : YH.accentMid}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 13,
-            fontWeight: 700,
-            flexShrink: 0,
-            transition: 'all .18s',
-          }}
-        >
-          {index + 1}
-        </div>
-        {index < total - 1 && (
-          <div style={{ flex: 1, width: 2, background: YH.accentMid, minHeight: 12 }} />
-        )}
-      </div>
-
+    <div
+      onClick={onToggle}
+      style={{
+        background: isOpen ? YH.accentSoft : '#fff',
+        border: `1.5px solid ${isOpen ? YH.accent + '35' : '#F1F5F9'}`,
+        borderRadius: 14,
+        padding: '12px 16px',
+        cursor: 'pointer',
+        width: '100%',
+        maxWidth: isMobile ? '100%' : 290,
+        boxShadow: isOpen ? `0 4px 18px ${YH.accent}18` : '0 1px 4px rgba(0,0,0,0.05)',
+        transition: 'all 0.2s',
+      }}
+    >
       <div
-        onClick={onToggle}
         style={{
-          flex: 1,
-          minWidth: 0,
-          background: isOpen ? YH.accentSoft : '#fff',
-          border: `1.5px solid ${isOpen ? YH.accent + '35' : '#F1F5F9'}`,
-          borderRadius: 14,
-          padding: '12px 16px',
-          cursor: 'pointer',
-          marginBottom: 12,
-          boxShadow: isOpen ? `0 4px 18px ${YH.accent}18` : '0 1px 4px rgba(0,0,0,0.05)',
-          transition: 'all .2s',
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 8,
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#1E293B', lineHeight: 1.4 }}>
-            {step.title || 'Başlıksız adım'}
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#1E293B', lineHeight: 1.4 }}>
+          {step.title || 'Başlıksız adım'}
+        </span>
+        {step.duration && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              padding: '3px 8px',
+              borderRadius: 10,
+              background: YH.amberLight,
+              color: YH.amber,
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {step.duration}
           </span>
-          {step.duration && (
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                padding: '3px 8px',
-                borderRadius: 10,
-                background: YH.amberLight,
-                color: YH.amber,
-                flexShrink: 0,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {step.duration}
-            </span>
-          )}
-        </div>
-
-        {step.result && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: YH.accent }}>→</span>
-            <span style={{ fontSize: 12, color: '#64748B' }}>{step.result}</span>
-          </div>
-        )}
-
-        {isOpen && (
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${YH.accent}18` }}>
-            {step.desc && (
-              <p
-                style={{ fontSize: 13, color: '#475569', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}
-              >
-                {step.desc}
-              </p>
-            )}
-
-            {links.length > 0 && (
-              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {links.map((l, li) => (
-                  <a
-                    key={li}
-                    href={l.url || '#'}
-                    target={l.url ? '_blank' : undefined}
-                    rel={l.url ? 'noopener noreferrer' : undefined}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!l.url) e.preventDefault();
-                    }}
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: YH.accent,
-                      background: '#fff',
-                      border: `1px solid ${YH.accentMid}`,
-                      borderRadius: 8,
-                      padding: '5px 10px',
-                      textDecoration: 'none',
-                    }}
-                  >
-                    {l.label} {l.url ? '↗' : ''}
-                  </a>
-                ))}
-              </div>
-            )}
-
-            {step.note && (
-              <div
-                style={{
-                  marginTop: 10,
-                  background: YH.amberLight,
-                  border: `1px solid ${YH.amber}30`,
-                  borderRadius: 8,
-                  padding: '8px 10px',
-                  fontSize: 12,
-                  color: '#78350F',
-                  lineHeight: 1.5,
-                  whiteSpace: 'pre-wrap',
-                }}
-              >
-                {step.note}
-              </div>
-            )}
-          </div>
         )}
       </div>
+
+      {step.result && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: YH.accent }}>→</span>
+          <span style={{ fontSize: 12, color: '#64748B' }}>{step.result}</span>
+        </div>
+      )}
+
+      {isOpen && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${YH.accent}18` }}>
+          {step.desc && (
+            <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+              {step.desc}
+            </p>
+          )}
+
+          {links.length > 0 && (
+            <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {links.map((l, li) => (
+                <a
+                  key={li}
+                  href={l.url || '#'}
+                  target={l.url ? '_blank' : undefined}
+                  rel={l.url ? 'noopener noreferrer' : undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!l.url) e.preventDefault();
+                  }}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: YH.accent,
+                    background: '#fff',
+                    border: `1px solid ${YH.accentMid}`,
+                    borderRadius: 8,
+                    padding: '5px 10px',
+                    textDecoration: 'none',
+                  }}
+                >
+                  {l.label} {l.url ? '↗' : ''}
+                </a>
+              ))}
+            </div>
+          )}
+
+          {step.note && (
+            <div
+              style={{
+                marginTop: 10,
+                background: YH.amberLight,
+                border: `1px solid ${YH.amber}30`,
+                borderRadius: 8,
+                padding: '8px 10px',
+                fontSize: 12,
+                color: '#78350F',
+                lineHeight: 1.5,
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {step.note}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 // ══════════════════════════════════════════════════════════════
-// Görüntüleme: solda roadmap, sağda modül/sekme seçici
+// Yol (asfalt şerit) — adımlar yolun iki yanında dönüşümlü dizilir.
+// Stajdaki görünümün aynısı; kilit ve ilerleme durumu YOKTUR.
 // ══════════════════════════════════════════════════════════════
-function YhGoruntule({ haritalar, secili, onSec, isMobile }) {
-  const [acik, setAcik] = useState(0);
+function YhYol({ harita, isMobile }) {
+  const [acik, setAcik] = useState(null);
+  const steps = Array.isArray(harita?.steps) ? harita.steps : [];
 
   useEffect(() => {
-    setAcik(0);
-  }, [secili]);
+    setAcik(null);
+  }, [harita]);
 
+  const kesikCizgi = (
+    <div
+      style={{
+        height: 2,
+        width: 32,
+        background: `repeating-linear-gradient(to right, ${YH.accentMid} 0, ${YH.accentMid} 5px, transparent 5px, transparent 10px)`,
+      }}
+    />
+  );
+
+  return (
+    <div
+      style={{
+        background: 'white',
+        borderRadius: 16,
+        padding: isMobile ? 16 : 28,
+        border: `1px solid ${YH.border}`,
+        position: 'relative',
+      }}
+    >
+      {/* ── Başlık ── */}
+      <div style={{ marginBottom: 24 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            marginBottom: 8,
+          }}
+        >
+          <div
+            style={{
+              height: 1,
+              width: 40,
+              background: `linear-gradient(to right, transparent, ${YH.accent}60)`,
+            }}
+          />
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: '0.15em',
+              color: YH.accent,
+              textAlign: 'center',
+            }}
+          >
+            {(harita?.baslik || 'YOL HARİTASI').toLocaleUpperCase('tr-TR')}
+          </span>
+          <div
+            style={{
+              height: 1,
+              width: 40,
+              background: `linear-gradient(to left, transparent, ${YH.accent}60)`,
+            }}
+          />
+        </div>
+
+        {/* Hangi modül/sekme + yazarın açıklaması. Yönerge metni yok. */}
+        {(harita?.moduleLabel || harita?.sekme) && (
+          <p
+            style={{
+              fontSize: 12,
+              color: YH.textMuted,
+              margin: 0,
+              textAlign: 'center',
+              fontWeight: 600,
+            }}
+          >
+            {harita.moduleLabel || ''}
+            {harita.sekme ? ' · ' + harita.sekme : ''}
+          </p>
+        )}
+        {harita?.aciklama && (
+          <p
+            style={{
+              fontSize: 13,
+              color: YH.textMuted,
+              margin: '6px auto 0',
+              textAlign: 'center',
+              maxWidth: 560,
+              lineHeight: 1.55,
+            }}
+          >
+            {harita.aciklama}
+          </p>
+        )}
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            marginTop: 10,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: YH.accent,
+              background: YH.accentSoft,
+              border: `1px solid ${YH.accentMid}`,
+              borderRadius: 20,
+              padding: '3px 12px',
+            }}
+          >
+            {steps.length} adım
+          </span>
+        </div>
+      </div>
+
+      {steps.length === 0 ? (
+        <div style={{ textAlign: 'center', color: YH.textMuted, fontSize: 13, padding: '20px 0' }}>
+          Bu yol haritasına henüz adım eklenmemiş.
+        </div>
+      ) : (
+        <div style={{ position: 'relative', paddingBottom: 20 }}>
+          {/* ── Asfalt Yol ── */}
+          <div
+            style={{
+              position: 'absolute',
+              left: isMobile ? 28 : '50%',
+              transform: isMobile ? 'none' : 'translateX(-50%)',
+              width: 54,
+              top: 0,
+              bottom: 0,
+              background:
+                'linear-gradient(to right, #2D3748 0%, #374151 40%, #374151 60%, #2D3748 100%)',
+              zIndex: 0,
+              borderRadius: 4,
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                left: 5,
+                top: 0,
+                bottom: 0,
+                width: 3,
+                background: 'rgba(255,255,255,0.65)',
+                borderRadius: 2,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                right: 5,
+                top: 0,
+                bottom: 0,
+                width: 3,
+                background: 'rgba(255,255,255,0.65)',
+                borderRadius: 2,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 4,
+                top: 0,
+                bottom: 0,
+                background:
+                  'repeating-linear-gradient(to bottom, #FCD34D 0px, #FCD34D 14px, transparent 14px, transparent 28px)',
+                borderRadius: 2,
+              }}
+            />
+          </div>
+
+          {/* ── BAŞLANGIÇ ── */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: isMobile ? 'flex-start' : 'center',
+              marginBottom: 32,
+              position: 'relative',
+              zIndex: 2,
+            }}
+          >
+            <div
+              style={{
+                marginLeft: isMobile ? 6 : 0,
+                background: YH.accent,
+                color: '#fff',
+                padding: '8px 22px',
+                borderRadius: 8,
+                fontWeight: 800,
+                fontSize: 11,
+                letterSpacing: '0.12em',
+                boxShadow: `0 3px 12px ${YH.accent}40`,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              BAŞLANGIÇ
+            </div>
+          </div>
+
+          {/* ── Adımlar ── */}
+          {steps.map((step, i) => {
+            const isLeft = !isMobile && i % 2 === 0;
+            const isOpen = acik === i;
+            const kart = (
+              <YhAdimKarti
+                step={step}
+                isOpen={isOpen}
+                isMobile={isMobile}
+                onToggle={() => setAcik(isOpen ? null : i)}
+              />
+            );
+
+            return (
+              <div
+                key={step.id || i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginBottom: 40,
+                  position: 'relative',
+                  zIndex: 1,
+                }}
+              >
+                {/* Sol taraf */}
+                {!isMobile && (
+                  <div
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      alignItems: 'center',
+                      paddingRight: 14,
+                    }}
+                  >
+                    {isLeft ? kart : kesikCizgi}
+                  </div>
+                )}
+
+                {/* Yol üzerindeki numara dairesi — tek durum, kilit yok */}
+                <div
+                  style={{
+                    width: isMobile ? 56 : 54,
+                    flexShrink: 0,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    zIndex: 2,
+                  }}
+                >
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAcik(isOpen ? null : i);
+                    }}
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      background: isOpen ? '#fff' : YH.accent,
+                      border: `3.5px solid ${isOpen ? YH.accent : 'rgba(255,255,255,0.85)'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      boxShadow: isOpen
+                        ? `0 0 0 5px ${YH.accent}25, 0 4px 14px rgba(0,0,0,0.25)`
+                        : `0 0 0 5px ${YH.accent}20, 0 4px 14px rgba(0,0,0,0.28)`,
+                      fontWeight: 800,
+                      fontSize: 15,
+                      color: isOpen ? YH.accent : '#fff',
+                      transition: 'all 0.25s',
+                    }}
+                  >
+                    {i + 1}
+                  </div>
+                </div>
+
+                {/* Sağ taraf */}
+                <div style={{ flex: 1, paddingLeft: 14 }}>
+                  {(!isMobile && !isLeft) || isMobile ? kart : kesikCizgi}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* ── BİTİŞ ── */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: isMobile ? 'flex-start' : 'center',
+              marginTop: 8,
+              position: 'relative',
+              zIndex: 2,
+            }}
+          >
+            <div
+              style={{
+                marginLeft: isMobile ? 6 : 0,
+                background: '#0F172A',
+                color: '#fff',
+                padding: '8px 22px',
+                borderRadius: 8,
+                fontWeight: 800,
+                fontSize: 11,
+                letterSpacing: '0.12em',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              BİTİŞ
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// Görüntüleme: solda yol haritası, sağda modül/sekme seçici
+// ══════════════════════════════════════════════════════════════
+function YhGoruntule({ haritalar, secili, onSec, isMobile }) {
   // Sağ liste: modüle göre gruplanmış yol haritaları
   const gruplar = useMemo(() => {
     const map = new Map();
@@ -262,7 +557,6 @@ function YhGoruntule({ haritalar, secili, onSec, isMobile }) {
   }, [haritalar]);
 
   const aktif = haritalar.find((h) => yhDocId(h) === secili) || haritalar[0] || null;
-  const steps = Array.isArray(aktif?.steps) ? aktif.steps : [];
 
   const secici = (
     <div
@@ -301,14 +595,7 @@ function YhGoruntule({ haritalar, secili, onSec, isMobile }) {
 
       {gruplar.map(([mid, grup]) => (
         <div key={mid} style={{ marginBottom: 10 }}>
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 700,
-              color: YH.navy,
-              padding: '6px 4px 4px',
-            }}
-          >
+          <div style={{ fontSize: 12, fontWeight: 700, color: YH.navy, padding: '6px 4px 4px' }}>
             {grup.label}
           </div>
           {grup.items.map((h) => {
@@ -377,60 +664,7 @@ function YhGoruntule({ haritalar, secili, onSec, isMobile }) {
           Bölüm yetkiliniz yayınladığında burada görünecek.
         </div>
       ) : (
-        <>
-          <div
-            style={{
-              background: `linear-gradient(135deg, ${YH.navy} 0%, ${YH.accent} 100%)`,
-              borderRadius: 14,
-              padding: '18px 20px',
-              color: '#fff',
-              marginBottom: 16,
-            }}
-          >
-            <div style={{ fontSize: 11, opacity: 0.75, fontWeight: 600, letterSpacing: 0.3 }}>
-              {aktif.moduleLabel || 'Modül'}
-              {aktif.sekme ? ' · ' + aktif.sekme : ''}
-            </div>
-            <div style={{ fontSize: 19, fontWeight: 700, marginTop: 3 }}>
-              {aktif.baslik || 'Yol Haritası'}
-            </div>
-            {aktif.aciklama && (
-              <div style={{ fontSize: 13, opacity: 0.9, marginTop: 6, lineHeight: 1.55 }}>
-                {aktif.aciklama}
-              </div>
-            )}
-            <div style={{ fontSize: 11.5, opacity: 0.8, marginTop: 8 }}>
-              {steps.length} adım · Adımlara tıklayarak ayrıntıları görebilirsiniz
-            </div>
-          </div>
-
-          {steps.length === 0 ? (
-            <div
-              style={{
-                background: '#fff',
-                border: `1px solid ${YH.border}`,
-                borderRadius: 14,
-                padding: 24,
-                textAlign: 'center',
-                color: YH.textMuted,
-                fontSize: 13,
-              }}
-            >
-              Bu yol haritasına henüz adım eklenmemiş.
-            </div>
-          ) : (
-            steps.map((s, i) => (
-              <YhAdimKarti
-                key={s.id || i}
-                step={s}
-                index={i}
-                total={steps.length}
-                isOpen={acik === i}
-                onToggle={() => setAcik(acik === i ? -1 : i)}
-              />
-            ))
-          )}
-        </>
+        <YhYol harita={aktif} isMobile={isMobile} />
       )}
     </div>
   );
