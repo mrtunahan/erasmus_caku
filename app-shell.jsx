@@ -2317,6 +2317,7 @@ function AppShell() {
         univ: window.UnvYonetimiApp,
         fakulte: window.FakYonetimiApp,
         akreditasyon: window.AkreditasyonApp,
+        yolharitalari: window.YolHaritalariApp,
       };
       const FallbackComponent = fallback[route];
       if (FallbackComponent)
