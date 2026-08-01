@@ -91,6 +91,10 @@ window.__lazyModules = {
   dersprogrami: { loader: () => import('./ders-programi.jsx'), component: 'DersProgramiApp' },
   lisansustu: { loader: () => import('./lisansustu-modulu.jsx'), component: 'LisansustuApp' },
   roadmaps: { loader: () => import('./roadmaps-module.jsx'), component: 'RoadmapsModuleApp' },
+  yolharitalari: {
+    loader: () => import('./yol-haritalari-modulu.jsx'),
+    component: 'YolHaritalariApp',
+  },
   komisyonlar: {
     loader: () => import('./komisyonlar-modulu.jsx'),
     component: 'KomisyonlarModuluApp',

@@ -142,6 +142,9 @@ const ALLOWED_COLLECTIONS = [
   'tenant_config',
   // ÇAP (Çift Anadal) / Yandal başvuruları — öğrenci dilekçe bilgileri + ekler.
   'cap_yandal_basvurular',
+  // Yol Haritaları — bölüm yetkilisinin herhangi bir modül/sekme için
+  // oluşturduğu adım adım rehberler. Öğrenci tarafında salt-okunur görünür.
+  'yol_haritalari',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -234,6 +237,11 @@ const STRUCTURE_MANAGER_WRITE = new Set([
   'tenant_config',
 ]);
 
+// Yalnız BÖLÜM yetkilisi (ve üstü) yazabilir. STRUCTURE_MANAGER_WRITE'tan farkı:
+// orası üniversite/fakülte yöneticisi ister, burası bölüm yetkilisine de açıktır.
+// Sade akademisyen ve öğrenci yazamaz (öğrenci için ayrıca STUDENT_WRITABLE'da yok).
+const DEPT_MANAGER_WRITE = new Set(['yol_haritalari']);
+
 // Öğrenci sahiplik alanları — mevcut dokümanda bunlardan biri doluysa
 // değeri JWT kimliğiyle eşleşmek zorundadır
 const OWNER_FIELDS = [
@@ -297,14 +305,15 @@ const MAX_READ_LIMIT = 20000;
 // Aktör bayrakları (uniAdmin/facManager) — professors üzerinden, 60 sn cache
 const actorFlagsCache = new Map(); // identifier -> { flags, ts }
 async function getActorFlags(db, user) {
-  if (!user) return { admin: false, uniAdmin: false, facManager: false };
-  if (user.role === 'admin') return { admin: true, uniAdmin: true, facManager: true };
+  if (!user) return { admin: false, uniAdmin: false, facManager: false, deptManager: false };
+  if (user.role === 'admin')
+    return { admin: true, uniAdmin: true, facManager: true, deptManager: true };
   if (user.role !== 'professor' || !user.identifier) {
-    return { admin: false, uniAdmin: false, facManager: false };
+    return { admin: false, uniAdmin: false, facManager: false, deptManager: false };
   }
   const hit = actorFlagsCache.get(user.identifier);
   if (hit && Date.now() - hit.ts < 60 * 1000) return hit.flags;
-  let flags = { admin: false, uniAdmin: false, facManager: false };
+  let flags = { admin: false, uniAdmin: false, facManager: false, deptManager: false };
   try {
     const prof = await db.collection('professors').findOne({ name: user.identifier });
     if (prof) {
@@ -312,6 +321,7 @@ async function getActorFlags(db, user) {
         admin: false,
         uniAdmin: !!prof.isUniversityAdmin,
         facManager: !!prof.isFacultyManager,
+        deptManager: !!prof.isDeptManager,
       };
     }
   } catch (_) {
@@ -378,6 +388,20 @@ async function enforceWritePolicies(db, op, user) {
         allow: false,
         status: 403,
         error: `Bu koleksiyonu yalnız yöneticiler düzenleyebilir: ${op.collection}`,
+      };
+    }
+  }
+
+  // a2) Bölüm yetkilisi koleksiyonları (yol haritaları): sade akademisyen
+  // yazamaz; bölüm yetkilisi, fakülte/üniversite yöneticisi ve admin yazabilir.
+  // role='bolum_yetkilisi' zaten ayrı bir roldür ve buraya düşmez.
+  if (DEPT_MANAGER_WRITE.has(op.collection) && user.role === 'professor') {
+    const flags = await getActorFlags(db, user);
+    if (!flags.uniAdmin && !flags.facManager && !flags.deptManager) {
+      return {
+        allow: false,
+        status: 403,
+        error: `Bu koleksiyonu yalnız bölüm yetkilisi düzenleyebilir: ${op.collection}`,
       };
     }
   }
