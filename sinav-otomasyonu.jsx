@@ -126,14 +126,66 @@ function assignSupervisorsToExams(exams) {
   return assignSupervisorsFromList(DEPT_SUPERVISORS, exams, assignClassroom);
 }
 
+// ── Dersin kendi hocasının gözetmenlik kuralı ──
+// Bu kural bölümden bölüme değişir: bazı bölümlerde dersin hocasının kendi
+// sınavında bulunması ZORUNLU, bazılarında ise gözetmenlik bilinçli olarak
+// bağımsız tutulur. Bu yüzden kural bölüm kaydında saklanır
+// (departments.gozetmenKurali) ve buraya seçenek olarak geçilir.
+//   'zorunlu'  → dersin hocası her zaman gözetmenlerden biridir
+//   'tercihli' → hocası gözetmen havuzundaysa önceliklidir (VARSAYILAN)
+//   'haric'    → hoca kendi sınavına otomatik atanmaz
+const GOZETMEN_KURALLARI = [
+  {
+    id: 'tercihli',
+    label: 'Tercihli (önerilen)',
+    desc: 'Dersin hocası gözetmen havuzundaysa kendi sınavına öncelikli atanır, zorunlu değildir.',
+  },
+  {
+    id: 'zorunlu',
+    label: 'Zorunlu',
+    desc: 'Dersin hocası kendi sınavında her zaman gözetmen olarak yer alır.',
+  },
+  {
+    id: 'haric',
+    label: 'Hariç',
+    desc: 'Dersin hocası kendi sınavına otomatik gözetmen atanmaz; gözetmenlik bağımsız yürütülür.',
+  },
+];
+const GOZETMEN_KURALI_VARSAYILAN = 'tercihli';
+
 // Genel gözetmen atama: toplam sınav süresine göre dengeli dağıtım.
 // DETERMİNİSTİK (Y1): rastgele karıştırma yerine sabit sıra (tarih, saat, kod)
 // kullanılır — aynı dönem her export'ta AYNI gözetmen listesini üretir
 // (resmi belge tekrar üretilebilir). Sınavda elle atanmış gözetmen varsa
 // otomatik atama yerine ona saygı duyulur.
-function assignSupervisorsFromList(supervisorNames, exams, classroomFn) {
+//
+// İki ek kural:
+//  1) ÇAKIŞMA: bir gözetmen aynı gün+saatte iki sınava atanamaz.
+//  2) DERSİN HOCASI: yukarıdaki bölüm kuralına göre zorunlu/tercihli/hariç.
+function assignSupervisorsFromList(supervisorNames, exams, classroomFn, options) {
+  const kural = (options && options.ownLecturerRule) || GOZETMEN_KURALI_VARSAYILAN;
   const totalMinutes = {};
   supervisorNames.forEach((s) => (totalMinutes[s] = 0));
+  // Ad eşleştirmesi: sınavdaki hoca adı ile gözetmen listesindeki ad birebir
+  // aynı olmayabilir (boşluk/büyük-küçük harf). Türkçe duyarlı normalize.
+  const norm = (v) =>
+    String(v == null ? '' : v)
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLocaleLowerCase('tr-TR');
+  const havuzAdi = {};
+  supervisorNames.forEach((s) => (havuzAdi[norm(s)] = s));
+
+  // Çakışma takibi: gözetmen adı → dolu olduğu "tarih|saat" anahtarları
+  const dolu = {};
+  supervisorNames.forEach((s) => (dolu[s] = new Set()));
+  const slotKey = (e) => (e.date || '') + '|' + (e.timeSlot || '');
+  const musait = (s, exam) => !dolu[s] || !dolu[s].has(slotKey(exam));
+  const isaretle = (s, exam, duration) => {
+    if (totalMinutes[s] != null) totalMinutes[s] += duration;
+    if (dolu[s]) dolu[s].add(slotKey(exam));
+  };
+
   const assignments = {};
   const examKey = (e) => e.id || e.code + e.date + e.timeSlot;
   const ordered = [...exams].sort((a, b) => {
@@ -149,9 +201,7 @@ function assignSupervisorsFromList(supervisorNames, exams, classroomFn) {
       .map((s) => s.trim())
       .filter(Boolean);
     if (manual.length > 0) {
-      manual.forEach((s) => {
-        if (totalMinutes[s] != null) totalMinutes[s] += duration;
-      });
+      manual.forEach((s) => isaretle(s, exam, duration));
       assignments[examKey(exam)] = manual;
       return;
     }
@@ -159,12 +209,28 @@ function assignSupervisorsFromList(supervisorNames, exams, classroomFn) {
     const roomCount = room.split(' - ').length;
     const numSupervisors =
       roomCount >= 3 ? roomCount : roomCount === 2 ? 3 : exam.studentCount < 30 ? 1 : 2;
-    // Toplam süreye göre sırala; eşitlikte ada göre sabit sıra (deterministik)
-    const sortedSups = [...supervisorNames].sort(
-      (a, b) => totalMinutes[a] - totalMinutes[b] || (a < b ? -1 : a > b ? 1 : 0)
-    );
-    const assigned = sortedSups.slice(0, Math.min(numSupervisors, sortedSups.length));
-    assigned.forEach((s) => (totalMinutes[s] += duration));
+
+    // Dersin hocası havuzda mı?
+    const hocaAdi = havuzAdi[norm(exam.professor)] || null;
+    const assigned = [];
+
+    if (hocaAdi && kural !== 'haric' && musait(hocaAdi, exam)) {
+      // 'zorunlu' → her hâlükârda; 'tercihli' → öncelikli olarak eklenir.
+      assigned.push(hocaAdi);
+    }
+
+    // Kalan kontenjan: en az yüklü ve o saatte MÜSAİT gözetmenlerden.
+    const sortedSups = [...supervisorNames]
+      .filter((s) => assigned.indexOf(s) < 0 && musait(s, exam))
+      // 'haric' kuralında hoca kendi sınavına atanmaz
+      .filter((s) => !(kural === 'haric' && hocaAdi && s === hocaAdi))
+      .sort((a, b) => totalMinutes[a] - totalMinutes[b] || (a < b ? -1 : a > b ? 1 : 0));
+
+    while (assigned.length < numSupervisors && sortedSups.length > 0) {
+      assigned.push(sortedSups.shift());
+    }
+
+    assigned.forEach((s) => isaretle(s, exam, duration));
     assignments[examKey(exam)] = assigned;
   });
   return assignments;
@@ -2337,7 +2403,8 @@ async function exportToXLSX(
   period,
   customClassrooms,
   customSupervisors,
-  deptName
+  deptName,
+  gozetmenKurali
 ) {
   // Load xlsx-js-style for cell styling support (colors, bold, borders)
   if (!window._XLSX_STYLE_LOADED) {
@@ -2388,7 +2455,8 @@ async function exportToXLSX(
   const exportSupervisorMap = assignSupervisorsFromList(
     exportSupervisorNames,
     sorted,
-    exportAssignClassroom
+    exportAssignClassroom,
+    { ownLecturerRule: gozetmenKurali }
   );
 
   const enriched = sorted.map((exam) => {
@@ -2753,9 +2821,11 @@ function SinavOtomasyonuApp({
     (exams) => {
       const supervisorNames =
         deptSupervisors.length > 0 ? deptSupervisors.map((s) => s.name) : DEPT_SUPERVISORS;
-      return assignSupervisorsFromList(supervisorNames, exams, assignClassroomDynamic);
+      return assignSupervisorsFromList(supervisorNames, exams, assignClassroomDynamic, {
+        ownLecturerRule: selectedDept?.gozetmenKurali || GOZETMEN_KURALI_VARSAYILAN,
+      });
     },
-    [deptSupervisors, assignClassroomDynamic]
+    [deptSupervisors, assignClassroomDynamic, selectedDept]
   );
 
   // ── Seed data to DB ──
@@ -3696,16 +3766,6 @@ function SinavOtomasyonuApp({
                   Örnek Verileri Yükle (Bilgisayar Müh.)
                 </Btn>
               )}
-            {canManage && (
-              <GhostBtn
-                onClick={() => {
-                  setEditingPeriod(null);
-                  setShowPeriodModal(true);
-                }}
-              >
-                + Yeni Dönem
-              </GhostBtn>
-            )}
           </div>
         </div>
 
@@ -3790,67 +3850,178 @@ function SinavOtomasyonuApp({
           </Card>
         )}
 
-        {/* Period Selector */}
+        {/* Sınav Dönemleri — her dönem; türü, tarih aralığı ve sınav sayısıyla
+            birlikte bir kart olarak görünür. Eskiden dar butonlar ve minik
+            düzenle/sil ikonları tek satıra sıkışıyordu. */}
         {periods.length > 0 && (
-          <Card style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: C.navy }}>Sınav Dönemi:</span>
-              {periods.map((p) => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <button
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: C.navy,
+                marginBottom: 10,
+                letterSpacing: 0.2,
+              }}
+            >
+              Sınav Dönemleri
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                gap: 10,
+              }}
+            >
+              {periods.map((p) => {
+                const aktif = p.id === activePeriodId;
+                const tur = EXAM_TYPES.find((t) => t.value === p.examType);
+                const sinavSayisi = placedExams.filter((e) => e.periodId === p.id).length;
+                const bas = p.startDate ? formatDate(parseDateISO(p.startDate)) : null;
+                return (
+                  <div
+                    key={p.id}
                     onClick={() => setActivePeriodId(p.id)}
                     style={{
-                      padding: '6px 16px',
-                      border: `2px solid ${p.id === activePeriodId ? C.blue : C.border}`,
-                      background: p.id === activePeriodId ? C.blueLight : 'white',
-                      color: p.id === activePeriodId ? C.blue : '#666',
-                      borderRadius: 8,
+                      background: aktif ? C.blueLight : 'white',
+                      border: `2px solid ${aktif ? C.blue : C.border}`,
+                      borderRadius: 12,
+                      padding: '12px 14px',
                       cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: p.id === activePeriodId ? 600 : 400,
+                      transition: 'all .18s',
+                      boxShadow: aktif ? '0 2px 10px rgba(37,99,235,0.12)' : 'none',
                     }}
                   >
-                    {p.label || `${p.examType} - ${p.semester}`}
-                  </button>
-                  {canManage && (
-                    <button
-                      onClick={() => {
-                        setEditingPeriod(p);
-                        setShowPeriodModal(true);
-                      }}
+                    <div
                       style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: '#999',
-                        fontSize: 14,
-                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        gap: 8,
                       }}
-                      title="Düzenle"
                     >
-                      &#9998;
-                    </button>
-                  )}
-                  {canManage && (
-                    <button
-                      onClick={() => handleDeletePeriod(p.id)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: '#DC2626',
-                        fontSize: 14,
-                        padding: '4px',
-                      }}
-                      title="Sil"
-                    >
-                      &times;
-                    </button>
-                  )}
-                </div>
-              ))}
+                      <span
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: aktif ? C.blue : C.navy,
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        {p.label || `${p.examType} - ${p.semester}`}
+                      </span>
+                      {tur && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: 10,
+                            background: aktif ? 'white' : '#F1F5F9',
+                            color: aktif ? C.blue : '#64748B',
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {tur.label}
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ fontSize: 12, color: '#64748B', marginTop: 6, lineHeight: 1.5 }}>
+                      {bas ? `${bas} · ${p.weeks || 2} hafta` : `${p.weeks || 2} hafta`}
+                      <br />
+                      {sinavSayisi > 0 ? `${sinavSayisi} sınav yerleştirildi` : 'Henüz sınav yok'}
+                    </div>
+
+                    {canManage && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 6,
+                          marginTop: 10,
+                          paddingTop: 8,
+                          borderTop: `1px solid ${aktif ? C.blue + '30' : C.border}`,
+                        }}
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingPeriod(p);
+                            setShowPeriodModal(true);
+                          }}
+                          style={{
+                            flex: 1,
+                            background: 'white',
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 7,
+                            padding: '5px 0',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: C.navy,
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          Düzenle
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeletePeriod(p.id);
+                          }}
+                          style={{
+                            flex: 1,
+                            background: 'white',
+                            border: '1px solid #FCA5A5',
+                            borderRadius: 7,
+                            padding: '5px 0',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: '#DC2626',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          Sil
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Ekleme karosu — dönemlerin yanında, aradığınız yerde */}
+              {canManage && (
+                <button
+                  onClick={() => {
+                    setEditingPeriod(null);
+                    setShowPeriodModal(true);
+                  }}
+                  style={{
+                    background: 'white',
+                    border: `2px dashed ${C.border}`,
+                    borderRadius: 12,
+                    padding: '12px 14px',
+                    cursor: 'pointer',
+                    color: C.navy,
+                    fontFamily: 'inherit',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    minHeight: 96,
+                  }}
+                >
+                  <span style={{ fontSize: 20, fontWeight: 400, lineHeight: 1 }}>+</span>
+                  Yeni Sınav Dönemi
+                </button>
+              )}
             </div>
-          </Card>
+          </div>
         )}
 
         {/* No period selected */}
@@ -3941,7 +4112,8 @@ function SinavOtomasyonuApp({
                           activePeriod,
                           deptClassrooms.length > 0 ? deptClassrooms : null,
                           deptSupervisors.length > 0 ? deptSupervisors.map((s) => s.name) : null,
-                          selectedDept?.name || null
+                          selectedDept?.name || null,
+                          selectedDept?.gozetmenKurali || GOZETMEN_KURALI_VARSAYILAN
                         )
                       }
                       style={{

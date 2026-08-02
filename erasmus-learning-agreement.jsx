@@ -42,14 +42,23 @@ const dispAd = (s) => titleCaseTr(s);
 const dispSoyad = (s) => upperTr(s);
 
 // ── Ortak buton stilleri (sade, tek ton) ──
+// Tüm işlem butonları AYNI yükseklik ve asgari genişlikte — "İşlemler"
+// sütununda alt alta sardıklarında kenarları hizalı bir ızgara oluştururlar.
 const eBtn = {
-  padding: '8px 14px',
+  padding: '0 12px',
+  height: 32,
+  minWidth: 116,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   borderRadius: 8,
-  fontSize: 13,
+  fontSize: 12.5,
   fontWeight: 600,
   border: 'none',
   cursor: 'pointer',
   whiteSpace: 'nowrap',
+  fontFamily: 'inherit',
+  boxSizing: 'border-box',
 };
 const eBtnGhost = {
   ...eBtn,
@@ -5599,15 +5608,21 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                 </tr>
               </thead>
               <tbody>
-                {filteredStudents.map((student) => (
+                {filteredStudents.map((student, idx) => (
                   <tr
                     key={student.id}
-                    style={{ borderBottom: `1px solid ${C.border}`, transition: 'all 0.15s' }}
+                    style={{
+                      borderBottom: `1px solid ${C.border}`,
+                      transition: 'background 0.15s',
+                      // Zebra: uzun listede satır takibi kolaylaşsın
+                      background: idx % 2 === 1 ? C.bg + '80' : 'transparent',
+                    }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.background = C.bg;
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = '';
+                      e.currentTarget.style.background =
+                        idx % 2 === 1 ? C.bg + '80' : 'transparent';
                     }}
                   >
                     <td style={{ padding: '16px 24px' }}>
@@ -5660,13 +5675,17 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                         {(student.returnMatches || []).length} eşleştirme
                       </Badge>
                     </td>
-                    <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                    <td style={{ padding: '14px 24px', textAlign: 'right', width: 1 }}>
+                      {/* Butonlar serbest sarma yerine sabit iki sütuna oturur;
+                          sayısı değişse de blok hizalı kalır. */}
                       <div
                         style={{
-                          display: 'flex',
-                          gap: 8,
-                          justifyContent: 'flex-end',
-                          flexWrap: 'wrap',
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(2, minmax(116px, 1fr))',
+                          gap: 6,
+                          justifyContent: 'end',
+                          marginLeft: 'auto',
+                          width: 'fit-content',
                         }}
                       >
                         <button

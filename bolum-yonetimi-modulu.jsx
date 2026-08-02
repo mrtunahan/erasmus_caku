@@ -33,6 +33,22 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   const [saving, setSaving] = useState(false);
   const [editDeptProfs, setEditDeptProfs] = useState([]);
 
+  // Bölümün KENDİ akademisyenleri: memurlar ve yalnızca çapraz-bölüm olarak
+  // (additionalDepartments üzerinden) eklenmiş dışarıdan hocalar HARİÇ.
+  // `professors` listesi çapraz-bölüm atamalarını da içerdiği için burada
+  // ana bölüm eşleşmesi aranır.
+  const bolumAkademisyenleri = useMemo(() => {
+    const dept = (window.DEPARTMENTS || []).find((x) => x.id === activeDepartment);
+    const deptAdi = (dept?.name || '').toLocaleLowerCase('tr-TR').replace(/\s+/g, '');
+    return professors.filter((p) => {
+      if (p.isMemur) return false;
+      if (p.departmentId) return p.departmentId === activeDepartment;
+      // departmentId'si boş olan eski kayıtlar: bölüm ADI eşleşmesi kabul edilir
+      const adi = (p.department || '').toLocaleLowerCase('tr-TR').replace(/\s+/g, '');
+      return !!deptAdi && adi === deptAdi;
+    });
+  }, [professors, activeDepartment]);
+
   // Gözetmenler = professors koleksiyonunda roles'ında "gozetmen" olanlar
   const supervisors = useMemo(() => {
     return professors.filter((p) => (p.roles || []).includes('gozetmen'));
@@ -415,7 +431,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
       )}
 
       {activeTab === 'akademisyenbilgi' && (
-        <AkademisyenBilgileri professors={professors} onSaved={loadData} />
+        <AkademisyenBilgileri professors={bolumAkademisyenleri} onSaved={loadData} />
       )}
 
       {activeTab === 'memurbilgi' && <MemurBilgileri currentUser={currentUser} />}
@@ -549,6 +565,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
               )}
 
               {/* SUPERVISORS TAB — professors koleksiyonundan roles:gozetmen */}
+              {activeTab === 'supervisors' && <GozetmenKurali departmentId={activeDepartment} />}
               {activeTab === 'supervisors' && (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead style={{ background: '#F9FAFB' }}>
@@ -1682,3 +1699,134 @@ function MemurBilgileri({ currentUser }) {
 }
 
 window.BolumYonetimiModuluApp = BolumYonetimiModuluApp;
+
+// ══════════════════════════════════════════════════════════════
+// Gözetmen Kuralı — dersin kendi hocasının gözetmenliği
+//
+// Bu kural bölümden bölüme değişir: bazı bölümlerde dersin hocasının kendi
+// sınavında bulunması zorunlu, bazılarında gözetmenlik bilinçli olarak
+// bağımsız tutulur. Kural bölüm kaydında (departments.gozetmenKurali)
+// saklanır ve sınav otomasyonunun dekanlık çıktısında uygulanır.
+// ══════════════════════════════════════════════════════════════
+const GOZETMEN_KURAL_SECENEKLERI = [
+  {
+    id: 'tercihli',
+    label: 'Tercihli',
+    desc: 'Dersin hocası gözetmen listesindeyse kendi sınavına öncelikli atanır, ama zorunlu değildir. Kalan gözetmenler yük dengesine göre seçilir.',
+  },
+  {
+    id: 'zorunlu',
+    label: 'Zorunlu',
+    desc: 'Dersin hocası kendi sınavında her zaman gözetmen olarak yer alır. Gözetmen listesinde olması gerekir.',
+  },
+  {
+    id: 'haric',
+    label: 'Hariç',
+    desc: 'Dersin hocası kendi sınavına otomatik atanmaz; gözetmenlik tamamen bağımsız yürütülür.',
+  },
+];
+
+function GozetmenKurali({ departmentId }) {
+  const [kural, setKural] = useState('tercihli');
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+  const [mesaj, setMesaj] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    setYukleniyor(true);
+    window
+      .apiReadDoc('departments', String(departmentId))
+      .then((r) => {
+        if (!alive) return;
+        setKural((r?.exists && r.data?.gozetmenKurali) || 'tercihli');
+      })
+      .catch(() => {})
+      .finally(() => alive && setYukleniyor(false));
+    return () => {
+      alive = false;
+    };
+  }, [departmentId]);
+
+  const kaydet = async (yeni) => {
+    setKural(yeni);
+    setKaydediliyor(true);
+    setMesaj('');
+    try {
+      await DBWrite.set('departments', String(departmentId), { gozetmenKurali: yeni }, true);
+      if (window.apiInvalidate) window.apiInvalidate('departments');
+      setMesaj('Kaydedildi.');
+      setTimeout(() => setMesaj(''), 2500);
+    } catch (e) {
+      setMesaj('Kaydedilemedi: ' + e.message);
+    } finally {
+      setKaydediliyor(false);
+    }
+  };
+
+  if (yukleniyor) return null;
+
+  return (
+    <div style={{ padding: 16, borderBottom: '1px solid #E5E7EB', background: '#FAFBFC' }}>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: '#1F2937', marginBottom: 4 }}>
+        Dersin hocası kendi sınavında gözetmen olsun mu?
+      </div>
+      <div style={{ fontSize: 12.5, color: '#6B7280', marginBottom: 12, lineHeight: 1.55 }}>
+        Bu kural bölümden bölüme değişir. Seçiminiz sınav otomasyonundaki otomatik gözetmen
+        atamasında ve dekanlık çıktısında uygulanır.
+      </div>
+
+      <div style={{ display: 'grid', gap: 8 }}>
+        {GOZETMEN_KURAL_SECENEKLERI.map((s) => {
+          const secili = kural === s.id;
+          return (
+            <label
+              key={s.id}
+              style={{
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-start',
+                padding: '10px 12px',
+                border: '1.5px solid ' + (secili ? '#2563EB' : '#E5E7EB'),
+                background: secili ? '#EFF6FF' : 'white',
+                borderRadius: 10,
+                cursor: kaydediliyor ? 'wait' : 'pointer',
+              }}
+            >
+              <input
+                type="radio"
+                name={'gozetmen-kurali-' + departmentId}
+                checked={secili}
+                disabled={kaydediliyor}
+                onChange={() => kaydet(s.id)}
+                style={{ marginTop: 3, cursor: 'inherit' }}
+              />
+              <span>
+                <span
+                  style={{ fontSize: 13, fontWeight: 700, color: secili ? '#1D4ED8' : '#1F2937' }}
+                >
+                  {s.label}
+                </span>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: 12.5,
+                    color: '#6B7280',
+                    lineHeight: 1.5,
+                    marginTop: 2,
+                  }}
+                >
+                  {s.desc}
+                </span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+
+      {mesaj && (
+        <div style={{ fontSize: 12, color: '#059669', fontWeight: 600, marginTop: 8 }}>{mesaj}</div>
+      )}
+    </div>
+  );
+}
