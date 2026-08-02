@@ -169,7 +169,9 @@ const READABLE_COLLECTIONS = [...ALLOWED_COLLECTIONS];
 //   YAZMA:
 //   • geçerli token zorunlu (öğrenci kaydı /api/auth/student-register'a taşındı)
 //   • WRITE_DENY (audit_logs) → generic API'den kimse yazamaz
-//   • student rolü → yalnız STUDENT_WRITABLE koleksiyonlarına yazabilir
+//   • student rolü → yalnız STUDENT_WRITABLE koleksiyonlarına yazabilir.
+//     İSTİSNA: `students` — yalnız KENDİ kaydını günceller; kimlik/yetki
+//     alanlarına dokunamaz ve başvuru kilitliyse hiç yazamaz.
 //   • professor / bolum_yetkilisi / admin → tüm izinli koleksiyonlar
 // ══════════════════════════════════════════════
 const DB_AUTH_ENFORCED = process.env.DB_AUTH_MODE !== 'off';
@@ -241,6 +243,32 @@ const STRUCTURE_MANAGER_WRITE = new Set([
 // orası üniversite/fakülte yöneticisi ister, burası bölüm yetkilisine de açıktır.
 // Sade akademisyen ve öğrenci yazamaz (öğrenci için ayrıca STUDENT_WRITABLE'da yok).
 const DEPT_MANAGER_WRITE = new Set(['yol_haritalari']);
+
+// ── Öğrencinin KENDİ `students` kaydı ──
+// Öğrenci Erasmus başvurusunu (ders eşleştirmeleri, karşı kurum, dönem)
+// kendisi girer; bu yüzden `students` koleksiyonuna sınırlı yazma gerekir.
+// Ancak bu, blanket STUDENT_WRITABLE ile verilemez: kayıt aynı zamanda
+// yetki alanlarını taşıyor. Kural:
+//   • yalnız KENDİ kaydı (studentNumber === JWT identifier)
+//   • yalnız güncelleme — ekleme/silme yok
+//   • aşağıdaki alanlara dokunulamaz (istemci gönderse bile düşürülür)
+//   • başvuru kilitliyse (eşleştirme var + düzenleme izni yok) reddedilir
+const STUDENT_SELF_PROTECTED = new Set([
+  'studentNumber', // kimlik
+  'departmentId',
+  'departmentName',
+  'facultyId',
+  'erasmusAccess', // kendine Erasmus yetkisi veremez
+  'duzenlemeAcik', // kendi kilidini açamaz
+  'duzenlemeAcanKisi',
+  'duzenlemeAcilmaTarihi',
+  'roles',
+  'isMemur',
+  '_owner',
+  '_docId',
+  'createdAt',
+  'registeredVia',
+]);
 
 // Öğrenci sahiplik alanları — mevcut dokümanda bunlardan biri doluysa
 // değeri JWT kimliğiyle eşleşmek zorundadır
@@ -404,6 +432,44 @@ async function enforceWritePolicies(db, op, user) {
         error: `Bu koleksiyonu yalnız bölüm yetkilisi düzenleyebilir: ${op.collection}`,
       };
     }
+  }
+
+  // a3) Öğrencinin KENDİ `students` kaydı — sahiplik + alan koruması + kilit.
+  if (op.collection === 'students' && user.role === 'student') {
+    if (op.type !== 'update' && op.type !== 'set') {
+      return { allow: false, status: 403, error: 'Öğrenci bu işlemi yapamaz.' };
+    }
+    const mevcut = await findExistingDoc(db, op);
+    if (!mevcut) {
+      return { allow: false, status: 404, error: 'Kayıt bulunamadı.' };
+    }
+    const ident = String(user.identifier || '');
+    if (!ident || String(mevcut.studentNumber || '') !== ident) {
+      return { allow: false, status: 403, error: 'Yalnızca kendi kaydınızı düzenleyebilirsiniz.' };
+    }
+
+    // Başvuru kilidi SUNUCUDA da uygulanır: eşleştirme girilmişse ve yetkili
+    // düzenlemeye izin vermemişse öğrenci değiştiremez. (İstemci tarafındaki
+    // kilit tek başına güvenlik değildir.)
+    const eslesmeVar = Array.isArray(mevcut.outgoingMatches) && mevcut.outgoingMatches.length > 0;
+    if (eslesmeVar && mevcut.duzenlemeAcik !== true) {
+      return {
+        allow: false,
+        status: 403,
+        error: 'Başvurunuz gönderildiği için düzenleme kapalı. Yetkiliden izin isteyiniz.',
+      };
+    }
+
+    // Yetki/kimlik alanları istemci gönderse bile düşürülür.
+    if (op.data && typeof op.data === 'object') {
+      for (const alan of Object.keys(op.data)) {
+        if (STUDENT_SELF_PROTECTED.has(alan)) delete op.data[alan];
+      }
+    }
+    // `set` + merge:false dokümanı KOMPLE değiştirir; korunan alanlar silinir.
+    // Bu yüzden öğrencinin replace'i birleştirmeye çevrilir.
+    if (op.type === 'set') op.merge = true;
+    return { allow: true };
   }
 
   // b) professors üzerindeki yetki bayrakları — yetkisiz aktörde sabitlenir
@@ -680,6 +746,11 @@ function writeDecision(op, user) {
   }
   if (user.role === 'student') {
     if (STUDENT_WRITABLE.has(op.collection)) return { allow: true };
+    // `students`: yalnız kendi kaydını güncelleyebilir. Sahiplik, alan
+    // koruması ve başvuru kilidi enforceWritePolicies'te uygulanır.
+    if (op.collection === 'students' && (op.type === 'update' || op.type === 'set')) {
+      return { allow: true };
+    }
     return {
       allow: false,
       status: 403,
