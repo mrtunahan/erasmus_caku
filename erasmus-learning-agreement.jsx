@@ -44,19 +44,24 @@ const dispSoyad = (s) => upperTr(s);
 // ── Ortak buton stilleri (sade, tek ton) ──
 // Tüm işlem butonları AYNI yükseklik ve asgari genişlikte — "İşlemler"
 // sütununda alt alta sardıklarında kenarları hizalı bir ızgara oluştururlar.
+// İşlem butonları: hepsi aynı kutu ölçüsünde. Metin sığmazsa KIRPILMAZ,
+// iki satıra sarar — böylece "Düzenlemeye İzin Ver" gibi uzun etiketler de
+// tam okunur ve ızgara hizası bozulmaz.
 const eBtn = {
-  padding: '0 12px',
-  height: 32,
-  minWidth: 116,
+  padding: '6px 10px',
+  minHeight: 34,
+  width: '100%',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
+  textAlign: 'center',
   borderRadius: 8,
-  fontSize: 12.5,
+  fontSize: 12,
   fontWeight: 600,
+  lineHeight: 1.25,
   border: 'none',
   cursor: 'pointer',
-  whiteSpace: 'nowrap',
+  whiteSpace: 'normal',
   fontFamily: 'inherit',
   boxSizing: 'border-box',
 };
@@ -5677,13 +5682,13 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                         {(student.returnMatches || []).length} eşleştirme
                       </Badge>
                     </td>
-                    <td style={{ padding: '14px 24px', textAlign: 'right', width: 1 }}>
-                      {/* Butonlar serbest sarma yerine sabit iki sütuna oturur;
-                          sayısı değişse de blok hizalı kalır. */}
+                    <td style={{ padding: '14px 20px', verticalAlign: 'middle' }}>
+                      {/* Sabit üç sütunlu ızgara: buton sayısı satırdan satıra
+                          değişse de kutular aynı boyutta ve hizalı kalır. */}
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: 'repeat(2, minmax(116px, 1fr))',
+                          gridTemplateColumns: 'repeat(3, 104px)',
                           gap: 6,
                           justifyContent: 'end',
                           marginLeft: 'auto',
@@ -5704,7 +5709,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                             cursor: isStudentWithoutErasmus ? 'not-allowed' : 'pointer',
                           }}
                         >
-                          {canEdit(student) ? 'Detay & Düzenle' : 'Detay'}
+                          {canEdit(student) ? 'Detay & Düzenle' : 'Detay (salt okunur)'}
                         </button>
                         <button
                           onClick={
@@ -5766,10 +5771,29 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                             {student.duzenlemeAcik === true
                               ? 'Düzenlemeyi Kapat'
                               : talepVar(student)
-                                ? 'İzin İstendi — İzin Ver'
+                                ? 'İzin İstendi'
                                 : 'Düzenlemeye İzin Ver'}
                           </button>
                         )}
+                        {/* Öğrenci: yetkili düzenlemeye izin vermişse durum açıkça belirtilir.
+                            (Başvurusu gönderilmiş olmasına rağmen alanların açık
+                            görünmesinin sebebi budur.) */}
+                        {isStudentRole &&
+                          (student.outgoingMatches || []).length > 0 &&
+                          student.duzenlemeAcik === true && (
+                            <span
+                              style={{
+                                ...eBtnGhost,
+                                cursor: 'default',
+                                color: '#047857',
+                                borderColor: '#04785755',
+                                background: '#D1FAE5',
+                              }}
+                              title="Yetkili düzenlemenize izin verdi. Değişikliklerinizi kaydedebilirsiniz."
+                            >
+                              Düzenleme açık
+                            </span>
+                          )}
                         {/* Öğrenci: başvuru kilitli — izin isteyebilir */}
                         {isStudentRole &&
                           basvuruKilitli(student) &&
@@ -5863,7 +5887,9 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
             student={selectedStudent}
             onClose={() => setSelectedStudent(null)}
             onSave={handleSaveStudent}
-            readOnly={!canEdit(selectedStudent)}
+            readOnly={
+              !canEdit(selectedStudent) || (isStudentRole && basvuruKilitli(selectedStudent))
+            }
             allStudents={students}
             allUniversities={allUniversities}
             onAddUniversity={handleAddUniversity}
