@@ -285,7 +285,7 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      setMsg({ text: 'Başvurunuz gönderildi ✓', kind: 'ok' });
+      setMsg({ text: 'Başvurunuz gönderildi.', kind: 'ok' });
       setEkler({});
       setForm((f) => ({ ...f, tercih1Fakulte: '', tercih1: '', tercih2Fakulte: '', tercih2: '' }));
       if (onSaved) await onSaved();
@@ -547,7 +547,7 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
                     rel="noopener noreferrer"
                     style={{ fontSize: 12, color: CY.accent, fontWeight: 600 }}
                   >
-                    📎 {cur.name}
+                    {cur.name}
                   </a>
                 )}
                 <label
@@ -628,7 +628,9 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
           </div>
         </div>
         <span style={cyPill(st.color, st.bg)}>{st.label}</span>
-        <span style={{ color: CY.textMuted, fontSize: 12 }}>{open ? '▲' : '▼'}</span>
+        <span style={{ color: CY.textMuted, fontSize: 11.5, fontWeight: 600 }}>
+          {open ? 'Gizle' : 'Detaylar'}
+        </span>
       </div>
 
       {open && (
@@ -692,204 +694,256 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
                     padding: '4px 11px',
                   }}
                 >
-                  📎 {ek.title}
+                  {ek.title}
                 </a>
               ) : (
                 <span key={ek.id} style={cyPill(CY.textMuted, CY.bg)}>
-                  ✗ {ek.title} (yok)
+                  {ek.title} — yüklenmedi
                 </span>
               );
             })}
           </div>
 
-          {/* ── ÖĞRENCİ: dilekçe akışı (indir → imzala → yükle → sekretere ver) ── */}
-          {!isStaff && (
-            <div
-              style={{
-                border: '1px solid ' + CY.border,
-                borderRadius: 12,
-                overflow: 'hidden',
-                marginBottom: 4,
-              }}
-            >
-              <div
-                style={{
-                  padding: '10px 14px',
-                  background: CY.bg,
-                  borderBottom: '1px solid ' + CY.border,
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  color: CY.navy,
-                }}
-              >
-                Dilekçe İşlemleri
-              </div>
-              <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {/* Bilgi kartı — süreç anlatımı */}
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 10,
-                    padding: '10px 12px',
-                    background: CY.amberLight,
-                    border: '1px solid ' + CY.amber + '44',
-                    borderRadius: 10,
-                    fontSize: 12,
-                    color: '#7c4a03',
-                    lineHeight: 1.6,
-                  }}
-                >
-                  <span style={{ fontSize: 15, lineHeight: 1.2 }}>ℹ️</span>
-                  <span>
-                    <b>Nasıl ilerlemeliyim?</b>
-                    <br />
-                    <b>1.</b> Başvurunuz <b>akademisyen tarafından onaylandıktan sonra</b> dilekçe
-                    indirme butonu aktif olur. &nbsp;<b>2.</b> Dilekçenizi indirin. &nbsp;<b>3.</b>{' '}
-                    Çıktısını alıp <b>imzalayın</b>. &nbsp;<b>4.</b> İmzalı dilekçeyi aşağıdan
-                    sisteme yükleyin. &nbsp;<b>5.</b> İmzalı dilekçenin aslını{' '}
-                    <b>
-                      ve dilekçede belirtilen ekleri (
-                      {(tur?.ekler || []).map((e) => e.title).join(', ') || 'gerekli belgeler'})
-                    </b>{' '}
-                    birlikte <b>bölüm sekreterine elden teslim edin</b>.
-                  </span>
-                </div>
+          {/* ── ÖĞRENCİ: süreç akışı (adım adım, ikonsuz) ── */}
+          {!isStaff &&
+            (() => {
+              const onaylandi = rec.status === 'approved';
+              const reddedildi = rec.status === 'rejected';
+              const dilekceHazir = onaylandi && !!rec.dilekceUrl;
+              const imzaliVar = !!rec.imzaliDilekceUrl;
+              const ekAdlari =
+                (tur?.ekler || []).map((e) => e.title).join(', ') || 'gerekli belgeler';
 
-                {/* 1) Oluşturulan dilekçe */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    flexWrap: 'wrap',
-                    padding: '10px 12px',
-                    border: '1px solid ' + CY.border,
-                    borderRadius: 10,
-                  }}
-                >
-                  <span style={{ flex: '1 1 220px', fontSize: 12.5, color: CY.text }}>
-                    <b>1.</b> Başvuru dilekçeniz
-                  </span>
-                  {/* İndirme YALNIZCA akademisyen onayından sonra açılır. */}
-                  {rec.status !== 'approved' ? (
-                    <span
-                      style={{
-                        ...cyBtn(false),
-                        cursor: 'not-allowed',
-                        color: CY.textMuted,
-                        borderStyle: 'dashed',
-                      }}
-                      title="Başvurunuz onaylandıktan sonra indirebilirsiniz"
-                    >
-                      🔒{' '}
-                      {rec.status === 'rejected'
-                        ? 'Başvuru reddedildi'
-                        : 'Onay bekleniyor — indirme kapalı'}
-                    </span>
-                  ) : rec.dilekceUrl ? (
-                    <a
-                      href={cyFileHref(rec.dilekceUrl)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        ...cyBtn(false),
-                        color: CY.accent,
-                        borderColor: CY.accent,
-                        textDecoration: 'none',
-                        display: 'inline-block',
-                      }}
-                    >
-                      ⬇️ Dilekçeyi İndir
-                    </a>
-                  ) : (
-                    <span style={cyPill(CY.amber, CY.amberLight)}>
-                      Onaylandı — dilekçe hazırlanıyor
-                    </span>
-                  )}
-                </div>
+              // Adım durumu: 'ok' tamam · 'now' sıradaki · 'wait' henüz sırası değil
+              const durum = (i) => {
+                if (reddedildi) return i === 0 ? 'ok' : 'wait';
+                if (i === 0) return 'ok';
+                if (i === 1) return onaylandi ? 'ok' : 'now';
+                if (i === 2) return !onaylandi ? 'wait' : dilekceHazir ? 'ok' : 'now';
+                if (i === 3) return !onaylandi ? 'wait' : imzaliVar ? 'ok' : 'now';
+                return !imzaliVar ? 'wait' : 'now';
+              };
 
-                {/* 2) İmzalı dilekçe yükleme */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    flexWrap: 'wrap',
-                    padding: '10px 12px',
-                    border: '1px dashed ' + (rec.imzaliDilekceUrl ? CY.green : CY.border),
-                    borderRadius: 10,
-                    background: rec.imzaliDilekceUrl ? CY.greenLight + '66' : 'white',
-                  }}
-                >
-                  <span style={{ flex: '1 1 220px', fontSize: 12.5, color: CY.text }}>
-                    <b>2.</b> İmzalı dilekçe
-                    {rec.imzaliDilekceUrl ? (
-                      <span style={{ ...cyPill(CY.green, CY.greenLight), marginLeft: 8 }}>
-                        ✓ Yüklendi
-                      </span>
-                    ) : (
-                      <span style={{ ...cyPill(CY.amber, CY.amberLight), marginLeft: 8 }}>
-                        Bekleniyor
-                      </span>
-                    )}
-                  </span>
-                  {rec.imzaliDilekceUrl && (
-                    <a
-                      href={cyFileHref(rec.imzaliDilekceUrl)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontSize: 12, color: CY.accent, fontWeight: 600 }}
-                    >
-                      📎 {rec.imzaliDilekceAd || 'Görüntüle'}
-                    </a>
-                  )}
-                  {/* Yükleme de onaydan sonra açılır (indiremediğiniz belgeyi imzalayamazsınız) */}
-                  {rec.status !== 'approved' ? (
-                    <span
+              const RENK = {
+                ok: { c: CY.green, b: CY.greenLight, t: 'Tamamlandı' },
+                now: { c: CY.amber, b: CY.amberLight, t: 'Şimdi' },
+                wait: { c: CY.textMuted, b: CY.bg, t: 'Sırada' },
+              };
+
+              const Adim = ({ i, baslik, aciklama, children }) => {
+                const d = durum(i);
+                const r = RENK[d];
+                return (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 12,
+                      padding: '12px 14px',
+                      borderTop: i === 0 ? 'none' : '1px solid ' + CY.border,
+                      background: d === 'now' ? CY.amberLight + '55' : 'transparent',
+                    }}
+                  >
+                    <div
                       style={{
-                        ...cyBtn(false),
-                        cursor: 'not-allowed',
-                        color: CY.textMuted,
-                        borderStyle: 'dashed',
-                      }}
-                      title="Önce başvurunuzun onaylanması gerekir"
-                    >
-                      🔒 Onay sonrası yüklenebilir
-                    </span>
-                  ) : (
-                    <label
-                      style={{
-                        ...cyBtn(false),
-                        cursor: signing ? 'wait' : 'pointer',
-                        color: CY.navy,
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        flexShrink: 0,
+                        background: r.b,
+                        color: r.c,
+                        border: '1.5px solid ' + r.c + '55',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 12,
+                        fontWeight: 700,
                       }}
                     >
-                      <input
-                        type="file"
-                        style={{ display: 'none' }}
-                        onChange={async (e) => {
-                          const f = (e.target.files && e.target.files[0]) || null;
-                          e.target.value = '';
-                          if (!f) return;
-                          setSigning(true);
-                          try {
-                            await onUploadSigned(rec, f);
-                          } finally {
-                            setSigning(false);
-                          }
+                      {i + 1}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          flexWrap: 'wrap',
                         }}
-                      />
-                      {signing
-                        ? 'Yükleniyor…'
-                        : rec.imzaliDilekceUrl
-                          ? 'Değiştir'
-                          : '⬆️ İmzalı Dilekçe Yükle'}
-                    </label>
-                  )}
+                      >
+                        <span style={{ fontSize: 13, fontWeight: 700, color: CY.navy }}>
+                          {baslik}
+                        </span>
+                        <span style={cyPill(r.c, r.b)}>{r.t}</span>
+                      </div>
+                      {aciklama && (
+                        <div
+                          style={{
+                            fontSize: 12.5,
+                            color: CY.textMuted,
+                            lineHeight: 1.55,
+                            marginTop: 3,
+                          }}
+                        >
+                          {aciklama}
+                        </div>
+                      )}
+                      {children && <div style={{ marginTop: 8 }}>{children}</div>}
+                    </div>
+                  </div>
+                );
+              };
+
+              return (
+                <div
+                  style={{
+                    border: '1px solid ' + CY.border,
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                    marginBottom: 4,
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: '10px 14px',
+                      background: CY.bg,
+                      borderBottom: '1px solid ' + CY.border,
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      color: CY.navy,
+                    }}
+                  >
+                    Başvuru Süreciniz
+                  </div>
+
+                  <Adim
+                    i={0}
+                    baslik="Başvurunuz alındı"
+                    aciklama="Formunuz ve ekleriniz sisteme kaydedildi."
+                  />
+
+                  <Adim
+                    i={1}
+                    baslik="Akademisyen onayı"
+                    aciklama={
+                      reddedildi
+                        ? 'Başvurunuz reddedildi.' +
+                          (rec.redNedeni ? ' Gerekçe: ' + rec.redNedeni : '')
+                        : onaylandi
+                          ? 'Başvurunuz onaylandı.'
+                          : 'Başvurunuz değerlendiriliyor. Onaylanana kadar dilekçe işlemleri kapalıdır.'
+                    }
+                  />
+
+                  <Adim
+                    i={2}
+                    baslik="Dilekçenizi indirin"
+                    aciklama="Onaydan sonra dilekçeniz hazırlanır. İndirip çıktısını alın ve imzalayın."
+                  >
+                    {!onaylandi ? (
+                      <span
+                        style={{
+                          ...cyBtn(false),
+                          cursor: 'not-allowed',
+                          color: CY.textMuted,
+                          borderStyle: 'dashed',
+                        }}
+                      >
+                        {reddedildi ? 'Başvuru reddedildi' : 'Onay bekleniyor'}
+                      </span>
+                    ) : rec.dilekceUrl ? (
+                      <a
+                        href={cyFileHref(rec.dilekceUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          ...cyBtn(false),
+                          color: CY.accent,
+                          borderColor: CY.accent,
+                          textDecoration: 'none',
+                          display: 'inline-block',
+                        }}
+                      >
+                        Dilekçeyi İndir
+                      </a>
+                    ) : (
+                      <span style={cyPill(CY.amber, CY.amberLight)}>Dilekçeniz hazırlanıyor</span>
+                    )}
+                  </Adim>
+
+                  <Adim
+                    i={3}
+                    baslik="İmzalı dilekçeyi yükleyin"
+                    aciklama="İmzaladığınız dilekçeyi tarayıp veya fotoğraflayıp sisteme yükleyin."
+                  >
+                    <div
+                      style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}
+                    >
+                      {imzaliVar && (
+                        <a
+                          href={cyFileHref(rec.imzaliDilekceUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 12, color: CY.accent, fontWeight: 600 }}
+                        >
+                          {rec.imzaliDilekceAd || 'Yüklediğiniz dosya'}
+                        </a>
+                      )}
+                      {!onaylandi ? (
+                        <span
+                          style={{
+                            ...cyBtn(false),
+                            cursor: 'not-allowed',
+                            color: CY.textMuted,
+                            borderStyle: 'dashed',
+                          }}
+                        >
+                          Onay sonrası yüklenebilir
+                        </span>
+                      ) : (
+                        <label
+                          style={{
+                            ...cyBtn(false),
+                            cursor: signing ? 'wait' : 'pointer',
+                            color: CY.navy,
+                          }}
+                        >
+                          <input
+                            type="file"
+                            style={{ display: 'none' }}
+                            onChange={async (e) => {
+                              const f = (e.target.files && e.target.files[0]) || null;
+                              e.target.value = '';
+                              if (!f) return;
+                              setSigning(true);
+                              try {
+                                await onUploadSigned(rec, f);
+                              } finally {
+                                setSigning(false);
+                              }
+                            }}
+                          />
+                          {signing
+                            ? 'Yükleniyor…'
+                            : imzaliVar
+                              ? 'Değiştir'
+                              : 'İmzalı Dilekçe Yükle'}
+                        </label>
+                      )}
+                    </div>
+                  </Adim>
+
+                  <Adim
+                    i={4}
+                    baslik="Bölüm sekreterine teslim edin"
+                    aciklama={
+                      'İmzalı dilekçenin aslını ve ekleri (' +
+                      ekAdlari +
+                      ') birlikte bölüm sekreterine elden teslim edin. Bu adım sistem üzerinden tamamlanmaz.'
+                    }
+                  />
                 </div>
-              </div>
-            </div>
-          )}
+              );
+            })()}
 
           {/* ── AKADEMİSYEN: dilekçe üret + öğrencinin imzalı dilekçesi + karar ── */}
           {isStaff && (
@@ -900,7 +954,7 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
                 disabled={busyId === rec.id}
                 style={{ ...cyBtn(false), color: CY.accent, borderColor: CY.accent }}
               >
-                {busyId === rec.id ? 'Üretiliyor…' : '📄 Dilekçe Oluştur'}
+                {busyId === rec.id ? 'Üretiliyor…' : 'Dilekçe Oluştur'}
               </button>
 
               {/* Öğrencinin yüklediği İMZALI dilekçe */}
@@ -919,7 +973,7 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
                     display: 'inline-block',
                   }}
                 >
-                  ✒️ İmzalı Dilekçe (indir)
+                  İmzalı Dilekçe (indir)
                 </a>
               ) : (
                 <span
@@ -930,7 +984,7 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
                     borderStyle: 'dashed',
                   }}
                 >
-                  ✒️ İmzalı dilekçe yüklenmedi
+                  İmzalı dilekçe yüklenmedi
                 </span>
               )}
 
@@ -958,14 +1012,14 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
                     onClick={() => onDecision(rec, 'approved')}
                     style={{ ...cyBtn(false), color: CY.green, borderColor: CY.green }}
                   >
-                    ✓ Onayla
+                    Onayla
                   </button>
                   <button
                     type="button"
                     onClick={() => onDecision(rec, 'rejected')}
                     style={{ ...cyBtn(false), color: CY.red, borderColor: CY.red }}
                   >
-                    ✕ Reddet
+                    Reddet
                   </button>
                 </>
               )}
@@ -1052,7 +1106,7 @@ function CapYandalApp({ currentUser, activeDepartment, departmentInfo }) {
         });
       }
       await load();
-      setMsg(status === 'approved' ? 'Onaylandı ✓' : 'Reddedildi');
+      setMsg(status === 'approved' ? 'Onaylandı.' : 'Reddedildi.');
       setTimeout(() => setMsg(''), 2500);
     } catch (e) {
       alert('Güncellenemedi: ' + e.message);
@@ -1069,7 +1123,7 @@ function CapYandalApp({ currentUser, activeDepartment, departmentInfo }) {
         imzaliDilekceAt: new Date().toISOString(),
       });
       await load();
-      setMsg('İmzalı dilekçe yüklendi ✓');
+      setMsg('İmzalı dilekçe yüklendi.');
       setTimeout(() => setMsg(''), 3000);
     } catch (e) {
       alert('Yüklenemedi: ' + e.message);
@@ -1132,7 +1186,7 @@ function CapYandalApp({ currentUser, activeDepartment, departmentInfo }) {
       const msgs = {
         'no-template':
           'Bu tür için dilekçe şablonu bulunamadı.\nŞablonlar modülünden "ÇAP / Yandal" modülüne, ilgili belge türüne bir .docx şablonu yükleyip alanları eşleyin.',
-        'no-mapping': 'Şablonun alan eşlemesi yapılmamış (Şablonlar → 🧩 Alanlar).',
+        'no-mapping': 'Şablonun alan eşlemesi yapılmamış (Şablonlar → Alanlar).',
         'not-docx': 'Atanan şablon .docx değil.',
         'invalid-output': 'Şablondan geçerli belge üretilemedi.',
       };
@@ -1169,7 +1223,6 @@ function CapYandalApp({ currentUser, activeDepartment, departmentInfo }) {
           color: CY.textMuted,
         }}
       >
-        <div style={{ fontSize: 28, marginBottom: 8 }}>🗂️</div>
         <div style={{ fontSize: 13.5, fontWeight: 600, color: CY.navy, marginBottom: 4 }}>
           Kayıt yok
         </div>
