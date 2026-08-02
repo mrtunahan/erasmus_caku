@@ -469,6 +469,15 @@ async function enforceWritePolicies(db, op, user) {
     // `set` + merge:false dokümanı KOMPLE değiştirir; korunan alanlar silinir.
     // Bu yüzden öğrencinin replace'i birleştirmeye çevrilir.
     if (op.type === 'set') op.merge = true;
+
+    // Düzenleme izni TEK SEFERLİKTİR: yetkili izni açar, öğrenci düzeltmesini
+    // kaydeder ve kilit kendiliğinden geri kapanır. Aksi hâlde bir kez açılan
+    // izin kalıcı oluyor ve "başvuru sonrası kapanma" kuralı fiilen ortadan
+    // kalkıyordu. Bayrağı yalnız sunucu yönetir (öğrenci yazamaz).
+    if (mevcut.duzenlemeAcik === true && op.data && typeof op.data === 'object') {
+      op.data.duzenlemeAcik = false;
+      op.data.duzenlemeKapanmaTarihi = new Date().toISOString();
+    }
     return { allow: true };
   }
 
