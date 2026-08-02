@@ -8397,108 +8397,100 @@ function OgrenciPortaliApp({ currentUser }) {
         {/* Yukarı Kaydır */}
         <ScrollToTopButton />
 
-        {/* Başlık — ortak banner */}
+        {/* Başlık — ortak banner (işlem butonları başlığın sağında) */}
         {React.createElement(window.CakuBanner, {
           title: 'Öğrenci Portalı',
           subtitle: 'Yardımlaşma, bilgi paylaşımı ve sosyal etkileşim platformu',
-        })}
-        <div
-          style={{
-            marginBottom: 24,
-            display: 'flex',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            gap: 8,
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {isModOrAdmin && (
+          right: (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {isModOrAdmin && (
+                <button
+                  onClick={function () {
+                    setShowModPanel(!showModPanel);
+                  }}
+                  title="Moderasyon Paneli"
+                  style={{
+                    padding: '10px 14px',
+                    border: 'none',
+                    borderRadius: 10,
+                    // Koyu banner üzerinde duruyor — kontrast ona göre.
+                    background: showModPanel ? 'white' : 'rgba(255,255,255,0.16)',
+                    color: showModPanel ? PC.navy : 'white',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'all 0.2s',
+                    position: 'relative',
+                  }}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                  Moderasyon
+                  {pendingPosts.length > 0 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: -4,
+                        right: -4,
+                        background: '#EF4444',
+                        color: 'white',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        borderRadius: '50%',
+                        width: 18,
+                        height: 18,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '2px solid #23375F',
+                      }}
+                    >
+                      {pendingPosts.length}
+                    </span>
+                  )}
+                </button>
+              )}
               <button
                 onClick={function () {
-                  setShowModPanel(!showModPanel);
+                  setShowNewPost(!showNewPost);
                 }}
-                title="Moderasyon Paneli"
                 style={{
-                  padding: '10px 14px',
+                  padding: '12px 24px',
                   border: 'none',
-                  borderRadius: 10,
-                  background: showModPanel ? PC.navy : 'rgba(27,42,74,0.08)',
-                  color: showModPanel ? 'white' : PC.navy,
+                  borderRadius: 12,
+                  background: showNewPost
+                    ? PC.textMuted
+                    : 'linear-gradient(135deg, ' + DY.gold + ', ' + DY.goldDark + ')',
+                  color: 'white',
                   cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 600,
+                  fontSize: 14,
+                  fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
+                  gap: 8,
+                  boxShadow: '0 4px 16px rgba(27,42,74,0.25)',
                   transition: 'all 0.2s',
-                  position: 'relative',
                 }}
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-                Moderasyon
-                {pendingPosts.length > 0 && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: -4,
-                      right: -4,
-                      background: '#EF4444',
-                      color: 'white',
-                      fontSize: 10,
-                      fontWeight: 700,
-                      borderRadius: '50%',
-                      width: 18,
-                      height: 18,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '2px solid white',
-                    }}
-                  >
-                    {pendingPosts.length}
-                  </span>
-                )}
+                <span style={{ fontSize: 18 }}>{showNewPost ? '\u2715' : '+'}</span>
+                {showNewPost ? 'Kapat' : 'Yeni Gönderi'}
               </button>
-            )}
-            <button
-              onClick={function () {
-                setShowNewPost(!showNewPost);
-              }}
-              style={{
-                padding: '12px 24px',
-                border: 'none',
-                borderRadius: 12,
-                background: showNewPost
-                  ? PC.textMuted
-                  : 'linear-gradient(135deg, ' + DY.gold + ', ' + DY.goldDark + ')',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                boxShadow: '0 4px 16px rgba(27,42,74,0.25)',
-                transition: 'all 0.2s',
-              }}
-            >
-              <span style={{ fontSize: 18 }}>{showNewPost ? '\u2715' : '+'}</span>
-              {showNewPost ? 'Kapat' : 'Yeni Gönderi'}
-            </button>
-          </div>
-        </div>
+            </div>
+          ),
+        })}
 
         {/* Moderatör Yönetim Paneli */}
         {isAdmin && showModPanel && (
@@ -8540,12 +8532,14 @@ function OgrenciPortaliApp({ currentUser }) {
         )}
 
         {/* İstatistikler */}
-
-        {/* İstatistikler */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)',
+            // Simetri: sütunlar her genişlikte eşit paylaşılır, kartlar
+            // dar ekranda 2'ye, genişte 4'e oturur.
+            gridTemplateColumns: isMobile
+              ? 'repeat(2, minmax(0, 1fr))'
+              : 'repeat(4, minmax(0, 1fr))',
             gap: 12,
             marginBottom: 24,
           }}
@@ -8608,15 +8602,19 @@ function OgrenciPortaliApp({ currentUser }) {
           </div>
         )}
 
-        {/* Arama + Kategori Filtreleri */}
+        {/* Filtre paneli — arama, sıralama ve kategoriler ayrı satırlarda.
+            Eskiden hepsi tek bir flex-wrap satırındaydı ve ekran genişliğine
+            göre öngörülemez şekilde sarıyordu. */}
         <div
           style={{
-            display: 'flex',
-            gap: isMobile ? 10 : 16,
+            background: 'white',
+            border: '1px solid ' + PC.borderLight,
+            borderRadius: 16,
+            padding: isMobile ? 12 : 16,
             marginBottom: 24,
-            alignItems: isMobile ? 'stretch' : 'center',
-            flexDirection: isMobile ? 'column' : 'row',
-            flexWrap: 'wrap',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
           }}
         >
           <AdvancedSearchBar
@@ -8630,140 +8628,153 @@ function OgrenciPortaliApp({ currentUser }) {
             onTagFilterChange={setTagFilter}
           />
 
-          {/* Yazar filtresi badge */}
-          {authorFilter && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 14px',
-                borderRadius: 20,
-                background: PC.blueLight,
-                border: '1px solid ' + PC.blue,
-                fontSize: 12,
-                fontWeight: 600,
-                color: PC.blue,
-                alignSelf: isMobile ? 'flex-start' : 'center',
-              }}
-            >
-              <Avatar name={authorFilter} size={20} />
-              {authorFilter}
-              <button
-                onClick={function () {
-                  setAuthorFilter('');
-                }}
-                style={{
-                  padding: 0,
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  color: PC.blue,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  marginLeft: 4,
-                  lineHeight: 1,
-                }}
-              >
-                {'\u2715'}
-              </button>
-            </div>
-          )}
-
-          {/* Etiket filtresi badge */}
-          {tagFilter && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 14px',
-                borderRadius: 20,
-                background: isCourseCode(tagFilter.replace(/^#/, '')) ? DY.goldLight : '#E0E7FF',
-                border:
-                  '1px solid ' + (isCourseCode(tagFilter.replace(/^#/, '')) ? DY.gold : '#6366F1'),
-                fontSize: 12,
-                fontWeight: 600,
-                color: isCourseCode(tagFilter.replace(/^#/, '')) ? DY.goldDark : '#4F46E5',
-                alignSelf: isMobile ? 'flex-start' : 'center',
-              }}
-            >
-              #{tagFilter.replace(/^#/, '')}
-              <button
-                onClick={function () {
-                  setTagFilter('');
-                }}
-                style={{
-                  padding: 0,
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  color: 'inherit',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  marginLeft: 4,
-                  lineHeight: 1,
-                }}
-              >
-                {'\u2715'}
-              </button>
-            </div>
-          )}
-
-          {/* Sıralama */}
+          {/* Sıralama + etkin filtre rozetleri */}
           <div
             style={{
               display: 'flex',
-              gap: 4,
-              background: PC.bg,
-              borderRadius: 10,
-              padding: 3,
-              overflowX: isMobile ? 'auto' : 'visible',
-              WebkitOverflowScrolling: 'touch',
+              gap: 10,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
             }}
           >
-            {[
-              { id: 'newest', label: 'En Yeni', icon: 'clock' },
-              { id: 'popular', label: 'En Popüler', icon: 'trending' },
-              { id: 'following', label: 'Takip', icon: 'heart' },
-              { id: 'comments', label: 'En Çok Yorum', icon: 'chat' },
-              { id: 'bookmarked', label: 'Kaydedilenler', icon: 'bookmark' },
-            ].map(function (s) {
-              var isActive = sortMode === s.id;
-              return (
+            {/* Sıralama */}
+            <div
+              style={{
+                display: 'flex',
+                gap: 4,
+                background: PC.bg,
+                borderRadius: 10,
+                padding: 3,
+                overflowX: isMobile ? 'auto' : 'visible',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              {[
+                { id: 'newest', label: 'En Yeni', icon: 'clock' },
+                { id: 'popular', label: 'En Popüler', icon: 'trending' },
+                { id: 'following', label: 'Takip', icon: 'heart' },
+                { id: 'comments', label: 'En Çok Yorum', icon: 'chat' },
+                { id: 'bookmarked', label: 'Kaydedilenler', icon: 'bookmark' },
+              ].map(function (s) {
+                var isActive = sortMode === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={function () {
+                      setSortMode(s.id);
+                    }}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: isActive ? 700 : 500,
+                      cursor: 'pointer',
+                      border: 'none',
+                      whiteSpace: 'nowrap',
+                      background: isActive ? 'white' : 'transparent',
+                      color: isActive ? PC.navy : PC.textMuted,
+                      boxShadow: isActive ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <SvgIcon
+                      path={ICONS[s.icon]}
+                      size={13}
+                      color={isActive ? DY.gold : PC.textMuted}
+                    />
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Yazar filtresi badge */}
+            {authorFilter && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 14px',
+                  borderRadius: 20,
+                  background: PC.blueLight,
+                  border: '1px solid ' + PC.blue,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: PC.blue,
+                  alignSelf: isMobile ? 'flex-start' : 'center',
+                }}
+              >
+                <Avatar name={authorFilter} size={20} />
+                {authorFilter}
                 <button
-                  key={s.id}
                   onClick={function () {
-                    setSortMode(s.id);
+                    setAuthorFilter('');
                   }}
                   style={{
-                    padding: '6px 14px',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: isActive ? 700 : 500,
-                    cursor: 'pointer',
+                    padding: 0,
                     border: 'none',
-                    whiteSpace: 'nowrap',
-                    background: isActive ? 'white' : 'transparent',
-                    color: isActive ? PC.navy : PC.textMuted,
-                    boxShadow: isActive ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    color: PC.blue,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    marginLeft: 4,
+                    lineHeight: 1,
                   }}
                 >
-                  <SvgIcon
-                    path={ICONS[s.icon]}
-                    size={13}
-                    color={isActive ? DY.gold : PC.textMuted}
-                  />
-                  {s.label}
+                  {'\u2715'}
                 </button>
-              );
-            })}
+              </div>
+            )}
+
+            {/* Etiket filtresi badge */}
+            {tagFilter && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 14px',
+                  borderRadius: 20,
+                  background: isCourseCode(tagFilter.replace(/^#/, '')) ? DY.goldLight : '#E0E7FF',
+                  border:
+                    '1px solid ' +
+                    (isCourseCode(tagFilter.replace(/^#/, '')) ? DY.gold : '#6366F1'),
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: isCourseCode(tagFilter.replace(/^#/, '')) ? DY.goldDark : '#4F46E5',
+                  alignSelf: isMobile ? 'flex-start' : 'center',
+                }}
+              >
+                #{tagFilter.replace(/^#/, '')}
+                <button
+                  onClick={function () {
+                    setTagFilter('');
+                  }}
+                  style={{
+                    padding: 0,
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    color: 'inherit',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    marginLeft: 4,
+                    lineHeight: 1,
+                  }}
+                >
+                  {'\u2715'}
+                </button>
+              </div>
+            )}
           </div>
 
+          {/* Kategoriler */}
           <div
             style={{
               display: 'flex',
@@ -8834,7 +8845,7 @@ function OgrenciPortaliApp({ currentUser }) {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : '1fr 300px',
+            gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 300px',
             gap: isMobile ? 16 : 24,
             alignItems: 'start',
           }}
