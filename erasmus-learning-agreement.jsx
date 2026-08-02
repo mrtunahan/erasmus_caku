@@ -3,7 +3,7 @@
 // Shared bileşenler shared-components.jsx'den window üzerinden gelir
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 const useResponsive = window.useResponsive;
 
 // ── Shared bilesenlerden import (window uzerinden) ──
@@ -5115,6 +5115,55 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
     return currentUser.role === 'student' && student.studentNumber === currentUser.studentNumber;
   };
 
+  // ── Düzenleme izni istekleri ──
+  // Öğrenci `students` koleksiyonuna YAZAMAZ (sunucu politikası), bu yüzden
+  // istek öğrenci-yazılabilir `student_notifications` üzerinden iletilir.
+  // Yetkili isteği listede görür; izni açınca istek çözülmüş sayılır.
+  const [duzenlemeTalepleri, setDuzenlemeTalepleri] = useState([]);
+
+  const talepleriYukle = useCallback(async () => {
+    try {
+      const read = window.apiRead.fresh || window.apiRead;
+      const list = (await read('student_notifications')) || [];
+      setDuzenlemeTalepleri(
+        list.filter((n) => n && n.kind === 'erasmus_duzenleme_talep' && n.cozuldu !== true)
+      );
+    } catch (_e) {
+      /* istek listesi kritik değil */
+    }
+  }, []);
+
+  useEffect(() => {
+    talepleriYukle();
+  }, [talepleriYukle]);
+
+  const talepVar = (student) =>
+    duzenlemeTalepleri.some((t) => String(t.studentNumber) === String(student?.studentNumber));
+
+  // Öğrenci: yetkiliden yeniden düzenleme izni ister.
+  const izinIste = async (student) => {
+    if (!confirm('Başvurunuzu yeniden düzenlemek için izin isteğiniz gönderilsin mi?')) return;
+    try {
+      await window.DBWrite.add('student_notifications', {
+        studentNumber: String(student.studentNumber || ''),
+        kind: 'erasmus_duzenleme_talep',
+        module: 'erasmus',
+        departmentId: student.departmentId || activeDepartment || '',
+        title: 'Erasmus düzenleme izni isteği',
+        message:
+          ((student.firstName || '') + ' ' + (student.lastName || '')).trim() +
+          ' başvurusunu yeniden düzenlemek için izin istiyor.',
+        read: false,
+        cozuldu: false,
+        createdAt: new Date().toISOString(),
+      });
+      await talepleriYukle();
+      alert('İsteğiniz iletildi. Yetkili izin verdiğinde düzenleme yeniden açılacaktır.');
+    } catch (e) {
+      alert('İstek gönderilemedi: ' + e.message);
+    }
+  };
+
   // Yetkili, öğrencinin düzenleme iznini açar/kapatır.
   const toggleDuzenleme = async (student) => {
     const ac = student?.duzenlemeAcik !== true;
@@ -5141,6 +5190,25 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
       setStudents((prev) =>
         (prev || []).map((s) => (s.id === student.id ? { ...s, duzenlemeAcik: ac } : s))
       );
+      // İzin açıldıysa bekleyen istek karşılanmış olur — listeden düşsün.
+      if (ac) {
+        const bekleyen = duzenlemeTalepleri.filter(
+          (t) => String(t.studentNumber) === String(student.studentNumber)
+        );
+        for (const t of bekleyen) {
+          try {
+            await window.DBWrite.set(
+              'student_notifications',
+              String(t.id || t._docId),
+              { cozuldu: true, read: true, cozulmeTarihi: new Date().toISOString() },
+              true
+            );
+          } catch (_e) {
+            /* isteğin kapanmaması ana akışı bozmasın */
+          }
+        }
+        await talepleriYukle();
+      }
       alert(ac ? 'Düzenleme izni açıldı.' : 'Düzenleme izni kapatıldı.');
     } catch (e) {
       alert('Güncellenemedi: ' + e.message);
@@ -5661,30 +5729,56 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                             }
                             style={{
                               ...eBtnGhost,
-                              color: student.duzenlemeAcik === true ? '#B45309' : C.navy,
-                              borderColor: student.duzenlemeAcik === true ? '#B45309' : undefined,
+                              color:
+                                student.duzenlemeAcik === true
+                                  ? '#B45309'
+                                  : talepVar(student)
+                                    ? '#B45309'
+                                    : C.navy,
+                              borderColor:
+                                student.duzenlemeAcik === true || talepVar(student)
+                                  ? '#B45309'
+                                  : undefined,
+                              background: talepVar(student) ? '#FEF3C7' : undefined,
                             }}
                           >
                             {student.duzenlemeAcik === true
                               ? 'Düzenlemeyi Kapat'
-                              : 'Düzenlemeye İzin Ver'}
+                              : talepVar(student)
+                                ? 'İzin İstendi — İzin Ver'
+                                : 'Düzenlemeye İzin Ver'}
                           </button>
                         )}
-                        {/* Öğrenci: başvuru kilitli bilgisi */}
-                        {isStudentRole && basvuruKilitli(student) && (
-                          <span
-                            style={{
-                              ...eBtnGhost,
-                              cursor: 'default',
-                              color: '#B45309',
-                              borderColor: '#B4530955',
-                              background: '#FEF3C7',
-                            }}
-                            title="Başvurunuz gönderildi. Yeniden düzenlemek için bölüm yetkilisi/sorumlu akademisyenden izin isteyiniz."
-                          >
-                            🔒 Düzenleme kapalı
-                          </span>
-                        )}
+                        {/* Öğrenci: başvuru kilitli — izin isteyebilir */}
+                        {isStudentRole &&
+                          basvuruKilitli(student) &&
+                          (talepVar(student) ? (
+                            <span
+                              style={{
+                                ...eBtnGhost,
+                                cursor: 'default',
+                                color: '#1D4ED8',
+                                borderColor: '#1D4ED855',
+                                background: '#DBEAFE',
+                              }}
+                              title="İzin isteğiniz iletildi, yetkilinin onayı bekleniyor."
+                            >
+                              İzin isteği gönderildi
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => izinIste(student)}
+                              style={{
+                                ...eBtnGhost,
+                                color: '#B45309',
+                                borderColor: '#B4530955',
+                                background: '#FEF3C7',
+                              }}
+                              title="Başvurunuz gönderildiği için düzenleme kapalı. Yeniden düzenlemek için yetkiliden izin isteyin."
+                            >
+                              Düzenleme kapalı — İzin İste
+                            </button>
+                          ))}
                         {!isStudentRole &&
                           window.BelgeGonderButonu &&
                           React.createElement(window.BelgeGonderButonu, {

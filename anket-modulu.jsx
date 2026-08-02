@@ -3239,13 +3239,20 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
     };
   }, []);
 
-  // Aktif bölüm varsa "Bölüm" alanını otomatik doldur
+  // Aktif bölüm varsa "Bölüm" alanını otomatik doldur.
+  // NOT: eskiden bağımlılık dizisi boştu; `fields` ilk render'da henüz
+  // gelmemişse deptField bulunamıyor ve alan hiç yazılmıyordu — katılımcı
+  // bölümü seçili GÖRÜYOR ama yanıt bölümsüz kaydediliyordu.
+  const otoBolum = useMemo(
+    () => (activeDepartment ? departments.find((x) => x.id === activeDepartment) : null),
+    [activeDepartment, departments]
+  );
+
   useEffect(() => {
-    if (!activeDepartment) return;
-    const d = departments.find((x) => x.id === activeDepartment);
-    const deptField = fields.find((f) => f.source === 'department');
-    if (d && deptField && !values[deptField.key]) onChange(deptField.key, d.name);
-  }, []);
+    if (!otoBolum) return;
+    const deptField = (fields || []).find((f) => f.source === 'department');
+    if (deptField && !values[deptField.key]) onChange(deptField.key, otoBolum.name);
+  }, [otoBolum, fields, values, onChange]);
 
   // Anket derslerle eşleştirilmişse yalnızca o dersler listelenir.
   // Eşleşme kod-öncelikli: ders adı sonradan değişse bile kod eşleşir;
@@ -3271,6 +3278,17 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
 
   const renderField = (f) => {
     if (f.source === 'department') {
+      // Katılımcının bölümü zaten belli — seçtirmeye gerek yok, dolu ve
+      // salt-okunur gösterilir. (Bölüm bilinmiyorsa açılır liste kalır.)
+      if (otoBolum) {
+        return (
+          <input
+            value={otoBolum.name}
+            disabled
+            style={{ ...inputStyle, background: '#F3F4F6', cursor: 'default' }}
+          />
+        );
+      }
       return (
         <select
           value={deptId}
