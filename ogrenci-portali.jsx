@@ -1222,6 +1222,39 @@ function useIsMobile(breakpoint) {
   return isMobile;
 }
 
+// ── Kapsayıcı Genişliği Hook'u ──
+// Portal düzeni eskiden window.innerWidth'e bakıyordu; oysa modül, kabuğun
+// sol menüsü (260px) ve —çok bölümlü rollerde— sağ bölüm rafı (240px)
+// çıkarıldıktan sonra kalan alana çiziliyor. Bu yüzden AYNI pencere
+// genişliğinde akademisyenin portalı öğrencininkinden ~240px dar kalıyor ve
+// akış farklı sarıyordu. Artık kendi kapsayıcımızı ölçüyoruz.
+function useElementWidth(ref) {
+  const [width, setWidth] = useState(0);
+  useEffect(
+    function () {
+      var el = ref.current;
+      if (!el) return;
+      var olc = function () {
+        setWidth(el.getBoundingClientRect().width);
+      };
+      olc();
+      if (typeof ResizeObserver === 'undefined') {
+        window.addEventListener('resize', olc);
+        return function () {
+          window.removeEventListener('resize', olc);
+        };
+      }
+      var ro = new ResizeObserver(olc);
+      ro.observe(el);
+      return function () {
+        ro.disconnect();
+      };
+    },
+    [ref]
+  );
+  return width;
+}
+
 // ── Scroll-to-top Hook ──
 function useScrollTop(threshold) {
   var th = threshold || 400;
@@ -7772,7 +7805,13 @@ function OgrenciPortaliApp({ currentUser }) {
   const [moderators, setModerators] = useState([]);
   const [registeredStudentCount, setRegisteredStudentCount] = useState(0);
   const [showModPanel, setShowModPanel] = useState(false);
-  var isMobile = useIsMobile(768);
+  // Düzen kararı: pencere DAR ise ya da modüle ayrılan alan dar ise (akademisyen
+  // tarafında sağdaki bölüm rafı yüzünden olur) tek sütuna düşülür. Böylece
+  // portal her rolde aynı oranlarla görünür.
+  const portalRootRef = useRef(null);
+  var pencereDar = useIsMobile(768);
+  var kapsayiciGenislik = useElementWidth(portalRootRef);
+  var isMobile = pencereDar || (kapsayiciGenislik > 0 && kapsayiciGenislik < 900);
   var isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.isAdmin);
   var userId = getUserId(currentUser);
   var isModOrAdmin =
@@ -8384,7 +8423,7 @@ function OgrenciPortaliApp({ currentUser }) {
   });
 
   return (
-    <div>
+    <div ref={portalRootRef}>
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
         {/* Toast Bildirimler */}
         <ToastContainer toasts={toasts} />
