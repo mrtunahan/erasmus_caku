@@ -5318,7 +5318,9 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
       alert('Değişiklikler kaydedildi!');
     } catch (error) {
       console.error('Save error:', error);
-      alert('Kayit sirasinda hata olustu.');
+      // Sunucunun gerçek sebebini göster: yetki reddi, kilit uyarısı vb.
+      // Genel "hata oluştu" mesajı sorunu teşhis edilemez kılıyordu.
+      alert('Kayıt sırasında hata oluştu.\n\n' + (error?.message || 'Bilinmeyen hata.'));
     }
   };
 
