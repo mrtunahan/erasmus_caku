@@ -1434,6 +1434,37 @@ function MandatorySurveyGate({ currentUser, activeDepartment }) {
 // henüz kalıcı saklamayan modüller için bilgi mesajı gösterilir. Kapsam: memurun
 // fakültesinin bölümleri (computeAvailableDepts). Düzenleme/üretim YOK.
 // ══════════════════════════════════════════════════════════════
+// Memur ekranında modüllerin belge TÜRÜ sekmeleri. Bir modül birden çok
+// belge türü üretiyorsa çıktılar burada ayrılır ki karışmasın.
+const MEMUR_TUR_SEKMELERI = {
+  erasmus: [
+    { id: 'gidis', label: 'Gidiş' },
+    { id: 'donus', label: 'Dönüş' },
+  ],
+  muafiyet: [
+    { id: 'muafiyet', label: 'Ders Muafiyet' },
+    { id: 'intibak', label: 'Yaz Dönemi İntibak' },
+    { id: 'yatay', label: 'Yatay Geçiş' },
+    { id: 'dikey', label: 'Dikey Geçiş' },
+  ],
+};
+
+// Kaydın belge türünü çöz. docType alanı yönlendirme sırasında yazılır;
+// eski/yönlendirilmemiş kayıtlarda sourceId ve alt başlıktan türetilir.
+function memurBelgeTuru(o, route) {
+  const dt = String(o.docType || '').toLowerCase();
+  if (dt) return dt;
+  const iz = (String(o.sourceId || '') + ' ' + String(o.subtitle || '')).toLowerCase();
+  if (route === 'erasmus') return /dönüş|donus/i.test(iz) ? 'donus' : 'gidis';
+  if (route === 'muafiyet') {
+    if (/intibak|yaz/i.test(iz)) return 'intibak';
+    if (/yatay/i.test(iz)) return 'yatay';
+    if (/dikey/i.test(iz)) return 'dikey';
+    return 'muafiyet';
+  }
+  return '';
+}
+
 // Memur ekranındaki eylem düğmeleri — tek ölçü, tek yerden.
 const memurBtn = (renk, zemin, kenar) => ({
   padding: '7px 13px',
@@ -1455,6 +1486,12 @@ function MemurModuleOutputs({ route, currentUser }) {
   const [items, setItems] = useState(null); // null = yükleniyor
   const [busy, setBusy] = useState(false);
   const [yenile, setYenile] = useState(0);
+  // Belge türü sekmesi (Erasmus: gidiş/dönüş · Muafiyet: 4 tür)
+  const turSekmeleri = MEMUR_TUR_SEKMELERI[route] || null;
+  const [turFiltre, setTurFiltre] = useState('');
+  useEffect(() => {
+    setTurFiltre('');
+  }, [route]);
 
   // Durum işaretle — gönderenin "Gönderdiklerim" ekranına yansır.
   const isaretle = async (it, durum) => {
@@ -1530,18 +1567,21 @@ function MemurModuleOutputs({ route, currentUser }) {
         .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
         .map((o) => {
           // Memura yönlendirilmiş gönderim varsa durumu buradan işaretlenir;
-          // işaret gönderenin "Gönderdiklerim" ekranına yansır.
+          // işaret gönderenin "Giden Belgeler" ekranına yansır.
           const gs = Array.isArray(o.gonderimler) ? o.gonderimler : [];
           const gIdx = gs.findIndex((g) => g && g.hedefRol === 'memur');
           return {
             id: 'mo_' + (o.id || o.sourceId),
             docId: o.id || o._docId || o.module + '__' + o.sourceId,
+            kaynakId: String(o.sourceId || ''),
+            tur: memurBelgeTuru(o, route),
             title: o.title || '(başlıksız)',
             sub: o.subtitle || '',
             silinebilir: true,
             gonderimIndex: gIdx,
             durum: gIdx >= 0 ? gs[gIdx].durum || 'bekliyor' : '',
             files: [{ label: 'Belge', view: toView(o.url), download: toDownload(o.url) }],
+            ekler: [],
           };
         });
       // 2) Muafiyet: eski dilekceUrl kayıtları (memur_outputs'a yazılmamış olabilir).
@@ -1549,6 +1589,24 @@ function MemurModuleOutputs({ route, currentUser }) {
         const recs = await window
           .apiRead('muafiyet_records', { orderBy: 'createdAt:desc' })
           .catch(() => []);
+        // memur_outputs kayıtlarını asıl muafiyet kaydıyla eşleştir: gerçek
+        // başvuru türünü ve EKLERİ (transkript vb.) buradan alırız.
+        const kayitById = {};
+        (recs || []).forEach((r) => {
+          kayitById[String(r.id)] = r;
+        });
+        list.forEach((it) => {
+          const r = kayitById[it.kaynakId];
+          if (!r) return;
+          if (r.basvuruTuru) it.tur = r.basvuruTuru;
+          if (r.transcriptUrl) {
+            it.ekler.push({
+              label: 'Transkript',
+              view: toView(r.transcriptUrl),
+              download: toDownload(r.transcriptUrl),
+            });
+          }
+        });
         const seen = new Set((outs || []).map((o) => String(o.sourceId)));
         (recs || [])
           .filter((r) => r.dilekceUrl && !seen.has(String(r.id)))
@@ -1558,22 +1616,32 @@ function MemurModuleOutputs({ route, currentUser }) {
           .forEach((r) => {
             list.push({
               id: r.id,
+              docId: String(r.id),
+              kaynakId: String(r.id),
+              tur: r.basvuruTuru || 'muafiyet',
+              gonderimIndex: -1,
+              durum: '',
+              silinebilir: false,
+              ekler: r.transcriptUrl
+                ? [
+                    {
+                      label: 'Transkript',
+                      view: toView(r.transcriptUrl),
+                      download: toDownload(r.transcriptUrl),
+                    },
+                  ]
+                : [],
               title:
                 (window.formatCaseTr ? window.formatCaseTr(r.studentName, 'name') : r.studentName) +
                 (r.studentNo ? '  ·  ' + r.studentNo : ''),
               sub: [r.otherUniversity || r.otherUni, r.localDept].filter(Boolean).join('  →  '),
               files: [
-                r.dilekceUrl && {
+                {
                   label: 'Dilekçe',
                   view: toView(r.dilekceUrl),
                   download: toDownload(r.dilekceUrl),
                 },
-                r.transcriptUrl && {
-                  label: 'Transkript',
-                  view: toView(r.transcriptUrl),
-                  download: toDownload(r.transcriptUrl),
-                },
-              ].filter(Boolean),
+              ],
             });
           });
       }
@@ -1584,6 +1652,8 @@ function MemurModuleOutputs({ route, currentUser }) {
     };
   }, [route, scopeDeptIds, currentUser, yenile]);
 
+  const gorunen = (items || []).filter((i) => !turFiltre || i.tur === turFiltre);
+
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       <div style={{ marginBottom: 16 }}>
@@ -1591,14 +1661,45 @@ function MemurModuleOutputs({ route, currentUser }) {
           {moduleLabel} — Çıktılar
         </div>
         <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 4 }}>
-          Akademisyenin ürettiği çıktıları görüntüleyip indirebilir, işleme alabilir ve gerekirse
-          silebilirsiniz. "İşleme Al" işareti belgeyi gönderen tarafta görünür.
+          Akademisyenin ürettiği çıktıları indirebilir, işleme alabilir ve gerekirse silebilirsiniz.
+          "İşleme Al" ve "Tamamlandı" işaretleri belgeyi gönderen tarafta görünür.
         </div>
       </div>
 
+      {/* Belge türü sekmeleri */}
+      {turSekmeleri && items !== null && items.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+          {[{ id: '', label: 'Tümü' }].concat(turSekmeleri).map((t) => {
+            const sayi = t.id ? items.filter((i) => i.tur === t.id).length : items.length;
+            const on = turFiltre === t.id;
+            return (
+              <button
+                key={t.id || 'hepsi'}
+                type="button"
+                onClick={() => setTurFiltre(t.id)}
+                style={{
+                  padding: '6px 13px',
+                  borderRadius: 20,
+                  border: '1px solid ' + (on ? '#0F766E' : '#E5E7EB'),
+                  background: on ? '#CCFBF1' : 'white',
+                  color: on ? '#0F766E' : '#6B7280',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {t.label}
+                <span style={{ marginLeft: 6, opacity: 0.7, fontWeight: 600 }}>{sayi}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {items === null ? (
         <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>Yükleniyor…</div>
-      ) : items.length === 0 ? (
+      ) : gorunen.length === 0 ? (
         <div
           style={{
             background: 'white',
@@ -1616,7 +1717,7 @@ function MemurModuleOutputs({ route, currentUser }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {items.map((it) => (
+          {gorunen.map((it) => (
             <div
               key={it.id}
               style={{
@@ -1639,14 +1740,21 @@ function MemurModuleOutputs({ route, currentUser }) {
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 {it.files.map((f, i) => (
-                  <React.Fragment key={i}>
-                    <a href={f.view} target="_blank" rel="noopener noreferrer" style={memurBtn()}>
-                      {f.label}: Görüntüle
-                    </a>
-                    <a href={f.download} style={memurBtn('#1B2A4A', '#EEF2F7', '#1B2A4A33')}>
-                      İndir
-                    </a>
-                  </React.Fragment>
+                  <a key={i} href={f.download} style={memurBtn()}>
+                    İndir
+                  </a>
+                ))}
+
+                {/* Belgenin EKLERİ — aynı satırda, belgeyle birlikte */}
+                {(it.ekler || []).map((e, i) => (
+                  <a
+                    key={'ek' + i}
+                    href={e.download}
+                    style={memurBtn('#B45309', '#FEF3C7', '#B4530933')}
+                    title="Belgenin eki"
+                  >
+                    Ek: {e.label}
+                  </a>
                 ))}
 
                 {/* Durum işaretleme — gönderene yansır */}
