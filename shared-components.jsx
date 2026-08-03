@@ -754,20 +754,37 @@ function indirBlob(blob, filename) {
 
 // { blob, filename, baslik, onClose, onSend } — onSend verilirse "Gönder"
 // düğmesi çıkar (belgeyi bir göreve yönlendirir).
-function BelgeOnizlemeModal({ blob, filename, baslik, onClose, onSend }) {
+// { blob | url, filename, baslik, onClose, onSend }
+// `blob` yoksa `url` indirilir — böylece daha önce üretilip saklanmış
+// belgeler de (dilekçe snapshot'ları) aynı akışla önizlenebilir.
+function BelgeOnizlemeModal({ blob, url, filename, baslik, onClose, onSend }) {
   const ref = React.useRef(null);
   const [hata, setHata] = React.useState('');
   const [gonderiliyor, setGonderiliyor] = React.useState(false);
   const [gonderildi, setGonderildi] = React.useState(false);
+  const [veri, setVeri] = React.useState(blob || null);
 
   React.useEffect(() => {
     let iptal = false;
     (async () => {
       try {
+        let b = blob;
+        if (!b && url) {
+          const token = localStorage.getItem('caku_auth_token');
+          const r = await fetch(url, {
+            headers: token ? { Authorization: 'Bearer ' + token } : {},
+            credentials: 'include',
+          });
+          if (!r.ok) throw new Error('Belge alınamadı (HTTP ' + r.status + ').');
+          b = await r.blob();
+        }
+        if (iptal) return;
+        if (!b) throw new Error('Önizlenecek belge yok.');
+        setVeri(b);
         const docx = await ensureDocxPreview();
         if (iptal || !ref.current) return;
         ref.current.innerHTML = '';
-        await docx.renderAsync(blob, ref.current, null, { inWrapper: true });
+        await docx.renderAsync(b, ref.current, null, { inWrapper: true });
         if (!iptal) fitDocxPreview(ref.current);
       } catch (e) {
         if (!iptal) setHata(e.message || 'Önizleme oluşturulamadı.');
@@ -776,7 +793,7 @@ function BelgeOnizlemeModal({ blob, filename, baslik, onClose, onSend }) {
     return () => {
       iptal = true;
     };
-  }, [blob]);
+  }, [blob, url]);
 
   const btn = {
     padding: '9px 18px',
@@ -876,7 +893,13 @@ function BelgeOnizlemeModal({ blob, filename, baslik, onClose, onSend }) {
               Gönderildi.
             </span>
           )}
-          <button onClick={() => indirBlob(blob, filename)} style={btn}>
+          <button
+            onClick={() => {
+              if (veri) indirBlob(veri, filename);
+              else if (url) window.open(url, '_blank', 'noopener');
+            }}
+            style={btn}
+          >
             İndir
           </button>
           {onSend && (
@@ -910,6 +933,57 @@ function BelgeOnizlemeModal({ blob, filename, baslik, onClose, onSend }) {
   );
 }
 window.BelgeOnizlemeModal = BelgeOnizlemeModal;
+
+// Hazır düğme: saklanmış bir belgeyi (url) önizler; modal içinden indirilir
+// veya bir göreve gönderilir. Modüllerde "İndir + Gönder" ikilisinin yerine
+// tek giriş noktası olarak kullanılır.
+//   <BelgeOnizleButonu url="..." filename="..." baslik="..." belge={...} />
+// `belge` verilirse modalde "Gönder" düğmesi çıkar (belgeYonlendir'e gider).
+function BelgeOnizleButonu({ url, filename, baslik, belge, label, style, hedefRol }) {
+  const [acik, setAcik] = React.useState(false);
+  if (!url) return null;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setAcik(true)}
+        style={
+          style || {
+            padding: '7px 14px',
+            borderRadius: 8,
+            border: '1px solid #1B2A4A',
+            background: '#fff',
+            color: '#1B2A4A',
+            fontSize: 12.5,
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }
+        }
+      >
+        {label || 'Önizle'}
+      </button>
+      {acik &&
+        React.createElement(BelgeOnizlemeModal, {
+          url,
+          filename,
+          baslik,
+          onClose: () => setAcik(false),
+          onSend: belge
+            ? async () => {
+                const sonuc = await window.belgeYonlendir({
+                  ...belge,
+                  hedefRol: hedefRol || belge.hedefRol || 'memur',
+                });
+                if (!sonuc || !sonuc.ok)
+                  throw new Error((sonuc && sonuc.reason) || 'gönderilemedi');
+              }
+            : null,
+        })}
+    </>
+  );
+}
+window.BelgeOnizleButonu = BelgeOnizleButonu;
 
 // ── Shared Constants ──
 const SEED_PROFESSORS = [

@@ -1418,6 +1418,48 @@ function flatSeedGostergeler() {
   return out;
 }
 
+// ── Üretilen performans belgesi: snapshot sakla, sonra ÖNİZLEME aç ──
+// Belge doğrudan indirilmez; kullanıcı içeriği gördükten sonra modalden
+// "İndir" veya "Gönder" der.
+async function perfSnapshotVeOnizle(res, meta, onPreview) {
+  let url = '';
+  try {
+    if (res.blob && window.uploadGeneratedDoc && window.recordMemurOutput) {
+      url = (await window.uploadGeneratedDoc(res.blob, res.filename, 'performans_ciktilari')) || '';
+      if (url) {
+        await window.recordMemurOutput({
+          module: 'performans',
+          sourceId: meta.sourceId,
+          title: meta.title,
+          subtitle: meta.subtitle || 'Performans çıktısı',
+          url,
+          departmentId: meta.departmentId || '',
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('Performans snapshot kaydedilemedi:', e && e.message);
+  }
+  if (onPreview && res.blob) {
+    onPreview({
+      blob: res.blob,
+      filename: res.filename || 'performans.docx',
+      baslik: meta.title,
+      belge: url
+        ? {
+            module: 'performans',
+            docType: meta.docType || 'performans',
+            sourceId: meta.sourceId,
+            title: meta.title,
+            subtitle: meta.subtitle || 'Performans çıktısı',
+            url,
+            departmentId: meta.departmentId || '',
+          }
+        : null,
+    });
+  }
+}
+
 function StratejikPlanIzleme({
   deptId,
   deptName,
@@ -1438,6 +1480,8 @@ function StratejikPlanIzleme({
   const [perfQuestions, setPerfQuestions] = useState([]); // [{id, ad}] seed + custom
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  // Üretilen belgenin önizlemesi: { blob, filename, baslik, belge }
+  const [onizleme, setOnizleme] = useState(null);
   const [toast, setToast] = useState('');
   const akadList = Array.isArray(akademisyenler) ? akademisyenler : [];
   // Sadece akademisyen (yetkili değil) → yalnız kendine atanmış bloklar
@@ -1751,27 +1795,16 @@ function StratejikPlanIzleme({
           '.docx',
       });
       if (res.ok) {
-        // Memur çıktı görünümü için snapshot sakla.
-        try {
-          if (res.blob && window.uploadGeneratedDoc && window.recordMemurOutput) {
-            const url = await window.uploadGeneratedDoc(
-              res.blob,
-              res.filename,
-              'performans_ciktilari'
-            );
-            if (url)
-              await window.recordMemurOutput({
-                module: 'performans',
-                sourceId: 'strateji-izleme:' + (deptId || 'bolum') + ':' + yil,
-                title: 'Stratejik Plan İzleme — ' + (deptName || 'Bölüm') + ' (' + yil + ')',
-                subtitle: 'Performans çıktısı',
-                url,
-                departmentId: deptId || '',
-              });
-          }
-        } catch (e) {
-          console.warn('Performans snapshot kaydedilemedi:', e && e.message);
-        }
+        await perfSnapshotVeOnizle(
+          res,
+          {
+            sourceId: 'strateji-izleme:' + (deptId || 'bolum') + ':' + yil,
+            title: 'Stratejik Plan İzleme — ' + (deptName || 'Bölüm') + ' (' + yil + ')',
+            docType: 'strateji-izleme',
+            departmentId: deptId || '',
+          },
+          setOnizleme
+        );
       } else {
         if (res.reason === 'no-template')
           showToast('Şablon bulunamadı. Şablonlar modülüne yükleyin.');
@@ -2076,6 +2109,22 @@ function StratejikPlanIzleme({
           {toast}
         </div>
       )}
+
+      {/* Belge önizleme — üretilen belge önce görüntülenir, sonra indirilir
+          veya bir göreve gönderilir. */}
+      {onizleme &&
+        window.BelgeOnizlemeModal &&
+        React.createElement(window.BelgeOnizlemeModal, {
+          blob: onizleme.blob,
+          filename: onizleme.filename,
+          baslik: onizleme.baslik,
+          onClose: () => setOnizleme(null),
+          onSend: onizleme.belge
+            ? async () => {
+                if (window.belgeOtoYonlendir) await window.belgeOtoYonlendir(onizleme.belge);
+              }
+            : null,
+        })}
     </div>
   );
 }
@@ -2096,6 +2145,8 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
   const [baseAck, setBaseAck] = useState({});
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  // Üretilen belgenin önizlemesi: { blob, filename, baslik, belge }
+  const [onizleme, setOnizleme] = useState(null);
   const [toast, setToast] = useState('');
   const showToast = (m) => {
     setToast(m);
@@ -2331,26 +2382,16 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
           '.docx',
       });
       if (res.ok) {
-        try {
-          if (res.blob && window.uploadGeneratedDoc && window.recordMemurOutput) {
-            const url = await window.uploadGeneratedDoc(
-              res.blob,
-              res.filename,
-              'performans_ciktilari'
-            );
-            if (url)
-              await window.recordMemurOutput({
-                module: 'performans',
-                sourceId: 'strateji-izleme-fakulte:' + yil,
-                title:
-                  'Stratejik Plan İzleme (Fakülte) — ' + (facultyName || '') + ' (' + yil + ')',
-                subtitle: 'Fakülte geneli performans çıktısı',
-                url,
-              });
-          }
-        } catch (e) {
-          console.warn('Performans snapshot kaydedilemedi:', e && e.message);
-        }
+        await perfSnapshotVeOnizle(
+          res,
+          {
+            sourceId: 'strateji-izleme-fakulte:' + yil,
+            title: 'Stratejik Plan İzleme (Fakülte) — ' + (facultyName || '') + ' (' + yil + ')',
+            subtitle: 'Fakülte geneli performans çıktısı',
+            docType: 'strateji-izleme',
+          },
+          setOnizleme
+        );
       } else {
         showToast('Belge üretilemedi (' + res.reason + ').');
       }
@@ -2553,6 +2594,22 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
           {toast}
         </div>
       )}
+
+      {/* Belge önizleme — üretilen belge önce görüntülenir, sonra indirilir
+          veya bir göreve gönderilir. */}
+      {onizleme &&
+        window.BelgeOnizlemeModal &&
+        React.createElement(window.BelgeOnizlemeModal, {
+          blob: onizleme.blob,
+          filename: onizleme.filename,
+          baslik: onizleme.baslik,
+          onClose: () => setOnizleme(null),
+          onSend: onizleme.belge
+            ? async () => {
+                if (window.belgeOtoYonlendir) await window.belgeOtoYonlendir(onizleme.belge);
+              }
+            : null,
+        })}
     </div>
   );
 }
