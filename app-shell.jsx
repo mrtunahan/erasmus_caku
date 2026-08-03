@@ -1493,39 +1493,28 @@ function MemurModuleOutputs({ route, currentUser }) {
     setTurFiltre('');
   }, [route]);
 
-  // Silme iki kaynağı da kapsar:
-  //  • memur_outputs kaydı  → kayıt tamamen silinir
-  //  • doğrudan muafiyet kaydından gelen belge (eski/yönlendirilmemiş) →
-  //    BAŞVURU SİLİNMEZ, yalnız belge bağlantısı kaldırılır; aksi hâlde
-  //    öğrencinin tüm muafiyet başvurusu yok olurdu.
+  // "Sil" = belgeyi YALNIZ kendi listemden kaldır. Kayıt, gönderim geçmişi ve
+  // dosya yerinde kalır; belgeyi gönderen akademisyenin takibi ve diğer
+  // alıcıların kutusu etkilenmez. Muafiyet kaydından gelen belgelerde de
+  // aynı mantık geçerli — başvuru kaydına dokunulmaz.
   const sil = async (it) => {
-    const kayittanMi = it.kaynak === 'muafiyet_record';
     if (
       !confirm(
-        (kayittanMi
-          ? 'Bu belge listeden kaldırılacak (başvuru kaydı silinmez):\n\n'
-          : 'Bu belge sistemden tamamen silinecek:\n\n') +
+        'Bu belge yalnızca SİZİN listenizden kaldırılacak:\n\n' +
           (it.title || '(başlıksız belge)') +
-          '\n\nDevam edilsin mi?'
+          '\n\nBelge sistemden silinmez; gönderen akademisyen ve diğer alıcılar ' +
+          'görmeye devam eder.\n\nDevam edilsin mi?'
       )
     )
       return;
     setBusy(true);
     try {
-      if (kayittanMi) {
-        await window.DBWrite.update('muafiyet_records', String(it.docId), {
-          dilekceUrl: '',
-          dilekceSilindi: true,
-          dilekceSilinmeTarihi: new Date().toISOString(),
-        });
-        if (window.apiInvalidate) window.apiInvalidate('muafiyet_records');
-      } else {
-        const r = await window.belgeSil(it.docId);
-        if (!r || !r.ok) throw new Error((r && r.reason) || 'silinemedi');
-      }
+      const koleksiyon = it.kaynak === 'muafiyet_record' ? 'muafiyet_records' : 'memur_outputs';
+      const r = await window.belgeListedenKaldir(koleksiyon, it.docId);
+      if (!r || !r.ok) throw new Error((r && r.reason) || 'kaldırılamadı');
       setYenile((n) => n + 1);
     } catch (e) {
-      alert('Silinemedi: ' + e.message);
+      alert('Kaldırılamadı: ' + e.message);
     } finally {
       setBusy(false);
     }
@@ -1553,6 +1542,8 @@ function MemurModuleOutputs({ route, currentUser }) {
       // Ortak kapsam eşleşmesi: kaydın fakültesi memurun fakültesiyle aynıysa,
       // ya da bölümü memurun kapsamındaysa, ya da kapsamsız (genel) ise göster.
       const inScope = (rec) => {
+        // Memur belgeyi kendi listesinden kaldırdıysa artık görünmez.
+        if (window.belgeGizliMi && window.belgeGizliMi(rec, currentUser)) return false;
         if (rec.facultyId && memurFacultyId && rec.facultyId === memurFacultyId) return true;
         if (rec.departmentId && scopeDeptIds.has(rec.departmentId)) return true;
         if (!rec.facultyId && !rec.departmentId) return true;
@@ -1598,6 +1589,7 @@ function MemurModuleOutputs({ route, currentUser }) {
         const seen = new Set((outs || []).map((o) => String(o.sourceId)));
         (recs || [])
           .filter((r) => r.dilekceUrl && !seen.has(String(r.id)))
+          .filter((r) => !(window.belgeGizliMi && window.belgeGizliMi(r, currentUser)))
           .filter(
             (r) => !r.departmentId || scopeDeptIds.size === 0 || scopeDeptIds.has(r.departmentId)
           )
@@ -1738,6 +1730,7 @@ function MemurModuleOutputs({ route, currentUser }) {
                   disabled={busy}
                   onClick={() => sil(it)}
                   style={memurBtn('#DC2626', '#FEE2E2', '#DC262633')}
+                  title="Belgeyi yalnızca kendi listenizden kaldırır"
                 >
                   Sil
                 </button>
