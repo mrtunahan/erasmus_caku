@@ -4793,6 +4793,35 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   const stage = record.stage || 'on_inceleme';
   const curIdx = INTIBAK_STAGES.findIndex((s) => s.id === stage);
 
+  // ── 2. adım: başarı notları ──
+  // Belgedeki {{karşı_başarı_notu}} ve {{çakü_başarı_notu}} yer tutucuları
+  // ancak bu notlarla dolar; bu yüzden öğrenci not girmeden onaya gönderemez.
+  // Notlar `matches` içine YAZILMAZ (o alan öğrenciye kapalı — kendini
+  // onaylama engeli); ayrı `ogrenciNotlari` alanında tutulur.
+  const notluDersler = (record.matches || []).filter(
+    (m) => !m.adminDecision || m.adminDecision === 'confirmed'
+  );
+  const [notlar, setNotlar] = useState(() => {
+    const mevcut = record.ogrenciNotlari || {};
+    const ilk = {};
+    notluDersler.forEach((m, i) => {
+      const anahtar = String(m.id != null ? m.id : i);
+      ilk[anahtar] = {
+        kaynakNot: (mevcut[anahtar] && mevcut[anahtar].kaynakNot) || '',
+        cakuNot: (mevcut[anahtar] && mevcut[anahtar].cakuNot) || '',
+      };
+    });
+    return ilk;
+  });
+  const notAnahtari = (m, i) => String(m.id != null ? m.id : i);
+  const setNot = (anahtar, alan, deger) =>
+    setNotlar((p) => ({ ...p, [anahtar]: { ...(p[anahtar] || {}), [alan]: deger } }));
+  const eksikNotVar = notluDersler.some((m, i) => {
+    const n = notlar[notAnahtari(m, i)] || {};
+    return !String(n.kaynakNot || '').trim() || !String(n.cakuNot || '').trim();
+  });
+  const transkriptVar = !!record.transcriptUrl;
+
   const act = async (newStage, extra) => {
     setBusy(true);
     try {
@@ -4803,8 +4832,21 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   };
 
   const submitBelge = async () => {
+    // Transkript olmadan not dönüşümü için onaya gönderilemez.
+    if (!transkriptVar) {
+      alert(
+        'Transkriptinizi yüklemeden not dönüşümü için gönderemezsiniz.\n' +
+          'Yukarıdaki "Transkript" alanından e-Devlet karekodlu PDF transkriptinizi yükleyin.'
+      );
+      return;
+    }
     if (!/^https?:\/\/\S+$/i.test((link || '').trim())) {
       alert('Yaz okulu üniversitesinin not/döküm sistemi linki gerekli (http/https).');
+      return;
+    }
+    // Başarı notları belgedeki yer tutucuları doldurur — eksik bırakılamaz.
+    if (eksikNotVar) {
+      alert('Her ders için hem karşı kurum hem ÇAKÜ başarı notunu girmelisiniz.');
       return;
     }
     setBusy(true);
@@ -4816,9 +4858,19 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
         setBusy(false);
         return;
       }
+      const temizNotlar = {};
+      notluDersler.forEach((m, i) => {
+        const a = notAnahtari(m, i);
+        const n = notlar[a] || {};
+        temizNotlar[a] = {
+          kaynakNot: String(n.kaynakNot || '').trim(),
+          cakuNot: String(n.cakuNot || '').trim(),
+        };
+      });
       await onStageChange(record.id, 'belge_teslim', {
         notDonusumLink: link.trim(),
         basariBelgesiUrl: url,
+        ogrenciNotlari: temizNotlar,
       });
     } finally {
       setBusy(false);
@@ -4930,9 +4982,117 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       {stage === 'on_onay' && isStudent && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
-            Ön onay verildi. Yaz okulunu başarıyla tamamladıktan sonra başarı belgenizi ve karşı
-            üniversitenin not/döküm sistemi bağlantısını gönderin.
+            Ön onay verildi. Yaz okulunu tamamladıktan sonra <b>her ders için başarı notlarınızı</b>{' '}
+            girin, transkriptinizi yükleyin, başarı belgenizi ve karşı üniversitenin not/döküm
+            sistemi bağlantısını gönderin.
           </div>
+
+          {/* Transkript uyarısı — yükleme kartı bu panelin üstünde yer alır */}
+          {!transkriptVar && (
+            <div
+              style={{
+                padding: '9px 12px',
+                borderRadius: 8,
+                background: DS.amberBg || '#FEF3C7',
+                border: '1px solid ' + (DS.amber || '#B45309') + '44',
+                fontSize: 12.5,
+                color: '#7c4a03',
+                lineHeight: 1.55,
+              }}
+            >
+              Transkriptiniz henüz yüklenmedi. Yukarıdaki <b>Transkript</b> alanından e-Devlet
+              karekodlu PDF transkriptinizi yükleyin — transkript olmadan gönderemezsiniz.
+            </div>
+          )}
+
+          {/* Başarı notları — belgedeki {{karşı_başarı_notu}} / {{çakü_başarı_notu}}
+              yer tutucuları bu değerlerle dolar. */}
+          {notluDersler.length > 0 && (
+            <div
+              style={{
+                border: '1px solid ' + DS.border,
+                borderRadius: 10,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  padding: '8px 12px',
+                  background: DS.bg || '#F8F9FB',
+                  borderBottom: '1px solid ' + DS.border,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: DS.navy,
+                }}
+              >
+                Başarı Notları ({notluDersler.length} ders)
+              </div>
+              {notluDersler.map((m, i) => {
+                const src = m.sourceCourse || m.source || {};
+                const cak = m.localCourse || m.target || {};
+                const a = notAnahtari(m, i);
+                const n = notlar[a] || {};
+                const inp = {
+                  width: 84,
+                  padding: '6px 9px',
+                  borderRadius: 7,
+                  border:
+                    '1px solid ' +
+                    (String(n.kaynakNot || '').trim() ? DS.border : DS.amber || '#B45309'),
+                  fontSize: 13,
+                  outline: 'none',
+                  textAlign: 'center',
+                };
+                return (
+                  <div
+                    key={a}
+                    style={{
+                      display: 'flex',
+                      gap: 12,
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      padding: '10px 12px',
+                      borderTop: i === 0 ? 'none' : '1px solid ' + DS.border,
+                    }}
+                  >
+                    <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: DS.navy }}>
+                        {[src.code, src.name].filter(Boolean).join(' — ') || 'Karşı ders'}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 2 }}>
+                        ÇAKÜ: {[cak.code, cak.name].filter(Boolean).join(' — ') || '—'}
+                      </div>
+                    </div>
+                    <label style={{ fontSize: 11.5, color: DS.textSecondary }}>
+                      Karşı notu
+                      <br />
+                      <input
+                        value={n.kaynakNot || ''}
+                        onChange={(e) => setNot(a, 'kaynakNot', e.target.value)}
+                        placeholder="ör. 8"
+                        style={inp}
+                      />
+                    </label>
+                    <label style={{ fontSize: 11.5, color: DS.textSecondary }}>
+                      ÇAKÜ notu
+                      <br />
+                      <input
+                        value={n.cakuNot || ''}
+                        onChange={(e) => setNot(a, 'cakuNot', e.target.value)}
+                        placeholder="ör. AA"
+                        style={{
+                          ...inp,
+                          borderColor: String(n.cakuNot || '').trim()
+                            ? DS.border
+                            : DS.amber || '#B45309',
+                        }}
+                      />
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <input
             value={link}
             onChange={(e) => setLink(e.target.value)}
@@ -4963,11 +5123,24 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
           </label>
           <div>
             <button
-              disabled={busy}
+              disabled={busy || !transkriptVar || eksikNotVar}
               onClick={submitBelge}
-              style={{ ...eStageBtn, background: DS.accent, color: '#fff', border: 'none' }}
+              title={
+                !transkriptVar
+                  ? 'Önce transkriptinizi yükleyin'
+                  : eksikNotVar
+                    ? 'Tüm başarı notlarını girin'
+                    : ''
+              }
+              style={{
+                ...eStageBtn,
+                background: !transkriptVar || eksikNotVar ? '#9CA3AF' : DS.accent,
+                color: '#fff',
+                border: 'none',
+                cursor: !transkriptVar || eksikNotVar ? 'not-allowed' : 'pointer',
+              }}
             >
-              Belgeleri Gönder
+              Not Dönüşümü İçin Gönder
             </button>
           </div>
         </div>
@@ -5666,17 +5839,18 @@ const ExemptionHistory = ({
                       {isExpanded ? 'Kapat' : isStudent ? 'Talebimi Gör' : 'İncele'}
                     </button>
                   )}
-                  {onGenerateDoc && (
-                    <Button
-                      small
-                      variant="ghost"
-                      onClick={function () {
-                        onGenerateDoc(rec);
-                      }}
-                    >
-                      Belge Oluştur
-                    </Button>
-                  )}
+                  {onGenerateDoc &&
+                    !(rec.basvuruTuru === 'intibak' && rec.stage !== 'tamamlandi') && (
+                      <Button
+                        small
+                        variant="ghost"
+                        onClick={function () {
+                          onGenerateDoc(rec);
+                        }}
+                      >
+                        Belge Oluştur
+                      </Button>
+                    )}
                   {onDelete && (
                     <Button
                       small
@@ -5703,8 +5877,8 @@ const ExemptionHistory = ({
                 </div>
               )}
 
-              {/* Onaylı dilekçe (snapshot) — öğrenci salt-okunur indirir;
-                  akademisyenin ürettiği kopyayla birebir aynıdır. */}
+              {/* Onaylı dilekçe (snapshot) — öğrencinin indirdiği kopya,
+                  akademisyenin ürettiğiyle birebir aynı dosyadır. */}
               {rec.dilekceUrl && (
                 <div
                   style={{
@@ -5726,7 +5900,6 @@ const ExemptionHistory = ({
                   >
                     {isStudent ? 'Dilekçemi İndir' : 'Onaylı Dilekçeyi İndir'}
                   </a>
-                  <span style={{ color: DS.textMuted, fontSize: 11.5 }}>· salt-okunur kopya</span>
                   {/* Belge Akışı: dilekçeyi bir göreve yönlendir (memur/bölüm/öğrenci) */}
                   {!isStudent &&
                     window.BelgeGonderButonu &&
@@ -6541,6 +6714,16 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
     try {
       // Belge türü: kaydın başvuru türü (muafiyet | intibak); şablon buna göre çözülür
       const docType = rec.basvuruTuru || 'muafiyet';
+      // Yaz intibakı çok aşamalıdır ve başarı notları ancak 2. adımda girilir.
+      // Belge süreç bitmeden üretilirse {{karşı_başarı_notu}} /
+      // {{çakü_başarı_notu}} boş çıkar — bu yüzden yalnız 'tamamlandi'da üretilir.
+      if (docType === 'intibak' && rec.stage !== 'tamamlandi') {
+        alert(
+          'Yaz intibakı belgesi, tüm aşamalar tamamlandıktan sonra üretilir.\n' +
+            'Başarı notları girilmeden belge boş alanlarla oluşurdu.'
+        );
+        return;
+      }
       const turAd = (BASVURU_TURLERI.find((t) => t.id === docType) || {}).label || 'Muafiyet';
 
       // Belgeye yalnızca ONAYLANAN dersler girer; hiç onay yoksa tüm talepler
@@ -6554,20 +6737,27 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         const n = parseInt(String(v == null ? '' : v).replace(/[^\d]/g, ''), 10);
         return isNaN(n) ? 0 : n;
       };
-      const rows = rowsSrc.map(function (m) {
+      // Yaz intibakında başarı notlarını ÖĞRENCİ girer (2. adım) ve
+      // `ogrenciNotlari` alanında tutulur. Belgedeki {{karşı_başarı_notu}} /
+      // {{çakü_başarı_notu}} yer tutucuları öncelikle bu değerlerle dolar;
+      // akademisyen ayrıca not dönüşümü girdiyse (convertedGrade) o kazanır.
+      const ogrNot = rec.ogrenciNotlari || {};
+      const rows = rowsSrc.map(function (m, i) {
         const src = m.sourceCourse || m.source || {};
         const cak = m.localCourse || m.target || {};
         const kAkts = aktsNum(src.akts);
         const cAkts = aktsNum(cak.akts);
+        const notAnahtar = String(m.id != null ? m.id : i);
+        const ogr = ogrNot[notAnahtar] || {};
         return {
           kDersKod: src.code || '',
           kDersAd: src.name || '',
           kDersAkts: kAkts ? String(kAkts) : '',
-          kDersNot: src.grade || '',
+          kDersNot: src.grade || ogr.kaynakNot || '',
           cDersKod: cak.code || '',
           cDersAd: cak.name || '',
           cDersAkts: cAkts ? String(cAkts) : '',
-          cDersNot: m.convertedGrade || cak.grade || '',
+          cDersNot: m.convertedGrade || cak.grade || ogr.cakuNot || '',
           cDersStatu: cak.statu || '',
           _kAkts: kAkts,
           _cAkts: cAkts,
@@ -6619,8 +6809,8 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         filename: turAd.replace(/\s+/g, '_') + '_' + (rec.studentNo || 'kayit') + '.docx',
       });
       if (res.ok) {
-        // Dilekçeyi değişmez kopya (snapshot) olarak sakla → öğrenci bunu
-        // salt-okunur indirir; kendi tarafında yeniden üretmez/değiştiremez.
+        // Dilekçeyi snapshot olarak sakla → öğrenci ve akademisyen AYNI
+        // dosyayı indirir. Dosyanın kendisi düzenlenebilir bir .docx'tir.
         // Akademisyen belgeyi zaten indirdi; snapshot başarısız olsa da akış
         // bloklanmaz.
         try {
