@@ -448,25 +448,28 @@ function GelenBelgelerApp({ currentUser }) {
     }
   };
 
-  // Belgeyi tamamen sil (snapshot kaydı + gönderim geçmişi).
+  // Belgeyi YALNIZ kendi listemden kaldır — kayıt ve gönderim geçmişi durur,
+  // gönderenin takibi ve diğer alıcıların kutusu bozulmaz. (Memur ekranıyla
+  // aynı davranış; bir kişinin listesini toplaması kaydı yok etmemeli.)
   const silBelge = async (docId, baslik) => {
     if (
       !confirm(
-        'Bu belge sistemden tamamen silinecek:\n\n' +
+        'Bu belge yalnızca SİZİN listenizden kaldırılacak:\n\n' +
           (baslik || '(başlıksız belge)') +
-          '\n\nGönderim geçmişi de silinir. Devam edilsin mi?'
+          '\n\nBelge sistemden silinmez; gönderen ve diğer alıcılar görmeye devam eder.' +
+          '\n\nDevam edilsin mi?'
       )
     )
       return;
     setBusy(true);
     try {
-      const r = await window.belgeSil(docId);
-      if (!r || !r.ok) throw new Error((r && r.reason) || 'silinemedi');
+      const r = await window.belgeListedenKaldir('memur_outputs', docId);
+      if (!r || !r.ok) throw new Error((r && r.reason) || 'kaldırılamadı');
       await load();
-      setMsg('Belge silindi.');
+      setMsg('Belge listenizden kaldırıldı.');
       setTimeout(() => setMsg(''), 2500);
     } catch (e) {
-      alert('Silinemedi: ' + e.message);
+      alert('Kaldırılamadı: ' + e.message);
     } finally {
       setBusy(false);
     }

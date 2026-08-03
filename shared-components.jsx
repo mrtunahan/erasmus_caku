@@ -3645,17 +3645,34 @@ window.belgeOtoYonlendir = async function (o) {
   return window.belgeYonlendir({ ...o, hedefRol: rol, not: o.not || 'Otomatik yönlendirme' });
 };
 
-// Belgeyi (snapshot kaydını) sil. Memur/akademisyen kendi kutusundaki
-// gereksiz veya hatalı belgeyi kaldırabilir. Kayıt tamamen silinir —
-// gönderim geçmişi de onunla birlikte gider.
-window.belgeSil = async function (docId) {
+// ── Belgeyi KENDİ listemden kaldır ──
+// Kayıt SİLİNMEZ; yalnız kaldıran kişinin kimliği `gizleyenler` listesine
+// eklenir. Böylece memur kendi listesini toplarken belgeyi gönderen
+// akademisyenin takibi ve diğer alıcıların kutusu bozulmaz. Dosya da yerinde
+// kalır; belge gerekirse yeniden erişilebilir.
+window.belgeListedenKaldir = async function (koleksiyon, docId) {
+  const cu = window.__currentUser || {};
+  const kim = String(cu.identifier || cu.name || '');
+  if (!kim) return { ok: false, reason: 'kimlik çözülemedi' };
   try {
-    await window.DBWrite.remove('memur_outputs', String(docId));
-    if (window.apiInvalidate) window.apiInvalidate('memur_outputs');
+    const r = await window.apiReadDoc(koleksiyon, String(docId));
+    const doc = (r && r.data) || {};
+    const liste = Array.isArray(doc.gizleyenler) ? doc.gizleyenler.slice() : [];
+    if (liste.indexOf(kim) < 0) liste.push(kim);
+    await window.DBWrite.set(koleksiyon, String(docId), { gizleyenler: liste }, true);
+    if (window.apiInvalidate) window.apiInvalidate(koleksiyon);
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: e && e.message };
   }
+};
+
+// Bu kullanıcı belgeyi kendi listesinden kaldırmış mı?
+window.belgeGizliMi = function (doc, user) {
+  const u = user || window.__currentUser || {};
+  const kim = String(u.identifier || u.name || '');
+  if (!kim || !doc) return false;
+  return (doc.gizleyenler || []).indexOf(kim) >= 0;
 };
 
 // Alıcı durum günceller: 'goruldu' | 'islemde' | 'tamamlandi'
@@ -3694,6 +3711,8 @@ window.belgeGelenKutusu = function (list, user) {
   const memurModules = Array.isArray(u.memurModules) ? u.memurModules : [];
   const out = [];
   (list || []).forEach((doc) => {
+    // Kullanıcı bu belgeyi kendi listesinden kaldırdıysa gösterilmez.
+    if (window.belgeGizliMi && window.belgeGizliMi(doc, u)) return;
     (doc.gonderimler || []).forEach((g, idx) => {
       let uygun = false;
       if (g.hedefRol === 'ogrenci') {
