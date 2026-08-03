@@ -4831,6 +4831,21 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
     }
   };
 
+  // Panel state'indeki notları kayıt biçimine çevirir (öğrenci ve akademisyen
+  // aynı yapıyı yazar — belge son hâli okur).
+  const derlenmisNotlar = () => {
+    const cikti = {};
+    notluDersler.forEach((m, i) => {
+      const a = notAnahtari(m, i);
+      const n = notlar[a] || {};
+      cikti[a] = {
+        kaynakNot: String(n.kaynakNot || '').trim(),
+        cakuNot: String(n.cakuNot || '').trim(),
+      };
+    });
+    return cikti;
+  };
+
   const submitBelge = async () => {
     // Transkript olmadan not dönüşümü için onaya gönderilemez.
     if (!transkriptVar) {
@@ -4858,19 +4873,10 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
         setBusy(false);
         return;
       }
-      const temizNotlar = {};
-      notluDersler.forEach((m, i) => {
-        const a = notAnahtari(m, i);
-        const n = notlar[a] || {};
-        temizNotlar[a] = {
-          kaynakNot: String(n.kaynakNot || '').trim(),
-          cakuNot: String(n.cakuNot || '').trim(),
-        };
-      });
       await onStageChange(record.id, 'belge_teslim', {
         notDonusumLink: link.trim(),
         basariBelgesiUrl: url,
-        ogrenciNotlari: temizNotlar,
+        ogrenciNotlari: derlenmisNotlar(),
       });
     } finally {
       setBusy(false);
@@ -5184,24 +5190,121 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
           </div>
           {isStudent ? (
             <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
-              Belgeleriniz alındı. Bölüm kurulu notlarınızı ÇAKÜ sistemine dönüştürecek.
+              Belgeleriniz ve girdiğiniz notlar alındı. Bölüm kurulu notlarınızı inceleyip ÇAKÜ
+              sistemine dönüştürecek.
             </div>
           ) : (
-            <div>
-              <button
-                disabled={busy}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      'Notlar ÇAKÜ sistemine dönüştürülüp kaydedildi mi? İşlem tamamlanacak.'
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Öğrencinin girdiği notlar — akademisyen gözden geçirir ve
+                  gerekirse DEĞİŞTİRİR. Belgeye son hâli yazılır. */}
+              {notluDersler.length > 0 && (
+                <div style={{ border: '1px solid ' + DS.border, borderRadius: 10 }}>
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      background: DS.bg || '#F8F9FB',
+                      borderBottom: '1px solid ' + DS.border,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: DS.navy,
+                    }}
+                  >
+                    Öğrencinin girdiği başarı notları — gerekirse düzeltin
+                  </div>
+                  {notluDersler.map((m, i) => {
+                    const src = m.sourceCourse || m.source || {};
+                    const cak = m.localCourse || m.target || {};
+                    const a = notAnahtari(m, i);
+                    const n = notlar[a] || {};
+                    const inp = {
+                      width: 84,
+                      padding: '6px 9px',
+                      borderRadius: 7,
+                      border: '1px solid ' + DS.border,
+                      fontSize: 13,
+                      outline: 'none',
+                      textAlign: 'center',
+                    };
+                    return (
+                      <div
+                        key={a}
+                        style={{
+                          display: 'flex',
+                          gap: 12,
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          padding: '10px 12px',
+                          borderTop: i === 0 ? 'none' : '1px solid ' + DS.border,
+                        }}
+                      >
+                        <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 600, color: DS.navy }}>
+                            {[src.code, src.name].filter(Boolean).join(' — ') || 'Karşı ders'}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 2 }}>
+                            ÇAKÜ: {[cak.code, cak.name].filter(Boolean).join(' — ') || '—'}
+                          </div>
+                        </div>
+                        <label style={{ fontSize: 11.5, color: DS.textSecondary }}>
+                          Karşı notu
+                          <br />
+                          <input
+                            value={n.kaynakNot || ''}
+                            onChange={(e) => setNot(a, 'kaynakNot', e.target.value)}
+                            style={inp}
+                          />
+                        </label>
+                        <label style={{ fontSize: 11.5, color: DS.textSecondary }}>
+                          ÇAKÜ notu
+                          <br />
+                          <input
+                            value={n.cakuNot || ''}
+                            onChange={(e) => setNot(a, 'cakuNot', e.target.value)}
+                            style={inp}
+                          />
+                        </label>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      await onStageChange(record.id, 'belge_teslim', {
+                        ogrenciNotlari: derlenmisNotlar(),
+                      });
+                      alert('Notlar kaydedildi.');
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  style={eStageBtn}
+                >
+                  Notları Kaydet
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        'Notlar ÇAKÜ sistemine dönüştürülüp kaydedildi mi? İşlem tamamlanacak ve belge üretilebilir hâle gelecek.'
+                      )
                     )
-                  )
-                    act('tamamlandi', { status: 'tamamlandi' });
-                }}
-                style={{ ...eStageBtn, background: DS.green, color: '#fff', border: 'none' }}
-              >
-                Not Dönüşümü Yapıldı — Tamamla
-              </button>
+                      act('tamamlandi', {
+                        status: 'tamamlandi',
+                        ogrenciNotlari: derlenmisNotlar(),
+                      });
+                  }}
+                  style={{ ...eStageBtn, background: DS.green, color: '#fff', border: 'none' }}
+                >
+                  Not Dönüşümü Yapıldı — Tamamla
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -6581,6 +6684,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
   const [courseContents, setCourseContents] = useState([]);
   const [records, setRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
+  // Üretilen belgenin önizlemesi: { blob, filename, baslik, belge }
+  // Belge önce görüntülenir; kullanıcı sonra "İndir" veya "Gönder" der.
+  const [onizleme, setOnizleme] = useState(null);
   const [thresholds, setThresholds] = useState({
     autoApprove: CALIBRATION.autoApprove,
     review: CALIBRATION.review,
@@ -6807,6 +6913,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
         staticData,
         rows,
         filename: turAd.replace(/\s+/g, '_') + '_' + (rec.studentNo || 'kayit') + '.docx',
+        // Doğrudan indirme YOK: belge önce önizlenir, kullanıcı sonra
+        // "İndir" veya "Gönder" der.
+        noDownload: true,
       });
       if (res.ok) {
         // Dilekçeyi snapshot olarak sakla → öğrenci ve akademisyen AYNI
@@ -6826,22 +6935,27 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
               updatedAt: new Date().toISOString(),
             };
             await window.DBWrite.update('muafiyet_records', String(rec.id), patch);
-            // Belge Akışı: otomatik yönlendirme kuralı varsa uygula (memura düşer)
-            if (window.belgeOtoYonlendir) {
-              await window.belgeOtoYonlendir({
-                module: 'muafiyet',
-                docType: docType,
-                sourceId: String(rec.id),
-                title:
-                  (window.formatCaseTr
-                    ? window.formatCaseTr(rec.studentName, 'name')
-                    : rec.studentName || '') + (rec.studentNo ? '  ·  ' + rec.studentNo : ''),
-                subtitle: turAd,
-                url: url,
-                ogrenciNo: rec.studentNo || '',
-                departmentId: rec.departmentId || '',
-              });
-            }
+            // Belge Akışı artık ÖNİZLEMEDEN sonra, kullanıcı "Gönder" derse
+            // uygulanır — belgeyi görmeden gönderilmiş olmaz.
+            const belgeKimligi = {
+              module: 'muafiyet',
+              docType: docType,
+              sourceId: String(rec.id),
+              title:
+                (window.formatCaseTr
+                  ? window.formatCaseTr(rec.studentName, 'name')
+                  : rec.studentName || '') + (rec.studentNo ? '  ·  ' + rec.studentNo : ''),
+              subtitle: turAd,
+              url: url,
+              ogrenciNo: rec.studentNo || '',
+              departmentId: rec.departmentId || '',
+            };
+            setOnizleme({
+              blob: res.blob,
+              filename: res.filename || 'belge.docx',
+              baslik: turAd + ' — ' + (rec.studentName || ''),
+              belge: belgeKimligi,
+            });
             setRecords(function (prev) {
               return prev.map(function (r) {
                 return r.id === rec.id ? Object.assign({}, r, patch) : r;
@@ -7139,6 +7253,24 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
           />
         )}
       </div>
+
+      {/* Belge önizleme — üretilen belge önce görüntülenir, sonra indirilir
+          veya bir göreve gönderilir. */}
+      {onizleme &&
+        window.BelgeOnizlemeModal &&
+        React.createElement(window.BelgeOnizlemeModal, {
+          blob: onizleme.blob,
+          filename: onizleme.filename,
+          baslik: onizleme.baslik,
+          onClose: function () {
+            setOnizleme(null);
+          },
+          onSend: onizleme.belge
+            ? async function () {
+                if (window.belgeOtoYonlendir) await window.belgeOtoYonlendir(onizleme.belge);
+              }
+            : null,
+        })}
     </div>
   );
 }

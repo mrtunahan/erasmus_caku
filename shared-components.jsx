@@ -694,6 +694,223 @@ function BelgeGonderButonu({ belge, resolveBelge, label, onSent }) {
 }
 window.BelgeGonderButonu = BelgeGonderButonu;
 
+// ══════════════════════════════════════════════════════════════
+// Belge Önizleme — üretilen .docx ÖNCE görüntülenir, sonra indirilir
+// veya bir göreve gönderilir.
+//
+// Üretilen belgeler salt-okunur DEĞİLDİR; bu yalnız bir ara adımdır:
+// kullanıcı çıktının doğru dolduğunu görmeden indirmek/göndermek
+// zorunda kalmaz.
+// ══════════════════════════════════════════════════════════════
+
+// docx-preview: .docx'i BİREBİR (tablolar, kenarlıklar, yazı tipleri)
+// HTML'e render eder. CDN'den bir kez yüklenir.
+async function ensureDocxPreview() {
+  if (window.docx && window.docx.renderAsync) return window.docx;
+  if (!window.JSZip) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+      s.onload = res;
+      s.onerror = () => rej(new Error('JSZip yüklenemedi'));
+      document.head.appendChild(s);
+    });
+  }
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/docx-preview@0.3.5/dist/docx-preview.min.js';
+    s.onload = res;
+    s.onerror = () => rej(new Error('docx-preview yüklenemedi'));
+    document.head.appendChild(s);
+  });
+  return window.docx;
+}
+window.ensureDocxPreview = ensureDocxPreview;
+
+// A4 sayfası kapsayıcıdan genişse zoom ile sığdır (yatay kaydırma olmasın).
+function fitDocxPreview(container) {
+  if (!container) return;
+  const wrap = container.querySelector('.docx-wrapper');
+  const page = wrap && wrap.querySelector('section');
+  if (!wrap || !page) return;
+  wrap.style.zoom = '';
+  wrap.style.padding = '0';
+  const pageW = page.offsetWidth;
+  const availW = container.clientWidth;
+  if (pageW && availW && pageW > availW) wrap.style.zoom = (availW / pageW).toFixed(3);
+}
+window.fitDocxPreview = fitDocxPreview;
+
+function indirBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'belge.docx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+// { blob, filename, baslik, onClose, onSend } — onSend verilirse "Gönder"
+// düğmesi çıkar (belgeyi bir göreve yönlendirir).
+function BelgeOnizlemeModal({ blob, filename, baslik, onClose, onSend }) {
+  const ref = React.useRef(null);
+  const [hata, setHata] = React.useState('');
+  const [gonderiliyor, setGonderiliyor] = React.useState(false);
+  const [gonderildi, setGonderildi] = React.useState(false);
+
+  React.useEffect(() => {
+    let iptal = false;
+    (async () => {
+      try {
+        const docx = await ensureDocxPreview();
+        if (iptal || !ref.current) return;
+        ref.current.innerHTML = '';
+        await docx.renderAsync(blob, ref.current, null, { inWrapper: true });
+        if (!iptal) fitDocxPreview(ref.current);
+      } catch (e) {
+        if (!iptal) setHata(e.message || 'Önizleme oluşturulamadı.');
+      }
+    })();
+    return () => {
+      iptal = true;
+    };
+  }, [blob]);
+
+  const btn = {
+    padding: '9px 18px',
+    borderRadius: 9,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    border: '1px solid #E5E7EB',
+    background: '#fff',
+    color: '#1F2937',
+    fontFamily: 'inherit',
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.55)',
+        zIndex: 1200,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 14,
+          width: 'min(940px, 100%)',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '14px 18px',
+            borderBottom: '1px solid #E5E7EB',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#1B2A4A' }}>
+              {baslik || 'Belge Önizleme'}
+            </div>
+            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+              {filename || 'belge.docx'}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ ...btn, padding: '6px 12px' }}>
+            Kapat
+          </button>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            background: '#F3F4F6',
+            padding: 16,
+          }}
+        >
+          {hata ? (
+            <div style={{ padding: 30, textAlign: 'center', color: '#B91C1C', fontSize: 13 }}>
+              {hata}
+              <div style={{ color: '#6B7280', marginTop: 6, fontSize: 12.5 }}>
+                Belgeyi yine de indirebilirsiniz.
+              </div>
+            </div>
+          ) : (
+            <div ref={ref} style={{ background: '#fff' }} />
+          )}
+        </div>
+
+        <div
+          style={{
+            padding: '12px 18px',
+            borderTop: '1px solid #E5E7EB',
+            display: 'flex',
+            gap: 8,
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+          }}
+        >
+          {gonderildi && (
+            <span
+              style={{ fontSize: 12.5, color: '#059669', fontWeight: 700, marginRight: 'auto' }}
+            >
+              Gönderildi.
+            </span>
+          )}
+          <button onClick={() => indirBlob(blob, filename)} style={btn}>
+            İndir
+          </button>
+          {onSend && (
+            <button
+              disabled={gonderiliyor || gonderildi}
+              onClick={async () => {
+                setGonderiliyor(true);
+                try {
+                  await onSend();
+                  setGonderildi(true);
+                } catch (e) {
+                  alert('Gönderilemedi: ' + (e.message || ''));
+                } finally {
+                  setGonderiliyor(false);
+                }
+              }}
+              style={{
+                ...btn,
+                background: gonderiliyor || gonderildi ? '#9CA3AF' : '#1B2A4A',
+                color: '#fff',
+                borderColor: 'transparent',
+                cursor: gonderiliyor || gonderildi ? 'default' : 'pointer',
+              }}
+            >
+              {gonderiliyor ? 'Gönderiliyor…' : gonderildi ? 'Gönderildi' : 'Gönder'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+window.BelgeOnizlemeModal = BelgeOnizlemeModal;
+
 // ── Shared Constants ──
 const SEED_PROFESSORS = [
   { name: 'Prof. Dr. Hamit ALYAR', department: 'Fizik', isExternal: true },
