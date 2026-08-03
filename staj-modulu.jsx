@@ -347,8 +347,10 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
   // Adım için gerekli belgelerin yüklenip yüklenmediğini kontrol et
   const getRequiredDocsForStep = (stepId) => {
     if (stepId === 2) return ['zorunlu_staj_formu', 'staj_basvuru_formu_ek1', 'kimlik_fotokopisi']; // Adım 2 (idx=1) → Belge Yükleme
-    if (stepId === 6)
-      return ['staj_defteri', 'ek2_belgesi', 'staj_teslim_belgesi', 'turnitin_raporu']; // Adım 6 → Staj Teslim
+    // NOT: Ek-2 öğrenci tarafından yüklenmiyor (yükleme alanı kaldırıldı),
+    // bu yüzden zorunlu listesinde de yer almaz — aksi hâlde asla
+    // sağlanamayan bir koşul oluşur ve adım tamamlanamaz.
+    if (stepId === 6) return ['staj_defteri', 'staj_teslim_belgesi', 'turnitin_raporu']; // Adım 6 → Staj Teslim
     return [];
   };
 
@@ -4427,12 +4429,12 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     if (newStatus === 'tamamlandi') {
       // Belgeler başvuru (etap) bazlı saklanır → appId ile ara.
       const uploads = allUploads[appId] || {};
+      // Ek-2 öğrenci tarafından yüklenmediği için zorunlu değildir.
       const requiredDocs = [
         'zorunlu_staj_formu',
         'staj_basvuru_formu_ek1',
         'kimlik_fotokopisi',
         'staj_defteri',
-        'ek2_belgesi',
         'staj_teslim_belgesi',
         'turnitin_raporu',
       ];
@@ -4443,7 +4445,6 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           staj_basvuru_formu_ek1: 'Staj Başvuru Formu (Ek-1)',
           kimlik_fotokopisi: 'Kimlik Fotokopisi',
           staj_defteri: 'Staj Defteri',
-          ek2_belgesi: 'EK-2 Belgesi',
           staj_teslim_belgesi: 'Staj Teslim Belgesi',
           turnitin_raporu: 'Turnitin Raporu',
         };
@@ -7608,6 +7609,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     {/* Yüklenen Belgeler */}
                     {(() => {
                       const studentUploads = allUploads[selectedApp.id] || {};
+                      // Ek-2 artık öğrenciden istenmiyor; etiketi burada
+                      // KALIYOR ki daha önce yüklenmiş kayıtlar görünmeye
+                      // devam etsin.
                       const BELGE_LABELS = {
                         zorunlu_staj_formu: 'Zorunlu Staj Formu',
                         staj_basvuru_formu_ek1: 'Staj Başvuru Formu (Ek-1)',
@@ -8608,6 +8612,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   {filteredApplications.map((app) => {
                     const status = getAppStageBadge(app);
                     const studentUploads = allUploads[app.id] || {};
+                    // Ek-2 sayımda KALIYOR — eski kayıtlardaki yükleme
+                    // sayısı geriye dönük doğru görünsün diye.
                     const VALID_DOC_KEYS = [
                       'zorunlu_staj_formu',
                       'staj_basvuru_formu_ek1',
