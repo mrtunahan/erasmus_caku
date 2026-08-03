@@ -4788,8 +4788,6 @@ const INTIBAK_STAGES = [
 const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) => {
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState(record.notDonusumLink || '');
-  const [fileName, setFileName] = useState('');
-  const [file, setFile] = useState(null);
   const stage = record.stage || 'on_inceleme';
   const curIdx = INTIBAK_STAGES.findIndex((s) => s.id === stage);
 
@@ -4820,7 +4818,6 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
     const n = notlar[notAnahtari(m, i)] || {};
     return !String(n.kaynakNot || '').trim() || !String(n.cakuNot || '').trim();
   });
-  const transkriptVar = !!record.transcriptUrl;
 
   const act = async (newStage, extra) => {
     setBusy(true);
@@ -4847,14 +4844,6 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   };
 
   const submitBelge = async () => {
-    // Transkript olmadan not dönüşümü için onaya gönderilemez.
-    if (!transkriptVar) {
-      alert(
-        'Transkriptinizi yüklemeden not dönüşümü için gönderemezsiniz.\n' +
-          'Yukarıdaki "Transkript" alanından e-Devlet karekodlu PDF transkriptinizi yükleyin.'
-      );
-      return;
-    }
     if (!/^https?:\/\/\S+$/i.test((link || '').trim())) {
       alert('Yaz okulu üniversitesinin not/döküm sistemi linki gerekli (http/https).');
       return;
@@ -4866,16 +4855,8 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
     }
     setBusy(true);
     try {
-      let url = record.basariBelgesiUrl || '';
-      if (file) url = (await uploadMuafiyetFile(file)) || url;
-      if (!url) {
-        alert('Başarı belgesi (PDF) yüklenemedi, tekrar deneyin.');
-        setBusy(false);
-        return;
-      }
       await onStageChange(record.id, 'belge_teslim', {
         notDonusumLink: link.trim(),
-        basariBelgesiUrl: url,
         ogrenciNotlari: derlenmisNotlar(),
       });
     } finally {
@@ -4989,27 +4970,9 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
             Ön onay verildi. Yaz okulunu tamamladıktan sonra <b>her ders için başarı notlarınızı</b>{' '}
-            girin, transkriptinizi yükleyin, başarı belgenizi ve karşı üniversitenin not/döküm
-            sistemi bağlantısını gönderin.
+            girin ve karşı üniversitenin not/döküm sistemi bağlantısını göndererek not dönüşümü için
+            onaya iletin.
           </div>
-
-          {/* Transkript uyarısı — yükleme kartı bu panelin üstünde yer alır */}
-          {!transkriptVar && (
-            <div
-              style={{
-                padding: '9px 12px',
-                borderRadius: 8,
-                background: DS.amberBg || '#FEF3C7',
-                border: '1px solid ' + (DS.amber || '#B45309') + '44',
-                fontSize: 12.5,
-                color: '#7c4a03',
-                lineHeight: 1.55,
-              }}
-            >
-              Transkriptiniz henüz yüklenmedi. Yukarıdaki <b>Transkript</b> alanından e-Devlet
-              karekodlu PDF transkriptinizi yükleyin — transkript olmadan gönderemezsiniz.
-            </div>
-          )}
 
           {/* Başarı notları — belgedeki {{karşı_başarı_notu}} / {{çakü_başarı_notu}}
               yer tutucuları bu değerlerle dolar. */}
@@ -5111,39 +5074,17 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
               outline: 'none',
             }}
           />
-          <label style={{ fontSize: 12.5, color: DS.navy, cursor: 'pointer' }}>
-            <input
-              type="file"
-              accept=".pdf"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const f = e.target.files?.[0] || null;
-                setFile(f);
-                setFileName(f ? f.name : '');
-              }}
-            />
-            <span style={{ ...eStageBtn, display: 'inline-block' }}>Başarı belgesi seç (PDF)</span>
-            {fileName ? (
-              <span style={{ marginLeft: 8, color: DS.textMuted }}>{fileName}</span>
-            ) : null}
-          </label>
           <div>
             <button
-              disabled={busy || !transkriptVar || eksikNotVar}
+              disabled={busy || eksikNotVar}
               onClick={submitBelge}
-              title={
-                !transkriptVar
-                  ? 'Önce transkriptinizi yükleyin'
-                  : eksikNotVar
-                    ? 'Tüm başarı notlarını girin'
-                    : ''
-              }
+              title={eksikNotVar ? 'Tüm başarı notlarını girin' : ''}
               style={{
                 ...eStageBtn,
-                background: !transkriptVar || eksikNotVar ? '#9CA3AF' : DS.accent,
+                background: eksikNotVar ? '#9CA3AF' : DS.accent,
                 color: '#fff',
                 border: 'none',
-                cursor: !transkriptVar || eksikNotVar ? 'not-allowed' : 'pointer',
+                cursor: eksikNotVar ? 'not-allowed' : 'pointer',
               }}
             >
               Not Dönüşümü İçin Gönder
@@ -5161,22 +5102,6 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       {stage === 'belge_teslim' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-            {record.basariBelgesiUrl &&
-              (() => {
-                const href =
-                  '/api/files/view/' +
-                  String(record.basariBelgesiUrl).replace('/api/files/download/', '');
-                return (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontSize: 12.5, fontWeight: 600, color: DS.accent }}
-                  >
-                    Başarı belgesi (PDF)
-                  </a>
-                );
-              })()}
             {record.notDonusumLink && (
               <a
                 href={record.notDonusumLink}
@@ -5190,8 +5115,8 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
           </div>
           {isStudent ? (
             <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
-              Belgeleriniz ve girdiğiniz notlar alındı. Bölüm kurulu notlarınızı inceleyip ÇAKÜ
-              sistemine dönüştürecek.
+              Girdiğiniz notlar alındı. Bölüm kurulu notlarınızı inceleyip ÇAKÜ sistemine
+              dönüştürecek.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -5969,8 +5894,9 @@ const ExemptionHistory = ({
                 </div>
               </div>
 
-              {/* Transkript — öğrenci tek seferlik yükler; herkes görüntüler */}
-              {(onUploadTranscript || rec.transcriptUrl) && (
+              {/* Transkript — öğrenci tek seferlik yükler; herkes görüntüler.
+                  Yaz intibakında transkript istenmez. */}
+              {rec.basvuruTuru !== 'intibak' && (onUploadTranscript || rec.transcriptUrl) && (
                 <div style={{ padding: '0 20px 12px' }}>
                   <TranscriptControl
                     record={rec}
