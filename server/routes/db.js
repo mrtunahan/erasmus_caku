@@ -654,6 +654,14 @@ async function enforceWritePolicies(db, op, user) {
           'stageHistory',
           'notDonusumLink',
           'basariBelgesiUrl',
+          // Transkript: öğrenci kendi kaydına tek seferlik yükler. Bu alanlar
+          // listede olmadığı için yükleme 403 ile reddediliyordu.
+          'transcriptUrl',
+          'transcriptUploadedAt',
+          // Yaz intibakı 2. adım: öğrencinin girdiği karşı/ÇAKÜ başarı notları.
+          // `matches` öğrenciye KAPALI kalır (kendini onaylama engeli); notlar
+          // ayrı alanda tutulur ve belgeye oradan yazılır.
+          'ogrenciNotlari',
           'updatedAt',
           'createdAt',
           '_owner',
