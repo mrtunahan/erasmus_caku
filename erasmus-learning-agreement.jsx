@@ -5249,10 +5249,6 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   const isStudentWithoutErasmus =
     currentUser?.role === 'student' && currentUser?.erasmusAccess !== true;
 
-  // Öğrenci kaydını silme yalnızca yetkililerde olur; öğrenci (erasmus yetkili
-  // olsa bile) kendi kaydını silemez — "İşlemler" sütununda Sil butonu görmez.
-  const canDeleteStudent = currentUser?.role === 'admin' || currentUser?.role === 'bolum_yetkilisi';
-
   const generateSemesters = () => {
     const semesters = ['all'];
     for (let year = 2024; year <= 2030; year++) {
@@ -5445,25 +5441,6 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
     } catch (error) {
       console.error('Erasmus erişim güncelleme hatası:', error);
       alert('Erişim güncellenirken hata oluştu.');
-    }
-  };
-
-  const handleDeleteStudent = async (id) => {
-    if (confirm('Bu öğrenciyi silmek istediğinizden emin misiniz?')) {
-      try {
-        const st = students.find((s) => s.id === id);
-        await DB.deleteStudent(id);
-        if (window.audit)
-          window.audit('erasmus_student_delete', 'students', id, {
-            meta: {
-              studentNumber: st?.studentNumber,
-              name: `${st?.firstName || ''} ${st?.lastName || ''}`.trim(),
-            },
-          });
-        setStudents((prev) => prev.filter((s) => s.id !== id));
-      } catch (error) {
-        console.error('Delete error:', error);
-      }
     }
   };
 
@@ -5762,34 +5739,43 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                         )}
                         {/* Belge Akışı: üretilmiş Erasmus belgesini bir göreve yönlendir */}
                         {/* Yetkili: öğrencinin düzenleme iznini aç/kapat */}
+                        {/* Kilit anahtarı — tam boy buton yerine küçük, ikincil
+                            bir kontrol. Açıkken sarı, istek varken vurgulu. */}
                         {!isStudentRole && (student.outgoingMatches || []).length > 0 && (
                           <button
                             onClick={() => toggleDuzenleme(student)}
                             title={
                               student.duzenlemeAcik === true
-                                ? 'Öğrenci şu an düzenleyebiliyor — kapatmak için tıklayın'
-                                : 'Öğrencinin yeniden düzenlemesine izin ver'
+                                ? 'Öğrenci şu an düzenleyebiliyor — kilitlemek için tıklayın'
+                                : talepVar(student)
+                                  ? 'Öğrenci düzenleme izni istedi — açmak için tıklayın'
+                                  : 'Öğrencinin yeniden düzenlemesine izin ver'
                             }
                             style={{
-                              ...eBtnGhost,
+                              ...eBtn,
+                              minHeight: 24,
+                              padding: '2px 8px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              gridColumn: '1 / -1',
+                              justifySelf: 'end',
+                              width: 'auto',
+                              background:
+                                student.duzenlemeAcik === true || talepVar(student)
+                                  ? '#FEF3C7'
+                                  : '#F3F4F6',
                               color:
-                                student.duzenlemeAcik === true
-                                  ? '#B45309'
-                                  : talepVar(student)
-                                    ? '#B45309'
-                                    : C.navy,
-                              borderColor:
                                 student.duzenlemeAcik === true || talepVar(student)
                                   ? '#B45309'
-                                  : undefined,
-                              background: talepVar(student) ? '#FEF3C7' : undefined,
+                                  : '#6B7280',
+                              border: '1px solid transparent',
                             }}
                           >
                             {student.duzenlemeAcik === true
-                              ? 'Düzenlemeyi Kapat'
+                              ? 'Kilidi Kapat'
                               : talepVar(student)
-                                ? 'İzin İstendi'
-                                : 'Düzenlemeye İzin Ver'}
+                                ? 'Kilit Açma İsteği'
+                                : 'Kilidi Aç'}
                           </button>
                         )}
                         {/* Öğrenci: yetkili düzenlemeye izin vermişse durum açıkça belirtilir.
@@ -5800,15 +5786,16 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                           student.duzenlemeAcik === true && (
                             <span
                               style={{
-                                ...eBtnGhost,
-                                cursor: 'default',
+                                gridColumn: '1 / -1',
+                                justifySelf: 'end',
+                                fontSize: 11,
+                                fontWeight: 700,
                                 color: '#047857',
-                                borderColor: '#04785755',
-                                background: '#D1FAE5',
+                                padding: '2px 0',
                               }}
                               title="Yetkili düzenlemenize izin verdi. Değişikliklerinizi kaydedebilirsiniz."
                             >
-                              Düzenleme açık
+                              Düzenleme izniniz açık
                             </span>
                           )}
                         {/* Öğrenci: başvuru kilitli — izin isteyebilir */}
@@ -5817,11 +5804,12 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                           (talepVar(student) ? (
                             <span
                               style={{
-                                ...eBtnGhost,
-                                cursor: 'default',
+                                gridColumn: '1 / -1',
+                                justifySelf: 'end',
+                                fontSize: 11,
+                                fontWeight: 700,
                                 color: '#1D4ED8',
-                                borderColor: '#1D4ED855',
-                                background: '#DBEAFE',
+                                padding: '2px 0',
                               }}
                               title="İzin isteğiniz iletildi, yetkilinin onayı bekleniyor."
                             >
@@ -5831,72 +5819,23 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                             <button
                               onClick={() => izinIste(student)}
                               style={{
-                                ...eBtnGhost,
+                                ...eBtn,
+                                minHeight: 24,
+                                padding: '2px 8px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                gridColumn: '1 / -1',
+                                justifySelf: 'end',
+                                width: 'auto',
                                 color: '#B45309',
-                                borderColor: '#B4530955',
                                 background: '#FEF3C7',
+                                border: '1px solid transparent',
                               }}
                               title="Başvurunuz gönderildiği için düzenleme kapalı. Yeniden düzenlemek için yetkiliden izin isteyin."
                             >
                               Düzenleme kapalı — İzin İste
                             </button>
                           ))}
-                        {/* Üretilmiş son belge: önce ÖNİZLE, sonra indir/gönder. */}
-                        {!isStudentRole && (
-                          <button
-                            onClick={async () => {
-                              const sid =
-                                student.id || student.studentNo || student.studentNumber || '';
-                              const list = await window.apiRead('memur_outputs').catch(() => []);
-                              const mine = (list || [])
-                                .filter(
-                                  (o) =>
-                                    o.module === 'erasmus' &&
-                                    String(o.sourceId || '').indexOf(String(sid)) === 0
-                                )
-                                .sort((a2, b2) =>
-                                  String(b2.updatedAt || '').localeCompare(
-                                    String(a2.updatedAt || '')
-                                  )
-                                );
-                              const son = mine[0];
-                              if (!son || !son.url) {
-                                alert(
-                                  'Önizlenecek belge yok. Önce "Gidiş belgesi" veya "Dönüş belgesi" ile belgeyi üretin.'
-                                );
-                                return;
-                              }
-                              setOnizleme({
-                                url: son.url,
-                                filename: 'Erasmus_Belge.docx',
-                                baslik: son.title || 'Erasmus Belgesi',
-                                belge: {
-                                  module: 'erasmus',
-                                  docType: /dönüş|donus/i.test(String(son.sourceId))
-                                    ? 'donus'
-                                    : 'gidis',
-                                  sourceId: son.sourceId,
-                                  title: son.title || '',
-                                  subtitle: son.subtitle || '',
-                                  url: son.url,
-                                  ogrenciNo: student.studentNo || student.studentNumber || '',
-                                  departmentId: student.departmentId || '',
-                                },
-                              });
-                            }}
-                            style={eBtnGhost}
-                          >
-                            Belgeyi Önizle
-                          </button>
-                        )}
-                        {canDeleteStudent && (
-                          <button
-                            onClick={() => handleDeleteStudent(student.id)}
-                            style={{ ...eBtnGhost, color: C.accent, borderColor: C.accent + '55' }}
-                          >
-                            Sil
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -5929,6 +5868,9 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
             blob: onizleme.blob,
             url: onizleme.url,
             filename: onizleme.filename,
+            // Öğrenci resmî belgeyi görebilir ama indiremez; imzalı nüsha
+            // akademisyen/memur üzerinden verilir.
+            indirilebilir: !isStudentRole,
             baslik: onizleme.baslik,
             onClose: () => setOnizleme(null),
             onSend: onizleme.belge

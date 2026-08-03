@@ -757,7 +757,17 @@ function indirBlob(blob, filename) {
 // { blob | url, filename, baslik, onClose, onSend }
 // `blob` yoksa `url` indirilir — böylece daha önce üretilip saklanmış
 // belgeler de (dilekçe snapshot'ları) aynı akışla önizlenebilir.
-function BelgeOnizlemeModal({ blob, url, filename, baslik, onClose, onSend }) {
+// `indirilebilir: false` → yalnız görüntüleme (ör. öğrenci resmî belgeyi
+// görebilir ama indiremez; imzalı nüsha akademisyen/memur üzerinden verilir).
+function BelgeOnizlemeModal({
+  blob,
+  url,
+  filename,
+  baslik,
+  onClose,
+  onSend,
+  indirilebilir = true,
+}) {
   const ref = React.useRef(null);
   const [hata, setHata] = React.useState('');
   const [gonderiliyor, setGonderiliyor] = React.useState(false);
@@ -893,15 +903,21 @@ function BelgeOnizlemeModal({ blob, url, filename, baslik, onClose, onSend }) {
               Gönderildi.
             </span>
           )}
-          <button
-            onClick={() => {
-              if (veri) indirBlob(veri, filename);
-              else if (url) window.open(url, '_blank', 'noopener');
-            }}
-            style={btn}
-          >
-            İndir
-          </button>
+          {indirilebilir ? (
+            <button
+              onClick={() => {
+                if (veri) indirBlob(veri, filename);
+                else if (url) window.open(url, '_blank', 'noopener');
+              }}
+              style={btn}
+            >
+              İndir
+            </button>
+          ) : (
+            <span style={{ fontSize: 12, color: '#6B7280', alignSelf: 'center' }}>
+              Bu belge yalnızca görüntülenebilir.
+            </span>
+          )}
           {onSend && (
             <button
               disabled={gonderiliyor || gonderildi}
@@ -939,7 +955,16 @@ window.BelgeOnizlemeModal = BelgeOnizlemeModal;
 // tek giriş noktası olarak kullanılır.
 //   <BelgeOnizleButonu url="..." filename="..." baslik="..." belge={...} />
 // `belge` verilirse modalde "Gönder" düğmesi çıkar (belgeYonlendir'e gider).
-function BelgeOnizleButonu({ url, filename, baslik, belge, label, style, hedefRol }) {
+function BelgeOnizleButonu({
+  url,
+  filename,
+  baslik,
+  belge,
+  label,
+  style,
+  hedefRol,
+  indirilebilir = true,
+}) {
   const [acik, setAcik] = React.useState(false);
   if (!url) return null;
   return (
@@ -968,6 +993,7 @@ function BelgeOnizleButonu({ url, filename, baslik, belge, label, style, hedefRo
           url,
           filename,
           baslik,
+          indirilebilir,
           onClose: () => setAcik(false),
           onSend: belge
             ? async () => {
