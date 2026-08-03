@@ -4708,7 +4708,9 @@ function erasmusStaticData(student, rows) {
 
 // Üretilen Erasmus belgesini memur çıktı görünümü için kalıcı sakla (snapshot).
 // produceFromTemplate blob'u döndürür; /api/files'e yüklenip memur_outputs'a yazılır.
-const _snapshotErasmusDoc = async (res, student, docLabel) => {
+// onPreview verilirse: belge indirilmez/otomatik gönderilmez; önce önizleme
+// açılır, kullanıcı modalden "İndir" veya "Gönder" der.
+const _snapshotErasmusDoc = async (res, student, docLabel, onPreview) => {
   try {
     if (!res || !res.blob || !window.uploadGeneratedDoc || !window.recordMemurOutput) return;
     const url = await window.uploadGeneratedDoc(
@@ -4731,29 +4733,38 @@ const _snapshotErasmusDoc = async (res, student, docLabel) => {
       url,
       departmentId: student.departmentId || '',
     });
-    // Belge Akışı: otomatik yönlendirme kuralı varsa uygula (memura düşer)
-    if (window.belgeOtoYonlendir) {
-      await window.belgeOtoYonlendir({
-        module: 'erasmus',
-        docType: docLabel && /dönüş|donus/i.test(docLabel) ? 'donus' : 'gidis',
-        sourceId: sid + ':' + docLabel,
-        title:
-          (window.formatCaseTr ? window.formatCaseTr(ad, 'name') : ad) +
-          (student.studentNo || student.studentNumber
-            ? '  ·  ' + (student.studentNo || student.studentNumber)
-            : ''),
-        subtitle: [docLabel, student.hostInstitution].filter(Boolean).join('  ·  '),
-        url,
-        ogrenciNo: student.studentNo || student.studentNumber || '',
-        departmentId: student.departmentId || '',
+    const belgeKimligi = {
+      module: 'erasmus',
+      docType: docLabel && /dönüş|donus/i.test(docLabel) ? 'donus' : 'gidis',
+      sourceId: sid + ':' + docLabel,
+      title:
+        (window.formatCaseTr ? window.formatCaseTr(ad, 'name') : ad) +
+        (student.studentNo || student.studentNumber
+          ? '  ·  ' + (student.studentNo || student.studentNumber)
+          : ''),
+      subtitle: [docLabel, student.hostInstitution].filter(Boolean).join('  ·  '),
+      url,
+      ogrenciNo: student.studentNo || student.studentNumber || '',
+      departmentId: student.departmentId || '',
+    };
+
+    if (onPreview) {
+      // Önizlemeli akış: kullanıcı belgeyi görür, sonra indirir veya gönderir.
+      onPreview({
+        blob: res.blob,
+        filename: res.filename || 'erasmus.docx',
+        baslik: docLabel + ' — ' + ad,
+        belge: belgeKimligi,
       });
+    } else if (window.belgeOtoYonlendir) {
+      await window.belgeOtoYonlendir(belgeKimligi);
     }
   } catch (e) {
     console.warn('Erasmus snapshot kaydedilemedi:', e && e.message);
   }
 };
 
-const generateOutgoingWordDoc = async (student) => {
+const generateOutgoingWordDoc = async (student, onPreview) => {
   if (!student.outgoingMatches || student.outgoingMatches.length === 0) {
     alert('Bu öğrencinin henüz gidiş eşleştirmesi bulunmamaktadır.');
     return;
@@ -4773,9 +4784,11 @@ const generateOutgoingWordDoc = async (student) => {
       rows,
       stripRowBold: true,
       filename: `${erasmusUpperSurname(student.lastName)}_${student.firstName}_Gidis_Degerlendirme.docx`,
+      // Önizlemeli akışta dosya doğrudan inmez; modalden indirilir.
+      noDownload: !!onPreview,
     });
     if (res.ok) {
-      await _snapshotErasmusDoc(res, student, 'Gidiş Değerlendirme');
+      await _snapshotErasmusDoc(res, student, 'Gidiş Değerlendirme', onPreview);
       return;
     }
     if (res.reason === 'no-mapping') {
@@ -4880,7 +4893,7 @@ ${rows.join('')}
   }
 };
 
-const generateReturnWordDoc = async (student) => {
+const generateReturnWordDoc = async (student, onPreview) => {
   if (student.returnMatches.length === 0) {
     alert('Bu öğrencinin henüz dönüş eşleştirmesi bulunmamaktadır.');
     return;
@@ -4900,9 +4913,11 @@ const generateReturnWordDoc = async (student) => {
       rows,
       stripRowBold: true,
       filename: `${erasmusUpperSurname(student.lastName)}_${student.firstName}_Donus_Muafiyet.docx`,
+      // Önizlemeli akışta dosya doğrudan inmez; modalden indirilir.
+      noDownload: !!onPreview,
     });
     if (res.ok) {
-      await _snapshotErasmusDoc(res, student, 'Dönüş Muafiyet');
+      await _snapshotErasmusDoc(res, student, 'Dönüş Muafiyet', onPreview);
       return;
     }
     if (res.reason === 'no-mapping') {
@@ -5134,6 +5149,8 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   // istek öğrenci-yazılabilir `student_notifications` üzerinden iletilir.
   // Yetkili isteği listede görür; izni açınca istek çözülmüş sayılır.
   const [duzenlemeTalepleri, setDuzenlemeTalepleri] = useState([]);
+  // Üretilen belgenin önizlemesi: { blob, filename, baslik, belge }
+  const [onizleme, setOnizleme] = useState(null);
 
   const talepleriYukle = useCallback(async () => {
     try {
@@ -5715,7 +5732,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                           onClick={
                             isStudentWithoutErasmus
                               ? undefined
-                              : () => generateOutgoingWordDoc(student)
+                              : () => generateOutgoingWordDoc(student, setOnizleme)
                           }
                           disabled={isStudentWithoutErasmus}
                           style={{
@@ -5731,7 +5748,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                             onClick={
                               isStudentWithoutErasmus
                                 ? undefined
-                                : () => generateReturnWordDoc(student)
+                                : () => generateReturnWordDoc(student, setOnizleme)
                             }
                             disabled={isStudentWithoutErasmus}
                             style={{
@@ -5824,19 +5841,12 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                               Düzenleme kapalı — İzin İste
                             </button>
                           ))}
-                        {!isStudentRole &&
-                          window.BelgeGonderButonu &&
-                          React.createElement(window.BelgeGonderButonu, {
-                            label: 'Belgeyi Gönder',
-                            resolveBelge: async () => {
+                        {/* Üretilmiş son belge: önce ÖNİZLE, sonra indir/gönder. */}
+                        {!isStudentRole && (
+                          <button
+                            onClick={async () => {
                               const sid =
                                 student.id || student.studentNo || student.studentNumber || '';
-                              const ad = (
-                                (student.firstName || '') +
-                                ' ' +
-                                (student.lastName || '')
-                              ).trim();
-                              // Snapshot kayıtları: erasmus__<sid>:<Gidiş|Dönüş Değerlendirme>
                               const list = await window.apiRead('memur_outputs').catch(() => []);
                               const mine = (list || [])
                                 .filter(
@@ -5850,21 +5860,35 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                                   )
                                 );
                               const son = mine[0];
-                              if (!son) return null;
-                              return {
-                                module: 'erasmus',
-                                docType: /dönüş|donus/i.test(String(son.sourceId))
-                                  ? 'donus'
-                                  : 'gidis',
-                                sourceId: son.sourceId,
-                                title: son.title || ad,
-                                subtitle: son.subtitle || '',
+                              if (!son || !son.url) {
+                                alert(
+                                  'Önizlenecek belge yok. Önce "Gidiş belgesi" veya "Dönüş belgesi" ile belgeyi üretin.'
+                                );
+                                return;
+                              }
+                              setOnizleme({
                                 url: son.url,
-                                ogrenciNo: student.studentNo || student.studentNumber || '',
-                                departmentId: student.departmentId || '',
-                              };
-                            },
-                          })}
+                                filename: 'Erasmus_Belge.docx',
+                                baslik: son.title || 'Erasmus Belgesi',
+                                belge: {
+                                  module: 'erasmus',
+                                  docType: /dönüş|donus/i.test(String(son.sourceId))
+                                    ? 'donus'
+                                    : 'gidis',
+                                  sourceId: son.sourceId,
+                                  title: son.title || '',
+                                  subtitle: son.subtitle || '',
+                                  url: son.url,
+                                  ogrenciNo: student.studentNo || student.studentNumber || '',
+                                  departmentId: student.departmentId || '',
+                                },
+                              });
+                            }}
+                            style={eBtnGhost}
+                          >
+                            Belgeyi Önizle
+                          </button>
+                        )}
                         {canDeleteStudent && (
                           <button
                             onClick={() => handleDeleteStudent(student.id)}
@@ -5897,6 +5921,22 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
             currentUser={currentUser}
           />
         )}
+        {/* Belge önizleme — üretilen belge önce görüntülenir, sonra indirilir
+            veya bir göreve gönderilir. */}
+        {onizleme &&
+          window.BelgeOnizlemeModal &&
+          React.createElement(window.BelgeOnizlemeModal, {
+            blob: onizleme.blob,
+            url: onizleme.url,
+            filename: onizleme.filename,
+            baslik: onizleme.baslik,
+            onClose: () => setOnizleme(null),
+            onSend: onizleme.belge
+              ? async () => {
+                  if (window.belgeOtoYonlendir) await window.belgeOtoYonlendir(onizleme.belge);
+                }
+              : null,
+          })}
         {showTripHistory && (
           <TripHistoryModal
             onClose={() => setShowTripHistory(false)}

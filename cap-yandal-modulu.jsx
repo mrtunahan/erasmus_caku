@@ -851,20 +851,38 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
                         {reddedildi ? 'Başvuru reddedildi' : 'Onay bekleniyor'}
                       </span>
                     ) : rec.dilekceUrl ? (
-                      <a
-                        href={cyFileHref(rec.dilekceUrl)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          ...cyBtn(false),
-                          color: CY.accent,
-                          borderColor: CY.accent,
-                          textDecoration: 'none',
-                          display: 'inline-block',
-                        }}
-                      >
-                        Dilekçeyi İndir
-                      </a>
+                      window.BelgeOnizleButonu ? (
+                        React.createElement(window.BelgeOnizleButonu, {
+                          url: cyFileHref(rec.dilekceUrl),
+                          filename:
+                            (rec.turu === 'yandal' ? 'Yandal' : 'CAP') +
+                            '_Dilekce_' +
+                            (rec.ogrenciNo || 'kayit') +
+                            '.docx',
+                          baslik: 'Başvuru Dilekçem',
+                          label: 'Dilekçeyi Görüntüle / İndir',
+                          style: {
+                            ...cyBtn(false),
+                            color: CY.accent,
+                            borderColor: CY.accent,
+                          },
+                        })
+                      ) : (
+                        <a
+                          href={cyFileHref(rec.dilekceUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            ...cyBtn(false),
+                            color: CY.accent,
+                            borderColor: CY.accent,
+                            textDecoration: 'none',
+                            display: 'inline-block',
+                          }}
+                        >
+                          Dilekçeyi İndir
+                        </a>
+                      )
                     ) : (
                       <span style={cyPill(CY.amber, CY.amberLight)}>Dilekçeniz hazırlanıyor</span>
                     )}
@@ -988,9 +1006,22 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
                 </span>
               )}
 
+              {/* Üretilmiş dilekçe: önce ÖNİZLE, sonra indir veya gönder. */}
               {rec.dilekceUrl &&
-                window.BelgeGonderButonu &&
-                React.createElement(window.BelgeGonderButonu, {
+                window.BelgeOnizleButonu &&
+                React.createElement(window.BelgeOnizleButonu, {
+                  url: cyFileHref(rec.dilekceUrl),
+                  filename:
+                    (rec.turu === 'yandal' ? 'Yandal' : 'CAP') +
+                    '_Dilekce_' +
+                    (rec.ogrenciNo || 'kayit') +
+                    '.docx',
+                  baslik:
+                    (rec.turu === 'yandal' ? 'Yandal' : 'ÇAP') +
+                    ' Dilekçesi — ' +
+                    (rec.ogrenciAdSoyad || ''),
+                  label: 'Dilekçeyi Önizle',
+                  style: { ...cyBtn(false), color: CY.accent, borderColor: CY.accent },
                   belge: {
                     module: 'capyandal',
                     docType: rec.turu || 'cap',
