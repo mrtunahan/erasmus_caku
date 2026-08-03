@@ -394,7 +394,7 @@ const DEPARTMENT_MODULES = [
 const COMMON_MODULES = [
   {
     id: 'gelenbelgeler',
-    label: 'Gelen Belgeler',
+    label: 'Gelen / Giden Belgeler',
     icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
   },
   {
@@ -3619,7 +3619,22 @@ window.belgeOtoYonlendir = async function (o) {
   return window.belgeYonlendir({ ...o, hedefRol: rol, not: o.not || 'Otomatik yönlendirme' });
 };
 
-// Alıcı durum günceller: 'goruldu' | 'tamamlandi'
+// Belgeyi (snapshot kaydını) sil. Memur/akademisyen kendi kutusundaki
+// gereksiz veya hatalı belgeyi kaldırabilir. Kayıt tamamen silinir —
+// gönderim geçmişi de onunla birlikte gider.
+window.belgeSil = async function (docId) {
+  try {
+    await window.DBWrite.remove('memur_outputs', String(docId));
+    if (window.apiInvalidate) window.apiInvalidate('memur_outputs');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: e && e.message };
+  }
+};
+
+// Alıcı durum günceller: 'goruldu' | 'islemde' | 'tamamlandi'
+// 'islemde' (İşleme Alındı) → belgeyi gönderen taraf, "Gönderdiklerim"de
+// belgesinin işleme alındığını görür.
 window.belgeDurumGuncelle = async function (docId, gonderimIndex, durum) {
   const cu = window.__currentUser || {};
   try {

@@ -26,14 +26,32 @@ const GB = {
   greenLight: '#D1FAE5',
   amber: '#B45309',
   amberLight: '#FEF3C7',
+  red: '#DC2626',
   bg: '#F8F9FB',
 };
 
 const GB_DURUM = {
   bekliyor: { label: 'Bekliyor', color: GB.amber, bg: GB.amberLight },
   goruldu: { label: 'Görüldü', color: '#1D4ED8', bg: '#DBEAFE' },
+  // İşleme alındı: belgeyi gönderen taraf, işin başladığını buradan görür.
+  islemde: { label: 'İşleme Alındı', color: '#7C3AED', bg: '#EDE9FE' },
   tamamlandi: { label: 'Tamamlandı', color: GB.green, bg: GB.greenLight },
 };
+
+// Belge türü adları — muafiyet ve ÇAP/Yandal modülleri birden çok tür
+// üretir; alt sekmelerde bunlar ayrı gösterilir ki belgeler karışmasın.
+const GB_TUR_ADI = {
+  muafiyet: 'Ders Muafiyet',
+  intibak: 'Yaz Dönemi İntibak',
+  yatay: 'Yatay Geçiş',
+  dikey: 'Dikey Geçiş',
+  cap: 'ÇAP',
+  yandal: 'Yandal',
+  gidis: 'Gidiş',
+  donus: 'Dönüş',
+};
+// Alt sekmeye ayrılan modüller
+const GB_ALT_SEKMELI = new Set(['muafiyet', 'capyandal']);
 
 const GB_MODUL_ADI = {
   muafiyet: 'Ders Muafiyet',
@@ -93,7 +111,7 @@ const gbBtn = (color) => ({
 });
 
 // ── Gelen belge kartı ──
-function GbKart({ item, onDurum, busy }) {
+function GbKart({ item, onDurum, onSil, busy }) {
   const { doc, gonderim, index } = item;
   const st = GB_DURUM[gonderim.durum || 'bekliyor'] || GB_DURUM.bekliyor;
   const tarih = gonderim.gonderilmeTarihi
@@ -162,14 +180,26 @@ function GbKart({ item, onDurum, busy }) {
         <a href={gbDownloadHref(doc.url)} style={gbBtn(GB.navy)}>
           İndir
         </a>
-        {gonderim.durum !== 'goruldu' && gonderim.durum !== 'tamamlandi' && (
+        {gonderim.durum !== 'goruldu' &&
+          gonderim.durum !== 'islemde' &&
+          gonderim.durum !== 'tamamlandi' && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onDurum(docId, index, 'goruldu')}
+              style={gbBtn('#1D4ED8')}
+            >
+              Görüldü
+            </button>
+          )}
+        {gonderim.durum !== 'islemde' && gonderim.durum !== 'tamamlandi' && (
           <button
             type="button"
             disabled={busy}
-            onClick={() => onDurum(docId, index, 'goruldu')}
-            style={gbBtn('#1D4ED8')}
+            onClick={() => onDurum(docId, index, 'islemde')}
+            style={gbBtn('#7C3AED')}
           >
-            👁️ Görüldü
+            İşleme Al
           </button>
         )}
         {gonderim.durum !== 'tamamlandi' && (
@@ -179,13 +209,23 @@ function GbKart({ item, onDurum, busy }) {
             onClick={() => onDurum(docId, index, 'tamamlandi')}
             style={gbBtn(GB.green)}
           >
-            ✓ Tamamlandı
+            Tamamlandı
           </button>
         )}
         {gonderim.durum === 'tamamlandi' && gonderim.durumBy && (
           <span style={{ fontSize: 11.5, color: GB.textMuted, alignSelf: 'center' }}>
             {gonderim.durumBy} tarafından tamamlandı
           </span>
+        )}
+        {onSil && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onSil(docId, doc.title)}
+            style={{ ...gbBtn(GB.red), marginLeft: 'auto' }}
+          >
+            Sil
+          </button>
         )}
       </div>
     </div>
@@ -299,6 +339,12 @@ function GelenBelgelerApp({ currentUser }) {
   }, [load]);
 
   // Tüm gelen belgeler (sekme sayaçları bunun üzerinden hesaplanır)
+  // Belge türü alt sekmesi (yalnız muafiyet / ÇAP-Yandal'da anlamlı)
+  const [turFiltre, setTurFiltre] = useState('hepsi');
+  useEffect(() => {
+    setTurFiltre('hepsi');
+  }, [modulFiltre]);
+
   const gelenTum = useMemo(
     () => (window.belgeGelenKutusu ? window.belgeGelenKutusu(docs, currentUser) : []),
     [docs, currentUser]
@@ -314,11 +360,28 @@ function GelenBelgelerApp({ currentUser }) {
     return Object.keys(m).map((k) => ({ id: k, label: GB_MODUL_ADI[k] || k, bekleyen: m[k] }));
   }, [gelenTum]);
 
+  // Seçili modülün belge TÜRÜ alt sekmeleri (muafiyet, ÇAP/Yandal)
+  const turSekmeleri = useMemo(() => {
+    if (!GB_ALT_SEKMELI.has(modulFiltre)) return [];
+    const m = {};
+    gelenTum
+      .filter((i) => (i.doc.module || 'diger') === modulFiltre)
+      .forEach((i) => {
+        const k = i.doc.docType || 'diger';
+        if (!m[k]) m[k] = 0;
+        if (i.gonderim.durum === 'bekliyor') m[k]++;
+      });
+    return Object.keys(m).map((k) => ({ id: k, label: GB_TUR_ADI[k] || k, bekleyen: m[k] }));
+  }, [gelenTum, modulFiltre]);
+
   const gelen = useMemo(() => {
     let all = gelenTum;
     if (modulFiltre !== 'hepsi') all = all.filter((i) => (i.doc.module || 'diger') === modulFiltre);
+    if (GB_ALT_SEKMELI.has(modulFiltre) && turFiltre !== 'hepsi') {
+      all = all.filter((i) => (i.doc.docType || 'diger') === turFiltre);
+    }
     return filtre === 'acik' ? all.filter((i) => i.gonderim.durum !== 'tamamlandi') : all;
-  }, [gelenTum, filtre, modulFiltre]);
+  }, [gelenTum, filtre, modulFiltre, turFiltre]);
 
   // ── Yeni belge bildirimi ──
   // Bekleyen sayısı bir öncekine göre arttıysa ekranda bildirim gösterilir.
@@ -346,13 +409,23 @@ function GelenBelgelerApp({ currentUser }) {
   }, [gelenTum, loading, currentUser]);
 
   // Faz 2 — gönderen takibi: bu kullanıcının gönderdiği belgeler
-  const gonderdiklerim = useMemo(
-    () =>
-      (docs || []).filter((d) =>
-        (d.gonderimler || []).some((g) => String(g.gonderen || '') === myId)
-      ),
-    [docs, myId]
-  );
+  // "Giden Belgeler": kendi gönderdiklerim + KENDİ BÖLÜMÜMDEN çıkan belgeler.
+  // Belgeyi kim ürettiyse ürettiği önemli değil; o modülden sorumlu
+  // akademisyenler/komisyon üyeleri belgenin işleme alınıp alınmadığını
+  // görebilmeli. Öğrenciye bu sekme zaten açılmıyor.
+  const gonderdiklerim = useMemo(() => {
+    if (isStudent) return [];
+    const myDept = String(currentUser?.departmentId || '');
+    const myFac = String(currentUser?.facultyId || '');
+    return (docs || []).filter((d) => {
+      const gs = d.gonderimler || [];
+      if (gs.length === 0) return false;
+      if (gs.some((g) => String(g.gonderen || '') === myId)) return true;
+      if (myDept && String(d.departmentId || '') === myDept) return true;
+      if (myFac && !d.departmentId && String(d.facultyId || '') === myFac) return true;
+      return false;
+    });
+  }, [docs, myId, currentUser, isStudent]);
 
   const setDurum = async (docId, idx, durum) => {
     setBusy(true);
@@ -361,11 +434,39 @@ function GelenBelgelerApp({ currentUser }) {
       if (!r || !r.ok) throw new Error((r && r.reason) || 'güncellenemedi');
       await load();
       setMsg(
-        durum === 'tamamlandi' ? 'Tamamlandı olarak işaretlendi ✓' : 'Görüldü olarak işaretlendi'
+        durum === 'tamamlandi'
+          ? 'Tamamlandı olarak işaretlendi.'
+          : durum === 'islemde'
+            ? 'İşleme alındı — gönderen tarafta görünecek.'
+            : 'Görüldü olarak işaretlendi.'
       );
       setTimeout(() => setMsg(''), 2500);
     } catch (e) {
       alert('İşaretlenemedi: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Belgeyi tamamen sil (snapshot kaydı + gönderim geçmişi).
+  const silBelge = async (docId, baslik) => {
+    if (
+      !confirm(
+        'Bu belge sistemden tamamen silinecek:\n\n' +
+          (baslik || '(başlıksız belge)') +
+          '\n\nGönderim geçmişi de silinir. Devam edilsin mi?'
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const r = await window.belgeSil(docId);
+      if (!r || !r.ok) throw new Error((r && r.reason) || 'silinemedi');
+      await load();
+      setMsg('Belge silindi.');
+      setTimeout(() => setMsg(''), 2500);
+    } catch (e) {
+      alert('Silinemedi: ' + e.message);
     } finally {
       setBusy(false);
     }
@@ -380,7 +481,7 @@ function GelenBelgelerApp({ currentUser }) {
     ? [{ id: 'gelen', label: 'Gelen Belgeler' }]
     : [
         { id: 'gelen', label: 'Gelen Belgeler' },
-        { id: 'giden', label: 'Gönderdiklerim' },
+        { id: 'giden', label: 'Giden Belgeler' },
       ];
 
   const bosKutu = (metin) => (
@@ -414,7 +515,7 @@ function GelenBelgelerApp({ currentUser }) {
     >
       {window.CakuBanner &&
         React.createElement(window.CakuBanner, {
-          title: 'Gelen Belgeler',
+          title: 'Gelen / Giden Belgeler',
           subtitle: 'Size yönlendirilen belgeler — indirin, işleyin, durumunu işaretleyin',
         })}
 
@@ -540,6 +641,57 @@ function GelenBelgelerApp({ currentUser }) {
         </div>
       )}
 
+      {/* Belge türü alt sekmeleri — muafiyet ve ÇAP/Yandal birden çok tür
+          ürettiği için belgeler burada ayrılır, karışmaz. */}
+      {tab === 'gelen' && turSekmeleri.length > 1 && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            flexWrap: 'wrap',
+            marginBottom: 14,
+            paddingLeft: 2,
+          }}
+        >
+          {[{ id: 'hepsi', label: 'Tümü', bekleyen: 0 }].concat(turSekmeleri).map((t) => {
+            const on = turFiltre === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTurFiltre(t.id)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 16,
+                  border: '1px solid ' + (on ? GB.accent : GB.border),
+                  background: on ? GB.accentPale : 'white',
+                  color: on ? GB.accent : GB.textMuted,
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {t.label}
+                {t.bekleyen > 0 && (
+                  <span
+                    style={{
+                      marginLeft: 6,
+                      background: GB.amberLight,
+                      color: GB.amber,
+                      borderRadius: 9,
+                      padding: '0 6px',
+                      fontSize: 10.5,
+                    }}
+                  >
+                    {t.bekleyen}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {tab === 'gelen' &&
         (gelen.length === 0 ? (
           bosKutu(
@@ -554,6 +706,7 @@ function GelenBelgelerApp({ currentUser }) {
                 key={(it.doc.id || i) + '_' + it.index}
                 item={it}
                 onDurum={setDurum}
+                onSil={isStudent ? null : silBelge}
                 busy={busy}
               />
             ))}
@@ -563,7 +716,7 @@ function GelenBelgelerApp({ currentUser }) {
       {tab === 'giden' &&
         !isStudent &&
         (gonderdiklerim.length === 0 ? (
-          bosKutu('Henüz belge yönlendirmediniz.')
+          bosKutu('Bölümünüzden yönlendirilmiş belge bulunmuyor.')
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {gonderdiklerim.map((d, i) => (
