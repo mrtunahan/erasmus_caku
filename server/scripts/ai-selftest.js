@@ -175,10 +175,13 @@ async function main() {
     if (onekToken >= cx.CACHE_MIN_TOKENS) {
       ok('Sabit önek önbelleğe alınabilir', onekToken + ' token');
     } else {
-      fail('Sabit önek eşiğin ALTINDA', onekToken + ' / ' + cx.CACHE_MIN_TOKENS + ' token');
-      bilgi('Önbellek sessizce çalışmayacak. Çözüm: ai_ornekler koleksiyonuna');
-      bilgi('modül başına 1-2 doldurulmuş örnek girin (docs/ai-belge-isleme.md).');
-      bilgi('Bu bir hata değil; maliyet optimizasyonunun devre dışı olduğu anlamına gelir.');
+      // HATA DEĞİL: doğruluğu etkilemez, yalnız girdi maliyeti biraz yüksek.
+      atla('Prompt önbelleği devre dışı', onekToken + ' / ' + cx.CACHE_MIN_TOKENS + ' token');
+      bilgi('Doğruluğa etkisi YOK; yalnız girdi maliyeti çağrı başına ~$0.0008 fazla.');
+      bilgi('Eşiği aşmak için prompt şişirmeye genelde DEĞMEZ: 4096 token önek yazımı');
+      bilgi('~$0.005, kazanç çağrı başına ~$0.0004 — 5 dakikalık pencerede 12+ çağrı');
+      bilgi('gerekir. Yoğun dönem dışında bu eşik aşılmaz ve şişirme net zarardır.');
+      bilgi('ai_ornekler örneklerini yalnız DOĞRULUK yetersizse ekleyin (önbellek yan etki).');
     }
   } catch (e) {
     const hesap = hesapHatasi(e);
