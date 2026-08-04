@@ -21,6 +21,19 @@ modüle ve o modülün alanlarına eşlenmiştir
 çıkarım/kıyaslama alan listesine çevirir; bileşenlere `alanlar` verilmezse
 otomatik bu yol kullanılır.
 
+### Görünür yüzü: "Yapay Zekâ" modülü
+
+Sol menüde **Yapay Zekâ** (yalnız `isUniversityAdmin`). Model çağrısı
+başlatmaz, yalnız izler:
+
+- **Durum** — açık/kapalı, model, prompt önbelleği devrede mi
+- **Nerede çalışıyor** — hangi modülde hangi işlev bağlı, hangileri bekliyor
+- **Maliyet** — öğrenci / modül / bölüm / gün kırılımında tablo
+
+> Bağlantı tablosu `yapay-zeka-modulu.jsx` içindeki `BAGLANTILAR` dizisinden
+> gelir. **Yeni bir modül bağlarken burayı da güncelleyin**, yoksa panel
+> gerçeği yansıtmaz.
+
 > ÖDR taslak yazımı (`/api/ai/accreditation-draft`) **bu katmanda değildir**.
 > O, sağlayıcı seçilebilen `services/llm.js` üzerinden çalışır. İki farklı iş,
 > iki farklı katman — karıştırılmamalıdır.

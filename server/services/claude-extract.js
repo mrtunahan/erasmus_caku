@@ -170,6 +170,41 @@ async function sistemBloklari(module_, docType) {
   return bloklar;
 }
 
+// Sabit öneğin token sayısı — önbellek eşiğinin altında mı üstünde mi
+// olduğunu göstermek için. countTokens ücretsizdir ama yine de saatte bir
+// ölçülür; yönetim ekranı her açılışta API'yi meşgul etmesin.
+let _onekOlcum = null;
+async function onekTokenSayisi(module_, docType) {
+  const simdi = Date.now();
+  if (_onekOlcum && simdi - _onekOlcum.t < 60 * 60 * 1000) return _onekOlcum.v;
+  try {
+    const c = client();
+    const sistem = await sistemBloklari(module_ || 'yataygecis', docType || 'kurumici');
+    const bos = await c.messages.countTokens({
+      model: MODEL,
+      messages: [{ role: 'user', content: 'x' }],
+    });
+    const dolu = await c.messages.countTokens({
+      model: MODEL,
+      system: sistem,
+      messages: [{ role: 'user', content: 'x' }],
+    });
+    const token = Math.max(0, dolu.input_tokens - bos.input_tokens);
+    _onekOlcum = {
+      t: simdi,
+      v: { token, esik: CACHE_MIN_TOKENS, aktif: token >= CACHE_MIN_TOKENS },
+    };
+    return _onekOlcum.v;
+  } catch (e) {
+    return {
+      token: 0,
+      esik: CACHE_MIN_TOKENS,
+      aktif: false,
+      hata: (e && e.message) || 'ölçülemedi',
+    };
+  }
+}
+
 function onekOnbelleginiTemizle(module_, docType) {
   if (!module_) return _onekCache.clear();
   _onekCache.delete(String(module_) + '|' + String(docType || 'default'));
@@ -1093,6 +1128,7 @@ module.exports = {
   CACHE_MIN_TOKENS,
   WEB_ARAMA_ARACI,
   yapilandirildiMi,
+  onekTokenSayisi,
   alanCikar,
   satirCikar,
   karsilastir,
