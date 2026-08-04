@@ -276,6 +276,47 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
       .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
   }, [bolumler, form.basvurduguFakulteId]);
 
+  // ── Belgeden alan doldurma ──
+  // Yalnız öğrencinin ELLE girdiği alanlar istenir. Kurum içi geçişte
+  // üniversite/fakülte/bölüm sistemden gelir; onları modele sordurmak
+  // hem gereksiz maliyet hem de yanlış doldurma riskidir.
+  const aiAlanlari = useMemo(() => {
+    const liste = [];
+    if (!icGecis) {
+      liste.push(
+        { id: 'aktifUniversite', label: 'Aktif üniversite', hint: 'Belgeyi düzenleyen üniversite' },
+        { id: 'aktifFakulte', label: 'Aktif fakülte / yüksekokul' },
+        { id: 'aktifBolum', label: 'Aktif bölüm / program' }
+      );
+    }
+    liste.push({ id: 'aktifSinif', label: 'Sınıf', hint: 'Örn. 2' });
+    if (tur.notIster) {
+      liste.push({
+        id: 'notOrtalamasi',
+        label: 'Not ortalaması (AGNO)',
+        hint: 'Transkriptteki genel not ortalaması; 100’lük değeri tercih et',
+      });
+    }
+    if (tur.puanIster) {
+      liste.push(
+        { id: 'yksYerlesmeYili', label: 'YKS yerleşme yılı', hint: 'Örn. 2023' },
+        { id: 'yksPuanTuru', label: 'Yerleştiği puan türü', hint: 'SAY / EA / SÖZ / DİL' },
+        { id: 'yksPuani', label: 'YKS yerleştirme puanı' }
+      );
+    }
+    return liste;
+  }, [icGecis, tur.notIster, tur.puanIster]);
+
+  const aiDosyalari = useMemo(() => {
+    const cikar = window.aiDosyaAdi;
+    if (!cikar) return [];
+    return YG_EKLER.map((ek) => {
+      const y = ekler[ek.id];
+      const fileName = y && y.url ? cikar(y.url) : '';
+      return fileName ? { fileName, name: ek.title } : null;
+    }).filter(Boolean);
+  }, [ekler]);
+
   // Benim Sayfam iletişim bilgileri — varsa forma önden doldur
   useEffect(() => {
     if (!sysOgrNo) return;
@@ -675,6 +716,36 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
             );
           })}
         </div>
+
+        {/* Yüklenen belgelerden alan doldurma — sonuç önce incelenir,
+            kullanıcı işaretlediklerini forma aktarır. Otomatik yazma yok. */}
+        {window.AIDoldurButonu && (
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed ' + YG.border }}>
+            {React.createElement(window.AIDoldurButonu, {
+              module: 'yataygecis',
+              docType: tur.id,
+              alanlar: aiAlanlari,
+              dosyalar: aiDosyalari,
+              onUygula: (degerler) => {
+                setForm((f) => {
+                  const y = { ...f };
+                  Object.keys(degerler).forEach((k) => {
+                    // Kurum içi geçişte sistemden gelen alanlar kilitlidir;
+                    // model çıktısı onları ezmemeli.
+                    if (icGecis && ['aktifUniversite', 'aktifFakulte', 'aktifBolum'].includes(k)) {
+                      return;
+                    }
+                    y[k] = ['aktifUniversite', 'aktifFakulte', 'aktifBolum'].includes(k)
+                      ? buyuk(degerler[k])
+                      : degerler[k];
+                  });
+                  return y;
+                });
+                setMesaj({ text: 'Seçilen bilgiler forma aktarıldı — kontrol edin.', kind: 'ok' });
+              },
+            })}
+          </div>
+        )}
       </div>
 
       {mesaj.text && (

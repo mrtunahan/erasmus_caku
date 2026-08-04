@@ -3850,6 +3850,366 @@ window.uploadGeneratedDoc = async function (blob, filename, folder) {
   return data.downloadURL || null;
 };
 
+// ══════════════════════════════════════════════════════════════
+// BELGE İŞLEME (AI) — ortak istemci katmanı
+//
+// Sunucudaki tek extraction servisine (POST /api/ai/extract) bağlanır.
+// Modüle özel hiçbir şey bilmez: çağıran taraf "hangi alanlar doldurulacak"
+// listesini verir, bu katman sonucu ÖNCE İNCELEME PANELİNDE gösterir,
+// kullanıcı onayladığı alanları forma aktarır.
+//
+// Otomatik doldurma YOKTUR. Model çıktısı hiçbir zaman doğrudan kaydedilmez —
+// aynı belge önizleme akışındaki gibi, insan onayı zorunludur.
+// ══════════════════════════════════════════════════════════════
+
+// Durum sorgusu — oturum başına bir kez, sonuç bellekte tutulur.
+let _aiDurumSoz = null;
+window.aiBelgeDurumu = function () {
+  if (_aiDurumSoz) return _aiDurumSoz;
+  const token = localStorage.getItem('caku_auth_token');
+  _aiDurumSoz = fetch('/api/ai/status', {
+    headers: token ? { Authorization: 'Bearer ' + token } : {},
+    credentials: 'include',
+  })
+    .then((r) => (r.ok ? r.json() : {}))
+    .then((d) => (d && d.belgeIsleme) || { configured: false, model: '' })
+    .catch(() => ({ configured: false, model: '' }));
+  return _aiDurumSoz;
+};
+
+/**
+ * Yüklenmiş belgelerden form alanlarını çıkarır.
+ *
+ * @param {object} opt
+ * @param {string} opt.module    Modül kimliği (yataygecis, muafiyet, erasmus…)
+ * @param {string} opt.docType   Alt tür (kurumici, intibak, gidis…)
+ * @param {Array<{id,label,hint,format}>} opt.alanlar
+ * @param {Array<{fileName,name}>} opt.dosyalar  /api/files/upload'ın döndürdüğü fileName
+ * @returns {Promise<{ok, data, hatalar, onbellek}>}  data[alanId] = {deger, guven, kaynak}
+ */
+window.aiAlanDoldur = async function (opt) {
+  const token = localStorage.getItem('caku_auth_token');
+  const res = await fetch('/api/ai/extract', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+    },
+    credentials: 'include',
+    body: JSON.stringify({
+      module: opt.module || '',
+      docType: opt.docType || 'default',
+      fields: opt.alanlar || [],
+      dosyalar: opt.dosyalar || [],
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Belge işlenemedi (HTTP ' + res.status + ')');
+  return data;
+};
+
+// Web ile doğrulama (yalnız personel) — en fazla 3 arama.
+window.aiWebDogrula = async function (opt) {
+  const token = localStorage.getItem('caku_auth_token');
+  const res = await fetch('/api/ai/verify', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+    },
+    credentials: 'include',
+    body: JSON.stringify({
+      module: opt.module || '',
+      docType: opt.docType || 'default',
+      iddialar: opt.iddialar || [],
+      izinliAlanlar: opt.izinliAlanlar || [],
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Doğrulanamadı (HTTP ' + res.status + ')');
+  return data;
+};
+
+// /api/files/upload'ın döndürdüğü indirme URL'sinden `fileName` çıkarır.
+// Belge işleme ucu dosyayı bu ad üzerinden diskte bulur — dosya ikinci kez
+// yüklenmez, base64 ile ağdan geçmez.
+window.aiDosyaAdi = function (url) {
+  const s = String(url || '');
+  const i = s.indexOf('/api/files/download/');
+  if (i < 0) return '';
+  return decodeURI(s.slice(i + '/api/files/download/'.length).split('?')[0]);
+};
+
+// Güven seviyesi → renk/etiket. Düşük güven görsel olarak ayrışsın ki
+// kullanıcı körlemesine "hepsini aktar" demesin.
+function aiGuvenStili(g) {
+  if (g >= 0.85) return { renk: '#047857', bg: '#ECFDF5', etiket: 'Yüksek' };
+  if (g >= 0.5) return { renk: '#B45309', bg: '#FFFBEB', etiket: 'Orta' };
+  return { renk: '#B91C1C', bg: '#FEF2F2', etiket: 'Düşük' };
+}
+
+/**
+ * "Belgeden Doldur" butonu + inceleme paneli.
+ *
+ * props:
+ *   module, docType   — sunucudaki few-shot bloğunu seçer
+ *   alanlar           — [{id, label, hint?, format?}]
+ *   dosyalar          — [{fileName, name}] (yüklenmiş belgeler)
+ *   onUygula(degerler)— kullanıcı onaylayınca {alanId: 'deger'} ile çağrılır
+ *   etiket            — buton metni (varsayılan "Belgeden Doldur")
+ */
+window.AIDoldurButonu = function AIDoldurButonu({
+  module,
+  docType,
+  alanlar,
+  dosyalar,
+  onUygula,
+  etiket,
+}) {
+  const [hazir, setHazir] = React.useState(false);
+  const [calisiyor, setCalisiyor] = React.useState(false);
+  const [sonuc, setSonuc] = React.useState(null);
+  const [secili, setSecili] = React.useState({});
+  const [hata, setHata] = React.useState('');
+
+  React.useEffect(() => {
+    let iptal = false;
+    window.aiBelgeDurumu().then((d) => {
+      if (!iptal) setHazir(!!d.configured);
+    });
+    return () => {
+      iptal = true;
+    };
+  }, []);
+
+  const dosyaVar = Array.isArray(dosyalar) && dosyalar.length > 0;
+  if (!hazir) return null;
+
+  const calistir = async () => {
+    setCalisiyor(true);
+    setHata('');
+    try {
+      const r = await window.aiAlanDoldur({ module, docType, alanlar, dosyalar });
+      setSonuc(r);
+      // Varsayılan seçim: yalnız yüksek güvenli ve dolu alanlar işaretli gelir.
+      const s = {};
+      (alanlar || []).forEach((a) => {
+        const c = r.data && r.data[a.id];
+        s[a.id] = !!(c && c.deger && c.guven >= 0.85);
+      });
+      setSecili(s);
+    } catch (e) {
+      setHata(e.message);
+    } finally {
+      setCalisiyor(false);
+    }
+  };
+
+  const uygula = () => {
+    const degerler = {};
+    (alanlar || []).forEach((a) => {
+      const c = sonuc.data && sonuc.data[a.id];
+      if (secili[a.id] && c && c.deger) degerler[a.id] = c.deger;
+    });
+    if (onUygula) onUygula(degerler);
+    setSonuc(null);
+  };
+
+  const dolu = sonuc
+    ? (alanlar || []).filter((a) => sonuc.data && sonuc.data[a.id] && sonuc.data[a.id].deger)
+    : [];
+
+  return React.createElement(
+    'div',
+    null,
+    React.createElement(
+      'button',
+      {
+        type: 'button',
+        onClick: calistir,
+        disabled: calisiyor || !dosyaVar,
+        title: dosyaVar ? '' : 'Önce belge yükleyin',
+        style: {
+          padding: '8px 14px',
+          borderRadius: 8,
+          border: '1px solid #C7D2FE',
+          background: dosyaVar ? '#EEF2FF' : '#F3F4F6',
+          color: dosyaVar ? '#3730A3' : '#9CA3AF',
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: calisiyor || !dosyaVar ? 'not-allowed' : 'pointer',
+        },
+      },
+      calisiyor ? 'Belge okunuyor…' : etiket || 'Belgeden Doldur'
+    ),
+    hata
+      ? React.createElement(
+          'div',
+          { style: { marginTop: 8, fontSize: 12, color: '#B91C1C' } },
+          hata
+        )
+      : null,
+    sonuc
+      ? React.createElement(
+          'div',
+          {
+            style: {
+              marginTop: 12,
+              border: '1px solid #E5E7EB',
+              borderRadius: 10,
+              background: 'white',
+              overflow: 'hidden',
+            },
+          },
+          React.createElement(
+            'div',
+            {
+              style: {
+                padding: '10px 14px',
+                background: '#F9FAFB',
+                borderBottom: '1px solid #E5E7EB',
+                fontSize: 12.5,
+                fontWeight: 700,
+                color: '#111827',
+              },
+            },
+            'Belgeden okunan bilgiler — aktarmak istediklerinizi işaretleyin'
+          ),
+          dolu.length === 0
+            ? React.createElement(
+                'div',
+                { style: { padding: 16, fontSize: 12.5, color: '#6B7280' } },
+                'Belgede bu alanlara karşılık gelen bir bilgi bulunamadı.'
+              )
+            : React.createElement(
+                'div',
+                { style: { padding: 8 } },
+                dolu.map((a) => {
+                  const c = sonuc.data[a.id];
+                  const st = aiGuvenStili(c.guven);
+                  return React.createElement(
+                    'label',
+                    {
+                      key: a.id,
+                      style: {
+                        display: 'grid',
+                        gridTemplateColumns: '24px 1fr auto',
+                        gap: 10,
+                        alignItems: 'start',
+                        padding: '9px 8px',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        background: secili[a.id] ? '#F8FAFC' : 'transparent',
+                      },
+                    },
+                    React.createElement('input', {
+                      type: 'checkbox',
+                      checked: !!secili[a.id],
+                      onChange: (e) => setSecili((s) => ({ ...s, [a.id]: e.target.checked })),
+                      style: { marginTop: 3 },
+                    }),
+                    React.createElement(
+                      'div',
+                      null,
+                      React.createElement(
+                        'div',
+                        { style: { fontSize: 11.5, color: '#6B7280' } },
+                        a.label || a.id
+                      ),
+                      React.createElement(
+                        'div',
+                        { style: { fontSize: 13, fontWeight: 600, color: '#111827' } },
+                        c.deger
+                      ),
+                      c.kaynak
+                        ? React.createElement(
+                            'div',
+                            { style: { fontSize: 11, color: '#9CA3AF', marginTop: 2 } },
+                            'Kaynak: ' + c.kaynak
+                          )
+                        : null
+                    ),
+                    React.createElement(
+                      'span',
+                      {
+                        style: {
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: 999,
+                          color: st.renk,
+                          background: st.bg,
+                          whiteSpace: 'nowrap',
+                        },
+                      },
+                      st.etiket
+                    )
+                  );
+                })
+              ),
+          React.createElement(
+            'div',
+            {
+              style: {
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 14px',
+                borderTop: '1px solid #E5E7EB',
+                background: '#F9FAFB',
+              },
+            },
+            React.createElement(
+              'span',
+              { style: { fontSize: 11, color: '#6B7280' } },
+              'Bu bilgiler otomatik okunmuştur; kaydetmeden önce kontrol edin.'
+            ),
+            React.createElement(
+              'div',
+              { style: { display: 'flex', gap: 8 } },
+              React.createElement(
+                'button',
+                {
+                  type: 'button',
+                  onClick: () => setSonuc(null),
+                  style: {
+                    padding: '7px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #E5E7EB',
+                    background: 'white',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  },
+                },
+                'Vazgeç'
+              ),
+              React.createElement(
+                'button',
+                {
+                  type: 'button',
+                  onClick: uygula,
+                  disabled: dolu.length === 0,
+                  style: {
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: dolu.length === 0 ? '#D1D5DB' : '#4338CA',
+                    color: 'white',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: dolu.length === 0 ? 'not-allowed' : 'pointer',
+                  },
+                },
+                'Seçilenleri Forma Aktar'
+              )
+            )
+          )
+        )
+      : null
+  );
+};
+
 // Bir modül çıktısını (snapshot) 'memur_outputs' koleksiyonuna yazar. sourceId
 // varsa upsert edilir (yeniden üretimde tekrar oluşmaz). facultyId verilmezse
 // departmentId'den türetilir (kapsam eşleşmesi için).
