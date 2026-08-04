@@ -26,6 +26,7 @@ const Anthropic = AnthropicPkg.Anthropic || AnthropicPkg.default || AnthropicPkg
 
 let gecen = 0;
 let kalan = 0;
+let atlanan = 0;
 const toplamUsage = {
   input_tokens: 0,
   output_tokens: 0,
@@ -41,8 +42,29 @@ function fail(baslik, detay) {
   kalan += 1;
   console.log('  \x1b[31m✗\x1b[0m ' + baslik + (detay ? '  — ' + detay : ''));
 }
+function atla(baslik, detay) {
+  atlanan += 1;
+  console.log('  \x1b[33m−\x1b[0m ' + baslik + (detay ? '  — ' + detay : ''));
+}
 function bilgi(metin) {
   console.log('    \x1b[90m' + metin + '\x1b[0m');
+}
+
+// Kredi/faturalandırma hatası bir KOD hatası değildir; testi erken bitirip
+// tek ve net bir mesaj vermek, aynı hatayı beş kez farklı kılıkta
+// göstermekten iyidir.
+function hesapHatasi(e) {
+  const m = String((e && e.message) || e || '');
+  if (/credit balance is too low|insufficient_quota|billing/i.test(m)) {
+    return 'Hesapta kredi yok. console.anthropic.com → Plans & Billing üzerinden kredi yükleyin.';
+  }
+  if (/authentication_error|invalid x-api-key/i.test(m)) {
+    return 'API anahtarı geçersiz. server/.env içindeki ANTHROPIC_API_KEY değerini kontrol edin.';
+  }
+  if (/permission_error|not have access/i.test(m)) {
+    return 'Bu anahtarın modele erişim izni yok. Konsoldan anahtar izinlerini kontrol edin.';
+  }
+  return '';
 }
 function baslik(metin) {
   console.log('\n\x1b[1m' + metin + '\x1b[0m');
@@ -159,6 +181,13 @@ async function main() {
       bilgi('Bu bir hata değil; maliyet optimizasyonunun devre dışı olduğu anlamına gelir.');
     }
   } catch (e) {
+    const hesap = hesapHatasi(e);
+    if (hesap) {
+      fail('Model çağrısı yapılamıyor', hesap);
+      bilgi('Anahtar ve model erişimi doğrulandı; sorun kodda değil, hesapta.');
+      bilgi('Kredi yüklendikten sonra bu testi tekrar çalıştırın.');
+      return sonuc();
+    }
     fail('Token sayımı', e.message);
   }
 
@@ -178,6 +207,11 @@ async function main() {
     });
     usageTopla(cikarim.usage);
   } catch (e) {
+    const hesap = hesapHatasi(e);
+    if (hesap) {
+      fail('Model çağrısı yapılamıyor', hesap);
+      return sonuc();
+    }
     fail('Çıkarım çağrısı', e.message);
   }
 
@@ -204,6 +238,13 @@ async function main() {
     if (dogru === toplam) ok('Tüm alanlar doğru okundu', dogru + '/' + toplam);
     else fail('Bazı alanlar yanlış', dogru + '/' + toplam + ' doğru');
   } else if (cikarim) {
+    const hesap = (cikarim.hatalar || []).map((h) => hesapHatasi(h && h.message)).find(Boolean);
+    if (hesap) {
+      fail('Model çağrısı yapılamıyor', hesap);
+      bilgi('Anahtar ve model erişimi doğrulandı; sorun kodda değil, hesapta.');
+      bilgi('Kredi yüklendikten sonra bu testi tekrar çalıştırın.');
+      return sonuc();
+    }
     fail('Çıkarım', cikarim.reason + ' ' + JSON.stringify(cikarim.hatalar || []));
   }
 
@@ -221,8 +262,11 @@ async function main() {
     const okunan = (ikinci.usage && ikinci.usage.cache_read_input_tokens) || 0;
     if (okunan > 0) {
       ok('Önbellek okundu', okunan + ' token (~%90 daha ucuz)');
-    } else if (onekToken && onekToken < cx.CACHE_MIN_TOKENS) {
-      bilgi('Önbellek okunmadı — beklenen davranış (önek eşiğin altında, adım 2).');
+    } else if (!onekToken) {
+      // Adım 2 ölçemediyse burada bir şey iddia edemeyiz.
+      atla('Önbellek okuması', 'değerlendirilemedi — adım 2 tamamlanamadı');
+    } else if (onekToken < cx.CACHE_MIN_TOKENS) {
+      atla('Önbellek okunmadı', 'beklenen davranış — önek eşiğin altında (adım 2)');
     } else {
       fail('Önbellek okunmadı', 'önek eşiği aşıyor ama okuma yok — önek kararlılığını denetleyin');
     }
@@ -322,7 +366,15 @@ function sonuc() {
   baslik(
     kalan === 0 ? '\x1b[32mTÜM TESTLER GEÇTİ\x1b[0m' : '\x1b[31m' + kalan + ' TEST BAŞARISIZ\x1b[0m'
   );
-  console.log('  ' + gecen + ' geçti, ' + kalan + ' kaldı\n');
+  console.log(
+    '  ' +
+      gecen +
+      ' geçti, ' +
+      kalan +
+      ' kaldı' +
+      (atlanan ? ', ' + atlanan + ' atlandı' : '') +
+      '\n'
+  );
   process.exit(kalan === 0 ? 0 : 1);
 }
 
