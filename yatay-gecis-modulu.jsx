@@ -500,8 +500,11 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
               <option value="">
                 {form.basvurduguFakulteId ? '— Bölüm seçin —' : 'Önce fakülte seçin'}
               </option>
+              {/* Değer büyük harfe çevrilerek saklandığından option değeri de
+                  büyük harf olmalı — aksi halde seçim state'e yazılır ama
+                  <select> hiçbir option'la eşleşmediği için boş görünür. */}
               {hedefBolumler.map((b) => (
-                <option key={b.id || b._docId} value={b.name}>
+                <option key={b.id || b._docId} value={buyuk(b.name)}>
                   {b.name}
                 </option>
               ))}

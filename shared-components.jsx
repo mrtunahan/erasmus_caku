@@ -3641,7 +3641,8 @@ const TemplateEngine = (() => {
     if (!tpl.file || !/^xlsx?$/.test(tpl.file.extension || '')) {
       return { ok: false, reason: 'not-xlsx' };
     }
-    const eslesme = Array.isArray(tpl.mapping) ? tpl.mapping : [];
+    // Eşleme kayıtları `fields` altında tutulur (docx üreticisiyle aynı kaynak).
+    const eslesme = (Array.isArray(tpl.fields) ? tpl.fields : []).filter((f) => f && f.variable);
     if (eslesme.length === 0) return { ok: false, reason: 'no-mapping' };
 
     let buf;
@@ -3672,8 +3673,22 @@ const TemplateEngine = (() => {
         tokenHarita[f.token] = { tip: parts[0], id: parts[1] };
       });
 
-      const statik = opts.staticData || {};
-      const veri = Array.isArray(opts.rows) ? opts.rows : [];
+      // Türkçe harf normalizasyonu — docx üreticisiyle aynı `format` katalogu.
+      const _vars =
+        (window.templateVarsFor && window.templateVarsFor(opts.module, opts.docType)) || {};
+      const _fmtById = {};
+      [...(_vars.static || []), ...(_vars.row || [])].forEach((v) => {
+        if (v && v.format) _fmtById[v.id] = v.format;
+      });
+      const _applyFmt = (obj) => {
+        if (!obj || typeof obj !== 'object') return obj;
+        const out = {};
+        for (const k in obj) out[k] = _fmtById[k] ? formatCaseTr(obj[k], _fmtById[k]) : obj[k];
+        return out;
+      };
+
+      const statik = _applyFmt(opts.staticData || {});
+      const veri = (Array.isArray(opts.rows) ? opts.rows : []).map(_applyFmt);
 
       const satirTokenuVarMi = (metin) => {
         TOKEN_RX.lastIndex = 0;
