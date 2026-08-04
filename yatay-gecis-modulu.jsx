@@ -37,8 +37,10 @@ const YG = {
 const YG_TURLER = [
   {
     id: 'kurumici',
-    label: 'Kurum İçi Y.G.',
+    label: 'Kurum İçi Yatay Geçiş',
     tamAd: 'Kurum İçi Yatay Geçiş',
+    color: '#B45309',
+    bg: '#FEF3C7',
     aciklama: 'Üniversite içindeki başka bir bölümden aynı üniversitenin bölümüne geçiş',
     // Kurum içinde YKS puanı istenmiyor; şablonda da yok.
     puanIster: false,
@@ -46,8 +48,10 @@ const YG_TURLER = [
   },
   {
     id: 'kurumlararasi',
-    label: 'Kurumlararası (Yurt İçi) Y.G.',
+    label: 'Kurumlararası Yatay Geçiş',
     tamAd: 'Başarı Düzeyi ile Kurumlararası (Yurt İçi) Yatay Geçiş',
+    color: '#0F766E',
+    bg: '#CCFBF1',
     aciklama: "Başka bir üniversiteden geçiş — YKS puanının %40'ı + not ortalamasının %60'ı",
     puanIster: true,
     notIster: true,
@@ -55,8 +59,10 @@ const YG_TURLER = [
   },
   {
     id: 'merkezi',
-    label: 'Merkezi Yerleştirme Puanı ile Y.G.',
+    label: 'Merkezi Yerleştirme Puanı ile Yatay Geçiş',
     tamAd: 'Merkezi Yerleştirme Puanı ile Yatay Geçiş (Ek Madde 1)',
+    color: '#6D28D9',
+    bg: '#F3E8FF',
     aciklama: 'ÖSYS/YKS yerleştirme puanı, başvurulan programın taban puanına eşit veya üstü ise',
     puanIster: true,
     notIster: false,
@@ -1122,53 +1128,46 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           subtitle: tur.tamAd,
         })}
 
-      {/* Geçiş türü sekmeleri — Ders Muafiyet'teki alt-çizgili sekme görünümü */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 4,
-          flexWrap: 'wrap',
-          marginBottom: 18,
-          borderBottom: '1px solid ' + YG.border,
-        }}
-      >
+      {/* Başvuru türü seçici — ÇAP/Yandal ile aynı desen */}
+      <div style={{ display: 'flex', gap: 10, margin: '18px 0 20px', flexWrap: 'wrap' }}>
         {YG_TURLER.map((t) => {
-          const on = turId === t.id;
-          const sayi = kayitlar.filter((r) => (r.turu || 'kurumici') === t.id).length;
+          const sel = turId === t.id;
+          const cnt = kayitlar.filter((r) => (r.turu || 'kurumici') === t.id).length;
           return (
             <button
               key={t.id}
               type="button"
-              onClick={() => setTurId(t.id)}
+              onClick={() => {
+                setTurId(t.id);
+                setSekme(isStudent ? 'yeni' : 'basvurular');
+              }}
               style={{
-                padding: '11px 18px',
-                background: 'none',
-                border: 'none',
-                borderBottom: '2px solid ' + (on ? YG.accent : 'transparent'),
-                color: on ? YG.accent : YG.textMuted,
-                fontWeight: on ? 700 : 500,
-                fontSize: 13.5,
+                flex: '1 1 300px',
+                textAlign: 'left',
+                padding: '16px 18px',
+                borderRadius: 12,
                 cursor: 'pointer',
+                border: (sel ? '2px solid ' : '1px solid ') + (sel ? t.color : YG.border),
+                borderLeft: '3px solid ' + (sel ? t.color : YG.border),
+                background: sel ? t.bg : 'white',
                 fontFamily: 'inherit',
-                whiteSpace: 'nowrap',
               }}
             >
-              {t.label}
-              {sayi > 0 && (
-                <span
-                  style={{
-                    marginLeft: 7,
-                    background: on ? YG.accentPale : YG.bg,
-                    color: on ? '#7c4a03' : YG.textMuted,
-                    borderRadius: 9,
-                    padding: '1px 7px',
-                    fontSize: 11,
-                    fontWeight: 700,
-                  }}
-                >
-                  {sayi}
-                </span>
-              )}
+              <span
+                style={{
+                  display: 'block',
+                  fontSize: 15.5,
+                  fontWeight: 700,
+                  color: sel ? t.color : YG.text,
+                  marginBottom: 5,
+                }}
+              >
+                {t.label}
+              </span>
+              <span style={{ fontSize: 11.5, color: YG.textMuted }}>
+                {t.aciklama}
+                {cnt ? '  ·  ' + cnt + ' kayıt' : ''}
+              </span>
             </button>
           );
         })}
