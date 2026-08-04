@@ -341,6 +341,13 @@ const DEPARTMENT_MODULES = [
   },
   { id: 'muafiyet', label: 'Ders Muafiyet', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
   {
+    // Yatay Geçiş — üç türü (kurum içi · kurumlararası · merkezi yerleştirme)
+    // kendi sekmelerinde yürüten ayrı modül. Ders Muafiyet'ten ayrıldı.
+    id: 'yataygecis',
+    label: 'Yatay Geçiş',
+    icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4',
+  },
+  {
     id: 'capyandal',
     label: 'ÇAP / Yandal',
     icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
@@ -2143,6 +2150,46 @@ const MUAFIYET_STATIC = [
   { id: 'ogrenciAdres', label: 'Öğrenci Adres' },
 ];
 
+// ── Yatay Geçiş değişkenleri ──
+// Şablonlar SATIR BAZLI değerlendirme raporudur: bir belge = bir bölümün
+// tüm başvuranları, her satır bir öğrenci. Bu yüzden statik alanlar rapor
+// künyesi (yıl/dönem/bölüm), satır alanları ise öğrenci bilgileridir.
+// Alan adları şablonlardaki yer tutucularla birebir eşlenmek üzere seçildi.
+const YATAY_STATIC = [
+  { id: 'egitimYili', label: 'Eğitim-Öğretim Yılı (örn 2026-2027)' },
+  { id: 'donem', label: 'Dönem (Güz/Bahar)' },
+  { id: 'basvurulanBolum', label: 'Raporun Ait Olduğu Bölüm', format: 'title' },
+  { id: 'fakulteAd', label: 'Fakülte Adı', format: 'title' },
+  { id: 'tarih', label: 'Bugünün Tarihi' },
+];
+
+// Satır (her başvuran bir satır). Üç tür aynı seti kullanır; ilgisiz alanlar
+// o türün şablonunda eşlenmez ve boş kalır.
+const YATAY_ROWS = [
+  { id: 'adSoyad', label: 'Adı Soyadı', format: 'name' },
+  // Hâlen öğrenim gördüğü (geldiği) program
+  { id: 'halenUniversite', label: 'Hâlen Öğrenim Gördüğü Üniversite' },
+  { id: 'halenFakulte', label: 'Hâlen Öğrenim Gördüğü Fakülte' },
+  { id: 'halenBolum', label: 'Hâlen Öğrenim Gördüğü Bölüm' },
+  // Başvurduğu program
+  { id: 'basvurduguBolum', label: 'Başvurduğu Bölüm', format: 'title' },
+  { id: 'basvurduguSinif', label: 'Başvurduğu Sınıf' },
+  { id: 'basvurduguYariyil', label: 'Başvurduğu Yarıyıl' },
+  // Yerleştirme bilgileri
+  { id: 'yksYerlesmeYili', label: 'YKS Yerleşme Yılı' },
+  { id: 'yksPuanTuru', label: 'Yerleştiği Puan Türü' },
+  { id: 'yksPuani', label: 'YKS Puanı' },
+  { id: 'notOrtalamasi', label: 'Not Ortalaması' },
+  // Kurumlararası hesaplama (sistem hesaplar)
+  { id: 'yksPuaniYuzde40', label: "YKS Puanının %40'ı" },
+  { id: 'notOrtYuzde60', label: "Not Ortalamasının %60'ı" },
+  { id: 'yerlesmePuani', label: 'Yerleştirmeye Esas Puan' },
+  // Merkezi yerleştirme
+  { id: 'basvurduguBolumOsysPuani', label: 'Başvurduğu Bölümün ÖSYS Puanı' },
+  // Akademisyenin dropdown'dan seçtiği karar (belgedeki son sütun)
+  { id: 'degerlendirme', label: 'Değerlendirme Sonucu' },
+];
+
 // Sınav programı şablon değişkenleri (Bölüm ve Dekanlık çıktısı ortak set)
 const SINAV_STATIC = [
   { id: 'bolumAd', label: 'Bölüm Adı', format: 'title' },
@@ -2229,6 +2276,19 @@ window.TEMPLATE_VARS = {
     dikey: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
     // Geriye dönük: docType='default' ile kaydedilmiş eski şablonlar
     default: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
+  },
+  // Yatay Geçiş — üç ayrı tür, üçü de aynı değişken setini kullanır.
+  // Şablonlar modülünden her tür için ayrı şablon eşlenebilir.
+  yataygecis: {
+    docTypes: [
+      { id: 'kurumici', label: 'Kurum İçi Yatay Geçiş' },
+      { id: 'kurumlararasi', label: 'Kurumlararası (Yurt İçi) Yatay Geçiş' },
+      { id: 'merkezi', label: 'Merkezi Yerleştirme Puanı ile Yatay Geçiş' },
+    ],
+    kurumici: { static: YATAY_STATIC, row: YATAY_ROWS },
+    kurumlararasi: { static: YATAY_STATIC, row: YATAY_ROWS },
+    merkezi: { static: YATAY_STATIC, row: YATAY_ROWS },
+    default: { static: YATAY_STATIC, row: YATAY_ROWS },
   },
   // ÇAP (Çift Anadal) / Yandal başvuru dilekçeleri — alanlar şablondaki
   // yer tutucularla birebir: kimlik/iletişim + öğrencilik + 2 tercih.
@@ -3566,6 +3626,9 @@ window.BELGE_OTO_KURALLAR = {
   'muafiyet:intibak': 'memur',
   'muafiyet:yatay': 'memur',
   'muafiyet:dikey': 'memur',
+  'yataygecis:kurumici': 'memur',
+  'yataygecis:kurumlararasi': 'memur',
+  'yataygecis:merkezi': 'memur',
   'erasmus:gidis': 'memur',
   'erasmus:donus': 'memur',
 };
