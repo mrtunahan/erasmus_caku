@@ -692,6 +692,176 @@ async function karsilastir(opt) {
   };
 }
 
+// ══════════════════════════════════════════════════════════════
+// SATIR ÇIKARIMI — tablo/liste belgeleri için.
+//
+// alanCikar tekil alan içindir ("AGNO kaç?"). Transkript, ders çizelgesi,
+// Learning Agreement gibi belgelerde asıl iş SATIR listesidir: belgede kaç
+// ders varsa o kadar satır. Öğrencinin en çok elle veri girdiği yer burası.
+//
+// Güven satır düzeyindedir, hücre düzeyinde değil: bir transkript satırı ya
+// doğru okunur ya okunmaz; hücre başına güven hem gereksiz hem de çıktı
+// token'ını (dolayısıyla maliyeti) katlar.
+// ══════════════════════════════════════════════════════════════
+const MAX_SATIR = 100;
+
+function satirSemasi(satirAlanlari) {
+  const properties = {};
+  const required = [];
+  satirAlanlari.forEach((f) => {
+    properties[f.id] = { type: 'string' };
+    required.push(f.id);
+  });
+  properties.guven = { type: 'number' };
+  required.push('guven');
+  return {
+    type: 'object',
+    properties: {
+      satirlar: {
+        type: 'array',
+        items: { type: 'object', properties, required, additionalProperties: false },
+      },
+    },
+    required: ['satirlar'],
+    additionalProperties: false,
+  };
+}
+
+const SATIR_TALIMATI = `Şimdi TEK ALAN değil SATIR LİSTESİ çıkaracaksın.
+
+Belgedeki tabloyu/listeyi satır satır oku. Belgede kaç satır varsa o kadar
+nesne üret — eksik bırakma, fazladan uydurma.
+
+Ek kurallar:
+- Başlık satırlarını, ara toplamları ve dipnotları ATLA; yalnız veri satırları.
+- Bir satırda bir sütun boşsa o alanı boş string ("") bırak, satırı atlama.
+- Satırların belgedeki SIRASINI koru.
+- "guven" satırın tamamı içindir: 1.0 = satır net okundu, 0.5 = bazı hücreler
+  yorum gerektirdi, 0.3 ve altı = satır şüpheli.
+- Bir satır birden çok mantıksal kaydı içeriyorsa (birleşik hücre) bölme;
+  belgede nasıl duruyorsa öyle ver.`;
+
+/**
+ * @param {object} opt
+ * @param {Array<{id,label,hint?}>} opt.satirAlanlari  bir satırın sütunları
+ * @param {string} [opt.satirTanimi]  "her ders" / "her hareketlilik" gibi
+ * @param {Array} opt.dosyalar
+ */
+async function satirCikar(opt) {
+  const alanlar = (Array.isArray(opt.satirAlanlari) ? opt.satirAlanlari : []).filter(
+    (f) => f && f.id
+  );
+  if (alanlar.length === 0) return { ok: false, reason: 'no-fields', hatalar: [] };
+  if (alanlar.length > 20) return { ok: false, reason: 'too-many-columns', hatalar: [] };
+
+  const { gruplar, hatalar } = await istekGruplari(opt.dosyalar || []);
+  if (gruplar.length === 0) return { ok: false, reason: 'no-readable-document', hatalar };
+
+  const sistem = await sistemBloklari(opt.module, opt.docType);
+  const sema = satirSemasi(alanlar);
+  // Satır başına ~20 token × sütun sayısı, üstüne tavan.
+  const maxTokens = Math.max(2048, Math.min(8192, MAX_SATIR * alanlar.length * 20));
+
+  const alanMetni =
+    SATIR_TALIMATI +
+    '\n\nÇıkarılacak liste: ' +
+    (opt.satirTanimi || 'belgedeki her veri satırı') +
+    '\n\nHer satırın sütunları:\n' +
+    alanlar
+      .map((f) => '- ' + f.id + ': ' + (f.label || f.id) + (f.hint ? ' — ' + f.hint : ''))
+      .join('\n');
+
+  const toplam = {
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+  };
+  const hepsi = [];
+  const baglam = opt.baglam || {};
+
+  for (const grup of gruplar) {
+    const icerik = [{ type: 'text', text: alanMetni }, ...grup];
+    let sonuc;
+    try {
+      sonuc = await cagirVeAyristir({ sistem, icerik, sema, maxTokens });
+    } catch (e) {
+      hatalar.push({ reason: 'api-error', message: e && e.message });
+      await kullanimKaydet({
+        module: opt.module,
+        docType: opt.docType,
+        endpoint: 'extract-rows',
+        model: MODEL,
+        ...baglam,
+        usage: {},
+        ok: false,
+        hata: e && e.message,
+      });
+      continue;
+    }
+    sonuc.usages.forEach((u) => {
+      if (!u) return;
+      toplam.input_tokens += u.input_tokens || 0;
+      toplam.output_tokens += u.output_tokens || 0;
+      toplam.cache_creation_input_tokens += u.cache_creation_input_tokens || 0;
+      toplam.cache_read_input_tokens += u.cache_read_input_tokens || 0;
+    });
+    for (const u of sonuc.usages) {
+      await kullanimKaydet({
+        module: opt.module,
+        docType: opt.docType,
+        endpoint: 'extract-rows',
+        model: MODEL,
+        ...baglam,
+        usage: u,
+        ok: !!sonuc.veri,
+      });
+    }
+    if (sonuc.veri && Array.isArray(sonuc.veri.satirlar)) hepsi.push(...sonuc.veri.satirlar);
+    else hatalar.push({ reason: 'parse-failed', stopReason: sonuc.stopReason });
+  }
+
+  if (hepsi.length === 0 && hatalar.some((h) => h.reason)) {
+    return { ok: false, reason: 'parse-failed', hatalar, usage: toplam };
+  }
+
+  // Normalize + tekilleştir. Parçalar bindirmeli olduğu için (doc-text
+  // CHUNK_OVERLAP) aynı satır iki parçada birden görünebilir; tüm sütunların
+  // normalize birleşimi anahtar olarak kullanılır.
+  const gorulen = new Set();
+  const satirlar = [];
+  hepsi.forEach((ham) => {
+    if (!ham || typeof ham !== 'object') return;
+    const satir = {};
+    let doluHucre = 0;
+    alanlar.forEach((f) => {
+      const v = typeof ham[f.id] === 'string' ? ham[f.id].trim() : '';
+      satir[f.id] = v;
+      if (v) doluHucre += 1;
+    });
+    if (doluHucre === 0) return; // tamamen boş satır
+    satir.guven = guvenKirp(ham.guven);
+    const anahtar = alanlar.map((f) => kiyasNormalize(satir[f.id])).join('|');
+    if (gorulen.has(anahtar)) return;
+    gorulen.add(anahtar);
+    if (satirlar.length < MAX_SATIR) satirlar.push(satir);
+  });
+
+  return {
+    ok: true,
+    satirlar,
+    hatalar,
+    usage: toplam,
+    onbellek: {
+      yazilan: toplam.cache_creation_input_tokens,
+      okunan: toplam.cache_read_input_tokens,
+      minimumAltinda:
+        toplam.cache_creation_input_tokens === 0 && toplam.cache_read_input_tokens === 0,
+      esik: CACHE_MIN_TOKENS,
+    },
+  };
+}
+
 // ── Web ile doğrulama ─────────────────────────────────────────
 // Haiku 4.5 temel web arama aracını kullanır (dinamik filtrelemeli
 // _20260209 sürümü yalnız Opus/Sonnet 4.6+ modellerde vardır).
@@ -924,6 +1094,7 @@ module.exports = {
   WEB_ARAMA_ARACI,
   yapilandirildiMi,
   alanCikar,
+  satirCikar,
   karsilastir,
   kiyasNormalize,
   webDogrula,

@@ -249,6 +249,54 @@ router.post('/extract', extractLimiter, requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/ai/extract-rows — tablo/liste belgelerinden satır listesi.
+// body: { module, docType, satirAlanlari:[{id,label,hint}], satirTanimi, dosyalar[] }
+router.post('/extract-rows', extractLimiter, requireAuth, async (req, res) => {
+  try {
+    if (!aiHazirMi(res)) return undefined;
+    const b = req.body || {};
+    // Sütun sayısı dar tutulur: her sütun her satırda tekrar ettiği için
+    // çıktı token'ını doğrudan çarpar.
+    const satirAlanlari = alanlariTemizle(b.satirAlanlari).slice(0, 20);
+    if (satirAlanlari.length === 0) {
+      return res.status(400).json({ error: 'Sütun tanımı yok.' });
+    }
+
+    const { cozulen, bulunamayan } = dosyalariCoz(b.dosyalar);
+    if (cozulen.length === 0) {
+      return res.status(400).json({ error: 'Okunabilir belge bulunamadı.', bulunamayan });
+    }
+
+    const sonuc = await cx.satirCikar({
+      module: clip(b.module, 40),
+      docType: clip(b.docType, 40) || 'default',
+      satirAlanlari,
+      satirTanimi: clip(b.satirTanimi, 200),
+      dosyalar: cozulen,
+      baglam: baglamCoz(req, b),
+    });
+
+    if (!sonuc.ok) {
+      return res.status(422).json({
+        error: 'Belgeden satırlar çıkarılamadı.',
+        reason: sonuc.reason,
+        hatalar: (sonuc.hatalar || []).concat(bulunamayan),
+      });
+    }
+    return res.json({
+      ok: true,
+      model: cx.MODEL,
+      satirlar: sonuc.satirlar,
+      hatalar: (sonuc.hatalar || []).concat(bulunamayan),
+      onbellek: sonuc.onbellek,
+      usage: sonuc.usage,
+    });
+  } catch (err) {
+    console.error('ai/extract-rows error:', err.message);
+    return res.status(502).json({ error: 'Satırlar çıkarılamadı: ' + err.message });
+  }
+});
+
 // POST /api/ai/compare — formdaki/sistemdeki değerleri belgeyle kıyasla.
 // body: { module, docType, fields[], mevcutDegerler{}, dosyalar[] }
 router.post('/compare', extractLimiter, requireAuth, async (req, res) => {
