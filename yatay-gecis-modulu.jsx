@@ -151,12 +151,10 @@ const ygFileHref = (u) => {
   return rel ? '/api/files/download/' + rel + '?download=true' : '#';
 };
 
-// Not ortalamasını 100'lük sisteme çevir (4'lük girildiyse YÖK katsayısı).
+// Not ortalaması yalnızca 100'lük sistemde girilir — dönüşüm yapılmaz.
 function ygYuzluk(not) {
   const n = parseFloat(String(not || '').replace(',', '.'));
-  if (isNaN(n)) return null;
-  if (n > 4.5) return n; // zaten 100'lük
-  return Math.round(n * 25 * 100) / 100; // YÖK dönüşüm tablosu yaklaşık
+  return isNaN(n) ? null : n;
 }
 
 // Kurumlararası yerleştirmeye esas puan: YKS×0.40 + AGNO(100)×0.60
@@ -497,13 +495,16 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
             )}
             {tur.notIster && (
               <div>
-                <label style={ygLabel}>Not ortalaması (AGNO) *</label>
+                <label style={ygLabel}>Not ortalaması (AGNO) — 100&apos;lük *</label>
                 <input
                   value={form.notOrtalamasi}
-                  onChange={(e) => set('notOrtalamasi', e.target.value)}
-                  placeholder="4'lük veya 100'lük"
+                  onChange={(e) => set('notOrtalamasi', e.target.value.replace(/[^\d.,]/g, ''))}
+                  placeholder="ör. 76,50"
                   style={ygInput}
                 />
+                <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
+                  Yalnızca 100&apos;lük sistemde girilir (0-100).
+                </div>
               </div>
             )}
           </div>
@@ -527,8 +528,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
                 {hesap.p40} (YKS %40) + {hesap.n60} (AGNO %60) = {hesap.toplam}
               </b>
               <br />
-              Not ortalaması 4&apos;lük sistemde girildiyse 100&apos;lük sisteme çevrilerek
-              hesaplanır. Nihai değeri komisyon doğrular.
+              Nihai değeri komisyon doğrular.
             </div>
           )}
         </div>
@@ -538,6 +538,9 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
       <div style={{ ...ygCard, padding: 16, marginBottom: 14 }}>
         <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 10 }}>
           Başvuru ekleri
+        </div>
+        <div style={{ fontSize: 11.5, color: YG.textMuted, marginBottom: 10 }}>
+          Tüm ekler <b>PDF</b> olarak yüklenir.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {YG_EKLER.map((ek) => {
@@ -575,11 +578,22 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
                 <label style={{ ...ygBtn(false), cursor: 'pointer' }}>
                   <input
                     type="file"
+                    accept=".pdf,application/pdf"
                     style={{ display: 'none' }}
                     onChange={(e) => {
                       const f = (e.target.files && e.target.files[0]) || null;
                       e.target.value = '';
-                      if (f) ekYukle(ek.id, f);
+                      if (!f) return;
+                      // Yalnız PDF: akademisyen belgeleri yan panelde
+                      // görüntüleyebilsin diye tek biçim kabul edilir.
+                      if (f.type !== 'application/pdf' && !/\.pdf$/i.test(f.name)) {
+                        setMesaj({
+                          text: 'Yalnızca PDF dosyası yükleyebilirsiniz.',
+                          kind: 'error',
+                        });
+                        return;
+                      }
+                      ekYukle(ek.id, f);
                     }}
                   />
                   {yukleniyor === ek.id ? 'Yükleniyor…' : yuklu ? 'Değiştir' : 'Dosya Seç'}
@@ -621,15 +635,38 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
 // ══════════════════════════════════════════════════════════════
 function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy }) {
   const [acik, setAcik] = useState(false);
+  // Akademisyende yan panelde açılan ek (PDF)
+  const [acikEk, setAcikEk] = useState('');
   const deg = YG_DEGERLENDIRME.find((d) => d.id === rec.degerlendirme);
   const st = rec.degerlendirme ? YG_DURUMLAR.degerlendirildi : YG_DURUMLAR.beklemede;
   const hesap = tur?.hesapla ? ygYerlesmePuani(rec.yksPuani, rec.notOrtalamasi) : null;
 
+  // Etiket üstte, değer altta — sütunlar eşit genişlikte, satırlar hizalı.
   const satir = (k, v) =>
     v ? (
-      <div key={k} style={{ fontSize: 12.5 }}>
-        <span style={{ color: YG.textMuted }}>{k}: </span>
-        <b style={{ color: YG.text }}>{v}</b>
+      <div key={k} style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 10.5,
+            fontWeight: 600,
+            color: YG.textMuted,
+            textTransform: 'uppercase',
+            letterSpacing: 0.3,
+            marginBottom: 2,
+          }}
+        >
+          {k}
+        </div>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: YG.text,
+            wordBreak: 'break-word',
+          }}
+        >
+          {v}
+        </div>
       </div>
     ) : null;
 
@@ -670,9 +707,12 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy }) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))',
-              gap: 8,
-              margin: '14px 0',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+              gap: '14px 18px',
+              margin: '16px 0',
+              padding: '14px 16px',
+              background: YG.bg,
+              borderRadius: 10,
             }}
           >
             {satir('Hâlen üniversite', rec.halenUniversite)}
@@ -691,35 +731,106 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy }) {
             {satir('E-posta', rec.eposta)}
           </div>
 
-          {/* Ekler */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-            {YG_EKLER.map((ek) => {
-              const f = (rec.ekler || {})[ek.id];
-              return f ? (
-                <a
-                  key={ek.id}
-                  href={ygFileHref(f.url)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+          {/* Ekler — akademisyende seçilen belge YAN PANELDE açılır (PDF) */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isStaff && acikEk ? 'minmax(0,260px) minmax(0,1fr)' : '1fr',
+              gap: 12,
+              marginBottom: 14,
+              alignItems: 'start',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {YG_EKLER.map((ek) => {
+                const f = (rec.ekler || {})[ek.id];
+                if (!f) {
+                  return (
+                    <span
+                      key={ek.id}
+                      style={{ ...ygPill(YG.textMuted, YG.bg), textAlign: 'center' }}
+                    >
+                      {ek.title} — yok
+                    </span>
+                  );
+                }
+                const secili = acikEk === ek.id;
+                return (
+                  <div key={ek.id} style={{ display: 'flex', gap: 6 }}>
+                    {isStaff && (
+                      <button
+                        type="button"
+                        onClick={() => setAcikEk(secili ? '' : ek.id)}
+                        style={{
+                          flex: 1,
+                          textAlign: 'left',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: secili ? '#7c4a03' : YG.accent,
+                          border: '1px solid ' + YG.accent + (secili ? '' : '55'),
+                          background: secili ? YG.accentPale : 'white',
+                          borderRadius: 8,
+                          padding: '6px 10px',
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        {ek.title}
+                      </button>
+                    )}
+                    <a
+                      href={ygFileHref(f.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: YG.navy,
+                        border: '1px solid ' + YG.border,
+                        background: 'white',
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                        textDecoration: 'none',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {isStaff ? 'İndir' : ek.title}
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+
+            {isStaff && acikEk && (rec.ekler || {})[acikEk] && (
+              <div
+                style={{
+                  border: '1px solid ' + YG.border,
+                  borderRadius: 10,
+                  overflow: 'hidden',
+                  background: YG.bg,
+                }}
+              >
+                <div
                   style={{
+                    padding: '7px 12px',
+                    background: 'white',
+                    borderBottom: '1px solid ' + YG.border,
                     fontSize: 12,
-                    color: YG.accent,
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                    border: '1px solid ' + YG.accent + '55',
-                    background: YG.accentPale,
-                    borderRadius: 14,
-                    padding: '4px 11px',
+                    fontWeight: 700,
+                    color: YG.navy,
                   }}
                 >
-                  {ek.title}
-                </a>
-              ) : (
-                <span key={ek.id} style={ygPill(YG.textMuted, YG.bg)}>
-                  {ek.title} — yok
-                </span>
-              );
-            })}
+                  {(YG_EKLER.find((e) => e.id === acikEk) || {}).title}
+                </div>
+                <iframe
+                  title="ek-onizleme"
+                  src={String((rec.ekler || {})[acikEk].url || '')
+                    .replace('/api/files/download/', '/api/files/view/')
+                    .replace(/\?download=true$/, '')}
+                  style={{ width: '100%', height: 420, border: 'none', background: 'white' }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Akademisyen: DEĞERLENDİRME (belgedeki son sütun) */}
@@ -826,7 +937,8 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
-  const [onizleme, setOnizleme] = useState(null);
+  // Üretilen raporun belge kimliği — "Memura Gönder" düğmesi bununla çalışır.
+  const [uretilenBelge, setUretilenBelge] = useState(null);
   const [belgeUretiliyor, setBelgeUretiliyor] = useState(false);
 
   const yukle = useCallback(async () => {
@@ -919,7 +1031,8 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
         };
       });
 
-      const res = await window.TemplateEngine.produceFromTemplate({
+      // Şablonlar .xlsx — satır çoğaltmalı xlsx üreticisi kullanılır.
+      const res = await window.TemplateEngine.produceRowsXlsx({
         module: 'yataygecis',
         docType: turId,
         departmentId: activeDepartment || '',
@@ -932,12 +1045,14 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
         },
         rows,
         filename:
-          'Yatay_Gecis_' + turId + '_' + (bolumAd || 'bolum').replace(/\s+/g, '_') + '.docx',
+          'Yatay_Gecis_' + turId + '_' + (bolumAd || 'bolum').replace(/\s+/g, '_') + '.xlsx',
         noDownload: true,
       });
 
       if (!res.ok) {
-        if (res.reason === 'no-template') {
+        if (res.reason === 'not-xlsx') {
+          alert('Bu geçiş türüne atanan şablon .xlsx değil. Şablonu .xlsx olarak yükleyin.');
+        } else if (res.reason === 'no-template') {
           alert(
             'Bu geçiş türü için şablon atanmamış.\n\nŞablonlar → Yatay Geçiş → "' +
               tur.tamAd +
@@ -971,11 +1086,11 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
         console.warn('Yatay geçiş snapshot kaydedilemedi:', e && e.message);
       }
 
-      setOnizleme({
-        blob: res.blob,
-        filename: res.filename,
-        baslik: tur.tamAd + ' — Değerlendirme Raporu',
-        belge: url
+      // .xlsx docx önizleyici ile gösterilemez; dosya doğrudan indirilir ve
+      // gönderim için belge kimliği saklanır.
+      window.TemplateEngine.downloadBlob(res.blob, res.filename);
+      setUretilenBelge(
+        url
           ? {
               module: 'yataygecis',
               docType: turId,
@@ -985,8 +1100,10 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
               url,
               departmentId: activeDepartment || '',
             }
-          : null,
-      });
+          : null
+      );
+      setMsg('Rapor indirildi (' + (res.rowCount || 0) + ' satır).');
+      setTimeout(() => setMsg(''), 5000);
     } catch (e) {
       alert('Belge üretilemedi: ' + e.message);
     } finally {
@@ -1150,6 +1267,22 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
               >
                 {belgeUretiliyor ? 'Üretiliyor…' : 'Belge Oluştur'}
               </button>
+              {uretilenBelge && (
+                <button
+                  onClick={async () => {
+                    try {
+                      if (window.belgeOtoYonlendir) await window.belgeOtoYonlendir(uretilenBelge);
+                      setMsg('Rapor memura gönderildi.');
+                      setTimeout(() => setMsg(''), 4000);
+                    } catch (e) {
+                      alert('Gönderilemedi: ' + e.message);
+                    }
+                  }}
+                  style={ygBtn(false)}
+                >
+                  Memura Gönder
+                </button>
+              )}
             </div>
           )}
 
@@ -1185,21 +1318,6 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           )}
         </>
       )}
-
-      {/* Belge önizleme — önce görüntülenir, sonra indirilir/gönderilir */}
-      {onizleme &&
-        window.BelgeOnizlemeModal &&
-        React.createElement(window.BelgeOnizlemeModal, {
-          blob: onizleme.blob,
-          filename: onizleme.filename,
-          baslik: onizleme.baslik,
-          onClose: () => setOnizleme(null),
-          onSend: onizleme.belge
-            ? async () => {
-                if (window.belgeOtoYonlendir) await window.belgeOtoYonlendir(onizleme.belge);
-              }
-            : null,
-        })}
     </div>
   );
 }

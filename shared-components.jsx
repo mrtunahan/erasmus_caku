@@ -2422,9 +2422,51 @@ const TemplateEngine = (() => {
     return { zip, xml };
   }
 
+  // XLSX yer tutucuları: metinler xl/sharedStrings.xml içindeki <si> girdilerinde
+  // durur. Word'den farkı, her <si> bir hücre metnidir (satır/paragraf yok).
+  async function detectPlaceholdersXlsx(arrayBuffer) {
+    const JSZip = await ensureJSZip();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    const ss = zip.file('xl/sharedStrings.xml');
+    if (!ss) return [];
+    const xml = await ss.async('string');
+    const perToken = {};
+    const out = [];
+    const parcalar = [...xml.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) =>
+      decodeEnt([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((x) => x[1]).join(''))
+    );
+    parcalar.forEach((metin) => {
+      TOKEN_RX.lastIndex = 0;
+      let m;
+      while ((m = TOKEN_RX.exec(metin)) !== null) {
+        const token = m[0];
+        perToken[token] = (perToken[token] || 0) + 1;
+        // Bağlam: hücrenin tamamı (tek satıra indirgenmiş)
+        out.push({
+          token,
+          tokenOccurrence: perToken[token],
+          context: metin.replace(/\s+/g, ' ').trim(),
+          variable: '',
+          value: '',
+        });
+      }
+    });
+    return out;
+  }
+
   // Belgedeki yer tutucuları belge sırasıyla döndürür.
   // Dönen her kayıt: { token, tokenOccurrence, context }
+  // .docx ve .xlsx desteklenir — xlsx şablonlarda alan eşlemesi yapılamıyordu.
   async function detectPlaceholders(arrayBuffer) {
+    try {
+      const JSZip = await ensureJSZip();
+      const zip = await JSZip.loadAsync(arrayBuffer);
+      if (!zip.file('word/document.xml') && zip.file('xl/sharedStrings.xml')) {
+        return await detectPlaceholdersXlsx(arrayBuffer);
+      }
+    } catch (_) {
+      /* docx yoluna düş */
+    }
     const { xml } = await readDocumentXml(arrayBuffer);
     // Düz metin: paragrafları satıra çevir, etiketleri at
     const text = decodeEnt(xml.replace(/<w:p\b[^>]*>/g, '\n').replace(/<[^>]+>/g, ''));
@@ -3533,6 +3575,197 @@ const TemplateEngine = (() => {
     }
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // XLSX şablon doldurucu — statik alanlar + SATIR ÇOĞALTMA
+  //
+  // Word tarafındaki produceFromTemplate'in xlsx karşılığı: satır değişkeni
+  // içeren <row> "şablon satırı" sayılır ve her veri kaydı için bir kopya
+  // üretilir; sonraki satır numaraları ve birleşik hücre aralıkları kaydırılır.
+  // Değerler inlineStr olarak yazılır — sharedStrings tablosuna dokunulmaz.
+  // ══════════════════════════════════════════════════════════════
+
+  // Hücre başvurusundaki satır numarasını değiştir (C7 → C12)
+  function xlRefSatir(ref, yeniSatir) {
+    return String(ref).replace(/^([A-Z]+)\d+$/, (_, h) => h + yeniSatir);
+  }
+
+  // Bir <row> XML'ini doldur ve satır numarasını ayarla.
+  function xlSatirDoldur(rowXml, yeniSatirNo, strings, doldur) {
+    let out = rowXml.replace(/(<row\b[^>]*\sr=")(\d+)(")/, (_, a, __, c) => a + yeniSatirNo + c);
+    out = out.replace(
+      /(<c\b[^>]*\sr=")([A-Z]+\d+)(")/g,
+      (_, a, ref, c) => a + xlRefSatir(ref, yeniSatirNo) + c
+    );
+    out = out.replace(/<c\b([^>]*)>([\s\S]*?)<\/c>/g, (tam, oz, ic) => {
+      if (!/\st="s"/.test(oz)) return tam;
+      const m = ic.match(/<v>(\d+)<\/v>/);
+      if (!m) return tam;
+      const metin = strings[Number(m[1])];
+      if (metin == null || metin.indexOf('{{') < 0) return tam;
+      const yeni = doldur(metin);
+      if (yeni === metin) return tam;
+      const ozTemiz = oz.replace(/\st="[^"]*"/, '');
+      return (
+        '<c' +
+        ozTemiz +
+        ' t="inlineStr"><is><t xml:space="preserve">' +
+        escapeXml(yeni) +
+        '</t></is></c>'
+      );
+    });
+    return out;
+  }
+
+  async function produceRowsXlsx(opts) {
+    const token = localStorage.getItem('caku_auth_token');
+    const headers = token ? { Authorization: 'Bearer ' + token } : {};
+    const resolveUrl = (dep) =>
+      '/api/templates/resolve?module=' +
+      encodeURIComponent(opts.module) +
+      '&docType=' +
+      encodeURIComponent(opts.docType || 'default') +
+      '&departmentId=' +
+      encodeURIComponent(dep || '');
+    const tryResolve = async (dep) => {
+      try {
+        const r = await fetch(resolveUrl(dep), { headers, credentials: 'include' });
+        const d = await r.json().catch(() => ({}));
+        return d.template || null;
+      } catch (_) {
+        return null;
+      }
+    };
+    let tpl = await tryResolve(opts.departmentId || '');
+    if (!tpl && opts.departmentId) tpl = await tryResolve('');
+    if (!tpl) return { ok: false, reason: 'no-template' };
+    if (!tpl.file || !/^xlsx?$/.test(tpl.file.extension || '')) {
+      return { ok: false, reason: 'not-xlsx' };
+    }
+    const eslesme = Array.isArray(tpl.mapping) ? tpl.mapping : [];
+    if (eslesme.length === 0) return { ok: false, reason: 'no-mapping' };
+
+    let buf;
+    try {
+      const fr = await fetch('/api/templates/' + tpl._id + '/download', {
+        headers,
+        credentials: 'include',
+      });
+      if (!fr.ok) throw new Error('indirilemedi');
+      buf = await fr.arrayBuffer();
+    } catch (e) {
+      return { ok: false, reason: 'download', message: e.message };
+    }
+
+    try {
+      const JSZip = await ensureJSZip();
+      const zip = await JSZip.loadAsync(buf);
+      const ssFile = zip.file('xl/sharedStrings.xml');
+      const ssXml = ssFile ? await ssFile.async('string') : '';
+      const strings = [...ssXml.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) =>
+        decodeEnt([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((x) => x[1]).join(''))
+      );
+
+      const tokenHarita = {};
+      eslesme.forEach((f) => {
+        if (!f || !f.token || !f.variable) return;
+        const parts = String(f.variable).split(':');
+        tokenHarita[f.token] = { tip: parts[0], id: parts[1] };
+      });
+
+      const statik = opts.staticData || {};
+      const veri = Array.isArray(opts.rows) ? opts.rows : [];
+
+      const satirTokenuVarMi = (metin) => {
+        TOKEN_RX.lastIndex = 0;
+        const bulunan = String(metin).match(TOKEN_RX) || [];
+        return bulunan.some((t) => tokenHarita[t] && tokenHarita[t].tip === 'row');
+      };
+
+      const doldurYap = (kayit) => (metin) => {
+        TOKEN_RX.lastIndex = 0;
+        return String(metin).replace(TOKEN_RX, (t) => {
+          const h = tokenHarita[t];
+          if (!h) return t;
+          const kaynak = h.tip === 'row' ? kayit || {} : statik;
+          const v = kaynak[h.id];
+          return v == null ? '' : String(v);
+        });
+      };
+
+      const sheetAdlari = Object.keys(zip.files).filter((n) =>
+        /^xl\/worksheets\/sheet\d+\.xml$/.test(n)
+      );
+
+      let uretilen = 0;
+      for (const sn of sheetAdlari) {
+        const xml = await zip.file(sn).async('string');
+        const satirRx = /<row\b[^>]*>[\s\S]*?<\/row>|<row\b[^>]*\/>/g;
+        const satirlar = [...xml.matchAll(satirRx)].map((m) => m[0]);
+        if (satirlar.length === 0) continue;
+
+        let sablonIdx = -1;
+        satirlar.forEach((r, i) => {
+          if (sablonIdx >= 0) return;
+          const idx = [...r.matchAll(/<c\b[^>]*\st="s"[^>]*>\s*<v>(\d+)<\/v>/g)].map((x) =>
+            Number(x[1])
+          );
+          if (idx.some((ix) => strings[ix] && satirTokenuVarMi(strings[ix]))) sablonIdx = i;
+        });
+
+        const yeni = [];
+        let no = 0;
+        satirlar.forEach((r, i) => {
+          if (i === sablonIdx && veri.length > 0) {
+            veri.forEach((kayit) => {
+              no += 1;
+              yeni.push(xlSatirDoldur(r, no, strings, doldurYap(kayit)));
+            });
+            uretilen += veri.length;
+          } else {
+            no += 1;
+            yeni.push(xlSatirDoldur(r, no, strings, doldurYap(i === sablonIdx ? {} : null)));
+          }
+        });
+
+        let cikti = xml.replace(satirRx, () => yeni.shift() || '');
+
+        const kayma = veri.length > 0 ? veri.length - 1 : 0;
+        if (kayma > 0 && sablonIdx >= 0) {
+          const sablonNo = sablonIdx + 1;
+          cikti = cikti.replace(
+            /<mergeCell ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\/>/g,
+            (tam, h1, s1, h2, s2) => {
+              const a = Number(s1);
+              const b = Number(s2);
+              if (a <= sablonNo) return tam;
+              return '<mergeCell ref="' + h1 + (a + kayma) + ':' + h2 + (b + kayma) + '"/>';
+            }
+          );
+        }
+        cikti = cikti.replace(
+          /<dimension ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\/>/,
+          (tam, h1, s1, h2) => '<dimension ref="' + h1 + s1 + ':' + h2 + no + '"/>'
+        );
+        zip.file(sn, cikti);
+      }
+
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      if (!opts.noDownload) downloadBlob(blob, opts.filename || 'rapor.xlsx');
+      return {
+        ok: true,
+        blob,
+        filename: opts.filename || 'rapor.xlsx',
+        rowCount: uretilen,
+        templateId: tpl._id,
+      };
+    } catch (e) {
+      return { ok: false, reason: 'invalid-output', message: e.message };
+    }
+  }
+
   return {
     detectPlaceholders,
     generateDocx,
@@ -3541,6 +3774,8 @@ const TemplateEngine = (() => {
     parseRowIndicators,
     produceByRowKey,
     produceQuarterXlsx,
+    produceRowsXlsx,
+    detectPlaceholdersXlsx,
     fillRowsByKey,
     formatCaseTr,
   };
