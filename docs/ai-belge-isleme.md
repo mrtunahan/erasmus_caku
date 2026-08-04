@@ -249,6 +249,30 @@ echo "ANTHROPIC_API_KEY=sk-ant-..." >> server/.env
 pm2 restart erasmus_caku
 ```
 
-Anahtar tanımlı değilse `/api/ai/extract` ve `/api/ai/verify` **503** döner ve
-istemcideki "Belgeden Doldur" butonu hiç görünmez; uygulamanın geri kalanı
-etkilenmez.
+Anahtar tanımlı değilse `/api/ai/extract`, `/api/ai/compare` ve
+`/api/ai/verify` **503** döner ve istemcideki butonlar hiç görünmez;
+uygulamanın geri kalanı etkilenmez.
+
+### Kurulumu doğrulama
+
+```bash
+cd server && npm run ai:selftest
+```
+
+Gerçek model çağrıları yapar (~$0.02) ve sırayla şunları denetler:
+
+1. Anahtar tanımlı mı, model erişilebilir mi, bağlam penceresi 200K mi
+2. **Sabit önek 4096 token eşiğini aşıyor mu** — aşmıyorsa önbellek sessizce
+   çalışmaz; test bunu açıkça söyler
+3. Sentetik bir transkriptten 7 alanı doğru okuyor mu (ad, bölüm, sınıf,
+   AGNO, YKS yılı/türü/puanı)
+4. İkinci çağrıda önbellek gerçekten okunuyor mu
+5. Kıyaslama doğru karar veriyor mu — biçim farkı (`Mühendislik Fak.` ↔
+   `Mühendislik Fakültesi`, `78,45` ↔ `78.45`) **aynı** sayılmalı, gerçek
+   fark (`EA` ↔ `SAY`) **farklı**, boş alan `formda_bos`. Sahte uyuşmazlık
+   üretilmediği ayrıca doğrulanır.
+
+Çıkış kodu 0 = hepsi geçti. MongoDB gerekmez.
+
+> Anahtar `server/.env` içindedir ve `.gitignore` ile depo dışında tutulur —
+> depoya hiçbir koşulda yazılmamalıdır.
