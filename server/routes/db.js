@@ -145,6 +145,8 @@ const ALLOWED_COLLECTIONS = [
   // Yol Haritaları — bölüm yetkilisinin herhangi bir modül/sekme için
   // oluşturduğu adım adım rehberler. Öğrenci tarafında salt-okunur görünür.
   'yol_haritalari',
+  // Yatay geçiş başvuruları (kurum içi · kurumlararası · merkezi yerleştirme)
+  'yatay_gecis_basvurular',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -216,6 +218,8 @@ const STUDENT_WRITABLE = new Set([
   'student_courses',
   // ÇAP/Yandal başvurusu — öğrenci kendi başvurusunu oluşturur/günceller.
   'cap_yandal_basvurular',
+  // Yatay geçiş başvurusu — öğrenci kendi başvurusunu oluşturur/günceller.
+  'yatay_gecis_basvurular',
 ]);
 
 const STAFF_ROLES = new Set(['professor', 'bolum_yetkilisi', 'admin']);

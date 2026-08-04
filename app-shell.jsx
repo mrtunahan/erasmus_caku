@@ -583,6 +583,7 @@ const Sidebar = ({
       'staj',
       'muafiyet',
       'capyandal',
+      'yataygecis',
       'gelenbelgeler',
     ];
     const stdAllowed = stdBase.concat(commissionModules);
@@ -2275,6 +2276,7 @@ function AppShell() {
               'staj',
               'muafiyet',
               'capyandal',
+              'yataygecis',
               'gelenbelgeler',
             ]; // student
 
@@ -2466,6 +2468,7 @@ function AppShell() {
         fakulte: window.FakYonetimiApp,
         akreditasyon: window.AkreditasyonApp,
         yolharitalari: window.YolHaritalariApp,
+        yataygecis: window.YatayGecisApp,
       };
       const FallbackComponent = fallback[route];
       if (FallbackComponent)

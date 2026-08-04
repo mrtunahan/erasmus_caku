@@ -16,6 +16,7 @@ const SB_MODULES = [
   { id: 'erasmus', label: 'Erasmus', color: '#3B82F6' },
   { id: 'muafiyet', label: 'Ders Muafiyet', color: '#10B981' },
   { id: 'capyandal', label: 'ÇAP / Yandal', color: '#6D28D9' },
+  { id: 'yataygecis', label: 'Yatay Geçiş', color: '#B45309' },
   { id: 'staj', label: 'Staj', color: '#0EA5E9' },
   { id: 'sinav', label: 'Sınav Otomasyonu', color: '#DC2626' },
   { id: 'dersprogrami', label: 'Ders Programı', color: '#F59E0B' },
@@ -1138,6 +1139,26 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           okuduğudönem: 'static:okudugiDonem',
           tercih1: 'static:tercih1',
           tercih2: 'static:tercih2',
+          // ── Yatay Geçiş değerlendirme raporu yer tutucuları ──
+          // (şablonlardaki adlar birebir; normTr boşluk/işaret/kasa siler)
+          adısoyadı: 'row:adSoyad',
+          öğrencininşuankifakültesi: 'row:halenFakulte',
+          öğrencininşuankibölümü: 'row:halenBolum',
+          halenöğrenimgördüğüüni: 'row:halenUniversite',
+          halenöğrenimgördüğüfakülte: 'row:halenFakulte',
+          halenöğrenimgördüğübölüm: 'row:halenBolum',
+          başvurduğubölüm: 'row:basvurduguBolum',
+          başvurduğusınıf: 'row:basvurduguSinif',
+          başvurduğuyarıyıl: 'row:basvurduguYariyil',
+          yksyerleşmeyılı: 'row:yksYerlesmeYili',
+          yerleştiğipuantürü: 'row:yksPuanTuru',
+          ykspuanı: 'row:yksPuani',
+          notortalaması: 'row:notOrtalamasi',
+          ykspuanıyüzde40: 'row:yksPuaniYuzde40',
+          notortalamasıyüzde60: 'row:notOrtYuzde60',
+          yerleşmepuanı: 'row:yerlesmePuani',
+          başvurduğubölümösyspuanı: 'row:basvurduguBolumOsysPuani',
+          eğitimyılı2: 'static:egitimYili',
         };
         let auto = 0;
         merged = merged.map((f) => {
