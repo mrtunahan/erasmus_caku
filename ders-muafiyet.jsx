@@ -7208,6 +7208,15 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
 //     • AKTS kapısı: kaynak AKTS ≥ hedef AKTS × 0.7
 //     • İçerik ≥ %70 → otomatik muaf, %60–69 → akademisyen onayı, <%60 → red
 // ══════════════════════════════════════════════════════════════
+// Transkriptten okunacak sütunlar. Dar tutuldu: her sütun her satırda
+// tekrar ettiği için çıktı token'ını (ve maliyeti) doğrudan çarpar.
+const AI_TRANSKRIPT_SUTUNLARI = [
+  { id: 'dersKodu', label: 'Ders Kodu', hint: 'örn. BLM101' },
+  { id: 'dersAdi', label: 'Ders Adı' },
+  { id: 'akts', label: 'AKTS', hint: 'yalnız sayı; kredi sütunuyla karıştırma' },
+  { id: 'statu', label: 'Zorunlu/Seçmeli', hint: 'Z veya S; belgede yoksa boş bırak' },
+];
+
 const emptyManualRow = function () {
   return {
     id: 'r' + Math.random().toString(36).slice(2, 9),
@@ -7484,6 +7493,50 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
   const addRow = () => setRows((prev) => [...prev, emptyManualRow()]);
   const removeRow = (rowId) =>
     setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.id !== rowId) : prev));
+
+  // ── Transkriptten ders satırlarını okuma ──
+  // Öğrencinin en çok elle veri girdiği yer burası: her ders için kod, ad,
+  // AKTS, not. Transkriptte hepsi zaten yazıyor.
+  const transkriptYuklendi = useRef(null);
+  const transkriptSaglayici = async () => {
+    if (!transcriptFile) return [];
+    // Aynı dosya için tekrar yükleme yapma (kullanıcı butona iki kez basabilir).
+    if (transkriptYuklendi.current && transkriptYuklendi.current.file === transcriptFile) {
+      return transkriptYuklendi.current.liste;
+    }
+    const url = await uploadDocFile(transcriptFile);
+    if (!url || !window.aiDosyaAdi) return [];
+    const liste = [{ fileName: window.aiDosyaAdi(url), name: 'Transkript' }];
+    transkriptYuklendi.current = { file: transcriptFile, liste };
+    return liste;
+  };
+
+  // Seçilen satırlar KARŞI KURUM tarafına yazılır. ÇAKÜ karşılığı bilerek boş
+  // bırakılır: muafiyet kararı bu eşleştirmeye dayandığı için öğrencinin
+  // kendi seçmesi gerekir — model eşleştirmesi burada karar yerine geçemez.
+  const dersleriAktar = (satirlar) => {
+    if (!satirlar || satirlar.length === 0) return;
+    const yeniler = satirlar.map((s) => {
+      const r = emptyManualRow();
+      r.src.name = String(s.dersAdi || '').trim();
+      r.src.code = String(s.dersKodu || '').trim();
+      r.src.akts = String(s.akts || '').replace(/[^\d]/g, '');
+      const st = normalizeStatu(s.statu);
+      if (st) r.src.statu = st;
+      return r;
+    });
+    setRows((prev) => {
+      // İlk satır hiç doldurulmamışsa onu tüket, değilse listeye ekle.
+      const ilkBos = prev.length === 1 && !prev[0].src.name && !prev[0].cak.name;
+      return ilkBos ? yeniler : [...prev, ...yeniler];
+    });
+    setMsg({
+      text:
+        satirlar.length +
+        ' ders aktarıldı. Her ders için ÇAKÜ karşılığını ve Bologna linkini siz seçmelisiniz.',
+      kind: 'ok',
+    });
+  };
 
   // Öğrencinin yüklediği belgeyi sunucuya kaydet — akademisyen onay ekranında
   // PDF'i görüntüleyebilsin diye. Başarısız olursa null döner (talep yine
@@ -8384,6 +8437,28 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
             veya taranmış nüshalar kabul edilmez. Her talep için transkript yalnızca <b>bir kez</b>{' '}
             yüklenir.
           </div>
+
+          {/* Transkriptten ders satırlarını oku — her dersi elle girmek yerine.
+              Sonuç önce tabloda gösterilir, öğrenci seçtiklerini aktarır. */}
+          {transcriptFile && window.AISatirDoldurButonu && (
+            <div
+              style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed ' + DS.borderLight }}
+            >
+              {React.createElement(window.AISatirDoldurButonu, {
+                module: 'muafiyet',
+                docType: basvuruTuru,
+                sutunlar: AI_TRANSKRIPT_SUTUNLARI,
+                satirTanimi: 'karşı kurumda alınan her ders (transkriptteki her ders satırı)',
+                dosyaSaglayici: transkriptSaglayici,
+                etiket: 'Transkriptten Dersleri Oku',
+                onUygula: dersleriAktar,
+              })}
+              <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 8, lineHeight: 1.5 }}>
+                Yalnızca <b>karşı kurum</b> tarafı doldurulur. ÇAKÜ karşılığını ve Bologna linkini
+                siz seçersiniz — muafiyet kararı buna bağlı olduğu için otomatik eşleştirilmez.
+              </div>
+            </div>
+          )}
         </div>
       )}
 

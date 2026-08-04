@@ -4062,6 +4062,305 @@ const AI_KIYAS_STILI = {
  *   dosyalar       — [{fileName, name}]
  *   etiket
  */
+// Tablo/liste belgelerinden satır listesi çıkarır (transkript → ders satırları).
+window.aiSatirCikar = async function (opt) {
+  const token = localStorage.getItem('caku_auth_token');
+  const res = await fetch('/api/ai/extract-rows', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+    },
+    credentials: 'include',
+    body: JSON.stringify({
+      module: opt.module || '',
+      docType: opt.docType || 'default',
+      satirAlanlari: opt.sutunlar || [],
+      satirTanimi: opt.satirTanimi || '',
+      dosyalar: opt.dosyalar || [],
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Satırlar okunamadı (HTTP ' + res.status + ')');
+  return data;
+};
+
+/**
+ * "Belgeden Satırları Al" — transkript/çizelge gibi tablo belgelerinden
+ * satır listesi çıkarır, kullanıcıya tablo halinde gösterir, işaretlenenleri
+ * aktarır. Otomatik ekleme yoktur.
+ *
+ * props:
+ *   module, docType, dosyalar
+ *   sutunlar     — [{id, label, hint?}]
+ *   satirTanimi  — "karşı kurumda alınan her ders" gibi
+ *   onUygula(satirlar) — seçilen satırlar dizisi
+ *   etiket
+ */
+window.AISatirDoldurButonu = function AISatirDoldurButonu({
+  module,
+  docType,
+  sutunlar,
+  satirTanimi,
+  dosyalar,
+  // Belge forma seçilmiş ama henüz sunucuya yüklenmemişse: tıklama anında
+  // yükleyip {fileName, name} listesi döndüren async sağlayıcı. Böylece
+  // modülün mevcut "gönderirken yükle" akışı bozulmaz.
+  dosyaSaglayici,
+  onUygula,
+  etiket,
+}) {
+  const [hazir, setHazir] = React.useState(false);
+  const [calisiyor, setCalisiyor] = React.useState(false);
+  const [satirlar, setSatirlar] = React.useState(null);
+  const [secili, setSecili] = React.useState({});
+  const [hata, setHata] = React.useState('');
+
+  React.useEffect(() => {
+    let iptal = false;
+    window.aiBelgeDurumu().then((d) => {
+      if (!iptal) setHazir(!!d.configured);
+    });
+    return () => {
+      iptal = true;
+    };
+  }, []);
+
+  const dosyaVar = (Array.isArray(dosyalar) && dosyalar.length > 0) || !!dosyaSaglayici;
+  const sutunListesi = Array.isArray(sutunlar) ? sutunlar : [];
+  if (!hazir) return null;
+
+  const calistir = async () => {
+    setCalisiyor(true);
+    setHata('');
+    try {
+      const liste = dosyaSaglayici ? await dosyaSaglayici() : dosyalar;
+      if (!liste || liste.length === 0) {
+        setHata('Okunacak belge bulunamadı.');
+        return;
+      }
+      const r = await window.aiSatirCikar({
+        module,
+        docType,
+        sutunlar,
+        satirTanimi,
+        dosyalar: liste,
+      });
+      setSatirlar(r.satirlar || []);
+      // Varsayılan: yüksek güvenli satırlar işaretli gelir.
+      const s = {};
+      (r.satirlar || []).forEach((sat, i) => {
+        s[i] = sat.guven >= 0.85;
+      });
+      setSecili(s);
+    } catch (e) {
+      setHata(e.message);
+    } finally {
+      setCalisiyor(false);
+    }
+  };
+
+  const uygula = () => {
+    const secilenler = satirlar.filter((_, i) => secili[i]);
+    if (onUygula) onUygula(secilenler);
+    setSatirlar(null);
+  };
+
+  const secimSayisi = Object.values(secili).filter(Boolean).length;
+  const hucre = { padding: '7px 10px', borderBottom: '1px solid #F3F4F6', fontSize: 12.5 };
+
+  return React.createElement(
+    'div',
+    null,
+    React.createElement(
+      'button',
+      {
+        type: 'button',
+        onClick: calistir,
+        disabled: calisiyor || !dosyaVar || sutunListesi.length === 0,
+        title: dosyaVar ? '' : 'Önce belge yükleyin',
+        style: {
+          padding: '8px 14px',
+          borderRadius: 8,
+          border: '1px solid #C7D2FE',
+          background: dosyaVar ? '#EEF2FF' : '#F3F4F6',
+          color: dosyaVar ? '#3730A3' : '#9CA3AF',
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: calisiyor || !dosyaVar ? 'not-allowed' : 'pointer',
+        },
+      },
+      calisiyor ? 'Belge okunuyor…' : etiket || 'Belgeden Satırları Al'
+    ),
+    hata
+      ? React.createElement(
+          'div',
+          { style: { marginTop: 8, fontSize: 12, color: '#B91C1C' } },
+          hata
+        )
+      : null,
+    satirlar
+      ? React.createElement(
+          'div',
+          {
+            style: {
+              marginTop: 12,
+              border: '1px solid #E5E7EB',
+              borderRadius: 10,
+              background: 'white',
+              overflow: 'hidden',
+            },
+          },
+          React.createElement(
+            'div',
+            {
+              style: {
+                padding: '10px 14px',
+                background: '#F9FAFB',
+                borderBottom: '1px solid #E5E7EB',
+                fontSize: 12.5,
+                fontWeight: 700,
+                color: '#111827',
+              },
+            },
+            satirlar.length === 0
+              ? 'Belgede satır bulunamadı'
+              : 'Belgeden ' + satirlar.length + ' satır okundu — aktarmak istediklerinizi seçin'
+          ),
+          satirlar.length > 0 &&
+            React.createElement(
+              'div',
+              { style: { overflowX: 'auto', maxHeight: 420, overflowY: 'auto' } },
+              React.createElement(
+                'table',
+                { style: { width: '100%', borderCollapse: 'collapse' } },
+                React.createElement(
+                  'thead',
+                  null,
+                  React.createElement(
+                    'tr',
+                    { style: { background: '#F9FAFB', textAlign: 'left' } },
+                    React.createElement(
+                      'th',
+                      { style: { ...hucre, width: 34 } },
+                      React.createElement('input', {
+                        type: 'checkbox',
+                        checked: secimSayisi === satirlar.length && satirlar.length > 0,
+                        onChange: (e) => {
+                          const s = {};
+                          satirlar.forEach((_, i) => {
+                            s[i] = e.target.checked;
+                          });
+                          setSecili(s);
+                        },
+                      })
+                    ),
+                    sutunListesi.map((c) =>
+                      React.createElement(
+                        'th',
+                        {
+                          key: c.id,
+                          style: { ...hucre, fontSize: 11, color: '#6B7280', fontWeight: 700 },
+                        },
+                        c.label || c.id
+                      )
+                    )
+                  )
+                ),
+                React.createElement(
+                  'tbody',
+                  null,
+                  satirlar.map((sat, i) =>
+                    React.createElement(
+                      'tr',
+                      {
+                        key: i,
+                        style: {
+                          background: secili[i] ? '#F8FAFC' : 'white',
+                          // Düşük güvenli satırlar görsel olarak ayrışsın.
+                          opacity: sat.guven < 0.5 ? 0.65 : 1,
+                        },
+                      },
+                      React.createElement(
+                        'td',
+                        { style: hucre },
+                        React.createElement('input', {
+                          type: 'checkbox',
+                          checked: !!secili[i],
+                          onChange: (e) => setSecili((s) => ({ ...s, [i]: e.target.checked })),
+                        })
+                      ),
+                      sutunListesi.map((c) =>
+                        React.createElement('td', { key: c.id, style: hucre }, sat[c.id] || '—')
+                      )
+                    )
+                  )
+                )
+              )
+            ),
+          React.createElement(
+            'div',
+            {
+              style: {
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 14px',
+                borderTop: '1px solid #E5E7EB',
+                background: '#F9FAFB',
+              },
+            },
+            React.createElement(
+              'span',
+              { style: { fontSize: 11, color: '#6B7280' } },
+              'Otomatik okunmuştur; kaydetmeden önce kontrol edin.'
+            ),
+            React.createElement(
+              'div',
+              { style: { display: 'flex', gap: 8 } },
+              React.createElement(
+                'button',
+                {
+                  type: 'button',
+                  onClick: () => setSatirlar(null),
+                  style: {
+                    padding: '7px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #E5E7EB',
+                    background: 'white',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  },
+                },
+                'Vazgeç'
+              ),
+              React.createElement(
+                'button',
+                {
+                  type: 'button',
+                  onClick: uygula,
+                  disabled: secimSayisi === 0,
+                  style: {
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: secimSayisi === 0 ? '#D1D5DB' : '#4338CA',
+                    color: 'white',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: secimSayisi === 0 ? 'not-allowed' : 'pointer',
+                  },
+                },
+                secimSayisi + ' satırı aktar'
+              )
+            )
+          )
+        )
+      : null
+  );
+};
+
 window.AIBelgeKontrol = function AIBelgeKontrol({
   module,
   docType,
