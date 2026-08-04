@@ -785,6 +785,47 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy }) {
   const st = rec.degerlendirme ? YG_DURUMLAR.degerlendirildi : YG_DURUMLAR.beklemede;
   const hesap = tur?.hesapla ? ygYerlesmePuani(rec.yksPuani, rec.notOrtalamasi) : null;
 
+  // ── Belge kıyaslaması için alan/değer/dosya üçlüsü ──
+  // Öğrencinin BEYAN ETTİĞİ, yani belgeden doğrulanabilir alanlar. Sistemin
+  // kendi ürettiği alanlar (hesaplanan puanlar, tarih damgaları) kıyaslanmaz.
+  const kiyasAlanlari = useMemo(
+    () =>
+      [
+        { id: 'adSoyad', label: 'Adı Soyadı' },
+        { id: 'aktifUniversite', label: 'Aktif üniversite' },
+        { id: 'aktifFakulte', label: 'Aktif fakülte' },
+        { id: 'aktifBolum', label: 'Aktif bölüm' },
+        { id: 'aktifSinif', label: 'Sınıfı' },
+        { id: 'notOrtalamasi', label: 'Not ortalaması (AGNO)' },
+        { id: 'yksYerlesmeYili', label: 'YKS yerleşme yılı' },
+        { id: 'yksPuanTuru', label: 'Yerleştiği puan türü' },
+        { id: 'yksPuani', label: 'YKS puanı' },
+      ].filter((a) => {
+        if (['yksYerlesmeYili', 'yksPuanTuru', 'yksPuani'].includes(a.id)) return !!tur?.puanIster;
+        if (a.id === 'notOrtalamasi') return !!tur?.notIster;
+        return true;
+      }),
+    [tur]
+  );
+
+  const kiyasDegerleri = useMemo(() => {
+    const o = {};
+    kiyasAlanlari.forEach((a) => {
+      o[a.id] = rec[a.id] == null ? '' : String(rec[a.id]);
+    });
+    return o;
+  }, [kiyasAlanlari, rec]);
+
+  const kiyasDosyalari = useMemo(() => {
+    const cikar = window.aiDosyaAdi;
+    if (!cikar) return [];
+    return YG_EKLER.map((ek) => {
+      const f = (rec.ekler || {})[ek.id];
+      const fileName = f && f.url ? cikar(f.url) : '';
+      return fileName ? { fileName, name: ek.title } : null;
+    }).filter(Boolean);
+  }, [rec]);
+
   // Etiket üstte, değer altta — sütunlar eşit genişlikte, satırlar hizalı.
   const satir = (k, v) =>
     v ? (
@@ -977,6 +1018,21 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy }) {
               </div>
             )}
           </div>
+
+          {/* Akademisyen: öğrencinin BEYANINI yüklediği belgelerle denetle.
+              Karar değerlendiricinindir; bu yalnız uyuşmazlıkları işaretler. */}
+          {isStaff && window.AIBelgeKontrol && (
+            <div style={{ marginBottom: 14 }}>
+              {React.createElement(window.AIBelgeKontrol, {
+                module: 'yataygecis',
+                docType: tur?.id || 'default',
+                departmentId: rec.departmentId || '',
+                alanlar: kiyasAlanlari,
+                mevcutDegerler: kiyasDegerleri,
+                dosyalar: kiyasDosyalari,
+              })}
+            </div>
+          )}
 
           {/* Akademisyen: DEĞERLENDİRME (belgedeki son sütun) */}
           {isStaff && (

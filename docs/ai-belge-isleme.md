@@ -8,11 +8,18 @@ Bu katman üç işi yapar:
 
 | İş                        | Uç                           | Kim kullanır       |
 | ------------------------- | ---------------------------- | ------------------ |
-| Web form alanı doldurma   | `POST /api/ai/extract`       | öğrenci + personel |
-| Dosya içeriği eşleştirme  | `POST /api/ai/extract`       | öğrenci + personel |
+| Belgeden alan çıkarımı    | `POST /api/ai/extract`       | öğrenci + personel |
+| Belgeyle kıyaslama        | `POST /api/ai/compare`       | öğrenci + personel |
 | Web'den bilgi doğrulama   | `POST /api/ai/verify`        | yalnız personel    |
 | Toplu işlem (%50 indirim) | `POST /api/ai/extract/batch` | yalnız personel    |
 | Maliyet raporu            | `GET /api/ai/usage`          | yalnız personel    |
+
+**Alan listesi elle yazılmaz.** Şablonlar modülünde yüklenen belge zaten bir
+modüle ve o modülün alanlarına eşlenmiştir
+(`document_templates.fields` → `token` ↔ `static:<id>` / `row:<id>`).
+`window.aiSablonAlanlari(module, docType, departmentId)` bu eşlemeyi okuyup
+çıkarım/kıyaslama alan listesine çevirir; bileşenlere `alanlar` verilmezse
+otomatik bu yol kullanılır.
 
 > ÖDR taslak yazımı (`/api/ai/accreditation-draft`) **bu katmanda değildir**.
 > O, sağlayıcı seçilebilen `services/llm.js` üzerinden çalışır. İki farklı iş,
@@ -47,7 +54,8 @@ POST /api/ai/extract  { module, docType, fields[], dosyalar[] }
         └── parse hatasında 1 kez yeniden dene (bütçe 2×, düz JSON)
         │
         ▼
-{ alanId: { deger, guven, kaynak } }
+{ alanId: { deger, guven, kaynak } }        ← /extract
+{ alanId: { belgeDeger, formDeger, durum } } ← /compare
         │
         ▼
 İnceleme paneli → kullanıcı işaretler → forma aktarılır
@@ -55,6 +63,40 @@ POST /api/ai/extract  { module, docType, fields[], dosyalar[] }
 
 **Otomatik doldurma yoktur.** Model çıktısı hiçbir zaman doğrudan kaydedilmez;
 sistemdeki "önce görüntüle, sonra uygula" belge akışıyla aynı kuraldır.
+
+---
+
+## Kıyaslama nasıl karar veriyor
+
+`POST /api/ai/compare` formdaki/sistemdeki değeri belgedekiyle karşılaştırır.
+**Kararı model vermez, sunucu verir:**
+
+1. Model belgedeki değeri okur ve bir kanaat bildirir.
+2. Sunucu iki değeri normalize eder; normalize eşitse `durum` **`ayni`ye
+   zorlanır**. Model yalnız normalize eşitliğin yakalayamadığı anlamsal
+   durumlarda (kısaltma, farklı sözcük düzeni) belirleyici olur.
+
+Normalize kuralları (`kiyasNormalize`):
+
+| Girdi                                         | Sonuç  |
+| --------------------------------------------- | ------ |
+| `3,42` ↔ `3.42`                               | aynı   |
+| `78,45` ↔ `78,450`                            | aynı   |
+| `412,33812` ↔ `412.33812`                     | aynı   |
+| `1.234,56` ↔ `1234.56`                        | aynı   |
+| `BİLGİSAYAR MÜH.` ↔ `Bilgisayar Mühendisliği` | aynı   |
+| `Mühendislik Fak.` ↔ `Mühendislik Fakültesi`  | aynı   |
+| `3,42` ↔ `2,90`                               | farklı |
+| `SAY` ↔ `EA`                                  | farklı |
+
+Sayısal ayıraç kuralı: iki ayıraç varsa sonuncusu ondalıktır; tek ayıraç bir
+kez geçiyorsa ondalık, birden çok geçiyorsa binliktir.
+
+`durum` değerleri: `ayni` · `farkli` · `belgede_yok` · `formda_bos`.
+Yanıttaki `farkliSayisi` doğrudan uyuşmazlık sayısını verir.
+
+Bu bir **ön denetimdir**, otomatik ret/kabul değildir; nihai karar
+değerlendiricinindir.
 
 ---
 
@@ -131,24 +173,30 @@ Bu işler senkron uca yönlendirilir.
 ## Yeni bir modülü bağlama (3 adım)
 
 ```jsx
-// 1. Hangi alanlar doldurulacak?
-const alanlar = [
-  { id: 'notOrtalamasi', label: 'Not ortalaması', hint: 'Transkriptteki AGNO' },
-  { id: 'mezuniyetTarihi', label: 'Mezuniyet tarihi', format: 'date' },
-];
-
-// 2. Hangi yüklü belgelerden okunacak?
+// Hangi yüklü belgelerden okunacak?
 const dosyalar = [{ fileName: window.aiDosyaAdi(transkriptUrl), name: 'Transkript' }];
 
-// 3. Butonu koy — inceleme paneli ve onay akışı hazır gelir.
+// ÇIKARIM — alan listesi verilmezse şablon eşlemesinden çözülür.
 <window.AIDoldurButonu
   module="muafiyet"
   docType="intibak"
-  alanlar={alanlar}
+  departmentId={activeDepartment}
   dosyalar={dosyalar}
   onUygula={(degerler) => setForm((f) => ({ ...f, ...degerler }))}
+/>
+
+// KIYASLAMA — beyan edilen değerleri belgeyle denetler.
+<window.AIBelgeKontrol
+  module="muafiyet"
+  docType="intibak"
+  departmentId={activeDepartment}
+  mevcutDegerler={form}
+  dosyalar={dosyalar}
 />;
 ```
+
+Şablonda olmayan ya da şablondakinden dar bir küme isteniyorsa `alanlar`
+açıkça verilebilir: `[{ id, label, hint?, format? }]`.
 
 `module` / `docType` değerleri **şablon sistemiyle aynı** olmalıdır —
 few-shot bloğu `document_templates` içindeki eşlenmiş yer tutuculardan
@@ -159,8 +207,10 @@ few-shot bloğu `document_templates` içindeki eşlenmiş yer tutuculardan
 ## Yol haritası
 
 **Faz 1 — tamamlandı**
-Çekirdek katman, uçlar, maliyet defteri, ortak istemci bileşeni ve referans
-entegrasyon (Yatay Geçiş → başvuru formu).
+Çekirdek katman, uçlar (çıkarım · kıyaslama · web doğrulama · batch), maliyet
+defteri, şablon eşlemesinden otomatik alan listesi, ortak istemci bileşenleri
+ve referans entegrasyon: Yatay Geçiş → öğrenci tarafında "Belgeden Doldur",
+akademisyen tarafında "Belgeyle Karşılaştır".
 
 **Faz 2 — sıradaki modüller (yüksek getiri, düşük risk)**
 
@@ -175,7 +225,7 @@ entegrasyon (Yatay Geçiş → başvuru formu).
 Her biri yukarıdaki 3 adımdır; sunucuda kod yazılmaz.
 
 **Faz 3 — web doğrulama**
-`POST /api/ai/verify` şu anda hazır ama hiçbir modüle bağlı değil. İlk
+`POST /api/ai/verify` hazır ama hiçbir modüle bağlı değil. İlk
 kullanım yeri kurumlararası yatay geçişte "karşı üniversite/bölüm gerçekten
 var mı, adı doğru yazılmış mı" kontrolüdür. `izinliAlanlar` ile
 `yok.gov.tr`, `osym.gov.tr` gibi resmî kaynaklara kısıtlanmalıdır.

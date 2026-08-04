@@ -436,6 +436,259 @@ async function alanCikar(opt) {
   };
 }
 
+// ══════════════════════════════════════════════════════════════
+// KIYASLAMA — belgedeki değer ile formdaki/sistemdeki değeri karşılaştırır.
+//
+// Kullanım yeri: öğrenci beyanını yüklediği belgeyle denetlemek
+// (ör. formda "AGNO 78,45" yazıyor, transkriptte kaç?).
+//
+// Karar iki aşamalıdır ve model son söz sahibi DEĞİLDİR:
+//   1) Model belgedeki değeri okur ve bir kanaat verir.
+//   2) Sunucu normalize edip kendi kararını verir; normalize eşitse
+//      "ayni" ZORLANIR. Böylece "3,42" ↔ "3.42" ya da
+//      "BİLGİSAYAR MÜH." ↔ "Bilgisayar Mühendisliği" gibi biçim farkları
+//      sahte uyuşmazlık üretmez.
+// Model yalnız normalize eşitliğin yakalayamadığı anlamsal durumlarda
+// (kısaltma, farklı sözcük düzeni) belirleyici olur.
+// ══════════════════════════════════════════════════════════════
+const KIYAS_DURUMLARI = ['ayni', 'farkli', 'belgede_yok', 'formda_bos'];
+
+// Türkçe duyarlı normalize: küçük harf, noktalama/boşluk at, ondalık
+// ayıracını birleştir, yaygın kısaltmaları aç.
+const KISALTMALAR = [
+  [/\bmuh\b/g, 'muhendisligi'],
+  [/\bmuhendislik\b/g, 'muhendisligi'],
+  [/\bfak\b/g, 'fakultesi'],
+  [/\bfakulte\b/g, 'fakultesi'],
+  [/\buniv\b/g, 'universitesi'],
+  [/\buniversite\b/g, 'universitesi'],
+  [/\bbol\b/g, 'bolumu'],
+  [/\bbolum\b/g, 'bolumu'],
+];
+
+function kiyasNormalize(v) {
+  let s = String(v == null ? '' : v).toLocaleLowerCase('tr-TR');
+  // Türkçe harfleri ASCII'ye indir — kısaltma kuralları tek biçim üzerinde çalışsın.
+  s = s
+    .replace(/ı/g, 'i')
+    .replace(/ş/g, 's')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c');
+  // Sayısal değerler: "3,42" ile "3.42" aynı sayıdır. Türkçe belgelerde
+  // ondalık ayıracı virgül, ama sistemde/formda nokta da girilebiliyor.
+  // Kural:
+  //   • iki ayıraç da varsa → SONUNCUSU ondalık, diğeri binlik
+  //   • tek ayıraç bir kez geçiyorsa → ondalık kabul edilir
+  //     (not/puan değerlerinde binlik ayıraç pratikte yok)
+  //   • tek ayıraç birden çok geçiyorsa → binlik, hepsi atılır
+  if (/^[\s\d.,]+$/.test(s) && /\d/.test(s)) {
+    let t = s.replace(/\s/g, '');
+    const nokta = (t.match(/\./g) || []).length;
+    const virgul = (t.match(/,/g) || []).length;
+    if (nokta && virgul) {
+      const ondalik = t.lastIndexOf('.') > t.lastIndexOf(',') ? '.' : ',';
+      const binlik = ondalik === '.' ? ',' : '.';
+      t = t.split(binlik).join('').replace(ondalik, '.');
+    } else if (nokta + virgul === 1) {
+      t = t.replace(',', '.');
+    } else {
+      t = t.replace(/[.,]/g, '');
+    }
+    const n = Number(t);
+    if (Number.isFinite(n)) return String(n);
+  }
+  s = s.replace(/[^a-z0-9]+/g, ' ').trim();
+  KISALTMALAR.forEach(([re, ile]) => {
+    s = s.replace(re, ile);
+  });
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+function kiyasSemasi(fields) {
+  const properties = {};
+  const required = [];
+  fields.forEach((f) => {
+    properties[f.id] = {
+      type: 'object',
+      properties: {
+        belgeDeger: { type: 'string' },
+        durum: { type: 'string', enum: KIYAS_DURUMLARI },
+        aciklama: { type: 'string' },
+        guven: { type: 'number' },
+      },
+      required: ['belgeDeger', 'durum', 'aciklama', 'guven'],
+      additionalProperties: false,
+    };
+    required.push(f.id);
+  });
+  return { type: 'object', properties, required, additionalProperties: false };
+}
+
+const KIYAS_TALIMATI = `Şimdi ÇIKARIM DEĞİL KIYASLAMA yapacaksın.
+
+Her alan için aşağıda hem alanın açıklaması hem de FORMDA GİRİLMİŞ değer var.
+Görevin, belgede o alana karşılık gelen değeri bulmak ve formdaki değerle
+karşılaştırmaktır.
+
+"durum" değerleri:
+- "ayni"        : belgedeki değer ile formdaki değer aynı bilgiyi gösteriyor
+                  (yazım/biçim farkı — noktalama, kısaltma, büyük-küçük harf,
+                  ondalık ayıracı — FARK SAYILMAZ)
+- "farkli"      : belgedeki değer formdakinden gerçekten farklı bir bilgi
+- "belgede_yok" : bu alana karşılık gelen bilgi belgede bulunamadı
+- "formda_bos"  : formda değer girilmemiş
+
+"aciklama" tek cümle, Türkçe, farkın ne olduğunu söyler. Aynıysa boş bırak.
+Emin değilsen "farkli" deme; düşük güvenle "belgede_yok" de.`;
+
+/**
+ * @param {object} opt
+ * @param {string} opt.module
+ * @param {string} opt.docType
+ * @param {Array<{id,label,hint?,format?}>} opt.fields
+ * @param {Object<string,string>} opt.mevcutDegerler  formdaki değerler
+ * @param {Array} opt.dosyalar
+ */
+async function karsilastir(opt) {
+  const fields = (Array.isArray(opt.fields) ? opt.fields : []).filter((f) => f && f.id);
+  if (fields.length === 0) return { ok: false, reason: 'no-fields', hatalar: [] };
+  if (fields.length > 80) return { ok: false, reason: 'too-many-fields', hatalar: [] };
+
+  const { gruplar, hatalar } = await istekGruplari(opt.dosyalar || []);
+  if (gruplar.length === 0) return { ok: false, reason: 'no-readable-document', hatalar };
+
+  const mevcut = opt.mevcutDegerler || {};
+  // Sistem blokları alanCikar ile AYNI — önbellek öneki paylaşılır, kıyaslama
+  // talimatı kullanıcı mesajına konur ki önek bozulmasın.
+  const sistem = await sistemBloklari(opt.module, opt.docType);
+  const sema = kiyasSemasi(fields);
+  const maxTokens = Math.max(1024, Math.min(8192, fields.length * 160 + 512));
+
+  const alanMetni =
+    KIYAS_TALIMATI +
+    '\n\nKarşılaştırılacak alanlar:\n\n' +
+    fields
+      .map((f) => {
+        const v = String(mevcut[f.id] == null ? '' : mevcut[f.id]).trim();
+        return (
+          '- ' +
+          f.id +
+          ': ' +
+          (f.label || f.id) +
+          (f.hint ? ' — ' + f.hint : '') +
+          '\n  FORMDAKİ DEĞER: ' +
+          (v ? '"' + v + '"' : '(boş)')
+        );
+      })
+      .join('\n');
+
+  const toplam = {
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+  };
+  const parcalar = [];
+  const baglam = opt.baglam || {};
+
+  for (const grup of gruplar) {
+    const icerik = [{ type: 'text', text: alanMetni }, ...grup];
+    let sonuc;
+    try {
+      sonuc = await cagirVeAyristir({ sistem, icerik, sema, maxTokens });
+    } catch (e) {
+      hatalar.push({ reason: 'api-error', message: e && e.message });
+      await kullanimKaydet({
+        module: opt.module,
+        docType: opt.docType,
+        endpoint: 'compare',
+        model: MODEL,
+        ...baglam,
+        usage: {},
+        ok: false,
+        hata: e && e.message,
+      });
+      continue;
+    }
+    sonuc.usages.forEach((u) => {
+      if (!u) return;
+      toplam.input_tokens += u.input_tokens || 0;
+      toplam.output_tokens += u.output_tokens || 0;
+      toplam.cache_creation_input_tokens += u.cache_creation_input_tokens || 0;
+      toplam.cache_read_input_tokens += u.cache_read_input_tokens || 0;
+    });
+    for (const u of sonuc.usages) {
+      await kullanimKaydet({
+        module: opt.module,
+        docType: opt.docType,
+        endpoint: 'compare',
+        model: MODEL,
+        ...baglam,
+        usage: u,
+        ok: !!sonuc.veri,
+      });
+    }
+    if (sonuc.veri) parcalar.push(sonuc.veri);
+    else hatalar.push({ reason: 'parse-failed', stopReason: sonuc.stopReason });
+  }
+
+  if (parcalar.length === 0) return { ok: false, reason: 'parse-failed', hatalar, usage: toplam };
+
+  // Parça birleştirme + sunucu kararı.
+  const out = {};
+  let farkliSayisi = 0;
+  fields.forEach((f) => {
+    // Belge değeri: parçalar arasında en yüksek güvenli dolu olan.
+    let belgeDeger = '';
+    let guven = 0;
+    let modelDurum = 'belgede_yok';
+    let aciklama = '';
+    parcalar.forEach((p) => {
+      const c = p && p[f.id];
+      if (!c) return;
+      const g = guvenKirp(c.guven);
+      const d = String(c.belgeDeger || '').trim();
+      if (d && g >= guven) {
+        belgeDeger = d;
+        guven = g;
+        modelDurum = KIYAS_DURUMLARI.includes(c.durum) ? c.durum : 'farkli';
+        aciklama = String(c.aciklama || '').slice(0, 300);
+      }
+    });
+
+    const formDeger = String(mevcut[f.id] == null ? '' : mevcut[f.id]).trim();
+
+    // ── Sunucu kararı (model bunu ezemez) ──
+    let durum;
+    if (!formDeger) durum = 'formda_bos';
+    else if (!belgeDeger) durum = 'belgede_yok';
+    else if (kiyasNormalize(belgeDeger) === kiyasNormalize(formDeger)) durum = 'ayni';
+    else durum = modelDurum === 'ayni' ? 'ayni' : 'farkli';
+
+    if (durum === 'ayni') aciklama = '';
+    if (durum === 'farkli') farkliSayisi += 1;
+
+    out[f.id] = { belgeDeger, formDeger, durum, aciklama, guven };
+  });
+
+  return {
+    ok: true,
+    data: out,
+    farkliSayisi,
+    hatalar,
+    usage: toplam,
+    onbellek: {
+      yazilan: toplam.cache_creation_input_tokens,
+      okunan: toplam.cache_read_input_tokens,
+      minimumAltinda:
+        toplam.cache_creation_input_tokens === 0 && toplam.cache_read_input_tokens === 0,
+      esik: CACHE_MIN_TOKENS,
+    },
+  };
+}
+
 // ── Web ile doğrulama ─────────────────────────────────────────
 // Haiku 4.5 temel web arama aracını kullanır (dinamik filtrelemeli
 // _20260209 sürümü yalnız Opus/Sonnet 4.6+ modellerde vardır).
@@ -668,6 +921,8 @@ module.exports = {
   WEB_ARAMA_ARACI,
   yapilandirildiMi,
   alanCikar,
+  karsilastir,
+  kiyasNormalize,
   webDogrula,
   batchGonder,
   batchDurum,

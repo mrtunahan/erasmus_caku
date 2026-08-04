@@ -249,6 +249,58 @@ router.post('/extract', extractLimiter, requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/ai/compare — formdaki/sistemdeki değerleri belgeyle kıyasla.
+// body: { module, docType, fields[], mevcutDegerler{}, dosyalar[] }
+router.post('/compare', extractLimiter, requireAuth, async (req, res) => {
+  try {
+    if (!aiHazirMi(res)) return undefined;
+    const b = req.body || {};
+    const fields = alanlariTemizle(b.fields);
+    if (fields.length === 0) return res.status(400).json({ error: 'Kıyaslanacak alan yok.' });
+
+    const { cozulen, bulunamayan } = dosyalariCoz(b.dosyalar);
+    if (cozulen.length === 0) {
+      return res.status(400).json({ error: 'Okunabilir belge bulunamadı.', bulunamayan });
+    }
+
+    // Yalnız istenen alanların değerleri alınır; gövdedeki fazlalık atılır.
+    const mevcutDegerler = {};
+    fields.forEach((f) => {
+      const v = (b.mevcutDegerler || {})[f.id];
+      mevcutDegerler[f.id] = clip(v == null ? '' : v, 400);
+    });
+
+    const sonuc = await cx.karsilastir({
+      module: clip(b.module, 40),
+      docType: clip(b.docType, 40) || 'default',
+      fields,
+      mevcutDegerler,
+      dosyalar: cozulen,
+      baglam: baglamCoz(req, b),
+    });
+
+    if (!sonuc.ok) {
+      return res.status(422).json({
+        error: 'Kıyaslama yapılamadı.',
+        reason: sonuc.reason,
+        hatalar: (sonuc.hatalar || []).concat(bulunamayan),
+      });
+    }
+    return res.json({
+      ok: true,
+      model: cx.MODEL,
+      data: sonuc.data,
+      farkliSayisi: sonuc.farkliSayisi,
+      hatalar: (sonuc.hatalar || []).concat(bulunamayan),
+      onbellek: sonuc.onbellek,
+      usage: sonuc.usage,
+    });
+  } catch (err) {
+    console.error('ai/compare error:', err.message);
+    return res.status(502).json({ error: 'Kıyaslama yapılamadı: ' + err.message });
+  }
+});
+
 // POST /api/ai/verify — web araması ile iddia doğrulama (max 3 arama).
 // body: { module, docType, iddialar:[{id,metin}], izinliAlanlar:[] }
 router.post('/verify', extractLimiter, requireAuth, requireStaff, async (req, res) => {
