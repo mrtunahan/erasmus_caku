@@ -42,9 +42,10 @@ const YG_TURLER = [
     color: '#B45309',
     bg: '#FEF3C7',
     aciklama: 'Üniversite içindeki başka bir bölümden aynı üniversitenin bölümüne geçiş',
-    // Kurum içinde YKS puanı istenmiyor; şablonda da yok.
+    // Kurum içi geçişte YKS puanı ve not ortalaması istenmez — şablonunda
+    // bu sütunlar yok, karar bölüm kurulunun değerlendirmesiyle verilir.
     puanIster: false,
-    notIster: true,
+    notIster: false,
   },
   {
     id: 'kurumlararasi',
@@ -209,14 +210,19 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
   const sysFakulte = window.TENANT?.facultyName || 'Mühendislik Fakültesi';
   const sysBolum = departmentInfo?.name || currentUser?.departmentName || '';
 
+  // Kurum içi geçişte öğrencinin AKTİF programı sistemden bilinir.
+  const icGecis = tur.id === 'kurumici';
+
   const [form, setForm] = useState({
-    // Aktif program
-    aktifUniversite: tur.id === 'kurumici' ? window.TENANT?.universityName || '' : '',
-    aktifFakulte: tur.id === 'kurumici' ? sysFakulte : '',
-    aktifBolum: '',
+    // Aktif program — kurum içinde sistemden dolu gelir
+    aktifUniversite: icGecis ? window.TENANT?.universityName || '' : '',
+    aktifFakulte: icGecis ? sysFakulte : '',
+    aktifBolum: icGecis ? sysBolum : '',
     aktifSinif: '',
-    // Başvurulan
-    basvurduguBolum: sysBolum,
+    // Başvurulan program — öğrenci seçer
+    basvurduguFakulteId: '',
+    basvurduguFakulte: '',
+    basvurduguBolum: '',
     basvurduguSinif: '',
     // Yerleştirme
     yksYerlesmeYili: '',
@@ -232,18 +238,43 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
   const [kaydediliyor, setKaydediliyor] = useState(false);
   const [mesaj, setMesaj] = useState({ text: '', kind: '' });
 
-  // Bölüm listesi (kurum içi geçişte "hâlen okuduğu bölüm" seçilir)
+  // Başvurulacak program için fakülte + bölüm listeleri
   const [bolumler, setBolumler] = useState([]);
+  const [fakulteler, setFakulteler] = useState([]);
   useEffect(() => {
     let alive = true;
-    window
-      .apiRead('departments')
-      .then((d) => alive && setBolumler(d || []))
-      .catch(() => {});
+    Promise.all([
+      window.apiRead('departments').catch(() => []),
+      window.apiRead('faculties').catch(() => []),
+    ]).then(([d, f]) => {
+      if (!alive) return;
+      setBolumler(d || []);
+      // Aynı adlı mükerrer fakülte kayıtlarını tekille
+      const gorulen = new Set();
+      const temiz = [];
+      (f || []).forEach((x) => {
+        const anahtar = String(x.name || '')
+          .toLocaleLowerCase('tr-TR')
+          .replace(/\s+/g, '');
+        if (!anahtar || gorulen.has(anahtar)) return;
+        gorulen.add(anahtar);
+        temiz.push(x);
+      });
+      setFakulteler(temiz.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr')));
+    });
     return () => {
       alive = false;
     };
   }, []);
+
+  // Seçili fakültenin bölümleri
+  const hedefBolumler = useMemo(() => {
+    const fid = form.basvurduguFakulteId;
+    if (!fid) return [];
+    return bolumler
+      .filter((b) => String(b.facultyId || '') === String(fid))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
+  }, [bolumler, form.basvurduguFakulteId]);
 
   // Benim Sayfam iletişim bilgileri — varsa forma önden doldur
   useEffect(() => {
@@ -291,6 +322,8 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
   const eksikler = () => {
     const eksik = [];
     if (!form.aktifUniversite.trim()) eksik.push('Aktif üniversite');
+    if (!form.basvurduguFakulte.trim()) eksik.push('Başvurulan fakülte');
+    if (!form.basvurduguBolum.trim()) eksik.push('Başvurulan bölüm');
     if (!form.aktifBolum.trim()) eksik.push('Aktif bölüm');
     if (!form.basvurduguSinif.trim()) eksik.push('Başvurduğu sınıf');
     if (tur.notIster && !form.notOrtalamasi.trim()) eksik.push('Not ortalaması');
@@ -324,7 +357,8 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
         aktifBolum: form.aktifBolum.trim(),
         aktifSinif: form.aktifSinif.trim(),
         // Başvurulan
-        basvurduguBolum: form.basvurduguBolum.trim() || sysBolum,
+        basvurduguFakulte: form.basvurduguFakulte.trim(),
+        basvurduguBolum: form.basvurduguBolum.trim(),
         basvurduguSinif: form.basvurduguSinif.trim(),
         // Yerleştirme
         yksYerlesmeYili: form.yksYerlesmeYili.trim(),
@@ -376,15 +410,12 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
           }}
         >
           <div>
-            <label style={ygLabel}>Üniversite *</label>
+            <label style={ygLabel}>Üniversite{icGecis ? '' : ' *'}</label>
             <input
               value={form.aktifUniversite}
               onChange={(e) => setBuyuk('aktifUniversite', e.target.value)}
-              disabled={tur.id === 'kurumici'}
-              style={{
-                ...ygInput,
-                background: tur.id === 'kurumici' ? '#F3F4F6' : 'white',
-              }}
+              disabled={icGecis}
+              style={{ ...ygInput, background: icGecis ? '#F3F4F6' : 'white' }}
             />
           </div>
           <div>
@@ -392,40 +423,89 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
             <input
               value={form.aktifFakulte}
               onChange={(e) => setBuyuk('aktifFakulte', e.target.value)}
-              style={ygInput}
+              disabled={icGecis}
+              style={{ ...ygInput, background: icGecis ? '#F3F4F6' : 'white' }}
             />
           </div>
           <div>
-            <label style={ygLabel}>Bölüm / Program *</label>
-            {tur.id === 'kurumici' ? (
-              <select
-                value={form.aktifBolum}
-                onChange={(e) => setBuyuk('aktifBolum', e.target.value)}
-                style={{ ...ygInput, cursor: 'pointer' }}
-              >
-                <option value="">— Bölüm seçin —</option>
-                {bolumler.map((b) => (
-                  <option key={b.id || b._docId} value={b.name}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                value={form.aktifBolum}
-                onChange={(e) => setBuyuk('aktifBolum', e.target.value)}
-                style={ygInput}
-              />
-            )}
+            <label style={ygLabel}>Bölüm / Program{icGecis ? '' : ' *'}</label>
+            <input
+              value={form.aktifBolum}
+              onChange={(e) => setBuyuk('aktifBolum', e.target.value)}
+              disabled={icGecis}
+              style={{ ...ygInput, background: icGecis ? '#F3F4F6' : 'white' }}
+            />
           </div>
           <div>
-            <label style={ygLabel}>Aktif sınıfınız</label>
+            <label style={ygLabel}>Sınıfınız</label>
             <input
               value={form.aktifSinif}
               onChange={(e) => set('aktifSinif', e.target.value)}
               placeholder="ör. 2"
               style={ygInput}
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Başvurmak istediğiniz program */}
+      <div style={{ ...ygCard, padding: 16, marginBottom: 14 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 10 }}>
+          Başvurmak istediğiniz program
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: 12,
+          }}
+        >
+          <div>
+            <label style={ygLabel}>Fakülte *</label>
+            <select
+              value={form.basvurduguFakulteId}
+              onChange={(e) => {
+                const fid = e.target.value;
+                const fak = fakulteler.find((f) => String(f.id || f._docId) === fid);
+                setForm((f) => ({
+                  ...f,
+                  basvurduguFakulteId: fid,
+                  basvurduguFakulte: buyuk(fak?.name || ''),
+                  // Fakülte değişince bölüm seçimi sıfırlanır
+                  basvurduguBolum: '',
+                }));
+              }}
+              style={{ ...ygInput, cursor: 'pointer' }}
+            >
+              <option value="">— Fakülte seçin —</option>
+              {fakulteler.map((f) => (
+                <option key={f.id || f._docId} value={f.id || f._docId}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={ygLabel}>Bölüm / Program *</label>
+            <select
+              value={form.basvurduguBolum}
+              onChange={(e) => setBuyuk('basvurduguBolum', e.target.value)}
+              disabled={!form.basvurduguFakulteId}
+              style={{
+                ...ygInput,
+                cursor: form.basvurduguFakulteId ? 'pointer' : 'not-allowed',
+                background: form.basvurduguFakulteId ? 'white' : '#F3F4F6',
+              }}
+            >
+              <option value="">
+                {form.basvurduguFakulteId ? '— Bölüm seçin —' : 'Önce fakülte seçin'}
+              </option>
+              {hedefBolumler.map((b) => (
+                <option key={b.id || b._docId} value={b.name}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label style={ygLabel}>Başvurduğunuz sınıf *</label>
@@ -708,7 +788,8 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy }) {
             {satir('Aktif üniversite', rec.aktifUniversite)}
             {satir('Aktif fakülte', rec.aktifFakulte)}
             {satir('Aktif bölüm', rec.aktifBolum)}
-            {satir('Aktif sınıf', rec.aktifSinif)}
+            {satir('Sınıfı', rec.aktifSinif)}
+            {satir('Başvurduğu fakülte', rec.basvurduguFakulte)}
             {satir('Başvurduğu bölüm', rec.basvurduguBolum)}
             {satir('Başvurduğu sınıf', rec.basvurduguSinif)}
             {satir('YKS yerleşme yılı', rec.yksYerlesmeYili)}
