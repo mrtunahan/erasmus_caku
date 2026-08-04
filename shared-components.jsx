@@ -2175,9 +2175,9 @@ const YATAY_STATIC = [
 const YATAY_ROWS = [
   { id: 'adSoyad', label: 'Adı Soyadı', format: 'name' },
   // Hâlen öğrenim gördüğü (geldiği) program
-  { id: 'halenUniversite', label: 'Hâlen Öğrenim Gördüğü Üniversite' },
-  { id: 'halenFakulte', label: 'Hâlen Öğrenim Gördüğü Fakülte' },
-  { id: 'halenBolum', label: 'Hâlen Öğrenim Gördüğü Bölüm' },
+  { id: 'aktifUniversite', label: 'Aktif Üniversite' },
+  { id: 'aktifFakulte', label: 'Aktif Fakülte' },
+  { id: 'aktifBolum', label: 'Aktif Bölüm' },
   // Başvurduğu program
   { id: 'basvurduguBolum', label: 'Başvurduğu Bölüm', format: 'title' },
   { id: 'basvurduguSinif', label: 'Başvurduğu Sınıf' },
