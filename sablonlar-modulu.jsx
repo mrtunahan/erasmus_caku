@@ -43,6 +43,12 @@ const SB_SCOPE_LABEL = {
 };
 const SB_ALLOWED_EXT = ['.docx', '.doc', '.pdf', '.xlsx', '.xls'];
 
+// Yer tutucu eşlemesi yapılabilen biçimler. .docx (Word) ve .xlsx (Excel)
+// içinde {{alan}} yer tutucuları okunabildiği için ikisi de eşlenebilir.
+const SB_ESLENEBILIR_EXT = ['docx', 'xlsx'];
+const sbEslenebilir = (file) =>
+  !!file && SB_ESLENEBILIR_EXT.indexOf(String(file.extension || '').toLowerCase()) >= 0;
+
 function fmtBytes(b) {
   if (!b) return '—';
   if (b < 1024) return b + ' B';
@@ -292,7 +298,7 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filtered.map((t) => {
             const m = moduleMeta(t.module);
-            const isDocx = t.file && t.file.extension === 'docx';
+            const isDocx = sbEslenebilir(t.file);
             const mappedCount = (t.fields || []).filter((f) => f.variable).length;
             const hasMapping = mappedCount > 0;
             return (
@@ -436,7 +442,7 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
                   </span>
                 </div>
 
-                {/* Eşleme durum şeridi (yalnız .docx) */}
+                {/* Eşleme durum şeridi (.docx ve .xlsx) */}
                 {isDocx && (
                   <div
                     style={{
@@ -526,8 +532,8 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
           onSaved={(tpl, file) => {
             setShowAdd(false);
             load();
-            // .docx ise yer tutucu eşleme sihirbazını otomatik aç
-            if (tpl && tpl.file && tpl.file.extension === 'docx') {
+            // .docx / .xlsx ise yer tutucu eşleme sihirbazını otomatik aç
+            if (tpl && sbEslenebilir(tpl.file)) {
               showMsg('Şablon eklendi — şimdi anahtar alanları eşleyin.', 'ok');
               setMapping({ tpl, file });
             } else {
@@ -550,7 +556,7 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
           onSaved={(tpl, needsRemap) => {
             setEditTpl(null);
             load();
-            if (needsRemap && tpl && tpl.file && tpl.file.extension === 'docx') {
+            if (needsRemap && tpl && sbEslenebilir(tpl.file)) {
               showMsg('Şablon güncellendi — eşleme sıfırlandı, yeniden eşleyin.', 'ok');
               setMapping({ tpl, file: null });
             } else {
@@ -732,7 +738,7 @@ function AddTemplateModal(props) {
         if (!r.ok) throw new Error(d.error || 'Güncellenemedi');
         // Eşleme sıfırlandıysa (modül/tür/dosya değişti) sihirbazı aç
         const cleared = d.clearedMapping || !!file;
-        onSaved(d, cleared && d.file && d.file.extension === 'docx' ? true : false);
+        onSaved(d, cleared && sbEslenebilir(d.file) ? true : false);
         return;
       }
 
@@ -1026,7 +1032,7 @@ function AddTemplateModal(props) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// Alan Eşleme Sihirbazı — .docx şablonundaki yer tutucuları
+// Alan Eşleme Sihirbazı — .docx / .xlsx şablonundaki yer tutucuları
 // ({{Alan Adı}} biçiminde) tespit eder; yükleyen yetkili
 // her birini modülün değişkenlerine ya da sabit metne eşler. Eşleme
 // document_templates.fields'a kaydedilir; hedef modül çıktı üretirken
@@ -1142,11 +1148,11 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           // ── Yatay Geçiş değerlendirme raporu yer tutucuları ──
           // (şablonlardaki adlar birebir; normTr boşluk/işaret/kasa siler)
           adısoyadı: 'row:adSoyad',
-          öğrencininşuankifakültesi: 'row:halenFakulte',
-          öğrencininşuankibölümü: 'row:halenBolum',
-          halenöğrenimgördüğüüni: 'row:halenUniversite',
-          halenöğrenimgördüğüfakülte: 'row:halenFakulte',
-          halenöğrenimgördüğübölüm: 'row:halenBolum',
+          öğrencininşuankifakültesi: 'row:aktifFakulte',
+          öğrencininşuankibölümü: 'row:aktifBolum',
+          halenöğrenimgördüğüüni: 'row:aktifUniversite',
+          halenöğrenimgördüğüfakülte: 'row:aktifFakulte',
+          halenöğrenimgördüğübölüm: 'row:aktifBolum',
           başvurduğubölüm: 'row:basvurduguBolum',
           başvurduğusınıf: 'row:basvurduguSinif',
           başvurduğuyarıyıl: 'row:basvurduguYariyil',

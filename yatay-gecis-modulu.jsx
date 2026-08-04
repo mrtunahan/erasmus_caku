@@ -204,11 +204,11 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
   const sysBolum = departmentInfo?.name || currentUser?.departmentName || '';
 
   const [form, setForm] = useState({
-    // Hâlen öğrenim gördüğü program
-    halenUniversite: tur.id === 'kurumici' ? window.TENANT?.universityName || '' : '',
-    halenFakulte: tur.id === 'kurumici' ? sysFakulte : '',
-    halenBolum: '',
-    halenSinif: '',
+    // Aktif program
+    aktifUniversite: tur.id === 'kurumici' ? window.TENANT?.universityName || '' : '',
+    aktifFakulte: tur.id === 'kurumici' ? sysFakulte : '',
+    aktifBolum: '',
+    aktifSinif: '',
     // Başvurulan
     basvurduguBolum: sysBolum,
     basvurduguSinif: '',
@@ -260,7 +260,10 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
     };
   }, [sysOgrNo]);
 
+  // Yatay geçiş raporlarında metin alanları BÜYÜK HARF yazılır.
+  const buyuk = (v) => String(v == null ? '' : v).toLocaleUpperCase('tr-TR');
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const setBuyuk = (k, v) => setForm((f) => ({ ...f, [k]: buyuk(v) }));
 
   const hesap = tur.hesapla ? ygYerlesmePuani(form.yksPuani, form.notOrtalamasi) : null;
 
@@ -281,8 +284,8 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
 
   const eksikler = () => {
     const eksik = [];
-    if (!form.halenUniversite.trim()) eksik.push('Hâlen öğrenim gördüğü üniversite');
-    if (!form.halenBolum.trim()) eksik.push('Hâlen öğrenim gördüğü bölüm');
+    if (!form.aktifUniversite.trim()) eksik.push('Aktif üniversite');
+    if (!form.aktifBolum.trim()) eksik.push('Aktif bölüm');
     if (!form.basvurduguSinif.trim()) eksik.push('Başvurduğu sınıf');
     if (tur.notIster && !form.notOrtalamasi.trim()) eksik.push('Not ortalaması');
     if (tur.puanIster) {
@@ -309,11 +312,11 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
         ogrenciNo: String(sysOgrNo),
         adSoyad: sysAdSoyad,
         departmentId: currentUser?.departmentId || '',
-        // Hâlen öğrenim gördüğü
-        halenUniversite: form.halenUniversite.trim(),
-        halenFakulte: form.halenFakulte.trim(),
-        halenBolum: form.halenBolum.trim(),
-        halenSinif: form.halenSinif.trim(),
+        // Aktif
+        aktifUniversite: form.aktifUniversite.trim(),
+        aktifFakulte: form.aktifFakulte.trim(),
+        aktifBolum: form.aktifBolum.trim(),
+        aktifSinif: form.aktifSinif.trim(),
         // Başvurulan
         basvurduguBolum: form.basvurduguBolum.trim() || sysBolum,
         basvurduguSinif: form.basvurduguSinif.trim(),
@@ -353,29 +356,10 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
 
   return (
     <div>
-      {/* Sistemden gelen bilgiler */}
-      <div style={{ ...ygCard, padding: 16, marginBottom: 14 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 10 }}>
-          Sistemden gelen bilgileriniz
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: 12,
-          }}
-        >
-          {sistemAlani('Adı Soyadı', sysAdSoyad)}
-          {sistemAlani('Öğrenci Numarası', sysOgrNo)}
-          {sistemAlani('Başvurulan Fakülte', sysFakulte)}
-          {sistemAlani('Başvurulan Bölüm', sysBolum)}
-        </div>
-      </div>
-
       {/* Öğrenciden istenenler */}
       <div style={{ ...ygCard, padding: 16, marginBottom: 14 }}>
         <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 4 }}>
-          Hâlen öğrenim gördüğünüz program
+          Aktif öğrenim gördüğünüz program
         </div>
         <div style={{ fontSize: 12, color: YG.textMuted, marginBottom: 10 }}>{tur.aciklama}</div>
         <div
@@ -388,8 +372,8 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
           <div>
             <label style={ygLabel}>Üniversite *</label>
             <input
-              value={form.halenUniversite}
-              onChange={(e) => set('halenUniversite', e.target.value)}
+              value={form.aktifUniversite}
+              onChange={(e) => setBuyuk('aktifUniversite', e.target.value)}
               disabled={tur.id === 'kurumici'}
               style={{
                 ...ygInput,
@@ -400,8 +384,8 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
           <div>
             <label style={ygLabel}>Fakülte / Yüksekokul</label>
             <input
-              value={form.halenFakulte}
-              onChange={(e) => set('halenFakulte', e.target.value)}
+              value={form.aktifFakulte}
+              onChange={(e) => setBuyuk('aktifFakulte', e.target.value)}
               style={ygInput}
             />
           </div>
@@ -409,8 +393,8 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
             <label style={ygLabel}>Bölüm / Program *</label>
             {tur.id === 'kurumici' ? (
               <select
-                value={form.halenBolum}
-                onChange={(e) => set('halenBolum', e.target.value)}
+                value={form.aktifBolum}
+                onChange={(e) => setBuyuk('aktifBolum', e.target.value)}
                 style={{ ...ygInput, cursor: 'pointer' }}
               >
                 <option value="">— Bölüm seçin —</option>
@@ -422,17 +406,17 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
               </select>
             ) : (
               <input
-                value={form.halenBolum}
-                onChange={(e) => set('halenBolum', e.target.value)}
+                value={form.aktifBolum}
+                onChange={(e) => setBuyuk('aktifBolum', e.target.value)}
                 style={ygInput}
               />
             )}
           </div>
           <div>
-            <label style={ygLabel}>Hâlen okuduğunuz sınıf</label>
+            <label style={ygLabel}>Aktif sınıfınız</label>
             <input
-              value={form.halenSinif}
-              onChange={(e) => set('halenSinif', e.target.value)}
+              value={form.aktifSinif}
+              onChange={(e) => set('aktifSinif', e.target.value)}
               placeholder="ör. 2"
               style={ygInput}
             />
@@ -477,7 +461,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
                   <label style={ygLabel}>Yerleştiği puan türü *</label>
                   <input
                     value={form.yksPuanTuru}
-                    onChange={(e) => set('yksPuanTuru', e.target.value)}
+                    onChange={(e) => setBuyuk('yksPuanTuru', e.target.value)}
                     placeholder="ör. SAY"
                     style={ygInput}
                   />
@@ -689,7 +673,7 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy }) {
             {rec.ogrenciNo ? '  ·  ' + rec.ogrenciNo : ''}
           </div>
           <div style={{ fontSize: 11.5, color: YG.textMuted, marginTop: 3 }}>
-            {[rec.halenUniversite, rec.halenBolum].filter(Boolean).join(' / ')}
+            {[rec.aktifUniversite, rec.aktifBolum].filter(Boolean).join(' / ')}
             {rec.basvurduguSinif ? '  →  ' + rec.basvurduguSinif + '. sınıf' : ''}
           </div>
         </div>
@@ -715,10 +699,10 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy }) {
               borderRadius: 10,
             }}
           >
-            {satir('Hâlen üniversite', rec.halenUniversite)}
-            {satir('Hâlen fakülte', rec.halenFakulte)}
-            {satir('Hâlen bölüm', rec.halenBolum)}
-            {satir('Hâlen sınıf', rec.halenSinif)}
+            {satir('Aktif üniversite', rec.aktifUniversite)}
+            {satir('Aktif fakülte', rec.aktifFakulte)}
+            {satir('Aktif bölüm', rec.aktifBolum)}
+            {satir('Aktif sınıf', rec.aktifSinif)}
             {satir('Başvurduğu bölüm', rec.basvurduguBolum)}
             {satir('Başvurduğu sınıf', rec.basvurduguSinif)}
             {satir('YKS yerleşme yılı', rec.yksYerlesmeYili)}
@@ -1013,9 +997,9 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
         const h = tur.hesapla ? ygYerlesmePuani(r.yksPuani, r.notOrtalamasi) : null;
         return {
           adSoyad: r.adSoyad || '',
-          halenUniversite: r.halenUniversite || '',
-          halenFakulte: r.halenFakulte || '',
-          halenBolum: r.halenBolum || '',
+          aktifUniversite: r.aktifUniversite || '',
+          aktifFakulte: r.aktifFakulte || '',
+          aktifBolum: r.aktifBolum || '',
           basvurduguBolum: r.basvurduguBolum || bolumAd,
           basvurduguSinif: r.basvurduguSinif || '',
           basvurduguYariyil: egitimYili + ' ' + donem,
@@ -1138,8 +1122,16 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           subtitle: tur.tamAd,
         })}
 
-      {/* Geçiş türü sekmeleri */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+      {/* Geçiş türü sekmeleri — Ders Muafiyet'teki alt-çizgili sekme görünümü */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 4,
+          flexWrap: 'wrap',
+          marginBottom: 18,
+          borderBottom: '1px solid ' + YG.border,
+        }}
+      >
         {YG_TURLER.map((t) => {
           const on = turId === t.id;
           const sayi = kayitlar.filter((r) => (r.turu || 'kurumici') === t.id).length;
@@ -1149,19 +1141,34 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
               type="button"
               onClick={() => setTurId(t.id)}
               style={{
-                padding: '8px 15px',
-                borderRadius: 20,
-                border: '1px solid ' + (on ? YG.accent : YG.border),
-                background: on ? YG.accentPale : 'white',
-                color: on ? '#7c4a03' : YG.textMuted,
-                fontSize: 12.5,
-                fontWeight: 700,
+                padding: '11px 18px',
+                background: 'none',
+                border: 'none',
+                borderBottom: '2px solid ' + (on ? YG.accent : 'transparent'),
+                color: on ? YG.accent : YG.textMuted,
+                fontWeight: on ? 700 : 500,
+                fontSize: 13.5,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
+                whiteSpace: 'nowrap',
               }}
             >
               {t.label}
-              {sayi > 0 && <span style={{ marginLeft: 6, opacity: 0.7 }}>{sayi}</span>}
+              {sayi > 0 && (
+                <span
+                  style={{
+                    marginLeft: 7,
+                    background: on ? YG.accentPale : YG.bg,
+                    color: on ? '#7c4a03' : YG.textMuted,
+                    borderRadius: 9,
+                    padding: '1px 7px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                >
+                  {sayi}
+                </span>
+              )}
             </button>
           );
         })}
