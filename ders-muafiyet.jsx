@@ -6585,14 +6585,6 @@ const BASVURU_TURLERI = [
     bg: '#e2f2fb',
   },
   {
-    id: 'yatay',
-    label: 'Yatay Geçiş İsteği',
-    kisa: 'Yatay Geçiş',
-    aciklama: 'Yatay geçişle gelen öğrencinin önceki kurumda aldığı derslerin muafiyeti',
-    color: '#6d28d9',
-    bg: '#f3e8ff',
-  },
-  {
     id: 'dikey',
     label: 'Dikey Geçiş İsteği',
     kisa: 'Dikey Geçiş',
@@ -6602,11 +6594,14 @@ const BASVURU_TURLERI = [
   },
 ];
 
-function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
+// `sabitTur` verilirse modül TEK başvuru türüne kilitlenir ve tür seçici
+// gizlenir. Dikey Geçiş modülü bunu kullanır: ayrı bir modül olarak görünür
+// ama muafiyet altyapısının (eşleştirme, skorlama, dilekçe) aynısını çalıştırır.
+function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitTur }) {
   const isStudent = currentUser?.role === 'student';
   const tabs = isStudent ? STUDENT_TABS : STAFF_TABS;
   const [activeTab, setActiveTab] = useState(isStudent ? 'yeni' : 'onay');
-  const [basvuruTuru, setBasvuruTuru] = useState('muafiyet'); // 'muafiyet' | 'intibak'
+  const [basvuruTuru, setBasvuruTuru] = useState(sabitTur || 'muafiyet');
   const [courseContents, setCourseContents] = useState([]);
   const [records, setRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
@@ -6954,20 +6949,23 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo }) {
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
         {/* Başlık — ortak banner */}
         {React.createElement(window.CakuBanner, {
-          title: 'Ders Muafiyet & İntibak',
+          title: sabitTur ? turMeta.label : 'Ders Muafiyet & İntibak',
           subtitle: turMeta.aciklama,
         })}
 
-        {/* Başvuru türü seçici — modülü iki bağımsız alana böler */}
+        {/* Başvuru türü seçici — sabit türde (ör. Dikey Geçiş modülü) gizlenir */}
         <div
           style={{
-            display: 'flex',
+            display: sabitTur ? 'none' : 'flex',
             gap: 10,
             marginBottom: 22,
             flexWrap: 'wrap',
           }}
         >
-          {BASVURU_TURLERI.map(function (t) {
+          {BASVURU_TURLERI.filter(function (t) {
+            // Dikey geçiş kendi modülünde yürüdüğü için burada listelenmez.
+            return t.id !== 'dikey';
+          }).map(function (t) {
             var sel = basvuruTuru === t.id;
             var cnt = records.filter(function (r) {
               return (r.basvuruTuru || 'muafiyet') === t.id;
@@ -8526,6 +8524,16 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
 
 // ── Window'a export ──
 window.DersMuafiyetApp = DersMuafiyetApp;
+
+// ── Dikey Geçiş modülü ──
+// Ders Muafiyet'ten AYRI bir modül olarak görünür; altyapı aynıdır (ders
+// eşleştirme, benzerlik skoru, AKTS kapısı, dilekçe üretimi). Şablon tarafında
+// da module='muafiyet', docType='dikey' olarak kalır — mevcut şablonlar ve
+// üretilmiş belgeler bozulmaz.
+function DikeyGecisApp(props) {
+  return React.createElement(DersMuafiyetApp, { ...props, sabitTur: 'dikey' });
+}
+window.DikeyGecisApp = DikeyGecisApp;
 
 // NLP motoru paylaşımı
 window.MuafiyetUtils = {

@@ -341,6 +341,13 @@ const DEPARTMENT_MODULES = [
   },
   { id: 'muafiyet', label: 'Ders Muafiyet', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
   {
+    // Dikey Geçiş — Ders Muafiyet'ten ayrılan modül. Altyapı aynı kalır
+    // (eşleştirme + dilekçe); yalnız başvuru türü sabittir.
+    id: 'dikeygecis',
+    label: 'Dikey Geçiş',
+    icon: 'M12 19V5m0 0l-7 7m7-7l7 7',
+  },
+  {
     // Yatay Geçiş — üç türü (kurum içi · kurumlararası · merkezi yerleştirme)
     // kendi sekmelerinde yürüten ayrı modül. Ders Muafiyet'ten ayrıldı.
     id: 'yataygecis',
@@ -2266,13 +2273,12 @@ window.TEMPLATE_VARS = {
     docTypes: [
       { id: 'muafiyet', label: 'Ders Muafiyet İsteği' },
       { id: 'intibak', label: 'Yaz Dönemi Ders İntibak İsteği' },
-      { id: 'yatay', label: 'Yatay Geçiş İsteği' },
       { id: 'dikey', label: 'Dikey Geçiş İsteği' },
     ],
     muafiyet: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
     intibak: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
-    // Yatay/dikey geçiş — muafiyet ile aynı alt yapı (aynı değişken seti).
-    yatay: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
+    // Dikey geçiş ayrı modülde yürür ama şablon tarafında muafiyet altyapısını
+    // kullanmaya devam eder (mevcut şablonlar bozulmasın).
     dikey: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
     // Geriye dönük: docType='default' ile kaydedilmiş eski şablonlar
     default: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
@@ -3624,7 +3630,6 @@ window.BELGE_OTO_KURALLAR = {
   'capyandal:yandal': 'memur',
   'muafiyet:muafiyet': 'memur',
   'muafiyet:intibak': 'memur',
-  'muafiyet:yatay': 'memur',
   'muafiyet:dikey': 'memur',
   'yataygecis:kurumici': 'memur',
   'yataygecis:kurumlararasi': 'memur',
