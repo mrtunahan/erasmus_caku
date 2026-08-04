@@ -43,18 +43,21 @@ const GB_DURUM = {
 const GB_TUR_ADI = {
   muafiyet: 'Ders Muafiyet',
   intibak: 'Yaz Dönemi İntibak',
-  yatay: 'Yatay Geçiş',
   dikey: 'Dikey Geçiş',
+  kurumici: 'Kurum İçi',
+  kurumlararasi: 'Kurumlararası',
+  merkezi: 'Merkezi Yerleştirme',
   cap: 'ÇAP',
   yandal: 'Yandal',
   gidis: 'Gidiş',
   donus: 'Dönüş',
 };
 // Alt sekmeye ayrılan modüller
-const GB_ALT_SEKMELI = new Set(['muafiyet', 'capyandal']);
+const GB_ALT_SEKMELI = new Set(['muafiyet', 'capyandal', 'yataygecis']);
 
 const GB_MODUL_ADI = {
   muafiyet: 'Ders Muafiyet',
+  yataygecis: 'Yatay Geçiş',
   capyandal: 'ÇAP / Yandal',
   erasmus: 'Erasmus',
   staj: 'Staj',

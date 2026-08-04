@@ -584,6 +584,7 @@ const Sidebar = ({
       'muafiyet',
       'capyandal',
       'yataygecis',
+      'dikeygecis',
       'gelenbelgeler',
     ];
     const stdAllowed = stdBase.concat(commissionModules);
@@ -1445,8 +1446,12 @@ const MEMUR_TUR_SEKMELERI = {
   muafiyet: [
     { id: 'muafiyet', label: 'Ders Muafiyet' },
     { id: 'intibak', label: 'Yaz Dönemi İntibak' },
-    { id: 'yatay', label: 'Yatay Geçiş' },
     { id: 'dikey', label: 'Dikey Geçiş' },
+  ],
+  yataygecis: [
+    { id: 'kurumici', label: 'Kurum İçi' },
+    { id: 'kurumlararasi', label: 'Kurumlararası' },
+    { id: 'merkezi', label: 'Merkezi Yerleştirme' },
   ],
 };
 
@@ -1459,7 +1464,6 @@ function memurBelgeTuru(o, route) {
   if (route === 'erasmus') return /dönüş|donus/i.test(iz) ? 'donus' : 'gidis';
   if (route === 'muafiyet') {
     if (/intibak|yaz/i.test(iz)) return 'intibak';
-    if (/yatay/i.test(iz)) return 'yatay';
     if (/dikey/i.test(iz)) return 'dikey';
     return 'muafiyet';
   }
@@ -2277,6 +2281,7 @@ function AppShell() {
               'muafiyet',
               'capyandal',
               'yataygecis',
+              'dikeygecis',
               'gelenbelgeler',
             ]; // student
 
@@ -2469,6 +2474,7 @@ function AppShell() {
         akreditasyon: window.AkreditasyonApp,
         yolharitalari: window.YolHaritalariApp,
         yataygecis: window.YatayGecisApp,
+        dikeygecis: window.DikeyGecisApp,
       };
       const FallbackComponent = fallback[route];
       if (FallbackComponent)
