@@ -8440,7 +8440,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
 
           {/* Transkriptten ders satırlarını oku — her dersi elle girmek yerine.
               Sonuç önce tabloda gösterilir, öğrenci seçtiklerini aktarır. */}
-          {transcriptFile && window.AISatirDoldurButonu && (
+          {window.AISatirDoldurButonu && (
             <div
               style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed ' + DS.borderLight }}
             >
@@ -8449,7 +8449,8 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
                 docType: basvuruTuru,
                 sutunlar: AI_TRANSKRIPT_SUTUNLARI,
                 satirTanimi: 'karşı kurumda alınan her ders (transkriptteki her ders satırı)',
-                dosyaSaglayici: transkriptSaglayici,
+                dosyalar: transcriptFile ? [{ fileName: '', name: 'Transkript' }] : [],
+                dosyaSaglayici: transcriptFile ? transkriptSaglayici : null,
                 etiket: 'Transkriptten Dersleri Oku',
                 onUygula: dersleriAktar,
               })}
