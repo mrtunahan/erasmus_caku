@@ -111,14 +111,33 @@ komple geçersiz olur. Bu yüzden:
   değiştikleri için önbelleği bozmasınlar diye.
 - Sabit blokta zaman damgası / UUID / rastgele sıra **yoktur**.
 
-> ⚠️ **Haiku 4.5'te önbelleğe alınabilen en küçük önek 4096 token'dır.**
-> Bunun altındaki önekler hata vermez — **sessizce önbelleğe alınmaz.**
-> Şu anki talimat bloğu tek başına bu eşiğin altındadır; önbelleğin gerçekten
-> çalışması için `ai_ornekler` koleksiyonuna modül başına 1-2 doldurulmuş
-> örnek girilmelidir.
+> **Haiku 4.5'te önbelleğe alınabilen en küçük önek 4096 token'dır.**
+> Bunun altındaki önekler hata vermez — sessizce önbelleğe alınmaz.
 >
-> Ölçmek için: `/api/ai/extract` yanıtındaki `onbellek` alanına bakın.
-> `minimumAltinda: true` ise önbellek çalışmıyor demektir.
+> **Ölçüldü: sabit önek 848 token.** Yani önbellek şu anda devrede değil.
+> **Bu bilinçli bir tercihtir, eksiklik değildir** — aşağıdaki hesap yüzünden.
+
+### Eşiği aşmak için prompt şişirmeye değer mi? (Genelde hayır)
+
+|                                 |                              |
+| ------------------------------- | ---------------------------- |
+| Mevcut: 848 token, önbelleksiz  | çağrı başına **$0.000848**   |
+| Eşiği aşarsak: 4096 token yazma | pencere başına **$0.005120** |
+| Eşiği aşarsak: 4096 token okuma | çağrı başına **$0.000410**   |
+
+Başabaş noktası: **5 dakikalık önbellek penceresinde 12+ çağrı.** Bunun
+altında kalan her senaryoda prompt şişirmek **net zarardır** — tasarruf
+etmek için eklediğiniz dolgunun kendisi tasarruftan pahalıya gelir.
+
+Bir bölümde günde birkaç başvuru değerlendirilen normal akışta bu eşik
+aşılmaz. Yoğun başvuru dönemlerinde veya batch işlerinde aşılabilir.
+
+**Kural: `ai_ornekler` örneklerini yalnız DOĞRULUK yetersizse ekleyin.**
+Önbellek bir yan etkidir, gerekçe değildir. Doğruluk yeterliyse 848 token'da
+kalmak doğru karardır.
+
+Ölçmek için: `/api/ai/extract` yanıtındaki `onbellek` alanı, ya da
+`npm run ai:selftest` adım 2.
 
 `ai_ornekler` kayıt biçimi (Bölüm Yetkilisi ve üstü yazabilir):
 

@@ -428,7 +428,10 @@ async function alanCikar(opt) {
       yazilan: toplam.cache_creation_input_tokens,
       okunan: toplam.cache_read_input_tokens,
       // Hiç yazılmadıysa ve hiç okunmadıysa sabit blok 4096 token eşiğinin
-      // altında kalmış demektir — few-shot bloğu zenginleştirilmeli.
+      // altında kalmış demektir. Bu bir sorun DEĞİLDİR: ölçüldüğünde önek
+      // 848 token çıktı ve eşiği aşmak için prompt şişirmek başabaş
+      // hesabında (5 dk penceresinde 12+ çağrı) net zarar. Ayrıntı:
+      // docs/ai-belge-isleme.md → Prompt önbelleği.
       minimumAltinda:
         toplam.cache_creation_input_tokens === 0 && toplam.cache_read_input_tokens === 0,
       esik: CACHE_MIN_TOKENS,
