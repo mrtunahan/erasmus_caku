@@ -387,4 +387,9 @@ router.delete('/:folder/:filename', deleteLimiter, fileAuth, softAuthMiddleware,
   }
 });
 
+// Yüklenmiş bir dosyanın güvenli disk yolunu çözer. Belge işleme katmanı
+// (routes/ai.js) aynı sınır kontrolünü tekrar yazmasın diye dışa verilir —
+// `../` kaçışı ve UPLOAD_ROOT sınırı tek yerde denetlenir.
+router.resolveUploadPath = resolveSafePath;
+
 module.exports = router;

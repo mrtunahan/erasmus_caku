@@ -276,6 +276,47 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
       .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
   }, [bolumler, form.basvurduguFakulteId]);
 
+  // ── Belgeden alan doldurma ──
+  // Yalnız öğrencinin ELLE girdiği alanlar istenir. Kurum içi geçişte
+  // üniversite/fakülte/bölüm sistemden gelir; onları modele sordurmak
+  // hem gereksiz maliyet hem de yanlış doldurma riskidir.
+  const aiAlanlari = useMemo(() => {
+    const liste = [];
+    if (!icGecis) {
+      liste.push(
+        { id: 'aktifUniversite', label: 'Aktif üniversite', hint: 'Belgeyi düzenleyen üniversite' },
+        { id: 'aktifFakulte', label: 'Aktif fakülte / yüksekokul' },
+        { id: 'aktifBolum', label: 'Aktif bölüm / program' }
+      );
+    }
+    liste.push({ id: 'aktifSinif', label: 'Sınıf', hint: 'Örn. 2' });
+    if (tur.notIster) {
+      liste.push({
+        id: 'notOrtalamasi',
+        label: 'Not ortalaması (AGNO)',
+        hint: 'Transkriptteki genel not ortalaması; 100’lük değeri tercih et',
+      });
+    }
+    if (tur.puanIster) {
+      liste.push(
+        { id: 'yksYerlesmeYili', label: 'YKS yerleşme yılı', hint: 'Örn. 2023' },
+        { id: 'yksPuanTuru', label: 'Yerleştiği puan türü', hint: 'SAY / EA / SÖZ / DİL' },
+        { id: 'yksPuani', label: 'YKS yerleştirme puanı' }
+      );
+    }
+    return liste;
+  }, [icGecis, tur.notIster, tur.puanIster]);
+
+  const aiDosyalari = useMemo(() => {
+    const cikar = window.aiDosyaAdi;
+    if (!cikar) return [];
+    return YG_EKLER.map((ek) => {
+      const y = ekler[ek.id];
+      const fileName = y && y.url ? cikar(y.url) : '';
+      return fileName ? { fileName, name: ek.title } : null;
+    }).filter(Boolean);
+  }, [ekler]);
+
   // Benim Sayfam iletişim bilgileri — varsa forma önden doldur
   useEffect(() => {
     if (!sysOgrNo) return;
@@ -675,6 +716,36 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
             );
           })}
         </div>
+
+        {/* Yüklenen belgelerden alan doldurma — sonuç önce incelenir,
+            kullanıcı işaretlediklerini forma aktarır. Otomatik yazma yok. */}
+        {window.AIDoldurButonu && (
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed ' + YG.border }}>
+            {React.createElement(window.AIDoldurButonu, {
+              module: 'yataygecis',
+              docType: tur.id,
+              alanlar: aiAlanlari,
+              dosyalar: aiDosyalari,
+              onUygula: (degerler) => {
+                setForm((f) => {
+                  const y = { ...f };
+                  Object.keys(degerler).forEach((k) => {
+                    // Kurum içi geçişte sistemden gelen alanlar kilitlidir;
+                    // model çıktısı onları ezmemeli.
+                    if (icGecis && ['aktifUniversite', 'aktifFakulte', 'aktifBolum'].includes(k)) {
+                      return;
+                    }
+                    y[k] = ['aktifUniversite', 'aktifFakulte', 'aktifBolum'].includes(k)
+                      ? buyuk(degerler[k])
+                      : degerler[k];
+                  });
+                  return y;
+                });
+                setMesaj({ text: 'Seçilen bilgiler forma aktarıldı — kontrol edin.', kind: 'ok' });
+              },
+            })}
+          </div>
+        )}
       </div>
 
       {mesaj.text && (
@@ -713,6 +784,47 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy }) {
   const deg = YG_DEGERLENDIRME.find((d) => d.id === rec.degerlendirme);
   const st = rec.degerlendirme ? YG_DURUMLAR.degerlendirildi : YG_DURUMLAR.beklemede;
   const hesap = tur?.hesapla ? ygYerlesmePuani(rec.yksPuani, rec.notOrtalamasi) : null;
+
+  // ── Belge kıyaslaması için alan/değer/dosya üçlüsü ──
+  // Öğrencinin BEYAN ETTİĞİ, yani belgeden doğrulanabilir alanlar. Sistemin
+  // kendi ürettiği alanlar (hesaplanan puanlar, tarih damgaları) kıyaslanmaz.
+  const kiyasAlanlari = useMemo(
+    () =>
+      [
+        { id: 'adSoyad', label: 'Adı Soyadı' },
+        { id: 'aktifUniversite', label: 'Aktif üniversite' },
+        { id: 'aktifFakulte', label: 'Aktif fakülte' },
+        { id: 'aktifBolum', label: 'Aktif bölüm' },
+        { id: 'aktifSinif', label: 'Sınıfı' },
+        { id: 'notOrtalamasi', label: 'Not ortalaması (AGNO)' },
+        { id: 'yksYerlesmeYili', label: 'YKS yerleşme yılı' },
+        { id: 'yksPuanTuru', label: 'Yerleştiği puan türü' },
+        { id: 'yksPuani', label: 'YKS puanı' },
+      ].filter((a) => {
+        if (['yksYerlesmeYili', 'yksPuanTuru', 'yksPuani'].includes(a.id)) return !!tur?.puanIster;
+        if (a.id === 'notOrtalamasi') return !!tur?.notIster;
+        return true;
+      }),
+    [tur]
+  );
+
+  const kiyasDegerleri = useMemo(() => {
+    const o = {};
+    kiyasAlanlari.forEach((a) => {
+      o[a.id] = rec[a.id] == null ? '' : String(rec[a.id]);
+    });
+    return o;
+  }, [kiyasAlanlari, rec]);
+
+  const kiyasDosyalari = useMemo(() => {
+    const cikar = window.aiDosyaAdi;
+    if (!cikar) return [];
+    return YG_EKLER.map((ek) => {
+      const f = (rec.ekler || {})[ek.id];
+      const fileName = f && f.url ? cikar(f.url) : '';
+      return fileName ? { fileName, name: ek.title } : null;
+    }).filter(Boolean);
+  }, [rec]);
 
   // Etiket üstte, değer altta — sütunlar eşit genişlikte, satırlar hizalı.
   const satir = (k, v) =>
@@ -906,6 +1018,21 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy }) {
               </div>
             )}
           </div>
+
+          {/* Akademisyen: öğrencinin BEYANINI yüklediği belgelerle denetle.
+              Karar değerlendiricinindir; bu yalnız uyuşmazlıkları işaretler. */}
+          {isStaff && window.AIBelgeKontrol && (
+            <div style={{ marginBottom: 14 }}>
+              {React.createElement(window.AIBelgeKontrol, {
+                module: 'yataygecis',
+                docType: tur?.id || 'default',
+                departmentId: rec.departmentId || '',
+                alanlar: kiyasAlanlari,
+                mevcutDegerler: kiyasDegerleri,
+                dosyalar: kiyasDosyalari,
+              })}
+            </div>
+          )}
 
           {/* Akademisyen: DEĞERLENDİRME (belgedeki son sütun) */}
           {isStaff && (

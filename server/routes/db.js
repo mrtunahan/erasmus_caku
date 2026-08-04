@@ -147,6 +147,13 @@ const ALLOWED_COLLECTIONS = [
   'yol_haritalari',
   // Yatay geçiş başvuruları (kurum içi · kurumlararası · merkezi yerleştirme)
   'yatay_gecis_basvurular',
+  // Belge işleme (AI) — model çağrısı başına kullanım/maliyet kaydı.
+  // Yalnız okunur: yazımı sunucudaki services/ai-usage.js yapar.
+  'ai_usage_logs',
+  // Belge işleme few-shot örnekleri — personelin küratörlüğünü yaptığı
+  // "belge metni → beklenen çıktı" çiftleri. Prompt'un önbelleğe alınan
+  // sabit bloğuna gömülür.
+  'ai_ornekler',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -183,7 +190,9 @@ const PUBLIC_READ = new Set(['universities', 'faculties', 'departments', 'tenant
 // Giriş ekranındaki akademisyen adı araması için gerekli asgari alanlar
 const PUBLIC_READ_STRIPPED = { professors: ['name', 'title', 'departmentId'] };
 const ADMIN_READ = new Set(['audit_logs']);
-const WRITE_DENY = new Set(['audit_logs']);
+// ai_usage_logs: maliyet defteri. Yalnız sunucudaki services/ai-usage.js
+// yazar; generic API'den yazılabilirse maliyet kaydı tahrif edilebilir.
+const WRITE_DENY = new Set(['audit_logs', 'ai_usage_logs']);
 
 // Öğrencilerin işlem yapması meşru olan koleksiyonlar (kendi başvuruları,
 // anket yanıtları, portal etkileşimleri, kulüpler, proje başvuruları)
@@ -246,7 +255,13 @@ const STRUCTURE_MANAGER_WRITE = new Set([
 // Yalnız BÖLÜM yetkilisi (ve üstü) yazabilir. STRUCTURE_MANAGER_WRITE'tan farkı:
 // orası üniversite/fakülte yöneticisi ister, burası bölüm yetkilisine de açıktır.
 // Sade akademisyen ve öğrenci yazamaz (öğrenci için ayrıca STUDENT_WRITABLE'da yok).
-const DEPT_MANAGER_WRITE = new Set(['yol_haritalari']);
+const DEPT_MANAGER_WRITE = new Set([
+  'yol_haritalari',
+  // Belge işleme few-shot örnekleri — prompt'un önbelleğe alınan sabit
+  // bloğuna gömülür, yani kalitesi doğrudan çıkarım doğruluğunu etkiler.
+  // Sade akademisyen/öğrenci değiştiremez.
+  'ai_ornekler',
+]);
 
 // ── Öğrencinin KENDİ `students` kaydı ──
 // Öğrenci Erasmus başvurusunu (ders eşleştirmeleri, karşı kurum, dönem)
