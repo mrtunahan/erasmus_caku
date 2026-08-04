@@ -155,6 +155,24 @@ function extractLimiter(req, res, next) {
   return f(req, res, next);
 }
 
+// 422 yanıtı istemcide "Belgeden alanlar çıkarılamadı." diye görünüyordu —
+// kullanıcıya hiçbir şey söylemeyen bir mesaj. Sebep artık metne dökülüyor.
+function aciklamaliSebep(sonuc) {
+  const ilkHata = (sonuc.hatalar || []).map((h) => h && h.message).find(Boolean) || '';
+  if (/credit balance is too low|insufficient_quota/i.test(ilkHata)) {
+    return 'Anthropic hesabında kredi kalmamış.';
+  }
+  if (/authentication_error|invalid x-api-key/i.test(ilkHata)) return 'API anahtarı geçersiz.';
+  if (/rate_limit/i.test(ilkHata)) return 'Model hız sınırına takıldı, birazdan tekrar deneyin.';
+  const harita = {
+    'no-fields': 'Doldurulacak alan tanımlı değil (şablon eşlemesi yapılmamış olabilir).',
+    'too-many-fields': 'Çok fazla alan istendi.',
+    'no-readable-document': 'Belge okunamadı (bozuk ya da desteklenmeyen biçim).',
+    'parse-failed': 'Model geçerli bir sonuç üretemedi.',
+  };
+  return harita[sonuc.reason] || ilkHata || sonuc.reason || 'bilinmeyen sebep';
+}
+
 function aiHazirMi(res) {
   if (cx.yapilandirildiMi()) return true;
   res.status(503).json({
@@ -230,7 +248,7 @@ router.post('/extract', extractLimiter, requireAuth, async (req, res) => {
 
     if (!sonuc.ok) {
       return res.status(422).json({
-        error: 'Belgeden alanlar çıkarılamadı.',
+        error: 'Belgeden alanlar çıkarılamadı: ' + aciklamaliSebep(sonuc),
         reason: sonuc.reason,
         hatalar: (sonuc.hatalar || []).concat(bulunamayan),
       });
@@ -278,7 +296,7 @@ router.post('/extract-rows', extractLimiter, requireAuth, async (req, res) => {
 
     if (!sonuc.ok) {
       return res.status(422).json({
-        error: 'Belgeden satırlar çıkarılamadı.',
+        error: 'Belgeden satırlar çıkarılamadı: ' + aciklamaliSebep(sonuc),
         reason: sonuc.reason,
         hatalar: (sonuc.hatalar || []).concat(bulunamayan),
       });
@@ -329,7 +347,7 @@ router.post('/compare', extractLimiter, requireAuth, async (req, res) => {
 
     if (!sonuc.ok) {
       return res.status(422).json({
-        error: 'Kıyaslama yapılamadı.',
+        error: 'Kıyaslama yapılamadı: ' + aciklamaliSebep(sonuc),
         reason: sonuc.reason,
         hatalar: (sonuc.hatalar || []).concat(bulunamayan),
       });
@@ -453,6 +471,36 @@ router.post('/extract/batch/:id/sonuc', aiLimiter, requireAuth, requireStaff, as
   } catch (err) {
     console.error('ai/extract/batch sonuc error:', err.message);
     return res.status(502).json({ error: 'Batch sonuçları alınamadı: ' + err.message });
+  }
+});
+
+// GET /api/ai/ozet — yönetim paneli için tek çağrılık durum + maliyet özeti.
+router.get('/ozet', statusLimiter, requireAuth, requireStaff, async (req, res) => {
+  try {
+    const [onek, gunluk, modulBazli] = await Promise.all([
+      cx.yapilandirildiMi() ? cx.onekTokenSayisi() : Promise.resolve(null),
+      kullanimRaporu({ groupBy: 'day' }),
+      kullanimRaporu({ groupBy: 'module' }),
+    ]);
+    const toplam = gunluk.reduce(
+      (a, g) => ({
+        cagri: a.cagri + (g.cagri || 0),
+        costUsd: a.costUsd + (g.costUsd || 0),
+        hataliCagri: a.hataliCagri + (g.hataliCagri || 0),
+      }),
+      { cagri: 0, costUsd: 0, hataliCagri: 0 }
+    );
+    return res.json({
+      ok: true,
+      model: cx.MODEL,
+      configured: cx.yapilandirildiMi(),
+      onek,
+      toplam,
+      gunluk: gunluk.slice(0, 30),
+      modulBazli,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Özet alınamadı: ' + err.message });
   }
 });
 

@@ -138,6 +138,10 @@ window.__lazyModules = {
     loader: () => import('./fak-yonetimi-modulu.jsx'),
     component: 'FakYonetimiApp',
   },
+  yapayzeka: {
+    loader: () => import('./yapay-zeka-modulu.jsx'),
+    component: 'YapayZekaApp',
+  },
   akreditasyon: {
     loader: () => import('./akreditasyon-modulu.jsx'),
     component: 'AkreditasyonApp',

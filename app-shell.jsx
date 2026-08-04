@@ -2472,6 +2472,7 @@ function AppShell() {
         univ: window.UnvYonetimiApp,
         fakulte: window.FakYonetimiApp,
         akreditasyon: window.AkreditasyonApp,
+        yapayzeka: window.YapayZekaApp,
         yolharitalari: window.YolHaritalariApp,
         yataygecis: window.YatayGecisApp,
         dikeygecis: window.DikeyGecisApp,
