@@ -266,6 +266,8 @@ const STRUCTURE_MANAGER_WRITE = new Set([
 //   2) Kayıt TAMAMLANMIŞ olmalı — süren bir başvuru silinerek öğrencinin
 //      girdiği veriler yok edilemez
 // Tamamlanma ölçütü koleksiyona göre değişir; BASVURU_TAMAMLANDI'da tanımlı.
+// Bir koleksiyon için orada karşılık YOKSA tamamlanma şartı aranmaz — yalnız
+// yetki kontrolü uygulanır (bkz. muafiyet_records).
 const BASVURU_SIL_DEPT_MANAGER = new Set([
   'cap_yandal_basvurular',
   'yatay_gecis_basvurular',
@@ -277,9 +279,11 @@ const BASVURU_TAMAMLANDI = {
   cap_yandal_basvurular: (d) => d.status === 'approved' || d.status === 'rejected',
   // Yatay geçiş: değerlendirme sonucu girilmiş
   yatay_gecis_basvurular: (d) => !!d.degerlendirme,
-  // Dikey geçiş / muafiyet: süreç sonlanmış
-  muafiyet_records: (d) =>
-    d.stage === 'tamamlandi' || d.status === 'tamamlandi' || d.status === 'rejected',
+  // muafiyet_records BİLEREK YOK — bu koleksiyonda tamamlanma şartı
+  // aranmaz. Muafiyet talepleri hatalı/eksik yüklemeyle sıkça açılıyor ve
+  // öğrenci düzeltilmiş talebi yeniden gönderiyor; yanlış kayıt onay
+  // kuyruğunda takılı kalmasın diye bölüm yetkilisi süren talebi de
+  // silebiliyor. Yetki kontrolü (bölüm yetkilisi ve üstü) aynen geçerli.
 };
 
 const DEPT_MANAGER_WRITE = new Set([

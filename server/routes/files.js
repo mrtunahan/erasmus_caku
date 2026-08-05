@@ -392,14 +392,16 @@ router.delete('/:folder/:filename', deleteLimiter, fileAuth, softAuthMiddleware,
 // vardır (karşı kurum + ÇAKÜ). Akademisyen bunları tek tek açmak yerine
 // tek bir PDF olarak okuyabilsin diye sunucuda birleştirilir.
 //
+// Çıktı, yüklenen belgelerin BİREBİR birleşimidir: kapak/ayraç sayfası
+// eklenmez, sayfa numarası basılmaz, içerik değiştirilmez.
+//
 // pdf-lib saf JS'tir; harici bir ikili (ghostscript/qpdf) gerekmez.
 
 const MERGE_MAX_DOSYA = 60;
 const MERGE_MAX_BAYT = 80 * 1024 * 1024; // toplam ham girdi tavanı
 
-// StandardFonts WinAnsi kodlar; ş/ğ/İ/ı gibi harfler kodlanamaz ve pdf-lib
-// hata fırlatır. Ayraç sayfası başlıklarını ASCII'ye indirgeriz — belgenin
-// kendi içeriği bundan etkilenmez, yalnız ayraç yazısı sadeleşir.
+// Content-Disposition başlığı ASCII olmak zorunda; dosya adındaki Türkçe
+// harfler burada indirgenir. Belgelerin kendi içeriği etkilenmez.
 const TR_ASCII = {
   ç: 'c',
   Ç: 'C',
@@ -447,9 +449,9 @@ function mergeRequireStaff(req, res, next) {
 // POST /api/files/merge-pdf  body: { dosyalar:[{url, baslik}], filename }
 // Yanıt: birleştirilmiş PDF (application/pdf).
 router.post('/merge-pdf', uploadLimiter, fileAuth, mergeRequireStaff, async (req, res) => {
-  let PDFDocument, StandardFonts, rgb;
+  let PDFDocument;
   try {
-    ({ PDFDocument, StandardFonts, rgb } = require('pdf-lib'));
+    ({ PDFDocument } = require('pdf-lib'));
   } catch (_e) {
     return res.status(503).json({
       error:
@@ -469,7 +471,6 @@ router.post('/merge-pdf', uploadLimiter, fileAuth, mergeRequireStaff, async (req
 
   try {
     const hedef = await PDFDocument.create();
-    const font = await hedef.embedFont(StandardFonts.HelveticaBold);
     let eklenen = 0;
 
     for (const d of istenen) {
@@ -506,34 +507,9 @@ router.post('/merge-pdf', uploadLimiter, fileAuth, mergeRequireStaff, async (req
         continue;
       }
 
-      // Ayraç sayfası: birleşik belgede hangi dersin nerede başladığı belli olsun.
-      if (baslik) {
-        const kapak = hedef.addPage([595.28, 841.89]); // A4
-        const metin = asciiIndirge(baslik);
-        kapak.drawText(metin.slice(0, 90), {
-          x: 56,
-          y: 700,
-          size: 16,
-          font,
-          color: rgb(0.06, 0.15, 0.3),
-        });
-        if (metin.length > 90) {
-          kapak.drawText(metin.slice(90, 180), {
-            x: 56,
-            y: 678,
-            size: 16,
-            font,
-            color: rgb(0.06, 0.15, 0.3),
-          });
-        }
-        kapak.drawLine({
-          start: { x: 56, y: 664 },
-          end: { x: 539, y: 664 },
-          thickness: 1,
-          color: rgb(0.8, 0.84, 0.9),
-        });
-      }
-
+      // Ayraç/kapak sayfası ÜRETİLMEZ: çıktı, öğrencinin yüklediği
+      // belgelerin birebir birleşimidir. `baslik` yalnızca atlanan dosyaları
+      // kullanıcıya adıyla bildirmek için taşınır, PDF'e yazılmaz.
       try {
         const sayfalar = await hedef.copyPages(kaynak, kaynak.getPageIndices());
         sayfalar.forEach((p) => hedef.addPage(p));
