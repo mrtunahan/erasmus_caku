@@ -53,7 +53,7 @@ const BAGLANTILAR = [
   {
     modul: 'Ders Muafiyet',
     yer: 'Öğrenci · transkript alanı',
-    islev: 'Satır çıkarımı (ders listesi)',
+    islev: 'Satır çıkarımı (ders listesi) + karşı kurum bilgisi',
     durum: 'bagli',
   },
   { modul: 'Dikey Geçiş', yer: '—', islev: 'Alan çıkarımı', durum: 'bekliyor' },

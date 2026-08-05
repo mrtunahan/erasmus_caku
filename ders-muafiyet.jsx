@@ -7237,6 +7237,18 @@ const AI_TRANSKRIPT_SUTUNLARI = [
   { id: 'statu', label: 'Zorunlu/Seçmeli', hint: 'Z veya S; belgede yoksa boş bırak' },
 ];
 
+// Transkriptin BAŞLIK bilgisi — karşı kurumun kimliği. Her ders satırında
+// aynı olduğu için sütun değil, ayrı bir alan çıkarımıdır.
+const AI_TRANSKRIPT_UST_BILGI = [
+  {
+    id: 'karsiUniversite',
+    label: 'Üniversite',
+    hint: 'Transkripti düzenleyen üniversitenin tam adı',
+  },
+  { id: 'karsiFakulte', label: 'Fakülte / Yüksekokul' },
+  { id: 'karsiBolum', label: 'Bölüm / Program' },
+];
+
 const emptyManualRow = function () {
   return {
     id: 'r' + Math.random().toString(36).slice(2, 9),
@@ -7534,26 +7546,49 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
   // Seçilen satırlar KARŞI KURUM tarafına yazılır. ÇAKÜ karşılığı bilerek boş
   // bırakılır: muafiyet kararı bu eşleştirmeye dayandığı için öğrencinin
   // kendi seçmesi gerekir — model eşleştirmesi burada karar yerine geçemez.
-  const dersleriAktar = (satirlar) => {
-    if (!satirlar || satirlar.length === 0) return;
-    const yeniler = satirlar.map((s) => {
+  const dersleriAktar = (satirlar, ustBilgi) => {
+    const kurum = ustBilgi || {};
+    const uni = String(kurum.karsiUniversite || '').trim();
+    const fak = String(kurum.karsiFakulte || '').trim();
+    const bol = String(kurum.karsiBolum || '').trim();
+    const kurumVar = !!(uni || fak || bol);
+    if ((!satirlar || satirlar.length === 0) && !kurumVar) return;
+
+    // Kurum bilgisi TÜM satırlara yazılır — hem yeni gelenlere hem de
+    // öğrencinin daha önce elle eklediklerine (boş olanlara).
+    const kurumUygula = (src) => ({
+      ...src,
+      uni: uni || src.uni,
+      faculty: fak || src.faculty,
+      dept: bol || src.dept,
+    });
+
+    const yeniler = (satirlar || []).map((s) => {
       const r = emptyManualRow();
       r.src.name = String(s.dersAdi || '').trim();
       r.src.code = String(s.dersKodu || '').trim();
       r.src.akts = String(s.akts || '').replace(/[^\d]/g, '');
       const st = normalizeStatu(s.statu);
       if (st) r.src.statu = st;
+      if (kurumVar) r.src = kurumUygula(r.src);
       return r;
     });
+
     setRows((prev) => {
+      const guncel = kurumVar ? prev.map((r) => ({ ...r, src: kurumUygula(r.src) })) : prev;
+      if (yeniler.length === 0) return guncel;
       // İlk satır hiç doldurulmamışsa onu tüket, değilse listeye ekle.
-      const ilkBos = prev.length === 1 && !prev[0].src.name && !prev[0].cak.name;
-      return ilkBos ? yeniler : [...prev, ...yeniler];
+      const ilkBos = guncel.length === 1 && !guncel[0].src.name && !guncel[0].cak.name;
+      return ilkBos ? yeniler : [...guncel, ...yeniler];
     });
+
+    const parcalar = [];
+    if (yeniler.length > 0) parcalar.push(yeniler.length + ' ders');
+    if (kurumVar) parcalar.push('karşı kurum bilgileri');
     setMsg({
       text:
-        satirlar.length +
-        ' ders aktarıldı. Her ders için ÇAKÜ karşılığını ve Bologna linkini siz seçmelisiniz.',
+        parcalar.join(' ve ') +
+        ' aktarıldı. Her ders için ÇAKÜ karşılığını ve Bologna linkini siz seçmelisiniz.',
       kind: 'ok',
     });
   };
@@ -8468,6 +8503,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
                 module: 'muafiyet',
                 docType: basvuruTuru,
                 sutunlar: AI_TRANSKRIPT_SUTUNLARI,
+                ustBilgiAlanlari: AI_TRANSKRIPT_UST_BILGI,
                 satirTanimi: 'karşı kurumda alınan her ders (transkriptteki her ders satırı)',
                 dosyalar: transcriptFile ? [{ fileName: '', name: 'Transkript' }] : [],
                 dosyaSaglayici: transcriptFile ? transkriptSaglayici : null,
@@ -8475,8 +8511,9 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
                 onUygula: dersleriAktar,
               })}
               <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 8, lineHeight: 1.5 }}>
-                Yalnızca <b>karşı kurum</b> tarafı doldurulur. ÇAKÜ karşılığını ve Bologna linkini
-                siz seçersiniz — muafiyet kararı buna bağlı olduğu için otomatik eşleştirilmez.
+                Transkriptten <b>karşı kurumun üniversite/fakülte/bölüm bilgisi</b> ve{' '}
+                <b>ders listesi</b> okunur. ÇAKÜ karşılığını ve Bologna linkini siz seçersiniz —
+                muafiyet kararı buna bağlı olduğu için otomatik eşleştirilmez.
               </div>
             </div>
           )}
