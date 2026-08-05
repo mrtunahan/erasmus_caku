@@ -6,14 +6,20 @@
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 // Bir muafiyet/dikey geçiş kaydı silinebilir mi?
-// İki koşul: kullanıcı bölüm yetkilisi (ve üstü) olmalı VE kaydın süreci
-// bitmiş olmalı. Sunucudaki kuralın (BASVURU_TAMAMLANDI.muafiyet_records)
-// arayüz karşılığıdır; ikisi birlikte değişmelidir.
+// Tek koşul: kullanıcı bölüm yetkilisi (ve üstü) olmalı. Tamamlanma şartı
+// BİLEREK yok — hatalı/eksik yüklenmiş talepler onay kuyruğunda takılı
+// kalmasın diye süren kayıt da silinebiliyor. Sunucudaki kuralın
+// (routes/db.js → BASVURU_SIL_DEPT_MANAGER) arayüz karşılığıdır; ikisi
+// birlikte değişmelidir.
 const silinebilirMi = (rec, user) => {
   if (!rec || !user) return false;
   if (window.basvuruSilebilirMi && !window.basvuruSilebilirMi(user)) return false;
-  return rec.stage === 'tamamlandi' || rec.status === 'tamamlandi' || rec.status === 'rejected';
+  return true;
 };
+
+// Kaydın süreci bitti mi? Silme uyarısının tonunu belirler.
+const muafiyetTamamlandiMi = (rec) =>
+  !!rec && (rec.stage === 'tamamlandi' || rec.status === 'tamamlandi' || rec.status === 'rejected');
 
 // Türkçe-duyarlı görüntüleme biçimlendirmesi (ekranlarda; shared-components'ten).
 // Veriyi değiştirmez — yalnız gösterimi düzeltir; eşleştirme küçük-harfe
@@ -5631,8 +5637,10 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
 // BİRLEŞİK DERS İÇERİĞİ PDF'İ (akademisyen)
 //   Öğrenci her ders için iki içerik dosyası yüklüyor (karşı kurum + ÇAKÜ).
 //   10 derslik bir talepte bu 20 ayrı sekme demek. Burada sunucuda
-//   birleştirilir; her belgenin önüne hangi derse ait olduğunu yazan bir
-//   ayraç sayfası konur.
+//   birleştirilir.
+//
+//   Çıktı, öğrencinin yüklediği belgelerin BİREBİR birleşimidir: kapak ya da
+//   ayraç sayfası eklenmez, belgelere hiçbir şey yazılmaz.
 //
 //   KURUM BAŞINA AYRI PDF üretilir — iki kurumun belgeleri tek dosyada
 //   iç içe geçmez.
@@ -5643,8 +5651,11 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
 // İki kurum tek PDF'te birleştirilmiyor: karşı kurumun ders içerikleri ile
 // ÇAKÜ'nün ders içerikleri farklı kurumların belgeleridir; değerlendirici
 // bunları yan yana açıp karşılaştırır, iç içe geçmiş tek belge bu okumayı
-// zorlaştırır. Her kurum kendi PDF'ini alır, ders sırası ikisinde de aynıdır
-// (1. ders, 2. ders …) — böylece iki belge aynı hizada ilerler.
+// zorlaştırır. Her kurum kendi PDF'ini alır, belge sırası ikisinde de aynıdır
+// — böylece iki dosya aynı hizada ilerler.
+//
+// `baslik` PDF'e YAZILMAZ; yalnızca atlanan bir dosyayı kullanıcıya adıyla
+// bildirebilmek için taşınır.
 function birlesikPdfListesi(record, taraf) {
   const out = [];
   (record.matches || []).forEach(function (m, i) {
@@ -6165,19 +6176,25 @@ const ExemptionHistory = ({
                         Belge Oluştur
                       </Button>
                     )}
-                  {/* Silme: yalnız bölüm yetkilisi (ve üstü), yalnız süreci
-                      bitmiş kayıt. Süren bir talebi silmek öğrencinin girdiği
-                      verileri yok eder; sunucu da bunu reddeder
+                  {/* Silme: yalnız bölüm yetkilisi (ve üstü). Hem onay
+                      bekleyen hem tamamlanmış kayıtlarda görünür; süren bir
+                      talep siliniyorsa uyarı ayrıca bunu söyler
                       (routes/db.js → BASVURU_SIL_DEPT_MANAGER). */}
                   {onDelete && silinebilirMi(rec, currentUser) && (
                     <Button
                       small
                       variant="danger"
                       onClick={function () {
+                        var suruyor = !muafiyetTamamlandiMi(rec);
                         if (
                           confirm(
                             (rec.studentName || 'Bu öğrencinin') +
                               ' talebi ve tüm ekleri kalıcı olarak silinecek.\n\n' +
+                              (suruyor
+                                ? 'DİKKAT: Bu talep HÂLÂ SÜRÜYOR — henüz sonuçlandırılmadı. ' +
+                                  'Öğrencinin yüklediği belgeler ve girdiği eşleştirmeler de ' +
+                                  'silinecek; öğrenci talebi baştan oluşturmak zorunda kalır.\n\n'
+                                : '') +
                               'Bu işlem geri alınamaz. Devam edilsin mi?'
                           )
                         )
