@@ -4111,6 +4111,10 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
   docType,
   sutunlar,
   satirTanimi,
+  // Belgenin BAŞLIK bilgisi (kurum, program, dönem…) — satır sütunu DEĞİL.
+  // Bunlar her satırda aynı olduğu için sütuna konsaydı çıktı token'ı satır
+  // sayısı kadar boşuna katlanırdı; ayrı bir alan çıkarımı çağrısıyla alınır.
+  ustBilgiAlanlari,
   dosyalar,
   // Belge forma seçilmiş ama henüz sunucuya yüklenmemişse: tıklama anında
   // yükleyip {fileName, name} listesi döndüren async sağlayıcı. Böylece
@@ -4123,6 +4127,8 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
   const [calisiyor, setCalisiyor] = React.useState(false);
   const [satirlar, setSatirlar] = React.useState(null);
   const [secili, setSecili] = React.useState({});
+  const [ustBilgi, setUstBilgi] = React.useState(null);
+  const [ustSecili, setUstSecili] = React.useState({});
   const [hata, setHata] = React.useState('');
 
   React.useEffect(() => {
@@ -4148,13 +4154,17 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
         setHata('Okunacak belge bulunamadı.');
         return;
       }
-      const r = await window.aiSatirCikar({
-        module,
-        docType,
-        sutunlar,
-        satirTanimi,
-        dosyalar: liste,
-      });
+      const ustVar = Array.isArray(ustBilgiAlanlari) && ustBilgiAlanlari.length > 0;
+      // İki çağrı paralel: satırlar ve başlık bilgisi bağımsız işlerdir.
+      const [r, u] = await Promise.all([
+        window.aiSatirCikar({ module, docType, sutunlar, satirTanimi, dosyalar: liste }),
+        ustVar
+          ? window
+              .aiAlanDoldur({ module, docType, alanlar: ustBilgiAlanlari, dosyalar: liste })
+              .catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
       setSatirlar(r.satirlar || []);
       // Varsayılan: yüksek güvenli satırlar işaretli gelir.
       const s = {};
@@ -4162,6 +4172,18 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
         s[i] = sat.guven >= 0.85;
       });
       setSecili(s);
+
+      if (u && u.data) {
+        setUstBilgi(u.data);
+        const us = {};
+        ustBilgiAlanlari.forEach((a) => {
+          const c = u.data[a.id];
+          us[a.id] = !!(c && c.deger && c.guven >= 0.85);
+        });
+        setUstSecili(us);
+      } else {
+        setUstBilgi(null);
+      }
     } catch (e) {
       setHata(e.message);
     } finally {
@@ -4171,11 +4193,20 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
 
   const uygula = () => {
     const secilenler = satirlar.filter((_, i) => secili[i]);
-    if (onUygula) onUygula(secilenler);
+    const ust = {};
+    if (ustBilgi) {
+      (ustBilgiAlanlari || []).forEach((a) => {
+        const c = ustBilgi[a.id];
+        if (ustSecili[a.id] && c && c.deger) ust[a.id] = c.deger;
+      });
+    }
+    if (onUygula) onUygula(secilenler, ust);
     setSatirlar(null);
+    setUstBilgi(null);
   };
 
   const secimSayisi = Object.values(secili).filter(Boolean).length;
+  const ustSecimSayisi = Object.values(ustSecili).filter(Boolean).length;
   const hucre = { padding: '7px 10px', borderBottom: '1px solid #F3F4F6', fontSize: 12.5 };
 
   return React.createElement(
@@ -4236,6 +4267,91 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
               ? 'Belgede satır bulunamadı'
               : 'Belgeden ' + satirlar.length + ' satır okundu — aktarmak istediklerinizi seçin'
           ),
+          // ── Belgenin başlık bilgisi (kurum/program) ──
+          ustBilgi &&
+            (ustBilgiAlanlari || []).some((a) => ustBilgi[a.id] && ustBilgi[a.id].deger) &&
+            React.createElement(
+              'div',
+              {
+                style: {
+                  padding: '10px 14px',
+                  borderBottom: '1px solid ' + '#E5E7EB',
+                  background: '#FCFCFD',
+                },
+              },
+              React.createElement(
+                'div',
+                { style: { fontSize: 11, color: '#6B7280', fontWeight: 700, marginBottom: 8 } },
+                'BELGENİN BAŞLIK BİLGİSİ — tüm satırlara uygulanır'
+              ),
+              React.createElement(
+                'div',
+                {
+                  style: {
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                    gap: 8,
+                  },
+                },
+                (ustBilgiAlanlari || [])
+                  .filter((a) => ustBilgi[a.id] && ustBilgi[a.id].deger)
+                  .map((a) => {
+                    const c = ustBilgi[a.id];
+                    const st = aiGuvenStili(c.guven);
+                    return React.createElement(
+                      'label',
+                      {
+                        key: a.id,
+                        style: {
+                          display: 'flex',
+                          gap: 8,
+                          alignItems: 'flex-start',
+                          cursor: 'pointer',
+                          padding: '6px 8px',
+                          borderRadius: 8,
+                          background: ustSecili[a.id] ? '#F8FAFC' : 'transparent',
+                        },
+                      },
+                      React.createElement('input', {
+                        type: 'checkbox',
+                        checked: !!ustSecili[a.id],
+                        onChange: (e) => setUstSecili((x) => ({ ...x, [a.id]: e.target.checked })),
+                        style: { marginTop: 3 },
+                      }),
+                      React.createElement(
+                        'div',
+                        { style: { minWidth: 0 } },
+                        React.createElement(
+                          'div',
+                          { style: { fontSize: 11, color: '#6B7280' } },
+                          a.label || a.id
+                        ),
+                        React.createElement(
+                          'div',
+                          { style: { fontSize: 12.5, fontWeight: 600, color: '#111827' } },
+                          c.deger
+                        )
+                      ),
+                      React.createElement(
+                        'span',
+                        {
+                          style: {
+                            marginLeft: 'auto',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '2px 7px',
+                            borderRadius: 999,
+                            color: st.renk,
+                            background: st.bg,
+                            whiteSpace: 'nowrap',
+                          },
+                        },
+                        st.etiket
+                      )
+                    );
+                  })
+              )
+            ),
           satirlar.length > 0 &&
             React.createElement(
               'div',
@@ -4332,7 +4448,10 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
                 'button',
                 {
                   type: 'button',
-                  onClick: () => setSatirlar(null),
+                  onClick: () => {
+                    setSatirlar(null);
+                    setUstBilgi(null);
+                  },
                   style: {
                     padding: '7px 12px',
                     borderRadius: 8,
@@ -4349,19 +4468,21 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
                 {
                   type: 'button',
                   onClick: uygula,
-                  disabled: secimSayisi === 0,
+                  disabled: secimSayisi === 0 && ustSecimSayisi === 0,
                   style: {
                     padding: '7px 14px',
                     borderRadius: 8,
                     border: 'none',
-                    background: secimSayisi === 0 ? '#D1D5DB' : '#4338CA',
+                    background: secimSayisi === 0 && ustSecimSayisi === 0 ? '#D1D5DB' : '#4338CA',
                     color: 'white',
                     fontSize: 12,
                     fontWeight: 600,
-                    cursor: secimSayisi === 0 ? 'not-allowed' : 'pointer',
+                    cursor: secimSayisi === 0 && ustSecimSayisi === 0 ? 'not-allowed' : 'pointer',
                   },
                 },
-                secimSayisi + ' satırı aktar'
+                secimSayisi +
+                  ' satırı aktar' +
+                  (ustSecimSayisi > 0 ? ' (+' + ustSecimSayisi + ' kurum bilgisi)' : '')
               )
             )
           )
