@@ -10,6 +10,7 @@ Bu katman üç işi yapar:
 | ------------------------- | ---------------------------- | ------------------ |
 | Belgeden alan çıkarımı    | `POST /api/ai/extract`       | öğrenci + personel |
 | Belgeyle kıyaslama        | `POST /api/ai/compare`       | öğrenci + personel |
+| Ders içeriği kıyaslama    | `POST /api/ai/ders-eslestir` | öğrenci + personel |
 | Web'den bilgi doğrulama   | `POST /api/ai/verify`        | yalnız personel    |
 | Toplu işlem (%50 indirim) | `POST /api/ai/extract/batch` | yalnız personel    |
 | Maliyet raporu            | `GET /api/ai/usage`          | yalnız personel    |
@@ -110,6 +111,40 @@ Yanıttaki `farkliSayisi` doğrudan uyuşmazlık sayısını verir.
 
 Bu bir **ön denetimdir**, otomatik ret/kabul değildir; nihai karar
 değerlendiricinindir.
+
+---
+
+## Ders içeriği kıyaslama (muafiyet) — neden ayrı bir uç
+
+`POST /api/ai/ders-eslestir`, alan kıyaslamasından **farklı bir soru** sorar.
+
+Muafiyette sorulan şey "bu iki metin birbirine benziyor mu" **değildir**;
+"**alınan** ders, **hedef** dersin öğrenme çıktılarını ve konu kapsamını
+karşılıyor mu"dur. Bu soru **asimetriktir**: geniş kapsamlı bir ders dar
+kapsamlı bir dersi karşılar, tersi karşılamaz.
+
+Sözcüksel benzerlik (tf-idf + jaccard + n-gram) bunu ölçemez. Aynı müfredatın
+farklı sözcüklerle yazılmış iki hâli, ya da bir tarafın İngilizce olması,
+skoru dibe çeker — `MATEMATİK I ↔ MATEMATİK I` çiftinin %21 çıkması bundandı.
+
+Karar katmanları sırayla denenir; her katman bir öncekine düşebilir:
+
+| Sıra | Katman                      | Nerede                      |
+| ---- | --------------------------- | --------------------------- |
+| 1    | Yapay zekâ kapsam kararı    | `/api/ai/ders-eslestir`     |
+| 2    | Embedding (semantik) cosine | `/api/semantic/similarity`  |
+| 3    | Sözcüksel skor              | istemci, servis gerektirmez |
+
+Model her çift için `{oran: 0-100, karar: muaf|incele|red, gerekce}` döner.
+Tüm çiftler **tek çağrıda** gider (en çok 30 çift) — çift başına çağrı
+açılmaz. Gerekçe öğrenciye ve akademisyene metin olarak gösterilir; sonuç
+kartındaki etiket "yapay zekâ değerlendirmesi" olur.
+
+AKTS koşulu modele bırakılmaz: `decideTier` AKTS uyumunu her hâlükârda
+uygular, yani model "muaf" dese bile AKTS yetersizse muafiyet çıkmaz. Ters
+yönde, model açıkça `red` diyorsa eşiği geçse bile öneri redde çekilir.
+
+Bu da bir **öneridir**; nihai karar akademisyenindir.
 
 ---
 

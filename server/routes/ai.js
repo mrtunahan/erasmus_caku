@@ -374,6 +374,38 @@ router.post('/compare', extractLimiter, requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/ai/ders-eslestir — muafiyet için içerik kapsam değerlendirmesi.
+// body: { ciftler: [{ id, alinan:{ad,kod,akts,icerik}, hedef:{...} }] }
+router.post('/ders-eslestir', extractLimiter, requireAuth, async (req, res) => {
+  try {
+    if (!aiHazirMi(res)) return undefined;
+    const b = req.body || {};
+    const temizDers = (d) => ({
+      ad: clip(d && d.ad, 300),
+      kod: clip(d && d.kod, 40),
+      akts: clip(d && d.akts, 10),
+      icerik: clip(d && d.icerik, 8000),
+    });
+    const ciftler = (Array.isArray(b.ciftler) ? b.ciftler : [])
+      .slice(0, 30)
+      .filter((c) => c && typeof c.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(c.id))
+      .map((c) => ({ id: c.id, alinan: temizDers(c.alinan), hedef: temizDers(c.hedef) }));
+    if (ciftler.length === 0)
+      return res.status(400).json({ error: 'Kıyaslanacak ders çifti yok.' });
+
+    const sonuc = await cx.icerikKarsilastir({ ciftler, baglam: baglamCoz(req, b) });
+    if (!sonuc.ok) {
+      return res
+        .status(422)
+        .json({ error: 'Ders içerikleri kıyaslanamadı.', reason: sonuc.reason });
+    }
+    return res.json({ ok: true, model: cx.MODEL, data: sonuc.data });
+  } catch (err) {
+    console.error('ai/ders-eslestir error:', err.message);
+    return res.status(502).json({ error: 'Kıyaslanamadı: ' + err.message });
+  }
+});
+
 // POST /api/ai/verify — web araması ile iddia doğrulama (max 3 arama).
 // body: { module, docType, iddialar:[{id,metin}], izinliAlanlar:[] }
 router.post('/verify', extractLimiter, requireAuth, requireStaff, async (req, res) => {

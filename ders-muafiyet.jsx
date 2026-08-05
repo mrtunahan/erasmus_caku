@@ -1154,6 +1154,39 @@ async function fetchSemanticScores(pairs) {
   }
 }
 
+/**
+ * Ders çiftlerini yapay zekâya kapsam değerlendirmesi için gönderir.
+ *
+ * Girdi: [{alinan:{ad,kod,akts,icerik}, hedef:{...}}] — çağıranın sırasıyla
+ * aynı uzunlukta dizi döner; her eleman {oran(0-1), karar, gerekce} ya da null.
+ * AI yapılandırılmamışsa / çağrı başarısızsa null döner (çağıran sözcüksel
+ * ya da semantik katmana düşer).
+ */
+async function fetchAiKapsamSkorlari(ciftler) {
+  try {
+    if (!window.aiBelgeDurumu || !window.aiDersEslestir) return null;
+    var durum = await window.aiBelgeDurumu();
+    if (!durum || !durum.configured) return null;
+    var yuk = ciftler.map(function (c, i) {
+      return { id: 'r' + i, alinan: c.alinan, hedef: c.hedef };
+    });
+    if (yuk.length === 0) return null;
+    var sonuc = await window.aiDersEslestir(yuk);
+    if (!sonuc || !sonuc.data) return null;
+    return ciftler.map(function (_c, i) {
+      var g = sonuc.data['r' + i];
+      if (!g) return null;
+      return {
+        oran: Math.max(0, Math.min(1, (Number(g.oran) || 0) / 100)),
+        karar: g.karar || '',
+        gerekce: g.gerekce || '',
+      };
+    });
+  } catch (_e) {
+    return null;
+  }
+}
+
 // Eşleşme listesini (autoMatch çıktısı: {source, target, aktsPass, ...})
 // semantik skorla yeniden derecelendir. Servis yoksa liste aynen döner.
 async function refineMatchesSemantic(matches) {
@@ -1186,6 +1219,84 @@ async function refineMatchesSemantic(matches) {
     });
   });
   return { matches: updated, semantic: true };
+}
+
+// ── AI ile içerik kapsam değerlendirmesi ──
+// Sözcüksel skor (tf-idf + jaccard + n-gram) SİMETRİK bir benzerlik ölçer:
+// "iki metin birbirine benziyor mu". Muafiyetin sorusu ise ASİMETRİKTİR:
+// "alınan ders, hedef dersin çıktılarını karşılıyor mu". Farklı sözcüklerle
+// yazılmış aynı müfredat ya da yabancı dildeki içerik sözcüksel olarak uzak
+// düşer — MATEMATİK I ↔ MATEMATİK I çiftinin %21 çıkması bu yüzdendir.
+//
+// Sıra: AI → embedding (semantik) → sözcüksel. Her katman bir öncekine
+// düşebilir; hiçbiri zorunlu değildir.
+async function refineMatchesAI(matches) {
+  if (!window.aiBelgeDurumu) return { matches: matches, ai: false };
+  var durum = await window.aiBelgeDurumu();
+  if (!durum || !durum.configured) return { matches: matches, ai: false };
+
+  var ciftler = [];
+  matches.forEach(function (m, i) {
+    var a = m.source && (m.source.weeklyContent || m.source.content);
+    var b = m.target && (m.target.weeklyContent || m.target.content);
+    // İki tarafta da içerik yoksa modele sormanın anlamı yok.
+    if (!a && !b) return;
+    ciftler.push({
+      id: 'c' + i,
+      index: i,
+      alinan: {
+        ad: m.source.name || '',
+        kod: m.source.code || '',
+        akts: String(m.source.akts || ''),
+        icerik: a || '',
+      },
+      hedef: {
+        ad: m.target.name || '',
+        kod: m.target.code || '',
+        akts: String(m.target.akts || ''),
+        icerik: b || '',
+      },
+    });
+  });
+  if (ciftler.length === 0) return { matches: matches, ai: false };
+
+  var sonuc = null;
+  try {
+    sonuc = await window.aiDersEslestir(
+      ciftler.map(function (c) {
+        return { id: c.id, alinan: c.alinan, hedef: c.hedef };
+      })
+    );
+  } catch (_e) {
+    return { matches: matches, ai: false };
+  }
+  if (!sonuc || !sonuc.data) return { matches: matches, ai: false };
+
+  var updated = matches.slice();
+  ciftler.forEach(function (c) {
+    var g = sonuc.data[c.id];
+    if (!g) return;
+    var oran = Math.max(0, Math.min(1, (Number(g.oran) || 0) / 100));
+    var m = updated[c.index];
+    // Karar AKTS koşuluyla birlikte verilir; AKTS yetersizse AI "muaf" dese
+    // bile muafiyet çıkmaz — mevcut decideTier bunu zaten uyguluyor.
+    var decision = decideTier(m.aktsPass, { total: oran, contentScore: oran, noContent: false });
+    // AI açıkça "red" diyorsa eşiği geçse bile öneriyi incelemeye çek.
+    if (g.karar === 'red') {
+      decision = { matched: false, tier: 'red', reason: g.gerekce || decision.reason };
+    }
+    updated[c.index] = Object.assign({}, m, {
+      contentScore: oran,
+      detailContentScore: oran,
+      matched: decision.matched,
+      tier: decision.tier,
+      rejectReason: decision.reason,
+      scoreMethod: 'ai',
+      aiKarar: g.karar,
+      aiGerekce: g.gerekce || '',
+    });
+  });
+  return { matches: updated, ai: true };
 }
 
 // Aday sıralama skoru — SADECE hedef ders seçiminde kullanılır, karara girmez.
@@ -3206,8 +3317,11 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
     setTimeout(async function () {
       // Pre-built indeks kullan — tek tek tokenizasyon yok
       var autoMatches = autoMatchCoursesWithIndex(studentCourses, courseIndex);
-      // Semantik servis ayaktaysa içerik skorunu embedding ile yeniden hesapla
-      var refined = await refineMatchesSemantic(autoMatches);
+      // İçerik skoru için katman sırası: AI → embedding → sözcüksel.
+      var aiSonuc = await refineMatchesAI(autoMatches);
+      var refined = aiSonuc.ai
+        ? { matches: aiSonuc.matches }
+        : await refineMatchesSemantic(autoMatches);
       var enriched = refined.matches.map(function (m) {
         return Object.assign({}, m, {
           convertedGrade: m.source.grade ? convertGradeLocal(m.source.grade) : '',
@@ -7718,10 +7832,31 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
         }))
       );
 
-      // Semantik servis ayaktaysa embedding cosine kullanılır; yoksa sözcüksel.
-      const semScores = await fetchSemanticScores(
-        rows.map((r) => ({ a: r.src.content, b: r.cak.content }))
+      // Karar katmanları (sırayla): yapay zekâ kapsam değerlendirmesi →
+      // embedding cosine → sözcüksel. Muafiyet sorusu asimetriktir ("alınan
+      // ders hedefin kazanımlarını karşılıyor mu"); sözcüksel benzerlik bunu
+      // ölçemediği için AI ayaktaysa belirleyici olan odur.
+      const aiSkorlar = await fetchAiKapsamSkorlari(
+        rows.map((r) => ({
+          alinan: {
+            ad: r.src.name || '',
+            kod: r.src.code || '',
+            akts: String(r.src.akts || ''),
+            icerik: r.src.content || '',
+          },
+          hedef: {
+            ad: r.cak.name || '',
+            kod: r.cak.code || '',
+            akts: String(r.cak.akts || ''),
+            icerik: r.cak.content || '',
+          },
+        }))
       );
+
+      // Semantik servis ayaktaysa embedding cosine kullanılır; yoksa sözcüksel.
+      const semScores = aiSkorlar
+        ? null
+        : await fetchSemanticScores(rows.map((r) => ({ a: r.src.content, b: r.cak.content })));
 
       const matches = rows.map((r, i) => {
         // Karar iki kritere bakar: AKTS uyumu (≥%70) + içerik uyumu (≥%70).
@@ -7730,20 +7865,27 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
           { name: r.src.name, weeklyContent: r.src.content, content: r.src.content },
           { name: r.cak.name, weeklyContent: r.cak.content, content: r.cak.content }
         );
+        const ai = aiSkorlar && aiSkorlar[i] ? aiSkorlar[i] : null;
         const sem = semScores && typeof semScores[i] === 'number' ? semScores[i] : null;
-        const finalScore = sem != null ? sem : factor.total;
-        const scoreMethod = sem != null ? 'semantic' : 'lexical';
+        const finalScore = ai ? ai.oran : sem != null ? sem : factor.total;
+        const scoreMethod = ai ? 'ai' : sem != null ? 'semantic' : 'lexical';
         const aktsPass = aktsCompatible(r.src.akts, r.cak.akts);
-        const decision = decideTier(aktsPass, {
+        let decision = decideTier(aktsPass, {
           total: finalScore,
           contentScore: finalScore,
-          noContent: factor.noContent && sem == null,
+          noContent: factor.noContent && sem == null && !ai,
         });
+        // AI açıkça "red" diyorsa eşiği geçse bile öneri redde çekilir; AKTS
+        // koşulu her hâlükârda decideTier tarafından uygulanmış olur.
+        if (ai && ai.karar === 'red' && decision.tier === 'approved') {
+          decision = { matched: false, tier: 'rejected', reason: ai.gerekce || decision.reason };
+        }
         // YENİ AKIŞ: hiçbir ders otomatik sonuçlanmaz — hepsi akademisyen
         // onayına gider. NLP kararı yalnızca akademisyene ÖNERİ olarak sunulur.
         const recommendation =
           decision.tier === 'approved' ? 'muaf' : decision.tier === 'rejected' ? 'red' : 'incele';
-        const recommendReason = decision.reason || 'İçerik uyumu %' + Math.round(finalScore * 100);
+        const recommendReason =
+          (ai && ai.gerekce) || decision.reason || 'İçerik uyumu %' + Math.round(finalScore * 100);
         return {
           localCourse: {
             code: r.cak.code,
@@ -7774,6 +7916,8 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
           recommendReason,
           aktsPass,
           rejectReason: decision.reason,
+          aiKarar: ai ? ai.karar : '',
+          aiGerekce: ai ? ai.gerekce : '',
         };
       });
 
@@ -8258,7 +8402,11 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
                   {
                     label:
                       'İçerik Uyumu (' +
-                      (m.scoreMethod === 'semantic' ? 'semantik analiz' : 'sözcüksel analiz') +
+                      (m.scoreMethod === 'ai'
+                        ? 'yapay zekâ değerlendirmesi'
+                        : m.scoreMethod === 'semantic'
+                          ? 'semantik analiz'
+                          : 'sözcüksel analiz') +
                       ')',
                     text: '%' + Math.round((m.contentScore || 0) * 100),
                     color: meta.color,
@@ -8306,7 +8454,11 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
               </div>
               <div style={{ fontSize: 12, color: DS.textSecondary, lineHeight: 1.6 }}>
                 {m.recommendReason} — nihai karar akademisyene aittir.
-                {(m.contentScore || 0) < 0.05 && (
+                {/* Aşağıdaki uyarılar sözcüksel/semantik skora özgüdür: düşük skor
+                    orada çoğu zaman "metin çıkarılamadı" demektir. Yapay zekâ
+                    değerlendirmesinde düşük oran bir okuma hatası değil, gerekçesi
+                    yazılmış bir kapsam kararıdır — o yüzden gizlenir. */}
+                {m.scoreMethod !== 'ai' && (m.contentScore || 0) < 0.05 && (
                   <div
                     style={{
                       marginTop: 6,
@@ -8323,13 +8475,15 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
                     Word (.docx) yükleyip yeniden deneyin.
                   </div>
                 )}
-                {m.recommendation === 'red' && (m.contentScore || 0) >= 0.05 && (
-                  <div style={{ marginTop: 6, color: DS.red }}>
-                    <b>Olası nedenler:</b> içerik metinleri farklı konular içeriyor, AKTS kredisi
-                    yetersiz, veya PDF'den çıkarılan metin eksik. Daha kapsamlı bir içerik dosyası
-                    (haftalık konu başlıklı, kaynakça dahil) deneyebilirsiniz.
-                  </div>
-                )}
+                {m.scoreMethod !== 'ai' &&
+                  m.recommendation === 'red' &&
+                  (m.contentScore || 0) >= 0.05 && (
+                    <div style={{ marginTop: 6, color: DS.red }}>
+                      <b>Olası nedenler:</b> içerik metinleri farklı konular içeriyor, AKTS kredisi
+                      yetersiz, veya PDF'den çıkarılan metin eksik. Daha kapsamlı bir içerik dosyası
+                      (haftalık konu başlıklı, kaynakça dahil) deneyebilirsiniz.
+                    </div>
+                  )}
               </div>
             </div>
           );

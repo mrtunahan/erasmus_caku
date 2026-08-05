@@ -4037,6 +4037,33 @@ window.aiKarsilastir = async function (opt) {
   return data;
 };
 
+/**
+ * Ders içerik kapsamı değerlendirmesi (muafiyet).
+ *
+ * Sözcüksel benzerlikten farkı: soru simetrik "bu iki metin benziyor mu"
+ * değil, asimetrik "ALINAN ders HEDEF dersin kazanımlarını karşılıyor mu"
+ * sorusudur. Tüm çiftler tek çağrıda gider (en çok 30).
+ *
+ * @param {Array} ciftler [{id, alinan:{ad,kod,akts,icerik}, hedef:{...}}]
+ * @returns {Promise<{ok, model, data:{[id]:{oran,karar,gerekce}}}>}
+ */
+window.aiDersEslestir = async function (ciftler) {
+  const token = localStorage.getItem('caku_auth_token');
+  const res = await fetch('/api/ai/ders-eslestir', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+    },
+    credentials: 'include',
+    body: JSON.stringify({ ciftler: Array.isArray(ciftler) ? ciftler : [] }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok)
+    throw new Error(data.error || 'Ders içerikleri kıyaslanamadı (HTTP ' + res.status + ')');
+  return data;
+};
+
 // Alan listesi verilmemişse şablon eşlemesinden çöz — iki bileşen de kullanır.
 function useAiAlanlari(alanlar, module, docType, departmentId) {
   const verildi = Array.isArray(alanlar) && alanlar.length > 0;

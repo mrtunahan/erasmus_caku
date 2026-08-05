@@ -56,6 +56,12 @@ const BAGLANTILAR = [
     islev: 'Satır çıkarımı (ders listesi) + karşı kurum bilgisi',
     durum: 'bagli',
   },
+  {
+    modul: 'Ders Muafiyet',
+    yer: 'Öğrenci · talep gönderimi · akademisyen eşleştirme sihirbazı',
+    islev: 'İçerik kapsam değerlendirmesi (ders ↔ ders)',
+    durum: 'bagli',
+  },
   { modul: 'Dikey Geçiş', yer: '—', islev: 'Alan çıkarımı', durum: 'bekliyor' },
   { modul: 'ÇAP / Yandal', yer: '—', islev: 'Alan çıkarımı', durum: 'bekliyor' },
   { modul: 'Erasmus', yer: '—', islev: 'Satır çıkarımı (Learning Agreement)', durum: 'bekliyor' },
