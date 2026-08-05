@@ -5,6 +5,16 @@
 
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
+// Bir muafiyet/dikey geçiş kaydı silinebilir mi?
+// İki koşul: kullanıcı bölüm yetkilisi (ve üstü) olmalı VE kaydın süreci
+// bitmiş olmalı. Sunucudaki kuralın (BASVURU_TAMAMLANDI.muafiyet_records)
+// arayüz karşılığıdır; ikisi birlikte değişmelidir.
+const silinebilirMi = (rec, user) => {
+  if (!rec || !user) return false;
+  if (window.basvuruSilebilirMi && !window.basvuruSilebilirMi(user)) return false;
+  return rec.stage === 'tamamlandi' || rec.status === 'tamamlandi' || rec.status === 'rejected';
+};
+
 // Türkçe-duyarlı görüntüleme biçimlendirmesi (ekranlarda; shared-components'ten).
 // Veriyi değiştirmez — yalnız gösterimi düzeltir; eşleştirme küçük-harfe
 // duyarsız olduğundan güvenlidir. Geçmiş (BÜYÜK harf) kayıtlar da düzelir.
@@ -5879,12 +5889,22 @@ const ExemptionHistory = ({
                         Belge Oluştur
                       </Button>
                     )}
-                  {onDelete && (
+                  {/* Silme: yalnız bölüm yetkilisi (ve üstü), yalnız süreci
+                      bitmiş kayıt. Süren bir talebi silmek öğrencinin girdiği
+                      verileri yok eder; sunucu da bunu reddeder
+                      (routes/db.js → BASVURU_SIL_DEPT_MANAGER). */}
+                  {onDelete && silinebilirMi(rec, currentUser) && (
                     <Button
                       small
                       variant="danger"
                       onClick={function () {
-                        if (confirm('Bu kaydı silmek istediğinizden emin misiniz?'))
+                        if (
+                          confirm(
+                            (rec.studentName || 'Bu öğrencinin') +
+                              ' talebi ve tüm ekleri kalıcı olarak silinecek.\n\n' +
+                              'Bu işlem geri alınamaz. Devam edilsin mi?'
+                          )
+                        )
                           onDelete(rec.id);
                       }}
                     >

@@ -777,7 +777,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
 // ══════════════════════════════════════════════════════════════
 // Başvuru satırı — öğrencide bilgi kartı, akademisyende değerlendirme
 // ══════════════════════════════════════════════════════════════
-function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy }) {
+function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy, currentUser, onSilindi }) {
   const [acik, setAcik] = useState(false);
   // Akademisyende yan panelde açılan ek (PDF)
   const [acikEk, setAcikEk] = useState('');
@@ -1018,6 +1018,21 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy }) {
               </div>
             )}
           </div>
+
+          {/* Bölüm yetkilisi: değerlendirmesi tamamlanmış kaydı kalıcı silebilir.
+              Süren başvurularda buton hiç görünmez. */}
+          {isStaff && !!rec.degerlendirme && window.BasvuruSilButonu && (
+            <div style={{ marginBottom: 14 }}>
+              {React.createElement(window.BasvuruSilButonu, {
+                koleksiyon: 'yatay_gecis_basvurular',
+                docId: rec.id || rec._docId,
+                currentUser,
+                tamamlandi: true,
+                ogrenciAdi: rec.adSoyad,
+                onSilindi,
+              })}
+            </div>
+          )}
 
           {/* Akademisyen: öğrencinin BEYANINI yüklediği belgelerle denetle.
               Karar değerlendiricinindir; bu yalnız uyuşmazlıkları işaretler. */}
@@ -1528,7 +1543,9 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                   tur={tur}
                   isStaff={isStaff}
                   busy={busy}
+                  currentUser={currentUser}
                   onDegerlendir={kaydetDegerlendirme}
+                  onSilindi={yukle}
                 />
               ))}
             </div>

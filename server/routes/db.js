@@ -255,6 +255,29 @@ const STRUCTURE_MANAGER_WRITE = new Set([
 // Yalnız BÖLÜM yetkilisi (ve üstü) yazabilir. STRUCTURE_MANAGER_WRITE'tan farkı:
 // orası üniversite/fakülte yöneticisi ister, burası bölüm yetkilisine de açıktır.
 // Sade akademisyen ve öğrenci yazamaz (öğrenci için ayrıca STUDENT_WRITABLE'da yok).
+// ── Öğrenci başvurularının SİLİNMESİ ──
+// Bunlar öğrencinin emeğiyle oluşmuş resmî başvuru kayıtlarıdır. İki koşul
+// birden sağlanmadan silinemezler:
+//   1) İşlemi yapan bölüm yetkilisi (ve üstü) olmalı — sade akademisyen değil
+//   2) Kayıt TAMAMLANMIŞ olmalı — süren bir başvuru silinerek öğrencinin
+//      girdiği veriler yok edilemez
+// Tamamlanma ölçütü koleksiyona göre değişir; BASVURU_TAMAMLANDI'da tanımlı.
+const BASVURU_SIL_DEPT_MANAGER = new Set([
+  'cap_yandal_basvurular',
+  'yatay_gecis_basvurular',
+  'muafiyet_records',
+]);
+
+const BASVURU_TAMAMLANDI = {
+  // ÇAP/Yandal: komisyon kararı verilmiş (onay ya da ret)
+  cap_yandal_basvurular: (d) => d.status === 'approved' || d.status === 'rejected',
+  // Yatay geçiş: değerlendirme sonucu girilmiş
+  yatay_gecis_basvurular: (d) => !!d.degerlendirme,
+  // Dikey geçiş / muafiyet: süreç sonlanmış
+  muafiyet_records: (d) =>
+    d.stage === 'tamamlandi' || d.status === 'tamamlandi' || d.status === 'rejected',
+};
+
 const DEPT_MANAGER_WRITE = new Set([
   'yol_haritalari',
   // Belge işleme few-shot örnekleri — prompt'un önbelleğe alınan sabit
@@ -450,6 +473,49 @@ async function enforceWritePolicies(db, op, user) {
         status: 403,
         error: `Bu koleksiyonu yalnız bölüm yetkilisi düzenleyebilir: ${op.collection}`,
       };
+    }
+  }
+
+  // a2b) Başvuru kaydı SİLME: yalnız bölüm yetkilisi (ve üstü), yalnız
+  // tamamlanmış kayıt. Öğrenci bu koleksiyonlara yazabiliyor ama silemiyor
+  // (aşağıdaki öğrenci dalı zaten delete'e izin vermiyor); buradaki kural
+  // personel tarafını daraltır.
+  if (op.type === 'delete' && BASVURU_SIL_DEPT_MANAGER.has(op.collection)) {
+    if (user.role === 'student') {
+      return { allow: false, status: 403, error: 'Öğrenci başvuru kaydını silemez.' };
+    }
+    if (user.role === 'professor') {
+      const flags = await getActorFlags(db, user);
+      if (!flags.uniAdmin && !flags.facManager && !flags.deptManager) {
+        return {
+          allow: false,
+          status: 403,
+          error: 'Başvuru kaydını yalnız bölüm yetkilisi silebilir.',
+        };
+      }
+    }
+    // Tamamlanma denetimi — kaydın mevcut hâline bakılır, istemcinin
+    // gönderdiği bilgiye değil.
+    const tamamMi = BASVURU_TAMAMLANDI[op.collection];
+    if (tamamMi) {
+      let mevcut = null;
+      try {
+        mevcut = await findDocByAnyId(db, op.collection, op.docId);
+      } catch (_) {
+        mevcut = null;
+      }
+      if (!mevcut) {
+        return { allow: false, status: 404, error: 'Silinecek kayıt bulunamadı.' };
+      }
+      if (!tamamMi(mevcut)) {
+        return {
+          allow: false,
+          status: 409,
+          error:
+            'Yalnız tamamlanmış başvurular silinebilir. Bu kayıt hâlâ sürüyor; ' +
+            'önce sonuçlandırın.',
+        };
+      }
     }
   }
 
