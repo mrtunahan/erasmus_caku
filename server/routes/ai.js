@@ -170,7 +170,14 @@ function aciklamaliSebep(sonuc) {
     'no-readable-document': 'Belge okunamadı (bozuk ya da desteklenmeyen biçim).',
     'parse-failed': 'Model geçerli bir sonuç üretemedi.',
   };
-  return harita[sonuc.reason] || ilkHata || sonuc.reason || 'bilinmeyen sebep';
+  let metin = harita[sonuc.reason] || ilkHata || sonuc.reason || 'bilinmeyen sebep';
+  // Dosya bazlı sebepleri de ekle — "okunamadı" tek başına tanı koydurmuyor.
+  const dosyaSebepleri = (sonuc.hatalar || [])
+    .filter((h) => h && h.reason && h.reason !== 'api-error')
+    .map((h) => (h.name ? h.name + ': ' : '') + h.reason)
+    .slice(0, 3);
+  if (dosyaSebepleri.length > 0) metin += ' [' + dosyaSebepleri.join(' · ') + ']';
+  return metin;
 }
 
 function aiHazirMi(res) {
