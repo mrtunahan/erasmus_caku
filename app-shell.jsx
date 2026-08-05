@@ -2525,6 +2525,11 @@ function AppShell() {
         <MandatorySurveyGate currentUser={currentUser} activeDepartment={activeDepartment} />
       )}
 
+      {/* Bölüm duyuruları — hedeflenen herkese pop-up. Gösterilecek duyuru
+          yoksa bileşen null döner. Zorunlu anket kapısının ALTINDA durur:
+          anket zorunlu, duyuru bilgilendirme. */}
+      {window.DuyuruPopup && <window.DuyuruPopup currentUser={currentUser} />}
+
       <TopHeader
         currentUser={currentUser}
         onLogout={handleLogout}

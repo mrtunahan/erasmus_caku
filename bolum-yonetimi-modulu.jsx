@@ -420,6 +420,22 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         >
           Memur Bilgileri
         </button>
+        <button
+          onClick={() => setActiveTab('duyurular')}
+          style={{
+            padding: '12px 16px',
+            background: 'none',
+            border: 'none',
+            borderBottom:
+              activeTab === 'duyurular' ? `2px solid ${C.blue}` : '2px solid transparent',
+            color: activeTab === 'duyurular' ? C.blue : '#6B7280',
+            fontWeight: activeTab === 'duyurular' ? 600 : 500,
+            cursor: 'pointer',
+            fontSize: 14,
+          }}
+        >
+          Duyurular
+        </button>
       </div>
 
       {activeTab === 'kilitler' && (
@@ -436,10 +452,15 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
 
       {activeTab === 'memurbilgi' && <MemurBilgileri currentUser={currentUser} />}
 
+      {activeTab === 'duyurular' && (
+        <DuyuruYonetimi currentUser={currentUser} activeDepartment={activeDepartment} />
+      )}
+
       {activeTab !== 'kilitler' &&
         activeTab !== 'benimayar' &&
         activeTab !== 'akademisyenbilgi' &&
         activeTab !== 'memurbilgi' &&
+        activeTab !== 'duyurular' &&
         (loading ? (
           <div style={{ padding: 40, textAlign: 'center' }}>Yükleniyor...</div>
         ) : (
@@ -1688,6 +1709,616 @@ function MemurBilgileri({ currentUser }) {
                       </button>
                     );
                   })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// DUYURULAR
+//   Bölüm / fakülte / üniversite yetkilisi, kapsamındaki bölümlere pop-up
+//   duyuru açar. İçerik metin, görsel ya da video olabilir.
+//
+//   Hedefleme kapsamı yetki düzeyine göre daralır:
+//     üniversite yetkilisi → tüm bölümler
+//     fakülte yetkilisi    → kendi fakültesinin bölümleri
+//     bölüm yetkilisi      → kendi bölümü (+ çapraz atandığı bölümler)
+//
+//   Pop-up'ın kendisi shared-components'taki window.DuyuruPopup — bu ekran
+//   yalnızca kaydı yönetir. Önizleme aynı window.DuyuruIcerik bileşenini
+//   kullanır ki yetkili yayınlamadan önce birebir aynısını görsün.
+// ══════════════════════════════════════════════════════════════
+
+// Duyuru hedefleyebileceğim bölümler. app-shell'deki computeAvailableDepts
+// ile aynı kuralları izler; burada modül içinde yeniden kurulur çünkü o
+// yardımcı window'a açılmıyor.
+function duyuruKapsamBolumleri(currentUser) {
+  const hepsi = window.DEPARTMENTS || [];
+  if (!currentUser) return [];
+  if (currentUser.isUniversityAdmin) return hepsi;
+  const fak = currentUser.facultyId || '';
+  if (currentUser.isFacultyManager && fak) {
+    return hepsi.filter((d) => (d.facultyId || '') === fak);
+  }
+  const benim = [currentUser.departmentId].concat(
+    Array.isArray(currentUser.additionalDepartments) ? currentUser.additionalDepartments : []
+  );
+  return hepsi.filter((d) => benim.includes(d.id));
+}
+
+const DUYURU_BOS = {
+  baslik: '',
+  tur: 'metin',
+  metin: '',
+  medyaUrl: '',
+  medyaAdi: '',
+  videoUrl: '',
+  baglantiUrl: '',
+  baglantiMetni: '',
+  hedefDepartmentIds: [],
+  hedefRoller: ['student', 'staff'],
+  baslangic: '',
+  bitis: '',
+  aktif: true,
+};
+
+// Görsel/video en çok bu kadar olabilir — sunucudaki multer sınırı 50 MB.
+const DUYURU_MAX_BAYT = 50 * 1024 * 1024;
+
+function DuyuruYonetimi({ currentUser, activeDepartment }) {
+  const kapsam = useMemo(() => duyuruKapsamBolumleri(currentUser), [currentUser]);
+  const [liste, setListe] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState(null); // null = form kapalı
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+  const [yukleniyor, setYukleniyor] = useState(false);
+  const [mesaj, setMesaj] = useState('');
+
+  const kapsamIdleri = useMemo(() => kapsam.map((d) => d.id), [kapsam]);
+
+  const load = () => {
+    setLoading(true);
+    window
+      .apiRead('duyurular', { orderBy: 'createdAt:desc' })
+      .then((all) => {
+        // Yalnız kapsamımdaki duyurular: hedefi boş olanlar (herkese açık)
+        // ya da hedefinde kapsamımdan en az bir bölüm bulunanlar.
+        setListe(
+          (all || []).filter((d) => {
+            const h = Array.isArray(d.hedefDepartmentIds) ? d.hedefDepartmentIds : [];
+            if (h.length === 0) return true;
+            return h.some((x) => kapsamIdleri.includes(x));
+          })
+        );
+      })
+      .catch(() => setListe([]))
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, [kapsamIdleri.join(',')]);
+
+  const yeni = () =>
+    setForm({
+      ...DUYURU_BOS,
+      // Varsayılan hedef: üzerinde çalışılan bölüm. Yetkili genişletebilir.
+      hedefDepartmentIds: activeDepartment ? [activeDepartment] : [],
+    });
+
+  const dosyaSec = async (file) => {
+    if (!file) return;
+    if (file.size > DUYURU_MAX_BAYT) {
+      setMesaj('Dosya çok büyük (en fazla 50 MB).');
+      return;
+    }
+    setYukleniyor(true);
+    setMesaj('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const token = localStorage.getItem('caku_auth_token');
+      const res = await fetch('/api/files/upload?folder=duyurular', {
+        method: 'POST',
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
+        credentials: 'include',
+        body: fd,
+      });
+      if (!res.ok) throw new Error('Yükleme başarısız (HTTP ' + res.status + ')');
+      const data = await res.json();
+      setForm((f) => ({ ...f, medyaUrl: data.downloadURL || '', medyaAdi: file.name }));
+    } catch (e) {
+      setMesaj('Dosya yüklenemedi: ' + e.message);
+    } finally {
+      setYukleniyor(false);
+    }
+  };
+
+  const kaydet = async () => {
+    if (!form.baslik.trim()) {
+      setMesaj('Başlık zorunlu.');
+      return;
+    }
+    if (form.tur === 'metin' && !form.metin.trim()) {
+      setMesaj('Metin duyurusunda içerik boş olamaz.');
+      return;
+    }
+    if (form.tur === 'gorsel' && !form.medyaUrl) {
+      setMesaj('Görsel duyurusunda bir görsel yükleyin.');
+      return;
+    }
+    if (form.tur === 'video' && !form.medyaUrl && !window.duyuruGomulebilirUrl(form.videoUrl)) {
+      setMesaj(
+        'Video duyurusunda ya video dosyası yükleyin ya da geçerli bir YouTube/Vimeo bağlantısı girin.'
+      );
+      return;
+    }
+    if (form.baslangic && form.bitis && form.bitis < form.baslangic) {
+      setMesaj('Bitiş tarihi başlangıçtan önce olamaz.');
+      return;
+    }
+    setKaydediliyor(true);
+    setMesaj('');
+    try {
+      const kayit = {
+        baslik: form.baslik.trim(),
+        tur: form.tur,
+        metin: form.metin,
+        medyaUrl: form.medyaUrl,
+        medyaAdi: form.medyaAdi,
+        videoUrl: form.tur === 'video' ? form.videoUrl.trim() : '',
+        baglantiUrl: /^https?:\/\//i.test(form.baglantiUrl.trim()) ? form.baglantiUrl.trim() : '',
+        baglantiMetni: form.baglantiMetni.trim(),
+        hedefDepartmentIds: form.hedefDepartmentIds,
+        hedefRoller: form.hedefRoller,
+        baslangic: form.baslangic,
+        bitis: form.bitis,
+        aktif: form.aktif !== false,
+        olusturan: currentUser?.name || currentUser?.identifier || '',
+        facultyId: currentUser?.facultyId || '',
+        departmentId: currentUser?.departmentId || '',
+        updatedAt: new Date().toISOString(),
+      };
+      if (form.id) {
+        await DBWrite.set('duyurular', form.id, kayit, true);
+      } else {
+        await DBWrite.add('duyurular', { ...kayit, createdAt: new Date().toISOString() });
+      }
+      setForm(null);
+      load();
+    } catch (e) {
+      setMesaj('Kaydedilemedi: ' + e.message);
+    } finally {
+      setKaydediliyor(false);
+    }
+  };
+
+  const sil = async (d) => {
+    if (!confirm('"' + (d.baslik || 'Duyuru') + '" silinsin mi?')) return;
+    try {
+      await DBWrite.remove('duyurular', String(d.id));
+      load();
+    } catch (e) {
+      alert('Silinemedi: ' + e.message);
+    }
+  };
+
+  const aktifDegistir = async (d) => {
+    try {
+      await DBWrite.set(
+        'duyurular',
+        String(d.id),
+        { aktif: d.aktif === false, updatedAt: new Date().toISOString() },
+        true
+      );
+      load();
+    } catch (e) {
+      alert('Güncellenemedi: ' + e.message);
+    }
+  };
+
+  const etiket = {
+    display: 'block',
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    marginBottom: 5,
+  };
+  const girdi = {
+    width: '100%',
+    padding: '9px 11px',
+    borderRadius: 8,
+    border: '1px solid #D1D5DB',
+    fontSize: 13,
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  };
+  const kutu = {
+    background: 'white',
+    border: '1px solid #E5E7EB',
+    borderRadius: 12,
+    padding: 18,
+    marginBottom: 16,
+  };
+
+  const cip = (secili) => ({
+    padding: '5px 12px',
+    borderRadius: 999,
+    border: '1px solid ' + (secili ? C.blue : '#D1D5DB'),
+    background: secili ? C.blue + '14' : 'white',
+    color: secili ? C.blue : '#6B7280',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+  });
+
+  const cevir = (dizi, deger) =>
+    dizi.includes(deger) ? dizi.filter((x) => x !== deger) : dizi.concat(deger);
+
+  return (
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 12,
+          marginBottom: 16,
+          flexWrap: 'wrap',
+        }}
+      >
+        <p style={{ fontSize: 12.5, color: '#6B7280', margin: 0, lineHeight: 1.55, maxWidth: 720 }}>
+          Duyurular, hedeflenen kişilerin ekranında <b>pop-up</b> olarak açılır. Kullanıcı duyuruyu
+          kapattığında bir daha görmez. İçerik metin, görsel ya da video olabilir.
+          Hedefleyebildiğiniz bölümler yetki düzeyinize göre belirlenir ({kapsam.length} bölüm).
+        </p>
+        {!form && (
+          <Btn onClick={yeni} variant="primary">
+            + Yeni Duyuru
+          </Btn>
+        )}
+      </div>
+
+      {mesaj && (
+        <div
+          style={{
+            padding: '10px 14px',
+            borderRadius: 8,
+            background: '#FEF3C7',
+            border: '1px solid #FCD34D',
+            color: '#92400E',
+            fontSize: 13,
+            marginBottom: 14,
+          }}
+        >
+          {mesaj}
+        </div>
+      )}
+
+      {form && (
+        <div style={kutu}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#1B2A4A', marginBottom: 14 }}>
+            {form.id ? 'Duyuruyu Düzenle' : 'Yeni Duyuru'}
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={etiket}>Başlık *</label>
+            <input
+              value={form.baslik}
+              onChange={(e) => setForm({ ...form, baslik: e.target.value })}
+              style={girdi}
+            />
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={etiket}>Tür</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {(window.DUYURU_TURLERI || []).map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setForm({ ...form, tur: t.id })}
+                  style={cip(form.tur === t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {form.tur !== 'metin' && (
+            <div style={{ marginBottom: 12 }}>
+              <label style={etiket}>
+                {form.tur === 'gorsel' ? 'Görsel dosyası *' : 'Video dosyası'}
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <label style={{ cursor: 'pointer' }}>
+                  <input
+                    type="file"
+                    accept={form.tur === 'gorsel' ? 'image/*' : 'video/*'}
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const f = (e.target.files && e.target.files[0]) || null;
+                      e.target.value = '';
+                      dosyaSec(f);
+                    }}
+                  />
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      border: '1px solid #D1D5DB',
+                      background: 'white',
+                      color: '#1B2A4A',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {yukleniyor ? 'Yükleniyor…' : 'Dosya seç'}
+                  </span>
+                </label>
+                {form.medyaAdi && (
+                  <span style={{ fontSize: 12.5, color: '#059669' }}>{form.medyaAdi}</span>
+                )}
+                {form.medyaUrl && (
+                  <button
+                    onClick={() => setForm({ ...form, medyaUrl: '', medyaAdi: '' })}
+                    style={{
+                      border: 'none',
+                      background: 'none',
+                      color: '#DC2626',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Kaldır
+                  </button>
+                )}
+              </div>
+              <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: 5 }}>En fazla 50 MB.</div>
+            </div>
+          )}
+
+          {form.tur === 'video' && (
+            <div style={{ marginBottom: 12 }}>
+              <label style={etiket}>veya YouTube / Vimeo bağlantısı</label>
+              <input
+                value={form.videoUrl}
+                placeholder="https://www.youtube.com/watch?v=..."
+                onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
+                style={girdi}
+              />
+              {form.videoUrl.trim() && !window.duyuruGomulebilirUrl(form.videoUrl) && (
+                <div style={{ fontSize: 11.5, color: '#B45309', marginTop: 5 }}>
+                  Bu bağlantı gömülemiyor. Yalnız YouTube ve Vimeo adresleri desteklenir (https
+                  ile).
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={etiket}>
+              {form.tur === 'metin' ? 'Duyuru metni *' : 'Açıklama (isteğe bağlı)'}
+            </label>
+            <textarea
+              value={form.metin}
+              rows={form.tur === 'metin' ? 6 : 3}
+              onChange={(e) => setForm({ ...form, metin: e.target.value })}
+              style={{ ...girdi, resize: 'vertical' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 260px' }}>
+              <label style={etiket}>Bağlantı adresi (isteğe bağlı)</label>
+              <input
+                value={form.baglantiUrl}
+                placeholder="https://..."
+                onChange={(e) => setForm({ ...form, baglantiUrl: e.target.value })}
+                style={girdi}
+              />
+            </div>
+            <div style={{ flex: '1 1 200px' }}>
+              <label style={etiket}>Bağlantı yazısı</label>
+              <input
+                value={form.baglantiMetni}
+                placeholder="Ayrıntılar için tıklayın"
+                onChange={(e) => setForm({ ...form, baglantiMetni: e.target.value })}
+                style={girdi}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={etiket}>Hedef bölümler</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {kapsam.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      hedefDepartmentIds: cevir(form.hedefDepartmentIds, d.id),
+                    })
+                  }
+                  style={cip(form.hedefDepartmentIds.includes(d.id))}
+                >
+                  {d.name}
+                </button>
+              ))}
+            </div>
+            {form.hedefDepartmentIds.length === 0 && (
+              <div style={{ fontSize: 11.5, color: '#B45309', marginTop: 6 }}>
+                Hiç bölüm seçilmedi — duyuru <b>tüm kullanıcılara</b> gösterilir.
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={etiket}>Kimler görsün</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(window.DUYURU_HEDEF_ROLLER || []).map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => setForm({ ...form, hedefRoller: cevir(form.hedefRoller, r.id) })}
+                  style={cip(form.hedefRoller.includes(r.id))}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 160px' }}>
+              <label style={etiket}>Başlangıç (isteğe bağlı)</label>
+              <input
+                type="date"
+                value={form.baslangic}
+                onChange={(e) => setForm({ ...form, baslangic: e.target.value })}
+                style={girdi}
+              />
+            </div>
+            <div style={{ flex: '1 1 160px' }}>
+              <label style={etiket}>Bitiş (isteğe bağlı)</label>
+              <input
+                type="date"
+                value={form.bitis}
+                onChange={(e) => setForm({ ...form, bitis: e.target.value })}
+                style={girdi}
+              />
+            </div>
+          </div>
+
+          {/* Önizleme — yayındaki pop-up ile aynı bileşen */}
+          {window.DuyuruIcerik && (form.metin || form.medyaUrl || form.videoUrl) && (
+            <div
+              style={{
+                border: '1px dashed #D1D5DB',
+                borderRadius: 10,
+                padding: 14,
+                marginBottom: 16,
+                background: '#F9FAFB',
+              }}
+            >
+              <div style={{ ...etiket, marginBottom: 10 }}>Önizleme</div>
+              <window.DuyuruIcerik duyuru={form} />
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Btn onClick={kaydet} variant="primary" disabled={kaydediliyor || yukleniyor}>
+              {kaydediliyor ? 'Kaydediliyor…' : 'Yayınla'}
+            </Btn>
+            <Btn
+              variant="secondary"
+              onClick={() => {
+                setForm(null);
+                setMesaj('');
+              }}
+            >
+              Vazgeç
+            </Btn>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>Yükleniyor...</div>
+      ) : liste.length === 0 ? (
+        <div
+          style={{ ...kutu, textAlign: 'center', color: '#9CA3AF', fontSize: 13.5, padding: 40 }}
+        >
+          Henüz duyuru yok.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {liste.map((d) => {
+            const hedefler = Array.isArray(d.hedefDepartmentIds) ? d.hedefDepartmentIds : [];
+            const adlar = hedefler
+              .map((id) => (window.DEPARTMENTS || []).find((x) => x.id === id)?.name || id)
+              .join(', ');
+            const pasif = d.aktif === false;
+            return (
+              <div
+                key={d.id}
+                style={{
+                  background: 'white',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 12,
+                  padding: 14,
+                  opacity: pasif ? 0.6 : 1,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1B2A4A' }}>
+                      {d.baslik || '(başlıksız)'}
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          background: '#EEF2FF',
+                          color: '#4338CA',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {(window.DUYURU_TURLERI || []).find((t) => t.id === (d.tur || 'metin'))
+                          ?.label || d.tur}
+                      </span>
+                      {pasif && (
+                        <span style={{ marginLeft: 8, fontSize: 11.5, color: '#9CA3AF' }}>
+                          pasif
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 4 }}>
+                      {adlar || 'Tüm bölümler'}
+                      {(d.baslangic || d.bitis) &&
+                        ' · ' + (d.baslangic || '…') + ' → ' + (d.bitis || '…')}
+                      {d.olusturan && ' · ' + d.olusturan}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                    <Btn variant="secondary" small onClick={() => aktifDegistir(d)}>
+                      {pasif ? 'Yayına al' : 'Durdur'}
+                    </Btn>
+                    <Btn
+                      variant="secondary"
+                      small
+                      onClick={() =>
+                        setForm({
+                          ...DUYURU_BOS,
+                          ...d,
+                          hedefDepartmentIds: hedefler,
+                          hedefRoller: Array.isArray(d.hedefRoller)
+                            ? d.hedefRoller
+                            : ['student', 'staff'],
+                        })
+                      }
+                    >
+                      Düzenle
+                    </Btn>
+                    <Btn onClick={() => sil(d)} variant="danger" small>
+                      Sil
+                    </Btn>
+                  </div>
                 </div>
               </div>
             );

@@ -10754,6 +10754,354 @@ window.PasswordManagementModal = PasswordManagementModal;
 window.GradeConverter = GradeConverter;
 window.ChangePasswordModal = ChangePasswordModal;
 
+// ══════════════════════════════════════════════════════════════
+// DUYURULAR (pop-up)
+//   Bölüm / fakülte / üniversite yetkilisi hedef bölümlere duyuru açar;
+//   duyuru kullanıcının ekranında pop-up olarak belirir. İçerik metin,
+//   görsel ya da video olabilir.
+//
+//   Yönetim arayüzü: Bölüm Yönetimi → "Duyurular" sekmesi.
+//   Kayıt: `duyurular` koleksiyonu (yazma yetkisi DEPT_MANAGER_WRITE).
+// ══════════════════════════════════════════════════════════════
+
+const DUYURU_TURLERI = [
+  { id: 'metin', label: 'Metin' },
+  { id: 'gorsel', label: 'Görsel' },
+  { id: 'video', label: 'Video' },
+];
+
+// Kimin göreceği. Roller tek tek değil, iki kovada tutulur: öğrenci ve
+// personel. Duyuru "bölüm öğrencilerine" ya da "bölüm akademisyenlerine"
+// yapılır; bunun ötesinde bir ayrım pratikte kullanılmıyor.
+const DUYURU_HEDEF_ROLLER = [
+  { id: 'student', label: 'Öğrenciler' },
+  { id: 'staff', label: 'Akademisyenler / personel' },
+];
+
+// Kullanıcının hangi kovaya düştüğü.
+function duyuruRolKovasi(user) {
+  return user && user.role === 'student' ? 'student' : 'staff';
+}
+
+// Dış video bağlantısını gömülebilir adrese çevirir. Host allowlist'i
+// bilerek dar: rastgele bir adresi iframe'e koymak, duyuru yazma yetkisi
+// olan herkese uygulama içinde keyfi sayfa açtırmak demektir.
+function duyuruGomulebilirUrl(ham) {
+  const s = String(ham || '').trim();
+  if (!/^https:\/\//i.test(s)) return '';
+  let u;
+  try {
+    u = new URL(s);
+  } catch (_e) {
+    return '';
+  }
+  const host = u.hostname.replace(/^www\./i, '').toLowerCase();
+  if (host === 'youtube.com' || host === 'm.youtube.com') {
+    const v = u.searchParams.get('v');
+    if (v && /^[A-Za-z0-9_-]{5,20}$/.test(v)) return 'https://www.youtube.com/embed/' + v;
+    const m = u.pathname.match(/^\/embed\/([A-Za-z0-9_-]{5,20})$/);
+    if (m) return 'https://www.youtube.com/embed/' + m[1];
+    return '';
+  }
+  if (host === 'youtu.be') {
+    const m = u.pathname.match(/^\/([A-Za-z0-9_-]{5,20})$/);
+    return m ? 'https://www.youtube.com/embed/' + m[1] : '';
+  }
+  if (host === 'vimeo.com') {
+    const m = u.pathname.match(/^\/(\d{5,12})$/);
+    return m ? 'https://player.vimeo.com/video/' + m[1] : '';
+  }
+  return '';
+}
+
+// Duyuru şu an gösterilmeli mi? (aktiflik + tarih aralığı + hedefleme)
+// Tarih alanları 'YYYY-MM-DD' biçiminde saklanır; bitiş günü DAHİLDİR.
+function duyuruGecerliMi(d, user, bugun) {
+  if (!d || d.aktif === false) return false;
+  const g = bugun || new Date().toISOString().slice(0, 10);
+  if (d.baslangic && g < d.baslangic) return false;
+  if (d.bitis && g > d.bitis) return false;
+
+  const hedefRoller = Array.isArray(d.hedefRoller) ? d.hedefRoller : [];
+  if (hedefRoller.length > 0 && !hedefRoller.includes(duyuruRolKovasi(user))) return false;
+
+  // Boş hedef listesi = "kapsamdaki herkes". Yetkili bunu bilerek seçebiliyor.
+  const hedefler = Array.isArray(d.hedefDepartmentIds) ? d.hedefDepartmentIds : [];
+  if (hedefler.length === 0) return true;
+
+  // Kullanıcının bağlı olduğu tüm bölümler (ana + çapraz) sayılır.
+  const benim = [user && user.departmentId].concat(
+    Array.isArray(user && user.additionalDepartments) ? user.additionalDepartments : []
+  );
+  return hedefler.some((h) => benim.includes(h));
+}
+
+// Görülen duyurular kullanıcı bazında yerelde tutulur. Sunucuda tutmak için
+// öğrenciye `duyurular` üzerinde yazma izni vermek gerekirdi — duyuruyu
+// kapatabilmek uğruna duyuru yayınlama yetkisi açılmaz.
+const DUYURU_GORULEN_ANAHTAR = 'caku_duyuru_gorulen';
+// Kapatma kaydının anahtarı id DEĞİL, id+güncellenme zamanıdır: yetkili
+// duyuruyu düzenlerse (metni değişir, tarihi uzar) kapatmış olanlara yeniden
+// gösterilir. Aksi halde düzeltilmiş bir duyuru kimseye ulaşmazdı.
+function duyuruAnahtari(d) {
+  return String(d.id) + '@' + String(d.updatedAt || d.createdAt || '');
+}
+function duyuruGorulenler(user) {
+  try {
+    const ham = JSON.parse(localStorage.getItem(DUYURU_GORULEN_ANAHTAR) || '{}');
+    const k = String((user && (user.identifier || user.studentNumber)) || 'anon');
+    return (ham && ham[k]) || {};
+  } catch (_e) {
+    return {};
+  }
+}
+function duyuruGoruldu(user, duyuru) {
+  try {
+    const ham = JSON.parse(localStorage.getItem(DUYURU_GORULEN_ANAHTAR) || '{}');
+    const k = String((user && (user.identifier || user.studentNumber)) || 'anon');
+    const mine = ham[k] || {};
+    mine[duyuruAnahtari(duyuru)] = new Date().toISOString();
+    ham[k] = mine;
+    localStorage.setItem(DUYURU_GORULEN_ANAHTAR, JSON.stringify(ham));
+  } catch (_e) {
+    /* localStorage kapalıysa duyuru her açılışta tekrar görünür — kabul */
+  }
+}
+
+// Duyuru içeriğinin gövdesi. Yönetim arayüzündeki önizleme de aynı
+// bileşeni kullanır ki yetkili yayınlamadan önce birebir aynısını görsün.
+const DuyuruIcerik = ({ duyuru }) => {
+  const tur = duyuru.tur || 'metin';
+  const medya = duyuru.medyaUrl
+    ? '/api/files/download/' + String(duyuru.medyaUrl).replace('/api/files/download/', '')
+    : '';
+  const gomulu = tur === 'video' ? duyuruGomulebilirUrl(duyuru.videoUrl) : '';
+  return (
+    <div>
+      {tur === 'gorsel' && medya && (
+        <img
+          src={medya}
+          alt={duyuru.baslik || 'Duyuru görseli'}
+          style={{
+            width: '100%',
+            maxHeight: '55vh',
+            objectFit: 'contain',
+            borderRadius: 10,
+            background: '#0f172a08',
+            marginBottom: duyuru.metin ? 14 : 0,
+          }}
+        />
+      )}
+      {tur === 'video' && medya && !gomulu && (
+        <video
+          src={medya}
+          controls
+          style={{
+            width: '100%',
+            maxHeight: '55vh',
+            borderRadius: 10,
+            background: '#000',
+            marginBottom: duyuru.metin ? 14 : 0,
+          }}
+        />
+      )}
+      {tur === 'video' && gomulu && (
+        <div
+          style={{
+            position: 'relative',
+            paddingTop: '56.25%',
+            borderRadius: 10,
+            overflow: 'hidden',
+            background: '#000',
+            marginBottom: duyuru.metin ? 14 : 0,
+          }}
+        >
+          <iframe
+            src={gomulu}
+            title={duyuru.baslik || 'Duyuru videosu'}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
+          />
+        </div>
+      )}
+      {duyuru.metin && (
+        <div
+          style={{
+            fontSize: 14,
+            lineHeight: 1.65,
+            color: '#374151',
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {duyuru.metin}
+        </div>
+      )}
+      {duyuru.baglantiUrl && (
+        <a
+          href={duyuru.baglantiUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'inline-block',
+            marginTop: 14,
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#1D4ED8',
+          }}
+        >
+          {duyuru.baglantiMetni || 'Ayrıntılar için tıklayın'}
+        </a>
+      )}
+    </div>
+  );
+};
+
+// Giriş yapmış her kullanıcı için mount edilir. Gösterilecek duyuru yoksa
+// null döner (görünmez). Aynı anda TEK duyuru gösterilir — sırayla.
+const DuyuruPopup = ({ currentUser }) => {
+  const [sira, setSira] = React.useState([]);
+  const [aktif, setAktif] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!currentUser) return undefined;
+    let iptal = false;
+    (async () => {
+      try {
+        const hepsi = await window.apiRead('duyurular', { orderBy: 'createdAt:desc' });
+        if (iptal) return;
+        const gorulen = duyuruGorulenler(currentUser);
+        const bugun = new Date().toISOString().slice(0, 10);
+        setSira(
+          (hepsi || []).filter(
+            (d) => duyuruGecerliMi(d, currentUser, bugun) && !gorulen[duyuruAnahtari(d)]
+          )
+        );
+      } catch (_e) {
+        /* duyuru okunamazsa sessiz kal — uygulamayı bloklamaz */
+      }
+    })();
+    return () => {
+      iptal = true;
+    };
+  }, [currentUser]);
+
+  const duyuru = sira[aktif];
+  if (!duyuru) return null;
+
+  const kapat = () => {
+    duyuruGoruldu(currentUser, duyuru);
+    setAktif((v) => v + 1);
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.55)',
+        zIndex: 9000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+      }}
+      onClick={kapat}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'white',
+          borderRadius: 14,
+          maxWidth: 720,
+          width: '100%',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.3)',
+        }}
+      >
+        <div
+          style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid #E5E7EB',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: '#1B2A4A' }}>
+              {duyuru.baslik || 'Duyuru'}
+            </div>
+            {duyuru.olusturan && (
+              <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 3 }}>
+                {duyuru.olusturan}
+                {duyuru.createdAt
+                  ? ' · ' + new Date(duyuru.createdAt).toLocaleDateString('tr-TR')
+                  : ''}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={kapat}
+            aria-label="Duyuruyu kapat"
+            style={{
+              border: 'none',
+              background: 'none',
+              fontSize: 22,
+              lineHeight: 1,
+              color: '#9CA3AF',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            ×
+          </button>
+        </div>
+        <div style={{ padding: 20 }}>
+          <DuyuruIcerik duyuru={duyuru} />
+        </div>
+        <div
+          style={{
+            padding: '12px 20px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 11.5, color: '#9CA3AF' }}>
+            {sira.length > 1 ? aktif + 1 + ' / ' + sira.length + ' duyuru' : ''}
+          </span>
+          <button
+            onClick={kapat}
+            style={{
+              padding: '9px 22px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#1B2A4A',
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {aktif + 1 < sira.length ? 'Sonraki' : 'Anladım'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+window.DUYURU_TURLERI = DUYURU_TURLERI;
+window.DUYURU_HEDEF_ROLLER = DUYURU_HEDEF_ROLLER;
+window.duyuruGomulebilirUrl = duyuruGomulebilirUrl;
+window.duyuruGecerliMi = duyuruGecerliMi;
+window.DuyuruIcerik = DuyuruIcerik;
+window.DuyuruPopup = DuyuruPopup;
+
 // ── Google AdSense Reklam Banner Bileşeni ──
 const AdSenseBanner = ({ type }) => {
   const containerRef = window.React.useRef(null);
