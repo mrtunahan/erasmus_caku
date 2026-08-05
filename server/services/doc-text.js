@@ -93,15 +93,34 @@ function parcala(metin, limit = CHUNK_CHARS, bindirme = CHUNK_OVERLAP) {
  * @returns {Promise<{ok:boolean, reason?:string, tur:'pdf'|'text',
  *   bloklar?:Array<object>, metin?:string, sayfa?:number}>}
  */
+// İçerikten biçim tespiti — dosya adı/yolu uzantı taşımadığında.
+// `name` çoğu çağrıda insan-okur bir etikettir ("Transkript", "Öğrenci Not
+// Çizelgesi"), uzantı içermez; bu yüzden asla tek kaynak olarak kullanılamaz.
+function magicUzanti(buf) {
+  if (!buf || buf.length < 4) return '';
+  if (buf.slice(0, 5).toString('latin1') === '%PDF-') return 'pdf';
+  // ZIP kabı: docx ve xlsx aynı imzayı taşır, içeriğe bakarak ayrılır.
+  if (buf[0] === 0x50 && buf[1] === 0x4b) {
+    const bas = buf.slice(0, Math.min(buf.length, 4096)).toString('latin1');
+    const son = buf.slice(Math.max(0, buf.length - 65536)).toString('latin1');
+    const hepsi = bas + son;
+    if (hepsi.includes('word/')) return 'docx';
+    if (hepsi.includes('xl/')) return 'xlsx';
+  }
+  return '';
+}
+
 async function dosyaBloklari(dosya) {
-  const ad = dosya.name || dosya.path || '';
-  const uzanti = extOf(ad);
   let buf = dosya.buffer;
   if (!buf && dosya.path) {
     if (!fs.existsSync(dosya.path)) return { ok: false, reason: 'not-found', tur: 'text' };
     buf = fs.readFileSync(dosya.path);
   }
   if (!buf) return { ok: false, reason: 'empty', tur: 'text' };
+
+  // Uzantı sırası: DİSKTEKİ YOL → görünen ad → içerik imzası.
+  // Yol gerçek dosya adını taşır; `name` yalnızca etiket olabilir.
+  const uzanti = extOf(dosya.path) || extOf(dosya.name) || magicUzanti(buf);
 
   if (uzanti === 'pdf') {
     if (buf.length > PDF_MAX_BYTES) return { ok: false, reason: 'pdf-too-large', tur: 'pdf' };
