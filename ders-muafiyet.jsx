@@ -5627,6 +5627,145 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
   );
 };
 
+// ══════════════════════════════════════════════════════════════
+// BİRLEŞİK DERS İÇERİĞİ PDF'İ (akademisyen)
+//   Öğrenci her ders için iki içerik dosyası yüklüyor (karşı kurum + ÇAKÜ).
+//   10 derslik bir talepte bu 20 ayrı sekme demek. Burada hepsi sunucuda
+//   tek PDF'e birleştirilir; her belgenin önüne hangi derse ait olduğunu
+//   yazan bir ayraç sayfası konur.
+// ══════════════════════════════════════════════════════════════
+
+// Kayıttaki eşleşmelerden birleştirilecek dosya listesini çıkarır.
+// Sıra bilinçlidir: ders ders, önce karşı kurum sonra ÇAKÜ — akademisyen
+// kıyaslamayı yan yana okuyabilsin diye.
+function birlesikPdfListesi(record) {
+  const out = [];
+  (record.matches || []).forEach(function (m, i) {
+    const src = m.sourceCourse || {};
+    const cak = m.localCourse || {};
+    const sira = i + 1;
+    if (src.fileUrl) {
+      out.push({
+        url: src.fileUrl,
+        baslik: sira + '. Karsi Kurum — ' + [src.code, src.name].filter(Boolean).join(' ').trim(),
+      });
+    }
+    if (cak.fileUrl) {
+      out.push({
+        url: cak.fileUrl,
+        baslik: sira + '. CAKU — ' + [cak.code, cak.name].filter(Boolean).join(' ').trim(),
+      });
+    }
+  });
+  return out;
+}
+
+const BirlesikIcerikPdf = ({ record }) => {
+  const [busy, setBusy] = useState(false);
+  const [hata, setHata] = useState('');
+  const [bilgi, setBilgi] = useState('');
+  // Blob URL'i bileşen sökülünce serbest bırak — aksi halde sekme kapanana
+  // kadar bellekte kalır.
+  const sonUrl = useRef('');
+  useEffect(function () {
+    return function () {
+      if (sonUrl.current) URL.revokeObjectURL(sonUrl.current);
+    };
+  }, []);
+
+  const dosyalar = birlesikPdfListesi(record);
+  if (dosyalar.length === 0) return null;
+
+  const uret = async (indir) => {
+    setBusy(true);
+    setHata('');
+    setBilgi('');
+    try {
+      const token = localStorage.getItem('caku_auth_token');
+      const res = await fetch('/api/files/merge-pdf', {
+        method: 'POST',
+        headers: Object.assign(
+          { 'Content-Type': 'application/json' },
+          token ? { Authorization: 'Bearer ' + token } : {}
+        ),
+        credentials: 'include',
+        body: JSON.stringify({
+          dosyalar: dosyalar,
+          filename: 'ders_icerikleri_' + (record.studentNo || record.id || 'kayit') + '.pdf',
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(function () {
+          return {};
+        });
+        throw new Error(j.error || 'Birleştirilemedi (HTTP ' + res.status + ')');
+      }
+      // Word olarak yüklenmiş ya da bozuk dosyalar atlanır — sessizce
+      // kaybolmasınlar diye kullanıcıya sayıyla bildirilir.
+      const atlanan = parseInt(res.headers.get('X-Merge-Atlanan') || '0', 10) || 0;
+      const eklenen = parseInt(res.headers.get('X-Merge-Eklenen') || '0', 10) || 0;
+      const blob = await res.blob();
+      if (sonUrl.current) URL.revokeObjectURL(sonUrl.current);
+      const url = URL.createObjectURL(blob);
+      sonUrl.current = url;
+      if (indir) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'ders_icerikleri_' + (record.studentNo || 'kayit') + '.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        window.open(url, '_blank', 'noopener');
+      }
+      setBilgi(
+        eklenen +
+          ' belge birleştirildi' +
+          (atlanan > 0 ? ' · ' + atlanan + ' dosya atlandı (PDF değil ya da okunamadı)' : '')
+      );
+    } catch (e) {
+      setHata(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const btn = (bg, renk, kenar) => ({
+    padding: '6px 14px',
+    borderRadius: 8,
+    border: kenar ? '1px solid ' + kenar : 'none',
+    background: bg,
+    color: renk,
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: busy ? 'wait' : 'pointer',
+    opacity: busy ? 0.6 : 1,
+  });
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        flexWrap: 'wrap',
+        fontSize: 12.5,
+        color: DS.textSecondary,
+      }}
+    >
+      <span style={{ fontWeight: 600 }}>Ders içerikleri ({dosyalar.length} belge):</span>
+      <button disabled={busy} onClick={() => uret(false)} style={btn(DS.navy, 'white')}>
+        {busy ? 'Birleştiriliyor…' : 'Birleşik PDF Görüntüle'}
+      </button>
+      <button disabled={busy} onClick={() => uret(true)} style={btn('white', DS.navy, DS.border)}>
+        İndir
+      </button>
+      {bilgi && <span style={{ color: DS.green }}>{bilgi}</span>}
+      {hata && <span style={{ color: DS.red }}>{hata}</span>}
+    </div>
+  );
+};
+
 // Muafiyet kaydı transkript alanı — öğrenci TEK SEFERLİK PDF yükler; yüklenince
 // yalnız görüntüleme linki kalır. Personel (isStudent=false) yalnız görüntüler.
 const TranscriptControl = ({ record, isStudent, onUploadTranscript }) => {
@@ -6040,9 +6179,19 @@ const ExemptionHistory = ({
                 </div>
               )}
 
-              {/* Onaylı dilekçe (snapshot) — öğrencinin indirdiği kopya,
-                  akademisyenin ürettiğiyle birebir aynı dosyadır. */}
-              {rec.dilekceUrl && (
+              {/* Öğrencinin yüklediği ders içerikleri — tek PDF olarak.
+                  Akademisyen 20 ayrı sekme açmak zorunda kalmasın diye. */}
+              {!isStudent && (
+                <div style={{ padding: '0 20px 12px' }}>
+                  <BirlesikIcerikPdf record={rec} />
+                </div>
+              )}
+
+              {/* Onaylı dilekçe (snapshot) — YALNIZ ÖĞRENCİDE.
+                  Akademisyende gösterilmez: "Belge Oluştur" akışı zaten
+                  önizleme + indirme + Belge Akışı'na gönderme yapıyor, bu
+                  şerit onun tekrarıydı. */}
+              {isStudent && rec.dilekceUrl && (
                 <div
                   style={{
                     padding: '0 20px 12px',
@@ -6061,27 +6210,8 @@ const ExemptionHistory = ({
                     rel="noopener noreferrer"
                     style={{ fontWeight: 600, color: DS.accent }}
                   >
-                    {isStudent ? 'Dilekçemi İndir' : 'Onaylı Dilekçeyi İndir'}
+                    Dilekçemi İndir
                   </a>
-                  {/* Belge Akışı: dilekçeyi bir göreve yönlendir (memur/bölüm/öğrenci) */}
-                  {!isStudent &&
-                    window.BelgeGonderButonu &&
-                    React.createElement(window.BelgeGonderButonu, {
-                      belge: {
-                        module: 'muafiyet',
-                        docType: rec.basvuruTuru || 'muafiyet',
-                        sourceId: String(rec.id),
-                        title:
-                          (window.formatCaseTr
-                            ? window.formatCaseTr(rec.studentName, 'name')
-                            : rec.studentName || '') +
-                          (rec.studentNo ? '  ·  ' + rec.studentNo : ''),
-                        subtitle: 'Muafiyet dilekçesi',
-                        url: rec.dilekceUrl,
-                        ogrenciNo: rec.studentNo || '',
-                        departmentId: rec.departmentId || '',
-                      },
-                    })}
                 </div>
               )}
 
@@ -6956,9 +7086,13 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         akademikYil: rec.akademikYil || '',
         donem: rec.donem || '',
         tarih: new Date().toLocaleDateString('tr-TR'),
-        ogrenciTelefon: ogrProfil.phone || '',
-        ogrenciEposta: ogrProfil.email || '',
-        ogrenciAdres: ogrProfil.address || '',
+        // Öncelik başvuru formunda girilen değerlerdedir: öğrenci talebi
+        // gönderirken bunları zorunlu olarak doldurdu ve o an geçerliydi.
+        // Profil yalnızca eski (bu alanlar eklenmeden önce açılmış) kayıtlar
+        // için yedektir.
+        ogrenciTelefon: rec.studentPhone || ogrProfil.phone || '',
+        ogrenciEposta: rec.studentEmail || ogrProfil.email || '',
+        ogrenciAdres: rec.studentAddress || ogrProfil.address || '',
       };
 
       const res = await window.TemplateEngine.produceFromTemplate({
@@ -7363,6 +7497,37 @@ const AI_TRANSKRIPT_UST_BILGI = [
   { id: 'karsiBolum', label: 'Bölüm / Program' },
 ];
 
+// Ders eşleştirme alanlarının yazım kuralı: her kelimenin ilk harfi büyük,
+// kalanı küçük ("MATEMATİK I" → "Matematik I"). Kod ve statü bu kuralın
+// DIŞINDADIR — onlar büyük harf kalır. Kural elle girişte de transkriptten
+// otomatik aktarımda da aynı yerden geçer ki iki yol farklı sonuç vermesin.
+const BASLIK_ALANLARI = new Set(['name', 'uni', 'faculty', 'dept']);
+
+// Ders adlarında roma rakamı çok yaygındır (Matematik I, Fizik II, Kimya III)
+// ve düz başlık düzeni onları bozar: "FİZİK II" → "Fizik Ii". Bu yüzden
+// başlık düzeninden SONRA, yalnız I/V/X harflerinden oluşan ve GERÇEKTEN
+// geçerli bir roma rakamı olan kelimeler tekrar büyütülür. Küme bilerek dar
+// tutuldu (L/C/D/M yok) — "Dil", "Mil" gibi Türkçe kelimeler rakam sanılmasın.
+const ROMEN_HARF = { ı: 'I', i: 'I', I: 'I', İ: 'I', v: 'V', V: 'V', x: 'X', X: 'X' };
+const ROMEN_GECERLI = /^X{0,3}(IX|IV|V?I{0,3})$/;
+function romenBuyut(kelime) {
+  if (kelime.length > 4) return kelime;
+  let ascii = '';
+  for (const ch of kelime) {
+    const m = ROMEN_HARF[ch];
+    if (!m) return kelime;
+    ascii += m;
+  }
+  return ascii && ROMEN_GECERLI.test(ascii) ? ascii : kelime;
+}
+
+const baslikYaz = (v) => {
+  const s = window.formatCaseTr ? window.formatCaseTr(v, 'title') : String(v == null ? '' : v);
+  return String(s == null ? '' : s).replace(/[^\s.,;:()/-]+/g, romenBuyut);
+};
+const bicimAlan = (field, value) =>
+  BASLIK_ALANLARI.has(field) && typeof value === 'string' ? baslikYaz(value) : value;
+
 const emptyManualRow = function () {
   return {
     id: 'r' + Math.random().toString(36).slice(2, 9),
@@ -7410,6 +7575,13 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
   const [studentNo, setStudentNo] = useState(
     currentUser?.studentNumber || currentUser?.identifier || ''
   );
+  // İletişim bilgileri — dilekçe şablonunda {{öğrenci_telefon/eposta/adres}}
+  // yer tutucuları var. Önce Benim Sayfam profilinden doldurulur; profil boşsa
+  // öğrenci burada girer ve girilen değer talebe yazılır (belge üretimi kayıttan
+  // okur, profile geri yazmayız — profil öğrencinin kendi ekranıdır).
+  const [studentPhone, setStudentPhone] = useState('');
+  const [studentEmail, setStudentEmail] = useState('');
+  const [studentAddress, setStudentAddress] = useState('');
   const [rows, setRows] = useState([emptyManualRow()]);
   const [processing, setProcessing] = useState(false);
   const [msg, setMsg] = useState({ text: '', kind: '' });
@@ -7419,6 +7591,30 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
   const [transcriptFile, setTranscriptFile] = useState(null);
   const [transcriptName, setTranscriptName] = useState('');
 
+  // Benim Sayfam'daki iletişim bilgilerini bir kez oku ve BOŞ alanları doldur.
+  // Öğrencinin bu formda yazdığı değerin üzerine yazmayız (geç gelen yanıt
+  // yazdıklarını silmesin diye).
+  useEffect(() => {
+    const no = String(studentNo || '').trim();
+    if (!no || !window.apiReadDoc) return undefined;
+    let iptal = false;
+    (async () => {
+      try {
+        const pr = await window.apiReadDoc('student_profiles', no);
+        const p = (pr && pr.data) || {};
+        if (iptal) return;
+        if (p.phone) setStudentPhone((v) => v || p.phone);
+        if (p.email) setStudentEmail((v) => v || p.email);
+        if (p.address) setStudentAddress((v) => v || p.address);
+      } catch (_e) {
+        /* profil yoksa alanlar elle doldurulur */
+      }
+    })();
+    return () => {
+      iptal = true;
+    };
+  }, [studentNo]);
+
   // Yaz intibakında 21 AKTS tavanı — öğrencinin ÇAKÜ'de saydıracağı derslerin
   // (kabul edilen kredi yükü) AKTS toplamı üzerinden canlı izlenir (MADDE 9/1).
   const isIntibak = basvuruTuru === 'intibak';
@@ -7427,11 +7623,10 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
 
   const tr = (v) => (typeof v === 'string' ? v.toLocaleUpperCase('tr-TR') : v);
   const updateSide = (rowId, side, field, value) => {
-    // Yalnız ders KODU ve statü (Z/S) büyük harfe çevrilir — kodlar öyle
-    // olmalıdır. Ders adı / üniversite / fakülte / bölüm gibi metinler doğal
-    // yazılır (girişte zorla BÜYÜK harf kaldırıldı; eşleştirme küçük-harfe
-    // duyarsız olduğundan güvenli, ekranlar da düzgün görünür).
-    const v = field === 'code' || field === 'statu' ? tr(value) : value;
+    // Kod ve statü BÜYÜK; metin alanları (ders adı, üniversite, fakülte,
+    // bölüm) her kelimenin ilk harfi büyük kalanı küçük. Kural elle yazımda
+    // da transkriptten otomatik aktarımda da aynı uygulanır (bkz. bicimAlan).
+    const v = field === 'code' || field === 'statu' ? tr(value) : bicimAlan(field, value);
     setRows((prev) =>
       prev.map((r) => (r.id === rowId ? { ...r, [side]: { ...r[side], [field]: v } } : r))
     );
@@ -7608,7 +7803,10 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
           cak: {
             ...r.cak,
             selKey: key,
-            name: tr(opt.name),
+            // Katalogda ders adları çoğunlukla BÜYÜK yazılı; ekranda ve
+            // belgede elle girişle aynı biçimi görmek için başlık düzenine
+            // çevrilir. Kod büyük kalır.
+            name: baslikYaz(opt.name),
             code: tr(opt.code),
             akts: String(opt.akts || '').replace(/\D/g, ''),
             statu: normalizeStatu(opt.statu) || r.cak.statu,
@@ -7662,9 +7860,11 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
   // kendi seçmesi gerekir — model eşleştirmesi burada karar yerine geçemez.
   const dersleriAktar = (satirlar, ustBilgi) => {
     const kurum = ustBilgi || {};
-    const uni = String(kurum.karsiUniversite || '').trim();
-    const fak = String(kurum.karsiFakulte || '').trim();
-    const bol = String(kurum.karsiBolum || '').trim();
+    // Transkriptler çoğunlukla tümü BÜYÜK harf yazılır; elle girişle aynı
+    // kural burada da uygulanır.
+    const uni = baslikYaz(String(kurum.karsiUniversite || '').trim());
+    const fak = baslikYaz(String(kurum.karsiFakulte || '').trim());
+    const bol = baslikYaz(String(kurum.karsiBolum || '').trim());
     const kurumVar = !!(uni || fak || bol);
     if ((!satirlar || satirlar.length === 0) && !kurumVar) return;
 
@@ -7679,8 +7879,8 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
 
     const yeniler = (satirlar || []).map((s) => {
       const r = emptyManualRow();
-      r.src.name = String(s.dersAdi || '').trim();
-      r.src.code = String(s.dersKodu || '').trim();
+      r.src.name = baslikYaz(String(s.dersAdi || '').trim());
+      r.src.code = tr(String(s.dersKodu || '').trim());
       r.src.akts = String(s.akts || '').replace(/[^\d]/g, '');
       const st = normalizeStatu(s.statu);
       if (st) r.src.statu = st;
@@ -7734,6 +7934,23 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
   const validate = () => {
     if (!studentName.trim() || !studentNo.trim()) {
       setMsg({ text: 'Öğrenci adı ve numarası zorunlu.', kind: 'error' });
+      return false;
+    }
+    // İletişim bilgileri dilekçeye basılıyor — eksik giderse belge boş
+    // alanlarla üretilir, bu yüzden burada zorunlu.
+    if (!studentPhone.trim() || !studentEmail.trim() || !studentAddress.trim()) {
+      setMsg({
+        text: 'Telefon, e-posta ve adres zorunlu — bu bilgiler dilekçenize yazılıyor.',
+        kind: 'error',
+      });
+      return false;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(studentEmail.trim())) {
+      setMsg({ text: 'Geçerli bir e-posta adresi girin.', kind: 'error' });
+      return false;
+    }
+    if (studentPhone.replace(/\D/g, '').length < 10) {
+      setMsg({ text: 'Telefon numarası en az 10 hane olmalı.', kind: 'error' });
       return false;
     }
     // Transkript yalnızca ders muafiyetinde zorunludur; yaz intibakında dersler
@@ -7940,6 +8157,9 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
       const record = await MuafiyetDB.saveRecord({
         studentName,
         studentNo,
+        studentPhone: studentPhone.trim(),
+        studentEmail: studentEmail.trim(),
+        studentAddress: studentAddress.trim(),
         otherUni: rows[0]?.src.uni || '',
         otherFaculty: rows[0]?.src.faculty || '',
         otherDept: rows[0]?.src.dept || '',
@@ -8576,6 +8796,54 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
             onChange={(e) => setStudentNo(e.target.value.replace(/\D/g, ''))}
             style={inputStyle}
           />
+        </div>
+      </div>
+
+      {/* İletişim bilgileri — dilekçeye basılır. Benim Sayfam'da kayıtlıysa
+          otomatik gelir; değilse öğrenci burada girer. */}
+      <div
+        style={{
+          background: 'white',
+          border: '1px solid ' + DS.border,
+          borderRadius: 10,
+          padding: 16,
+          marginBottom: 18,
+        }}
+      >
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 200px' }}>
+            <label style={labelStyle}>Telefon *</label>
+            <input
+              value={studentPhone}
+              inputMode="tel"
+              placeholder="0 5xx xxx xx xx"
+              onChange={(e) => setStudentPhone(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ flex: '1 1 200px' }}>
+            <label style={labelStyle}>E-posta *</label>
+            <input
+              value={studentEmail}
+              inputMode="email"
+              placeholder="ornek@ogrenci.karatekin.edu.tr"
+              onChange={(e) => setStudentEmail(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+        </div>
+        <div>
+          <label style={labelStyle}>Adres *</label>
+          <textarea
+            value={studentAddress}
+            rows={2}
+            placeholder="Yazışma adresiniz"
+            onChange={(e) => setStudentAddress(e.target.value)}
+            style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+          />
+        </div>
+        <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 8 }}>
+          Bu bilgiler dilekçenize yazılır. "Benim Sayfam"da kayıtlıysa otomatik gelir.
         </div>
       </div>
 

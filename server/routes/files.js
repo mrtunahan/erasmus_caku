@@ -387,9 +387,198 @@ router.delete('/:folder/:filename', deleteLimiter, fileAuth, softAuthMiddleware,
   }
 });
 
+// ── PDF birleştirme ──────────────────────────────────────────────
+// Bir öğrencinin muafiyet talebinde ders başına iki ayrı içerik dosyası
+// vardır (karşı kurum + ÇAKÜ). Akademisyen bunları tek tek açmak yerine
+// tek bir PDF olarak okuyabilsin diye sunucuda birleştirilir.
+//
+// pdf-lib saf JS'tir; harici bir ikili (ghostscript/qpdf) gerekmez.
+
+const MERGE_MAX_DOSYA = 60;
+const MERGE_MAX_BAYT = 80 * 1024 * 1024; // toplam ham girdi tavanı
+
+// StandardFonts WinAnsi kodlar; ş/ğ/İ/ı gibi harfler kodlanamaz ve pdf-lib
+// hata fırlatır. Ayraç sayfası başlıklarını ASCII'ye indirgeriz — belgenin
+// kendi içeriği bundan etkilenmez, yalnız ayraç yazısı sadeleşir.
+const TR_ASCII = {
+  ç: 'c',
+  Ç: 'C',
+  ğ: 'g',
+  Ğ: 'G',
+  ı: 'i',
+  İ: 'I',
+  ö: 'o',
+  Ö: 'O',
+  ş: 's',
+  Ş: 'S',
+  ü: 'u',
+  Ü: 'U',
+};
+const asciiIndirge = (s) =>
+  String(s || '')
+    .replace(/[çÇğĞıİöÖşŞüÜ]/g, (c) => TR_ASCII[c])
+     
+    .replace(/[^\x20-\x7E]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+// '/api/files/download/muafiyet_belgeler/123_x.pdf' → 'muafiyet_belgeler/123_x.pdf'
+const urlToRelPath = (u) => {
+  const s = String(u || '').trim();
+  if (!s) return '';
+  const m = s.match(/\/api\/files\/(?:download|view)\/(.+)$/);
+  const rel = m ? m[1] : s.replace(/^\/+/, '');
+  try {
+    return decodeURIComponent(rel.split('?')[0]);
+  } catch (_e) {
+    return rel.split('?')[0];
+  }
+};
+
+// Birleştirme birden çok dosyayı tek yanıtta toplar; öğrenciye kapalıdır
+// (kendi belgelerini zaten tek tek görüyor, personel ise değerlendirme
+// yaparken toplu okumaya ihtiyaç duyuyor).
+function mergeRequireStaff(req, res, next) {
+  if (!FILES_AUTH_ENFORCED) return next();
+  if (req.user && req.user.role && req.user.role !== 'student') return next();
+  return res.status(403).json({ error: 'Bu işlem için personel yetkisi gerekli.' });
+}
+
+// POST /api/files/merge-pdf  body: { dosyalar:[{url, baslik}], filename }
+// Yanıt: birleştirilmiş PDF (application/pdf).
+router.post('/merge-pdf', uploadLimiter, fileAuth, mergeRequireStaff, async (req, res) => {
+  let PDFDocument, StandardFonts, rgb;
+  try {
+    ({ PDFDocument, StandardFonts, rgb } = require('pdf-lib'));
+  } catch (_e) {
+    return res.status(503).json({ error: 'PDF birleştirme kütüphanesi kurulu değil (pdf-lib).' });
+  }
+
+  const istenen = Array.isArray(req.body && req.body.dosyalar) ? req.body.dosyalar : [];
+  if (istenen.length === 0) return res.status(400).json({ error: 'Birleştirilecek dosya yok.' });
+  if (istenen.length > MERGE_MAX_DOSYA) {
+    return res.status(400).json({ error: `En çok ${MERGE_MAX_DOSYA} dosya birleştirilebilir.` });
+  }
+
+  const atlananlar = [];
+  let toplamBayt = 0;
+
+  try {
+    const hedef = await PDFDocument.create();
+    const font = await hedef.embedFont(StandardFonts.HelveticaBold);
+    let eklenen = 0;
+
+    for (const d of istenen) {
+      const baslik = String((d && d.baslik) || '').slice(0, 200);
+      const rel = urlToRelPath(d && d.url);
+      const diskYolu = rel ? resolveSafePath(rel) : null;
+      if (!diskYolu) {
+        atlananlar.push({ baslik, sebep: 'dosya bulunamadı' });
+        continue;
+      }
+      if (path.extname(diskYolu).toLowerCase() !== '.pdf') {
+        atlananlar.push({ baslik, sebep: 'PDF değil (' + path.extname(diskYolu) + ')' });
+        continue;
+      }
+      let buf;
+      try {
+        buf = fs.readFileSync(diskYolu);
+      } catch (_e) {
+        atlananlar.push({ baslik, sebep: 'okunamadı' });
+        continue;
+      }
+      toplamBayt += buf.length;
+      if (toplamBayt > MERGE_MAX_BAYT) {
+        atlananlar.push({ baslik, sebep: 'toplam boyut sınırı aşıldı' });
+        break;
+      }
+
+      let kaynak;
+      try {
+        // Şifreli PDF'leri de kabul et; okunamıyorsa aşağıda atlanır.
+        kaynak = await PDFDocument.load(buf, { ignoreEncryption: true });
+      } catch (_e) {
+        atlananlar.push({ baslik, sebep: 'bozuk ya da açılamayan PDF' });
+        continue;
+      }
+
+      // Ayraç sayfası: birleşik belgede hangi dersin nerede başladığı belli olsun.
+      if (baslik) {
+        const kapak = hedef.addPage([595.28, 841.89]); // A4
+        const metin = asciiIndirge(baslik);
+        kapak.drawText(metin.slice(0, 90), {
+          x: 56,
+          y: 700,
+          size: 16,
+          font,
+          color: rgb(0.06, 0.15, 0.3),
+        });
+        if (metin.length > 90) {
+          kapak.drawText(metin.slice(90, 180), {
+            x: 56,
+            y: 678,
+            size: 16,
+            font,
+            color: rgb(0.06, 0.15, 0.3),
+          });
+        }
+        kapak.drawLine({
+          start: { x: 56, y: 664 },
+          end: { x: 539, y: 664 },
+          thickness: 1,
+          color: rgb(0.8, 0.84, 0.9),
+        });
+      }
+
+      try {
+        const sayfalar = await hedef.copyPages(kaynak, kaynak.getPageIndices());
+        sayfalar.forEach((p) => hedef.addPage(p));
+        eklenen += 1;
+      } catch (_e) {
+        atlananlar.push({ baslik, sebep: 'sayfalar kopyalanamadı' });
+      }
+    }
+
+    if (eklenen === 0) {
+      return res.status(422).json({
+        error: 'Birleştirilebilir PDF bulunamadı.',
+        atlananlar,
+      });
+    }
+
+    const cikti = Buffer.from(await hedef.save());
+    const adAscii =
+      asciiIndirge((req.body && req.body.filename) || 'birlesik.pdf') || 'birlesik.pdf';
+    const ad = /\.pdf$/i.test(adAscii) ? adAscii : adAscii + '.pdf';
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${ad.replace(/[^\x20-\x7E]/g, '_')}"`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+    // Atlananlar gövdeye sığmaz (yanıt ikili) — başlıkla bildirilir.
+    res.setHeader('X-Merge-Eklenen', String(eklenen));
+    res.setHeader('X-Merge-Atlanan', String(atlananlar.length));
+    if (atlananlar.length > 0) {
+      res.setHeader(
+        'X-Merge-Atlanan-Detay',
+        encodeURIComponent(JSON.stringify(atlananlar).slice(0, 1800))
+      );
+    }
+    return res.send(cikti);
+  } catch (error) {
+    console.error('PDF merge error:', error.message);
+    return res.status(500).json({ error: 'PDF birleştirilemedi: ' + error.message });
+  }
+});
+
 // Yüklenmiş bir dosyanın güvenli disk yolunu çözer. Belge işleme katmanı
 // (routes/ai.js) aynı sınır kontrolünü tekrar yazmasın diye dışa verilir —
 // `../` kaçışı ve UPLOAD_ROOT sınırı tek yerde denetlenir.
 router.resolveUploadPath = resolveSafePath;
+
+// Testler için: birleştirme yardımcıları saf fonksiyonlardır, uç noktayı
+// ayağa kaldırmadan doğrulanabilsinler.
+router._urlToRelPath = urlToRelPath;
+router._asciiIndirge = asciiIndirge;
 
 module.exports = router;
