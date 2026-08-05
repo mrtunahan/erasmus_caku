@@ -897,6 +897,164 @@ async function satirCikar(opt) {
   };
 }
 
+// ══════════════════════════════════════════════════════════════
+// DERS İÇERİĞİ KIYASLAMA — muafiyet kararına ÖNERİ
+//
+// Mevcut sözcüksel skor (tf-idf + jaccard + n-gram) simetrik bir BENZERLİK
+// ölçüyor: "iki metin birbirine ne kadar benziyor". Oysa muafiyetin sorusu
+// asimetriktir: "öğrencinin ALDIĞI ders, ÇAKÜ dersinin öğrenme çıktılarını
+// KARŞILIYOR MU". Farklı sözcüklerle yazılmış aynı müfredat sözcüksel olarak
+// uzak düşer (ör. "türev-integral" ↔ "diferansiyel ve integral hesap"),
+// yabancı dildeki içerikler ise hiç eşleşmez.
+//
+// Bu yüzden karşılaştırma modele asimetrik sorulur. Çıktı bir ÖNERİDİR;
+// kararı akademisyen verir.
+//
+// Tüm çiftler TEK çağrıda gider — ders başına ayrı çağrı hem pahalı hem yavaş.
+// ══════════════════════════════════════════════════════════════
+const DERS_KARARLARI = ['muaf', 'incele', 'red'];
+const MAX_DERS_CIFTI = 30;
+
+const DERS_TALIMATI = `Sen bir üniversitenin ders muafiyet komisyonuna yardımcı olan
+bir değerlendirme asistanısın. Sana ders ÇİFTLERİ verilecek:
+
+  ALINAN  = öğrencinin başka bir kurumda tamamladığı ders
+  HEDEF   = ÇAKÜ'de muaf olmak istediği ders
+
+Her çift için tek soruyu yanıtla: ALINAN ders, HEDEF dersin öğrenme
+çıktılarını ve konu kapsamını KARŞILIYOR MU?
+
+Bu soru ASİMETRİKTİR. "İki metin benziyor mu" değil, "alınan ders hedefin
+gerektirdiklerini kapsıyor mu" diye bak. Alınan ders daha geniş olabilir —
+bu sorun değil; hedefin konularını içeriyorsa yeterlidir. Tersi sorundur:
+hedefin temel konuları alınan derste yoksa kapsam eksiktir.
+
+Kurallar:
+1. Farklı terimlerle yazılmış aynı konuyu AYNI say. Örnek: "türev ve integral"
+   ile "diferansiyel ve integral hesap" aynı konudur. Yabancı dildeki içeriği
+   Türkçe karşılığıyla eşleştir.
+2. Ders ADI aynı olsa bile içerikler farklı konulardaysa kapsam yoktur.
+   Adların benzerliği tek başına gerekçe değildir.
+3. İçerik metni yoksa ya da anlamsız kısaysa "incele" de ve gerekçede belirt —
+   bu durumda tahmin yürütme.
+4. "oran" 0-100 arası bir sayıdır: hedef dersin konularının yüzde kaçının
+   alınan derste karşılandığı.
+5. "karar":
+   muaf   = kapsam açıkça yeterli (tipik olarak oran 75 ve üzeri)
+   incele = kısmi kapsam ya da belirsizlik — komisyon bakmalı
+   red    = kapsam açıkça yetersiz veya konular farklı
+6. "gerekce" tek cümle, Türkçe, SOMUT olsun: hangi konunun karşılandığını ya
+   da eksik kaldığını söyle. "Benzerlik düşük" gibi boş ifade kullanma.
+
+Bu bir ÖNERİDİR; nihai kararı akademisyen verir. Şüphede kaldığında "muaf"
+değil "incele" de.`;
+
+function dersSemasi(ciftler) {
+  const properties = {};
+  const required = [];
+  ciftler.forEach((c) => {
+    properties[c.id] = {
+      type: 'object',
+      properties: {
+        oran: { type: 'number' },
+        karar: { type: 'string', enum: DERS_KARARLARI },
+        gerekce: { type: 'string' },
+      },
+      required: ['oran', 'karar', 'gerekce'],
+      additionalProperties: false,
+    };
+    required.push(c.id);
+  });
+  return { type: 'object', properties, required, additionalProperties: false };
+}
+
+function dersMetni(d, etiket) {
+  const p = [];
+  if (d.ad) p.push(etiket + ' ders adı: ' + d.ad);
+  if (d.kod) p.push(etiket + ' kod: ' + d.kod);
+  if (d.akts) p.push(etiket + ' AKTS: ' + d.akts);
+  const icerik = String(d.icerik || '').trim();
+  p.push(etiket + ' içerik: ' + (icerik ? icerik.slice(0, 6000) : '(içerik girilmemiş)'));
+  return p.join('\n');
+}
+
+/**
+ * @param {object} opt
+ * @param {Array<{id, alinan:{ad,kod,akts,icerik}, hedef:{ad,kod,akts,icerik}}>} opt.ciftler
+ */
+async function icerikKarsilastir(opt) {
+  const ciftler = (Array.isArray(opt.ciftler) ? opt.ciftler : [])
+    .filter((c) => c && c.id && c.alinan && c.hedef)
+    .slice(0, MAX_DERS_CIFTI);
+  if (ciftler.length === 0) return { ok: false, reason: 'no-pairs' };
+
+  const sistem = [{ type: 'text', text: DERS_TALIMATI, cache_control: { type: 'ephemeral' } }];
+  const sema = dersSemasi(ciftler);
+  const maxTokens = Math.max(1024, Math.min(8192, ciftler.length * 220 + 512));
+
+  const govde = ciftler
+    .map(
+      (c) =>
+        '### ÇİFT ' +
+        c.id +
+        '\n' +
+        dersMetni(c.alinan, 'ALINAN') +
+        '\n' +
+        dersMetni(c.hedef, 'HEDEF')
+    )
+    .join('\n\n');
+
+  let sonuc;
+  try {
+    sonuc = await cagirVeAyristir({
+      sistem,
+      icerik: [{ type: 'text', text: govde }],
+      sema,
+      maxTokens,
+    });
+  } catch (e) {
+    await kullanimKaydet({
+      module: 'muafiyet',
+      docType: 'ders-eslestirme',
+      endpoint: 'course-match',
+      model: MODEL,
+      ...(opt.baglam || {}),
+      usage: {},
+      ok: false,
+      hata: e && e.message,
+    });
+    return { ok: false, reason: 'api-error', message: e && e.message };
+  }
+
+  for (const u of sonuc.usages) {
+    await kullanimKaydet({
+      module: 'muafiyet',
+      docType: 'ders-eslestirme',
+      endpoint: 'course-match',
+      model: MODEL,
+      ...(opt.baglam || {}),
+      usage: u,
+      ok: !!sonuc.veri,
+    });
+  }
+  if (!sonuc.veri) return { ok: false, reason: 'parse-failed' };
+
+  const out = {};
+  ciftler.forEach((c) => {
+    const g = sonuc.veri[c.id] || {};
+    let oran = Number(g.oran);
+    if (!Number.isFinite(oran)) oran = 0;
+    oran = Math.max(0, Math.min(100, Math.round(oran)));
+    const karar = DERS_KARARLARI.includes(g.karar) ? g.karar : 'incele';
+    out[c.id] = {
+      oran,
+      karar,
+      gerekce: String(g.gerekce || '').slice(0, 400),
+    };
+  });
+  return { ok: true, data: out };
+}
+
 // ── Web ile doğrulama ─────────────────────────────────────────
 // Haiku 4.5 temel web arama aracını kullanır (dinamik filtrelemeli
 // _20260209 sürümü yalnız Opus/Sonnet 4.6+ modellerde vardır).
@@ -1132,6 +1290,7 @@ module.exports = {
   alanCikar,
   satirCikar,
   karsilastir,
+  icerikKarsilastir,
   kiyasNormalize,
   webDogrula,
   batchGonder,
