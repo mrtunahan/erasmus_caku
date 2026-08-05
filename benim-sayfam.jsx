@@ -2023,6 +2023,15 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             </div>
           )}
 
+          {/* Mezuniyet Durumum — transkriptten türetilen akademik kayıt */}
+          <BSMezuniyetDurumu
+            currentUser={currentUser}
+            studentDeptId={studentDeptId}
+            allCourses={allCourses}
+            cardBox={cardBox}
+            sectionTitle={sectionTitle}
+          />
+
           {/* Derslerim */}
           <div>
             <div
@@ -2323,6 +2332,641 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
 // ── Büyütülebilir görsel (danışman fotoğrafı / kampüs haritası) ──
 // Görsel gerçek çözünürlüğüyle gösterilir (kalite bozulmaz). zoomable ise
 // tıklayınca yakınlaşır ve kaydırılarak gezilebilir.
+// ══════════════════════════════════════════════════════════════
+// MEZUNİYET DURUMUM
+//
+//   Öğrenci transkriptini yükler → belge işleme katmanı ders satırlarını ve
+//   AGNO'yu okur → sonuç bölümün müfredatıyla (sinav_dersler) eşleştirilir →
+//   geçilen/kalan dersler ve mezuniyet koşulları çıkar.
+//
+//   Tasarım kararları:
+//   • Müfredat SİSTEMDEN gelir, webden değil. Bölüm dersleri zaten Ders
+//     Yönetimi'nde tanımlı ve bölüm yetkilisinin sorumluluğunda; müfredatı
+//     internetten toplamak, elde doğru veri varken uydurma riski almaktır.
+//   • AGNO transkriptten OKUNUR, yeniden hesaplanmaz. Not katsayıları ve
+//     yuvarlama yönetmeliğe bağlıdır; kendi hesabımız OBS'den saparsa
+//     öğrenciye yanlış bilgi vermiş oluruz.
+//   • Çıkarım sonucu doğrudan kaydedilmez; öğrenci tabloyu görür, düzeltir,
+//     sonra kaydeder. Sistemin her yerindeki "önce göster, sonra uygula"
+//     kuralı burada da geçerli.
+//   • Bu ekran BİLGİLENDİRMEDİR; resmî kayıt OBS'dir. Uyarı kartın içinde,
+//     kapatılamaz biçimde durur.
+// ══════════════════════════════════════════════════════════════
+
+// Transkriptten okunacak sütunlar. Ders Muafiyet'teki listeyle aynı mantık:
+// dar tutulur, çünkü her sütun her satırda tekrar eder ve çıktı maliyetini
+// doğrudan çarpar. Buradaki fark: NOT sütunu şart (geçti/kaldı ondan çıkar).
+const BS_TRANSKRIPT_SUTUNLARI = [
+  { id: 'kod', label: 'Ders Kodu', hint: 'örn. BLM101' },
+  { id: 'ad', label: 'Ders Adı' },
+  { id: 'akts', label: 'AKTS', hint: 'yalnız sayı; kredi sütunuyla karıştırma' },
+  { id: 'not', label: 'Harf Notu', hint: 'AA/BA/CC/FF gibi; yoksa boş bırak' },
+];
+
+// Her satırda tekrar etmeyen başlık bilgileri — ayrı bir alan çıkarımı.
+const BS_TRANSKRIPT_UST_BILGI = [
+  { id: 'agno', label: 'AGNO / GANO', hint: 'genel not ortalaması, örn. 3,42' },
+  { id: 'sinif', label: 'Sınıf', hint: 'yalnız rakam' },
+];
+
+function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, sectionTitle }) {
+  const [kural, setKural] = useState(null);
+  const [kayit, setKayit] = useState(null); // kaydedilmiş akademik kayıt
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [dosya, setDosya] = useState(null);
+  const [dosyaAdi, setDosyaAdi] = useState('');
+  const [taslak, setTaslak] = useState(null); // { dersler, agno } — onay bekleyen
+  const [calisiyor, setCalisiyor] = useState(false);
+  const [mesaj, setMesaj] = useState('');
+  const [acik, setAcik] = useState(false);
+  const [aiVar, setAiVar] = useState(false);
+
+  const ogrNo = currentUser?.studentNumber || currentUser?.identifier || '';
+
+  useEffect(() => {
+    let iptal = false;
+    (async () => {
+      try {
+        const [k, r] = await Promise.all([
+          window.apiReadDoc('mezuniyet_kurallari', String(studentDeptId || '')).catch(() => null),
+          window.apiReadDoc('ogrenci_akademik_kayit', String(ogrNo)).catch(() => null),
+        ]);
+        if (iptal) return;
+        setKural((k && k.exists && k.data) || null);
+        setKayit((r && r.exists && r.data) || null);
+      } finally {
+        if (!iptal) setYukleniyor(false);
+      }
+    })();
+    if (window.aiBelgeDurumu) {
+      window
+        .aiBelgeDurumu()
+        .then((d) => !iptal && setAiVar(!!(d && d.configured)))
+        .catch(() => {});
+    }
+    return () => {
+      iptal = true;
+    };
+  }, [studentDeptId, ogrNo]);
+
+  // Bölüm id'si sistemde birden çok biçimde geçebiliyor (_id / _docId / kod);
+  // müfredatı bunların hepsiyle eşleştir, aksi halde ders listesi boş çıkar.
+  const [deptVariants, setDeptVariants] = useState([]);
+  useEffect(() => {
+    let iptal = false;
+    if (!studentDeptId) return undefined;
+    if (!window.deptIdVariants) {
+      setDeptVariants([String(studentDeptId)]);
+      return undefined;
+    }
+    window
+      .deptIdVariants(studentDeptId)
+      .then((v) => !iptal && setDeptVariants((v || [studentDeptId]).map(String)))
+      .catch(() => !iptal && setDeptVariants([String(studentDeptId)]));
+    return () => {
+      iptal = true;
+    };
+  }, [studentDeptId]);
+
+  // Bölümün müfredatı — Ders Yönetimi'nde tanımlı lisans dersleri.
+  const mufredat = useMemo(() => {
+    const vset = new Set(deptVariants.length ? deptVariants : [String(studentDeptId)]);
+    return (allCourses || []).filter((c) => vset.has(String(c.departmentId || '')));
+  }, [allCourses, studentDeptId, deptVariants]);
+
+  const sonuc = useMemo(() => {
+    if (!window.mezuniyetHesapla) return null;
+    const dersler = (kayit && Array.isArray(kayit.dersler) ? kayit.dersler : []).map((d) => ({
+      kod: d.kod,
+      ad: d.ad,
+      akts: d.akts,
+      not: d.not,
+    }));
+    if (dersler.length === 0) return null;
+    return window.mezuniyetHesapla(mufredat, dersler, kural, { agno: kayit && kayit.agno });
+  }, [mufredat, kayit, kural]);
+
+  const transkriptiOku = async () => {
+    if (!dosya) {
+      setMesaj('Önce transkript PDF’inizi seçin.');
+      return;
+    }
+    setCalisiyor(true);
+    setMesaj('');
+    try {
+      // Dosyayı yükle → belge işleme katmanı dosya adıyla çalışır.
+      const fd = new FormData();
+      fd.append('file', dosya);
+      const token = localStorage.getItem('caku_auth_token');
+      const up = await fetch('/api/files/upload?folder=transkriptler', {
+        method: 'POST',
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
+        credentials: 'include',
+        body: fd,
+      });
+      if (!up.ok) throw new Error('Transkript yüklenemedi (HTTP ' + up.status + ')');
+      const upData = await up.json();
+      const url = upData.downloadURL || '';
+      if (!url || !window.aiDosyaAdi) throw new Error('Transkript yüklenemedi.');
+      const dosyalar = [{ fileName: window.aiDosyaAdi(url), name: 'Transkript' }];
+
+      // Satırlar ve başlık bilgisi ayrı çağrılar: başlık her satırda aynı
+      // olduğu için sütuna konsaydı çıktı token'ı ders sayısı kadar katlanırdı.
+      const [satirSonuc, ustSonuc] = await Promise.all([
+        window.aiSatirCikar({
+          module: 'benim',
+          docType: 'transkript',
+          sutunlar: BS_TRANSKRIPT_SUTUNLARI,
+          satirTanimi: 'transkriptte yer alan her ders satırı',
+          dosyalar,
+        }),
+        window
+          .aiAlanDoldur({
+            module: 'benim',
+            docType: 'transkript',
+            alanlar: BS_TRANSKRIPT_UST_BILGI,
+            dosyalar,
+          })
+          .catch(() => null),
+      ]);
+
+      const satirlar = (satirSonuc && satirSonuc.satirlar) || [];
+      if (satirlar.length === 0) throw new Error('Transkriptten ders satırı çıkarılamadı.');
+      const ust = (ustSonuc && ustSonuc.data) || {};
+      setTaslak({
+        transkriptUrl: url,
+        agno: (ust.agno && ust.agno.deger) || '',
+        sinif: (ust.sinif && ust.sinif.deger) || '',
+        dersler: satirlar.map((s) => ({
+          kod: String(s.kod || '').trim(),
+          ad: String(s.ad || '').trim(),
+          akts: String(s.akts || '').replace(/[^\d]/g, ''),
+          not: String(s.not || '')
+            .trim()
+            .toLocaleUpperCase('tr-TR'),
+        })),
+      });
+      setMesaj(satirlar.length + ' ders okundu. Kaydetmeden önce kontrol edin.');
+    } catch (e) {
+      setMesaj(e.message);
+    } finally {
+      setCalisiyor(false);
+    }
+  };
+
+  const kaydet = async () => {
+    if (!taslak) return;
+    setCalisiyor(true);
+    setMesaj('');
+    try {
+      const kayitVerisi = {
+        studentNo: String(ogrNo),
+        departmentId: String(studentDeptId || ''),
+        agno: taslak.agno || '',
+        sinif: taslak.sinif || '',
+        transkriptUrl: taslak.transkriptUrl || '',
+        transkriptTarihi: new Date().toISOString(),
+        dersler: taslak.dersler.filter((d) => d.kod || d.ad),
+        updatedAt: new Date().toISOString(),
+      };
+      await window.DBWrite.set('ogrenci_akademik_kayit', String(ogrNo), kayitVerisi, true);
+      setKayit(kayitVerisi);
+      setTaslak(null);
+      setDosya(null);
+      setDosyaAdi('');
+      setMesaj('Akademik kaydınız güncellendi.');
+    } catch (e) {
+      setMesaj('Kaydedilemedi: ' + e.message);
+    } finally {
+      setCalisiyor(false);
+    }
+  };
+
+  const taslakDegistir = (i, alan, deger) =>
+    setTaslak((t) => ({
+      ...t,
+      dersler: t.dersler.map((d, j) => (i === j ? { ...d, [alan]: deger } : d)),
+    }));
+
+  const kucukBtn = (bg, renk, kenar) => ({
+    padding: '7px 14px',
+    borderRadius: 8,
+    border: kenar ? '1px solid ' + kenar : 'none',
+    background: bg,
+    color: renk,
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: calisiyor ? 'wait' : 'pointer',
+    opacity: calisiyor ? 0.6 : 1,
+  });
+  const hucre = { padding: '6px 8px', fontSize: 12, borderBottom: '1px solid #F3F4F6' };
+  const girdi = {
+    width: '100%',
+    padding: '4px 6px',
+    fontSize: 12,
+    border: '1px solid #E5E7EB',
+    borderRadius: 5,
+    boxSizing: 'border-box',
+  };
+
+  if (yukleniyor) return null;
+
+  const durumRenk = { gecti: '#059669', kaldi: '#DC2626', belirsiz: '#B45309' };
+  const durumEtiket = { gecti: 'Geçti', kaldi: 'Kaldı', belirsiz: 'Belirsiz' };
+
+  return (
+    <div style={cardBox}>
+      <h3 style={{ ...sectionTitle, marginBottom: 8 }}>
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#059669"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+          <path d="M6 12v5c3 3 9 3 12 0v-5" />
+        </svg>
+        Mezuniyet Durumum
+      </h3>
+
+      <div
+        style={{
+          padding: '8px 11px',
+          borderRadius: 8,
+          background: '#FFFBEB',
+          border: '1px solid #FCD34D',
+          color: '#92400E',
+          fontSize: 11.5,
+          lineHeight: 1.5,
+          marginBottom: 14,
+        }}
+      >
+        Bu sayfa <b>bilgilendirme amaçlıdır</b>. Resmî akademik kaydınız ve mezuniyet kararınız
+        öğrenci bilgi sistemindedir; buradaki hesap onun yerine geçmez.
+      </div>
+
+      {/* ── Özet ── */}
+      {sonuc && (
+        <div style={{ marginBottom: 16 }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              marginBottom: 6,
+            }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#1B2A4A' }}>
+              {sonuc.gecilenAkts} / {sonuc.kural.toplamAkts} AKTS
+            </span>
+            <span style={{ fontSize: 11.5, color: '#6B7280' }}>
+              {sonuc.kalanAkts} AKTS kaldı
+              {sonuc.kural.mufredatTipi === '7+1' ? ' · 7+1 müfredatı' : ''}
+            </span>
+          </div>
+          <div style={{ height: 8, borderRadius: 999, background: '#E5E7EB', overflow: 'hidden' }}>
+            <div
+              style={{
+                width: sonuc.yuzde + '%',
+                height: '100%',
+                background: sonuc.mezunOlabilir ? '#059669' : '#2563EB',
+              }}
+            />
+          </div>
+
+          {sonuc.mufredatBos && (
+            <div style={{ fontSize: 11.5, color: '#B45309', marginTop: 8 }}>
+              Bölümünüzün müfredatı sistemde tanımlı değil — kalan ders hesabı yapılamıyor. Bölüm
+              yetkilinize başvurun.
+            </div>
+          )}
+          {sonuc.belirsizVar && (
+            <div style={{ fontSize: 11.5, color: '#B45309', marginTop: 8 }}>
+              Bazı derslerin harf notu tanınamadı; bunlar geçilmiş sayılmadı. Aşağıdaki listeden
+              düzeltebilirsiniz.
+            </div>
+          )}
+
+          {/* Koşullar */}
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {sonuc.kosullar.map((k) => (
+              <div
+                key={k.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 12.5,
+                  padding: '6px 10px',
+                  borderRadius: 7,
+                  background:
+                    k.saglandi === true ? '#ECFDF5' : k.saglandi === false ? '#FEF2F2' : '#F9FAFB',
+                }}
+              >
+                <span
+                  style={{
+                    width: 16,
+                    textAlign: 'center',
+                    color:
+                      k.saglandi === true
+                        ? '#059669'
+                        : k.saglandi === false
+                          ? '#DC2626'
+                          : '#9CA3AF',
+                    fontWeight: 700,
+                  }}
+                >
+                  {k.saglandi === true ? '✓' : k.saglandi === false ? '✕' : '?'}
+                </span>
+                <span style={{ flex: 1, color: '#374151' }}>{k.label}</span>
+                <span style={{ color: '#6B7280', fontSize: 11.5 }}>
+                  {k.mevcut} / {k.hedef}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Kalan zorunlu dersler */}
+          {sonuc.kalanZorunlu.length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1B2A4A', marginBottom: 6 }}>
+                Kalan zorunlu dersler ({sonuc.kalanZorunlu.length})
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {sonuc.kalanZorunlu.map((c, i) => (
+                  <span
+                    key={c.code + i}
+                    title={
+                      (c.sinif ? c.sinif + '. sınıf' : '') +
+                      (c.donem ? ' · ' + (c.donem === 'guz' ? 'Güz' : 'Bahar') : '')
+                    }
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      border: '1px solid #FCA5A5',
+                      background: '#FEF2F2',
+                      color: '#991B1B',
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {c.code} {c.name} ({c.akts})
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Transkript yükleme ── */}
+      {!taslak && (
+        <div
+          style={{
+            borderTop: sonuc ? '1px solid #F3F4F6' : 'none',
+            paddingTop: sonuc ? 14 : 0,
+          }}
+        >
+          <div style={{ fontSize: 12.5, color: '#6B7280', marginBottom: 8, lineHeight: 1.5 }}>
+            {kayit
+              ? 'Son güncelleme: ' +
+                (kayit.transkriptTarihi
+                  ? new Date(kayit.transkriptTarihi).toLocaleDateString('tr-TR')
+                  : '—') +
+                '. Yeni dönem notları çıkınca transkriptinizi yeniden yükleyin.'
+              : 'e-Devlet’ten aldığınız karekodlu transkript PDF’inizi yükleyin; dersleriniz ve AGNO’nuz okunup mezuniyet durumunuz hesaplansın.'}
+          </div>
+          {!aiVar && (
+            <div style={{ fontSize: 11.5, color: '#B45309', marginBottom: 8 }}>
+              Belge işleme şu anda kapalı — transkript okuma kullanılamıyor.
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <label style={{ cursor: 'pointer' }}>
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = (e.target.files && e.target.files[0]) || null;
+                  e.target.value = '';
+                  if (!f) return;
+                  if (f.type !== 'application/pdf' && !/\.pdf$/i.test(f.name)) {
+                    setMesaj('Transkript yalnızca PDF olabilir.');
+                    return;
+                  }
+                  setDosya(f);
+                  setDosyaAdi(f.name);
+                  setMesaj('');
+                }}
+              />
+              <span
+                style={{
+                  display: 'inline-block',
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  border: '1px solid #D1D5DB',
+                  background: 'white',
+                  color: '#1B2A4A',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                }}
+              >
+                Transkript seç (PDF)
+              </span>
+            </label>
+            {dosyaAdi && <span style={{ fontSize: 12, color: '#059669' }}>{dosyaAdi}</span>}
+            <button
+              disabled={!dosya || calisiyor || !aiVar}
+              onClick={transkriptiOku}
+              style={{
+                ...kucukBtn('#1B2A4A', 'white'),
+                opacity: !dosya || calisiyor || !aiVar ? 0.5 : 1,
+                cursor: !dosya || calisiyor || !aiVar ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {calisiyor ? 'Okunuyor…' : 'Transkripti Oku'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Onay tablosu: kaydetmeden önce kontrol ── */}
+      {taslak && (
+        <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: 14 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1B2A4A' }}>
+              Okunan dersler ({taslak.dersler.length})
+            </span>
+            <span style={{ fontSize: 12, color: '#6B7280' }}>
+              AGNO:
+              <input
+                value={taslak.agno}
+                onChange={(e) => setTaslak({ ...taslak, agno: e.target.value })}
+                style={{ ...girdi, width: 70, display: 'inline-block', marginLeft: 6 }}
+              />
+            </span>
+          </div>
+          <div
+            style={{
+              maxHeight: 320,
+              overflowY: 'auto',
+              border: '1px solid #E5E7EB',
+              borderRadius: 8,
+            }}
+          >
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#F9FAFB' }}>
+                  {['Kod', 'Ad', 'AKTS', 'Not', ''].map((h) => (
+                    <th
+                      key={h}
+                      style={{ ...hucre, textAlign: 'left', fontSize: 10.5, color: '#6B7280' }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {taslak.dersler.map((d, i) => {
+                  const dur = window.mezNotDurumu
+                    ? window.mezNotDurumu(
+                        d.not,
+                        Object.assign({}, window.MEZUNIYET_VARSAYILAN, kural || {})
+                      )
+                    : 'belirsiz';
+                  return (
+                    <tr key={i}>
+                      <td style={{ ...hucre, width: 90 }}>
+                        <input
+                          value={d.kod}
+                          onChange={(e) => taslakDegistir(i, 'kod', e.target.value)}
+                          style={girdi}
+                        />
+                      </td>
+                      <td style={hucre}>
+                        <input
+                          value={d.ad}
+                          onChange={(e) => taslakDegistir(i, 'ad', e.target.value)}
+                          style={girdi}
+                        />
+                      </td>
+                      <td style={{ ...hucre, width: 55 }}>
+                        <input
+                          value={d.akts}
+                          onChange={(e) =>
+                            taslakDegistir(i, 'akts', e.target.value.replace(/\D/g, ''))
+                          }
+                          style={girdi}
+                        />
+                      </td>
+                      <td style={{ ...hucre, width: 62 }}>
+                        <input
+                          value={d.not}
+                          onChange={(e) =>
+                            taslakDegistir(i, 'not', e.target.value.toLocaleUpperCase('tr-TR'))
+                          }
+                          style={girdi}
+                        />
+                      </td>
+                      <td style={{ ...hucre, width: 66, color: durumRenk[dur], fontWeight: 600 }}>
+                        {durumEtiket[dur]}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button disabled={calisiyor} onClick={kaydet} style={kucukBtn('#059669', 'white')}>
+              {calisiyor ? 'Kaydediliyor…' : 'Kaydet'}
+            </button>
+            <button
+              disabled={calisiyor}
+              onClick={() => {
+                setTaslak(null);
+                setMesaj('');
+              }}
+              style={kucukBtn('white', '#1B2A4A', '#D1D5DB')}
+            >
+              Vazgeç
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Kaydedilmiş ders listesi (katlanır) ── */}
+      {!taslak && sonuc && (
+        <div style={{ marginTop: 12 }}>
+          <button
+            onClick={() => setAcik((v) => !v)}
+            style={{
+              border: 'none',
+              background: 'none',
+              color: '#2563EB',
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            {acik
+              ? 'Ders listesini gizle'
+              : 'Tüm derslerimi göster (' + sonuc.kayitlar.length + ')'}
+          </button>
+          {acik && (
+            <div
+              style={{
+                marginTop: 8,
+                maxHeight: 320,
+                overflowY: 'auto',
+                border: '1px solid #E5E7EB',
+                borderRadius: 8,
+              }}
+            >
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <tbody>
+                  {sonuc.kayitlar.map((r, i) => (
+                    <tr key={i}>
+                      <td style={{ ...hucre, width: 90, fontWeight: 600 }}>{r.kod}</td>
+                      <td style={hucre}>
+                        {r.ad}
+                        {!r.mufredatta && (
+                          <span style={{ color: '#9CA3AF', fontSize: 11 }}> · müfredat dışı</span>
+                        )}
+                      </td>
+                      <td style={{ ...hucre, width: 50, color: '#6B7280' }}>{r.akts}</td>
+                      <td style={{ ...hucre, width: 45 }}>{r.not}</td>
+                      <td
+                        style={{
+                          ...hucre,
+                          width: 66,
+                          color: durumRenk[r.durum],
+                          fontWeight: 600,
+                        }}
+                      >
+                        {durumEtiket[r.durum]}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {mesaj && <div style={{ marginTop: 10, fontSize: 12, color: '#374151' }}>{mesaj}</div>}
+    </div>
+  );
+}
+
 function BSLightbox({ url, zoomable, onClose }) {
   const [zoomed, setZoomed] = useState(false);
   return (

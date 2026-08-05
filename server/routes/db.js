@@ -158,6 +158,13 @@ const ALLOWED_COLLECTIONS = [
   // açtığı pop-up duyurular (metin · görsel · video). Herkes okur, yalnız
   // yetkili yazar (DEPT_MANAGER_WRITE).
   'duyurular',
+  // Mezuniyet kuralları — bölüm başına (doc id = departmentId): toplam AKTS,
+  // asgari AGNO, müfredat tipi (normal / 7+1), staj şartı, geçer notlar.
+  // Yalnız bölüm yetkilisi yazar.
+  'mezuniyet_kurallari',
+  // Öğrencinin transkriptinden türetilen akademik kayıt (doc id = öğrenci no):
+  // aldığı dersler, notlar, AGNO. Öğrenci kendi kaydını yazar.
+  'ogrenci_akademik_kayit',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -233,6 +240,9 @@ const STUDENT_WRITABLE = new Set([
   'cap_yandal_basvurular',
   // Yatay geçiş başvurusu — öğrenci kendi başvurusunu oluşturur/günceller.
   'yatay_gecis_basvurular',
+  // Transkriptten türetilen akademik kayıt — öğrenci kendi transkriptini
+  // yükler, sonuç kendi kaydına yazılır (docId = öğrenci no).
+  'ogrenci_akademik_kayit',
 ]);
 
 const STAFF_ROLES = new Set(['professor', 'bolum_yetkilisi', 'admin']);
@@ -295,6 +305,9 @@ const DEPT_MANAGER_WRITE = new Set([
   // Duyurular herkesin ekranında pop-up olarak açılır; sade akademisyen ya da
   // öğrenci duyuru yayınlayamaz.
   'duyurular',
+  // Mezuniyet kuralları öğrencinin "mezun olabilir miyim" hesabının tabanıdır;
+  // öğrencinin ya da sade akademisyenin değiştirmesi anlamsız olurdu.
+  'mezuniyet_kurallari',
 ]);
 
 // ── Öğrencinin KENDİ `students` kaydı ──
@@ -364,6 +377,8 @@ const STUDENT_READ_SCOPED = {
   students: 'studentNumber',
   internship_applications: 'ogrenciNo',
   muafiyet_records: 'studentNo',
+  // Akademik kayıt not/AGNO içerir — öğrenci yalnız kendisininkini görür.
+  ogrenci_akademik_kayit: 'studentNo',
 };
 // Öğrenci okumalarında alan kısıtlaması (e-posta/bayrak gibi alanlar sızmasın)
 const STUDENT_READ_STRIPPED = {

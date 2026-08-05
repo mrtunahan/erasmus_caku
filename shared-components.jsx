@@ -4,6 +4,7 @@
 // Token'ların gerçek kaynağı design-tokens.json — JSON import'u Vite'ın
 // hem dev hem prod modunda sorunsuz çalışır (.cjs import'u dev'de patlıyordu).
 import T_TOKENS from './design-tokens.json';
+import { MEZUNIYET_VARSAYILAN, mezuniyetHesapla, mezNotDurumu } from './lib/mezuniyet.js';
 
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
@@ -10753,6 +10754,13 @@ window.LoginModal = LoginModal;
 window.PasswordManagementModal = PasswordManagementModal;
 window.GradeConverter = GradeConverter;
 window.ChangePasswordModal = ChangePasswordModal;
+
+// ── Mezuniyet durumu hesabı ──
+// Saf hesap ayrı bir modülde (lib/mezuniyet.js): tek kaynak olsun ve
+// testten geçebilsin diye. Burada yalnız window'a bağlanır.
+window.MEZUNIYET_VARSAYILAN = MEZUNIYET_VARSAYILAN;
+window.mezuniyetHesapla = mezuniyetHesapla;
+window.mezNotDurumu = mezNotDurumu;
 
 // ══════════════════════════════════════════════════════════════
 // DUYURULAR (pop-up)
