@@ -593,7 +593,17 @@ function CyBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
 // ══════════════════════════════════════════════════════════════
 // Başvuru detay kartı (öğrenci + akademisyen ortak)
 // ══════════════════════════════════════════════════════════════
-function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSigned, busyId }) {
+function CyBasvuruKarti({
+  rec,
+  tur,
+  isStaff,
+  onDecision,
+  onDilekce,
+  onUploadSigned,
+  busyId,
+  currentUser,
+  onSilindi,
+}) {
   const [open, setOpen] = useState(false);
   const [signing, setSigning] = useState(false);
   const st = CY_DURUMLAR[rec.status || 'pending'] || CY_DURUMLAR.pending;
@@ -963,6 +973,23 @@ function CyBasvuruKarti({ rec, tur, isStaff, onDecision, onDilekce, onUploadSign
               );
             })()}
 
+          {/* Bölüm yetkilisi: karara bağlanmış kaydı kalıcı silebilir.
+              Beklemedeki başvurularda buton görünmez. */}
+          {isStaff &&
+            (rec.status === 'approved' || rec.status === 'rejected') &&
+            window.BasvuruSilButonu && (
+              <div style={{ marginBottom: 10 }}>
+                {React.createElement(window.BasvuruSilButonu, {
+                  koleksiyon: 'cap_yandal_basvurular',
+                  docId: rec.id || rec._docId,
+                  currentUser,
+                  tamamlandi: true,
+                  ogrenciAdi: rec.adSoyad || rec.ogrenciAdi,
+                  onSilindi,
+                })}
+              </div>
+            )}
+
           {/* ── AKADEMİSYEN: dilekçe üret + öğrencinin imzalı dilekçesi + karar ── */}
           {isStaff && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1277,6 +1304,8 @@ function CapYandalApp({ currentUser, activeDepartment, departmentInfo }) {
             onDilekce={makeDilekce}
             onUploadSigned={uploadSigned}
             busyId={busyId}
+            currentUser={currentUser}
+            onSilindi={load}
           />
         ))}
       </div>

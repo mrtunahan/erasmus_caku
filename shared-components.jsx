@@ -5010,6 +5010,163 @@ window.belgeOtoYonlendir = async function (o) {
 // eklenir. Böylece memur kendi listesini toplarken belgeyi gönderen
 // akademisyenin takibi ve diğer alıcıların kutusu bozulmaz. Dosya da yerinde
 // kalır; belge gerekirse yeniden erişilebilir.
+// ══════════════════════════════════════════════════════════════
+// BAŞVURU SİLME — bölüm yetkilisi, yalnız tamamlanmış kayıtlar
+//
+// ÇAP/Yandal, Yatay Geçiş ve Dikey Geçiş modüllerinde ortak kullanılır.
+// Bu GERÇEK bir silmedir (memur belgelerindeki "gizle" değil): kayıt
+// veritabanından kalkar, geri alınamaz. Bu yüzden:
+//   • yalnız bölüm yetkilisi ve üstü görebilir
+//   • yalnız süreci bitmiş kayıtlarda çıkar
+//   • öğrenci adını yazdıran açık bir onay ister
+// Nihai denetim SUNUCUDADIR (routes/db.js → BASVURU_SIL_DEPT_MANAGER);
+// buradaki kontroller yalnız arayüzü doğru göstermek içindir.
+// ══════════════════════════════════════════════════════════════
+
+// Kullanıcı bölüm yetkilisi (ya da üstü) mü?
+window.basvuruSilebilirMi = function (user) {
+  if (!user) return false;
+  // Rol doğrudan bölüm yetkilisiyse bayrak aranmaz — sunucu da bu rolü
+  // bayraktan bağımsız geçiriyor, ikisi aynı kapıyı açmalı.
+  if (user.role === 'admin' || user.role === 'bolum_yetkilisi') return true;
+  return !!(user.isDeptManager || user.isFacultyManager || user.isUniversityAdmin);
+};
+
+window.basvuruSil = async function (koleksiyon, docId) {
+  if (!docId) throw new Error('Kayıt kimliği yok.');
+  await window.DBWrite.remove(koleksiyon, String(docId));
+};
+
+/**
+ * Silme butonu + onay kutusu.
+ *
+ * props:
+ *   koleksiyon   — 'cap_yandal_basvurular' | 'yatay_gecis_basvurular' | 'muafiyet_records'
+ *   docId
+ *   currentUser
+ *   tamamlandi   — kaydın süreci bitti mi (modül kendi ölçütüyle belirler)
+ *   ogrenciAdi   — onay metninde gösterilir
+ *   onSilindi()
+ */
+window.BasvuruSilButonu = function BasvuruSilButonu({
+  koleksiyon,
+  docId,
+  currentUser,
+  tamamlandi,
+  ogrenciAdi,
+  onSilindi,
+}) {
+  const [onay, setOnay] = React.useState(false);
+  const [siliniyor, setSiliniyor] = React.useState(false);
+  const [hata, setHata] = React.useState('');
+
+  if (!window.basvuruSilebilirMi(currentUser)) return null;
+  // Süren başvuru silinemez — buton hiç gösterilmez ki yanlış beklenti olmasın.
+  if (!tamamlandi) return null;
+
+  const sil = async () => {
+    setSiliniyor(true);
+    setHata('');
+    try {
+      await window.basvuruSil(koleksiyon, docId);
+      if (onSilindi) onSilindi();
+    } catch (e) {
+      setHata(e.message || 'Silinemedi.');
+      setSiliniyor(false);
+    }
+  };
+
+  if (!onay) {
+    return React.createElement(
+      'button',
+      {
+        type: 'button',
+        onClick: () => setOnay(true),
+        style: {
+          padding: '6px 12px',
+          borderRadius: 8,
+          border: '1px solid #FCA5A5',
+          background: 'white',
+          color: '#B91C1C',
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+        },
+      },
+      'Kaydı Sil'
+    );
+  }
+
+  return React.createElement(
+    'div',
+    {
+      style: {
+        border: '1px solid #FCA5A5',
+        background: '#FEF2F2',
+        borderRadius: 10,
+        padding: 12,
+      },
+    },
+    React.createElement(
+      'div',
+      { style: { fontSize: 12.5, color: '#991B1B', marginBottom: 10, lineHeight: 1.6 } },
+      React.createElement('b', null, ogrenciAdi || 'Bu öğrencinin'),
+      ' başvuru kaydı ve tüm ekleri kalıcı olarak silinecek. ',
+      React.createElement('b', null, 'Bu işlem geri alınamaz.')
+    ),
+    hata
+      ? React.createElement(
+          'div',
+          { style: { fontSize: 12, color: '#B91C1C', marginBottom: 8, fontWeight: 600 } },
+          hata
+        )
+      : null,
+    React.createElement(
+      'div',
+      { style: { display: 'flex', gap: 8 } },
+      React.createElement(
+        'button',
+        {
+          type: 'button',
+          onClick: () => setOnay(false),
+          disabled: siliniyor,
+          style: {
+            padding: '6px 12px',
+            borderRadius: 8,
+            border: '1px solid #E5E7EB',
+            background: 'white',
+            fontSize: 12,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          },
+        },
+        'Vazgeç'
+      ),
+      React.createElement(
+        'button',
+        {
+          type: 'button',
+          onClick: sil,
+          disabled: siliniyor,
+          style: {
+            padding: '6px 14px',
+            borderRadius: 8,
+            border: 'none',
+            background: siliniyor ? '#D1D5DB' : '#B91C1C',
+            color: 'white',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: siliniyor ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit',
+          },
+        },
+        siliniyor ? 'Siliniyor…' : 'Evet, kalıcı olarak sil'
+      )
+    )
+  );
+};
+
 window.belgeListedenKaldir = async function (koleksiyon, docId) {
   const cu = window.__currentUser || {};
   const kim = String(cu.identifier || cu.name || '');
