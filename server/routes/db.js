@@ -154,6 +154,10 @@ const ALLOWED_COLLECTIONS = [
   // "belge metni → beklenen çıktı" çiftleri. Prompt'un önbelleğe alınan
   // sabit bloğuna gömülür.
   'ai_ornekler',
+  // Bölüm duyuruları — bölüm/fakülte/üniversite yetkilisinin hedef bölümlere
+  // açtığı pop-up duyurular (metin · görsel · video). Herkes okur, yalnız
+  // yetkili yazar (DEPT_MANAGER_WRITE).
+  'duyurular',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -284,6 +288,9 @@ const DEPT_MANAGER_WRITE = new Set([
   // bloğuna gömülür, yani kalitesi doğrudan çıkarım doğruluğunu etkiler.
   // Sade akademisyen/öğrenci değiştiremez.
   'ai_ornekler',
+  // Duyurular herkesin ekranında pop-up olarak açılır; sade akademisyen ya da
+  // öğrenci duyuru yayınlayamaz.
+  'duyurular',
 ]);
 
 // ── Öğrencinin KENDİ `students` kaydı ──

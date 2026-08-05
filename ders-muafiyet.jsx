@@ -5630,37 +5630,36 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
 // ══════════════════════════════════════════════════════════════
 // BİRLEŞİK DERS İÇERİĞİ PDF'İ (akademisyen)
 //   Öğrenci her ders için iki içerik dosyası yüklüyor (karşı kurum + ÇAKÜ).
-//   10 derslik bir talepte bu 20 ayrı sekme demek. Burada hepsi sunucuda
-//   tek PDF'e birleştirilir; her belgenin önüne hangi derse ait olduğunu
-//   yazan bir ayraç sayfası konur.
+//   10 derslik bir talepte bu 20 ayrı sekme demek. Burada sunucuda
+//   birleştirilir; her belgenin önüne hangi derse ait olduğunu yazan bir
+//   ayraç sayfası konur.
+//
+//   KURUM BAŞINA AYRI PDF üretilir — iki kurumun belgeleri tek dosyada
+//   iç içe geçmez.
 // ══════════════════════════════════════════════════════════════
 
-// Kayıttaki eşleşmelerden birleştirilecek dosya listesini çıkarır.
-// Sıra bilinçlidir: ders ders, önce karşı kurum sonra ÇAKÜ — akademisyen
-// kıyaslamayı yan yana okuyabilsin diye.
-function birlesikPdfListesi(record) {
+// Kayıttaki eşleşmelerden, KURUM BAŞINA ayrı dosya listesi çıkarır.
+//
+// İki kurum tek PDF'te birleştirilmiyor: karşı kurumun ders içerikleri ile
+// ÇAKÜ'nün ders içerikleri farklı kurumların belgeleridir; değerlendirici
+// bunları yan yana açıp karşılaştırır, iç içe geçmiş tek belge bu okumayı
+// zorlaştırır. Her kurum kendi PDF'ini alır, ders sırası ikisinde de aynıdır
+// (1. ders, 2. ders …) — böylece iki belge aynı hizada ilerler.
+function birlesikPdfListesi(record, taraf) {
   const out = [];
   (record.matches || []).forEach(function (m, i) {
-    const src = m.sourceCourse || {};
-    const cak = m.localCourse || {};
-    const sira = i + 1;
-    if (src.fileUrl) {
-      out.push({
-        url: src.fileUrl,
-        baslik: sira + '. Karsi Kurum — ' + [src.code, src.name].filter(Boolean).join(' ').trim(),
-      });
-    }
-    if (cak.fileUrl) {
-      out.push({
-        url: cak.fileUrl,
-        baslik: sira + '. CAKU — ' + [cak.code, cak.name].filter(Boolean).join(' ').trim(),
-      });
-    }
+    const d = (taraf === 'caku' ? m.localCourse : m.sourceCourse) || {};
+    if (!d.fileUrl) return;
+    out.push({
+      url: d.fileUrl,
+      baslik: i + 1 + '. ' + [d.code, d.name].filter(Boolean).join(' ').trim(),
+    });
   });
   return out;
 }
 
-const BirlesikIcerikPdf = ({ record }) => {
+// Tek kurumun içeriklerini birleştiren buton çifti (görüntüle + indir).
+const BirlesikPdfGrubu = ({ record, taraf, etiket, dosyaOnEki }) => {
   const [busy, setBusy] = useState(false);
   const [hata, setHata] = useState('');
   const [bilgi, setBilgi] = useState('');
@@ -5673,8 +5672,10 @@ const BirlesikIcerikPdf = ({ record }) => {
     };
   }, []);
 
-  const dosyalar = birlesikPdfListesi(record);
+  const dosyalar = birlesikPdfListesi(record, taraf);
   if (dosyalar.length === 0) return null;
+
+  const dosyaAdi = dosyaOnEki + '_' + (record.studentNo || record.id || 'kayit') + '.pdf';
 
   const uret = async (indir) => {
     setBusy(true);
@@ -5689,10 +5690,7 @@ const BirlesikIcerikPdf = ({ record }) => {
           token ? { Authorization: 'Bearer ' + token } : {}
         ),
         credentials: 'include',
-        body: JSON.stringify({
-          dosyalar: dosyalar,
-          filename: 'ders_icerikleri_' + (record.studentNo || record.id || 'kayit') + '.pdf',
-        }),
+        body: JSON.stringify({ dosyalar: dosyalar, filename: dosyaAdi }),
       });
       if (!res.ok) {
         const j = await res.json().catch(function () {
@@ -5711,7 +5709,7 @@ const BirlesikIcerikPdf = ({ record }) => {
       if (indir) {
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'ders_icerikleri_' + (record.studentNo || 'kayit') + '.pdf';
+        a.download = dosyaAdi;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -5753,7 +5751,9 @@ const BirlesikIcerikPdf = ({ record }) => {
         color: DS.textSecondary,
       }}
     >
-      <span style={{ fontWeight: 600 }}>Ders içerikleri ({dosyalar.length} belge):</span>
+      <span style={{ fontWeight: 600, minWidth: 190 }}>
+        {etiket} ({dosyalar.length} belge):
+      </span>
       <button disabled={busy} onClick={() => uret(false)} style={btn(DS.navy, 'white')}>
         {busy ? 'Birleştiriliyor…' : 'Birleşik PDF Görüntüle'}
       </button>
@@ -5762,6 +5762,29 @@ const BirlesikIcerikPdf = ({ record }) => {
       </button>
       {bilgi && <span style={{ color: DS.green }}>{bilgi}</span>}
       {hata && <span style={{ color: DS.red }}>{hata}</span>}
+    </div>
+  );
+};
+
+const BirlesikIcerikPdf = ({ record }) => {
+  const karsiAd = record.otherUni || record.otherUniversity || 'Karşı kurum';
+  const varMi =
+    birlesikPdfListesi(record, 'karsi').length > 0 || birlesikPdfListesi(record, 'caku').length > 0;
+  if (!varMi) return null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <BirlesikPdfGrubu
+        record={record}
+        taraf="karsi"
+        etiket={karsiAd + ' içerikleri'}
+        dosyaOnEki="karsi_kurum_ders_icerikleri"
+      />
+      <BirlesikPdfGrubu
+        record={record}
+        taraf="caku"
+        etiket="ÇAKÜ ders içerikleri"
+        dosyaOnEki="caku_ders_icerikleri"
+      />
     </div>
   );
 };

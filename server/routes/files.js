@@ -417,7 +417,7 @@ const TR_ASCII = {
 const asciiIndirge = (s) =>
   String(s || '')
     .replace(/[çÇğĞıİöÖşŞüÜ]/g, (c) => TR_ASCII[c])
-     
+
     .replace(/[^\x20-\x7E]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -451,7 +451,11 @@ router.post('/merge-pdf', uploadLimiter, fileAuth, mergeRequireStaff, async (req
   try {
     ({ PDFDocument, StandardFonts, rgb } = require('pdf-lib'));
   } catch (_e) {
-    return res.status(503).json({ error: 'PDF birleştirme kütüphanesi kurulu değil (pdf-lib).' });
+    return res.status(503).json({
+      error:
+        'PDF birleştirme kütüphanesi kurulu değil (pdf-lib). ' +
+        'Sunucuda "cd server && npm install" çalıştırıp servisi yeniden başlatın.',
+    });
   }
 
   const istenen = Array.isArray(req.body && req.body.dosyalar) ? req.body.dosyalar : [];
