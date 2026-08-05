@@ -436,6 +436,22 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         >
           Duyurular
         </button>
+        <button
+          onClick={() => setActiveTab('mezuniyet')}
+          style={{
+            padding: '12px 16px',
+            background: 'none',
+            border: 'none',
+            borderBottom:
+              activeTab === 'mezuniyet' ? `2px solid ${C.blue}` : '2px solid transparent',
+            color: activeTab === 'mezuniyet' ? C.blue : '#6B7280',
+            fontWeight: activeTab === 'mezuniyet' ? 600 : 500,
+            cursor: 'pointer',
+            fontSize: 14,
+          }}
+        >
+          Mezuniyet Kuralları
+        </button>
       </div>
 
       {activeTab === 'kilitler' && (
@@ -456,11 +472,16 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         <DuyuruYonetimi currentUser={currentUser} activeDepartment={activeDepartment} />
       )}
 
+      {activeTab === 'mezuniyet' && (
+        <MezuniyetKurallari activeDepartment={activeDepartment} currentUser={currentUser} />
+      )}
+
       {activeTab !== 'kilitler' &&
         activeTab !== 'benimayar' &&
         activeTab !== 'akademisyenbilgi' &&
         activeTab !== 'memurbilgi' &&
         activeTab !== 'duyurular' &&
+        activeTab !== 'mezuniyet' &&
         (loading ? (
           <div style={{ padding: 40, textAlign: 'center' }}>Yükleniyor...</div>
         ) : (
@@ -2325,6 +2346,250 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// MEZUNİYET KURALLARI (bölüm başına)
+//
+//   Öğrencinin "Benim Sayfam → Mezuniyet Durumum" hesabının tabanı budur.
+//   Kurallar bölümden bölüme değişir (toplam AKTS, asgari AGNO, 7+1 mi
+//   normal müfredat mı, staj şartı, hangi harf notu geçer sayılır) ve
+//   yönetmeliğe bağlıdır — bu yüzden koda gömülmez, burada tanımlanır.
+//
+//   Kayıt yoksa shared-components'taki MEZUNIYET_VARSAYILAN geçerlidir.
+// ══════════════════════════════════════════════════════════════
+function MezuniyetKurallari({ activeDepartment, currentUser }) {
+  const varsayilan = window.MEZUNIYET_VARSAYILAN || {};
+  const [form, setForm] = useState(null);
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+  const [mesaj, setMesaj] = useState('');
+
+  useEffect(() => {
+    let iptal = false;
+    setYukleniyor(true);
+    setMesaj('');
+    window
+      .apiReadDoc('mezuniyet_kurallari', String(activeDepartment || ''))
+      .then((r) => {
+        if (iptal) return;
+        const d = (r && r.exists && r.data) || {};
+        setForm(Object.assign({}, varsayilan, d));
+      })
+      .catch(() => !iptal && setForm(Object.assign({}, varsayilan)))
+      .finally(() => !iptal && setYukleniyor(false));
+    return () => {
+      iptal = true;
+    };
+  }, [activeDepartment]);
+
+  const kaydet = async () => {
+    setKaydediliyor(true);
+    setMesaj('');
+    try {
+      await DBWrite.set(
+        'mezuniyet_kurallari',
+        String(activeDepartment),
+        {
+          departmentId: String(activeDepartment),
+          mufredatTipi: form.mufredatTipi,
+          toplamAkts: parseInt(form.toplamAkts, 10) || 240,
+          minAgno: parseFloat(String(form.minAgno).replace(',', '.')) || 2,
+          minSecmeliAkts: parseInt(form.minSecmeliAkts, 10) || 0,
+          isyeriEgitimiAkts: parseInt(form.isyeriEgitimiAkts, 10) || 0,
+          stajZorunlu: form.stajZorunlu !== false,
+          gecerNotlar: form.gecerNotlar,
+          kalirNotlar: form.kalirNotlar,
+          aciklama: form.aciklama || '',
+          updatedAt: new Date().toISOString(),
+          updatedBy: currentUser?.name || currentUser?.identifier || '',
+        },
+        true
+      );
+      setMesaj('Kaydedildi.');
+    } catch (e) {
+      setMesaj('Kaydedilemedi: ' + e.message);
+    } finally {
+      setKaydediliyor(false);
+    }
+  };
+
+  if (yukleniyor || !form) {
+    return <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>Yükleniyor...</div>;
+  }
+
+  const etiket = {
+    display: 'block',
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    marginBottom: 5,
+  };
+  const girdi = {
+    width: '100%',
+    padding: '9px 11px',
+    borderRadius: 8,
+    border: '1px solid #D1D5DB',
+    fontSize: 13,
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  };
+  const cip = (secili) => ({
+    padding: '6px 14px',
+    borderRadius: 999,
+    border: '1px solid ' + (secili ? C.blue : '#D1D5DB'),
+    background: secili ? C.blue + '14' : 'white',
+    color: secili ? C.blue : '#6B7280',
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: 'pointer',
+  });
+  const notListesi = (dizi) => (Array.isArray(dizi) ? dizi.join(', ') : '');
+  const notAyristir = (metin) =>
+    String(metin || '')
+      .split(/[,\s]+/)
+      .map((s) => s.trim().toLocaleUpperCase('tr-TR'))
+      .filter(Boolean);
+
+  return (
+    <div>
+      <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 16px', lineHeight: 1.55 }}>
+        Bu kurallar öğrencinin <b>Benim Sayfam → Mezuniyet Durumum</b> hesabında kullanılır. Öğrenci
+        transkriptini yükler, sistem bu kurallara göre geçilen/kalan dersleri ve mezuniyet
+        koşullarını çıkarır. Kural tanımlanmazsa varsayılanlar geçerlidir.
+      </p>
+
+      <div
+        style={{
+          background: 'white',
+          border: '1px solid #E5E7EB',
+          borderRadius: 12,
+          padding: 18,
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ marginBottom: 14 }}>
+          <label style={etiket}>Müfredat tipi</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[
+              { id: 'normal', label: 'Normal (8 yarıyıl ders)' },
+              { id: '7+1', label: '7+1 (7 yarıyıl ders + işyeri eğitimi)' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setForm({ ...form, mufredatTipi: t.id })}
+                style={cip(form.mufredatTipi === t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {form.mufredatTipi === '7+1' && (
+            <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 7, lineHeight: 1.5 }}>
+              7+1 seçiliyken müfredatın <b>4. sınıf Bahar</b> dersleri “kalan ders” olarak sayılmaz;
+              yerine işyeri eğitimi koşulu gösterilir. Bu ayrım, Ders Yönetimi’ndeki sınıf/dönem
+              bilgisine dayanır — o alanların doğru girilmiş olması gerekir.
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div style={{ flex: '1 1 150px' }}>
+            <label style={etiket}>Mezuniyet için toplam AKTS</label>
+            <input
+              value={form.toplamAkts}
+              onChange={(e) => setForm({ ...form, toplamAkts: e.target.value.replace(/\D/g, '') })}
+              style={girdi}
+            />
+          </div>
+          <div style={{ flex: '1 1 150px' }}>
+            <label style={etiket}>Asgari AGNO</label>
+            <input
+              value={form.minAgno}
+              onChange={(e) => setForm({ ...form, minAgno: e.target.value })}
+              style={girdi}
+            />
+          </div>
+          <div style={{ flex: '1 1 150px' }}>
+            <label style={etiket}>Asgari seçmeli AKTS (0 = aranmaz)</label>
+            <input
+              value={form.minSecmeliAkts}
+              onChange={(e) =>
+                setForm({ ...form, minSecmeliAkts: e.target.value.replace(/\D/g, '') })
+              }
+              style={girdi}
+            />
+          </div>
+          {form.mufredatTipi === '7+1' && (
+            <div style={{ flex: '1 1 150px' }}>
+              <label style={etiket}>İşyeri eğitimi AKTS</label>
+              <input
+                value={form.isyeriEgitimiAkts}
+                onChange={(e) =>
+                  setForm({ ...form, isyeriEgitimiAkts: e.target.value.replace(/\D/g, '') })
+                }
+                style={girdi}
+              />
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <input
+              type="checkbox"
+              checked={form.stajZorunlu !== false}
+              onChange={(e) => setForm({ ...form, stajZorunlu: e.target.checked })}
+            />
+            Mezuniyet için staj zorunlu
+          </label>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div style={{ flex: '1 1 260px' }}>
+            <label style={etiket}>Geçer sayılan harf notları</label>
+            <input
+              value={notListesi(form.gecerNotlar)}
+              onChange={(e) => setForm({ ...form, gecerNotlar: notAyristir(e.target.value) })}
+              style={girdi}
+            />
+          </div>
+          <div style={{ flex: '1 1 260px' }}>
+            <label style={etiket}>Kalır sayılan harf notları</label>
+            <input
+              value={notListesi(form.kalirNotlar)}
+              onChange={(e) => setForm({ ...form, kalirNotlar: notAyristir(e.target.value) })}
+              style={girdi}
+            />
+          </div>
+        </div>
+        <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 14, lineHeight: 1.5 }}>
+          İki listede de yer almayan bir not <b>“belirsiz”</b> sayılır ve geçilmiş kabul edilmez —
+          öğrenciye olmayan bir mezuniyet vaat etmemek için. DD/DC gibi yönetmeliğe göre koşullu
+          geçer notları, bölümünüzün uygulamasına göre listeye ekleyin ya da çıkarın.
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={etiket}>Öğrenciye not (isteğe bağlı)</label>
+          <textarea
+            value={form.aciklama || ''}
+            rows={2}
+            onChange={(e) => setForm({ ...form, aciklama: e.target.value })}
+            style={{ ...girdi, resize: 'vertical' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <Btn onClick={kaydet} variant="primary" disabled={kaydediliyor}>
+            {kaydediliyor ? 'Kaydediliyor…' : 'Kaydet'}
+          </Btn>
+          {mesaj && <span style={{ fontSize: 12.5, color: '#059669' }}>{mesaj}</span>}
+        </div>
+      </div>
     </div>
   );
 }
