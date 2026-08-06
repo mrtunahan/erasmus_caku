@@ -2177,6 +2177,12 @@ const YATAY_STATIC = [
   { id: 'egitimYili', label: 'Eğitim-Öğretim Yılı (örn 2026-2027)' },
   { id: 'donem', label: 'Dönem (Güz/Bahar)' },
   { id: 'basvurulanBolum', label: 'Raporun Ait Olduğu Bölüm', format: 'title' },
+  // Şablon başlıkları çoğu zaman "… {{bölüm}} MÜHENDİSLİĞİ BÖLÜMÜ …" biçiminde
+  // yazılıyor, yani yer tutucudan ÇIPLAK dal adı bekleniyor. Tam ad konunca
+  // "Gıda Mühendisliği MÜHENDİSLİĞİ BÖLÜMÜ" gibi tekrar oluşuyordu. Bu değişken
+  // sondaki "Mühendisliği"/"Bölümü" ekini atar: "Gıda Mühendisliği" → "Gıda".
+  // Eki taşımayan bölüm adları (ör. "Moleküler Biyoloji ve Genetik") aynen kalır.
+  { id: 'basvurulanBolumKisa', label: 'Bölüm Adı (kısa — "Mühendisliği" eki olmadan)' },
   { id: 'fakulteAd', label: 'Fakülte Adı', format: 'title' },
   { id: 'tarih', label: 'Bugünün Tarihi' },
 ];
