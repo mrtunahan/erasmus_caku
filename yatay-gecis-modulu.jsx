@@ -1776,6 +1776,11 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                 modul="yatay-merkezi"
                 programlar={tabanProgramlari}
                 onKayitlar={setTabanKayitlari}
+                // Belge türü ipucu ŞART: kurumlar aynı yıl için ÖNLİSANS,
+                // LİSANS ve DGS listelerini AYRI AYRI yayımlıyor; bir program
+                // hepsinde geçebiliyor ama puanları bambaşka. Tür söylenmezse
+                // yanlış listeden okuma riski var.
+                puanTuru="LİSANS (ÖSYS/YKS merkezi yerleştirme listesi)"
                 baslik="Taban puan sayfasının adresi (ÖSYS/YKS)"
                 aciklama={
                   'Merkezi yerleştirme puanıyla geçişte adayın YKS puanı, başvurduğu programın ' +

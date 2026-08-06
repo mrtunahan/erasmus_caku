@@ -534,6 +534,7 @@ router.post('/taban-puan', extractLimiter, requireAuth, requireStaff, async (req
       model: cx.MODEL,
       url: sonuc.url,
       alanAdi: sonuc.alanAdi,
+      kullanilanModel: sonuc.model,
       data: sonuc.data,
       // Hangi adresler denendi, hangisi açıldı — "bulunamadı" mesajının
       // ardındaki tanı. Bu olmadan kullanıcı "sayfa okundu ama program yok"
