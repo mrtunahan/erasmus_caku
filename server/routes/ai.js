@@ -591,6 +591,9 @@ router.post('/taban-puan', extractLimiter, requireAuth, requireStaff, async (req
             durum: 'hata',
             hataMesaji: tabanHataMesaji(sonuc),
             denemeler: tabanDenemeleri(sonuc.getirmeler),
+            // Başarısız çalıştırma da para harcar; gizlemek maliyeti
+            // olduğundan düşük gösterirdi.
+            maliyetUsd: sonuc.maliyetUsd || 0,
             bitisZamani: new Date().toISOString(),
           });
           return;
@@ -614,6 +617,8 @@ router.post('/taban-puan', extractLimiter, requireAuth, requireStaff, async (req
           programlar: okunan,
           denemeler: tabanDenemeleri(sonuc.getirmeler),
           kullanilanModel: sonuc.model || '',
+          maliyetUsd: sonuc.maliyetUsd || 0,
+          tokenOzeti: sonuc.tokenOzeti || null,
           url: sonuc.url || url,
           hataMesaji: '',
           okunmaZamani: new Date().toISOString(),
@@ -657,6 +662,8 @@ router.get('/taban-puan/:docId', statusLimiter, requireAuth, requireStaff, async
       baslangicZamani: d.baslangicZamani || '',
       okuyan: d.okuyan || '',
       kullanilanModel: d.kullanilanModel || '',
+      maliyetUsd: d.maliyetUsd || 0,
+      tokenOzeti: d.tokenOzeti || null,
     });
   } catch (err) {
     return res.status(500).json({ error: 'Durum alınamadı: ' + err.message });
@@ -771,6 +778,7 @@ router.get('/usage', statusLimiter, requireAuth, requireStaff, async (req, res) 
       groupBy: clip(req.query.groupBy, 20) || 'student',
       since: clip(req.query.since, 40),
       departmentId: clip(req.query.departmentId, 80),
+      endpoint: clip(req.query.endpoint, 40),
     });
     return res.json({ ok: true, model: cx.MODEL, rapor });
   } catch (err) {

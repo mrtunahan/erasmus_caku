@@ -85,6 +85,11 @@ const KIRILIMLAR = [
   { id: 'module', label: 'Modül' },
   { id: 'department', label: 'Bölüm' },
   { id: 'day', label: 'Gün' },
+  // "Hangi ÖZELLİK ne kadar tutuyor" sorusuna modül kırılımı yetmiyor: aynı
+  // modülde ucuz (alan çıkarımı) ve pahalı (web'den taban puan okuma)
+  // çağrılar bir arada. Uç ve model kırılımı pahalıyı ayırt ettiriyor.
+  { id: 'endpoint', label: 'İşlem türü' },
+  { id: 'model', label: 'Model' },
 ];
 
 function usd(n) {

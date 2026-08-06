@@ -24,7 +24,7 @@ const AnthropicPkg = require('@anthropic-ai/sdk');
 const Anthropic = AnthropicPkg.Anthropic || AnthropicPkg.default || AnthropicPkg;
 const { getDbSafe } = require('../config/database');
 const { istekGruplari } = require('./doc-text');
-const { kullanimKaydet } = require('./ai-usage');
+const { kullanimKaydet, maliyetHesapla } = require('./ai-usage');
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const TEMPERATURE = 0;
@@ -1206,7 +1206,12 @@ const TABAN_MODEL = process.env.ANTHROPIC_TABAN_MODEL || 'claude-sonnet-4-6';
 const WEB_GETIR_ARACI_ILERI = 'web_fetch_20260209';
 const WEB_ARAMA_ARACI_ILERI = 'web_search_20260209';
 
+// Sayfa getirme ve tur sayısı doğrudan maliyet kalemidir: her tur konuşmanın
+// tamamını (getirilen PDF dahil) yeniden gönderir. 6 getirme, "liste sayfası →
+// yıl bağlantısı → PDF" zinciri artı birkaç deneme için yeterli; daha fazlası
+// bulmayı değil faturayı büyütüyor.
 const TABAN_MAX_FETCH = 6;
+const TABAN_MAX_TUR = 3;
 const TABAN_MAX_PROGRAM = 25;
 const TABAN_MAX_URL = 250; // API sınırı: daha uzunu url_too_long hatası verir
 
@@ -1435,9 +1440,24 @@ async function tabanPuanBul(opt) {
 
   // Sunucu aracı döngüsü sınıra takılırsa `pause_turn` gelir — sınırlı sayıda
   // devam ettirilir (sonsuz döngü koruması).
+  //
+  // ⚠ MALİYETİN ASIL KAYNAĞI BU DÖNGÜ. Her tur, konuşmanın TAMAMINI yeniden
+  // girdi olarak gönderiyor — getirilen PDF dahil. Yüz sayfalık bir taban puan
+  // listesi tek başına ~100 bin token; dört turda dört kez faturalanırdı.
+  //
+  // Çözüm, devam ederken son bloğa önbellek işareti koymak: sonraki tur aynı
+  // öneki 0,1 katı fiyata OKUR. Önbellek yazımı 1,25 kat, ama işareti yalnız
+  // "devam edeceğimiz kesin" olduğunda (pause_turn) koyduğumuz için okuma
+  // daima gerçekleşir; yani her zaman kâra geçer.
+  const onbellekliSonBlok = (bloklar) => {
+    const kopya = (bloklar || []).map((b) => ({ ...b }));
+    if (kopya.length > 0) kopya[kopya.length - 1].cache_control = { type: 'ephemeral' };
+    return kopya;
+  };
+
   const dongu = async (model, araclar) => {
     messages.length = 1; // yeniden denemede önceki turların artığı kalmasın
-    for (let tur = 0; tur < 4; tur += 1) {
+    for (let tur = 0; tur < TABAN_MAX_TUR; tur += 1) {
       resp = await c.messages.create({
         model,
         max_tokens: 4096,
@@ -1449,7 +1469,7 @@ async function tabanPuanBul(opt) {
       usages.push(resp.usage);
       getirmeleriTopla(resp, getirmeler);
       if (resp.stop_reason !== 'pause_turn') break;
-      messages.push({ role: 'assistant', content: resp.content });
+      messages.push({ role: 'assistant', content: onbellekliSonBlok(resp.content) });
     }
   };
 
@@ -1491,8 +1511,22 @@ async function tabanPuanBul(opt) {
     veri = jsonAyikla(yanitMetni(tekrar));
   }
 
+  // Bu çalıştırmanın maliyeti — kullanıcıya GÖSTERİLİR. Maliyet raporunun
+  // aylık toplamına gömülü kalırsa "bu tuşa basmak ne tutuyor" sorusu
+  // cevapsız kalıyor; rakamı basanın gözünün önüne koymak, sıklığı da
+  // kendiliğinden makul tutuyor.
   const baglam = opt.baglam || {};
+  let maliyetUsd = 0;
+  let tokenOzeti = { girdi: 0, cikti: 0, onbellekOkuma: 0, onbellekYazma: 0 };
   for (const u of usages) {
+    const webAramaSayisi = (u && u.server_tool_use && u.server_tool_use.web_search_requests) || 0;
+    maliyetUsd += maliyetHesapla(u, { model: kullanilanModel, webAramaSayisi });
+    tokenOzeti = {
+      girdi: tokenOzeti.girdi + ((u && u.input_tokens) || 0),
+      cikti: tokenOzeti.cikti + ((u && u.output_tokens) || 0),
+      onbellekOkuma: tokenOzeti.onbellekOkuma + ((u && u.cache_read_input_tokens) || 0),
+      onbellekYazma: tokenOzeti.onbellekYazma + ((u && u.cache_creation_input_tokens) || 0),
+    };
     await kullanimKaydet({
       module: opt.module,
       docType: opt.docType,
@@ -1503,8 +1537,11 @@ async function tabanPuanBul(opt) {
       ok: !!veri,
     });
   }
+  maliyetUsd = Math.round(maliyetUsd * 1e6) / 1e6;
 
-  if (!veri) return { ok: false, reason: 'parse-failed', getirmeler };
+  if (!veri) {
+    return { ok: false, reason: 'parse-failed', getirmeler, maliyetUsd, tokenOzeti };
+  }
 
   const out = {};
   programlar.forEach((p) => {
@@ -1524,7 +1561,16 @@ async function tabanPuanBul(opt) {
       aciklama: String(g.aciklama || '').slice(0, 400),
     };
   });
-  return { ok: true, url, alanAdi: koku, model: kullanilanModel, data: out, getirmeler };
+  return {
+    ok: true,
+    url,
+    alanAdi: koku,
+    model: kullanilanModel,
+    data: out,
+    getirmeler,
+    maliyetUsd,
+    tokenOzeti,
+  };
 }
 
 // ── Batch API — anlık olmayan işler (%50 indirim) ─────────────
