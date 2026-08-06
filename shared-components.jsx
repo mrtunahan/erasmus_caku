@@ -2189,12 +2189,17 @@ const YATAY_STATIC = [
 
 // Satır (her başvuran bir satır). Üç tür aynı seti kullanır; ilgisiz alanlar
 // o türün şablonunda eşlenmez ve boş kalır.
+// YAZIM KURALI (tüm satırlarda tek düzen):
+//   • Adı Soyadı        → ad "Title", SOYAD BÜYÜK  (format: 'name')
+//   • Değerlendirme     → TAMAMI BÜYÜK            (format: 'upper')
+//   • Diğer METİN alan  → Her Kelimenin İlk Harfi  (format: 'title')
+//   • Sayısal alanlar   → biçim yok (dokunulmaz)
+// Öğrenci bu alanları formda BÜYÜK harfle giriyor; biçim verilmezse belgede
+// "ÇANKIRI KARATEKİN ÜNİVERSİTESİ" ile "Bilgisayar Mühendisliği" yan yana
+// düşüyor ve sütunlar birbirini tutmuyordu.
 const YATAY_ROWS = [
   { id: 'adSoyad', label: 'Adı Soyadı', format: 'name' },
-  // Hâlen öğrenim gördüğü (geldiği) program.
-  // format:'title' ZORUNLU — öğrenci bu alanları formda BÜYÜK harfle giriyor;
-  // biçim verilmezse belgede "ÇANKIRI KARATEKİN ÜNİVERSİTESİ" ile
-  // "Bilgisayar Mühendisliği" yan yana düşüyor ve çıktı tutarsız görünüyor.
+  // Hâlen öğrenim gördüğü (geldiği) program
   { id: 'aktifUniversite', label: 'Aktif Üniversite', format: 'title' },
   { id: 'aktifFakulte', label: 'Aktif Fakülte', format: 'title' },
   { id: 'aktifBolum', label: 'Aktif Bölüm', format: 'title' },
@@ -2203,10 +2208,10 @@ const YATAY_ROWS = [
   { id: 'basvurduguFakulte', label: 'Başvurduğu Fakülte', format: 'title' },
   { id: 'basvurduguBolum', label: 'Başvurduğu Bölüm', format: 'title' },
   { id: 'basvurduguSinif', label: 'Başvurduğu Sınıf' },
-  { id: 'basvurduguYariyil', label: 'Başvurduğu Yarıyıl' },
+  { id: 'basvurduguYariyil', label: 'Başvurduğu Yarıyıl', format: 'title' },
   // Yerleştirme bilgileri
   { id: 'yksYerlesmeYili', label: 'YKS Yerleşme Yılı' },
-  { id: 'yksPuanTuru', label: 'Yerleştiği Puan Türü' },
+  { id: 'yksPuanTuru', label: 'Yerleştiği Puan Türü', format: 'title' },
   { id: 'yksPuani', label: 'YKS Puanı' },
   { id: 'notOrtalamasi', label: 'Not Ortalaması' },
   // Kurumlararası hesaplama (sistem hesaplar)
@@ -2215,8 +2220,9 @@ const YATAY_ROWS = [
   { id: 'yerlesmePuani', label: 'Yerleştirmeye Esas Puan' },
   // Merkezi yerleştirme
   { id: 'basvurduguBolumOsysPuani', label: 'Başvurduğu Bölümün ÖSYS Puanı' },
-  // Akademisyenin dropdown'dan seçtiği karar (belgedeki son sütun)
-  { id: 'degerlendirme', label: 'Değerlendirme Sonucu' },
+  // Akademisyenin verdiği karar (belgedeki son sütun) — resmî sonuç
+  // olduğu için tamamı büyük yazılır.
+  { id: 'degerlendirme', label: 'Değerlendirme Sonucu', format: 'upper' },
 ];
 
 // Sınav programı şablon değişkenleri (Bölüm ve Dekanlık çıktısı ortak set)

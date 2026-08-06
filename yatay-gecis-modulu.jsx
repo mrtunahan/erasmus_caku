@@ -18,6 +18,8 @@
 
 const { useState, useEffect, useMemo, useCallback } = React;
 
+import { puanaGoreSirala, asilYedekOner } from './lib/yatay-siralama.js';
+
 const YG = {
   navy: '#1B2A4A',
   accent: '#B45309',
@@ -1237,9 +1239,14 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Kapsam: öğrenci yalnız kendi başvurularını, personel bölümünün
   // başvurularını görür. Seçili geçiş türüne göre süzülür.
+  //
+  // SIRALAMA: puanlı türlerde (kurumlararası · merkezi) liste yerleştirmeye
+  // esas puana göre yüksekten düşüğe dizilir — belge de bu sırayla üretilir,
+  // yani ekranda gördüğünüz sıra çıktıdaki sıradır. Kurum içi geçişte puan
+  // ölçütü olmadığı için kayıt sırası (yeniden eskiye) korunur.
   const gorunen = useMemo(() => {
     const myNo = String(currentUser?.studentNumber || currentUser?.identifier || '');
-    return kayitlar
+    const liste = kayitlar
       .filter((r) => (r.turu || 'kurumici') === turId)
       .filter((r) => {
         if (isStudent) return String(r.ogrenciNo || '') === myNo;
@@ -1247,10 +1254,96 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
         return !r.departmentId || r.departmentId === activeDepartment;
       })
       .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    return turId === 'kurumici' ? liste : puanaGoreSirala(liste, turId);
   }, [kayitlar, turId, isStudent, currentUser, activeDepartment]);
 
   const degerlendirilmemis = gorunen.filter((r) => !r.degerlendirme).length;
   const belgeHazir = gorunen.length > 0 && degerlendirilmemis === 0;
+
+  // ── Kontenjan → puana göre asil/yedek önerisi ──
+  // Akademisyen sınıf başına kaç asil kaç yedek alınacağını girer; sistem
+  // yerleştirmeye esas puana göre sıralayıp öneriyi kayıtlara uygular.
+  // Uygulandıktan sonra her satır tek tek değiştirilebilir — son karar
+  // akademisyenindir, bu yalnız elle doldurmayı ortadan kaldırır.
+  const [asilSayisi, setAsilSayisi] = useState('');
+  const [yedekSayisi, setYedekSayisi] = useState('');
+
+  const siralamayiUygula = async () => {
+    const oneri = asilYedekOner(gorunen, turId, asilSayisi, yedekSayisi);
+    const uygulanacak = oneri.filter((o) => o.degerlendirme);
+    if (uygulanacak.length === 0) {
+      setMsg('Sıralanacak başvuru yok (puan bilgisi eksik olabilir).');
+      setTimeout(() => setMsg(''), 6000);
+      return;
+    }
+    const puansiz = oneri.length - uygulanacak.length;
+    const asilAdet = uygulanacak.filter((o) => o.degerlendirme === 'uygun_asil').length;
+    const yedekAdet = uygulanacak.filter((o) => o.degerlendirme === 'uygun_yedek').length;
+    const disarida = uygulanacak.filter((o) => o.degerlendirme === 'uygun_degil').length;
+    if (
+      !confirm(
+        'Yerleştirmeye esas puana göre sıralanıp değerlendirme sonuçları yazılacak:\n\n' +
+          '  • ' +
+          asilAdet +
+          ' asil\n' +
+          '  • ' +
+          yedekAdet +
+          ' yedek\n' +
+          '  • ' +
+          disarida +
+          ' kontenjan dışı (UYGUN DEĞİL)\n' +
+          (puansiz > 0 ? '  • ' + puansiz + ' başvuru puansız — dokunulmayacak\n' : '') +
+          '\nDaha önce girilmiş değerlendirmeler bu kayıtlarda değişecek. ' +
+          'Uygulandıktan sonra her satırı tek tek düzeltebilirsiniz.\n\nDevam edilsin mi?'
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      for (const o of uygulanacak) {
+        await window.DBWrite.set(
+          'yatay_gecis_basvurular',
+          String(o.id),
+          {
+            degerlendirme: o.degerlendirme,
+            degerlendirmeSinif: o.degerlendirmeSinif,
+            degerlendirmeSira: o.degerlendirmeSira,
+            updatedAt: new Date().toISOString(),
+          },
+          true
+        );
+      }
+      setKayitlar((prev) =>
+        prev.map((r) => {
+          const o = uygulanacak.find((x) => String(x.id) === String(r.id || r._docId));
+          return o
+            ? {
+                ...r,
+                degerlendirme: o.degerlendirme,
+                degerlendirmeSinif: o.degerlendirmeSinif,
+                degerlendirmeSira: o.degerlendirmeSira,
+              }
+            : r;
+        })
+      );
+      setMsg(
+        'Sıralama uygulandı: ' +
+          asilAdet +
+          ' asil, ' +
+          yedekAdet +
+          ' yedek' +
+          (disarida > 0 ? ', ' + disarida + ' kontenjan dışı' : '') +
+          (puansiz > 0 ? ' · ' + puansiz + ' puansız başvuruya dokunulmadı' : '') +
+          '. Gerekirse satırları tek tek düzeltin.'
+      );
+      setTimeout(() => setMsg(''), 12000);
+    } catch (e) {
+      alert('Sıralama uygulanamadı: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const kaydetDegerlendirme = async (rec, patch) => {
     setBusy(true);
@@ -1550,6 +1643,69 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       {/* Başvuru listesi */}
       {sekme === 'basvurular' && (
         <>
+          {/* Akademisyen: kontenjan → puana göre asil/yedek önerisi.
+              Yalnız puan ölçütü olan türlerde (kurum içinde puan yoktur). */}
+          {isStaff && turId !== 'kurumici' && gorunen.length > 0 && (
+            <div style={{ ...ygCard, padding: '12px 16px', marginBottom: 14 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ flex: '1 1 240px' }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 3 }}>
+                    Kontenjan ile sıralama
+                  </div>
+                  <div style={{ fontSize: 11.5, color: YG.textMuted, lineHeight: 1.5 }}>
+                    Başvurular{' '}
+                    {turId === 'kurumlararasi'
+                      ? 'yerleştirmeye esas puana (YKS %40 + AGNO %60)'
+                      : 'YKS yerleştirme puanına'}{' '}
+                    göre sıralanır; sınıf başına ilk sıradakiler asil, sonrakiler yedek yazılır.
+                  </div>
+                </div>
+                <div style={{ width: 110 }}>
+                  <label style={ygLabel}>Asil sayısı</label>
+                  <input
+                    value={asilSayisi}
+                    disabled={busy}
+                    onChange={(e) => setAsilSayisi(e.target.value.replace(/\D/g, ''))}
+                    placeholder="ör. 3"
+                    style={ygInput}
+                  />
+                </div>
+                <div style={{ width: 110 }}>
+                  <label style={ygLabel}>Yedek sayısı</label>
+                  <input
+                    value={yedekSayisi}
+                    disabled={busy}
+                    onChange={(e) => setYedekSayisi(e.target.value.replace(/\D/g, ''))}
+                    placeholder="ör. 2"
+                    style={ygInput}
+                  />
+                </div>
+                <button
+                  onClick={siralamayiUygula}
+                  disabled={busy || (!asilSayisi && !yedekSayisi)}
+                  style={{
+                    ...ygBtn(true),
+                    opacity: busy || (!asilSayisi && !yedekSayisi) ? 0.5 : 1,
+                    cursor: busy || (!asilSayisi && !yedekSayisi) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {busy ? 'Uygulanıyor…' : 'Sıralamayı Uygula'}
+                </button>
+              </div>
+              <div style={{ fontSize: 11.5, color: YG.textMuted, marginTop: 8 }}>
+                Bu bir <b>öneridir</b>: uygulandıktan sonra her satırın değerlendirmesini tek tek
+                değiştirebilirsiniz. Puanı okunamayan başvurulara dokunulmaz.
+              </div>
+            </div>
+          )}
+
           {/* Akademisyen: belge üretimi — tüm başvurular değerlendirilince açılır */}
           {isStaff && gorunen.length > 0 && (
             <div
