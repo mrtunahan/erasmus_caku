@@ -175,6 +175,28 @@ function ygYerlesmePuani(yksPuani, notOrt) {
   return { p40, n60, toplam: Math.round((p40 + n60) * 100) / 100 };
 }
 
+// Bölüm adının "çıplak" hâli — sondaki "Mühendisliği" / "Bölümü" eki atılır.
+//
+// Şablon başlıkları "… {{bölüm}} MÜHENDİSLİĞİ BÖLÜMÜ …" biçiminde yazıldığı
+// için yer tutucuya tam ad konunca "Gıda Mühendisliği MÜHENDİSLİĞİ BÖLÜMÜ"
+// gibi tekrar oluşuyor. Bu yardımcı, {{basvurulanBolumKisa}} değişkenini
+// besler; eki taşımayan adlar (ör. "Moleküler Biyoloji ve Genetik") aynen kalır.
+function ygBolumKisa(ad) {
+  let s = String(ad || '').trim();
+  // Eşleştirme Türkçe-duyarlı küçük harf üzerinden yapılır: JS'in /i bayrağı
+  // İ (U+0130) ile i'yi eşleştirmediği için "Gıda MÜHENDİSLİĞİ" gibi tümü
+  // büyük yazılmış adlarda düz regex sessizce çalışmıyordu. Kırpma orijinal
+  // metin üzerinde yapılır ki harf düzeni bozulmasın.
+  const kucult = (x) => String(x).replace(/İ/g, 'i').replace(/I/g, 'ı').toLocaleLowerCase('tr-TR');
+  // Sondan başlayarak "Bölümü" ve "Mühendisliği" eklerini kırp (bu sırayla,
+  // "… Mühendisliği Bölümü" yazımı da tek geçişte sadeleşsin diye).
+  for (const ek of [/\s+bölüm[üu]?$/, /\s+mühendisli[ğg]i$/]) {
+    const m = kucult(s).match(ek);
+    if (m) s = s.slice(0, s.length - m[0].length).trim();
+  }
+  return s.trim() || String(ad || '').trim();
+}
+
 // Değerlendirme sonucunu belgeye yazılacak metne çevir.
 //   uygun_asil  + sınıf 2 + sıra 1  →  "UYGUN 2. Sınıf (1. ASİL)"
 //   uygun_yedek + sınıf 3 + sıra 4  →  "UYGUN 3. Sınıf (4. YEDEK)"
@@ -1297,6 +1319,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           egitimYili,
           donem,
           basvurulanBolum: bolumAd,
+          basvurulanBolumKisa: ygBolumKisa(bolumAd),
           fakulteAd: window.TENANT?.facultyName || 'Mühendislik Fakültesi',
           tarih: bugun.toLocaleDateString('tr-TR'),
         },
