@@ -2184,11 +2184,16 @@ const YATAY_STATIC = [
 // o türün şablonunda eşlenmez ve boş kalır.
 const YATAY_ROWS = [
   { id: 'adSoyad', label: 'Adı Soyadı', format: 'name' },
-  // Hâlen öğrenim gördüğü (geldiği) program
-  { id: 'aktifUniversite', label: 'Aktif Üniversite' },
-  { id: 'aktifFakulte', label: 'Aktif Fakülte' },
-  { id: 'aktifBolum', label: 'Aktif Bölüm' },
+  // Hâlen öğrenim gördüğü (geldiği) program.
+  // format:'title' ZORUNLU — öğrenci bu alanları formda BÜYÜK harfle giriyor;
+  // biçim verilmezse belgede "ÇANKIRI KARATEKİN ÜNİVERSİTESİ" ile
+  // "Bilgisayar Mühendisliği" yan yana düşüyor ve çıktı tutarsız görünüyor.
+  { id: 'aktifUniversite', label: 'Aktif Üniversite', format: 'title' },
+  { id: 'aktifFakulte', label: 'Aktif Fakülte', format: 'title' },
+  { id: 'aktifBolum', label: 'Aktif Bölüm', format: 'title' },
+  { id: 'aktifSinif', label: 'Aktif Sınıf' },
   // Başvurduğu program
+  { id: 'basvurduguFakulte', label: 'Başvurduğu Fakülte', format: 'title' },
   { id: 'basvurduguBolum', label: 'Başvurduğu Bölüm', format: 'title' },
   { id: 'basvurduguSinif', label: 'Başvurduğu Sınıf' },
   { id: 'basvurduguYariyil', label: 'Başvurduğu Yarıyıl' },
@@ -3721,7 +3726,22 @@ const TemplateEngine = (() => {
         /^xl\/worksheets\/sheet\d+\.xml$/.test(n)
       );
 
+      // ── Tanılama ──
+      // Bu üretici sessizce BOŞ belge çıkarabiliyordu: şablonda satır yer
+      // tutucusu bulunamazsa satır değişkenleri boş dizeyle değiştiriliyor,
+      // kullanıcı da "veri neden gelmedi" diye bakacak hiçbir şey bulamıyordu.
+      // Artık ne bulunduğu sayılıyor ve bulunamazsa hata dönüyor.
+      const dosyadakiTokenlar = new Set();
+      strings.forEach((s) => {
+        TOKEN_RX.lastIndex = 0;
+        (String(s || '').match(TOKEN_RX) || []).forEach((t) => dosyadakiTokenlar.add(t));
+      });
+      const eslenenTokenlar = Object.keys(tokenHarita);
+      const satirTokenuEslenmis = eslenenTokenlar.filter((t) => tokenHarita[t].tip === 'row');
+      const dosyadaOlmayan = eslenenTokenlar.filter((t) => !dosyadakiTokenlar.has(t));
+
       let uretilen = 0;
+      let sablonSatiriBulundu = false;
       for (const sn of sheetAdlari) {
         const xml = await zip.file(sn).async('string');
         const satirRx = /<row\b[^>]*>[\s\S]*?<\/row>|<row\b[^>]*\/>/g;
@@ -3736,6 +3756,7 @@ const TemplateEngine = (() => {
           );
           if (idx.some((ix) => strings[ix] && satirTokenuVarMi(strings[ix]))) sablonIdx = i;
         });
+        if (sablonIdx >= 0) sablonSatiriBulundu = true;
 
         const yeni = [];
         let no = 0;
@@ -3774,6 +3795,19 @@ const TemplateEngine = (() => {
         zip.file(sn, cikti);
       }
 
+      // Satır değişkeni eşlenmiş ama şablonda tek bir satır yer tutucusu bile
+      // yoksa üretilecek belge tanım gereği boştur. Boş dosya vermek yerine
+      // sebebini söyle: kullanıcı çoğunlukla eşlemeden SONRA şablonu yeniden
+      // yüklemiş ya da yer tutucuları silmiş oluyor.
+      if (satirTokenuEslenmis.length > 0 && !sablonSatiriBulundu) {
+        return {
+          ok: false,
+          reason: 'no-row-token',
+          eslenenSatirTokenlari: satirTokenuEslenmis,
+          dosyadaOlmayan,
+        };
+      }
+
       const blob = await zip.generateAsync({
         type: 'blob',
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -3785,6 +3819,9 @@ const TemplateEngine = (() => {
         filename: opts.filename || 'rapor.xlsx',
         rowCount: uretilen,
         templateId: tpl._id,
+        // Çağıran uyarabilsin diye: eşlenmiş ama dosyada bulunamayan
+        // yer tutucular (şablon eşlemeden sonra değiştirilmişse dolar).
+        dosyadaOlmayan,
       };
     } catch (e) {
       return { ok: false, reason: 'invalid-output', message: e.message };

@@ -92,10 +92,11 @@ const YG_EKLER = [
 ];
 
 // ── Akademisyenin seçtiği değerlendirme sonuçları ──
-// Şablondaki örnek "UYGUN 1. SINIF (1. ASIL)" bu listeden üretilir.
+// Belgeye yazılan metin bu listeden üretilir: "UYGUN 2. Sınıf (1. ASİL)".
+// NOT: "ASİL" (asil/yedek listesi) doğru sözcüktür; "ASIL" değil.
 const YG_DEGERLENDIRME = [
   { id: '', label: '— Seçilmedi —' },
-  { id: 'uygun_asil', label: 'UYGUN (ASIL)', sinifSorar: true, siraSorar: true },
+  { id: 'uygun_asil', label: 'UYGUN (ASİL)', sinifSorar: true, siraSorar: true },
   { id: 'uygun_yedek', label: 'UYGUN (YEDEK)', sinifSorar: true, siraSorar: true },
   { id: 'uygun_degil', label: 'UYGUN DEĞİL' },
   { id: 'sartlari_tasimiyor', label: 'BAŞVURU ŞARTLARINI TAŞIMIYOR' },
@@ -175,13 +176,30 @@ function ygYerlesmePuani(yksPuani, notOrt) {
 }
 
 // Değerlendirme sonucunu belgeye yazılacak metne çevir.
+//   uygun_asil  + sınıf 2 + sıra 1  →  "UYGUN 2. Sınıf (1. ASİL)"
+//   uygun_yedek + sınıf 3 + sıra 4  →  "UYGUN 3. Sınıf (4. YEDEK)"
+//   diğerleri                       →  listedeki etiket ("UYGUN DEĞİL" vb.)
+//
+// Sınıf alanı "2", "2." ya da "2. Sınıf" olarak girilmiş olabilir; hangisi
+// yazılırsa yazılsın çıktı tek biçime indirgenir.
+function ygSinifMetni(ham) {
+  const s = String(ham || '').trim();
+  if (!s) return '';
+  const n = s.match(/\d+/);
+  return n ? n[0] + '. Sınıf' : s;
+}
+
 function ygDegerlendirmeMetni(rec) {
   const d = YG_DEGERLENDIRME.find((x) => x.id === rec.degerlendirme);
   if (!d || !d.id) return '';
-  let m = d.label;
-  if (d.sinifSorar && rec.degerlendirmeSinif) m = 'UYGUN ' + rec.degerlendirmeSinif;
+  // Sınıf/sıra soran sonuçlarda gövde "UYGUN"dur; asil/yedek ayrımı zaten
+  // parantez içinde yazılıyor. Etiketi ("UYGUN (ASİL)") olduğu gibi bırakmak,
+  // sınıf boş kaldığında "UYGUN (ASİL) (1. ASİL)" gibi tekrara yol açıyordu.
+  let m = d.sinifSorar || d.siraSorar ? 'UYGUN' : d.label;
+  const sinif = d.sinifSorar ? ygSinifMetni(rec.degerlendirmeSinif) : '';
+  if (sinif) m += ' ' + sinif;
   if (d.siraSorar && rec.degerlendirmeSira) {
-    m += ' (' + rec.degerlendirmeSira + (d.id === 'uygun_yedek' ? '. YEDEK)' : '. ASIL)');
+    m += ' (' + rec.degerlendirmeSira + (d.id === 'uygun_yedek' ? '. YEDEK)' : '. ASİL)');
   }
   return m;
 }
@@ -1091,7 +1109,7 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy, currentUser, o
                       value={rec.degerlendirmeSinif || ''}
                       disabled={busy}
                       onChange={(e) => onDegerlendir(rec, { degerlendirmeSinif: e.target.value })}
-                      placeholder="ör. 1. SINIF"
+                      placeholder="ör. 2"
                       style={ygInput}
                     />
                   </div>
@@ -1104,6 +1122,27 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy, currentUser, o
                       disabled={busy}
                       onChange={(e) => onDegerlendir(rec, { degerlendirmeSira: e.target.value })}
                       placeholder="ör. 1"
+                      style={ygInput}
+                    />
+                  </div>
+                )}
+                {/* Merkezi yerleştirmede karar ölçütü: öğrencinin YKS puanı,
+                    BAŞVURDUĞU programın o yılki taban puanına eşit ya da
+                    üstünde mi (Ek Madde 1). Taban puan yıldan yıla ve programa
+                    göre değiştiği için başvuru başına burada girilir; öğrenci
+                    formunda sorulmaz, çünkü bu bilgi öğrencide değil bölümde. */}
+                {tur?.id === 'merkezi' && (
+                  <div>
+                    <label style={ygLabel}>Başvurulan bölümün ÖSYS/YKS taban puanı</label>
+                    <input
+                      value={rec.basvurduguBolumOsysPuani || ''}
+                      disabled={busy}
+                      onChange={(e) =>
+                        onDegerlendir(rec, {
+                          basvurduguBolumOsysPuani: e.target.value.replace(/[^\d.,]/g, ''),
+                        })
+                      }
+                      placeholder="ör. 412,338"
                       style={ygInput}
                     />
                   </div>
@@ -1232,6 +1271,8 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           aktifUniversite: r.aktifUniversite || '',
           aktifFakulte: r.aktifFakulte || '',
           aktifBolum: r.aktifBolum || '',
+          aktifSinif: r.aktifSinif || '',
+          basvurduguFakulte: r.basvurduguFakulte || '',
           basvurduguBolum: r.basvurduguBolum || bolumAd,
           basvurduguSinif: r.basvurduguSinif || '',
           basvurduguYariyil: egitimYili + ' ' + donem,
@@ -1276,10 +1317,30 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           );
         } else if (res.reason === 'no-mapping') {
           alert('Şablonun alan eşlemesi yapılmamış (Şablonlar → Alanlar).');
+        } else if (res.reason === 'no-row-token') {
+          // Eskiden bu durumda boş bir dosya üretiliyordu ve sebebi
+          // görünmüyordu. En sık nedeni: eşleme yapıldıktan SONRA şablonun
+          // yeniden yüklenmesi ya da yer tutucu satırının silinmesi.
+          alert(
+            'Belge üretilemedi: şablonda satır yer tutucusu bulunamadı.\n\n' +
+              'Eşlemede ' +
+              (res.eslenenSatirTokenlari || []).length +
+              ' satır alanı tanımlı ama bu alanların hiçbiri şablon dosyasında yok. ' +
+              'Genellikle eşleme yapıldıktan sonra şablon yeniden yüklenmiş demektir.\n\n' +
+              'Şablonlar → "' +
+              tur.tamAd +
+              '" → Eşlemeyi Düzenle adımını dosyanın güncel hâliyle tekrarlayın.'
+          );
         } else {
           alert('Belge üretilemedi: ' + (res.message || res.reason));
         }
         return;
+      }
+
+      // Üretim başarılı ama bazı eşlenmiş yer tutucular dosyada yoksa
+      // o sütunlar sessizce boş kalır — kullanıcıya söyle.
+      if (Array.isArray(res.dosyadaOlmayan) && res.dosyadaOlmayan.length > 0) {
+        console.warn('Şablonda bulunamayan yer tutucular:', res.dosyadaOlmayan);
       }
 
       // Snapshot sakla ve önizlemeyi aç
@@ -1318,8 +1379,14 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
             }
           : null
       );
-      setMsg('Rapor indirildi (' + (res.rowCount || 0) + ' satır).');
-      setTimeout(() => setMsg(''), 5000);
+      const eksikUyari =
+        Array.isArray(res.dosyadaOlmayan) && res.dosyadaOlmayan.length > 0
+          ? ' · Uyarı: ' +
+            res.dosyadaOlmayan.length +
+            ' eşlenmiş alan şablonda bulunamadı, o sütunlar boş kaldı.'
+          : '';
+      setMsg('Rapor indirildi (' + (res.rowCount || 0) + ' satır).' + eksikUyari);
+      setTimeout(() => setMsg(''), eksikUyari ? 12000 : 5000);
     } catch (e) {
       alert('Belge üretilemedi: ' + e.message);
     } finally {
