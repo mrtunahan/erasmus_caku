@@ -6,6 +6,12 @@
 import T_TOKENS from './design-tokens.json';
 import { MEZUNIYET_VARSAYILAN, mezuniyetHesapla, mezNotDurumu } from './lib/mezuniyet.js';
 import { veriSatiriSec } from './lib/xlsx-satir.js';
+import {
+  tabanKaydiBul,
+  tabanKarsilastir,
+  programAnahtari,
+  TABAN_DURUM_ETIKET,
+} from './lib/taban-puan.js';
 
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
@@ -4119,6 +4125,45 @@ window.aiDersEslestir = async function (ciftler) {
     throw new Error(data.error || 'Ders içerikleri kıyaslanamadı (HTTP ' + res.status + ')');
   return data;
 };
+
+/**
+ * Verilen adresten programların TABAN PUANINI okur (yalnız personel).
+ *
+ * Model sayfayı ve sayfadaki PDF bağlantılarını okur, yalnız belgede yazan
+ * sayıyı döndürür. "Uygun/uygun değil" kararı burada DEĞİL, tabanKarsilastir
+ * ile istemcide verilir — karar aritmetiktir, modele bırakılmaz.
+ *
+ * @param {object} opt { url, programlar:[{id,ad,puanTuru}], yil, puanTuru, module, docType }
+ * @returns {Promise<{ok, url, data:{[id]:{ad,taban,puanTuru,yil,kaynak,guven,aciklama}}}>}
+ */
+window.aiTabanPuanBul = async function (opt) {
+  const token = localStorage.getItem('caku_auth_token');
+  const res = await fetch('/api/ai/taban-puan', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+    },
+    credentials: 'include',
+    body: JSON.stringify({
+      url: opt.url || '',
+      programlar: opt.programlar || [],
+      yil: opt.yil || '',
+      puanTuru: opt.puanTuru || '',
+      module: opt.module || '',
+      docType: opt.docType || 'default',
+      departmentId: opt.departmentId || '',
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Taban puanlar okunamadı (HTTP ' + res.status + ')');
+  return data;
+};
+
+window.tabanKaydiBul = tabanKaydiBul;
+window.tabanKarsilastir = tabanKarsilastir;
+window.programAnahtari = programAnahtari;
+window.TABAN_DURUM_ETIKET = TABAN_DURUM_ETIKET;
 
 // Alan listesi verilmemişse şablon eşlemesinden çöz — iki bileşen de kullanır.
 function useAiAlanlari(alanlar, module, docType, departmentId) {
@@ -11164,6 +11209,338 @@ window.duyuruGomulebilirUrl = duyuruGomulebilirUrl;
 window.duyuruGecerliMi = duyuruGecerliMi;
 window.DuyuruIcerik = DuyuruIcerik;
 window.DuyuruPopup = DuyuruPopup;
+
+// ══════════════════════════════════════════════════════════════
+// TABAN PUAN PANELİ — "adresi ver, puanları getirsin"
+//
+// Dikey geçişte ve merkezi yerleştirme puanına göre yatay geçişte, adayın
+// puanı başvurduğu programın taban puanından küçük olamaz. Bu taban puanlar
+// her yıl değişiyor ve kurumun sayfasında yayımlanıyor. Elle girmek yerine
+// sayfanın adresi bir kez yazılır; model sayfayı — ve gerekiyorsa sayfadaki
+// PDF'i — okuyup her programın taban puanını getirir.
+//
+// ÜÇ TASARIM KARARI:
+//   1) Getirilen puan bir ÖNERİDİR ve ekranda kaynağıyla birlikte gösterilir.
+//      Akademisyen her satırı elle düzeltebilir; kaydedilen değer odur.
+//   2) Karşılaştırmayı model YAPMAZ (lib/taban-puan.js yapar). "Uygun mu"
+//      sorusunun cevabı aritmetiktir; modelin yorumuna bırakılmaz.
+//   3) Kayıt bölüm+modül başına saklanır (taban_puanlar) — her başvuruda
+//      yeniden sorgulanmaz, hem maliyet hem tutarlılık için.
+// ══════════════════════════════════════════════════════════════
+const TABAN_KOLEKSIYON = 'taban_puanlar';
+
+// Doc id: bölüm ve modül başına tek kayıt.
+function tabanKapsamAnahtari(departmentId, modul) {
+  return String(departmentId || 'genel') + ':' + String(modul || 'genel');
+}
+
+const tabanKart = {
+  background: C.card,
+  border: '1px solid ' + C.border,
+  borderRadius: 10,
+  padding: '12px 16px',
+  marginBottom: 14,
+};
+const tabanEtiket = {
+  display: 'block',
+  fontSize: 11,
+  fontWeight: 700,
+  color: C.textMuted,
+  marginBottom: 3,
+};
+const tabanGirdi = {
+  width: '100%',
+  padding: '7px 10px',
+  border: '1px solid ' + C.border,
+  borderRadius: 7,
+  fontSize: 12.5,
+  fontFamily: 'inherit',
+  boxSizing: 'border-box',
+};
+
+/**
+ * @param {object} p
+ * @param {object}   p.currentUser
+ * @param {string}   p.departmentId  kapsam (bölüm)
+ * @param {string}   p.modul         'yatay-merkezi' | 'dikey' …
+ * @param {string}   p.baslik        panel başlığı
+ * @param {string}   p.aciklama      panelin altında görünen tek satırlık açıklama
+ * @param {Array<{id,ad,puanTuru}>} p.programlar  taban puanı aranacak programlar
+ * @param {function} p.onKayitlar    (kayitlar) => void — okunan puanlar üst bileşene
+ * @param {string}   [p.puanTuru]    genel puan türü ipucu (ör. 'DGS SAY')
+ */
+const TabanPuanPaneli = ({
+  currentUser,
+  departmentId,
+  modul,
+  baslik,
+  aciklama,
+  programlar,
+  onKayitlar,
+  puanTuru,
+}) => {
+  const { useState, useEffect, useCallback } = window.React;
+  const docId = tabanKapsamAnahtari(departmentId, modul);
+
+  const [url, setUrl] = useState('');
+  const [yil, setYil] = useState('');
+  const [kayit, setKayit] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [hata, setHata] = useState('');
+
+  // Kayıtlı adres + daha önce okunmuş puanlar.
+  useEffect(() => {
+    let iptal = false;
+    window
+      .apiRead(TABAN_KOLEKSIYON)
+      .then((liste) => {
+        if (iptal) return;
+        const d = (liste || []).find((x) => (x.id || x._docId) === docId);
+        if (!d) return;
+        setKayit(d);
+        setUrl(d.url || '');
+        setYil(d.yil || '');
+      })
+      .catch(() => {});
+    return () => {
+      iptal = true;
+    };
+  }, [docId]);
+
+  // Okunan puanları üst bileşene ilet (karşılaştırmayı orası yapar).
+  const bildir = useCallback(
+    (liste) => {
+      if (onKayitlar) onKayitlar(liste || []);
+    },
+    [onKayitlar]
+  );
+  useEffect(() => {
+    bildir((kayit && kayit.programlar) || []);
+  }, [kayit, bildir]);
+
+  const getir = async () => {
+    const istenen = (programlar || []).filter((p) => p && p.id && p.ad);
+    if (istenen.length === 0) {
+      setHata('Taban puanı aranacak program yok.');
+      return;
+    }
+    setBusy(true);
+    setHata('');
+    setMsg('');
+    try {
+      const sonuc = await window.aiTabanPuanBul({
+        url,
+        yil,
+        puanTuru: puanTuru || '',
+        programlar: istenen,
+        module: modul,
+        departmentId,
+      });
+      const okunan = istenen.map((p) => {
+        const g = (sonuc.data || {})[p.id] || {};
+        return {
+          id: p.id,
+          ad: p.ad,
+          taban: g.taban || '',
+          puanTuru: g.puanTuru || '',
+          yil: g.yil || '',
+          kaynak: g.kaynak || '',
+          guven: g.guven || 0,
+          aciklama: g.aciklama || '',
+        };
+      });
+      const yeni = {
+        url: sonuc.url || url,
+        yil,
+        modul,
+        departmentId: departmentId || '',
+        programlar: okunan,
+        okunmaZamani: new Date().toISOString(),
+        okuyan: String(currentUser?.name || currentUser?.identifier || ''),
+      };
+      await window.DBWrite.set(TABAN_KOLEKSIYON, docId, yeni, true);
+      setKayit({ ...(kayit || {}), ...yeni, id: docId });
+      const bulunan = okunan.filter((k) => k.taban).length;
+      setMsg(
+        bulunan +
+          ' / ' +
+          okunan.length +
+          ' program için taban puan bulundu.' +
+          (bulunan < okunan.length ? ' Bulunamayanları elle girebilirsiniz.' : '')
+      );
+      setTimeout(() => setMsg(''), 12000);
+    } catch (e) {
+      setHata(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Elle düzeltme — model yanlış satırı eşleştirmiş olabilir, son söz insanda.
+  const elleYaz = async (id, deger) => {
+    const guncel = ((kayit && kayit.programlar) || []).map((k) =>
+      k.id === id ? { ...k, taban: deger, guven: 1, kaynak: 'elle girildi', aciklama: '' } : k
+    );
+    const yeni = { ...(kayit || { url, yil, modul, departmentId }), programlar: guncel };
+    setKayit(yeni);
+    try {
+      await window.DBWrite.set(TABAN_KOLEKSIYON, docId, { programlar: guncel }, true);
+    } catch (e) {
+      setHata('Kaydedilemedi: ' + e.message);
+    }
+  };
+
+  const okunanlar = (kayit && kayit.programlar) || [];
+
+  return (
+    <div style={tabanKart}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 300px' }}>
+          <label style={tabanEtiket}>{baslik || 'Taban puan sayfasının adresi'}</label>
+          <input
+            value={url}
+            disabled={busy}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://oidb.karatekin.edu.tr/tabantavan-puanlar-…"
+            style={tabanGirdi}
+          />
+        </div>
+        <div style={{ width: 110 }}>
+          <label style={tabanEtiket}>Yıl</label>
+          <input
+            value={yil}
+            disabled={busy}
+            onChange={(e) => setYil(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            placeholder="ör. 2025"
+            style={tabanGirdi}
+          />
+        </div>
+        <button
+          onClick={getir}
+          disabled={busy || !url.trim()}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: 'none',
+            background: C.navy,
+            color: '#fff',
+            fontSize: 12.5,
+            fontWeight: 700,
+            fontFamily: 'inherit',
+            opacity: busy || !url.trim() ? 0.5 : 1,
+            cursor: busy || !url.trim() ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {busy ? 'Okunuyor…' : 'Taban Puanları Getir'}
+        </button>
+      </div>
+
+      <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8, lineHeight: 1.5 }}>
+        {aciklama ||
+          'Adresteki sayfa (ve sayfadaki PDF bağlantıları) okunur, istenen programların ' +
+            'taban puanı çıkarılır.'}{' '}
+        Getirilen puanlar bir <b>öneridir</b>: her satırı elle düzeltebilirsiniz, kaydedilen değer
+        sizin girdiğinizdir.
+      </div>
+
+      {hata && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: '8px 12px',
+            borderRadius: 7,
+            background: C.accentLight,
+            color: C.accent,
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          {hata}
+        </div>
+      )}
+      {msg && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: '8px 12px',
+            borderRadius: 7,
+            background: C.greenLight,
+            color: C.green,
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          {msg}
+        </div>
+      )}
+
+      {okunanlar.length > 0 && (
+        <div style={{ marginTop: 12, overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: C.bg }}>
+                <th style={{ textAlign: 'left', padding: '6px 8px', color: C.textMuted }}>
+                  Program
+                </th>
+                <th
+                  style={{ textAlign: 'left', padding: '6px 8px', width: 130, color: C.textMuted }}
+                >
+                  Taban puan
+                </th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', color: C.textMuted }}>
+                  Kaynak
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {okunanlar.map((k) => (
+                <tr key={k.id} style={{ borderTop: '1px solid ' + C.borderLight }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 600, color: C.text }}>{k.ad}</td>
+                  <td style={{ padding: '6px 8px' }}>
+                    <input
+                      value={k.taban}
+                      onChange={(e) => elleYaz(k.id, e.target.value)}
+                      placeholder="—"
+                      style={{ ...tabanGirdi, padding: '5px 8px', fontSize: 12 }}
+                    />
+                  </td>
+                  <td style={{ padding: '6px 8px', color: C.textMuted, fontSize: 11.5 }}>
+                    {k.kaynak && /^https?:\/\//.test(k.kaynak) ? (
+                      <a
+                        href={k.kaynak}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: C.blue }}
+                      >
+                        Belgeyi aç
+                      </a>
+                    ) : (
+                      k.kaynak || '—'
+                    )}
+                    {k.aciklama ? ' · ' + k.aciklama : ''}
+                    {k.taban && k.guven > 0 && k.guven < 0.7 ? (
+                      <b style={{ color: C.accent }}> · düşük güven, kontrol edin</b>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {kayit && kayit.okunmaZamani && (
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
+              Son okuma: {new Date(kayit.okunmaZamani).toLocaleString('tr-TR')}
+              {kayit.okuyan ? ' · ' + kayit.okuyan : ''}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+window.TabanPuanPaneli = TabanPuanPaneli;
+window.tabanKapsamAnahtari = tabanKapsamAnahtari;
 
 // ── Google AdSense Reklam Banner Bileşeni ──
 const AdSenseBanner = ({ type }) => {

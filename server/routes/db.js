@@ -165,6 +165,10 @@ const ALLOWED_COLLECTIONS = [
   // Öğrencinin transkriptinden türetilen akademik kayıt (doc id = öğrenci no):
   // aldığı dersler, notlar, AGNO. Öğrenci kendi kaydını yazar.
   'ogrenci_akademik_kayit',
+  // Programların taban puanları — kurumun taban/tavan puan sayfasından AI ile
+  // okunup saklanır (doc id = '<bölüm|fakülte>:<modül>'). Değerlendirmede
+  // adayın puanıyla kıyaslanır; öğrenci tarafına kapalıdır.
+  'taban_puanlar',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -308,6 +312,9 @@ const DEPT_MANAGER_WRITE = new Set([
   // Mezuniyet kuralları öğrencinin "mezun olabilir miyim" hesabının tabanıdır;
   // öğrencinin ya da sade akademisyenin değiştirmesi anlamsız olurdu.
   'mezuniyet_kurallari',
+  // Taban puanlar başvuru değerlendirmesinin eşiğidir; kaydı yalnız bölüm
+  // yetkilisi ve üstü tazeleyebilir.
+  'taban_puanlar',
 ]);
 
 // ── Öğrencinin KENDİ `students` kaydı ──
@@ -371,6 +378,9 @@ const STUDENT_READ_DENY = new Set([
   'strateji_atama',
   'strateji_fac_ozet',
   'strateji_baglama',
+  // Taban puanlar başvuru değerlendirmesinin iç eşiğidir; öğrenci kendi
+  // başvurusunun sonucunu önceden hesaplasın diye açmıyoruz.
+  'taban_puanlar',
 ]);
 // Öğrenci okumalarında kendi kaydına zorlanan koleksiyonlar (alan → JWT kimliği)
 const STUDENT_READ_SCOPED = {

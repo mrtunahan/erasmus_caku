@@ -442,6 +442,79 @@ router.post('/verify', extractLimiter, requireAuth, requireStaff, async (req, re
   }
 });
 
+// POST /api/ai/taban-puan — verilen adresten programların taban puanını oku.
+//
+// Yalnız personel: adres serbest metindir ve sunucu bu adrese (dolaylı olarak,
+// model üzerinden) gider. Öğrenciye açık olsaydı, sisteme rastgele adres
+// getirten bir uç açılmış olurdu.
+//
+// body: { url, programlar:[{id,ad,puanTuru}], yil, puanTuru, module, docType }
+router.post('/taban-puan', extractLimiter, requireAuth, requireStaff, async (req, res) => {
+  try {
+    if (!aiHazirMi(res)) return undefined;
+    const b = req.body || {};
+    const programlar = (Array.isArray(b.programlar) ? b.programlar : [])
+      .slice(0, 25)
+      .filter((p) => p && typeof p.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(p.id))
+      .map((p) => ({
+        id: p.id,
+        ad: clip(p.ad, 200),
+        puanTuru: clip(p.puanTuru, 40),
+      }))
+      .filter((p) => p.ad);
+    if (programlar.length === 0) {
+      return res.status(400).json({ error: 'Taban puanı aranacak program yok.' });
+    }
+
+    const sonuc = await cx.tabanPuanBul({
+      url: clip(b.url, 300),
+      programlar,
+      yil: clip(b.yil, 20),
+      puanTuru: clip(b.puanTuru, 40),
+      module: clip(b.module, 40),
+      docType: clip(b.docType, 40) || 'default',
+      baglam: baglamCoz(req, b),
+    });
+
+    if (!sonuc.ok) {
+      const harita = {
+        'bad-url': sonuc.mesaj || 'Adres geçersiz.',
+        'no-programs': 'Taban puanı aranacak program yok.',
+        'parse-failed': 'Sayfa okundu ama taban puan tablosu çıkarılamadı.',
+      };
+      // Getirme hataları tanıyı belirgin kılar: erişilemeyen adres mi, izin
+      // verilmeyen alan adı mı, desteklenmeyen içerik mi?
+      const getirme = {
+        url_not_accessible: 'adres açılamadı',
+        url_not_allowed: 'adrese erişim izni yok (robots/alan adı kısıtı)',
+        url_not_in_prior_context: 'bağlantı sayfada bulunamadı',
+        unsupported_content_type: 'içerik türü desteklenmiyor (yalnız HTML/PDF)',
+        max_uses_exceeded: 'sayfa getirme sınırı aşıldı',
+        too_many_requests: 'kaynak site hız sınırı uyguladı',
+      };
+      const ek = (sonuc.getirmeHatalari || [])
+        .map((k) => getirme[k] || k)
+        .filter(Boolean)
+        .slice(0, 3);
+      let mesaj = harita[sonuc.reason] || sonuc.reason || 'bilinmeyen sebep';
+      if (ek.length > 0) mesaj += ' [' + ek.join(' · ') + ']';
+      return res.status(422).json({ error: mesaj, reason: sonuc.reason });
+    }
+
+    return res.json({
+      ok: true,
+      model: cx.MODEL,
+      url: sonuc.url,
+      alanAdi: sonuc.alanAdi,
+      data: sonuc.data,
+      getirmeHatalari: sonuc.getirmeHatalari || [],
+    });
+  } catch (err) {
+    console.error('ai/taban-puan error:', err.message);
+    return res.status(502).json({ error: 'Taban puanlar okunamadı: ' + err.message });
+  }
+});
+
 // ── Batch (anlık olmayan işler, %50 indirim) — yalnız personel ──
 
 // POST /api/ai/extract/batch  body: { module, docType, isler:[{customId, fields, dosyalar}] }

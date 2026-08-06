@@ -7408,6 +7408,24 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
           })}
         </div>
 
+        {/* Dikey geçiş: DGS taban puan şartı — yalnız akademisyen tarafında,
+            liste sekmelerinde. "Ayarlar" sekmesinde yeri yok. */}
+        {sabitTur === 'dikey' && !isStudent && activeTab !== 'ayarlar' && (
+          <DikeyTabanPuanPaneli
+            records={turRecords}
+            currentUser={currentUser}
+            activeDepartment={activeDepartment}
+            departmentInfo={departmentInfo}
+            onKayit={function (id, patch) {
+              setRecords(function (prev) {
+                return prev.map(function (r) {
+                  return (r.id || r._docId) === id ? Object.assign({}, r, patch) : r;
+                });
+              });
+            }}
+          />
+        )}
+
         {/* Tab İçeriği */}
         {/* Ayarlar: yalnızca eşik kalibrasyonu (katalog/not tablosu yükleme kaldırıldı) */}
         {activeTab === 'ayarlar' && !isStudent && (
@@ -9116,6 +9134,195 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
     </div>
   );
 };
+
+// ══════════════════════════════════════════════════════════════
+// DİKEY GEÇİŞ — DGS taban puan kontrolü
+//
+// Yönetmelik şartı: dikey geçişle gelen adayın DGS puanı, yerleştiği
+// programın o yılki DGS TABAN PUANINDAN küçük olamaz. Taban puanlar her yıl
+// değişip kurumun sayfasında yayımlandığı için elle girilmez: sayfanın adresi
+// verilir, model sayfayı (ve içindeki PDF'leri) okuyup taban puanı getirir.
+//
+// Karşılaştırmayı model YAPMAZ — lib/taban-puan.js yapar. Sonuç bir
+// BİLGİLENDİRMEDİR: muafiyet kararını kendiliğinden değiştirmez, akademisyen
+// görüp kendi kararını verir.
+// ══════════════════════════════════════════════════════════════
+function DikeyTabanPuanPaneli({ records, currentUser, activeDepartment, departmentInfo, onKayit }) {
+  const [tabanKayitlari, setTabanKayitlari] = useState([]);
+  const [busyId, setBusyId] = useState('');
+
+  // Aranacak program: bu bölümün kendisi. Dikey geçişte aday hep bu bölüme
+  // yerleşmiştir; başvurularda ayrı bir "başvurduğu bölüm" alanı yoktur.
+  const programlar = useMemo(
+    function () {
+      const ad = String(departmentInfo?.name || currentUser?.departmentName || '').trim();
+      if (!ad) return [];
+      const k = window.programAnahtari ? window.programAnahtari(ad) : ad.toLowerCase();
+      return [{ id: 'p_' + k.slice(0, 50), ad }];
+    },
+    [departmentInfo, currentUser]
+  );
+
+  const taban = useMemo(
+    function () {
+      const ad = programlar[0] ? programlar[0].ad : '';
+      const k = window.tabanKaydiBul ? window.tabanKaydiBul(tabanKayitlari, ad) : null;
+      return k && k.taban ? k.taban : '';
+    },
+    [tabanKayitlari, programlar]
+  );
+
+  const puanYaz = async function (rec, deger) {
+    const id = rec.id || rec._docId;
+    setBusyId(String(id));
+    try {
+      await window.DBWrite.set(
+        'muafiyet_records',
+        String(id),
+        { dgsPuani: deger, updatedAt: new Date().toISOString() },
+        true
+      );
+      if (onKayit) onKayit(id, { dgsPuani: deger });
+    } catch (e) {
+      alert('Kaydedilemedi: ' + e.message);
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  if (programlar.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      {window.TabanPuanPaneli && (
+        <window.TabanPuanPaneli
+          currentUser={currentUser}
+          departmentId={activeDepartment || ''}
+          modul="dikey"
+          programlar={programlar}
+          puanTuru="DGS"
+          onKayitlar={setTabanKayitlari}
+          baslik="DGS taban puan sayfasının adresi"
+          aciklama={
+            'Dikey geçişte adayın DGS puanı, yerleştiği programın taban puanından küçük ' +
+            'olamaz. Adres verilirse sayfa (ve içindeki PDF bağlantıları) okunur; ' +
+            programlar[0].ad +
+            ' programının DGS taban puanı aranır.'
+          }
+        />
+      )}
+
+      {records.length > 0 && (
+        <div
+          style={{
+            background: DS.bgCard,
+            border: '1px solid ' + DS.border,
+            borderRadius: DS.radius,
+            padding: '12px 16px',
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 700, color: DS.navy, marginBottom: 4 }}>
+            Adayların DGS puanları
+          </div>
+          <div style={{ fontSize: 11.5, color: DS.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
+            {taban ? (
+              <>
+                Karşılaştırma taban puanı: <b style={{ color: DS.navy }}>{taban}</b>. Puanı eşit ya
+                da yüksek olan aday şartı karşılar.
+              </>
+            ) : (
+              'Taban puan henüz belirlenmedi — yukarıdaki adresi girip getirin ya da elle yazın.'
+            )}{' '}
+            Bu satırlar <b>bilgilendirmedir</b>; muafiyet kararını değiştirmez.
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+              <thead>
+                <tr style={{ background: DS.bg }}>
+                  <th style={{ textAlign: 'left', padding: '6px 8px', color: DS.textMuted }}>
+                    Öğrenci
+                  </th>
+                  <th
+                    style={{
+                      textAlign: 'left',
+                      padding: '6px 8px',
+                      width: 130,
+                      color: DS.textMuted,
+                    }}
+                  >
+                    DGS puanı
+                  </th>
+                  <th style={{ textAlign: 'left', padding: '6px 8px', color: DS.textMuted }}>
+                    Taban puan şartı
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {records.map(function (r) {
+                  const id = String(r.id || r._docId);
+                  const kiyas = window.tabanKarsilastir
+                    ? window.tabanKarsilastir(r.dgsPuani, taban)
+                    : { durum: 'belirsiz' };
+                  return (
+                    <tr key={id} style={{ borderTop: '1px solid ' + DS.borderLight }}>
+                      <td style={{ padding: '6px 8px', fontWeight: 600, color: DS.text }}>
+                        {r.studentName || '—'}
+                        <span style={{ color: DS.textMuted, fontWeight: 400 }}>
+                          {r.studentNo ? ' · ' + r.studentNo : ''}
+                        </span>
+                      </td>
+                      <td style={{ padding: '6px 8px' }}>
+                        <input
+                          defaultValue={r.dgsPuani || ''}
+                          disabled={busyId === id}
+                          onBlur={function (e) {
+                            const v = e.target.value.replace(/[^\d.,]/g, '');
+                            if (v !== (r.dgsPuani || '')) puanYaz(r, v);
+                          }}
+                          placeholder="ör. 245,318"
+                          style={{
+                            width: '100%',
+                            padding: '5px 8px',
+                            border: '1px solid ' + DS.border,
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontFamily: 'inherit',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </td>
+                      <td style={{ padding: '6px 8px' }}>
+                        {kiyas.durum === 'belirsiz' ? (
+                          <span style={{ color: DS.textMuted }}>—</span>
+                        ) : (
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              color: kiyas.durum === 'uygun' ? DS.green : DS.red,
+                            }}
+                          >
+                            {kiyas.durum === 'uygun' ? 'Karşılıyor' : 'Taban puanın ALTINDA'}
+                            <span style={{ fontWeight: 400, color: DS.textMuted }}>
+                              {' (' +
+                                String(kiyas.aday).replace('.', ',') +
+                                (kiyas.durum === 'uygun' ? ' ≥ ' : ' < ') +
+                                String(kiyas.taban).replace('.', ',') +
+                                ')'}
+                            </span>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Window'a export ──
 window.DersMuafiyetApp = DersMuafiyetApp;
