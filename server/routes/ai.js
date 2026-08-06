@@ -442,6 +442,43 @@ router.post('/verify', extractLimiter, requireAuth, requireStaff, async (req, re
   }
 });
 
+// Sunucu aracı hata kodlarının Türkçe karşılığı. Kodun kendisi ("url_not_
+// accessible") kullanıcıya hiçbir şey söylemiyor; ne yapması gerektiğini
+// anlatan bir cümleye çevrilir.
+const TABAN_HATA_METNI = {
+  url_not_accessible: 'adres açılamadı (site isteği reddetti ya da sayfa yok)',
+  url_not_allowed: 'adrese erişim izni yok (robots.txt ya da alan adı kısıtı)',
+  url_not_in_prior_context: 'bu bağlantı sayfada/aramada geçmediği için getirilemedi',
+  url_too_long: 'adres çok uzun',
+  invalid_tool_input: 'adres biçimi geçersiz',
+  unsupported_content_type: 'içerik türü desteklenmiyor (yalnız HTML ve PDF okunabilir)',
+  max_uses_exceeded: 'sayfa getirme sınırı aşıldı',
+  too_many_requests: 'kaynak site hız sınırı uyguladı',
+  unavailable: 'geçici bir hata oluştu',
+};
+
+// İstemcide listelenecek deneme dökümü.
+function tabanDenemeleri(getirmeler) {
+  return (Array.isArray(getirmeler) ? getirmeler : []).slice(0, 12).map((g) => ({
+    arac: g.arac,
+    url: g.url,
+    ok: !!g.ok,
+    hata: g.hata ? TABAN_HATA_METNI[g.hata] || g.hata : '',
+  }));
+}
+
+// Tek satırlık özet — hata mesajının sonuna eklenir.
+function tabanDenemeOzeti(getirmeler) {
+  const liste = Array.isArray(getirmeler) ? getirmeler : [];
+  if (liste.length === 0) return 'hiçbir sayfa getirilemedi';
+  const hatalar = Array.from(new Set(liste.filter((g) => !g.ok).map((g) => g.hata)));
+  if (hatalar.length === 0) return '';
+  return hatalar
+    .map((k) => TABAN_HATA_METNI[k] || k)
+    .slice(0, 3)
+    .join(' · ');
+}
+
 // POST /api/ai/taban-puan — verilen adresten programların taban puanını oku.
 //
 // Yalnız personel: adres serbest metindir ve sunucu bu adrese (dolaylı olarak,
@@ -482,23 +519,14 @@ router.post('/taban-puan', extractLimiter, requireAuth, requireStaff, async (req
         'no-programs': 'Taban puanı aranacak program yok.',
         'parse-failed': 'Sayfa okundu ama taban puan tablosu çıkarılamadı.',
       };
-      // Getirme hataları tanıyı belirgin kılar: erişilemeyen adres mi, izin
-      // verilmeyen alan adı mı, desteklenmeyen içerik mi?
-      const getirme = {
-        url_not_accessible: 'adres açılamadı',
-        url_not_allowed: 'adrese erişim izni yok (robots/alan adı kısıtı)',
-        url_not_in_prior_context: 'bağlantı sayfada bulunamadı',
-        unsupported_content_type: 'içerik türü desteklenmiyor (yalnız HTML/PDF)',
-        max_uses_exceeded: 'sayfa getirme sınırı aşıldı',
-        too_many_requests: 'kaynak site hız sınırı uyguladı',
-      };
-      const ek = (sonuc.getirmeHatalari || [])
-        .map((k) => getirme[k] || k)
-        .filter(Boolean)
-        .slice(0, 3);
       let mesaj = harita[sonuc.reason] || sonuc.reason || 'bilinmeyen sebep';
-      if (ek.length > 0) mesaj += ' [' + ek.join(' · ') + ']';
-      return res.status(422).json({ error: mesaj, reason: sonuc.reason });
+      const ek = tabanDenemeOzeti(sonuc.getirmeler);
+      if (ek) mesaj += ' [' + ek + ']';
+      return res.status(422).json({
+        error: mesaj,
+        reason: sonuc.reason,
+        denemeler: tabanDenemeleri(sonuc.getirmeler),
+      });
     }
 
     return res.json({
@@ -507,7 +535,10 @@ router.post('/taban-puan', extractLimiter, requireAuth, requireStaff, async (req
       url: sonuc.url,
       alanAdi: sonuc.alanAdi,
       data: sonuc.data,
-      getirmeHatalari: sonuc.getirmeHatalari || [],
+      // Hangi adresler denendi, hangisi açıldı — "bulunamadı" mesajının
+      // ardındaki tanı. Bu olmadan kullanıcı "sayfa okundu ama program yok"
+      // ile "sayfa hiç açılamadı" arasını ayıramıyor.
+      denemeler: tabanDenemeleri(sonuc.getirmeler),
     });
   } catch (err) {
     console.error('ai/taban-puan error:', err.message);

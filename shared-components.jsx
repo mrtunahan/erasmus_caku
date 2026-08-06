@@ -4156,7 +4156,13 @@ window.aiTabanPuanBul = async function (opt) {
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Taban puanlar okunamadı (HTTP ' + res.status + ')');
+  if (!res.ok) {
+    const e = new Error(data.error || 'Taban puanlar okunamadı (HTTP ' + res.status + ')');
+    // Deneme dökümü hata yolunda da lazım — asıl tanı orada. Throw ile
+    // kaybolmasın diye hataya iliştiriliyor.
+    e.denemeler = data.denemeler || [];
+    throw e;
+  }
   return data;
 };
 
@@ -11288,6 +11294,10 @@ const TabanPuanPaneli = ({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [hata, setHata] = useState('');
+  // Hangi adresler denendi, hangisi açıldı. "Bulunamadı" mesajı tek başına
+  // tanı koydurmuyor: sayfa okunup program tabloda bulunamadı mı, yoksa sayfa
+  // hiç açılamadı mı — ayrımı yalnız bu döküm gösteriyor.
+  const [denemeler, setDenemeler] = useState([]);
 
   // Kayıtlı adres + daha önce okunmuş puanlar.
   useEffect(() => {
@@ -11328,6 +11338,7 @@ const TabanPuanPaneli = ({
     setBusy(true);
     setHata('');
     setMsg('');
+    setDenemeler([]);
     try {
       const sonuc = await window.aiTabanPuanBul({
         url,
@@ -11361,17 +11372,29 @@ const TabanPuanPaneli = ({
       };
       await window.DBWrite.set(TABAN_KOLEKSIYON, docId, yeni, true);
       setKayit({ ...(kayit || {}), ...yeni, id: docId });
+      setDenemeler(sonuc.denemeler || []);
       const bulunan = okunan.filter((k) => k.taban).length;
-      setMsg(
-        bulunan +
-          ' / ' +
-          okunan.length +
-          ' program için taban puan bulundu.' +
-          (bulunan < okunan.length ? ' Bulunamayanları elle girebilirsiniz.' : '')
-      );
-      setTimeout(() => setMsg(''), 12000);
+      const acilan = (sonuc.denemeler || []).filter((d) => d.ok).length;
+      if (bulunan === 0 && acilan === 0) {
+        // Hiçbir sayfa açılamadıysa bu bir BAŞARISIZLIKTIR; yeşil "0 bulundu"
+        // kutusu göstermek, sorunun kaynağını gizler.
+        setHata(
+          'Hiçbir sayfa açılamadı — taban puan aranamadı. Aşağıdaki denemelere bakın; ' +
+            'adres yanlış ya da eskimiş olabilir.'
+        );
+      } else {
+        setMsg(
+          bulunan +
+            ' / ' +
+            okunan.length +
+            ' program için taban puan bulundu.' +
+            (bulunan < okunan.length ? ' Bulunamayanları elle girebilirsiniz.' : '')
+        );
+        setTimeout(() => setMsg(''), 12000);
+      }
     } catch (e) {
       setHata(e.message);
+      setDenemeler(e.denemeler || []);
     } finally {
       setBusy(false);
     }
@@ -11473,6 +11496,26 @@ const TabanPuanPaneli = ({
         >
           {msg}
         </div>
+      )}
+
+      {/* Deneme dökümü — "neden bulunamadı" sorusunun tek cevabı. */}
+      {denemeler.length > 0 && (
+        <details style={{ marginTop: 10 }}>
+          <summary
+            style={{ fontSize: 11.5, color: C.textMuted, cursor: 'pointer', fontWeight: 600 }}
+          >
+            Denenen adresler ({denemeler.filter((d) => d.ok).length}/{denemeler.length} açıldı)
+          </summary>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 11.5, lineHeight: 1.7 }}>
+            {denemeler.map((d, i) => (
+              <li key={i} style={{ color: d.ok ? C.textMuted : C.accent }}>
+                <b>{d.arac === 'arama' ? 'Arama' : 'Getirme'}:</b>{' '}
+                <span style={{ wordBreak: 'break-all' }}>{d.url || '(sorgu)'}</span>
+                {d.ok ? ' — açıldı' : ' — ' + (d.hata || 'başarısız')}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {okunanlar.length > 0 && (
