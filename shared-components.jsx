@@ -11382,6 +11382,19 @@ const TabanPuanPaneli = ({
           'Hiçbir sayfa açılamadı — taban puan aranamadı. Aşağıdaki denemelere bakın; ' +
             'adres yanlış ya da eskimiş olabilir.'
         );
+      } else if (bulunan === 0) {
+        // Sayfa AÇILDI ama puan çıkmadı — bu bambaşka bir durum ve sebebi
+        // yalnız modelin kendi açıklamasında. Genellikle YANLIŞ BELGE açılmış
+        // oluyor (aynı yılın DGS listesi yerine lisans listesi gibi).
+        const nedenler = Array.from(new Set(okunan.map((k) => k.aciklama).filter(Boolean)));
+        setHata(
+          'Sayfa açıldı ama taban puan bulunamadı.' +
+            (nedenler.length > 0
+              ? ' Sebep: ' + nedenler.join(' · ')
+              : ' Yıl ya da belge türü sayfadakiyle uyuşmuyor olabilir.') +
+            ' Doğrudan doğru belgenin (ör. ilgili yılın DGS listesinin) adresini girmeyi deneyin' +
+            ' ya da puanı elle yazın.'
+        );
       } else {
         setMsg(
           bulunan +

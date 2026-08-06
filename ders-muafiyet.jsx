@@ -9200,7 +9200,10 @@ function DikeyTabanPuanPaneli({ records, currentUser, activeDepartment, departme
           departmentId={activeDepartment || ''}
           modul="dikey"
           programlar={programlar}
-          puanTuru="DGS"
+          // Sayfada aynı yıl için ÖNLİSANS / LİSANS / DGS listeleri ayrı ayrı
+          // duruyor. Tür açıkça söylenmezse lisans listesi açılıp yanlış puan
+          // okunabiliyor — dikey geçişte gereken DGS listesidir.
+          puanTuru="DGS (dikey geçiş sınavı yerleştirme listesi)"
           onKayitlar={setTabanKayitlari}
           baslik="DGS taban puan sayfasının adresi"
           aciklama={
