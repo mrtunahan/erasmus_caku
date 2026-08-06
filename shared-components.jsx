@@ -5,6 +5,7 @@
 // hem dev hem prod modunda sorunsuz çalışır (.cjs import'u dev'de patlıyordu).
 import T_TOKENS from './design-tokens.json';
 import { MEZUNIYET_VARSAYILAN, mezuniyetHesapla, mezNotDurumu } from './lib/mezuniyet.js';
+import { veriSatiriSec } from './lib/xlsx-satir.js';
 
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
@@ -3605,12 +3606,22 @@ const TemplateEngine = (() => {
   }
 
   // Bir <row> XML'ini doldur ve satır numarasını ayarla.
-  function xlSatirDoldur(rowXml, yeniSatirNo, strings, doldur) {
+  // `siraNo` verilirse (yalnız çoğaltılan VERİ satırlarında) A sütunundaki
+  // düz sayı bununla değiştirilir. Şablonlarda A sütunu "SIRA NO"dur ve
+  // satır çoğaltılınca hepsi şablondaki sayıyı (genelde 1) taşıyordu.
+  function xlSatirDoldur(rowXml, yeniSatirNo, strings, doldur, siraNo) {
     let out = rowXml.replace(/(<row\b[^>]*\sr=")(\d+)(")/, (_, a, __, c) => a + yeniSatirNo + c);
     out = out.replace(
       /(<c\b[^>]*\sr=")([A-Z]+\d+)(")/g,
       (_, a, ref, c) => a + xlRefSatir(ref, yeniSatirNo) + c
     );
+    if (siraNo != null) {
+      // Yalnız A sütunu ve yalnız tip belirtilmemiş (sayı) hücre — paylaşılan
+      // metin, formül ya da başka sütundaki sayılar korunur.
+      out = out.replace(/<c\b([^>]*\sr="A\d+"[^>]*)>\s*<v>\d+<\/v>\s*<\/c>/, (tam, oz) =>
+        /\st="/.test(oz) ? tam : '<c' + oz + '><v>' + siraNo + '</v></c>'
+      );
+    }
     out = out.replace(/<c\b([^>]*)>([\s\S]*?)<\/c>/g, (tam, oz, ic) => {
       if (!/\st="s"/.test(oz)) return tam;
       const m = ic.match(/<v>(\d+)<\/v>/);
@@ -3705,12 +3716,6 @@ const TemplateEngine = (() => {
       const statik = _applyFmt(opts.staticData || {});
       const veri = (Array.isArray(opts.rows) ? opts.rows : []).map(_applyFmt);
 
-      const satirTokenuVarMi = (metin) => {
-        TOKEN_RX.lastIndex = 0;
-        const bulunan = String(metin).match(TOKEN_RX) || [];
-        return bulunan.some((t) => tokenHarita[t] && tokenHarita[t].tip === 'row');
-      };
-
       const doldurYap = (kayit) => (metin) => {
         TOKEN_RX.lastIndex = 0;
         return String(metin).replace(TOKEN_RX, (t) => {
@@ -3748,28 +3753,29 @@ const TemplateEngine = (() => {
         const satirlar = [...xml.matchAll(satirRx)].map((m) => m[0]);
         if (satirlar.length === 0) continue;
 
-        let sablonIdx = -1;
-        satirlar.forEach((r, i) => {
-          if (sablonIdx >= 0) return;
-          const idx = [...r.matchAll(/<c\b[^>]*\st="s"[^>]*>\s*<v>(\d+)<\/v>/g)].map((x) =>
-            Number(x[1])
-          );
-          if (idx.some((ix) => strings[ix] && satirTokenuVarMi(strings[ix]))) sablonIdx = i;
-        });
+        // Veri satırı seçimi lib/xlsx-satir.js'te — kuralın kendisi ve neden
+        // "ilk eşleşen satır" OLMADIĞI orada, test altında anlatılıyor.
+        const sablonIdx = veriSatiriSec(satirlar, strings, tokenHarita);
         if (sablonIdx >= 0) sablonSatiriBulundu = true;
+
+        // Veri satırı DIŞINDA kalan satırlardaki satır değişkenleri ilk kayıttan
+        // doldurulur. Bunlar tanım gereği başlık/altlık hücreleridir ve oradaki
+        // alan (bölüm adı, yarıyıl) zaten tüm satırlarda aynıdır; boş bırakmak
+        // rapor başlığını sakat gösterirdi.
+        const ilkKayit = veri.length > 0 ? veri[0] : {};
 
         const yeni = [];
         let no = 0;
         satirlar.forEach((r, i) => {
           if (i === sablonIdx && veri.length > 0) {
-            veri.forEach((kayit) => {
+            veri.forEach((kayit, sira) => {
               no += 1;
-              yeni.push(xlSatirDoldur(r, no, strings, doldurYap(kayit)));
+              yeni.push(xlSatirDoldur(r, no, strings, doldurYap(kayit), sira + 1));
             });
             uretilen += veri.length;
           } else {
             no += 1;
-            yeni.push(xlSatirDoldur(r, no, strings, doldurYap(i === sablonIdx ? {} : null)));
+            yeni.push(xlSatirDoldur(r, no, strings, doldurYap(i === sablonIdx ? {} : ilkKayit)));
           }
         });
 
