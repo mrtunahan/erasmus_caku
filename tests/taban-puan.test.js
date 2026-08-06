@@ -133,6 +133,87 @@ describe('alanAdiKoku', () => {
   });
 });
 
+// "0 / 1 program için taban puan bulundu" mesajı iki bambaşka durumu aynı
+// gösteriyordu: sayfa okundu ama program tabloda yok / sayfa hiç açılamadı.
+// Bu döküm o ayrımı yapan tek şey — sessizce boşalırsa körlük geri gelir.
+describe('getirmeleriTopla', () => {
+  const yanit = (bloklar) => ({ content: bloklar });
+
+  it('başarılı getirmeyi adresiyle birlikte kaydeder', () => {
+    const biriken = [];
+    cx.getirmeleriTopla(
+      yanit([
+        { type: 'server_tool_use', id: 's1', name: 'web_fetch', input: { url: 'https://a.tr/x' } },
+        { type: 'web_fetch_tool_result', tool_use_id: 's1', content: { type: 'web_fetch_result' } },
+      ]),
+      biriken
+    );
+    expect(biriken).toEqual([{ arac: 'getirme', url: 'https://a.tr/x', ok: true, hata: '' }]);
+  });
+
+  it('hata kodunu saklar', () => {
+    const biriken = [];
+    cx.getirmeleriTopla(
+      yanit([
+        { type: 'server_tool_use', id: 's1', name: 'web_fetch', input: { url: 'https://a.tr/y' } },
+        {
+          type: 'web_fetch_tool_result',
+          tool_use_id: 's1',
+          content: { type: 'web_fetch_tool_result_error', error_code: 'url_not_accessible' },
+        },
+      ]),
+      biriken
+    );
+    expect(biriken[0]).toMatchObject({ ok: false, hata: 'url_not_accessible' });
+  });
+
+  it('aramayı getirmeden ayırır', () => {
+    const biriken = [];
+    cx.getirmeleriTopla(
+      yanit([
+        { type: 'server_tool_use', id: 's1', name: 'web_search', input: { query: 'taban puan' } },
+        { type: 'web_search_tool_result', tool_use_id: 's1', content: [] },
+      ]),
+      biriken
+    );
+    expect(biriken[0].arac).toBe('arama');
+  });
+
+  it('TURLAR BOYUNCA birikir — ilk turdaki hata kaybolmaz', () => {
+    // pause_turn ile devam eden bir döngüde yalnız son yanıta bakmak, asıl
+    // hatayı (ilk turda açılamayan adresi) gizlerdi.
+    const biriken = [];
+    cx.getirmeleriTopla(
+      yanit([
+        { type: 'server_tool_use', id: 's1', name: 'web_fetch', input: { url: 'https://a.tr/1' } },
+        {
+          type: 'web_fetch_tool_result',
+          tool_use_id: 's1',
+          content: { type: 'web_fetch_tool_result_error', error_code: 'url_not_accessible' },
+        },
+      ]),
+      biriken
+    );
+    cx.getirmeleriTopla(
+      yanit([
+        { type: 'server_tool_use', id: 's2', name: 'web_fetch', input: { url: 'https://a.tr/2' } },
+        { type: 'web_fetch_tool_result', tool_use_id: 's2', content: { type: 'web_fetch_result' } },
+      ]),
+      biriken
+    );
+    expect(biriken).toHaveLength(2);
+    expect(biriken[0].ok).toBe(false);
+    expect(biriken[1].ok).toBe(true);
+  });
+
+  it('araç kullanılmayan yanıtta hiçbir şey eklemez', () => {
+    const biriken = [];
+    cx.getirmeleriTopla(yanit([{ type: 'text', text: '{}' }]), biriken);
+    cx.getirmeleriTopla({}, biriken);
+    expect(biriken).toHaveLength(0);
+  });
+});
+
 describe('tabanUrlCoz', () => {
   it('geçerli adresi çözer ve kökünü verir', () => {
     const r = cx.tabanUrlCoz(

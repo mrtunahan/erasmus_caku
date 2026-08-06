@@ -1254,6 +1254,46 @@ function tabanUrlCoz(ham) {
   return { url: u.toString(), koku };
 }
 
+/**
+ * Bir yanıttaki sunucu-aracı denemelerini toplar.
+ *
+ * ⚠ BU KÖRLÜĞÜ GİDERMEK İÇİN VAR: "0 / 1 program için taban puan bulundu"
+ * mesajı, iki bambaşka durumu aynı gösteriyordu — sayfa okundu ama program
+ * tabloda yok, YA DA sayfa hiç açılamadı. Kullanıcı hangisi olduğunu
+ * bilemediği için tanı koyacak hiçbir şey yoktu.
+ *
+ * Denemeler TÜM turlardan biriktirilir; yalnız son yanıta bakmak, pause_turn
+ * ile devam eden bir döngüde ilk turdaki asıl hatayı kaybettirir.
+ *
+ * @param {object} resp
+ * @param {Array} biriken  yerinde büyütülür: [{arac, url, ok, hata}]
+ */
+function getirmeleriTopla(resp, biriken) {
+  const bloklar = (resp && resp.content) || [];
+  const urlById = new Map();
+  bloklar.forEach((b) => {
+    if (b.type === 'server_tool_use') urlById.set(b.id, (b.input && b.input.url) || '');
+  });
+  bloklar.forEach((b) => {
+    const arac =
+      b.type === 'web_fetch_tool_result'
+        ? 'getirme'
+        : b.type === 'web_search_tool_result'
+          ? 'arama'
+          : '';
+    if (!arac) return;
+    const ic = b.content || {};
+    const hataliMi =
+      ic.type === 'web_fetch_tool_result_error' || ic.type === 'web_search_tool_result_error';
+    biriken.push({
+      arac,
+      url: String(urlById.get(b.tool_use_id) || ic.url || '').slice(0, 300),
+      ok: !hataliMi,
+      hata: hataliMi ? String(ic.error_code || 'hata') : '',
+    });
+  });
+}
+
 const TABAN_TALIMATI = `Sen bir Türk üniversitesinin öğrenci işleri asistanısın.
 Sana bir web adresi ve bir program (bölüm) listesi verilecek. Görevin, verilen
 adresteki resmî yayından her programın TABAN PUANINI birebir okuyup çıkarmaktır.
@@ -1261,8 +1301,14 @@ adresteki resmî yayından her programın TABAN PUANINI birebir okuyup çıkarma
 Nasıl çalışacaksın:
 1. Önce verilen adresi getir (web_fetch).
 2. Sayfada tablo yerine PDF/duyuru bağlantısı varsa, o bağlantıyı da getir ve
-   PDF'in içine bak. Taban–tavan puan listeleri çoğunlukla PDF'tedir.
-3. İstenen programı tabloda bul. Program adları birebir aynı yazılmayabilir
+   PDF'in içine bak. Taban–tavan puan listeleri ÇOĞUNLUKLA PDF'tedir ve
+   çoğu kurumda başka bir alt alan adında (dosya sunucusunda) durur.
+3. Adres açılmazsa ya da sayfada tablo/bağlantı bulamazsan PES ETME:
+   web_search ile aynı kurumun sitesinde ara (ör. "taban tavan puanlar
+   <yıl> lisans", "<program adı> taban puan"). Aramadan çıkan PDF/sayfa
+   adreslerini web_fetch ile getirip içine bak. Arama da getirme de yalnız
+   bu kurumun alan adıyla sınırlıdır; başka bir siteye gidemezsin.
+4. İstenen programı tabloda bul. Program adları birebir aynı yazılmayabilir
    ("Gıda Mühendisliği" ↔ "GIDA MÜH."). Anlamca aynı olan satırı eşleştir,
    hangi satırı seçtiğini "aciklama" alanında yaz.
 
@@ -1307,14 +1353,31 @@ async function tabanPuanBul(opt) {
   if (programlar.length === 0) return { ok: false, reason: 'no-programs' };
 
   const c = client();
-  const arac = {
-    type: WEB_GETIR_ARACI,
-    name: 'web_fetch',
-    max_uses: TABAN_MAX_FETCH,
-    // Sayfadan çıkan bağlantılar da yalnız bu kök altında izinli.
-    allowed_domains: [koku],
-    max_content_tokens: 60000,
-  };
+  const araclar = [
+    {
+      type: WEB_GETIR_ARACI,
+      name: 'web_fetch',
+      max_uses: TABAN_MAX_FETCH,
+      // Sayfadan çıkan bağlantılar da yalnız bu kök altında izinli.
+      allowed_domains: [koku],
+      max_content_tokens: 60000,
+    },
+    // Arama, getirmenin YEDEĞİDİR ve aynı alan adına kilitlidir.
+    //
+    // İki gerçek sorunu birden çözüyor: (1) verilen adres yanlış/eskimişse
+    // (ör. kurumun sayfası /tr/ önekiyle yayında ama adres onsuz yazılmışsa)
+    // doğru sayfa yine bulunur; (2) tablolar çoğu kurumda ana sayfada değil,
+    // BAŞKA BİR ALT ALAN ADINDAKİ PDF'lerde durur — arama o PDF'in adresini
+    // getirir, web_fetch de "konuşmada geçen adres" kuralı gereği artık onu
+    // getirebilir. Alan adı kilidi sayesinde puan yine yalnız kurumun kendi
+    // yayınından okunur.
+    {
+      type: WEB_ARAMA_ARACI,
+      name: 'web_search',
+      max_uses: WEB_MAX_USES,
+      allowed_domains: [koku],
+    },
+  ];
 
   const yil = String(opt.yil || '').trim();
   const puanTuru = String(opt.puanTuru || '').trim();
@@ -1339,6 +1402,7 @@ async function tabanPuanBul(opt) {
 
   const messages = [{ role: 'user', content: [{ type: 'text', text: soru }] }];
   const usages = [];
+  const getirmeler = [];
   let resp = null;
 
   // Sunucu aracı döngüsü sınıra takılırsa `pause_turn` gelir — sınırlı sayıda
@@ -1349,10 +1413,11 @@ async function tabanPuanBul(opt) {
       max_tokens: 4096,
       temperature: TEMPERATURE,
       system: [{ type: 'text', text: TABAN_TALIMATI }],
-      tools: [arac],
+      tools: araclar,
       messages,
     });
     usages.push(resp.usage);
+    getirmeleriTopla(resp, getirmeler);
     if (resp.stop_reason !== 'pause_turn') break;
     messages.push({ role: 'assistant', content: resp.content });
   }
@@ -1392,17 +1457,7 @@ async function tabanPuanBul(opt) {
     });
   }
 
-  // Getirme hiç yapılamadıysa (erişilemeyen adres, robots, PDF olmayan içerik)
-  // sebebi sunucu tarafında görünür kılalım — "bulunamadı" tek başına tanı
-  // koydurmuyor.
-  const getirmeHatalari = [];
-  (resp && resp.content ? resp.content : []).forEach((blok) => {
-    if (blok.type !== 'web_fetch_tool_result') return;
-    const ic = blok.content || {};
-    if (ic.type === 'web_fetch_tool_result_error') getirmeHatalari.push(ic.error_code || 'hata');
-  });
-
-  if (!veri) return { ok: false, reason: 'parse-failed', getirmeHatalari };
+  if (!veri) return { ok: false, reason: 'parse-failed', getirmeler };
 
   const out = {};
   programlar.forEach((p) => {
@@ -1422,7 +1477,7 @@ async function tabanPuanBul(opt) {
       aciklama: String(g.aciklama || '').slice(0, 400),
     };
   });
-  return { ok: true, url, alanAdi: koku, data: out, getirmeHatalari };
+  return { ok: true, url, alanAdi: koku, data: out, getirmeler };
 }
 
 // ── Batch API — anlık olmayan işler (%50 indirim) ─────────────
@@ -1550,6 +1605,7 @@ module.exports = {
   // Saf yardımcılar — test edilebilsin diye dışa veriliyor.
   alanAdiKoku,
   tabanUrlCoz,
+  getirmeleriTopla,
   batchGonder,
   batchDurum,
   batchSonuc,
