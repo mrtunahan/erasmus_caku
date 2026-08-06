@@ -479,7 +479,54 @@ function tabanDenemeOzeti(getirmeler) {
     .join(' · ');
 }
 
-// POST /api/ai/taban-puan — verilen adresten programların taban puanını oku.
+// ══════════════════════════════════════════════════════════════
+// TABAN PUAN — ARKA PLAN İŞİ
+//
+// ⚠ NEDEN SENKRON DEĞİL: bu çağrı bir web sayfası + yüz sayfalık bir PDF
+// okuyor; dakikalarca sürebiliyor. nginx'in /api/ bloğunda proxy_read_timeout
+// tanımlı değil, yani 60 saniyelik varsayılan geçerli — istek 504 ile
+// kopuyordu. Üstelik iş arkada tamamlanıp sonucu HİÇBİR YERE yazılmadığı için
+// harcanan model çağrısı da çöpe gidiyordu.
+//
+// Timeout'u büyütmek yanlış çözüm olurdu: bir HTTP bağlantısını dakikalarca
+// açık tutmak, sekme kapanınca ya da ağ düşünce işi yine kaybettirir. Doğru
+// çözüm işi kayda bağlamak: uç işi başlatıp 202 döner, sonuç `taban_puanlar`
+// kaydına yazılır, istemci kaydı yoklar. Sekme kapansa bile sonuç durur.
+// ══════════════════════════════════════════════════════════════
+const { getDbSafe } = require('../config/database');
+const TABAN_KOLEKSIYON = 'taban_puanlar';
+
+// Kapsam anahtarı — istemcideki tabanKapsamAnahtari ile AYNI olmak zorunda.
+function tabanDocId(departmentId, modul) {
+  return String(departmentId || 'genel') + ':' + String(modul || 'genel');
+}
+
+// Kaydı generic yazma API'siyle aynı biçimde günceller (_docId ile upsert).
+async function tabanKaydiYaz(docId, patch) {
+  const db = await getDbSafe();
+  if (!db) return;
+  await db
+    .collection(TABAN_KOLEKSIYON)
+    .updateOne(
+      { _docId: docId },
+      { $set: { _docId: docId, ...patch, updatedAt: new Date().toISOString() } },
+      { upsert: true }
+    );
+}
+
+function tabanHataMesaji(sonuc) {
+  const harita = {
+    'bad-url': sonuc.mesaj || 'Adres geçersiz.',
+    'no-programs': 'Taban puanı aranacak program yok.',
+    'parse-failed': 'Sayfa okundu ama taban puan tablosu çıkarılamadı.',
+  };
+  let mesaj = harita[sonuc.reason] || sonuc.reason || 'bilinmeyen sebep';
+  const ek = tabanDenemeOzeti(sonuc.getirmeler);
+  if (ek) mesaj += ' [' + ek + ']';
+  return mesaj;
+}
+
+// POST /api/ai/taban-puan — işi BAŞLATIR (202) ve hemen döner.
 //
 // Yalnız personel: adres serbest metindir ve sunucu bu adrese (dolaylı olarak,
 // model üzerinden) gider. Öğrenciye açık olsaydı, sisteme rastgele adres
@@ -503,47 +550,116 @@ router.post('/taban-puan', extractLimiter, requireAuth, requireStaff, async (req
       return res.status(400).json({ error: 'Taban puanı aranacak program yok.' });
     }
 
-    const sonuc = await cx.tabanPuanBul({
-      url: clip(b.url, 300),
-      programlar,
-      yil: clip(b.yil, 20),
-      puanTuru: clip(b.puanTuru, 40),
-      module: clip(b.module, 40),
-      docType: clip(b.docType, 40) || 'default',
-      baglam: baglamCoz(req, b),
+    const baglam = baglamCoz(req, b);
+    const modul = clip(b.module, 40);
+    const url = clip(b.url, 300);
+    const yil = clip(b.yil, 20);
+    const docId = tabanDocId(baglam.departmentId, modul);
+
+    // İşi kayda "çalışıyor" diye yaz — istemci bunu yoklayacak.
+    await tabanKaydiYaz(docId, {
+      durum: 'calisiyor',
+      url,
+      yil,
+      modul,
+      departmentId: baglam.departmentId || '',
+      baslangicZamani: new Date().toISOString(),
+      okuyan: String(b.okuyan || baglam.actorName || ''),
+      hataMesaji: '',
+      denemeler: [],
     });
 
-    if (!sonuc.ok) {
-      const harita = {
-        'bad-url': sonuc.mesaj || 'Adres geçersiz.',
-        'no-programs': 'Taban puanı aranacak program yok.',
-        'parse-failed': 'Sayfa okundu ama taban puan tablosu çıkarılamadı.',
-      };
-      let mesaj = harita[sonuc.reason] || sonuc.reason || 'bilinmeyen sebep';
-      const ek = tabanDenemeOzeti(sonuc.getirmeler);
-      if (ek) mesaj += ' [' + ek + ']';
-      return res.status(422).json({
-        error: mesaj,
-        reason: sonuc.reason,
-        denemeler: tabanDenemeleri(sonuc.getirmeler),
-      });
-    }
+    // Cevap ÖNCE gider; iş arkada sürer.
+    res.status(202).json({ ok: true, durum: 'calisiyor', docId });
 
-    return res.json({
-      ok: true,
-      model: cx.MODEL,
-      url: sonuc.url,
-      alanAdi: sonuc.alanAdi,
-      kullanilanModel: sonuc.model,
-      data: sonuc.data,
-      // Hangi adresler denendi, hangisi açıldı — "bulunamadı" mesajının
-      // ardındaki tanı. Bu olmadan kullanıcı "sayfa okundu ama program yok"
-      // ile "sayfa hiç açılamadı" arasını ayıramıyor.
-      denemeler: tabanDenemeleri(sonuc.getirmeler),
-    });
+    // Arka plan — buradan sonrası isteğe bağlı değil, kayda yazılır.
+    // Reddedilen promise süreci düşürmesin diye tümü sarılı.
+    (async () => {
+      try {
+        const sonuc = await cx.tabanPuanBul({
+          url,
+          programlar,
+          yil,
+          puanTuru: clip(b.puanTuru, 60),
+          module: modul,
+          docType: clip(b.docType, 40) || 'default',
+          baglam,
+        });
+
+        if (!sonuc.ok) {
+          await tabanKaydiYaz(docId, {
+            durum: 'hata',
+            hataMesaji: tabanHataMesaji(sonuc),
+            denemeler: tabanDenemeleri(sonuc.getirmeler),
+            bitisZamani: new Date().toISOString(),
+          });
+          return;
+        }
+
+        const okunan = programlar.map((p) => {
+          const g = (sonuc.data || {})[p.id] || {};
+          return {
+            id: p.id,
+            ad: p.ad,
+            taban: g.taban || '',
+            puanTuru: g.puanTuru || '',
+            yil: g.yil || '',
+            kaynak: g.kaynak || '',
+            guven: g.guven || 0,
+            aciklama: g.aciklama || '',
+          };
+        });
+        await tabanKaydiYaz(docId, {
+          durum: 'bitti',
+          programlar: okunan,
+          denemeler: tabanDenemeleri(sonuc.getirmeler),
+          kullanilanModel: sonuc.model || '',
+          url: sonuc.url || url,
+          hataMesaji: '',
+          okunmaZamani: new Date().toISOString(),
+          bitisZamani: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('ai/taban-puan arka plan hatası:', err.message);
+        await tabanKaydiYaz(docId, {
+          durum: 'hata',
+          hataMesaji: 'Taban puanlar okunamadı: ' + err.message,
+          bitisZamani: new Date().toISOString(),
+        }).catch(() => {});
+      }
+    })().catch(() => {});
+    return undefined;
   } catch (err) {
     console.error('ai/taban-puan error:', err.message);
-    return res.status(502).json({ error: 'Taban puanlar okunamadı: ' + err.message });
+    return res.status(502).json({ error: 'Taban puan işi başlatılamadı: ' + err.message });
+  }
+});
+
+// GET /api/ai/taban-puan/:docId — iş durumu (istemci bunu yoklar).
+// Yoklama ucuz olmalı; statusLimiter yeterli.
+router.get('/taban-puan/:docId', statusLimiter, requireAuth, requireStaff, async (req, res) => {
+  try {
+    const db = await getDbSafe();
+    if (!db) return res.status(503).json({ error: 'Veritabanına ulaşılamıyor.' });
+    const d = await db
+      .collection(TABAN_KOLEKSIYON)
+      .findOne({ _docId: String(req.params.docId || '').slice(0, 200) });
+    if (!d) return res.json({ ok: true, durum: 'yok' });
+    return res.json({
+      ok: true,
+      durum: d.durum || 'bitti',
+      programlar: Array.isArray(d.programlar) ? d.programlar : [],
+      denemeler: Array.isArray(d.denemeler) ? d.denemeler : [],
+      hataMesaji: d.hataMesaji || '',
+      url: d.url || '',
+      yil: d.yil || '',
+      okunmaZamani: d.okunmaZamani || '',
+      baslangicZamani: d.baslangicZamani || '',
+      okuyan: d.okuyan || '',
+      kullanilanModel: d.kullanilanModel || '',
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Durum alınamadı: ' + err.message });
   }
 });
 
