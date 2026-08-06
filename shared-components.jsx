@@ -4127,14 +4127,18 @@ window.aiDersEslestir = async function (ciftler) {
 };
 
 /**
- * Verilen adresten programların TABAN PUANINI okur (yalnız personel).
+ * Taban puan okuma işini BAŞLATIR (yalnız personel) — sonucu beklemez.
+ *
+ * İş dakikalarca sürebildiği için senkron çalışmıyor: sunucu 202 döner, sonucu
+ * `taban_puanlar` kaydına yazar, istemci aiTabanPuanDurum ile yoklar. Senkron
+ * olsaydı nginx'in 60 saniyelik varsayılanına takılıp 504 verirdi (ve verdi).
  *
  * Model sayfayı ve sayfadaki PDF bağlantılarını okur, yalnız belgede yazan
  * sayıyı döndürür. "Uygun/uygun değil" kararı burada DEĞİL, tabanKarsilastir
  * ile istemcide verilir — karar aritmetiktir, modele bırakılmaz.
  *
  * @param {object} opt { url, programlar:[{id,ad,puanTuru}], yil, puanTuru, module, docType }
- * @returns {Promise<{ok, url, data:{[id]:{ad,taban,puanTuru,yil,kaynak,guven,aciklama}}}>}
+ * @returns {Promise<{ok, durum:'calisiyor', docId}>}
  */
 window.aiTabanPuanBul = async function (opt) {
   const token = localStorage.getItem('caku_auth_token');
@@ -4163,6 +4167,19 @@ window.aiTabanPuanBul = async function (opt) {
     e.denemeler = data.denemeler || [];
     throw e;
   }
+  return data;
+};
+
+// Arka plan işinin durumu. Kayıt üzerinden okunur; önbelleğe alınmaz —
+// yoklamanın amacı zaten değişimi görmek.
+window.aiTabanPuanDurum = async function (docId) {
+  const token = localStorage.getItem('caku_auth_token');
+  const res = await fetch('/api/ai/taban-puan/' + encodeURIComponent(docId), {
+    headers: token ? { Authorization: 'Bearer ' + token } : {},
+    credentials: 'include',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Durum alınamadı (HTTP ' + res.status + ')');
   return data;
 };
 
@@ -11298,6 +11315,11 @@ const TabanPuanPaneli = ({
   // tanı koydurmuyor: sayfa okunup program tabloda bulunamadı mı, yoksa sayfa
   // hiç açılamadı mı — ayrımı yalnız bu döküm gösteriyor.
   const [denemeler, setDenemeler] = useState([]);
+  // Süren yoklamanın zamanlayıcısı ve güncel yoklama işlevi. İşlev bir ref'te
+  // tutuluyor ki aşağıdaki ilk yükleme etkisi, tanımı kendisinden SONRA gelen
+  // yokla()'ya bağımlılık eklemek zorunda kalmadan çağırabilsin.
+  const yoklamaRef = window.React.useRef(null);
+  const yoklaRef = window.React.useRef(() => {});
 
   // Kayıtlı adres + daha önce okunmuş puanlar.
   useEffect(() => {
@@ -11311,6 +11333,16 @@ const TabanPuanPaneli = ({
         setKayit(d);
         setUrl(d.url || '');
         setYil(d.yil || '');
+        setDenemeler(Array.isArray(d.denemeler) ? d.denemeler : []);
+        if (d.durum === 'hata' && d.hataMesaji) setHata(d.hataMesaji);
+        // Panel kapalıyken başlamış bir iş hâlâ sürüyor olabilir — sessizce
+        // "sonuç yok" göstermek yerine yoklamaya geri bağlan. (Çok eski
+        // "calisiyor" kaydı takılı kalmış demektir; ona bağlanmayız.)
+        const bas = Date.parse(d.baslangicZamani || '') || 0;
+        if (d.durum === 'calisiyor' && Date.now() - bas < 15 * 60 * 1000) {
+          setBusy(true);
+          yoklaRef.current(Date.now() + 8 * 60 * 1000);
+        }
       })
       .catch(() => {});
     return () => {
@@ -11329,60 +11361,34 @@ const TabanPuanPaneli = ({
     bildir((kayit && kayit.programlar) || []);
   }, [kayit, bildir]);
 
-  const getir = async () => {
-    const istenen = (programlar || []).filter((p) => p && p.id && p.ad);
-    if (istenen.length === 0) {
-      setHata('Taban puanı aranacak program yok.');
-      return;
-    }
-    setBusy(true);
-    setHata('');
-    setMsg('');
-    setDenemeler([]);
-    try {
-      const sonuc = await window.aiTabanPuanBul({
-        url,
-        yil,
-        puanTuru: puanTuru || '',
-        programlar: istenen,
-        module: modul,
-        departmentId,
-      });
-      const okunan = istenen.map((p) => {
-        const g = (sonuc.data || {})[p.id] || {};
-        return {
-          id: p.id,
-          ad: p.ad,
-          taban: g.taban || '',
-          puanTuru: g.puanTuru || '',
-          yil: g.yil || '',
-          kaynak: g.kaynak || '',
-          guven: g.guven || 0,
-          aciklama: g.aciklama || '',
-        };
-      });
-      const yeni = {
-        url: sonuc.url || url,
-        yil,
-        modul,
-        departmentId: departmentId || '',
+  // İş bittiğinde sonucu ekrana yansıt. Sunucu kaydı zaten yazdı; burada
+  // yalnız yorumluyoruz.
+  const sonucuIsle = useCallback(
+    (d) => {
+      const okunan = Array.isArray(d.programlar) ? d.programlar : [];
+      setKayit((onceki) => ({
+        ...(onceki || {}),
+        id: docId,
+        url: d.url || '',
         programlar: okunan,
-        okunmaZamani: new Date().toISOString(),
-        okuyan: String(currentUser?.name || currentUser?.identifier || ''),
-      };
-      await window.DBWrite.set(TABAN_KOLEKSIYON, docId, yeni, true);
-      setKayit({ ...(kayit || {}), ...yeni, id: docId });
-      setDenemeler(sonuc.denemeler || []);
+        okunmaZamani: d.okunmaZamani || '',
+        okuyan: d.okuyan || '',
+      }));
+      setDenemeler(d.denemeler || []);
+      if (d.durum === 'hata') {
+        setHata(d.hataMesaji || 'Taban puanlar okunamadı.');
+        return;
+      }
       const bulunan = okunan.filter((k) => k.taban).length;
-      const acilan = (sonuc.denemeler || []).filter((d) => d.ok).length;
-      if (bulunan === 0 && acilan === 0) {
+      const acilan = (d.denemeler || []).filter((x) => x.ok).length;
+      if (okunan.length > 0 && bulunan === 0 && acilan === 0) {
         // Hiçbir sayfa açılamadıysa bu bir BAŞARISIZLIKTIR; yeşil "0 bulundu"
         // kutusu göstermek, sorunun kaynağını gizler.
         setHata(
           'Hiçbir sayfa açılamadı — taban puan aranamadı. Aşağıdaki denemelere bakın; ' +
             'adres yanlış ya da eskimiş olabilir.'
         );
-      } else if (bulunan === 0) {
+      } else if (okunan.length > 0 && bulunan === 0) {
         // Sayfa AÇILDI ama puan çıkmadı — bu bambaşka bir durum ve sebebi
         // yalnız modelin kendi açıklamasında. Genellikle YANLIŞ BELGE açılmış
         // oluyor (aynı yılın DGS listesi yerine lisans listesi gibi).
@@ -11395,7 +11401,7 @@ const TabanPuanPaneli = ({
             ' Doğrudan doğru belgenin (ör. ilgili yılın DGS listesinin) adresini girmeyi deneyin' +
             ' ya da puanı elle yazın.'
         );
-      } else {
+      } else if (bulunan > 0) {
         setMsg(
           bulunan +
             ' / ' +
@@ -11405,11 +11411,75 @@ const TabanPuanPaneli = ({
         );
         setTimeout(() => setMsg(''), 12000);
       }
+    },
+    [docId]
+  );
+
+  // ── İşi yoklama ──
+  // Sunucu 202 dönüp arkada çalıştığı için sonucu kayıttan öğreniyoruz.
+  // Sekme kapansa bile iş sürer ve sonuç kayda yazılır; panel yeniden
+  // açıldığında (aşağıdaki ilk yükleme) sürmekte olan işe geri bağlanır.
+  useEffect(() => {
+    return () => {
+      if (yoklamaRef.current) clearTimeout(yoklamaRef.current);
+    };
+  }, []);
+
+  const yokla = useCallback(
+    (bitis) => {
+      if (Date.now() > bitis) {
+        setBusy(false);
+        setHata(
+          'Okuma hâlâ sürüyor. İş arka planda devam ediyor; birkaç dakika sonra bu ekranı ' +
+            'yeniden açtığınızda sonuç burada olacak.'
+        );
+        return;
+      }
+      yoklamaRef.current = setTimeout(async () => {
+        try {
+          const d = await window.aiTabanPuanDurum(docId);
+          if (d.durum === 'calisiyor') {
+            yokla(bitis);
+            return;
+          }
+          setBusy(false);
+          sonucuIsle(d);
+        } catch (e) {
+          // Tek bir yoklama hatası işi bitirmez — ağ dalgalanması olabilir.
+          yokla(bitis);
+        }
+      }, 4000);
+    },
+    [docId, sonucuIsle]
+  );
+  yoklaRef.current = yokla;
+
+  const getir = async () => {
+    const istenen = (programlar || []).filter((p) => p && p.id && p.ad);
+    if (istenen.length === 0) {
+      setHata('Taban puanı aranacak program yok.');
+      return;
+    }
+    setBusy(true);
+    setHata('');
+    setMsg('');
+    setDenemeler([]);
+    try {
+      await window.aiTabanPuanBul({
+        url,
+        yil,
+        puanTuru: puanTuru || '',
+        programlar: istenen,
+        module: modul,
+        departmentId,
+        okuyan: String(currentUser?.name || currentUser?.identifier || ''),
+      });
+      // İş en fazla 8 dakika yoklanır; ötesinde arka planda sürmeye devam eder.
+      yokla(Date.now() + 8 * 60 * 1000);
     } catch (e) {
+      setBusy(false);
       setHata(e.message);
       setDenemeler(e.denemeler || []);
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -11471,6 +11541,13 @@ const TabanPuanPaneli = ({
           {busy ? 'Okunuyor…' : 'Taban Puanları Getir'}
         </button>
       </div>
+
+      {busy && (
+        <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8 }}>
+          Sayfa ve içindeki PDF'ler okunuyor — bu birkaç dakika sürebilir. İşlem <b>arka planda</b>{' '}
+          çalışıyor: bu ekrandan ayrılsanız bile sürer, sonuç buraya kaydedilir.
+        </div>
+      )}
 
       <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8, lineHeight: 1.5 }}>
         {aciklama ||
