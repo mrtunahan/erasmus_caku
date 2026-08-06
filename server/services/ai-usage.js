@@ -113,23 +113,37 @@ async function kullanimKaydet(kayit) {
 }
 
 /**
- * Toplam rapor. `groupBy` = 'student' | 'module' | 'department' | 'day'
+ * Toplam rapor.
+ * `groupBy` = 'student' | 'module' | 'department' | 'day' | 'endpoint' | 'model'
+ *
+ * `endpoint` ve `model` kırılımları maliyet SORUSUNU cevaplamak için var:
+ * "hangi özellik ne kadar tutuyor" sorusuna modül kırılımı yetmiyordu — aynı
+ * modül içinde ucuz (alan çıkarımı) ve pahalı (web'den taban puan okuma)
+ * çağrılar bir arada. Uç bazlı kırılım olmadan pahalı olanı ayırt etmek
+ * mümkün değildi.
  */
-async function kullanimRaporu({ groupBy = 'student', since = '', departmentId = '' } = {}) {
+async function kullanimRaporu({
+  groupBy = 'student',
+  since = '',
+  departmentId = '',
+  endpoint = '',
+} = {}) {
   const db = await getDbSafe();
   if (!db) return [];
   const match = {};
   if (since) match.createdAt = { $gte: String(since) };
   if (departmentId) match.departmentId = String(departmentId);
+  if (endpoint) match.endpoint = String(endpoint);
 
-  const alan =
-    groupBy === 'module'
-      ? '$module'
-      : groupBy === 'department'
-        ? '$departmentId'
-        : groupBy === 'day'
-          ? { $substr: ['$createdAt', 0, 10] }
-          : '$studentNo';
+  const ALANLAR = {
+    module: '$module',
+    department: '$departmentId',
+    endpoint: '$endpoint',
+    model: '$model',
+    day: { $substr: ['$createdAt', 0, 10] },
+    student: '$studentNo',
+  };
+  const alan = ALANLAR[groupBy] || ALANLAR.student;
 
   return db
     .collection(COLLECTION)

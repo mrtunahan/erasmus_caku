@@ -11373,6 +11373,8 @@ const TabanPuanPaneli = ({
         programlar: okunan,
         okunmaZamani: d.okunmaZamani || '',
         okuyan: d.okuyan || '',
+        maliyetUsd: d.maliyetUsd || 0,
+        kullanilanModel: d.kullanilanModel || '',
       }));
       setDenemeler(d.denemeler || []);
       if (d.durum === 'hata') {
@@ -11458,6 +11460,29 @@ const TabanPuanPaneli = ({
     const istenen = (programlar || []).filter((p) => p && p.id && p.ad);
     if (istenen.length === 0) {
       setHata('Taban puanı aranacak program yok.');
+      return;
+    }
+    // Aynı adres ve yıl için puanlar zaten okunmuşsa yeniden okumak PARA
+    // HARCAR ve yeni bir şey getirmez — taban puanlar yıl içinde değişmiyor.
+    // Yine de akademisyen isterse tekrarlayabilsin diye engel değil, uyarı.
+    const oncekiler = (kayit && kayit.programlar) || [];
+    const ayniSorgu = (kayit || {}).url === url && (kayit || {}).yil === yil;
+    const doluSayisi = oncekiler.filter((k) => k.taban).length;
+    if (
+      ayniSorgu &&
+      doluSayisi > 0 &&
+      !window.confirm(
+        'Bu adres ve yıl için ' +
+          doluSayisi +
+          ' programın taban puanı zaten okunmuş' +
+          (kayit.maliyetUsd > 0
+            ? ' (son okuma ≈ $' + Number(kayit.maliyetUsd).toFixed(3) + ')'
+            : '') +
+          '.\n\nTaban puanlar yıl içinde değişmez; yeniden okumak ücretli bir model ' +
+          'çağrısı daha yapar ve elle yaptığınız düzeltmelerin üzerine yazar.\n\n' +
+          'Yine de yeniden okunsun mu?'
+      )
+    ) {
       return;
     }
     setBusy(true);
@@ -11664,6 +11689,12 @@ const TabanPuanPaneli = ({
             <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
               Son okuma: {new Date(kayit.okunmaZamani).toLocaleString('tr-TR')}
               {kayit.okuyan ? ' · ' + kayit.okuyan : ''}
+              {/* Maliyet, tuşa basanın gözünün önünde. Aylık toplama gömülü
+                  kalsa "bu tuş ne tutuyor" sorusu cevapsız kalırdı. */}
+              {kayit.maliyetUsd > 0
+                ? ' · bu okumanın maliyeti ≈ $' + Number(kayit.maliyetUsd).toFixed(3)
+                : ''}
+              {kayit.kullanilanModel ? ' · ' + kayit.kullanilanModel : ''}
             </div>
           )}
         </div>
