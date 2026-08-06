@@ -177,6 +177,27 @@ function ygYerlesmePuani(yksPuani, notOrt) {
   return { p40, n60, toplam: Math.round((p40 + n60) * 100) / 100 };
 }
 
+// Ekranda puan yazımı — Türkçe ondalık ayracı virgüldür ("412,338").
+function ygPuanYaz(n) {
+  if (n == null || !isFinite(n)) return '—';
+  return String(n).replace('.', ',');
+}
+
+// İki puan yazımı aynı sayıyı mı gösteriyor? ("412,338" ile "412.338" aynıdır)
+// "Sayfadan okunanı yaz" düğmesi, zaten yazılmış bir değeri tekrar önermesin.
+function ygAyniPuan(a, b) {
+  const oku = (v) => {
+    const s = String(v == null ? '' : v)
+      .trim()
+      .replace(',', '.');
+    const x = parseFloat(s);
+    return isNaN(x) ? null : x;
+  };
+  const x = oku(a);
+  const y = oku(b);
+  return x != null && y != null && Math.abs(x - y) < 1e-9;
+}
+
 // Bölüm adının "çıplak" hâli — sondaki "Mühendisliği" / "Bölümü" eki atılır.
 //
 // Şablon başlıkları "… {{bölüm}} MÜHENDİSLİĞİ BÖLÜMÜ …" biçiminde yazıldığı
@@ -819,13 +840,38 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
 // ══════════════════════════════════════════════════════════════
 // Başvuru satırı — öğrencide bilgi kartı, akademisyende değerlendirme
 // ══════════════════════════════════════════════════════════════
-function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy, currentUser, onSilindi }) {
+function YgBasvuruKarti({
+  rec,
+  tur,
+  isStaff,
+  onDegerlendir,
+  busy,
+  currentUser,
+  onSilindi,
+  tabanKayitlari,
+}) {
   const [acik, setAcik] = useState(false);
   // Akademisyende yan panelde açılan ek (PDF)
   const [acikEk, setAcikEk] = useState('');
   const deg = YG_DEGERLENDIRME.find((d) => d.id === rec.degerlendirme);
   const st = rec.degerlendirme ? YG_DURUMLAR.degerlendirildi : YG_DURUMLAR.beklemede;
   const hesap = tur?.hesapla ? ygYerlesmePuani(rec.yksPuani, rec.notOrtalamasi) : null;
+
+  // ── Taban puan: sayfadan okunan öneri + karşılaştırma ──
+  // `tabanOneri` yalnız ÖNERİDİR — kayda giren değer akademisyenin alandaki
+  // girdisidir (`basvurduguBolumOsysPuani`), karşılaştırma da onun üzerinden
+  // yapılır. Böylece elle düzeltilen bir taban puan, ekrandaki kararı da
+  // hemen düzeltir.
+  const tabanOneri = useMemo(() => {
+    if (tur?.id !== 'merkezi' || !window.tabanKaydiBul) return null;
+    const k = window.tabanKaydiBul(tabanKayitlari || [], rec.basvurduguBolum || '');
+    return k && k.taban ? k : null;
+  }, [tabanKayitlari, rec.basvurduguBolum, tur]);
+
+  const tabanKiyas = useMemo(() => {
+    if (tur?.id !== 'merkezi' || !window.tabanKarsilastir) return null;
+    return window.tabanKarsilastir(rec.yksPuani, rec.basvurduguBolumOsysPuani);
+  }, [rec.yksPuani, rec.basvurduguBolumOsysPuani, tur]);
 
   // ── Belge kıyaslaması için alan/değer/dosya üçlüsü ──
   // Öğrencinin BEYAN ETTİĞİ, yani belgeden doğrulanabilir alanlar. Sistemin
@@ -1154,7 +1200,10 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy, currentUser, o
                     BAŞVURDUĞU programın o yılki taban puanına eşit ya da
                     üstünde mi (Ek Madde 1). Taban puan yıldan yıla ve programa
                     göre değiştiği için başvuru başına burada girilir; öğrenci
-                    formunda sorulmaz, çünkü bu bilgi öğrencide değil bölümde. */}
+                    formunda sorulmaz, çünkü bu bilgi öğrencide değil bölümde.
+
+                    Yukarıdaki panelde bir adres verildiyse, o programın taban
+                    puanı oradan gelir ve tek tıkla bu alana yazılır. */}
                 {tur?.id === 'merkezi' && (
                   <div>
                     <label style={ygLabel}>Başvurulan bölümün ÖSYS/YKS taban puanı</label>
@@ -1169,9 +1218,61 @@ function YgBasvuruKarti({ rec, tur, isStaff, onDegerlendir, busy, currentUser, o
                       placeholder="ör. 412,338"
                       style={ygInput}
                     />
+                    {tabanOneri && !ygAyniPuan(tabanOneri.taban, rec.basvurduguBolumOsysPuani) && (
+                      <button
+                        onClick={() =>
+                          onDegerlendir(rec, { basvurduguBolumOsysPuani: tabanOneri.taban })
+                        }
+                        disabled={busy}
+                        style={{
+                          marginTop: 5,
+                          padding: '4px 9px',
+                          borderRadius: 6,
+                          border: '1px solid ' + YG.border,
+                          background: '#fff',
+                          color: YG.navy,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          fontFamily: 'inherit',
+                          cursor: busy ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        Sayfadan okunanı yaz: {tabanOneri.taban}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
+
+              {/* Taban puan karşılaştırması — kararı model değil bu satır verir.
+                  Yalnız bilgilendirir: "Sonuç" alanını kendiliğinden
+                  DEĞİŞTİRMEZ, son söz akademisyenindir. */}
+              {tur?.id === 'merkezi' && tabanKiyas && tabanKiyas.durum !== 'belirsiz' && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background:
+                      tabanKiyas.durum === 'uygun' ? YG.greenLight + '66' : YG.accent + '18',
+                    color: tabanKiyas.durum === 'uygun' ? '#065F46' : YG.accent,
+                  }}
+                >
+                  {tabanKiyas.durum === 'uygun'
+                    ? 'Adayın puanı taban puanı karşılıyor'
+                    : 'Adayın puanı taban puanının ALTINDA'}
+                  {' — ' +
+                    ygPuanYaz(tabanKiyas.aday) +
+                    (tabanKiyas.durum === 'uygun' ? ' ≥ ' : ' < ') +
+                    ygPuanYaz(tabanKiyas.taban) +
+                    ' (fark ' +
+                    ygPuanYaz(tabanKiyas.fark) +
+                    ')'}
+                </div>
+              )}
+
               {rec.degerlendirme && (
                 <div style={{ fontSize: 12, color: YG.textMuted, marginTop: 8 }}>
                   Belgeye yazılacak: <b style={{ color: YG.navy }}>{ygDegerlendirmeMetni(rec)}</b>
@@ -1267,6 +1368,25 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   // akademisyenindir, bu yalnız elle doldurmayı ortadan kaldırır.
   const [asilSayisi, setAsilSayisi] = useState('');
   const [yedekSayisi, setYedekSayisi] = useState('');
+
+  // ── Taban puanlar (yalnız merkezi yerleştirme) ──
+  // Aranacak programlar = başvurulardaki farklı "başvurduğu bölüm" değerleri.
+  // Bölümün adı da eklenir: henüz başvuru yokken bile adres girilip puan
+  // çekilebilsin diye.
+  const [tabanKayitlari, setTabanKayitlari] = useState([]);
+  const tabanProgramlari = useMemo(() => {
+    if (turId !== 'merkezi') return [];
+    const adlar = new Map(); // anahtar → görünen ad (ilk yazım korunur)
+    const ekle = (ad) => {
+      const t = String(ad || '').trim();
+      if (!t) return;
+      const k = window.programAnahtari ? window.programAnahtari(t) : t.toLowerCase();
+      if (k && !adlar.has(k)) adlar.set(k, t);
+    };
+    ekle(departmentInfo?.name);
+    gorunen.forEach((r) => ekle(r.basvurduguBolum));
+    return Array.from(adlar.entries()).map(([k, ad]) => ({ id: 'p_' + k.slice(0, 50), ad }));
+  }, [turId, gorunen, departmentInfo]);
 
   const siralamayiUygula = async () => {
     const oneri = asilYedekOner(gorunen, turId, asilSayisi, yedekSayisi);
@@ -1643,6 +1763,30 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       {/* Başvuru listesi */}
       {sekme === 'basvurular' && (
         <>
+          {/* Akademisyen: taban puanları kurumun sayfasından oku.
+              Yalnız merkezi yerleştirmede — kurum içi/kurumlararası geçişte
+              taban puan şartı yoktur, ölçüt AGNO ve yerleştirme puanıdır. */}
+          {isStaff &&
+            turId === 'merkezi' &&
+            window.TabanPuanPaneli &&
+            tabanProgramlari.length > 0 && (
+              <window.TabanPuanPaneli
+                currentUser={currentUser}
+                departmentId={activeDepartment || ''}
+                modul="yatay-merkezi"
+                programlar={tabanProgramlari}
+                onKayitlar={setTabanKayitlari}
+                baslik="Taban puan sayfasının adresi (ÖSYS/YKS)"
+                aciklama={
+                  'Merkezi yerleştirme puanıyla geçişte adayın YKS puanı, başvurduğu programın ' +
+                  'taban puanından küçük olamaz. Adres verilirse sayfa (ve içindeki PDF ' +
+                  'bağlantıları) okunur; ' +
+                  tabanProgramlari.length +
+                  ' program için taban puan aranır.'
+                }
+              />
+            )}
+
           {/* Akademisyen: kontenjan → puana göre asil/yedek önerisi.
               Yalnız puan ölçütü olan türlerde (kurum içinde puan yoktur). */}
           {isStaff && turId !== 'kurumici' && gorunen.length > 0 && (
@@ -1792,6 +1936,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                   currentUser={currentUser}
                   onDegerlendir={kaydetDegerlendirme}
                   onSilindi={yukle}
+                  tabanKayitlari={tabanKayitlari}
                 />
               ))}
             </div>
