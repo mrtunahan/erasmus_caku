@@ -153,10 +153,63 @@ describe('notTablosuDogrula', () => {
     expect(notTablosuDogrula({ tur: 'harf', satirlar: [] }).gecerli).toBe(false);
   });
 
-  it('ÇAKÜ harfi olmayan hedefi yakalar', () => {
+  it('tanınmayan hedef harfi yakalar', () => {
     const r = notTablosuDogrula({ tur: 'harf', satirlar: [{ kaynak: 'A', caku: 'A+' }] });
     expect(r.gecerli).toBe(false);
-    expect(r.sorunlar.join(' ')).toContain('ÇAKÜ harf notu değil');
+    expect(r.sorunlar.join(' ')).toContain('tanınan harf notları arasında değil');
+  });
+
+  // ── Gerçek kullanımdan gelen regresyon ──
+  // Bu tablo akademisyenin ekranda girdiği tablodur. Harf ölçeği kodda
+  // AA/BA/BB… diye varsayıldığı için her satır "geçersiz harf" sayılıyor ve
+  // akademisyen tabloyu ONAYLAYAMIYORDU.
+  const ONLUK_TABLO = {
+    tur: 'sayisal',
+    satirlar: [
+      { min: 90, max: 100, caku: 'AA' },
+      { min: 85, max: 89, caku: 'B1' },
+      { min: 80, max: 84, caku: 'B2' },
+      { min: 75, max: 79, caku: 'B3' },
+      { min: 70, max: 74, caku: 'C1' },
+      { min: 65, max: 69, caku: 'C2' },
+      { min: 60, max: 64, caku: 'C3' },
+      { min: 50, max: 59, caku: 'F1' },
+      { min: 0, max: 49, caku: 'F2' },
+    ],
+  };
+
+  it('harf+rakam ölçeğini (B1/C2/F1) GEÇERLİ sayar', () => {
+    const r = notTablosuDogrula(ONLUK_TABLO);
+    expect(r.sorunlar).toEqual([]);
+    expect(r.gecerli).toBe(true);
+  });
+
+  it('kurumun kendi harf listesi verilirse O geçerlidir', () => {
+    // Yalnız bu harfleri kullanan bir bölüm: AA artık tanınmaz.
+    const r = notTablosuDogrula(ONLUK_TABLO, ['B1', 'B2', 'B3', 'C1', 'C2', 'C3', 'F1', 'F2']);
+    expect(r.gecerli).toBe(false);
+    expect(r.sorunlar.join(' ')).toContain('"AA"');
+  });
+
+  it('kendi listesi tam verilirse sorun kalmaz', () => {
+    const r = notTablosuDogrula(ONLUK_TABLO, [
+      'AA',
+      'B1',
+      'B2',
+      'B3',
+      'C1',
+      'C2',
+      'C3',
+      'F1',
+      'F2',
+    ]);
+    expect(r.gecerli).toBe(true);
+  });
+
+  it('bu tabloyla 100’lük not doğru harfe çevrilir', () => {
+    expect(notCevir('87', ONLUK_TABLO).cakuNot).toBe('B1');
+    expect(notCevir('62', ONLUK_TABLO).cakuNot).toBe('C3');
+    expect(notCevir('45', ONLUK_TABLO).cakuNot).toBe('F2');
   });
 
   it('çakışan sayısal aralığı yakalar', () => {
@@ -212,6 +265,13 @@ describe('notGecerMi', () => {
     expect(notGecerMi('AA')).toBe(true);
     expect(notGecerMi('FF')).toBe(false);
     expect(notGecerMi('FD')).toBe(false);
+  });
+
+  it('harf+rakam ölçeğinde de doğru ayırır', () => {
+    expect(notGecerMi('B1')).toBe(true);
+    expect(notGecerMi('C3')).toBe(true);
+    expect(notGecerMi('F1')).toBe(false);
+    expect(notGecerMi('F2')).toBe(false);
   });
 
   it('bölümün kendi listesi geçerlidir', () => {
