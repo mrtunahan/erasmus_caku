@@ -4905,444 +4905,6 @@ const eStageBtn = {
   cursor: 'pointer',
 };
 
-// ══════════════════════════════════════════════════════════════
-// NOT DÖNÜŞÜM TABLOSU YÖNETİMİ (akademisyen)
-//
-// Karşı kurumun notunu ÇAKÜ harfine çeviren tablo, kurum başına BİR KEZ
-// tanımlanır ve o kurumdan gelen bütün öğrencilere uygulanır.
-//
-// ── Kaynak olarak neden hem PDF hem link, ama saklanan şey TABLO? ──
-// Link tek başına yetmez: sayfalar taşınır, 404 olur, sessizce değişir; her
-// öğrenci için yeniden getirmek hem ücretlidir hem de iki öğrencinin farklı
-// sürüm görmesine yol açar. PDF tek başına da yetmez: her seferinde yeniden
-// okunması gerekir. Bu yüzden AYRIŞTIRILMIŞ TABLO saklanır — ucuz, determinist,
-// denetlenebilir — kaynağı (link ya da PDF) kanıt olarak yanında durur.
-// Tablo değişirse yetkili yeniden okutup onaylar; onay tarihi ve geçerlilik
-// yılı kayıtta tutulur, kullanılan sürüm öğrencinin kaydına kopyalanır.
-//
-// ⚠ ONAYSIZ TABLO KULLANILMAZ. `durum: 'taslak'` iken hiçbir öğrenciye
-// uygulanmaz — bir kez yanlış onaylanan tablo, hatayı sessizce çoğaltır.
-// ══════════════════════════════════════════════════════════════
-const NotTablosuYonetimi = ({ kurumAdi, currentUser, departmentId, onKapat }) => {
-  const [kayit, setKayit] = useState(null);
-  const [yukleniyor, setYukleniyor] = useState(true);
-  const [url, setUrl] = useState('');
-  const [calisiyor, setCalisiyor] = useState(false);
-  const [mesaj, setMesaj] = useState('');
-  const [hata, setHata] = useState('');
-  const anahtar = window.kurumAnahtari ? window.kurumAnahtari(kurumAdi) : '';
-
-  useEffect(() => {
-    let iptal = false;
-    if (!anahtar) {
-      setYukleniyor(false);
-      return undefined;
-    }
-    window
-      .apiReadDoc('not_donusum_tablolari', anahtar)
-      .then((r) => {
-        if (iptal) return;
-        const d = (r && r.exists && r.data) || null;
-        setKayit(d);
-        setUrl((d && d.kaynakUrl) || '');
-      })
-      .catch(() => {})
-      .finally(() => !iptal && setYukleniyor(false));
-    return () => {
-      iptal = true;
-    };
-  }, [anahtar]);
-
-  // ── Hedef harf ölçeği ──
-  // Kurumun kendi harf notları, bölümün mezuniyet kurallarında zaten tanımlı
-  // (geçer + kalır listeleri). Doğrulamayı oradan beslemek, ölçeği koda
-  // gömmekten iyi: B1/C2/F1 kullanan bir bölümün tablosu "geçersiz harf"
-  // diye reddedilip onaylanamıyordu.
-  const [izinliHarfler, setIzinliHarfler] = useState(null);
-  useEffect(() => {
-    let iptal = false;
-    if (!departmentId) return undefined;
-    window
-      .apiReadDoc('mezuniyet_kurallari', String(departmentId))
-      .then((r) => {
-        if (iptal) return;
-        const d = (r && r.exists && r.data) || {};
-        const birlesik = []
-          .concat(Array.isArray(d.gecerNotlar) ? d.gecerNotlar : [])
-          .concat(Array.isArray(d.kalirNotlar) ? d.kalirNotlar : [])
-          .filter(Boolean);
-        setIzinliHarfler(birlesik.length > 0 ? birlesik : null);
-      })
-      .catch(() => {});
-    return () => {
-      iptal = true;
-    };
-  }, [departmentId]);
-
-  const satirlar = (kayit && Array.isArray(kayit.satirlar) && kayit.satirlar) || [];
-  const tur = (kayit && kayit.tur) || 'sayisal';
-  const harfSecenekleri = izinliHarfler || window.CAKU_HARFLERI || [];
-  const dogrulama = window.notTablosuDogrula
-    ? window.notTablosuDogrula({ tur, satirlar }, izinliHarfler)
-    : { gecerli: true, sorunlar: [] };
-
-  const setSatir = (i, alan, deger) => {
-    setKayit((k) => {
-      const yeni = (k.satirlar || []).slice();
-      yeni[i] = { ...yeni[i], [alan]: deger };
-      return { ...k, satirlar: yeni, durum: 'taslak' };
-    });
-  };
-  const satirSil = (i) =>
-    setKayit((k) => ({
-      ...k,
-      satirlar: (k.satirlar || []).filter((_, j) => j !== i),
-      durum: 'taslak',
-    }));
-  const satirEkle = () =>
-    setKayit((k) => ({
-      ...(k || { tur: 'sayisal', satirlar: [] }),
-      satirlar: ((k && k.satirlar) || []).concat(
-        tur === 'sayisal' ? { min: '', max: '', caku: '' } : { kaynak: '', caku: '' }
-      ),
-      durum: 'taslak',
-    }));
-
-  const webdenOku = async () => {
-    if (!url.trim()) {
-      setHata('Önce kurumun not dönüşüm tablosunun bulunduğu adresi girin.');
-      return;
-    }
-    setCalisiyor(true);
-    setHata('');
-    setMesaj('');
-    try {
-      const s = await window.aiNotTablosuBul({ url: url.trim(), kurumAdi });
-      const t = s.tablo || {};
-      setKayit((k) => ({
-        ...(k || {}),
-        tur: t.tur || 'sayisal',
-        satirlar: t.satirlar || [],
-        kurumAdi: t.kurumAdi || kurumAdi,
-        gecerlilikYili: t.gecerlilikYili || '',
-        kaynakTuru: 'link',
-        kaynakUrl: s.url || url.trim(),
-        aiAciklama: t.aciklama || '',
-        // Okunan tablo TASLAKTIR; onaylanmadan kimseye uygulanmaz.
-        durum: 'taslak',
-      }));
-      setMesaj(
-        (t.satirlar || []).length +
-          ' satır okundu. Kontrol edip onaylayın — onaylanana kadar hiçbir öğrenciye uygulanmaz.' +
-          (s.maliyetUsd ? ' (okuma maliyeti ≈ $' + Number(s.maliyetUsd).toFixed(3) + ')' : '')
-      );
-    } catch (e) {
-      setHata(e.message);
-    } finally {
-      setCalisiyor(false);
-    }
-  };
-
-  const kaydet = async (onayla) => {
-    if (onayla && !dogrulama.gecerli) {
-      setHata('Tabloda düzeltilmesi gereken noktalar var; onaylanamaz.');
-      return;
-    }
-    setCalisiyor(true);
-    setHata('');
-    try {
-      await window.DBWrite.set(
-        'not_donusum_tablolari',
-        anahtar,
-        {
-          kurumAnahtari: anahtar,
-          kurumAdi: (kayit && kayit.kurumAdi) || kurumAdi,
-          tur,
-          satirlar,
-          gecerlilikYili: (kayit && kayit.gecerlilikYili) || '',
-          kaynakTuru: (kayit && kayit.kaynakTuru) || '',
-          kaynakUrl: (kayit && kayit.kaynakUrl) || '',
-          aiAciklama: (kayit && kayit.aiAciklama) || '',
-          durum: onayla ? 'onayli' : 'taslak',
-          // Sürüm damgası: öğrenci kaydına kopyalanan tablo hangi onaya
-          // dayanıyor, sonradan izlenebilsin.
-          surum: onayla ? new Date().toISOString() : (kayit && kayit.surum) || '',
-          onaylayan: onayla ? currentUser?.name || currentUser?.identifier || '' : '',
-          onayTarihi: onayla ? new Date().toISOString() : '',
-          updatedAt: new Date().toISOString(),
-        },
-        true
-      );
-      setKayit((k) => ({ ...k, durum: onayla ? 'onayli' : 'taslak' }));
-      setMesaj(onayla ? 'Tablo onaylandı ve kullanıma açıldı.' : 'Taslak kaydedildi.');
-    } catch (e) {
-      setHata('Kaydedilemedi: ' + e.message);
-    } finally {
-      setCalisiyor(false);
-    }
-  };
-
-  const girdi = {
-    width: 88,
-    padding: '6px 9px',
-    borderRadius: 7,
-    border: '1px solid ' + DS.border,
-    fontSize: 13,
-    textAlign: 'center',
-    outline: 'none',
-  };
-
-  if (!anahtar) return null;
-
-  return (
-    <div
-      style={{
-        border: '1px solid ' + DS.border,
-        borderRadius: DS.radiusSm,
-        padding: '12px 14px',
-        marginBottom: 10,
-        background: '#fff',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 10,
-        }}
-      >
-        <span style={{ fontSize: 13, fontWeight: 700, color: DS.navy }}>
-          Not Dönüşüm Tablosu — {kurumAdi}
-        </span>
-        {kayit && (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              padding: '2px 9px',
-              borderRadius: 6,
-              background: kayit.durum === 'onayli' ? DS.greenLight : DS.amberLight,
-              color: kayit.durum === 'onayli' ? DS.green : DS.amber,
-            }}
-          >
-            {kayit.durum === 'onayli' ? 'Onaylı' : 'Taslak'}
-          </span>
-        )}
-        {onKapat && (
-          <button onClick={onKapat} style={{ ...eStageBtn, marginLeft: 'auto' }}>
-            Kapat
-          </button>
-        )}
-      </div>
-
-      {yukleniyor ? (
-        <div style={{ fontSize: 12.5, color: DS.textMuted }}>Yükleniyor…</div>
-      ) : (
-        <>
-          <div
-            style={{ fontSize: 11.5, color: DS.textSecondary, marginBottom: 10, lineHeight: 1.55 }}
-          >
-            Bu tablo <b>{kurumAdi}</b> kurumundan gelen bütün öğrencilere uygulanır. Kurumun
-            yönetmelik/not dönüşüm sayfasının adresini verip okutabilir, satırları elle
-            düzeltebilirsiniz. <b>Onaylanmadan hiçbir öğrenciye uygulanmaz.</b>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="Not dönüşüm tablosu sayfası (https://...)"
-              style={{
-                flex: '1 1 320px',
-                padding: '8px 11px',
-                borderRadius: 8,
-                border: '1px solid ' + DS.border,
-                fontSize: 13,
-                outline: 'none',
-              }}
-            />
-            <button
-              disabled={calisiyor}
-              onClick={webdenOku}
-              style={{ ...eStageBtn, background: DS.navy, color: '#fff', border: 'none' }}
-            >
-              {calisiyor ? 'Okunuyor…' : 'Adresten Oku'}
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 11.5, color: DS.textMuted }}>Tablo türü:</span>
-            {['sayisal', 'harf'].map((t) => (
-              <button
-                key={t}
-                onClick={() =>
-                  setKayit((k) => ({ ...(k || { satirlar: [] }), tur: t, durum: 'taslak' }))
-                }
-                style={{
-                  ...eStageBtn,
-                  padding: '4px 12px',
-                  fontSize: 12,
-                  background: tur === t ? DS.accentLight : '#fff',
-                  color: tur === t ? DS.navy : DS.textMuted,
-                }}
-              >
-                {t === 'sayisal' ? '100’lük puan aralığı' : 'Harf karşılığı'}
-              </button>
-            ))}
-          </div>
-
-          <datalist id="caku-harf-secenekleri">
-            {harfSecenekleri.map((h) => (
-              <option key={h} value={h} />
-            ))}
-          </datalist>
-
-          {harfSecenekleri.length > 0 && (
-            <div style={{ fontSize: 11, color: DS.textMuted, marginBottom: 8, lineHeight: 1.5 }}>
-              Tanınan harf notları: <b>{harfSecenekleri.join(', ')}</b>
-              {izinliHarfler ? ' (bölümünüzün mezuniyet kurallarından)' : ''}
-            </div>
-          )}
-
-          {satirlar.length > 0 && (
-            <div style={{ border: '1px solid ' + DS.border, borderRadius: 8, marginBottom: 10 }}>
-              {satirlar.map((r, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    gap: 8,
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    padding: '8px 10px',
-                    borderTop: i === 0 ? 'none' : '1px solid ' + DS.border,
-                  }}
-                >
-                  {tur === 'sayisal' ? (
-                    <>
-                      <input
-                        value={r.min || ''}
-                        onChange={(e) => setSatir(i, 'min', e.target.value)}
-                        placeholder="alt"
-                        style={girdi}
-                      />
-                      <span style={{ color: DS.textMuted }}>–</span>
-                      <input
-                        value={r.max || ''}
-                        onChange={(e) => setSatir(i, 'max', e.target.value)}
-                        placeholder="üst"
-                        style={girdi}
-                      />
-                    </>
-                  ) : (
-                    <input
-                      value={r.kaynak || ''}
-                      onChange={(e) => setSatir(i, 'kaynak', e.target.value)}
-                      placeholder="karşı not"
-                      style={girdi}
-                    />
-                  )}
-                  <span style={{ color: DS.textMuted }}>→</span>
-                  {/* Serbest metin + öneri listesi: kurumun harf ölçeği
-                      seçilebiliyor ama listede olmayan bir harf de yazılabiliyor
-                      (ölçek her kurumda aynı değil). Yanlış harf, doğrulamada
-                      açıkça söyleniyor. */}
-                  <input
-                    value={r.caku || ''}
-                    onChange={(e) => setSatir(i, 'caku', e.target.value)}
-                    placeholder="harf"
-                    list="caku-harf-secenekleri"
-                    style={{
-                      ...girdi,
-                      fontWeight: 700,
-                      borderColor:
-                        r.caku &&
-                        window.notNormalize &&
-                        !harfSecenekleri
-                          .map((h) => window.notNormalize(h))
-                          .includes(window.notNormalize(r.caku))
-                          ? DS.amber
-                          : DS.border,
-                    }}
-                  />
-                  <button
-                    onClick={() => satirSil(i)}
-                    style={{ ...eStageBtn, padding: '4px 10px', fontSize: 12, marginLeft: 'auto' }}
-                  >
-                    Sil
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <button onClick={satirEkle} style={{ ...eStageBtn, marginBottom: 10 }}>
-            + Satır ekle
-          </button>
-
-          {/* Doğrulama uyarıları: çakışan/boşluklu aralık, geçersiz harf.
-              Bunlar çalışma anında sessiz "çevrilemedi" olarak dönerdi. */}
-          {satirlar.length > 0 && !dogrulama.gecerli && (
-            <div
-              style={{
-                padding: '8px 11px',
-                borderRadius: 8,
-                background: DS.amberLight,
-                color: '#92400E',
-                fontSize: 11.5,
-                lineHeight: 1.6,
-                marginBottom: 10,
-              }}
-            >
-              {dogrulama.sorunlar.slice(0, 6).map((s, i) => (
-                <div key={i}>• {s}</div>
-              ))}
-            </div>
-          )}
-
-          {kayit && kayit.aiAciklama && (
-            <div style={{ fontSize: 11.5, color: DS.textMuted, marginBottom: 10 }}>
-              Okuma notu: {kayit.aiAciklama}
-            </div>
-          )}
-          {hata && <div style={{ fontSize: 12, color: DS.red, marginBottom: 8 }}>{hata}</div>}
-          {mesaj && <div style={{ fontSize: 12, color: DS.green, marginBottom: 8 }}>{mesaj}</div>}
-
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button disabled={calisiyor} onClick={() => kaydet(false)} style={eStageBtn}>
-              Taslak Kaydet
-            </button>
-            <button
-              disabled={calisiyor || satirlar.length === 0 || !dogrulama.gecerli}
-              onClick={() => kaydet(true)}
-              title={dogrulama.gecerli ? '' : 'Önce yukarıdaki sorunları düzeltin'}
-              style={{
-                ...eStageBtn,
-                background: dogrulama.gecerli && satirlar.length > 0 ? DS.green : '#9CA3AF',
-                color: '#fff',
-                border: 'none',
-                cursor: dogrulama.gecerli && satirlar.length > 0 ? 'pointer' : 'not-allowed',
-              }}
-            >
-              Onayla ve Kullanıma Aç
-            </button>
-          </div>
-          {kayit && kayit.onaylayan && (
-            <div style={{ fontSize: 11, color: DS.textMuted, marginTop: 8 }}>
-              Son onay: {kayit.onaylayan}
-              {kayit.onayTarihi
-                ? ' · ' + new Date(kayit.onayTarihi).toLocaleDateString('tr-TR')
-                : ''}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-};
-
 // ── Yaz İntibakı İki-Fazlı Durum Paneli ──
 // Faz 1: on_inceleme → (akademisyen) on_onay / on_red
 // Faz 2: on_onay → (öğrenci belge yükler) belge_teslim → (akademisyen not
@@ -5393,36 +4955,54 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   // akademisyenin elinde doğrulayacak bir belge yoktu — yalnız karşı kurumun
   // sistemine bir link vardı. Belge artık kaydın parçası ve not ondan çıkıyor.
   //
-  // ÇEVİRİYİ MODEL YAPMIYOR: model belgeden yalnız "hangi ders, hangi not"
-  // okuyor; harf karşılığını lib/not-donusum.js determinist olarak hesaplıyor.
+  // ── ÇEVİRİ KURALI ──
+  // Öğrencinin karşı kurumdan aldığı YÜZLÜK PUAN, ÇAKÜ'nün kendi ders geçme
+  // ölçeğiyle harfe çevrilir. Karşı kurumun kendi HARF notunun bir anlamı
+  // yoktur: iki kurumun harf ölçekleri aynı şeyi ifade etmez, "BB" bir yerde
+  // 75 bir yerde 82 olabilir. Ortak ve ölçülebilir olan tek şey yüzlük puandır.
+  //
+  // ÇEVİRİYİ MODEL YAPMIYOR: model belgeden yalnız "hangi ders, kaç puan"
+  // okuyor; harf karşılığını lib/mezuniyet.js determinist olarak hesaplıyor.
   const [belge, setBelge] = useState(null);
   const [belgeAdi, setBelgeAdi] = useState(record.basariBelgesiAdi || '');
   const [belgeUrl, setBelgeUrl] = useState(record.basariBelgesiUrl || '');
   const [okuyor, setOkuyor] = useState(false);
-  const [tablo, setTablo] = useState(null);
+  const [olcekKural, setOlcekKural] = useState(null);
   const [tabloArandi, setTabloArandi] = useState(false);
   const [tabloAcik, setTabloAcik] = useState(false);
   const [okumaNotu, setOkumaNotu] = useState('');
   const kaynakKurum = record.otherUni || '';
+  const olcekBolumu = record.departmentId || currentUser?.departmentId || '';
 
+  // ÇAKÜ'nün ölçeği bölümün mezuniyet kurallarında duruyor — tek kaynak.
   useEffect(() => {
     let iptal = false;
-    if (!window.notTablosuGetir || !kaynakKurum) {
+    if (!olcekBolumu) {
       setTabloArandi(true);
       return undefined;
     }
     window
-      .notTablosuGetir(kaynakKurum)
-      .then((t) => {
+      .apiReadDoc('mezuniyet_kurallari', String(olcekBolumu))
+      .then((r) => {
         if (iptal) return;
-        setTablo(t && t.durum === 'onayli' ? t : null);
+        const d = (r && r.exists && r.data) || {};
+        setOlcekKural(window.mezKuralNormalize ? window.mezKuralNormalize(d) : d);
         setTabloArandi(true);
       })
       .catch(() => !iptal && setTabloArandi(true));
     return () => {
       iptal = true;
     };
-  }, [kaynakKurum]);
+  }, [olcekBolumu]);
+
+  const olcekSatirSayisi = ((olcekKural && olcekKural.notOlcegi) || []).length;
+  const olcekVar = olcekSatirSayisi > 0;
+
+  // Yüzlük puanı ÇAKÜ harfine çevirir.
+  const puandanHarf = (puan) =>
+    window.mezPuandanHarf
+      ? window.mezPuandanHarf(puan, olcekKural || {})
+      : { harf: '', sebep: 'Ölçek yüklenemedi.' };
 
   // ── Akademisyen tarafında dönüşümü YENİDEN hesapla ──
   //
@@ -5432,16 +5012,17 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   // belgeden okunuyor — bu tarafta yüklenen ONAYLI tabloyla yeniden çevriliyor
   // ve fark varsa akademisyene söyleniyor.
   const yenidenCevrim = useMemo(() => {
-    if (isStudent || !window.notCevir) return {};
+    if (isStudent || !window.mezPuandanHarf) return {};
     const out = {};
     notluDersler.forEach((m, i) => {
       const a = notAnahtari(m, i);
       const kaynakNot = ((record.ogrenciNotlari || {})[a] || {}).kaynakNot || '';
       if (!kaynakNot) return;
-      out[a] = window.notCevir(kaynakNot, tablo);
+      const c = puandanHarf(kaynakNot);
+      out[a] = { cakuNot: c.harf, sebep: c.sebep };
     });
     return out;
-  }, [isStudent, notluDersler, record.ogrenciNotlari, tablo]);
+  }, [isStudent, notluDersler, record.ogrenciNotlari, olcekKural]);
 
   const eksikNotVar = notluDersler.some((m, i) => {
     const n = notlar[notAnahtari(m, i)] || {};
@@ -5539,8 +5120,8 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
         if (!bulunan || !String(bulunan.not || '').trim()) return;
         eslesen += 1;
         const kaynakNot = String(bulunan.not).trim();
-        const cevrim = window.notCevir ? window.notCevir(kaynakNot, tablo) : { cakuNot: '' };
-        yeni[a] = { kaynakNot, cakuNot: cevrim.cakuNot || '', sebep: cevrim.sebep || '' };
+        const cevrim = puandanHarf(kaynakNot);
+        yeni[a] = { kaynakNot, cakuNot: cevrim.harf || '', sebep: cevrim.sebep || '' };
       });
       setNotlar(yeni);
       setBelgeUrl(url);
@@ -5713,7 +5294,8 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
             sonuç belgesi) yükleyin. Notlarınız belgeden okunur — elle not girmenize gerek yok.
           </div>
 
-          {/* Dönüşüm tablosu durumu — öğrenci neyin olup bittiğini görsün. */}
+          {/* Kural açıkça yazılıyor: öğrenci hangi notunun ne olacağını
+              baştan bilsin, sürpriz yaşamasın. */}
           {tabloArandi && (
             <div
               style={{
@@ -5721,20 +5303,19 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                 lineHeight: 1.5,
                 padding: '8px 11px',
                 borderRadius: 8,
-                background: tablo ? DS.greenBg : DS.amberLight,
-                color: tablo ? '#065F46' : '#92400E',
+                background: olcekVar ? DS.greenBg : DS.amberLight,
+                color: olcekVar ? '#065F46' : '#92400E',
               }}
             >
-              {tablo ? (
+              {olcekVar ? (
                 <>
-                  <b>{tablo.kurumAdi || kaynakKurum}</b> için onaylı not dönüşüm tablosu var; karşı
-                  kurumdaki notunuz ÇAKÜ harfine otomatik çevrilecek.
+                  Belgenizdeki <b>yüzlük puan</b>, ÇAKÜ ders geçme ölçeğiyle harf notuna çevrilir.
+                  Karşı kurumun kendi harf notu kullanılmaz.
                 </>
               ) : (
                 <>
-                  {kaynakKurum ? <b>{kaynakKurum}</b> : 'Bu kurum'} için henüz onaylı bir not
-                  dönüşüm tablosu yok. Belgeniz yine okunur; ÇAKÜ karşılığını bölüm kurulu
-                  belirleyecek.
+                  Bölümünüzün ders geçme ölçeği henüz tanımlı değil; belgeniz yine okunur, harf
+                  karşılığını bölüm kurulu belirleyecek.
                 </>
               )}
             </div>
@@ -5910,42 +5491,23 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       )}
       {stage === 'on_onay' && !isStudent && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
-            Ön onay verildi. Öğrenci yaz okulunu tamamlayıp başarı belgesini yükleyecek; notlar
-            belgeden okunup {kaynakKurum || 'karşı kurumun'} dönüşüm tablosuyla ÇAKÜ harfine
-            çevrilecek.
+          <div style={{ fontSize: 12.5, color: DS.textSecondary, lineHeight: 1.55 }}>
+            Ön onay verildi. Öğrenci yaz okulunu tamamlayıp başarı belgesini yükleyecek; belgedeki{' '}
+            <b>yüzlük puan</b> ÇAKÜ ders geçme ölçeğiyle harf notuna çevrilecek.
           </div>
-          {/* Tabloyu ŞİMDİ hazırlamak, öğrenci belgesini yüklediğinde
-              dönüşümün çalışması demek. Onaylı tablo yoksa uyarı burada çıkar. */}
-          {!tabloArandi ? null : tablo ? (
+          {/* Ölçek bölümün Mezuniyet Kuralları'nda tanımlı. Tanımlı değilse
+              öğrencinin notu çevrilemez — bunu ŞİMDİ söylemek gerekiyor. */}
+          {!tabloArandi ? null : olcekVar ? (
             <div style={{ fontSize: 11.5, color: DS.green }}>
-              {kaynakKurum} için onaylı dönüşüm tablosu hazır.
-              <button
-                onClick={() => setTabloAcik((v) => !v)}
-                style={{ ...eStageBtn, padding: '3px 10px', fontSize: 11.5, marginLeft: 8 }}
-              >
-                {tabloAcik ? 'Kapat' : 'Görüntüle / düzenle'}
-              </button>
+              Ders geçme ölçeği hazır ({olcekSatirSayisi} aralık). Değiştirmek için: Bölüm Yönetimi
+              → Mezuniyet Kuralları.
             </div>
           ) : (
-            <div style={{ fontSize: 11.5, color: DS.amber }}>
-              {kaynakKurum || 'Bu kurum'} için onaylı dönüşüm tablosu yok — öğrencinin notu ÇAKÜ
-              harfine çevrilemez. Şimdi tanımlarsanız belge geldiğinde dönüşüm kendiliğinden olur.
-              <button
-                onClick={() => setTabloAcik((v) => !v)}
-                style={{ ...eStageBtn, padding: '3px 10px', fontSize: 11.5, marginLeft: 8 }}
-              >
-                {tabloAcik ? 'Kapat' : 'Tabloyu tanımla'}
-              </button>
+            <div style={{ fontSize: 11.5, color: DS.amber, lineHeight: 1.55 }}>
+              Bölümünüzün ders geçme ölçeği tanımlı değil — öğrencinin puanı harfe çevrilemez. Bölüm
+              Yönetimi → Mezuniyet Kuralları’ndan ölçeği tanımlayın; belge geldiğinde dönüşüm
+              kendiliğinden çalışır.
             </div>
-          )}
-          {tabloAcik && (
-            <NotTablosuYonetimi
-              kurumAdi={kaynakKurum}
-              currentUser={currentUser}
-              departmentId={record.departmentId || currentUser?.departmentId || ''}
-              onKapat={() => setTabloAcik(false)}
-            />
           )}
         </div>
       )}
@@ -6130,14 +5692,16 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                         // kapalı). Kayda kopyalanıyor ki tablo ileride
                         // değişse bile bu belgenin dönüşümü aynı kalsın ve
                         // belge yeniden üretildiğinde aynı sonucu versin.
-                        kullanilanNotTablosu: tablo
+                        kullanilanNotTablosu: olcekVar
                           ? {
-                              id: tablo.id || '',
-                              kurumAdi: tablo.kurumAdi || kaynakKurum,
-                              tur: tablo.tur,
-                              satirlar: tablo.satirlar,
-                              gecerlilikYili: tablo.gecerlilikYili || '',
-                              surum: tablo.surum || '',
+                              kaynak: 'caku-olcek',
+                              departmentId: olcekBolumu,
+                              satirlar: (olcekKural.notOlcegi || []).map((r) => ({
+                                min: r.min,
+                                max: r.max,
+                                caku: r.harf,
+                                katsayi: r.katsayi,
+                              })),
                             }
                           : null,
                       });

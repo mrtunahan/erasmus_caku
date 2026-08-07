@@ -7,10 +7,15 @@ import T_TOKENS from './design-tokens.json';
 import {
   MEZUNIYET_VARSAYILAN,
   MEZUNIYET_KALIPLARI,
+  NOT_OLCEGI_VARSAYILAN,
+  EK_HARFLER_VARSAYILAN,
   mezuniyetHesapla,
   mezNotDurumu,
   mezKuralNormalize,
   mezModelEtiketi,
+  mezPuandanHarf,
+  mezHarfKatsayisi,
+  mezOlcekDogrula,
 } from './lib/mezuniyet.js';
 import { veriSatiriSec } from './lib/xlsx-satir.js';
 import {
@@ -24,15 +29,6 @@ import {
   duyuruKapsamdaMi,
   duyuruKullaniciBolumleri,
 } from './lib/duyuru-kapsam.js';
-import {
-  notCevir,
-  notlariCevir,
-  notTablosuDogrula,
-  notGecerMi,
-  kurumAnahtari,
-  notNormalize,
-  CAKU_HARFLERI,
-} from './lib/not-donusum.js';
 import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './lib/zengin-metin.js';
 
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
@@ -4204,50 +4200,6 @@ window.aiTabanPuanDurum = async function (docId) {
   if (!res.ok) throw new Error(data.error || 'Durum alınamadı (HTTP ' + res.status + ')');
   return data;
 };
-
-// ── Not dönüşüm tabloları ──
-// Kurum başına tek kayıt (doc id = kurum anahtarı). Onaylı tablo, o kurumdan
-// gelen bütün öğrencilerde AYNI çeviriyi üretir — tutarlılık bu yüzden kurum
-// bazında saklamanın asıl gerekçesi, maliyet ikincil.
-window.notTablosuGetir = async function (kurumAdi) {
-  const anahtar = kurumAnahtari(kurumAdi);
-  if (!anahtar) return null;
-  try {
-    const r = await window.apiReadDoc('not_donusum_tablolari', anahtar);
-    return r && r.exists ? { ...r.data, id: anahtar } : null;
-  } catch (_e) {
-    return null;
-  }
-};
-
-// Kurumun sayfasından tablo okuma (yalnız personel).
-window.aiNotTablosuBul = async function (opt) {
-  const token = localStorage.getItem('caku_auth_token');
-  const res = await fetch('/api/ai/not-tablosu', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: 'Bearer ' + token } : {}),
-    },
-    credentials: 'include',
-    body: JSON.stringify({ url: opt.url || '', kurumAdi: opt.kurumAdi || '' }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const e = new Error(data.error || 'Tablo okunamadı (HTTP ' + res.status + ')');
-    e.denemeler = data.denemeler || [];
-    throw e;
-  }
-  return data;
-};
-
-window.notCevir = notCevir;
-window.notlariCevir = notlariCevir;
-window.notTablosuDogrula = notTablosuDogrula;
-window.notGecerMi = notGecerMi;
-window.kurumAnahtari = kurumAnahtari;
-window.notNormalize = notNormalize;
-window.CAKU_HARFLERI = CAKU_HARFLERI;
 
 window.tabanKaydiBul = tabanKaydiBul;
 window.tabanKarsilastir = tabanKarsilastir;
@@ -10953,6 +10905,11 @@ window.mezuniyetHesapla = mezuniyetHesapla;
 window.mezNotDurumu = mezNotDurumu;
 window.mezKuralNormalize = mezKuralNormalize;
 window.mezModelEtiketi = mezModelEtiketi;
+window.NOT_OLCEGI_VARSAYILAN = NOT_OLCEGI_VARSAYILAN;
+window.EK_HARFLER_VARSAYILAN = EK_HARFLER_VARSAYILAN;
+window.mezPuandanHarf = mezPuandanHarf;
+window.mezHarfKatsayisi = mezHarfKatsayisi;
+window.mezOlcekDogrula = mezOlcekDogrula;
 
 // ══════════════════════════════════════════════════════════════
 // DUYURULAR (pop-up)

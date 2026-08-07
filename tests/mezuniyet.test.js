@@ -12,7 +12,141 @@ import {
   mezModelEtiketi,
   mezDersYariyili,
   mezIsyeriYariyilindaMi,
+  mezPuandanHarf,
+  mezHarfKatsayisi,
+  mezOlcekDogrula,
+  NOT_OLCEGI_VARSAYILAN,
 } from '../lib/mezuniyet.js';
+
+// Yönetmelikteki gerçek ölçek. Kodda SABİT DEĞİL — bölüm yetkilisi Mezuniyet
+// Kuralları'ndan düzenliyor; buradaki liste yalnız ilk açılış tohumu.
+describe('not ölçeği — puandan harfe', () => {
+  it('yönetmelikteki aralıkları doğru çevirir', () => {
+    const h = (p) => mezPuandanHarf(p, {}).harf;
+    expect(h('95')).toBe('A');
+    expect(h('90')).toBe('A');
+    expect(h('89')).toBe('B1');
+    expect(h('80')).toBe('B2');
+    expect(h('75')).toBe('B3');
+    expect(h('70')).toBe('C1');
+    expect(h('65')).toBe('C2');
+    expect(h('60')).toBe('C3');
+    expect(h('55')).toBe('F1');
+    expect(h('0')).toBe('F2');
+  });
+
+  it('katsayıyı da döndürür', () => {
+    expect(mezPuandanHarf('87', {}).katsayi).toBe(3.5);
+    expect(mezPuandanHarf('62', {}).katsayi).toBe(2.0);
+    expect(mezPuandanHarf('30', {}).katsayi).toBe(0);
+  });
+
+  it('geçer/kalır bilgisini taşır', () => {
+    expect(mezPuandanHarf('75', {}).gecer).toBe(true);
+    // F1 katsayısı 1,50 ama GEÇER DEĞİL — katsayısı olması geçtiği anlamına
+    // gelmiyor; bu ayrım kaybolursa öğrenci geçmediği dersten geçmiş sayılır.
+    expect(mezPuandanHarf('55', {}).gecer).toBe(false);
+  });
+
+  it('aralık dışında harf UYDURMAZ', () => {
+    const r = mezPuandanHarf('105', {});
+    expect(r.harf).toBe('');
+    expect(r.sebep).toContain('hiçbir aralığa girmiyor');
+  });
+
+  it('okunamayan puanda boş döner', () => {
+    expect(mezPuandanHarf('', {}).harf).toBe('');
+    expect(mezPuandanHarf('AA', {}).harf).toBe('');
+  });
+
+  it('bölümün KENDİ ölçeği geçerlidir (kodda sabit değil)', () => {
+    const kendi = {
+      notOlcegi: [
+        { min: 60, max: 100, harf: 'GECTI', katsayi: 4, gecer: true },
+        { min: 0, max: 59, harf: 'KALDI', katsayi: 0, gecer: false },
+      ],
+    };
+    expect(mezPuandanHarf('80', kendi).harf).toBe('GECTI');
+    expect(mezPuandanHarf('50', kendi).harf).toBe('KALDI');
+  });
+});
+
+describe('mezHarfKatsayisi', () => {
+  it('ölçekteki harfin katsayısını verir', () => {
+    expect(mezHarfKatsayisi('B1', {})).toBe(3.5);
+    expect(mezHarfKatsayisi('C3', {})).toBe(2.0);
+  });
+
+  it('FF1/FF2/FF3 işaret ettikleri harfin katsayısıyla işlenir', () => {
+    // Yönetmelik: "FF1, FF2 ve FF3 notları ortalama hesabında F2 olarak
+    // işleme alınır."
+    expect(mezHarfKatsayisi('FF1', {})).toBe(0);
+    expect(mezHarfKatsayisi('FF2', {})).toBe(0);
+    expect(mezHarfKatsayisi('FF3', {})).toBe(0);
+  });
+
+  it('tanınmayan harfte null döner — sıfır DEMEZ', () => {
+    // Sıfır demek, bilinmeyen bir notu "kaldı" saymak olurdu.
+    expect(mezHarfKatsayisi('ZZ', {})).toBe(null);
+    expect(mezHarfKatsayisi('', {})).toBe(null);
+  });
+});
+
+describe('geçer/kalır listeleri ölçekten TÜRETİLİR', () => {
+  it('ölçekteki gecer bayrağından çıkar', () => {
+    const k = mezKuralNormalize({});
+    expect(k.gecerNotlar).toContain('B1');
+    expect(k.gecerNotlar).toContain('C3');
+    expect(k.kalirNotlar).toContain('F1');
+    expect(k.kalirNotlar).toContain('F2');
+    expect(k.kalirNotlar).toContain('FF2');
+  });
+
+  it('ölçekte geçer olan harf listede unutulamaz', () => {
+    // İki ayrı liste elle tutulurken ölçekle listeler sapabiliyordu: ölçekte
+    // "geçer" yazan bir harf listede yoksa öğrencinin geçtiği ders sessizce
+    // "belirsiz" sayılırdı.
+    const k = mezKuralNormalize({
+      notOlcegi: [{ min: 0, max: 100, harf: 'X1', katsayi: 4, gecer: true }],
+      gecerNotlar: [],
+    });
+    expect(mezNotDurumu('X1', k)).toBe('gecti');
+  });
+
+  it('elle eklenen notlar ölçeği tamamlar, ezmez', () => {
+    const k = mezKuralNormalize({ gecerNotlar: ['S'] });
+    expect(k.gecerNotlar).toContain('S');
+    expect(k.gecerNotlar).toContain('B1');
+  });
+});
+
+describe('mezOlcekDogrula', () => {
+  it('varsayılan ölçek geçerlidir', () => {
+    expect(mezOlcekDogrula(NOT_OLCEGI_VARSAYILAN).gecerli).toBe(true);
+  });
+
+  it('çakışan aralığı yakalar', () => {
+    const r = mezOlcekDogrula([
+      { min: 80, max: 90, harf: 'B', katsayi: 3 },
+      { min: 85, max: 100, harf: 'A', katsayi: 4 },
+    ]);
+    expect(r.sorunlar.join(' ')).toContain('çakışıyor');
+  });
+
+  it('boşluğu yakalar', () => {
+    const r = mezOlcekDogrula([
+      { min: 0, max: 50, harf: 'F', katsayi: 0 },
+      { min: 60, max: 100, harf: 'A', katsayi: 4 },
+    ]);
+    expect(r.sorunlar.join(' ')).toContain('boşluk');
+  });
+
+  it('eksik katsayı ve boş harfi yakalar', () => {
+    const r = mezOlcekDogrula([{ min: 0, max: 100, harf: '', katsayi: '' }]);
+    expect(r.sorunlar.join(' ')).toContain('harf boş');
+    expect(r.sorunlar.join(' ')).toContain('katsayı eksik');
+  });
+});
 
 const K = (o) => Object.assign({ toplamAkts: 60, minAgno: 2.0, stajZorunlu: false }, o || {});
 

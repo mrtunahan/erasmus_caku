@@ -670,52 +670,6 @@ router.get('/taban-puan/:docId', statusLimiter, requireAuth, requireStaff, async
   }
 });
 
-// POST /api/ai/not-tablosu — kurumun sayfasından not dönüşüm tablosunu oku.
-//
-// Yalnız personel: tablo o kurumdan gelen BÜTÜN öğrencilere uygulanacak.
-// Sonuç doğrudan kaydedilmez — akademisyen görüp onaylar (istemci yönetir).
-// body: { url, kurumAdi }
-router.post('/not-tablosu', extractLimiter, requireAuth, requireStaff, async (req, res) => {
-  try {
-    if (!aiHazirMi(res)) return undefined;
-    const b = req.body || {};
-    const sonuc = await cx.notTablosuBul({
-      url: clip(b.url, 300),
-      kurumAdi: clip(b.kurumAdi, 200),
-      module: 'muafiyet',
-      docType: 'intibak',
-      baglam: baglamCoz(req, b),
-    });
-
-    if (!sonuc.ok) {
-      const harita = {
-        'bad-url': sonuc.mesaj || 'Adres geçersiz.',
-        'parse-failed': 'Sayfa okundu ama not dönüşüm tablosu çıkarılamadı.',
-      };
-      let mesaj = harita[sonuc.reason] || sonuc.reason || 'bilinmeyen sebep';
-      const ek = tabanDenemeOzeti(sonuc.getirmeler);
-      if (ek) mesaj += ' [' + ek + ']';
-      return res.status(422).json({
-        error: mesaj,
-        reason: sonuc.reason,
-        denemeler: tabanDenemeleri(sonuc.getirmeler),
-      });
-    }
-
-    return res.json({
-      ok: true,
-      model: sonuc.model,
-      url: sonuc.url,
-      tablo: sonuc.tablo,
-      denemeler: tabanDenemeleri(sonuc.getirmeler),
-      maliyetUsd: sonuc.maliyetUsd || 0,
-    });
-  } catch (err) {
-    console.error('ai/not-tablosu error:', err.message);
-    return res.status(502).json({ error: 'Not dönüşüm tablosu okunamadı: ' + err.message });
-  }
-});
-
 // ── Batch (anlık olmayan işler, %50 indirim) — yalnız personel ──
 
 // POST /api/ai/extract/batch  body: { module, docType, isler:[{customId, fields, dosyalar}] }
