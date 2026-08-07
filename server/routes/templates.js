@@ -23,6 +23,7 @@ const rateLimit = require('express-rate-limit');
 const { ObjectId } = require('mongodb');
 const { getDbSafe } = require('../config/database');
 const { softAuth } = require('../middleware/softAuth');
+const { canManageTemplate, canViewTemplate } = require('../lib/sablon-erisim');
 
 const router = express.Router();
 const softAuthMiddleware = softAuth(getDbSafe);
@@ -109,6 +110,7 @@ async function resolveActorScope(req) {
   let isUniversityAdmin = false;
   let isFacultyManager = false;
   let isDeptManager = false;
+  let isStudent = false;
   let facultyId = '';
   let departmentId = '';
   if (u.role === 'admin') isUniversityAdmin = true; // legacy admin
@@ -131,7 +133,14 @@ async function resolveActorScope(req) {
     isDeptManager = true;
     departmentId = u.departmentId || '';
   }
-  return { isUniversityAdmin, isFacultyManager, isDeptManager, facultyId, departmentId };
+  // Öğrenci: bölümü giriş anında sunucunun imzaladığı JWT'den gelir (students
+  // koleksiyonundan okunmuştu) — istemci değiştiremez. Fakülte, bölüm→fakülte
+  // haritasından türetilir (canViewTemplate içinde).
+  if (u.role === 'student') {
+    isStudent = true;
+    departmentId = u.departmentId || '';
+  }
+  return { isUniversityAdmin, isFacultyManager, isDeptManager, isStudent, facultyId, departmentId };
 }
 
 // Bölüm → fakülte haritası
@@ -143,38 +152,6 @@ async function getDeptToFacultyMap(db) {
     if (id) map[id] = d.facultyId || '';
   }
   return map;
-}
-
-function canManageTemplate(scope, tpl, deptFacMap) {
-  if (scope.isUniversityAdmin) return true;
-  if (scope.isFacultyManager) {
-    if (tpl.scope === 'faculty' && tpl.facultyId === scope.facultyId) return true;
-    if (tpl.scope === 'department') {
-      const facOfDept = deptFacMap[tpl.departmentId];
-      return facOfDept === scope.facultyId;
-    }
-    return false;
-  }
-  if (scope.isDeptManager) {
-    return tpl.scope === 'department' && tpl.departmentId === scope.departmentId;
-  }
-  return false;
-}
-
-function canViewTemplate(scope, tpl, deptFacMap) {
-  if (canManageTemplate(scope, tpl, deptFacMap)) return true;
-  // Üniversite geneli herkes okur
-  if (tpl.scope === 'university') return true;
-  // OKUMA erişimi: kullanıcı, şablonun kapsamına giriyorsa (yönetici olmasa
-  // da) indirebilir — örn. akademisyen kendi bölümüne/fakültesine ait şablonu
-  // görüp belge üretebilir. (canManage yalnız DÜZENLEME içindir.)
-  if (tpl.scope === 'department' && tpl.departmentId && tpl.departmentId === scope.departmentId) {
-    return true;
-  }
-  if (tpl.scope === 'faculty' && tpl.facultyId && tpl.facultyId === scope.facultyId) {
-    return true;
-  }
-  return false;
 }
 
 // Alan eşleme kayıtlarını doğrula/temizle — yer tutucu → değişken eşlemesi.
