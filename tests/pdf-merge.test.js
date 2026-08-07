@@ -11,6 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
+const crypto = require('crypto');
 const filesRouter = require('../server/routes/files.js');
 const urlToRelPath = filesRouter._urlToRelPath;
 const asciiIndirge = filesRouter._asciiIndirge;
@@ -55,5 +56,42 @@ describe('asciiIndirge', () => {
   it('çıktı yalnızca yazdırılabilir ASCII içerir', () => {
     const out = asciiIndirge('ÇAKÜ – Fizik II  \n\t Şube');
     expect(/^[\x20-\x7E]*$/.test(out)).toBe(true);
+  });
+});
+
+// ── Aynı belgenin tekrar tekrar eklenmesi ──
+// Öğrenciler bölümün TÜM ders içeriklerini taşıyan tek PDF'i her ders için
+// ayrı yükleyebiliyor. Adrese göre tekilleştirme İŞE YARAMAZ (her yükleme ayrı
+// ad alır); ölçüt içerik özeti olmalı. Bu test o ölçütü sabitliyor.
+describe('icerik ozeti ile tekillestirme', () => {
+  const ozetle = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+
+  it('ayni icerik ayni ozeti verir (ad farkli olsa da)', () => {
+    const a = Buffer.from('%PDF-1.4 ayni icerik');
+    const b = Buffer.from('%PDF-1.4 ayni icerik');
+    expect(ozetle(a)).toBe(ozetle(b));
+  });
+
+  it('farkli icerik farkli ozet verir', () => {
+    expect(ozetle(Buffer.from('%PDF-1.4 A'))).not.toBe(ozetle(Buffer.from('%PDF-1.4 B')));
+  });
+
+  it('tekrar eden dosyalar bir kez sayilir', () => {
+    // Birlestirme dongusunun mantigi: gorulen ozet tekrar eklenmez.
+    const dosyalar = ['katalog', 'katalog', 'katalog', 'baska'].map((x) => Buffer.from(x));
+    const gorulen = new Set();
+    const eklenen = [];
+    const tekrarlar = [];
+    dosyalar.forEach((buf, i) => {
+      const o = ozetle(buf);
+      if (gorulen.has(o)) {
+        tekrarlar.push(i);
+        return;
+      }
+      gorulen.add(o);
+      eklenen.push(i);
+    });
+    expect(eklenen).toEqual([0, 3]);
+    expect(tekrarlar).toEqual([1, 2]);
   });
 });
