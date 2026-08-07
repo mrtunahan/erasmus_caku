@@ -5368,6 +5368,25 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
     };
   }, [kaynakKurum]);
 
+  // ── Akademisyen tarafında dönüşümü YENİDEN hesapla ──
+  //
+  // Kayıttaki `cakuNot`, öğrencinin tarayıcısında hesaplanmıştı. Onu olduğu
+  // gibi kabul etmek, sunucunun engellediği şeyi (öğrenci beyanını kanıt
+  // saymak) arka kapıdan geri getirirdi. Burada karşı kurumdaki not — ki o da
+  // belgeden okunuyor — bu tarafta yüklenen ONAYLI tabloyla yeniden çevriliyor
+  // ve fark varsa akademisyene söyleniyor.
+  const yenidenCevrim = useMemo(() => {
+    if (isStudent || !window.notCevir) return {};
+    const out = {};
+    notluDersler.forEach((m, i) => {
+      const a = notAnahtari(m, i);
+      const kaynakNot = ((record.ogrenciNotlari || {})[a] || {}).kaynakNot || '';
+      if (!kaynakNot) return;
+      out[a] = window.notCevir(kaynakNot, tablo);
+    });
+    return out;
+  }, [isStudent, notluDersler, record.ogrenciNotlari, tablo]);
+
   const eksikNotVar = notluDersler.some((m, i) => {
     const n = notlar[notAnahtari(m, i)] || {};
     return !String(n.kaynakNot || '').trim() || !String(n.cakuNot || '').trim();
@@ -5517,19 +5536,10 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
         notDonusumLink: (link || '').trim(),
         basariBelgesiUrl: belgeUrl,
         basariBelgesiAdi: belgeAdi,
-        // Kullanılan tablo kaydın içine KOPYALANIR: tablo ileride değişse bile
-        // bu öğrencinin dönüşümü hangi kuralla yapıldıysa öyle kalır ve belge
-        // yeniden üretildiğinde aynı sonucu verir.
-        kullanilanNotTablosu: tablo
-          ? {
-              id: tablo.id || '',
-              kurumAdi: tablo.kurumAdi || kaynakKurum,
-              tur: tablo.tur,
-              satirlar: tablo.satirlar,
-              gecerlilikYili: tablo.gecerlilikYili || '',
-              surum: tablo.surum || '',
-            }
-          : null,
+        // Kullanılan tablo BURADA YAZILMAZ. Öğrencinin yazdığı bir "dayanak"
+        // kanıt sayılamaz; akademisyen tarafı tabloyu kendi okuduğu kayıttan
+        // çözüp dönüşümü YENİDEN hesaplıyor ve tamamlarken kayda kendisi
+        // yazıyor. (Sunucu da bu alanı öğrenci yazımına kapalı tutuyor.)
         ogrenciNotlari: derlenmisNotlar(),
       });
     } finally {
@@ -5976,6 +5986,35 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                           <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 2 }}>
                             ÇAKÜ: {[cak.code, cak.name].filter(Boolean).join(' — ') || '—'}
                           </div>
+                          {/* Onaylı tabloyla yeniden hesaplanan karşılık.
+                              Kayıttakiyle uyuşmuyorsa bunu söylemek şart:
+                              aradaki fark ya tablo değişmiştir ya da kayıttaki
+                              değer tabloya dayanmıyordur. */}
+                          {yenidenCevrim[a] && yenidenCevrim[a].cakuNot ? (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                marginTop: 3,
+                                color:
+                                  window.notNormalize &&
+                                  window.notNormalize(yenidenCevrim[a].cakuNot) !==
+                                    window.notNormalize(n.cakuNot)
+                                    ? DS.red
+                                    : DS.green,
+                              }}
+                            >
+                              Onaylı tabloya göre: <b>{yenidenCevrim[a].cakuNot}</b>
+                              {window.notNormalize &&
+                              window.notNormalize(yenidenCevrim[a].cakuNot) !==
+                                window.notNormalize(n.cakuNot)
+                                ? ' — kayıttaki değerle UYUŞMUYOR'
+                                : ''}
+                            </div>
+                          ) : yenidenCevrim[a] && yenidenCevrim[a].sebep ? (
+                            <div style={{ fontSize: 11, color: DS.amber, marginTop: 3 }}>
+                              {yenidenCevrim[a].sebep}
+                            </div>
+                          ) : null}
                         </div>
                         <label style={{ fontSize: 11.5, color: DS.textSecondary }}>
                           Karşı notu
@@ -6030,6 +6069,20 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                       act('tamamlandi', {
                         status: 'tamamlandi',
                         ogrenciNotlari: derlenmisNotlar(),
+                        // Kullanılan tabloyu AKADEMİSYEN yazar (öğrenciye
+                        // kapalı). Kayda kopyalanıyor ki tablo ileride
+                        // değişse bile bu belgenin dönüşümü aynı kalsın ve
+                        // belge yeniden üretildiğinde aynı sonucu versin.
+                        kullanilanNotTablosu: tablo
+                          ? {
+                              id: tablo.id || '',
+                              kurumAdi: tablo.kurumAdi || kaynakKurum,
+                              tur: tablo.tur,
+                              satirlar: tablo.satirlar,
+                              gecerlilikYili: tablo.gecerlilikYili || '',
+                              surum: tablo.surum || '',
+                            }
+                          : null,
                       });
                   }}
                   style={{ ...eStageBtn, background: DS.green, color: '#fff', border: 'none' }}

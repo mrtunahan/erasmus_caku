@@ -785,6 +785,15 @@ async function enforceWritePolicies(db, op, user) {
           'stageHistory',
           'notDonusumLink',
           'basariBelgesiUrl',
+          // Yalnız görünen dosya adı — belgenin kendisi basariBelgesiUrl'de.
+          'basariBelgesiAdi',
+          // ⚠ `kullanilanNotTablosu` BİLEREK BURADA YOK. O alan, öğrencinin
+          // notunun hangi dönüşüm kuralıyla hesaplandığının KANITIDIR.
+          // Öğrenciye açık olsaydı, uydurma bir tablo yazıp akademisyene
+          // "notum bu kurala göre AA" diye yanlış bir dayanak gösterebilirdi —
+          // yanlış sayı değil, yanlış KANIT üretmek daha ağırdır. Tabloyu
+          // akademisyen tarafı kendi okuduğu kayıttan çözer ve tamamlarken
+          // kaydın içine kendisi yazar.
           // Transkript: öğrenci kendi kaydına tek seferlik yükler. Bu alanlar
           // listede olmadığı için yükleme 403 ile reddediliyordu.
           'transcriptUrl',
