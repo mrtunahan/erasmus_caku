@@ -4923,7 +4923,7 @@ const eStageBtn = {
 // ⚠ ONAYSIZ TABLO KULLANILMAZ. `durum: 'taslak'` iken hiçbir öğrenciye
 // uygulanmaz — bir kez yanlış onaylanan tablo, hatayı sessizce çoğaltır.
 // ══════════════════════════════════════════════════════════════
-const NotTablosuYonetimi = ({ kurumAdi, currentUser, onKapat }) => {
+const NotTablosuYonetimi = ({ kurumAdi, currentUser, departmentId, onKapat }) => {
   const [kayit, setKayit] = useState(null);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [url, setUrl] = useState('');
@@ -4953,10 +4953,37 @@ const NotTablosuYonetimi = ({ kurumAdi, currentUser, onKapat }) => {
     };
   }, [anahtar]);
 
+  // ── Hedef harf ölçeği ──
+  // Kurumun kendi harf notları, bölümün mezuniyet kurallarında zaten tanımlı
+  // (geçer + kalır listeleri). Doğrulamayı oradan beslemek, ölçeği koda
+  // gömmekten iyi: B1/C2/F1 kullanan bir bölümün tablosu "geçersiz harf"
+  // diye reddedilip onaylanamıyordu.
+  const [izinliHarfler, setIzinliHarfler] = useState(null);
+  useEffect(() => {
+    let iptal = false;
+    if (!departmentId) return undefined;
+    window
+      .apiReadDoc('mezuniyet_kurallari', String(departmentId))
+      .then((r) => {
+        if (iptal) return;
+        const d = (r && r.exists && r.data) || {};
+        const birlesik = []
+          .concat(Array.isArray(d.gecerNotlar) ? d.gecerNotlar : [])
+          .concat(Array.isArray(d.kalirNotlar) ? d.kalirNotlar : [])
+          .filter(Boolean);
+        setIzinliHarfler(birlesik.length > 0 ? birlesik : null);
+      })
+      .catch(() => {});
+    return () => {
+      iptal = true;
+    };
+  }, [departmentId]);
+
   const satirlar = (kayit && Array.isArray(kayit.satirlar) && kayit.satirlar) || [];
   const tur = (kayit && kayit.tur) || 'sayisal';
+  const harfSecenekleri = izinliHarfler || window.CAKU_HARFLERI || [];
   const dogrulama = window.notTablosuDogrula
-    ? window.notTablosuDogrula({ tur, satirlar })
+    ? window.notTablosuDogrula({ tur, satirlar }, izinliHarfler)
     : { gecerli: true, sorunlar: [] };
 
   const setSatir = (i, alan, deger) => {
@@ -5166,6 +5193,19 @@ const NotTablosuYonetimi = ({ kurumAdi, currentUser, onKapat }) => {
             ))}
           </div>
 
+          <datalist id="caku-harf-secenekleri">
+            {harfSecenekleri.map((h) => (
+              <option key={h} value={h} />
+            ))}
+          </datalist>
+
+          {harfSecenekleri.length > 0 && (
+            <div style={{ fontSize: 11, color: DS.textMuted, marginBottom: 8, lineHeight: 1.5 }}>
+              Tanınan harf notları: <b>{harfSecenekleri.join(', ')}</b>
+              {izinliHarfler ? ' (bölümünüzün mezuniyet kurallarından)' : ''}
+            </div>
+          )}
+
           {satirlar.length > 0 && (
             <div style={{ border: '1px solid ' + DS.border, borderRadius: 8, marginBottom: 10 }}>
               {satirlar.map((r, i) => (
@@ -5205,11 +5245,27 @@ const NotTablosuYonetimi = ({ kurumAdi, currentUser, onKapat }) => {
                     />
                   )}
                   <span style={{ color: DS.textMuted }}>→</span>
+                  {/* Serbest metin + öneri listesi: kurumun harf ölçeği
+                      seçilebiliyor ama listede olmayan bir harf de yazılabiliyor
+                      (ölçek her kurumda aynı değil). Yanlış harf, doğrulamada
+                      açıkça söyleniyor. */}
                   <input
                     value={r.caku || ''}
                     onChange={(e) => setSatir(i, 'caku', e.target.value)}
-                    placeholder="ÇAKÜ"
-                    style={{ ...girdi, fontWeight: 700 }}
+                    placeholder="harf"
+                    list="caku-harf-secenekleri"
+                    style={{
+                      ...girdi,
+                      fontWeight: 700,
+                      borderColor:
+                        r.caku &&
+                        window.notNormalize &&
+                        !harfSecenekleri
+                          .map((h) => window.notNormalize(h))
+                          .includes(window.notNormalize(r.caku))
+                          ? DS.amber
+                          : DS.border,
+                    }}
                   />
                   <button
                     onClick={() => satirSil(i)}
@@ -5887,6 +5943,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
             <NotTablosuYonetimi
               kurumAdi={kaynakKurum}
               currentUser={currentUser}
+              departmentId={record.departmentId || currentUser?.departmentId || ''}
               onKapat={() => setTabloAcik(false)}
             />
           )}
