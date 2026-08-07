@@ -7655,11 +7655,19 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
       });
       if (dilekceModu) {
         if (!res.ok) {
+          // Sebep başka, çözüm başka: eşleme yoksa yetkili şablonu bağlamalı;
+          // indirme/erişim hatasında öğrencinin yapabileceği bir şey yok.
+          const eslemeSorunu =
+            res.reason === 'no-template' ||
+            res.reason === 'no-mapping' ||
+            res.reason === 'not-docx';
           alert(
             'Dilekçe üretilemedi: ' +
               (res.message || res.reason || 'şablon bulunamadı') +
-              '\n\nBölüm yetkiliniz Şablonlar modülünden "Yaz Dönemi Ders İntibak İsteği" ' +
-              'şablonunu eşlemiş olmalı.'
+              (eslemeSorunu
+                ? '\n\nBölüm yetkiliniz Şablonlar modülünden "Yaz Dönemi Ders İntibak İsteği" ' +
+                  'şablonunu eşlemiş olmalı.'
+                : '\n\nSorun sürerse bölüm sekreterliğine bildirin.')
           );
         }
         return;

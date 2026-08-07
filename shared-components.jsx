@@ -3209,7 +3209,12 @@ const TemplateEngine = (() => {
         headers,
         credentials: 'include',
       });
-      if (!fr.ok) throw new Error('indirilemedi');
+      // HTTP durumunu mesaja koy: 403 (kapsam dışı şablon) ile 404 (dosya
+      // silinmiş) çok farklı sorunlardır; çıplak "indirilemedi" ikisini de gizler.
+      if (!fr.ok) {
+        const gerekce = fr.status === 403 ? 'bu şablona erişim yetkiniz yok' : 'indirilemedi';
+        throw new Error(gerekce + ' (HTTP ' + fr.status + ')');
+      }
       buf = await fr.arrayBuffer();
     } catch (e) {
       return { ok: false, reason: 'download', message: e.message };
