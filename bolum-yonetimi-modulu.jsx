@@ -1801,6 +1801,22 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
   const [mesaj, setMesaj] = useState('');
 
   const kapsamIdleri = useMemo(() => kapsam.map((d) => d.id), [kapsam]);
+  // Yazanın yetki alanı — kayda GÖMÜLÜR ve gösterimde uygulanır. Duyuru bu
+  // alanın dışına çıkamaz; hedef listesi yalnız daraltabilir.
+  const yetkiKapsami = useMemo(
+    () =>
+      window.duyuruKapsamCoz
+        ? window.duyuruKapsamCoz(currentUser, window.DEPARTMENTS || [])
+        : { kapsamTuru: 'bolum', departmentIds: kapsamIdleri },
+    [currentUser, kapsamIdleri]
+  );
+  const kapsamTuru = yetkiKapsami.kapsamTuru;
+  const kapsamMetni =
+    kapsamTuru === 'universite'
+      ? 'üniversite geneli'
+      : kapsamTuru === 'fakulte'
+        ? 'kendi fakülteniz (' + kapsamIdleri.length + ' bölüm)'
+        : 'kendi bölümünüz' + (kapsamIdleri.length > 1 ? ' (' + kapsamIdleri.length + ')' : '');
 
   const load = () => {
     setLoading(true);
@@ -1809,11 +1825,22 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
       .then((all) => {
         // Yalnız kapsamımdaki duyurular: hedefi boş olanlar (herkese açık)
         // ya da hedefinde kapsamımdan en az bir bölüm bulunanlar.
+        // Yönetim listesi de KAPSAMA bağlı. Eskiden hedefi boş olan her
+        // duyuru burada da herkese görünüyordu: bir bölüm yetkilisi başka
+        // fakültenin duyurusunu görebiliyor, düzenleyip silebiliyordu.
         setListe(
           (all || []).filter((d) => {
+            if (kapsamTuru === 'universite') return true;
+            const kayitKapsami = Array.isArray(d.kapsamDepartmentIds) ? d.kapsamDepartmentIds : [];
+            if (kayitKapsami.length > 0) {
+              return kayitKapsami.some((x) => kapsamIdleri.includes(x));
+            }
+            // Kapsamsız (eski) kayıt: hedefi varsa hedefe, yoksa yazanın
+            // bölümüne göre — gösterimdeki kuralla aynı.
             const h = Array.isArray(d.hedefDepartmentIds) ? d.hedefDepartmentIds : [];
-            if (h.length === 0) return true;
-            return h.some((x) => kapsamIdleri.includes(x));
+            if (h.length > 0) return h.some((x) => kapsamIdleri.includes(x));
+            const yazan = String(d.departmentId || '');
+            return yazan ? kapsamIdleri.includes(yazan) : true;
           })
         );
       })
@@ -1862,7 +1889,12 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
       setMesaj('Başlık zorunlu.');
       return;
     }
-    if (form.tur === 'metin' && !form.metin.trim()) {
+    // Editör boş bırakılınca `<p><br></p>` gibi bir artık üretiyor; düz
+    // `trim()` bunu "dolu" sanır ve boş duyuru kaydedilirdi.
+    const metinBos = window.zenginBosMu
+      ? window.zenginBosMu(form.metin)
+      : !String(form.metin || '').trim();
+    if (form.tur === 'metin' && metinBos) {
       setMesaj('Metin duyurusunda içerik boş olamaz.');
       return;
     }
@@ -1892,8 +1924,18 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
         videoUrl: form.tur === 'video' ? form.videoUrl.trim() : '',
         baglantiUrl: /^https?:\/\//i.test(form.baglantiUrl.trim()) ? form.baglantiUrl.trim() : '',
         baglantiMetni: form.baglantiMetni.trim(),
-        hedefDepartmentIds: form.hedefDepartmentIds,
+        // Hedef listesi kapsamın DIŞINA taşamaz. İstemci zaten kapsam dışı
+        // bölüm göstermiyor, ama kayıt anında da süzülüyor: form durumu eski
+        // bir kayıttan gelmiş olabilir (yetkisi değişen bir kullanıcı, başka
+        // kapsamda oluşturulmuş bir duyuruyu düzenliyor olabilir).
+        hedefDepartmentIds:
+          kapsamTuru === 'universite'
+            ? form.hedefDepartmentIds
+            : (form.hedefDepartmentIds || []).filter((x) => kapsamIdleri.includes(x)),
         hedefRoller: form.hedefRoller,
+        kapsamTuru,
+        kapsamDepartmentIds: kapsamTuru === 'universite' ? [] : kapsamIdleri,
+        kapsamFacultyId: yetkiKapsami.facultyId || '',
         baslangic: form.baslangic,
         bitis: form.bitis,
         aktif: form.aktif !== false,
@@ -2127,12 +2169,25 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
             <label style={etiket}>
               {form.tur === 'metin' ? 'Duyuru metni *' : 'Açıklama (isteğe bağlı)'}
             </label>
-            <textarea
-              value={form.metin}
-              rows={form.tur === 'metin' ? 6 : 3}
-              onChange={(e) => setForm({ ...form, metin: e.target.value })}
-              style={{ ...girdi, resize: 'vertical' }}
-            />
+            {window.ZenginMetinEditoru ? (
+              <window.ZenginMetinEditoru
+                deger={form.metin}
+                onChange={(html) => setForm((f) => ({ ...f, metin: html }))}
+                yukseklik={form.tur === 'metin' ? 200 : 110}
+              />
+            ) : (
+              <textarea
+                value={form.metin}
+                rows={form.tur === 'metin' ? 6 : 3}
+                onChange={(e) => setForm({ ...form, metin: e.target.value })}
+                style={{ ...girdi, resize: 'vertical' }}
+              />
+            )}
+            <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 6, lineHeight: 1.5 }}>
+              Kalın/italik, başlık, liste, alıntı, renk ve bağlantı kullanabilirsiniz. Başka bir
+              sayfadan yapıştırdığınız içerik <b>düz metin</b> olarak girer — biçimi buradaki araç
+              çubuğundan verin. Aşağıdaki önizleme, duyurunun kullanıcıda göründüğü hâlidir.
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -2174,9 +2229,19 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
                 </button>
               ))}
             </div>
+            {/* Kapsam açıkça yazılıyor: "hiç bölüm seçilmedi" ifadesi eskiden
+                "tüm kullanıcılara" diye anlaşılıyordu ve gerçekten de öyle
+                davranıyordu — bölüm duyurusu başka fakültelere sızıyordu.
+                Artık kapsam yetkinizle sınırlı ve bu satır onu söylüyor. */}
             {form.hedefDepartmentIds.length === 0 && (
-              <div style={{ fontSize: 11.5, color: '#B45309', marginTop: 6 }}>
-                Hiç bölüm seçilmedi — duyuru <b>tüm kullanıcılara</b> gösterilir.
+              <div style={{ fontSize: 11.5, color: '#B45309', marginTop: 6, lineHeight: 1.5 }}>
+                Hiç bölüm seçilmedi — duyuru <b>{kapsamMetni}</b> içindeki tüm kullanıcılara
+                gösterilir. Yetki alanınızın dışına çıkmaz.
+              </div>
+            )}
+            {form.hedefDepartmentIds.length > 0 && (
+              <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 6 }}>
+                Seçilen {form.hedefDepartmentIds.length} bölüm — kapsamınız {kapsamMetni}.
               </div>
             )}
           </div>

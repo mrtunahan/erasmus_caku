@@ -19,6 +19,12 @@ import {
   programAnahtari,
   TABAN_DURUM_ETIKET,
 } from './lib/taban-puan.js';
+import {
+  duyuruKapsamCoz,
+  duyuruKapsamdaMi,
+  duyuruKullaniciBolumleri,
+} from './lib/duyuru-kapsam.js';
+import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './lib/zengin-metin.js';
 
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
@@ -10966,14 +10972,16 @@ function duyuruGecerliMi(d, user, bugun) {
   const hedefRoller = Array.isArray(d.hedefRoller) ? d.hedefRoller : [];
   if (hedefRoller.length > 0 && !hedefRoller.includes(duyuruRolKovasi(user))) return false;
 
+  // ÖNCE kapsam: duyuru yazanın yetki alanının dışına çıkamaz. Hedef listesi
+  // bu kapsamı yalnız DARALTIR — genişletemez.
+  if (!duyuruKapsamdaMi(d, user)) return false;
+
   // Boş hedef listesi = "kapsamdaki herkes". Yetkili bunu bilerek seçebiliyor.
   const hedefler = Array.isArray(d.hedefDepartmentIds) ? d.hedefDepartmentIds : [];
   if (hedefler.length === 0) return true;
 
   // Kullanıcının bağlı olduğu tüm bölümler (ana + çapraz) sayılır.
-  const benim = [user && user.departmentId].concat(
-    Array.isArray(user && user.additionalDepartments) ? user.additionalDepartments : []
-  );
+  const benim = duyuruKullaniciBolumleri(user);
   return hedefler.some((h) => benim.includes(h));
 }
 
@@ -11011,6 +11019,252 @@ function duyuruGoruldu(user, duyuru) {
 
 // Duyuru içeriğinin gövdesi. Yönetim arayüzündeki önizleme de aynı
 // bileşeni kullanır ki yetkili yayınlamadan önce birebir aynısını görsün.
+// ── Zengin metni EKRANA BASMA ──
+//
+// `dangerouslySetInnerHTML` bilerek kullanılmıyor. Duyuru yazma yetkisi
+// onlarca kişide ve içerik herkese pop-up olarak açılıyor; innerHTML
+// kullanılsaydı tek bir sanitizasyon açığı uygulama içinde kod çalıştırmaya
+// dönerdi. Ağaç yalnız izin verilen etiketleri taşıyor ve buradan React
+// elemanına çevriliyor — tanınmayan her şey zaten düz metne düşmüş oluyor.
+const ZENGIN_STIL = {
+  p: { margin: '0 0 8px' },
+  h3: { margin: '12px 0 6px', fontSize: 16, fontWeight: 700, color: '#1B2A4A' },
+  h4: { margin: '10px 0 5px', fontSize: 14.5, fontWeight: 700, color: '#1B2A4A' },
+  ul: { margin: '0 0 8px', paddingLeft: 22 },
+  ol: { margin: '0 0 8px', paddingLeft: 22 },
+  li: { marginBottom: 3 },
+  blockquote: {
+    margin: '0 0 8px',
+    padding: '6px 12px',
+    borderLeft: '3px solid #CBD5E1',
+    color: '#475569',
+    background: '#F8FAFC',
+  },
+  code: {
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+    fontSize: '0.92em',
+    background: '#F1F5F9',
+    padding: '1px 5px',
+    borderRadius: 4,
+  },
+  mark: { background: '#FEF08A', padding: '0 2px' },
+  a: { color: '#1D4ED8', textDecoration: 'underline' },
+};
+
+function zenginDugumler(dugumler, anahtarOnek) {
+  return (dugumler || []).map((d, i) => {
+    const anahtar = anahtarOnek + '-' + i;
+    if (d.tip === 'metin') return d.deger;
+    const cocuklar = zenginDugumler(d.cocuklar, anahtar);
+    const stil = ZENGIN_STIL[d.ad];
+    if (d.ad === 'br') return React.createElement('br', { key: anahtar });
+    if (d.ad === 'a') {
+      return React.createElement(
+        'a',
+        {
+          key: anahtar,
+          href: d.ozellikler.href,
+          target: '_blank',
+          rel: 'noopener noreferrer',
+          style: stil,
+        },
+        cocuklar
+      );
+    }
+    if (d.ad === 'span') {
+      const renk = d.ozellikler && d.ozellikler.renk;
+      return React.createElement(
+        'span',
+        { key: anahtar, style: renk ? { color: renk } : undefined },
+        cocuklar
+      );
+    }
+    return React.createElement(d.ad, { key: anahtar, style: stil }, cocuklar);
+  });
+}
+
+const ZenginMetin = ({ html, stil }) => {
+  const agac = React.useMemo(() => zenginAyristir(html), [html]);
+  return (
+    <div style={{ fontSize: 14, lineHeight: 1.65, color: '#374151', ...(stil || {}) }}>
+      {zenginDugumler(agac, 'z')}
+    </div>
+  );
+};
+
+// ── Zengin metin EDİTÖRÜ ──
+//
+// contentEditable + araç çubuğu. Ürettiği HTML'e GÜVENİLMİYOR: kaydedilirken
+// de gösterilirken de aynı ayrıştırıcıdan geçiyor, yani editörün ne ürettiği
+// güvenliği belirlemiyor — yalnız yazma kolaylığını.
+//
+// Kontrolsüz (uncontrolled) bir alan: her tuşta React'e değer yazsaydık imleç
+// her karakterde metnin başına atlardı. Değer dışarıya `onChange` ile
+// bildiriliyor, DOM'a geri YAZILMIYOR — yalnız ilk yüklemede ve kayıt
+// değiştiğinde eşitleniyor.
+const ZENGIN_ARACLAR = [
+  { komut: 'bold', etiket: 'B', baslik: 'Kalın (Ctrl+B)', stil: { fontWeight: 800 } },
+  { komut: 'italic', etiket: 'I', baslik: 'İtalik (Ctrl+I)', stil: { fontStyle: 'italic' } },
+  {
+    komut: 'underline',
+    etiket: 'U',
+    baslik: 'Altı çizili (Ctrl+U)',
+    stil: { textDecoration: 'underline' },
+  },
+  {
+    komut: 'strikeThrough',
+    etiket: 'S',
+    baslik: 'Üstü çizili',
+    stil: { textDecoration: 'line-through' },
+  },
+];
+
+const ZenginMetinEditoru = ({ deger, onChange, yukseklik, yerTutucu }) => {
+  const ref = React.useRef(null);
+  const sonDisDeger = React.useRef(null);
+
+  // Dışarıdan gelen değeri yalnız GERÇEKTEN değiştiğinde DOM'a bas.
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const gelen = String(deger || '');
+    if (sonDisDeger.current === gelen) return;
+    sonDisDeger.current = gelen;
+    if (el.innerHTML !== gelen) el.innerHTML = gelen;
+  }, [deger]);
+
+  const bildir = () => {
+    const el = ref.current;
+    if (!el) return;
+    sonDisDeger.current = el.innerHTML;
+    if (onChange) onChange(el.innerHTML);
+  };
+
+  const uygula = (komut, param) => {
+    const el = ref.current;
+    if (el) el.focus();
+    try {
+      document.execCommand(komut, false, param);
+    } catch (_e) {
+      /* tarayıcı desteklemiyorsa sessizce geç — metin yine yazılabilir */
+    }
+    bildir();
+  };
+
+  const baglantiEkle = () => {
+    const ham = window.prompt('Bağlantı adresi (https:// ile başlamalı):', 'https://');
+    if (!ham) return;
+    const guvenli = /^https?:\/\/[^/]/i.test(ham.trim()) ? ham.trim() : '';
+    if (!guvenli) {
+      alert('Yalnız http:// veya https:// ile başlayan adresler eklenebilir.');
+      return;
+    }
+    uygula('createLink', guvenli);
+  };
+
+  const dugme = (icerik, baslik, tikla, stil) => (
+    <button
+      key={baslik}
+      type="button"
+      title={baslik}
+      onMouseDown={(e) => e.preventDefault()} // seçim kaybolmasın
+      onClick={tikla}
+      style={{
+        minWidth: 30,
+        height: 28,
+        padding: '0 8px',
+        border: '1px solid #D1D5DB',
+        borderRadius: 6,
+        background: 'white',
+        color: '#374151',
+        fontSize: 13,
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        ...(stil || {}),
+      }}
+    >
+      {icerik}
+    </button>
+  );
+
+  const ayrac = (k) => (
+    <span key={k} style={{ width: 1, height: 20, background: '#E5E7EB', margin: '0 2px' }} />
+  );
+
+  return (
+    <div style={{ border: '1px solid #D1D5DB', borderRadius: 8, overflow: 'hidden' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 4,
+          padding: 6,
+          borderBottom: '1px solid #E5E7EB',
+          background: '#F9FAFB',
+        }}
+      >
+        {ZENGIN_ARACLAR.map((a) => dugme(a.etiket, a.baslik, () => uygula(a.komut), a.stil))}
+        {ayrac('a1')}
+        {dugme('Başlık', 'Başlık', () => uygula('formatBlock', 'H3'), { fontWeight: 700 })}
+        {dugme('Alt başlık', 'Alt başlık', () => uygula('formatBlock', 'H4'), { fontWeight: 600 })}
+        {dugme('Paragraf', 'Normal paragraf', () => uygula('formatBlock', 'P'))}
+        {ayrac('a2')}
+        {dugme('• Liste', 'Madde listesi', () => uygula('insertUnorderedList'))}
+        {dugme('1. Liste', 'Numaralı liste', () => uygula('insertOrderedList'))}
+        {dugme('❝', 'Alıntı', () => uygula('formatBlock', 'BLOCKQUOTE'))}
+        {ayrac('a3')}
+        {dugme('🔗', 'Bağlantı ekle', baglantiEkle)}
+        {dugme('⌫🔗', 'Bağlantıyı kaldır', () => uygula('unlink'))}
+        {ayrac('a4')}
+        {/* Renk paleti dar ve sabit: serbest renk bir CSS enjeksiyon
+            yüzeyidir, ayrıca duyuruların birbirine benzemesi okunurluğu artırır. */}
+        {ZENGIN_RENKLER.filter((r) => r.deger).map((r) =>
+          dugme('A', r.ad, () => uygula('foreColor', r.deger), {
+            color: r.deger,
+            fontWeight: 800,
+          })
+        )}
+        {dugme('A', 'Vurgu (sarı zemin)', () => uygula('hiliteColor', '#FEF08A'), {
+          background: '#FEF08A',
+          fontWeight: 700,
+        })}
+        {ayrac('a5')}
+        {dugme('Biçimi temizle', 'Biçimlendirmeyi temizle', () => uygula('removeFormat'))}
+      </div>
+
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={bildir}
+        onBlur={bildir}
+        // Yapıştırılan içerik DÜZ METİN olarak girer: başka bir siteden
+        // kopyalanan biçimlendirme, o sitenin stillerini ve etiket çöplüğünü
+        // de taşır. Biçim araç çubuğundan verilir.
+        onPaste={(e) => {
+          e.preventDefault();
+          const metin = (e.clipboardData || window.clipboardData).getData('text/plain');
+          document.execCommand('insertText', false, metin);
+          bildir();
+        }}
+        data-yertutucu={yerTutucu || ''}
+        style={{
+          minHeight: yukseklik || 160,
+          maxHeight: 420,
+          overflowY: 'auto',
+          padding: '10px 12px',
+          fontSize: 13.5,
+          lineHeight: 1.6,
+          color: '#191C1E',
+          outline: 'none',
+          fontFamily: 'inherit',
+        }}
+      />
+    </div>
+  );
+};
+
 const DuyuruIcerik = ({ duyuru }) => {
   const tur = duyuru.tur || 'metin';
   const medya = duyuru.medyaUrl
@@ -11066,18 +11320,7 @@ const DuyuruIcerik = ({ duyuru }) => {
           />
         </div>
       )}
-      {duyuru.metin && (
-        <div
-          style={{
-            fontSize: 14,
-            lineHeight: 1.65,
-            color: '#374151',
-            whiteSpace: 'pre-wrap',
-          }}
-        >
-          {duyuru.metin}
-        </div>
-      )}
+      {duyuru.metin && <ZenginMetin html={duyuru.metin} />}
       {duyuru.baglantiUrl && (
         <a
           href={duyuru.baglantiUrl}
@@ -11242,6 +11485,12 @@ window.duyuruGomulebilirUrl = duyuruGomulebilirUrl;
 window.duyuruGecerliMi = duyuruGecerliMi;
 window.DuyuruIcerik = DuyuruIcerik;
 window.DuyuruPopup = DuyuruPopup;
+window.ZenginMetin = ZenginMetin;
+window.ZenginMetinEditoru = ZenginMetinEditoru;
+window.zenginDuzMetin = zenginDuzMetin;
+window.zenginBosMu = zenginBosMu;
+window.duyuruKapsamCoz = duyuruKapsamCoz;
+window.duyuruKapsamdaMi = duyuruKapsamdaMi;
 
 // ══════════════════════════════════════════════════════════════
 // TABAN PUAN PANELİ — "adresi ver, puanları getirsin"
