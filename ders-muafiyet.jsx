@@ -4905,6 +4905,388 @@ const eStageBtn = {
   cursor: 'pointer',
 };
 
+// ══════════════════════════════════════════════════════════════
+// NOT DÖNÜŞÜM TABLOSU YÖNETİMİ (akademisyen)
+//
+// Karşı kurumun notunu ÇAKÜ harfine çeviren tablo, kurum başına BİR KEZ
+// tanımlanır ve o kurumdan gelen bütün öğrencilere uygulanır.
+//
+// ── Kaynak olarak neden hem PDF hem link, ama saklanan şey TABLO? ──
+// Link tek başına yetmez: sayfalar taşınır, 404 olur, sessizce değişir; her
+// öğrenci için yeniden getirmek hem ücretlidir hem de iki öğrencinin farklı
+// sürüm görmesine yol açar. PDF tek başına da yetmez: her seferinde yeniden
+// okunması gerekir. Bu yüzden AYRIŞTIRILMIŞ TABLO saklanır — ucuz, determinist,
+// denetlenebilir — kaynağı (link ya da PDF) kanıt olarak yanında durur.
+// Tablo değişirse yetkili yeniden okutup onaylar; onay tarihi ve geçerlilik
+// yılı kayıtta tutulur, kullanılan sürüm öğrencinin kaydına kopyalanır.
+//
+// ⚠ ONAYSIZ TABLO KULLANILMAZ. `durum: 'taslak'` iken hiçbir öğrenciye
+// uygulanmaz — bir kez yanlış onaylanan tablo, hatayı sessizce çoğaltır.
+// ══════════════════════════════════════════════════════════════
+const NotTablosuYonetimi = ({ kurumAdi, currentUser, onKapat }) => {
+  const [kayit, setKayit] = useState(null);
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [url, setUrl] = useState('');
+  const [calisiyor, setCalisiyor] = useState(false);
+  const [mesaj, setMesaj] = useState('');
+  const [hata, setHata] = useState('');
+  const anahtar = window.kurumAnahtari ? window.kurumAnahtari(kurumAdi) : '';
+
+  useEffect(() => {
+    let iptal = false;
+    if (!anahtar) {
+      setYukleniyor(false);
+      return undefined;
+    }
+    window
+      .apiReadDoc('not_donusum_tablolari', anahtar)
+      .then((r) => {
+        if (iptal) return;
+        const d = (r && r.exists && r.data) || null;
+        setKayit(d);
+        setUrl((d && d.kaynakUrl) || '');
+      })
+      .catch(() => {})
+      .finally(() => !iptal && setYukleniyor(false));
+    return () => {
+      iptal = true;
+    };
+  }, [anahtar]);
+
+  const satirlar = (kayit && Array.isArray(kayit.satirlar) && kayit.satirlar) || [];
+  const tur = (kayit && kayit.tur) || 'sayisal';
+  const dogrulama = window.notTablosuDogrula
+    ? window.notTablosuDogrula({ tur, satirlar })
+    : { gecerli: true, sorunlar: [] };
+
+  const setSatir = (i, alan, deger) => {
+    setKayit((k) => {
+      const yeni = (k.satirlar || []).slice();
+      yeni[i] = { ...yeni[i], [alan]: deger };
+      return { ...k, satirlar: yeni, durum: 'taslak' };
+    });
+  };
+  const satirSil = (i) =>
+    setKayit((k) => ({
+      ...k,
+      satirlar: (k.satirlar || []).filter((_, j) => j !== i),
+      durum: 'taslak',
+    }));
+  const satirEkle = () =>
+    setKayit((k) => ({
+      ...(k || { tur: 'sayisal', satirlar: [] }),
+      satirlar: ((k && k.satirlar) || []).concat(
+        tur === 'sayisal' ? { min: '', max: '', caku: '' } : { kaynak: '', caku: '' }
+      ),
+      durum: 'taslak',
+    }));
+
+  const webdenOku = async () => {
+    if (!url.trim()) {
+      setHata('Önce kurumun not dönüşüm tablosunun bulunduğu adresi girin.');
+      return;
+    }
+    setCalisiyor(true);
+    setHata('');
+    setMesaj('');
+    try {
+      const s = await window.aiNotTablosuBul({ url: url.trim(), kurumAdi });
+      const t = s.tablo || {};
+      setKayit((k) => ({
+        ...(k || {}),
+        tur: t.tur || 'sayisal',
+        satirlar: t.satirlar || [],
+        kurumAdi: t.kurumAdi || kurumAdi,
+        gecerlilikYili: t.gecerlilikYili || '',
+        kaynakTuru: 'link',
+        kaynakUrl: s.url || url.trim(),
+        aiAciklama: t.aciklama || '',
+        // Okunan tablo TASLAKTIR; onaylanmadan kimseye uygulanmaz.
+        durum: 'taslak',
+      }));
+      setMesaj(
+        (t.satirlar || []).length +
+          ' satır okundu. Kontrol edip onaylayın — onaylanana kadar hiçbir öğrenciye uygulanmaz.' +
+          (s.maliyetUsd ? ' (okuma maliyeti ≈ $' + Number(s.maliyetUsd).toFixed(3) + ')' : '')
+      );
+    } catch (e) {
+      setHata(e.message);
+    } finally {
+      setCalisiyor(false);
+    }
+  };
+
+  const kaydet = async (onayla) => {
+    if (onayla && !dogrulama.gecerli) {
+      setHata('Tabloda düzeltilmesi gereken noktalar var; onaylanamaz.');
+      return;
+    }
+    setCalisiyor(true);
+    setHata('');
+    try {
+      await window.DBWrite.set(
+        'not_donusum_tablolari',
+        anahtar,
+        {
+          kurumAnahtari: anahtar,
+          kurumAdi: (kayit && kayit.kurumAdi) || kurumAdi,
+          tur,
+          satirlar,
+          gecerlilikYili: (kayit && kayit.gecerlilikYili) || '',
+          kaynakTuru: (kayit && kayit.kaynakTuru) || '',
+          kaynakUrl: (kayit && kayit.kaynakUrl) || '',
+          aiAciklama: (kayit && kayit.aiAciklama) || '',
+          durum: onayla ? 'onayli' : 'taslak',
+          // Sürüm damgası: öğrenci kaydına kopyalanan tablo hangi onaya
+          // dayanıyor, sonradan izlenebilsin.
+          surum: onayla ? new Date().toISOString() : (kayit && kayit.surum) || '',
+          onaylayan: onayla ? currentUser?.name || currentUser?.identifier || '' : '',
+          onayTarihi: onayla ? new Date().toISOString() : '',
+          updatedAt: new Date().toISOString(),
+        },
+        true
+      );
+      setKayit((k) => ({ ...k, durum: onayla ? 'onayli' : 'taslak' }));
+      setMesaj(onayla ? 'Tablo onaylandı ve kullanıma açıldı.' : 'Taslak kaydedildi.');
+    } catch (e) {
+      setHata('Kaydedilemedi: ' + e.message);
+    } finally {
+      setCalisiyor(false);
+    }
+  };
+
+  const girdi = {
+    width: 88,
+    padding: '6px 9px',
+    borderRadius: 7,
+    border: '1px solid ' + DS.border,
+    fontSize: 13,
+    textAlign: 'center',
+    outline: 'none',
+  };
+
+  if (!anahtar) return null;
+
+  return (
+    <div
+      style={{
+        border: '1px solid ' + DS.border,
+        borderRadius: DS.radiusSm,
+        padding: '12px 14px',
+        marginBottom: 10,
+        background: '#fff',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 10,
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 700, color: DS.navy }}>
+          Not Dönüşüm Tablosu — {kurumAdi}
+        </span>
+        {kayit && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '2px 9px',
+              borderRadius: 6,
+              background: kayit.durum === 'onayli' ? DS.greenLight : DS.amberLight,
+              color: kayit.durum === 'onayli' ? DS.green : DS.amber,
+            }}
+          >
+            {kayit.durum === 'onayli' ? 'Onaylı' : 'Taslak'}
+          </span>
+        )}
+        {onKapat && (
+          <button onClick={onKapat} style={{ ...eStageBtn, marginLeft: 'auto' }}>
+            Kapat
+          </button>
+        )}
+      </div>
+
+      {yukleniyor ? (
+        <div style={{ fontSize: 12.5, color: DS.textMuted }}>Yükleniyor…</div>
+      ) : (
+        <>
+          <div
+            style={{ fontSize: 11.5, color: DS.textSecondary, marginBottom: 10, lineHeight: 1.55 }}
+          >
+            Bu tablo <b>{kurumAdi}</b> kurumundan gelen bütün öğrencilere uygulanır. Kurumun
+            yönetmelik/not dönüşüm sayfasının adresini verip okutabilir, satırları elle
+            düzeltebilirsiniz. <b>Onaylanmadan hiçbir öğrenciye uygulanmaz.</b>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="Not dönüşüm tablosu sayfası (https://...)"
+              style={{
+                flex: '1 1 320px',
+                padding: '8px 11px',
+                borderRadius: 8,
+                border: '1px solid ' + DS.border,
+                fontSize: 13,
+                outline: 'none',
+              }}
+            />
+            <button
+              disabled={calisiyor}
+              onClick={webdenOku}
+              style={{ ...eStageBtn, background: DS.navy, color: '#fff', border: 'none' }}
+            >
+              {calisiyor ? 'Okunuyor…' : 'Adresten Oku'}
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 11.5, color: DS.textMuted }}>Tablo türü:</span>
+            {['sayisal', 'harf'].map((t) => (
+              <button
+                key={t}
+                onClick={() =>
+                  setKayit((k) => ({ ...(k || { satirlar: [] }), tur: t, durum: 'taslak' }))
+                }
+                style={{
+                  ...eStageBtn,
+                  padding: '4px 12px',
+                  fontSize: 12,
+                  background: tur === t ? DS.accentLight : '#fff',
+                  color: tur === t ? DS.navy : DS.textMuted,
+                }}
+              >
+                {t === 'sayisal' ? '100’lük puan aralığı' : 'Harf karşılığı'}
+              </button>
+            ))}
+          </div>
+
+          {satirlar.length > 0 && (
+            <div style={{ border: '1px solid ' + DS.border, borderRadius: 8, marginBottom: 10 }}>
+              {satirlar.map((r, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    padding: '8px 10px',
+                    borderTop: i === 0 ? 'none' : '1px solid ' + DS.border,
+                  }}
+                >
+                  {tur === 'sayisal' ? (
+                    <>
+                      <input
+                        value={r.min || ''}
+                        onChange={(e) => setSatir(i, 'min', e.target.value)}
+                        placeholder="alt"
+                        style={girdi}
+                      />
+                      <span style={{ color: DS.textMuted }}>–</span>
+                      <input
+                        value={r.max || ''}
+                        onChange={(e) => setSatir(i, 'max', e.target.value)}
+                        placeholder="üst"
+                        style={girdi}
+                      />
+                    </>
+                  ) : (
+                    <input
+                      value={r.kaynak || ''}
+                      onChange={(e) => setSatir(i, 'kaynak', e.target.value)}
+                      placeholder="karşı not"
+                      style={girdi}
+                    />
+                  )}
+                  <span style={{ color: DS.textMuted }}>→</span>
+                  <input
+                    value={r.caku || ''}
+                    onChange={(e) => setSatir(i, 'caku', e.target.value)}
+                    placeholder="ÇAKÜ"
+                    style={{ ...girdi, fontWeight: 700 }}
+                  />
+                  <button
+                    onClick={() => satirSil(i)}
+                    style={{ ...eStageBtn, padding: '4px 10px', fontSize: 12, marginLeft: 'auto' }}
+                  >
+                    Sil
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button onClick={satirEkle} style={{ ...eStageBtn, marginBottom: 10 }}>
+            + Satır ekle
+          </button>
+
+          {/* Doğrulama uyarıları: çakışan/boşluklu aralık, geçersiz harf.
+              Bunlar çalışma anında sessiz "çevrilemedi" olarak dönerdi. */}
+          {satirlar.length > 0 && !dogrulama.gecerli && (
+            <div
+              style={{
+                padding: '8px 11px',
+                borderRadius: 8,
+                background: DS.amberLight,
+                color: '#92400E',
+                fontSize: 11.5,
+                lineHeight: 1.6,
+                marginBottom: 10,
+              }}
+            >
+              {dogrulama.sorunlar.slice(0, 6).map((s, i) => (
+                <div key={i}>• {s}</div>
+              ))}
+            </div>
+          )}
+
+          {kayit && kayit.aiAciklama && (
+            <div style={{ fontSize: 11.5, color: DS.textMuted, marginBottom: 10 }}>
+              Okuma notu: {kayit.aiAciklama}
+            </div>
+          )}
+          {hata && <div style={{ fontSize: 12, color: DS.red, marginBottom: 8 }}>{hata}</div>}
+          {mesaj && <div style={{ fontSize: 12, color: DS.green, marginBottom: 8 }}>{mesaj}</div>}
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button disabled={calisiyor} onClick={() => kaydet(false)} style={eStageBtn}>
+              Taslak Kaydet
+            </button>
+            <button
+              disabled={calisiyor || satirlar.length === 0 || !dogrulama.gecerli}
+              onClick={() => kaydet(true)}
+              title={dogrulama.gecerli ? '' : 'Önce yukarıdaki sorunları düzeltin'}
+              style={{
+                ...eStageBtn,
+                background: dogrulama.gecerli && satirlar.length > 0 ? DS.green : '#9CA3AF',
+                color: '#fff',
+                border: 'none',
+                cursor: dogrulama.gecerli && satirlar.length > 0 ? 'pointer' : 'not-allowed',
+              }}
+            >
+              Onayla ve Kullanıma Aç
+            </button>
+          </div>
+          {kayit && kayit.onaylayan && (
+            <div style={{ fontSize: 11, color: DS.textMuted, marginTop: 8 }}>
+              Son onay: {kayit.onaylayan}
+              {kayit.onayTarihi
+                ? ' · ' + new Date(kayit.onayTarihi).toLocaleDateString('tr-TR')
+                : ''}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 // ── Yaz İntibakı İki-Fazlı Durum Paneli ──
 // Faz 1: on_inceleme → (akademisyen) on_onay / on_red
 // Faz 2: on_onay → (öğrenci belge yükler) belge_teslim → (akademisyen not
@@ -4944,6 +5326,48 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   const notAnahtari = (m, i) => String(m.id != null ? m.id : i);
   const setNot = (anahtar, alan, deger) =>
     setNotlar((p) => ({ ...p, [anahtar]: { ...(p[anahtar] || {}), [alan]: deger } }));
+
+  // ── Başarı belgesinden otomatik not okuma ──
+  //
+  // Öğrenci artık notunu ELLE GİRMİYOR: dersi geçtiğini gösteren belgeyi
+  // (PDF/JPEG/PNG) yüklüyor, belge okunuyor ve karşı kurumun notu, o kurumun
+  // ONAYLI dönüşüm tablosuyla ÇAKÜ harfine çevriliyor.
+  //
+  // Neden böyle: elle girişte öğrenci kendi notunu beyan ediyordu ve
+  // akademisyenin elinde doğrulayacak bir belge yoktu — yalnız karşı kurumun
+  // sistemine bir link vardı. Belge artık kaydın parçası ve not ondan çıkıyor.
+  //
+  // ÇEVİRİYİ MODEL YAPMIYOR: model belgeden yalnız "hangi ders, hangi not"
+  // okuyor; harf karşılığını lib/not-donusum.js determinist olarak hesaplıyor.
+  const [belge, setBelge] = useState(null);
+  const [belgeAdi, setBelgeAdi] = useState(record.basariBelgesiAdi || '');
+  const [belgeUrl, setBelgeUrl] = useState(record.basariBelgesiUrl || '');
+  const [okuyor, setOkuyor] = useState(false);
+  const [tablo, setTablo] = useState(null);
+  const [tabloArandi, setTabloArandi] = useState(false);
+  const [tabloAcik, setTabloAcik] = useState(false);
+  const [okumaNotu, setOkumaNotu] = useState('');
+  const kaynakKurum = record.otherUni || '';
+
+  useEffect(() => {
+    let iptal = false;
+    if (!window.notTablosuGetir || !kaynakKurum) {
+      setTabloArandi(true);
+      return undefined;
+    }
+    window
+      .notTablosuGetir(kaynakKurum)
+      .then((t) => {
+        if (iptal) return;
+        setTablo(t && t.durum === 'onayli' ? t : null);
+        setTabloArandi(true);
+      })
+      .catch(() => !iptal && setTabloArandi(true));
+    return () => {
+      iptal = true;
+    };
+  }, [kaynakKurum]);
+
   const eksikNotVar = notluDersler.some((m, i) => {
     const n = notlar[notAnahtari(m, i)] || {};
     return !String(n.kaynakNot || '').trim() || !String(n.cakuNot || '').trim();
@@ -4968,25 +5392,144 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       cikti[a] = {
         kaynakNot: String(n.kaynakNot || '').trim(),
         cakuNot: String(n.cakuNot || '').trim(),
+        // Çevrilemediyse SEBEBİ de taşınır — akademisyen "neden boş" diye
+        // tahmin yürütmesin.
+        sebep: String(n.sebep || '').slice(0, 200),
       };
     });
     return cikti;
   };
 
-  const submitBelge = async () => {
-    if (!/^https?:\/\/\S+$/i.test((link || '').trim())) {
-      alert('Yaz okulu üniversitesinin not/döküm sistemi linki gerekli (http/https).');
+  // Belgeyi yükle → oku → notları doldur. Sonuç DOĞRUDAN kaydedilmez:
+  // öğrenci okunanı görür, sonra "Onaya Gönder" der (sistemin her yerindeki
+  // "önce göster, sonra uygula" kuralı).
+  const belgeyiOku = async () => {
+    if (!belge) {
+      alert('Önce dersi geçtiğinizi gösteren belgeyi seçin (PDF, JPEG veya PNG).');
       return;
     }
-    // Başarı notları belgedeki yer tutucuları doldurur — eksik bırakılamaz.
-    if (eksikNotVar) {
-      alert('Her ders için hem karşı kurum hem ÇAKÜ başarı notunu girmelisiniz.');
+    if (!window.aiSatirCikar || !window.aiDosyaAdi) {
+      alert('Belge işleme katmanı yüklenemedi.');
+      return;
+    }
+    setOkuyor(true);
+    setOkumaNotu('');
+    try {
+      const fd = new FormData();
+      fd.append('file', belge);
+      const token = localStorage.getItem('caku_auth_token');
+      const up = await fetch('/api/files/upload?folder=intibak_basari', {
+        method: 'POST',
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
+        credentials: 'include',
+        body: fd,
+      });
+      if (!up.ok) throw new Error('Belge yüklenemedi (HTTP ' + up.status + ')');
+      const upData = await up.json();
+      const url = upData.downloadURL || '';
+      if (!url) throw new Error('Belge yüklenemedi.');
+
+      const sonuc = await window.aiSatirCikar({
+        module: 'muafiyet',
+        docType: 'intibak',
+        sutunlar: [
+          { id: 'kod', label: 'Ders Kodu' },
+          { id: 'ad', label: 'Ders Adı' },
+          { id: 'not', label: 'Başarı Notu', hint: 'harf ya da sayı; belgede yazdığı gibi' },
+        ],
+        satirTanimi: 'belgede yer alan her ders satırı',
+        dosyalar: [{ fileName: window.aiDosyaAdi(url), name: 'Başarı belgesi' }],
+      });
+      const satirlar = (sonuc && sonuc.satirlar) || [];
+      if (satirlar.length === 0) throw new Error('Belgeden ders satırı okunamadı.');
+
+      // Okunan satırları kayıttaki derslerle eşle: önce koda, tutmazsa ada
+      // göre. Eşleşmeyen satır sessizce atılmaz — sayısı kullanıcıya söylenir.
+      const norm = (s) =>
+        String(s || '')
+          .replace(/İ/g, 'i')
+          .replace(/I/g, 'ı')
+          .toLocaleLowerCase('tr-TR')
+          .replace(/[^a-z0-9ğüşöç]/g, '');
+      const yeni = { ...notlar };
+      let eslesen = 0;
+      notluDersler.forEach((m, i) => {
+        const src = m.sourceCourse || m.source || {};
+        const a = notAnahtari(m, i);
+        const bulunan = satirlar.find(
+          (s) =>
+            (norm(s.kod) && norm(s.kod) === norm(src.code)) ||
+            (norm(s.ad) && norm(s.ad) === norm(src.name))
+        );
+        if (!bulunan || !String(bulunan.not || '').trim()) return;
+        eslesen += 1;
+        const kaynakNot = String(bulunan.not).trim();
+        const cevrim = window.notCevir ? window.notCevir(kaynakNot, tablo) : { cakuNot: '' };
+        yeni[a] = { kaynakNot, cakuNot: cevrim.cakuNot || '', sebep: cevrim.sebep || '' };
+      });
+      setNotlar(yeni);
+      setBelgeUrl(url);
+
+      const cevrilemeyen = Object.values(yeni).filter((n) => n.kaynakNot && !n.cakuNot).length;
+      setOkumaNotu(
+        eslesen +
+          ' / ' +
+          notluDersler.length +
+          ' ders belgede bulundu.' +
+          (eslesen < notluDersler.length
+            ? ' Bulunamayan dersler için belgenin tamamını yüklediğinizden emin olun.'
+            : '') +
+          (cevrilemeyen > 0
+            ? ' ' +
+              cevrilemeyen +
+              ' dersin ÇAKÜ karşılığı çıkarılamadı; bölüm kurulu elle belirleyecek.'
+            : '')
+      );
+    } catch (e) {
+      setOkumaNotu('');
+      alert('Belge okunamadı: ' + e.message);
+    } finally {
+      setOkuyor(false);
+    }
+  };
+
+  const submitBelge = async () => {
+    if (!belgeUrl) {
+      alert('Önce başarı belgenizi yükleyip okutun.');
+      return;
+    }
+    // Karşı kurumdaki notun okunmuş olması şart; ÇAKÜ karşılığı çıkmamışsa
+    // süreç yine ilerler — o kararı bölüm kurulu verir, öğrenci değil.
+    const okunmayan = notluDersler.filter((m, i) => {
+      const n = notlar[notAnahtari(m, i)] || {};
+      return !String(n.kaynakNot || '').trim();
+    });
+    if (okunmayan.length > 0) {
+      alert(
+        okunmayan.length +
+          ' dersin notu belgeden okunamadı. Belgenin tamamını (tüm dersleri gösteren sayfayı) yükleyin.'
+      );
       return;
     }
     setBusy(true);
     try {
       await onStageChange(record.id, 'belge_teslim', {
-        notDonusumLink: link.trim(),
+        notDonusumLink: (link || '').trim(),
+        basariBelgesiUrl: belgeUrl,
+        basariBelgesiAdi: belgeAdi,
+        // Kullanılan tablo kaydın içine KOPYALANIR: tablo ileride değişse bile
+        // bu öğrencinin dönüşümü hangi kuralla yapıldıysa öyle kalır ve belge
+        // yeniden üretildiğinde aynı sonucu verir.
+        kullanilanNotTablosu: tablo
+          ? {
+              id: tablo.id || '',
+              kurumAdi: tablo.kurumAdi || kaynakKurum,
+              tur: tablo.tur,
+              satirlar: tablo.satirlar,
+              gecerlilikYili: tablo.gecerlilikYili || '',
+              surum: tablo.surum || '',
+            }
+          : null,
         ogrenciNotlari: derlenmisNotlar(),
       });
     } finally {
@@ -5097,23 +5640,100 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
 
       {/* Faz-2: öğrenci başarı belgesi + not-dönüşüm linki yükler */}
       {stage === 'on_onay' && isStudent && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
-            Ön onay verildi. Yaz okulunu tamamladıktan sonra <b>her ders için başarı notlarınızı</b>{' '}
-            girin ve karşı üniversitenin not/döküm sistemi bağlantısını göndererek not dönüşümü için
-            onaya iletin.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12.5, color: DS.textSecondary, lineHeight: 1.55 }}>
+            Ön onay verildi. Yaz okulunu tamamladıktan sonra{' '}
+            <b>dersleri geçtiğinizi gösteren belgeyi</b> (transkript, not döküm çıktısı ya da onaylı
+            sonuç belgesi) yükleyin. Notlarınız belgeden okunur — elle not girmenize gerek yok.
           </div>
 
-          {/* Başarı notları — belgedeki {{karşı_başarı_notu}} / {{çakü_başarı_notu}}
-              yer tutucuları bu değerlerle dolar. */}
-          {notluDersler.length > 0 && (
+          {/* Dönüşüm tablosu durumu — öğrenci neyin olup bittiğini görsün. */}
+          {tabloArandi && (
             <div
               style={{
-                border: '1px solid ' + DS.border,
-                borderRadius: 10,
-                overflow: 'hidden',
+                fontSize: 11.5,
+                lineHeight: 1.5,
+                padding: '8px 11px',
+                borderRadius: 8,
+                background: tablo ? DS.greenBg : DS.amberLight,
+                color: tablo ? '#065F46' : '#92400E',
               }}
             >
+              {tablo ? (
+                <>
+                  <b>{tablo.kurumAdi || kaynakKurum}</b> için onaylı not dönüşüm tablosu var; karşı
+                  kurumdaki notunuz ÇAKÜ harfine otomatik çevrilecek.
+                </>
+              ) : (
+                <>
+                  {kaynakKurum ? <b>{kaynakKurum}</b> : 'Bu kurum'} için henüz onaylı bir not
+                  dönüşüm tablosu yok. Belgeniz yine okunur; ÇAKÜ karşılığını bölüm kurulu
+                  belirleyecek.
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Belge seçimi + okuma */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <label style={{ cursor: 'pointer' }}>
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = (e.target.files && e.target.files[0]) || null;
+                  e.target.value = '';
+                  if (!f) return;
+                  const uygun =
+                    /\.(pdf|jpe?g|png)$/i.test(f.name) ||
+                    ['application/pdf', 'image/jpeg', 'image/png'].includes(f.type);
+                  if (!uygun) {
+                    alert('Belge yalnızca PDF, JPEG veya PNG olabilir.');
+                    return;
+                  }
+                  setBelge(f);
+                  setBelgeAdi(f.name);
+                  setOkumaNotu('');
+                }}
+              />
+              <span
+                style={{
+                  display: 'inline-block',
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  border: '1px solid ' + DS.border,
+                  background: '#fff',
+                  color: DS.navy,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                }}
+              >
+                Başarı belgesi seç (PDF · JPEG · PNG)
+              </span>
+            </label>
+            {belgeAdi && <span style={{ fontSize: 12, color: DS.green }}>{belgeAdi}</span>}
+            <button
+              disabled={!belge || okuyor}
+              onClick={belgeyiOku}
+              style={{
+                ...eStageBtn,
+                background: !belge || okuyor ? '#9CA3AF' : DS.navy,
+                color: '#fff',
+                border: 'none',
+                cursor: !belge || okuyor ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {okuyor ? 'Belge okunuyor…' : 'Belgeyi Oku'}
+            </button>
+          </div>
+
+          {okumaNotu && <div style={{ fontSize: 12, color: DS.textSecondary }}>{okumaNotu}</div>}
+
+          {/* Okunan notlar — SALT OKUNUR. Öğrenci düzeltemez: bu değerler
+              belgeden geliyor, beyandan değil. Yanlışsa doğru belge yüklenir. */}
+          {belgeUrl && notluDersler.length > 0 && (
+            <div style={{ border: '1px solid ' + DS.border, borderRadius: 10, overflow: 'hidden' }}>
               <div
                 style={{
                   padding: '8px 12px',
@@ -5124,24 +5744,30 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                   color: DS.navy,
                 }}
               >
-                Başarı Notları ({notluDersler.length} ders)
+                Belgeden okunan notlar ({notluDersler.length} ders)
               </div>
               {notluDersler.map((m, i) => {
                 const src = m.sourceCourse || m.source || {};
                 const cak = m.localCourse || m.target || {};
                 const a = notAnahtari(m, i);
                 const n = notlar[a] || {};
-                const inp = {
-                  width: 84,
-                  padding: '6px 9px',
-                  borderRadius: 7,
-                  border:
-                    '1px solid ' +
-                    (String(n.kaynakNot || '').trim() ? DS.border : DS.amber || '#B45309'),
-                  fontSize: 13,
-                  outline: 'none',
-                  textAlign: 'center',
-                };
+                const kutu = (deger, renk) => (
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      minWidth: 52,
+                      textAlign: 'center',
+                      padding: '5px 10px',
+                      borderRadius: 7,
+                      background: deger ? DS.surfaceHigh : DS.amberLight,
+                      color: deger ? renk || DS.navy : '#92400E',
+                      fontSize: 13,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {deger || '—'}
+                  </span>
+                );
                 return (
                   <div
                     key={a}
@@ -5161,41 +5787,35 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                       <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 2 }}>
                         ÇAKÜ: {[cak.code, cak.name].filter(Boolean).join(' — ') || '—'}
                       </div>
+                      {n.sebep && !n.cakuNot && (
+                        <div style={{ fontSize: 11, color: '#92400E', marginTop: 3 }}>
+                          {n.sebep}
+                        </div>
+                      )}
                     </div>
-                    <label style={{ fontSize: 11.5, color: DS.textSecondary }}>
-                      Karşı notu
-                      <br />
-                      <input
-                        value={n.kaynakNot || ''}
-                        onChange={(e) => setNot(a, 'kaynakNot', e.target.value)}
-                        placeholder="ör. 8"
-                        style={inp}
-                      />
-                    </label>
-                    <label style={{ fontSize: 11.5, color: DS.textSecondary }}>
-                      ÇAKÜ notu
-                      <br />
-                      <input
-                        value={n.cakuNot || ''}
-                        onChange={(e) => setNot(a, 'cakuNot', e.target.value)}
-                        placeholder="ör. AA"
-                        style={{
-                          ...inp,
-                          borderColor: String(n.cakuNot || '').trim()
-                            ? DS.border
-                            : DS.amber || '#B45309',
-                        }}
-                      />
-                    </label>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 10.5, color: DS.textMuted, marginBottom: 3 }}>
+                        Belgedeki not
+                      </div>
+                      {kutu(n.kaynakNot)}
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 10.5, color: DS.textMuted, marginBottom: 3 }}>
+                        ÇAKÜ karşılığı
+                      </div>
+                      {kutu(n.cakuNot, DS.green)}
+                    </div>
                   </div>
                 );
               })}
             </div>
           )}
+
+          {/* Karşı kurumun not sistemi linki — isteğe bağlı doğrulama kolaylığı */}
           <input
             value={link}
             onChange={(e) => setLink(e.target.value)}
-            placeholder="Yaz okulu üniversitesi not/döküm sistemi linki (https://...)"
+            placeholder="Karşı üniversite not/döküm sistemi linki (isteğe bağlı)"
             style={{
               padding: '9px 12px',
               borderRadius: 8,
@@ -5206,32 +5826,81 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
           />
           <div>
             <button
-              disabled={busy || eksikNotVar}
+              disabled={busy || !belgeUrl}
               onClick={submitBelge}
-              title={eksikNotVar ? 'Tüm başarı notlarını girin' : ''}
+              title={!belgeUrl ? 'Önce başarı belgenizi yükleyip okutun' : ''}
               style={{
                 ...eStageBtn,
-                background: eksikNotVar ? '#9CA3AF' : DS.accent,
+                background: !belgeUrl ? '#9CA3AF' : DS.accent,
                 color: '#fff',
                 border: 'none',
-                cursor: eksikNotVar ? 'not-allowed' : 'pointer',
+                cursor: !belgeUrl ? 'not-allowed' : 'pointer',
               }}
             >
-              Not Dönüşümü İçin Gönder
+              Onaya Gönder
             </button>
           </div>
         </div>
       )}
       {stage === 'on_onay' && !isStudent && (
-        <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
-          Ön onay verildi. Öğrenci yaz okulunu tamamlayıp başarı belgesini yükleyecek.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
+            Ön onay verildi. Öğrenci yaz okulunu tamamlayıp başarı belgesini yükleyecek; notlar
+            belgeden okunup {kaynakKurum || 'karşı kurumun'} dönüşüm tablosuyla ÇAKÜ harfine
+            çevrilecek.
+          </div>
+          {/* Tabloyu ŞİMDİ hazırlamak, öğrenci belgesini yüklediğinde
+              dönüşümün çalışması demek. Onaylı tablo yoksa uyarı burada çıkar. */}
+          {!tabloArandi ? null : tablo ? (
+            <div style={{ fontSize: 11.5, color: DS.green }}>
+              {kaynakKurum} için onaylı dönüşüm tablosu hazır.
+              <button
+                onClick={() => setTabloAcik((v) => !v)}
+                style={{ ...eStageBtn, padding: '3px 10px', fontSize: 11.5, marginLeft: 8 }}
+              >
+                {tabloAcik ? 'Kapat' : 'Görüntüle / düzenle'}
+              </button>
+            </div>
+          ) : (
+            <div style={{ fontSize: 11.5, color: DS.amber }}>
+              {kaynakKurum || 'Bu kurum'} için onaylı dönüşüm tablosu yok — öğrencinin notu ÇAKÜ
+              harfine çevrilemez. Şimdi tanımlarsanız belge geldiğinde dönüşüm kendiliğinden olur.
+              <button
+                onClick={() => setTabloAcik((v) => !v)}
+                style={{ ...eStageBtn, padding: '3px 10px', fontSize: 11.5, marginLeft: 8 }}
+              >
+                {tabloAcik ? 'Kapat' : 'Tabloyu tanımla'}
+              </button>
+            </div>
+          )}
+          {tabloAcik && (
+            <NotTablosuYonetimi
+              kurumAdi={kaynakKurum}
+              currentUser={currentUser}
+              onKapat={() => setTabloAcik(false)}
+            />
+          )}
         </div>
       )}
 
       {/* Faz-2: akademisyen not dönüşümü + tamamla */}
       {stage === 'belge_teslim' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* Öğrencinin yüklediği belge — notların KAYNAĞI. Akademisyen
+                okunan değeri belgeyle karşılaştırabilmeli, yoksa "sistem öyle
+                dedi" ile yetinmek zorunda kalırdı. */}
+            {record.basariBelgesiUrl && (
+              <a
+                href={record.basariBelgesiUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 12.5, fontWeight: 700, color: DS.navy }}
+              >
+                Başarı belgesini aç
+                {record.basariBelgesiAdi ? ' (' + record.basariBelgesiAdi + ')' : ''}
+              </a>
+            )}
             {record.notDonusumLink && (
               <a
                 href={record.notDonusumLink}
@@ -5242,10 +5911,18 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                 Karşı üniversite not sistemi
               </a>
             )}
+            {record.kullanilanNotTablosu && (
+              <span style={{ fontSize: 11.5, color: DS.textMuted }}>
+                Dönüşüm tablosu: {record.kullanilanNotTablosu.kurumAdi || '—'}
+                {record.kullanilanNotTablosu.gecerlilikYili
+                  ? ' · ' + record.kullanilanNotTablosu.gecerlilikYili
+                  : ''}
+              </span>
+            )}
           </div>
           {isStudent ? (
             <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
-              Girdiğiniz notlar alındı. Bölüm kurulu notlarınızı inceleyip ÇAKÜ sistemine
+              Belgeniz ve okunan notlar alındı. Bölüm kurulu notlarınızı inceleyip ÇAKÜ sistemine
               dönüştürecek.
             </div>
           ) : (
@@ -5264,7 +5941,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                       color: DS.navy,
                     }}
                   >
-                    Öğrencinin girdiği başarı notları — gerekirse düzeltin
+                    Belgeden okunan notlar — gerekirse düzeltin (son söz sizde)
                   </div>
                   {notluDersler.map((m, i) => {
                     const src = m.sourceCourse || m.source || {};
