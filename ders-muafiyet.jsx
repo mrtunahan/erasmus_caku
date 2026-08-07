@@ -7538,20 +7538,26 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
   //   'resmi'   → akademisyenin ürettiği, notların işlendiği nihai belge.
   const handleGenerateDoc = async function (rec, amac) {
     try {
-      // Belge türü: kaydın başvuru türü (muafiyet | intibak); şablon buna göre çözülür
-      const docType = rec.basvuruTuru || 'muafiyet';
+      const dilekceModu = amac === 'dilekce';
+      // Belge türü: kaydın başvuru türü (muafiyet | intibak); şablon buna göre
+      // çözülür. Öğrencinin BAŞVURU DİLEKÇESİ ayrı bir belge türüdür
+      // ('intibak_dilekce'): akademisyenin ürettiği nihai 'intibak' belgesiyle
+      // aynı şablonu paylaşmaz — yetkili ikisini Şablonlar modülünden ayrı
+      // ayrı eşler.
+      const kayitTuru = rec.basvuruTuru || 'muafiyet';
+      const docType = dilekceModu ? 'intibak_dilekce' : kayitTuru;
       // Yaz intibakı çok aşamalıdır ve başarı notları ancak 2. adımda girilir.
       // NİHAİ belge süreç bitmeden üretilirse {{karşı_başarı_notu}} /
       // {{çakü_başarı_notu}} boş çıkar. Dilekçe için bu geçerli değil: o belge
       // zaten not içermiyor, başvuru anında lazım.
-      if (amac !== 'dilekce' && docType === 'intibak' && rec.stage !== 'tamamlandi') {
+      if (!dilekceModu && kayitTuru === 'intibak' && rec.stage !== 'tamamlandi') {
         alert(
           'Yaz intibakı belgesi, tüm aşamalar tamamlandıktan sonra üretilir.\n' +
             'Başarı notları girilmeden belge boş alanlarla oluşurdu.'
         );
         return;
       }
-      const turAd = (BASVURU_TURLERI.find((t) => t.id === docType) || {}).label || 'Muafiyet';
+      const turAd = (BASVURU_TURLERI.find((t) => t.id === kayitTuru) || {}).label || 'Muafiyet';
 
       // Belgeye yalnızca ONAYLANAN dersler girer; hiç onay yoksa tüm talepler
       const ms = rec.matches || [];
@@ -7617,6 +7623,10 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         kaynakFakulte: rec.otherFaculty || '',
         kaynakBolum: rec.otherDept || rec.otherDepartment || '',
         cakuBolum: rec.localDept || departmentInfo?.name || '',
+        // Dilekçe anteti için: fakülte/üniversite adı kiracı ayarından gelir,
+        // böylece aynı şablon başka bir fakültede de doğru başlıkla çıkar.
+        cakuFakulte: window.TENANT?.facultyName || '',
+        cakuUniversite: window.TENANT?.universityName || '',
         kaynakToplamAkts: String(sumBy('_kAkts')),
         cakuToplamAkts: String(sumBy('_cAkts')),
         akademikYil: rec.akademikYil || '',
@@ -7637,7 +7647,6 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
       // Ayrıca snapshot da yazılmaz: `dilekceUrl` öğrenci yazımına kapalı
       // (sunucu beyaz listesi) ve zaten akademisyenin ürettiği nihai belgenin
       // kaydıdır — başvuru dilekçesiyle karıştırılmamalı.
-      const dilekceModu = amac === 'dilekce';
       const res = await window.TemplateEngine.produceFromTemplate({
         module: 'muafiyet',
         docType,
@@ -7665,8 +7674,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
             'Dilekçe üretilemedi: ' +
               (res.message || res.reason || 'şablon bulunamadı') +
               (eslemeSorunu
-                ? '\n\nBölüm yetkiliniz Şablonlar modülünden "Yaz Dönemi Ders İntibak İsteği" ' +
-                  'şablonunu eşlemiş olmalı.'
+                ? '\n\nBölüm yetkiliniz Şablonlar modülünde, Ders Muafiyet modülü altına ' +
+                  '"Yaz Okulu Ders Alma Dilekçesi (öğrenci)" belge türüyle bir .docx ' +
+                  'yükleyip alanlarını eşlemiş olmalı.'
                 : '\n\nSorun sürerse bölüm sekreterliğine bildirin.')
           );
         }

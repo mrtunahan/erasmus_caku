@@ -10,11 +10,20 @@
 //   görme   → şablondan belge ÜRETEN herkes (akademisyen, öğrenci)
 // ══════════════════════════════════════════════════════════════
 
-// Öğrencinin kendi doldurup teslim edeceği belgelerin modülleri. Şablon dosyası
-// BOŞ bir formdur (içinde başka öğrencinin verisi yoktur), ama yine de her
-// modülü açmıyoruz — yalnız öğrenci akışında çıktısı alınanlar:
-//   muafiyet → yaz okulu ders intibak dilekçesi (bölüm sekreterliğine verilir)
-const STUDENT_TEMPLATE_MODULES = new Set(['muafiyet']);
+// Öğrencinin kendi doldurup teslim edeceği belgeler — modül + BELGE TÜRÜ
+// düzeyinde. Şablon dosyası boş bir formdur (içinde başka öğrencinin verisi
+// yoktur), ama yine de yalnız öğrenci akışında çıktısı alınan belge açılır:
+//   muafiyet/intibak_dilekce → yaz okulu ders alma dilekçesi (öğrenci, bölüm
+//   sekreterliğine teslim eder). Aynı modüldeki 'intibak' AKADEMİSYENİN nihai
+//   belgesidir ve öğrenciye açılmaz.
+const STUDENT_TEMPLATE_DOCTYPES = {
+  muafiyet: new Set(['intibak_dilekce']),
+};
+
+function ogrenciBelgesiMi(tpl) {
+  const izinli = STUDENT_TEMPLATE_DOCTYPES[tpl.module];
+  return !!izinli && izinli.has(tpl.docType || 'default');
+}
 
 /**
  * Şablonu düzenleme/silme yetkisi.
@@ -54,11 +63,11 @@ function canViewTemplate(scope, tpl, deptFacMap) {
   if (canManageTemplate(s, t, map)) return true;
   // Üniversite geneli herkes okur
   if (t.scope === 'university') return true;
-  // Öğrenci: yalnız STUDENT_TEMPLATE_MODULES modüllerinde ve yalnız KENDİ
+  // Öğrenci: yalnız STUDENT_TEMPLATE_DOCTYPES belgelerinde ve yalnız KENDİ
   // bölümünün / fakültesinin şablonunu indirir. Bölümü, girişte sunucunun
   // imzaladığı JWT'den gelir — istemci değiştiremez.
   if (s.isStudent) {
-    if (!STUDENT_TEMPLATE_MODULES.has(t.module)) return false;
+    if (!ogrenciBelgesiMi(t)) return false;
     if (!s.departmentId) return false;
     if (t.scope === 'department') return t.departmentId === s.departmentId;
     if (t.scope === 'faculty') return !!t.facultyId && t.facultyId === map[s.departmentId];
@@ -76,4 +85,4 @@ function canViewTemplate(scope, tpl, deptFacMap) {
   return false;
 }
 
-module.exports = { STUDENT_TEMPLATE_MODULES, canManageTemplate, canViewTemplate };
+module.exports = { STUDENT_TEMPLATE_DOCTYPES, canManageTemplate, canViewTemplate };
