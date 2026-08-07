@@ -2190,6 +2190,11 @@ const MUAFIYET_STATIC = [
   { id: 'ogrenciTelefon', label: 'Öğrenci Telefon' },
   { id: 'ogrenciEposta', label: 'Öğrenci E-posta' },
   { id: 'ogrenciAdres', label: 'Öğrenci Adres' },
+  // Dilekçe antetinde "ÇANKIRI KARATEKİN ÜNİVERSİTESİ / … Fakültesi / … Bölümü"
+  // geçiyor. Bölüm zaten cakuBolum'da; fakülte ve üniversite kiracı (tenant)
+  // ayarından gelir — şablon başka bir fakültede de kullanılabilsin diye.
+  { id: 'cakuFakulte', label: 'ÇAKÜ Fakülte Adı', format: 'title' },
+  { id: 'cakuUniversite', label: 'ÇAKÜ Üniversite Adı' },
 ];
 
 // ── Yatay Geçiş değişkenleri ──
@@ -2325,10 +2330,18 @@ window.TEMPLATE_VARS = {
     docTypes: [
       { id: 'muafiyet', label: 'Ders Muafiyet İsteği' },
       { id: 'intibak', label: 'Yaz Dönemi Ders İntibak İsteği' },
+      // ÖĞRENCİNİN indirdiği başvuru dilekçesi — 'intibak' ile AYNI DEĞİLDİR.
+      // 'intibak' akademisyenin ürettiği, başarı notlarının işlendiği NİHAİ
+      // belgedir; bu ise öğrencinin süreç başında bölüm sekreterliğine
+      // vereceği "şu dersleri almak istiyorum" dilekçesidir (not içermez).
+      // Ayrı belge türü olmalı ki yetkili Şablonlar modülünden ayrı bir
+      // .docx eşleyebilsin.
+      { id: 'intibak_dilekce', label: 'Yaz Okulu Ders Alma Dilekçesi (öğrenci)' },
       { id: 'dikey', label: 'Dikey Geçiş İsteği' },
     ],
     muafiyet: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
     intibak: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
+    intibak_dilekce: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
     // Dikey geçiş ayrı modülde yürür ama şablon tarafında muafiyet altyapısını
     // kullanmaya devam eder (mevcut şablonlar bozulmasın).
     dikey: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },

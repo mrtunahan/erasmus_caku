@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   canManageTemplate,
   canViewTemplate,
-  STUDENT_TEMPLATE_MODULES,
+  STUDENT_TEMPLATE_DOCTYPES,
 } from '../server/lib/sablon-erisim.js';
 
 // bölüm → fakülte
@@ -18,7 +18,8 @@ const fakYetkilisi = (facultyId) => ({ isFacultyManager: true, facultyId });
 const uniYetkilisi = () => ({ isUniversityAdmin: true });
 const akademisyen = (departmentId, facultyId) => ({ departmentId, facultyId });
 
-const sablon = (o) => ({ module: 'muafiyet', ...o });
+// Öğrenciye açık olan tek belge: muafiyet / intibak_dilekce
+const sablon = (o) => ({ module: 'muafiyet', docType: 'intibak_dilekce', ...o });
 
 describe('canManageTemplate', () => {
   it('üniversite yetkilisi her şablonu yönetir', () => {
@@ -109,7 +110,32 @@ describe('canViewTemplate — öğrenci', () => {
     expect(
       canViewTemplate(
         ogrenci('bilgisayar'),
-        { module: 'performans', scope: 'department', departmentId: 'bilgisayar' },
+        {
+          module: 'performans',
+          docType: 'default',
+          scope: 'department',
+          departmentId: 'bilgisayar',
+        },
+        MAP
+      )
+    ).toBe(false);
+  });
+
+  it('AYNI modülün akademisyen belgesini (intibak) indiremez', () => {
+    expect(
+      canViewTemplate(
+        ogrenci('bilgisayar'),
+        { module: 'muafiyet', docType: 'intibak', scope: 'department', departmentId: 'bilgisayar' },
+        MAP
+      )
+    ).toBe(false);
+  });
+
+  it('belge türü belirtilmemiş muafiyet şablonunu indiremez', () => {
+    expect(
+      canViewTemplate(
+        ogrenci('bilgisayar'),
+        { module: 'muafiyet', scope: 'department', departmentId: 'bilgisayar' },
         MAP
       )
     ).toBe(false);
@@ -127,12 +153,17 @@ describe('canViewTemplate — öğrenci', () => {
   it('üniversite geneli şablon öğrenciye de açıktır (mevcut davranış)', () => {
     expect(canViewTemplate(ogrenci('bilgisayar'), sablon({ scope: 'university' }), MAP)).toBe(true);
     expect(
-      canViewTemplate(ogrenci('bilgisayar'), { module: 'performans', scope: 'university' }, MAP)
+      canViewTemplate(
+        ogrenci('bilgisayar'),
+        { module: 'performans', docType: 'default', scope: 'university' },
+        MAP
+      )
     ).toBe(true);
   });
 
-  it('muafiyet öğrenci modülleri arasındadır', () => {
-    expect(STUDENT_TEMPLATE_MODULES.has('muafiyet')).toBe(true);
+  it('öğrenciye açık belge listesi yalnız dilekçeyi içerir', () => {
+    expect(STUDENT_TEMPLATE_DOCTYPES.muafiyet.has('intibak_dilekce')).toBe(true);
+    expect(STUDENT_TEMPLATE_DOCTYPES.muafiyet.has('intibak')).toBe(false);
   });
 });
 
@@ -158,7 +189,11 @@ describe('canViewTemplate — personel', () => {
   it('personel için modül kısıtı yoktur (öğrenci kısıtı personele sızmaz)', () => {
     const s = akademisyen('makine', 'muhendislik');
     expect(
-      canViewTemplate(s, { module: 'performans', scope: 'department', departmentId: 'makine' }, MAP)
+      canViewTemplate(
+        s,
+        { module: 'performans', docType: 'default', scope: 'department', departmentId: 'makine' },
+        MAP
+      )
     ).toBe(true);
   });
 
