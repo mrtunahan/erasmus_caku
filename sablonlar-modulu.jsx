@@ -1129,6 +1129,29 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           çaküdersstatüsü: 'row:cDersStatu',
           karşıtoplamakts: 'static:kaynakToplamAkts',
           çakütoplamakts: 'static:cakuToplamAkts',
+          // ── Yaz okulu dilekçesi yer tutucuları ──
+          // Dilekçede sütun başlıkları yalın: "KODU / ADI / KREDİSİ" ve iki
+          // taraf ayrı tablolarda. Kredi = AKTS olarak eşlenir; belgede ayrı
+          // bir kredi alanı yok, sistemde tutulan değer AKTS.
+          telefon: 'static:ogrenciTelefon',
+          eposta: 'static:ogrenciEposta',
+          öğrencitelefon: 'static:ogrenciTelefon',
+          öğrencieposta: 'static:ogrenciEposta',
+          öğrenciadres: 'static:ogrenciAdres',
+          bölümü: 'static:cakuBolum',
+          alınacaküniversite: 'static:kaynakUniversite',
+          alınacakfakülte: 'static:kaynakFakulte',
+          alınacakbölüm: 'static:kaynakBolum',
+          alınacakderskodu: 'row:kDersKod',
+          alınacakdersadı: 'row:kDersAd',
+          alınacakderskredisi: 'row:kDersAkts',
+          karşıderskredisi: 'row:kDersAkts',
+          çaküderskredisi: 'row:cDersAkts',
+          sayılacakderskodu: 'row:cDersKod',
+          sayılacakdersadı: 'row:cDersAd',
+          sayılacakderskredisi: 'row:cDersAkts',
+          karşıtoplamkredi: 'static:kaynakToplamAkts',
+          çakütoplamkredi: 'static:cakuToplamAkts',
           // ÇAP/Yandal dilekçe yer tutucuları
           gününtarihi: 'static:tarih',
           uyruğu: 'static:uyruk',

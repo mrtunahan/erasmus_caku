@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { ObjectId } = require('mongodb');
 const rateLimit = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
 const { softAuth } = require('../middleware/softAuth');
@@ -438,18 +439,62 @@ const urlToRelPath = (u) => {
   }
 };
 
-// Birleştirme birden çok dosyayı tek yanıtta toplar; öğrenciye kapalıdır
-// (kendi belgelerini zaten tek tek görüyor, personel ise değerlendirme
-// yaparken toplu okumaya ihtiyaç duyuyor).
-function mergeRequireStaff(req, res, next) {
+// ── Birleştirmede öğrenci yetkisi ──
+//
+// Öğrenci bölüm sekreterliğine dilekçesiyle birlikte ONAYLI DERS İÇERİKLERİNİ
+// de teslim etmek zorunda; bunları tek tek indirip elle birleştirmesini
+// beklemek işi ona yıkmak olurdu. Ama serbest bir adres listesi kabul
+// edilemez: öğrenci başkasının belgelerini birleştirip okuyabilirdi.
+//
+// Bu yüzden öğrenci için kural şu: adres listesi İSTEMCİDEN ALINMAZ.
+// Öğrenci yalnız `muafiyetRecordId` gönderir, sunucu kaydı okur, sahipliğini
+// doğrular ve dosya listesini KENDİSİ çıkarır.
+async function ogrenciDosyalari(req) {
+  const kayitId = String((req.body && req.body.muafiyetRecordId) || '').slice(0, 64);
+  if (!kayitId) return { hata: 'Bu işlem için başvuru kimliği gerekli.' };
+  const db = await getDbSafe();
+  if (!db) return { hata: 'Veritabanına ulaşılamıyor.' };
+
+  let kayit = await db.collection('muafiyet_records').findOne({ _docId: kayitId });
+  if (!kayit) {
+    try {
+      kayit = await db.collection('muafiyet_records').findOne({ _id: new ObjectId(kayitId) });
+    } catch (_e) {
+      kayit = null;
+    }
+  }
+  if (!kayit) return { hata: 'Başvuru bulunamadı.' };
+
+  const ident = String((req.user && req.user.identifier) || '');
+  if (!ident || String(kayit.studentNo || '') !== ident) {
+    return { hata: 'Bu başvuru size ait değil.' };
+  }
+
+  const taraf = req.body && req.body.taraf === 'caku' ? 'localCourse' : 'sourceCourse';
+  const dosyalar = [];
+  (Array.isArray(kayit.matches) ? kayit.matches : []).forEach((m, i) => {
+    const d = (m && m[taraf]) || {};
+    if (!d.fileUrl) return;
+    dosyalar.push({
+      url: d.fileUrl,
+      baslik: i + 1 + '. ' + [d.code, d.name].filter(Boolean).join(' ').trim(),
+    });
+  });
+  return { dosyalar };
+}
+
+function mergeYetki(req, res, next) {
   if (!FILES_AUTH_ENFORCED) return next();
   if (req.user && req.user.role && req.user.role !== 'student') return next();
-  return res.status(403).json({ error: 'Bu işlem için personel yetkisi gerekli.' });
+  // Öğrenci: dosya listesi sunucuda üretilir (aşağıda), burada yalnız
+  // oturum aranır.
+  if (req.user && req.user.role === 'student') return next();
+  return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
 }
 
 // POST /api/files/merge-pdf  body: { dosyalar:[{url, baslik}], filename }
 // Yanıt: birleştirilmiş PDF (application/pdf).
-router.post('/merge-pdf', uploadLimiter, fileAuth, mergeRequireStaff, async (req, res) => {
+router.post('/merge-pdf', uploadLimiter, fileAuth, mergeYetki, async (req, res) => {
   let PDFDocument;
   try {
     ({ PDFDocument } = require('pdf-lib'));
@@ -461,7 +506,15 @@ router.post('/merge-pdf', uploadLimiter, fileAuth, mergeRequireStaff, async (req
     });
   }
 
-  const istenen = Array.isArray(req.body && req.body.dosyalar) ? req.body.dosyalar : [];
+  // Öğrencide liste İSTEMCİDEN DEĞİL kayıttan gelir (sahiplik doğrulanır).
+  let istenen;
+  if (req.user && req.user.role === 'student') {
+    const sonuc = await ogrenciDosyalari(req);
+    if (sonuc.hata) return res.status(403).json({ error: sonuc.hata });
+    istenen = sonuc.dosyalar;
+  } else {
+    istenen = Array.isArray(req.body && req.body.dosyalar) ? req.body.dosyalar : [];
+  }
   if (istenen.length === 0) return res.status(400).json({ error: 'Birleştirilecek dosya yok.' });
   if (istenen.length > MERGE_MAX_DOSYA) {
     return res.status(400).json({ error: `En çok ${MERGE_MAX_DOSYA} dosya birleştirilebilir.` });

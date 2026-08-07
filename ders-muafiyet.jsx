@@ -6134,7 +6134,14 @@ const BirlesikPdfGrubu = ({ record, taraf, etiket, dosyaOnEki }) => {
           token ? { Authorization: 'Bearer ' + token } : {}
         ),
         credentials: 'include',
-        body: JSON.stringify({ dosyalar: dosyalar, filename: dosyaAdi }),
+        // Öğrenci gönderiminde dosya listesi sunucuda kayıttan üretilir;
+        // istemciden gelen liste yok sayılır (başkasının belgesi birleştirilemesin).
+        body: JSON.stringify({
+          dosyalar: dosyalar,
+          filename: dosyaAdi,
+          muafiyetRecordId: String(record.id || record._docId || ''),
+          taraf: taraf,
+        }),
       });
       if (!res.ok) {
         const j = await res.json().catch(function () {
@@ -6598,6 +6605,7 @@ const ExemptionHistory = ({
                     </button>
                   )}
                   {onGenerateDoc &&
+                    !isStudent &&
                     !(rec.basvuruTuru === 'intibak' && rec.stage !== 'tamamlandi') && (
                       <Button
                         small
@@ -6685,6 +6693,55 @@ const ExemptionHistory = ({
                   >
                     Dilekçemi İndir
                   </a>
+                </div>
+              )}
+
+              {/* ── ÖĞRENCİ: bölüm sekreterliğine götüreceği evraklar ──
+                  Yaz intibakında öğrenci dilekçeyi ve onaylı ders içeriklerini
+                  ELDEN teslim ediyor. İkisini de burada, başvurusunu yaptığı
+                  anda indirebilmeli — süreç bitene kadar beklemesi gerekmiyor,
+                  çünkü dilekçe "bu dersleri almak istiyorum" belgesi. */}
+              {isStudent && (rec.basvuruTuru || 'muafiyet') === 'intibak' && (
+                <div
+                  style={{
+                    margin: '0 20px 12px',
+                    padding: '12px 14px',
+                    borderRadius: DS.radiusSm,
+                    border: '1px solid ' + DS.border,
+                    background: DS.bg,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: DS.navy }}>
+                    Bölüm sekreterliğine teslim edeceğiniz evraklar
+                  </div>
+                  <div style={{ fontSize: 11.5, color: DS.textSecondary, lineHeight: 1.55 }}>
+                    Dilekçeyi indirip <b>imzalayın</b>, ders içeriklerini de ekleyerek bölüm
+                    sekreterliğine teslim edin. Dilekçedeki bilgiler başvurunuzdan gelir.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={function () {
+                        if (onGenerateDoc) onGenerateDoc(rec, 'dilekce');
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: DS.navy,
+                        color: '#fff',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        fontFamily: 'inherit',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Dilekçeyi İndir
+                    </button>
+                  </div>
+                  <BirlesikIcerikPdf record={rec} />
                 </div>
               )}
 
@@ -7474,14 +7531,20 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
   // ── Şablondan belge üret ──
   // Şablonlar modülünde 'muafiyet' modülüne atanmış .docx şablonunu çözer,
   // alan eşlemesine göre kayıt verileriyle doldurur ve indirir.
-  const handleGenerateDoc = async function (rec) {
+  // `amac`:
+  //   'dilekce' → öğrencinin bölüm sekreterliğine vereceği BAŞVURU dilekçesi.
+  //               "Şu dersleri almak istiyorum" belgesidir; başarı notu
+  //               içermez, dolayısıyla süreç bitmeden de üretilebilir.
+  //   'resmi'   → akademisyenin ürettiği, notların işlendiği nihai belge.
+  const handleGenerateDoc = async function (rec, amac) {
     try {
       // Belge türü: kaydın başvuru türü (muafiyet | intibak); şablon buna göre çözülür
       const docType = rec.basvuruTuru || 'muafiyet';
       // Yaz intibakı çok aşamalıdır ve başarı notları ancak 2. adımda girilir.
-      // Belge süreç bitmeden üretilirse {{karşı_başarı_notu}} /
-      // {{çakü_başarı_notu}} boş çıkar — bu yüzden yalnız 'tamamlandi'da üretilir.
-      if (docType === 'intibak' && rec.stage !== 'tamamlandi') {
+      // NİHAİ belge süreç bitmeden üretilirse {{karşı_başarı_notu}} /
+      // {{çakü_başarı_notu}} boş çıkar. Dilekçe için bu geçerli değil: o belge
+      // zaten not içermiyor, başvuru anında lazım.
+      if (amac !== 'dilekce' && docType === 'intibak' && rec.stage !== 'tamamlandi') {
         alert(
           'Yaz intibakı belgesi, tüm aşamalar tamamlandıktan sonra üretilir.\n' +
             'Başarı notları girilmeden belge boş alanlarla oluşurdu.'
@@ -7568,17 +7631,39 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         ogrenciAdres: rec.studentAddress || ogrProfil.address || '',
       };
 
+      // Öğrencinin dilekçesi DOĞRUDAN İNER: önizleme + "Gönder" akışı
+      // akademisyenin belgeyi memura yönlendirmesi içindir. Öğrenci belgeyi
+      // yazıcıdan çıkarıp imzalayacak; araya adım koymanın faydası yok.
+      // Ayrıca snapshot da yazılmaz: `dilekceUrl` öğrenci yazımına kapalı
+      // (sunucu beyaz listesi) ve zaten akademisyenin ürettiği nihai belgenin
+      // kaydıdır — başvuru dilekçesiyle karıştırılmamalı.
+      const dilekceModu = amac === 'dilekce';
       const res = await window.TemplateEngine.produceFromTemplate({
         module: 'muafiyet',
         docType,
         departmentId: rec.departmentId || activeDepartment || '',
         staticData,
         rows,
-        filename: turAd.replace(/\s+/g, '_') + '_' + (rec.studentNo || 'kayit') + '.docx',
+        filename:
+          (dilekceModu ? 'Yaz_Okulu_Dilekcesi' : turAd.replace(/\s+/g, '_')) +
+          '_' +
+          (rec.studentNo || 'kayit') +
+          '.docx',
         // Doğrudan indirme YOK: belge önce önizlenir, kullanıcı sonra
-        // "İndir" veya "Gönder" der.
-        noDownload: true,
+        // "İndir" veya "Gönder" der. Dilekçede bu adım atlanır.
+        noDownload: !dilekceModu,
       });
+      if (dilekceModu) {
+        if (!res.ok) {
+          alert(
+            'Dilekçe üretilemedi: ' +
+              (res.message || res.reason || 'şablon bulunamadı') +
+              '\n\nBölüm yetkiliniz Şablonlar modülünden "Yaz Dönemi Ders İntibak İsteği" ' +
+              'şablonunu eşlemiş olmalı.'
+          );
+        }
+        return;
+      }
       if (res.ok) {
         // Dilekçeyi snapshot olarak sakla → öğrenci ve akademisyen AYNI
         // dosyayı indirir. Dosyanın kendisi düzenlenebilir bir .docx'tir.
@@ -7912,7 +7997,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
             loading={recordsLoading}
             onDelete={isStudent ? null : handleDeleteRecord}
             onUpdateDecision={isStudent ? null : handleUpdateDecision}
-            onGenerateDoc={isStudent ? null : handleGenerateDoc}
+            onGenerateDoc={handleGenerateDoc}
             onStageChange={handleStageChange}
             onUploadTranscript={handleUploadTranscript}
             currentUser={currentUser}
