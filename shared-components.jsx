@@ -4201,6 +4201,30 @@ window.aiTabanPuanDurum = async function (docId) {
   return data;
 };
 
+// ── Dosya içerik özeti (SHA-256) ──
+//
+// Aynı belgenin ikinci kez yüklenmesini yakalamak için. Dosya ADI güvenilir
+// değil: öğrenci aynı PDF'i "icerik.pdf", "icerik(1).pdf" diye kaydedebiliyor;
+// tersine, farklı iki belgenin adı aynı olabiliyor. Tek güvenilir ölçüt içerik.
+//
+// Maliyeti yok denecek kadar az — birkaç MB'lık dosyada milisaniyeler; ağa da
+// veritabanına da gitmiyor, tarayıcıda hesaplanıyor.
+window.dosyaOzeti = async function (file) {
+  if (!file) return '';
+  try {
+    const buf = await file.arrayBuffer();
+    const ham = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(ham))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch (_e) {
+    // crypto.subtle yalnız güvenli bağlamda (https/localhost) var. Yoksa
+    // özet üretilmez ve tekilleştirme SESSİZCE devre dışı kalır — yanlış
+    // eşleşmektense hiç eşleşmemek yeğdir.
+    return '';
+  }
+};
+
 window.tabanKaydiBul = tabanKaydiBul;
 window.tabanKarsilastir = tabanKarsilastir;
 window.programAnahtari = programAnahtari;

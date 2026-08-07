@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
 const { softAuth } = require('../middleware/softAuth');
@@ -469,6 +470,19 @@ router.post('/merge-pdf', uploadLimiter, fileAuth, mergeRequireStaff, async (req
   const atlananlar = [];
   let toplamBayt = 0;
 
+  // ── AYNI BELGE BİR KEZ EKLENİR ──
+  //
+  // Öğrenciler çoğu zaman aynı PDF'i (ör. bölümün tüm Bologna ders içerikleri
+  // tek dosyada) her ders için ayrı ayrı yüklüyor. Bu dosyaların her biri ayrı
+  // adla kaydedildiği için adrese göre tekilleştirme İŞE YARAMAZ; içerik
+  // özetine bakmak gerekiyor. Aksi hâlde 8 derslik bir başvuruda aynı 200
+  // sayfalık katalog 8 kez ekleniyor ve çıktı hem okunmaz hem devasa oluyor.
+  //
+  // Maliyeti yok denecek kadar az: dosya zaten belleğe okunuyor, üzerine bir
+  // SHA-256 geçmek birkaç milisaniye.
+  const gorulenOzetler = new Set();
+  const tekrarlar = [];
+
   try {
     const hedef = await PDFDocument.create();
     let eklenen = 0;
@@ -492,6 +506,14 @@ router.post('/merge-pdf', uploadLimiter, fileAuth, mergeRequireStaff, async (req
         atlananlar.push({ baslik, sebep: 'okunamadı' });
         continue;
       }
+      // Tekrar eden içerik: bir kez eklenir, kalanı sayılıp bildirilir.
+      const ozet = crypto.createHash('sha256').update(buf).digest('hex');
+      if (gorulenOzetler.has(ozet)) {
+        tekrarlar.push(baslik);
+        continue;
+      }
+      gorulenOzetler.add(ozet);
+
       toplamBayt += buf.length;
       if (toplamBayt > MERGE_MAX_BAYT) {
         atlananlar.push({ baslik, sebep: 'toplam boyut sınırı aşıldı' });
@@ -538,6 +560,15 @@ router.post('/merge-pdf', uploadLimiter, fileAuth, mergeRequireStaff, async (req
     // Atlananlar gövdeye sığmaz (yanıt ikili) — başlıkla bildirilir.
     res.setHeader('X-Merge-Eklenen', String(eklenen));
     res.setHeader('X-Merge-Atlanan', String(atlananlar.length));
+    // Tekrar eden belge sayısı ayrı bildirilir: "atlandı" değil, "bir kez
+    // eklendi" demek — kullanıcı eksik çıktı sanmasın.
+    res.setHeader('X-Merge-Tekrar', String(tekrarlar.length));
+    if (tekrarlar.length > 0) {
+      res.setHeader(
+        'X-Merge-Tekrar-Detay',
+        encodeURIComponent(JSON.stringify(tekrarlar.slice(0, 20)).slice(0, 1200))
+      );
+    }
     if (atlananlar.length > 0) {
       res.setHeader(
         'X-Merge-Atlanan-Detay',

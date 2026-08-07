@@ -4943,7 +4943,16 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   });
   const notAnahtari = (m, i) => String(m.id != null ? m.id : i);
   const setNot = (anahtar, alan, deger) =>
-    setNotlar((p) => ({ ...p, [anahtar]: { ...(p[anahtar] || {}), [alan]: deger } }));
+    setNotlar((p) => ({
+      ...p,
+      [anahtar]: {
+        ...(p[anahtar] || {}),
+        [alan]: deger,
+        // ÇAKÜ notu elle değiştirildiyse işaretle: sonraki otomatik doldurma
+        // akademisyenin kararının üzerine yazmasın.
+        ...(alan === 'cakuNot' ? { elle: true } : {}),
+      },
+    }));
 
   // ── Başarı belgesinden otomatik not okuma ──
   //
@@ -4971,6 +4980,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   const [tabloArandi, setTabloArandi] = useState(false);
   const [tabloAcik, setTabloAcik] = useState(false);
   const [okumaNotu, setOkumaNotu] = useState('');
+  const [okumaHatali, setOkumaHatali] = useState(false);
   const kaynakKurum = record.otherUni || '';
   const olcekBolumu = record.departmentId || currentUser?.departmentId || '';
 
@@ -5024,6 +5034,29 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
     return out;
   }, [isStudent, notluDersler, record.ogrenciNotlari, olcekKural]);
 
+  // ── Akademisyen: ÇAKÜ karşılığını OTOMATİK doldur ──
+  // Akademisyen açtığında alan boş durmasın; ölçekten çıkan karşılık doğrudan
+  // yazılsın. Elle değiştirilen satıra (elle:true) DOKUNULMAZ — otomatik
+  // doldurma, insanın kararını ezmemeli.
+  useEffect(() => {
+    if (isStudent || !olcekVar) return;
+    setNotlar((p) => {
+      let degisti = false;
+      const yeni = { ...p };
+      notluDersler.forEach((m, i) => {
+        const a = notAnahtari(m, i);
+        const n = yeni[a] || {};
+        if (n.elle || !String(n.kaynakNot || '').trim()) return;
+        const c = puandanHarf(n.kaynakNot);
+        if (c.harf && c.harf !== n.cakuNot) {
+          yeni[a] = { ...n, cakuNot: c.harf, sebep: '' };
+          degisti = true;
+        }
+      });
+      return degisti ? yeni : p;
+    });
+  }, [isStudent, olcekVar, olcekKural, notluDersler]);
+
   const eksikNotVar = notluDersler.some((m, i) => {
     const n = notlar[notAnahtari(m, i)] || {};
     return !String(n.kaynakNot || '').trim() || !String(n.cakuNot || '').trim();
@@ -5070,6 +5103,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
     }
     setOkuyor(true);
     setOkumaNotu('');
+    setOkumaHatali(false);
     try {
       const fd = new FormData();
       fd.append('file', belge);
@@ -5091,7 +5125,13 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
         sutunlar: [
           { id: 'kod', label: 'Ders Kodu' },
           { id: 'ad', label: 'Ders Adı' },
-          { id: 'not', label: 'Başarı Notu', hint: 'harf ya da sayı; belgede yazdığı gibi' },
+          {
+            id: 'not',
+            label: 'Başarı Puanı (100’lük)',
+            // Çeviri yüzlük puan üzerinden yapılıyor; harf sütununu okumak
+            // işe yaramaz. Model neyi arayacağını açıkça bilmeli.
+            hint: 'dersin 100 üzerinden başarı puanı (ör. 87). Harf notunu değil, SAYIYI al.',
+          },
         ],
         satirTanimi: 'belgede yer alan her ders satırı',
         dosyalar: [{ fileName: window.aiDosyaAdi(url), name: 'Başarı belgesi' }],
@@ -5126,7 +5166,10 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       setNotlar(yeni);
       setBelgeUrl(url);
 
+      // Uyarı, gönderim şartıyla AYNI ölçüte dayanmalı: burada "olur" deyip
+      // gönderirken engellemek kullanıcıyı şaşırtırdı.
       const cevrilemeyen = Object.values(yeni).filter((n) => n.kaynakNot && !n.cakuNot).length;
+      const eksikVar = eslesen < notluDersler.length || cevrilemeyen > 0;
       setOkumaNotu(
         eslesen +
           ' / ' +
@@ -5138,9 +5181,11 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
           (cevrilemeyen > 0
             ? ' ' +
               cevrilemeyen +
-              ' dersin ÇAKÜ karşılığı çıkarılamadı; bölüm kurulu elle belirleyecek.'
-            : '')
+              ' derste YÜZLÜK PUAN okunamadı — yalnız harf notu gösteren belge yeterli değil.'
+            : '') +
+          (eksikVar ? ' Eksikler giderilmeden belge onaya gönderilemez.' : '')
       );
+      setOkumaHatali(eksikVar);
     } catch (e) {
       setOkumaNotu('');
       alert('Belge okunamadı: ' + e.message);
@@ -5154,16 +5199,31 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       alert('Önce başarı belgenizi yükleyip okutun.');
       return;
     }
-    // Karşı kurumdaki notun okunmuş olması şart; ÇAKÜ karşılığı çıkmamışsa
-    // süreç yine ilerler — o kararı bölüm kurulu verir, öğrenci değil.
-    const okunmayan = notluDersler.filter((m, i) => {
-      const n = notlar[notAnahtari(m, i)] || {};
-      return !String(n.kaynakNot || '').trim();
-    });
-    if (okunmayan.length > 0) {
+    // ── Gönderim ŞARTI: her ders için YÜZLÜK PUAN okunmuş olmalı ──
+    //
+    // Çeviri yüzlük puan üzerinden yapılıyor; puan yoksa ÇAKÜ karşılığı da
+    // yok demektir. Böyle bir başvuruyu onaya göndermek, akademisyenin önüne
+    // eksik bir dosya koyup işi ona geri yıkmak olurdu. Öğrenci doğru belgeyi
+    // (yüzlük notu gösteren çıktıyı) yüklesin diye burada duruyoruz.
+    const eksikler = notluDersler
+      .map((m, i) => {
+        const src = m.sourceCourse || m.source || {};
+        const n = notlar[notAnahtari(m, i)] || {};
+        const ad = [src.code, src.name].filter(Boolean).join(' ') || 'Ders';
+        if (!String(n.kaynakNot || '').trim()) return ad + ': belgede not bulunamadı';
+        if (!n.cakuNot) return ad + ': ' + (n.sebep || 'yüzlük puan okunamadı');
+        return '';
+      })
+      .filter(Boolean);
+    if (eksikler.length > 0) {
       alert(
-        okunmayan.length +
-          ' dersin notu belgeden okunamadı. Belgenin tamamını (tüm dersleri gösteren sayfayı) yükleyin.'
+        'Belge onaya gönderilemez — ' +
+          eksikler.length +
+          ' derste yüzlük puan okunamadı:\n\n' +
+          eksikler.slice(0, 8).join('\n') +
+          '\n\nYaz okulundan aldığınız notu YÜZLÜK SİSTEMDE gösteren belgeyi ' +
+          '(not döküm çıktısı / transkript) yükleyin. Yalnız harf notu gösteren ' +
+          'bir belge yeterli değildir; çeviri yüzlük puan üzerinden yapılır.'
       );
       return;
     }
@@ -5375,7 +5435,21 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
             </button>
           </div>
 
-          {okumaNotu && <div style={{ fontSize: 12, color: DS.textSecondary }}>{okumaNotu}</div>}
+          {okumaNotu && (
+            <div
+              style={{
+                fontSize: 12,
+                lineHeight: 1.55,
+                padding: okumaHatali ? '8px 11px' : 0,
+                borderRadius: 8,
+                background: okumaHatali ? DS.redLight : 'transparent',
+                color: okumaHatali ? '#7F1D1D' : DS.textSecondary,
+                fontWeight: okumaHatali ? 600 : 400,
+              }}
+            >
+              {okumaNotu}
+            </div>
+          )}
 
           {/* Okunan notlar — SALT OKUNUR. Öğrenci düzeltemez: bu değerler
               belgeden geliyor, beyandan değil. Yanlışsa doğru belge yüklenir. */}
@@ -5472,16 +5546,24 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
             }}
           />
           <div>
+            {/* Eksik varken düğme KİLİTLİ: tıklayıp uyarı almak yerine
+                neden gönderilemediğini yukarıdaki kırmızı kutu söylüyor. */}
             <button
-              disabled={busy || !belgeUrl}
+              disabled={busy || !belgeUrl || okumaHatali}
               onClick={submitBelge}
-              title={!belgeUrl ? 'Önce başarı belgenizi yükleyip okutun' : ''}
+              title={
+                !belgeUrl
+                  ? 'Önce başarı belgenizi yükleyip okutun'
+                  : okumaHatali
+                    ? 'Yüzlük puanı okunamayan ders var — doğru belgeyi yükleyin'
+                    : ''
+              }
               style={{
                 ...eStageBtn,
-                background: !belgeUrl ? '#9CA3AF' : DS.accent,
+                background: !belgeUrl || okumaHatali ? '#9CA3AF' : DS.accent,
                 color: '#fff',
                 border: 'none',
-                cursor: !belgeUrl ? 'not-allowed' : 'pointer',
+                cursor: !belgeUrl || okumaHatali ? 'not-allowed' : 'pointer',
               }}
             >
               Onaya Gönder
@@ -8102,6 +8184,39 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
           kind: 'success',
         });
       }
+      // ── Aynı belge başka bir derste de kullanılıyor mu? ──
+      // Öğrenciler çoğu zaman bölümün TÜM ders içeriklerini taşıyan tek bir
+      // PDF'i her ders için ayrı ayrı yüklüyor. Sistem bunu tekilleştiriyor
+      // (tek kopya saklanıyor, birleşik PDF'e bir kez giriyor) ama sessizce
+      // yapmıyoruz: öğrenci ilgili dersin sayfasını ayırıp yüklerse hem
+      // akademisyenin işi kolaylaşır hem çıktı okunur olur.
+      const ozet = window.dosyaOzeti ? await window.dosyaOzeti(file) : '';
+      let ayniDosyaUyarisi = '';
+      if (ozet) {
+        const digerler = [];
+        rows.forEach((r, ri) => {
+          ['src', 'cak'].forEach((yan) => {
+            if (r.id === rowId && yan === side) return;
+            if (r[yan] && r[yan].dosyaOzeti === ozet) digerler.push(ri + 1);
+          });
+        });
+        if (digerler.length > 0) {
+          ayniDosyaUyarisi =
+            ' Bu belge ' +
+            digerler.length +
+            ' başka derste de yüklü (satır ' +
+            digerler.join(', ') +
+            '). Tek kopya saklanır ve birleşik PDF’e bir kez eklenir; ' +
+            'mümkünse her ders için yalnız o dersin içerik sayfasını yükleyin.';
+        }
+      }
+      if (ayniDosyaUyarisi) {
+        setMsg((m) => ({
+          text: (m && m.text ? m.text : '') + ayniDosyaUyarisi,
+          kind: 'warning',
+        }));
+      }
+
       setRows((prev) =>
         prev.map((r) =>
           r.id === rowId
@@ -8111,6 +8226,7 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
                   ...r[side],
                   file,
                   fileName: file.name,
+                  dosyaOzeti: ozet,
                   content: cleaned,
                   contentChars: charCount,
                   encodingBroken,
@@ -8319,8 +8435,15 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
   // Öğrencinin yüklediği belgeyi sunucuya kaydet — akademisyen onay ekranında
   // PDF'i görüntüleyebilsin diye. Başarısız olursa null döner (talep yine
   // gönderilir; yalnızca görüntüleme linki olmaz).
+  // Bir gönderimde AYNI içerikli dosya bir kez yüklenir; sonraki satırlar
+  // aynı adresi paylaşır. Öğrenciler bütün Bologna kataloğunu her ders için
+  // ayrı ayrı ekleyebiliyor — böyle bir başvuruda 8 kopya yerine 1 dosya
+  // saklanıyor ve birleşik PDF de tek kopya içeriyor.
+  const yuklenenOzetler = useRef(new Map());
   const uploadDocFile = async (file) => {
     if (!file) return null;
+    const ozet = window.dosyaOzeti ? await window.dosyaOzeti(file) : '';
+    if (ozet && yuklenenOzetler.current.has(ozet)) return yuklenenOzetler.current.get(ozet);
     try {
       const fd = new FormData();
       fd.append('file', file);
@@ -8333,7 +8456,9 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
       });
       if (!res.ok) return null;
       const data = await res.json();
-      return data.downloadURL || null;
+      const url = data.downloadURL || null;
+      if (url && ozet) yuklenenOzetler.current.set(ozet, url);
+      return url;
     } catch (e) {
       console.warn('Belge yüklenemedi:', e.message);
       return null;
@@ -9422,8 +9547,13 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
             padding: '10px 14px',
             borderRadius: 8,
             marginBottom: 12,
-            background: msg.kind === 'error' ? DS.redLight : DS.greenBg,
-            color: msg.kind === 'error' ? DS.red : DS.green,
+            background:
+              msg.kind === 'error'
+                ? DS.redLight
+                : msg.kind === 'warning'
+                  ? DS.amberLight
+                  : DS.greenBg,
+            color: msg.kind === 'error' ? DS.red : msg.kind === 'warning' ? DS.amber : DS.green,
             fontSize: 13,
             fontWeight: 500,
           }}
