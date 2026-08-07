@@ -13,14 +13,14 @@ function readJson(p) {
 }
 
 describe('proje altyapısı', () => {
-  it('frontend package.json gerekli script\'leri içerir', () => {
+  it("frontend package.json gerekli script'leri içerir", () => {
     const pkg = readJson('package.json');
     expect(pkg.scripts.dev).toBeDefined();
     expect(pkg.scripts.build).toBeDefined();
     expect(pkg.scripts.preview).toBeDefined();
   });
 
-  it('server package.json gerekli script\'leri içerir', () => {
+  it("server package.json gerekli script'leri içerir", () => {
     const pkg = readJson('server/package.json');
     expect(pkg.scripts.start).toBeDefined();
     expect(pkg.scripts.migrate).toBeDefined();
