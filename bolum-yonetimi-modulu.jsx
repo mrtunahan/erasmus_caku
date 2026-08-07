@@ -2376,7 +2376,12 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
       .then((r) => {
         if (iptal) return;
         const d = (r && r.exists && r.data) || {};
-        setForm(Object.assign({}, varsayilan, d));
+        // Normalize ederek yükle: eski `mufredatTipi` kaydı yeni yarıyıl
+        // alanlarına çevrilsin ki 7+1 uygulayan bir bölüm formu açtığı anda
+        // sessizce 8+0 görünmesin.
+        setForm(
+          window.mezKuralNormalize ? window.mezKuralNormalize(d) : Object.assign({}, varsayilan, d)
+        );
       })
       .catch(() => !iptal && setForm(Object.assign({}, varsayilan)))
       .finally(() => !iptal && setYukleniyor(false));
@@ -2394,7 +2399,10 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
         String(activeDepartment),
         {
           departmentId: String(activeDepartment),
-          mufredatTipi: form.mufredatTipi,
+          toplamYariyil: parseInt(form.toplamYariyil, 10) || 8,
+          isyeriYariyilSayisi: parseInt(form.isyeriYariyilSayisi, 10) || 0,
+          // Eski alan artık YAZILMIYOR ama okunan kayıtlarda kalabilir;
+          // mezKuralNormalize yeni alanlar varken onu görmezden geliyor.
           toplamAkts: parseInt(form.toplamAkts, 10) || 240,
           minAgno: parseFloat(String(form.minAgno).replace(',', '.')) || 2,
           minSecmeliAkts: parseInt(form.minSecmeliAkts, 10) || 0,
@@ -2448,6 +2456,18 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
     fontWeight: 600,
     cursor: 'pointer',
   });
+  // Model özeti formdaki iki sayıdan TÜRETİLİR — ayrıca saklanmadığı için
+  // etiketle gerçek ayarın çelişmesi mümkün değil.
+  const toplamY = parseInt(form.toplamYariyil, 10) || 0;
+  const isyeriY = Math.max(0, Math.min(toplamY, parseInt(form.isyeriYariyilSayisi, 10) || 0));
+  const isyeriVar = isyeriY > 0;
+  const modelEtiketi = toplamY - isyeriY + '+' + isyeriY;
+  const yilMetni = toplamY > 0 ? (toplamY / 2).toString().replace('.', ',') + ' yıl' : '—';
+  const isyeriIlk = toplamY - isyeriY + 1;
+  const isyeriAralik =
+    isyeriY === 1 ? isyeriIlk + '. yarıyıl' : isyeriIlk + '–' + toplamY + '. yarıyıllar';
+  const kalipSecili = (k) => k.toplamYariyil === toplamY && k.isyeriYariyilSayisi === isyeriY;
+
   const notListesi = (dizi) => (Array.isArray(dizi) ? dizi.join(', ') : '');
   const notAyristir = (metin) =>
     String(metin || '')
@@ -2460,7 +2480,10 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
       <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 16px', lineHeight: 1.55 }}>
         Bu kurallar öğrencinin <b>Benim Sayfam → Mezuniyet Durumum</b> hesabında kullanılır. Öğrenci
         transkriptini yükler, sistem bu kurallara göre geçilen/kalan dersleri ve mezuniyet
-        koşullarını çıkarır. Kural tanımlanmazsa varsayılanlar geçerlidir.
+        koşullarını çıkarır. Kural tanımlanmazsa varsayılanlar geçerlidir. Öğretim modeli iki
+        sayıyla tanımlanır — toplam yarıyıl ve bunun kaçının işyeri eğitimi olduğu — böylece MYO’nun
+        3+1’i, lisansın 7+1’i, 5 ve 6 yıllık programlar ve hazır kalıplarda olmayan her düzen aynı
+        alanla anlatılabilir.
       </p>
 
       <div
@@ -2472,29 +2495,89 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
           marginBottom: 16,
         }}
       >
-        <div style={{ marginBottom: 14 }}>
-          <label style={etiket}>Müfredat tipi</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {[
-              { id: 'normal', label: 'Normal (8 yarıyıl ders)' },
-              { id: '7+1', label: '7+1 (7 yarıyıl ders + işyeri eğitimi)' },
-            ].map((t) => (
+        <div style={{ marginBottom: 16 }}>
+          <label style={etiket}>Öğretim modeli</label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            {(window.MEZUNIYET_KALIPLARI || []).map((k) => (
               <button
-                key={t.id}
-                onClick={() => setForm({ ...form, mufredatTipi: t.id })}
-                style={cip(form.mufredatTipi === t.id)}
+                key={k.id}
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    toplamYariyil: k.toplamYariyil,
+                    isyeriYariyilSayisi: k.isyeriYariyilSayisi,
+                    toplamAkts: k.toplamAkts,
+                  })
+                }
+                style={cip(kalipSecili(k))}
               >
-                {t.label}
+                {k.ad}
               </button>
             ))}
           </div>
-          {form.mufredatTipi === '7+1' && (
-            <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 7, lineHeight: 1.5 }}>
-              7+1 seçiliyken müfredatın <b>4. sınıf Bahar</b> dersleri “kalan ders” olarak sayılmaz;
-              yerine işyeri eğitimi koşulu gösterilir. Bu ayrım, Ders Yönetimi’ndeki sınıf/dönem
-              bilgisine dayanır — o alanların doğru girilmiş olması gerekir.
+
+          {/* Kalıplar kolaylıktır, kısıt değil: hiçbirine uymayan bir program
+              iki sayıyı elle girerek tanımlanır. */}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: '1 1 170px' }}>
+              <label style={etiket}>Toplam yarıyıl</label>
+              <input
+                value={form.toplamYariyil}
+                onChange={(e) =>
+                  setForm({ ...form, toplamYariyil: e.target.value.replace(/\D/g, '').slice(0, 2) })
+                }
+                placeholder="ör. 8"
+                style={girdi}
+              />
             </div>
-          )}
+            <div style={{ flex: '1 1 170px' }}>
+              <label style={etiket}>Bunun kaçı işyeri eğitimi</label>
+              <input
+                value={form.isyeriYariyilSayisi}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    isyeriYariyilSayisi: e.target.value.replace(/\D/g, '').slice(0, 2),
+                  })
+                }
+                placeholder="ör. 1"
+                style={girdi}
+              />
+            </div>
+            <div
+              style={{
+                flex: '1 1 170px',
+                padding: '9px 11px',
+                borderRadius: 8,
+                background: C.blue + '10',
+                border: '1px solid ' + C.blue + '33',
+                fontSize: 13,
+                color: C.blue,
+                fontWeight: 700,
+                boxSizing: 'border-box',
+              }}
+            >
+              Model: {modelEtiketi}
+              <span style={{ fontWeight: 400, color: '#6B7280' }}> · {yilMetni}</span>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 8, lineHeight: 1.55 }}>
+            {isyeriVar ? (
+              <>
+                Programın <b>son {form.isyeriYariyilSayisi} yarıyılı</b> ({isyeriAralik}) ders değil{' '}
+                <b>işyeri eğitimi</b> sayılır: o yarıyıla düşen müfredat dersleri öğrencinin “kalan
+                ders” listesinde görünmez, yerine işyeri eğitimi koşulu çıkar. Bu ayrım Ders
+                Yönetimi’ndeki <b>sınıf ve dönem</b> bilgisine dayanır — o alanlar doğru girilmiş
+                olmalıdır.
+              </>
+            ) : (
+              <>
+                Tüm yarıyıllar ders yarıyılıdır; işyeri eğitimi koşulu aranmaz. İşyeri eğitimi
+                uygulayan bir programda ikinci alana kaç yarıyıl olduğunu yazın.
+              </>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -2505,6 +2588,11 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
               onChange={(e) => setForm({ ...form, toplamAkts: e.target.value.replace(/\D/g, '') })}
               style={girdi}
             />
+            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+              {form.toplamYariyil > 0
+                ? 'Yarıyıl başına ' + Math.round(form.toplamAkts / form.toplamYariyil) + ' AKTS'
+                : ''}
+            </div>
           </div>
           <div style={{ flex: '1 1 150px' }}>
             <label style={etiket}>Asgari AGNO</label>
@@ -2524,7 +2612,7 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
               style={girdi}
             />
           </div>
-          {form.mufredatTipi === '7+1' && (
+          {isyeriVar && (
             <div style={{ flex: '1 1 150px' }}>
               <label style={etiket}>İşyeri eğitimi AKTS</label>
               <input

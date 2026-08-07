@@ -2023,15 +2023,6 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             </div>
           )}
 
-          {/* Mezuniyet Durumum — transkriptten türetilen akademik kayıt */}
-          <BSMezuniyetDurumu
-            currentUser={currentUser}
-            studentDeptId={studentDeptId}
-            allCourses={allCourses}
-            cardBox={cardBox}
-            sectionTitle={sectionTitle}
-          />
-
           {/* Derslerim */}
           <div>
             <div
@@ -2314,7 +2305,31 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 </div>
               )}
             </div>
+
+            {/* Mezuniyet Durumum — Yaklaşan Etkinlikler'in hemen altında,
+                aynı sütun genişliği ve kart düzeniyle. */}
+            <BSMezuniyetDurumu
+              currentUser={currentUser}
+              studentDeptId={studentDeptId}
+              allCourses={allCourses}
+              cardBox={cardBox}
+              sectionTitle={sectionTitle}
+              dar
+            />
           </div>
+        )}
+
+        {/* Dar ekranda sağ sütun hiç render edilmiyor; kart orada da
+            görünsün diye ana akışın sonuna düşürülüyor. Aksi hâlde telefondan
+            giren öğrenci mezuniyet durumunu hiç göremezdi. */}
+        {!bsCalLayout.isWide && (
+          <BSMezuniyetDurumu
+            currentUser={currentUser}
+            studentDeptId={studentDeptId}
+            allCourses={allCourses}
+            cardBox={cardBox}
+            sectionTitle={sectionTitle}
+          />
         )}
       </div>
 
@@ -2369,7 +2384,10 @@ const BS_TRANSKRIPT_UST_BILGI = [
   { id: 'sinif', label: 'Sınıf', hint: 'yalnız rakam' },
 ];
 
-function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, sectionTitle }) {
+// `dar`: kart 300 piksellik sağ sütunda duruyor. Bilgi kırpılmaz — yalnız
+// yerleşim tek sütuna iner ve geniş içerik (ders tablosu) kendi içinde yatay
+// kaydırılır; sayfanın kendisi yana kaymaz.
+function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, sectionTitle, dar }) {
   const [kural, setKural] = useState(null);
   const [kayit, setKayit] = useState(null); // kaydedilmiş akademik kayıt
   const [yukleniyor, setYukleniyor] = useState(true);
@@ -2625,7 +2643,7 @@ function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, se
             </span>
             <span style={{ fontSize: 11.5, color: '#6B7280' }}>
               {sonuc.kalanAkts} AKTS kaldı
-              {sonuc.kural.mufredatTipi === '7+1' ? ' · 7+1 müfredatı' : ''}
+              {sonuc.modelEtiketi ? ' · ' + sonuc.modelEtiketi : ''}
             </span>
           </div>
           <div style={{ height: 8, borderRadius: 999, background: '#E5E7EB', overflow: 'hidden' }}>
@@ -2696,7 +2714,18 @@ function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, se
               <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1B2A4A', marginBottom: 6 }}>
                 Kalan zorunlu dersler ({sonuc.kalanZorunlu.length})
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {/* Dar sütunda uzun ders adları rozet içinde okunmuyor; tek
+                  sütunlu düzenli bir liste hem sığıyor hem hizalı duruyor. */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: dar ? 'nowrap' : 'wrap',
+                  flexDirection: dar ? 'column' : 'row',
+                  gap: 6,
+                  maxHeight: dar ? 200 : 'none',
+                  overflowY: dar ? 'auto' : 'visible',
+                }}
+              >
                 {sonuc.kalanZorunlu.map((c, i) => (
                   <span
                     key={c.code + i}
@@ -2706,7 +2735,7 @@ function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, se
                     }
                     style={{
                       padding: '4px 10px',
-                      borderRadius: 999,
+                      borderRadius: dar ? 7 : 999,
                       border: '1px solid #FCA5A5',
                       background: '#FEF2F2',
                       color: '#991B1B',
@@ -2926,11 +2955,20 @@ function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, se
                 marginTop: 8,
                 maxHeight: 320,
                 overflowY: 'auto',
+                // Geniş tablo KENDİ İÇİNDE kaysın; sayfanın yatay kayması
+                // dar sütunda düzeni tümden bozardı.
+                overflowX: 'auto',
                 border: '1px solid #E5E7EB',
                 borderRadius: 8,
               }}
             >
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table
+                style={{
+                  width: '100%',
+                  minWidth: dar ? 320 : 0,
+                  borderCollapse: 'collapse',
+                }}
+              >
                 <tbody>
                   {sonuc.kayitlar.map((r, i) => (
                     <tr key={i}>

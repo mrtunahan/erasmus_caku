@@ -4,7 +4,15 @@
 // Yanlış olduğunda kimse fark etmez ama öğrenci mezuniyet planını yanlış
 // kurar — o yüzden sessizce iyimser davranan her yol test altında.
 import { describe, it, expect } from 'vitest';
-import { mezuniyetHesapla, mezNotDurumu, mezNorm } from '../lib/mezuniyet.js';
+import {
+  mezuniyetHesapla,
+  mezNotDurumu,
+  mezNorm,
+  mezKuralNormalize,
+  mezModelEtiketi,
+  mezDersYariyili,
+  mezIsyeriYariyilindaMi,
+} from '../lib/mezuniyet.js';
 
 const K = (o) => Object.assign({ toplamAkts: 60, minAgno: 2.0, stajZorunlu: false }, o || {});
 
@@ -76,22 +84,122 @@ describe('mezuniyetHesapla — eşleştirme', () => {
   });
 });
 
-describe('mezuniyetHesapla — 7+1 müfredatı', () => {
-  it('normal müfredatta 4. sınıf bahar dersi kalan zorunluda görünür', () => {
+// Öğretim modeli iki sayıyla tanımlanıyor (toplam yarıyıl + işyeri yarıyılı).
+// Buradaki her yol bir bölümün müfredatını yanlış yorumlayıp öğrenciye eksik
+// ya da fazla ders göstermeye aday.
+describe('öğretim modeli — yarıyıl hesabı', () => {
+  it('sınıf ve dönemden yarıyıl çıkarır', () => {
+    expect(mezDersYariyili({ sinif: 1, donem: 'guz' })).toBe(1);
+    expect(mezDersYariyili({ sinif: 1, donem: 'bahar' })).toBe(2);
+    expect(mezDersYariyili({ sinif: 4, donem: 'bahar' })).toBe(8);
+    expect(mezDersYariyili({ sinif: 6, donem: 'guz' })).toBe(11);
+  });
+
+  it('sınıf ya da dönem eksikse yarıyıl UYDURMAZ', () => {
+    expect(mezDersYariyili({ sinif: 0, donem: 'guz' })).toBe(null);
+    expect(mezDersYariyili({ sinif: 2, donem: '' })).toBe(null);
+    expect(mezDersYariyili({})).toBe(null);
+  });
+
+  it('etiketi iki sayıdan türetir', () => {
+    expect(mezModelEtiketi({ toplamYariyil: 8, isyeriYariyilSayisi: 1 })).toBe('7+1');
+    expect(mezModelEtiketi({ toplamYariyil: 4, isyeriYariyilSayisi: 1 })).toBe('3+1');
+    expect(mezModelEtiketi({ toplamYariyil: 4, isyeriYariyilSayisi: 0 })).toBe('4+0');
+    expect(mezModelEtiketi({ toplamYariyil: 12, isyeriYariyilSayisi: 0 })).toBe('12+0');
+    expect(mezModelEtiketi({ toplamYariyil: 8, isyeriYariyilSayisi: 2 })).toBe('6+2');
+  });
+
+  it('ESKİ kayıtları çevirir — 7+1 uygulayan bölüm sessizce 8+0’a dönmez', () => {
+    const eski = mezKuralNormalize({ mufredatTipi: '7+1' });
+    expect(eski.toplamYariyil).toBe(8);
+    expect(eski.isyeriYariyilSayisi).toBe(1);
+    expect(mezKuralNormalize({ mufredatTipi: 'normal' }).isyeriYariyilSayisi).toBe(0);
+  });
+
+  it('yeni alanlar varsa eski alan görmezden gelinir', () => {
+    const k = mezKuralNormalize({
+      mufredatTipi: 'normal',
+      toplamYariyil: 4,
+      isyeriYariyilSayisi: 1,
+    });
+    expect(mezModelEtiketi(k)).toBe('3+1');
+  });
+
+  it('işyeri yarıyılı toplamı AŞAMAZ', () => {
+    // Aşsaydı müfredatın tamamı "ders değil" sayılır, kalan ders listesi
+    // boşalır ve öğrenci mezun olduğunu sanırdı.
+    const k = mezKuralNormalize({ toplamYariyil: 4, isyeriYariyilSayisi: 9 });
+    expect(k.isyeriYariyilSayisi).toBe(4);
+  });
+
+  it('işyeri yarıyılları programın SONUNDADIR', () => {
+    const s8b = { sinif: 4, donem: 'bahar' }; // 8. yarıyıl
+    const s8g = { sinif: 4, donem: 'guz' }; // 7. yarıyıl
+    const yediArti = { toplamYariyil: 8, isyeriYariyilSayisi: 1 };
+    expect(mezIsyeriYariyilindaMi(s8b, yediArti)).toBe(true);
+    expect(mezIsyeriYariyilindaMi(s8g, yediArti)).toBe(false);
+    // 6+2'de son İKİ yarıyıl
+    const altiArtiIki = { toplamYariyil: 8, isyeriYariyilSayisi: 2 };
+    expect(mezIsyeriYariyilindaMi(s8g, altiArtiIki)).toBe(true);
+  });
+
+  it('MYO 3+1’de 2. sınıf bahar işyeri eğitimidir', () => {
+    const myo = { toplamYariyil: 4, isyeriYariyilSayisi: 1 };
+    expect(mezIsyeriYariyilindaMi({ sinif: 2, donem: 'bahar' }, myo)).toBe(true);
+    expect(mezIsyeriYariyilindaMi({ sinif: 2, donem: 'guz' }, myo)).toBe(false);
+  });
+
+  it('yarıyılı çözülemeyen ders DERS SAYILIR', () => {
+    // Belirsizliği "bu ders zaten yok" diye yorumlamak, eksik dersi listeden
+    // düşürüp öğrenciyi yanıltırdı.
+    expect(
+      mezIsyeriYariyilindaMi({ code: 'X', sinif: '', donem: '' }, { isyeriYariyilSayisi: 1 })
+    ).toBe(false);
+  });
+});
+
+describe('mezuniyetHesapla — işyeri eğitimli müfredat', () => {
+  it('işyeri eğitimi yokken 4. sınıf bahar dersi kalan zorunluda görünür', () => {
     const r = mezuniyetHesapla(mufredat, [], K(), {});
     expect(r.kalanZorunlu.map((c) => c.code)).toContain('BLM480');
   });
 
-  it('7+1’de 4. sınıf bahar dersleri kalan zorunludan düşer', () => {
-    const r = mezuniyetHesapla(mufredat, [], K({ mufredatTipi: '7+1' }), {});
+  it('7+1’de 8. yarıyıl dersleri kalan zorunludan düşer', () => {
+    const r = mezuniyetHesapla(mufredat, [], K({ toplamYariyil: 8, isyeriYariyilSayisi: 1 }), {});
     expect(r.kalanZorunlu.map((c) => c.code)).not.toContain('BLM480');
   });
 
-  it('7+1’de işyeri eğitimi koşulu eklenir ve "bilinmiyor" kalır', () => {
+  it('ESKİ mufredatTipi kaydı da aynı sonucu verir', () => {
     const r = mezuniyetHesapla(mufredat, [], K({ mufredatTipi: '7+1' }), {});
+    expect(r.kalanZorunlu.map((c) => c.code)).not.toContain('BLM480');
+    expect(r.modelEtiketi).toBe('7+1');
+  });
+
+  it('işyeri eğitimi koşulu eklenir ve "bilinmiyor" kalır', () => {
+    const r = mezuniyetHesapla(mufredat, [], K({ toplamYariyil: 8, isyeriYariyilSayisi: 1 }), {});
     const k = r.kosullar.find((x) => x.id === 'isyeri');
     expect(k).toBeTruthy();
     expect(k.saglandi).toBe(null);
+    expect(k.label).toContain('8. yarıyıl');
+  });
+
+  it('iki yarıyıllık işyeri eğitiminde koşul aralık yazar', () => {
+    const r = mezuniyetHesapla(mufredat, [], K({ toplamYariyil: 8, isyeriYariyilSayisi: 2 }), {});
+    expect(r.kosullar.find((x) => x.id === 'isyeri').label).toContain('7–8. yarıyıllar');
+  });
+
+  it('MYO 3+1’de 2. sınıf bahar dersleri düşer', () => {
+    const myoMufredat = [
+      { code: 'MYO101', name: 'Temel', akts: 6, sinif: 1, donem: 'guz', statu: 'Z' },
+      { code: 'MYO204', name: 'İşyeri Uygulaması', akts: 30, sinif: 2, donem: 'bahar', statu: 'Z' },
+    ];
+    const r = mezuniyetHesapla(
+      myoMufredat,
+      [],
+      K({ toplamYariyil: 4, isyeriYariyilSayisi: 1, toplamAkts: 120 }),
+      {}
+    );
+    expect(r.kalanZorunlu.map((c) => c.code)).toEqual(['MYO101']);
   });
 });
 
