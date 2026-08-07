@@ -169,6 +169,13 @@ const ALLOWED_COLLECTIONS = [
   // okunup saklanır (doc id = '<bölüm|fakülte>:<modül>'). Değerlendirmede
   // adayın puanıyla kıyaslanır; öğrenci tarafına kapalıdır.
   'taban_puanlar',
+  // Karşı kurumların NOT DÖNÜŞÜM TABLOLARI (doc id = kurum anahtarı).
+  // Yaz intibakında öğrencinin karşı kurumdan aldığı not bu tabloyla ÇAKÜ
+  // harfine çevrilir. Bir kez akademisyence onaylanır, aynı üniversiteden
+  // gelen sonraki öğrenciler için yeniden okunmaz — hem maliyet hem de
+  // TUTARLILIK için (iki öğrencinin aynı notu farklı harfe dönüşmemeli).
+  // Öğrenci okur (kendi dönüşümünü görebilmeli), yalnız yetkili yazar.
+  'not_donusum_tablolari',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -315,6 +322,9 @@ const DEPT_MANAGER_WRITE = new Set([
   // Taban puanlar başvuru değerlendirmesinin eşiğidir; kaydı yalnız bölüm
   // yetkilisi ve üstü tazeleyebilir.
   'taban_puanlar',
+  // Not dönüşüm tablosu o kurumdan gelen BÜTÜN öğrencilere uygulanır; bir kez
+  // yanlış onaylanırsa hata sessizce çoğalır. Onay yetkisi bölüm yetkilisinde.
+  'not_donusum_tablolari',
 ]);
 
 // ── Öğrencinin KENDİ `students` kaydı ──

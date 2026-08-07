@@ -27,6 +27,20 @@ const CHUNK_OVERLAP = 2000;
 
 const TEXT_EXT = new Set(['txt', 'csv', 'md', 'json']);
 
+// ── Görseller ──
+// Öğrenci elindeki belgeyi çoğu zaman telefonla fotoğraflıyor ya da ekran
+// görüntüsü alıyor; "yalnız PDF" demek, işi yapılamaz kılmak yerine insanları
+// dönüştürücü sitelere yöneltir. Model görselleri doğrudan okuyabiliyor.
+const IMAGE_MEDIA = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+};
+// Anthropic API'sinde görsel başına üst sınır ~5 MB (base64 sonrası).
+const IMG_MAX_BYTES = 5 * 1024 * 1024;
+
 function extOf(nameOrPath) {
   return path
     .extname(String(nameOrPath || ''))
@@ -99,6 +113,17 @@ function parcala(metin, limit = CHUNK_CHARS, bindirme = CHUNK_OVERLAP) {
 function magicUzanti(buf) {
   if (!buf || buf.length < 4) return '';
   if (buf.slice(0, 5).toString('latin1') === '%PDF-') return 'pdf';
+  // Görsel imzaları — uzantısı yanlış/eksik dosyalarda tek dayanak bu.
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+  if (buf[0] === 0x89 && buf.slice(1, 4).toString('latin1') === 'PNG') return 'png';
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'gif';
+  if (
+    buf.length > 12 &&
+    buf.slice(0, 4).toString('latin1') === 'RIFF' &&
+    buf.slice(8, 12).toString('latin1') === 'WEBP'
+  ) {
+    return 'webp';
+  }
   // ZIP kabı: docx ve xlsx aynı imzayı taşır, içeriğe bakarak ayrılır.
   if (buf[0] === 0x50 && buf[1] === 0x4b) {
     const bas = buf.slice(0, Math.min(buf.length, 4096)).toString('latin1');
@@ -140,6 +165,24 @@ async function dosyaBloklari(dosya) {
     };
   }
 
+  if (IMAGE_MEDIA[uzanti]) {
+    if (buf.length > IMG_MAX_BYTES) return { ok: false, reason: 'image-too-large', tur: 'gorsel' };
+    return {
+      ok: true,
+      tur: 'gorsel',
+      bloklar: [
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: IMAGE_MEDIA[uzanti],
+            data: buf.toString('base64'),
+          },
+        },
+      ],
+    };
+  }
+
   let metin = '';
   if (uzanti === 'docx') metin = await docxMetin(buf);
   else if (uzanti === 'xlsx' || uzanti === 'xls') metin = xlsxMetin(buf);
@@ -166,8 +209,11 @@ async function istekGruplari(dosyalar) {
       hatalar.push({ name: d.name, reason: r.reason, sayfa: r.sayfa });
       continue;
     }
-    if (r.tur === 'pdf') pdfBloklari.push({ name: d.name, blok: r.bloklar[0] });
-    else metinler.push('===== BELGE: ' + (d.name || 'belge') + ' =====\n' + r.metin);
+    // Görseller de PDF'lerle aynı gruba girer: ikisi de modelin doğrudan
+    // okuduğu ikili bloklar, metne çevrilmiyor.
+    if (r.tur === 'pdf' || r.tur === 'gorsel') {
+      pdfBloklari.push({ name: d.name, blok: r.bloklar[0] });
+    } else metinler.push('===== BELGE: ' + (d.name || 'belge') + ' =====\n' + r.metin);
   }
 
   const gruplar = [];
@@ -198,5 +244,7 @@ module.exports = {
   extOf,
   PDF_MAX_PAGES,
   PDF_MAX_BYTES,
+  IMG_MAX_BYTES,
+  IMAGE_MEDIA,
   CHUNK_CHARS,
 };
