@@ -2431,6 +2431,11 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
   const [yukleniyor, setYukleniyor] = useState(true);
   const [kaydediliyor, setKaydediliyor] = useState(false);
   const [mesaj, setMesaj] = useState('');
+  // Virgüllü listelerin HAM metni. Her tuşta ayrıştırılınca yazılan virgül
+  // anında siliniyor ve listeyi düzenlemek imkânsız hâle geliyordu; metin
+  // burada duruyor, ayrıştırma alandan çıkışta yapılıyor.
+  const [gecerMetin, setGecerMetin] = useState('');
+  const [kalirMetin, setKalirMetin] = useState('');
 
   useEffect(() => {
     let iptal = false;
@@ -2444,9 +2449,15 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
         // Normalize ederek yükle: eski `mufredatTipi` kaydı yeni yarıyıl
         // alanlarına çevrilsin ki 7+1 uygulayan bir bölüm formu açtığı anda
         // sessizce 8+0 görünmesin.
-        setForm(
-          window.mezKuralNormalize ? window.mezKuralNormalize(d) : Object.assign({}, varsayilan, d)
-        );
+        const k = window.mezKuralNormalize
+          ? window.mezKuralNormalize(d)
+          : Object.assign({}, varsayilan, d);
+        setForm(k);
+        // Serbest listeler: yalnız KAYITTA yazılı olanlar metin alanına girer.
+        // Ölçekten türetilenler zaten tabloda görünüyor; ikisini birden
+        // göstermek aynı harfi iki yerde düzenlettirirdi.
+        setGecerMetin((Array.isArray(d.gecerNotlar) ? d.gecerNotlar : []).join(', '));
+        setKalirMetin((Array.isArray(d.kalirNotlar) ? d.kalirNotlar : []).join(', '));
       })
       .catch(() => !iptal && setForm(Object.assign({}, varsayilan)))
       .finally(() => !iptal && setYukleniyor(false));
@@ -2454,6 +2465,13 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
       iptal = true;
     };
   }, [activeDepartment]);
+
+  // "90" → 90 ; "3,5" → 3.5 ; okunamıyorsa null (0 DEĞİL: sıfır katsayı
+  // gerçek bir değer, "girilmemiş" ile karıştırılmamalı).
+  const sayiAl = (v) => {
+    const n = parseFloat(String(v == null ? '' : v).replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  };
 
   const kaydet = async () => {
     setKaydediliyor(true);
@@ -2473,8 +2491,31 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
           minSecmeliAkts: parseInt(form.minSecmeliAkts, 10) || 0,
           isyeriEgitimiAkts: parseInt(form.isyeriEgitimiAkts, 10) || 0,
           stajZorunlu: form.stajZorunlu !== false,
-          gecerNotlar: form.gecerNotlar,
-          kalirNotlar: form.kalirNotlar,
+          // Ölçek sayıya normalize edilerek yazılır — metin alanından gelen
+          // "90" ile sayısal 90 karışmasın, karşılaştırmalar hep sayı olsun.
+          notOlcegi: (form.notOlcegi || []).map((r) => ({
+            min: sayiAl(r.min),
+            max: sayiAl(r.max),
+            harf: String(r.harf || '')
+              .trim()
+              .toLocaleUpperCase('tr-TR'),
+            katsayi: sayiAl(r.katsayi),
+            gecer: !!r.gecer,
+          })),
+          ekHarfler: (form.ekHarfler || []).map((r) => ({
+            harf: String(r.harf || '')
+              .trim()
+              .toLocaleUpperCase('tr-TR'),
+            aciklama: String(r.aciklama || '').slice(0, 300),
+            sayilanHarf: String(r.sayilanHarf || '')
+              .trim()
+              .toLocaleUpperCase('tr-TR'),
+            gecer: !!r.gecer,
+          })),
+          // Alandan çıkılmadan kaydedilirse son yazım kaybolmasın diye
+          // metinler burada da ayrıştırılıyor.
+          gecerNotlar: notAyristir(gecerMetin),
+          kalirNotlar: notAyristir(kalirMetin),
           aciklama: form.aciklama || '',
           updatedAt: new Date().toISOString(),
           updatedBy: currentUser?.name || currentUser?.identifier || '',
@@ -2532,6 +2573,56 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
   const isyeriAralik =
     isyeriY === 1 ? isyeriIlk + '. yarıyıl' : isyeriIlk + '–' + toplamY + '. yarıyıllar';
   const kalipSecili = (k) => k.toplamYariyil === toplamY && k.isyeriYariyilSayisi === isyeriY;
+
+  // ── Ölçek düzenleme ──
+  const olcekSatir = (i, alan, deger) =>
+    setForm((f) => {
+      const yeni = (f.notOlcegi || []).slice();
+      yeni[i] = { ...yeni[i], [alan]: deger };
+      return { ...f, notOlcegi: yeni };
+    });
+  const olcekSil = (i) =>
+    setForm((f) => ({ ...f, notOlcegi: (f.notOlcegi || []).filter((_, j) => j !== i) }));
+  const olcekEkle = () =>
+    setForm((f) => ({
+      ...f,
+      notOlcegi: (f.notOlcegi || []).concat({
+        min: '',
+        max: '',
+        harf: '',
+        katsayi: '',
+        gecer: true,
+      }),
+    }));
+  const olcegiSifirla = () =>
+    setForm((f) => ({
+      ...f,
+      notOlcegi: (window.NOT_OLCEGI_VARSAYILAN || []).map((r) => ({ ...r })),
+      ekHarfler: (window.EK_HARFLER_VARSAYILAN || []).map((r) => ({ ...r })),
+    }));
+
+  const ekHarfSatir = (i, alan, deger) =>
+    setForm((f) => {
+      const yeni = (f.ekHarfler || []).slice();
+      yeni[i] = { ...yeni[i], [alan]: deger };
+      return { ...f, ekHarfler: yeni };
+    });
+  const ekHarfSil = (i) =>
+    setForm((f) => ({ ...f, ekHarfler: (f.ekHarfler || []).filter((_, j) => j !== i) }));
+  const ekHarfEkle = () =>
+    setForm((f) => ({
+      ...f,
+      ekHarfler: (f.ekHarfler || []).concat({
+        harf: '',
+        aciklama: '',
+        sayilanHarf: '',
+        gecer: false,
+      }),
+    }));
+
+  const olcekSorunlari = window.mezOlcekDogrula
+    ? window.mezOlcekDogrula(form.notOlcegi || []).sorunlar
+    : [];
 
   const notListesi = (dizi) => (Array.isArray(dizi) ? dizi.join(', ') : '');
   const notAyristir = (metin) =>
@@ -2702,28 +2793,226 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
           </label>
         </div>
 
+        {/* ── DERS GEÇME ÖLÇEĞİ ──
+            Yüzlük puan → harf → katsayı. Kodda sabit değil: buradaki değerler
+            kayda yazılır ve hem mezuniyet hesabında hem yaz intibakında
+            (karşı kurumdan gelen yüzlük puanın harfe çevrilmesinde) kullanılır. */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={etiket}>Ders geçme ölçeği (yüzlük puan → harf → katsayı)</label>
+          <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 8, lineHeight: 1.55 }}>
+            Bu ölçek iki yerde kullanılır: mezuniyet hesabında hangi harfin geçer sayıldığı, ve{' '}
+            <b>yaz intibakında</b> öğrencinin karşı kurumdan aldığı <b>yüzlük puanın</b> ÇAKÜ harf
+            notuna çevrilmesi. Karşı kurumun kendi harf notu kullanılmaz.
+          </div>
+
+          <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                padding: '6px 10px',
+                background: '#F9FAFB',
+                fontSize: 10.5,
+                fontWeight: 700,
+                color: '#6B7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+            >
+              <span style={{ width: 130 }}>Puan aralığı</span>
+              <span style={{ width: 78 }}>Harf</span>
+              <span style={{ width: 78 }}>Katsayı</span>
+              <span style={{ flex: 1 }}>Geçer mi</span>
+            </div>
+            {(form.notOlcegi || []).map((r, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  alignItems: 'center',
+                  padding: '6px 10px',
+                  borderTop: '1px solid #F3F4F6',
+                }}
+              >
+                <span style={{ display: 'flex', gap: 4, alignItems: 'center', width: 130 }}>
+                  <input
+                    value={r.min ?? ''}
+                    onChange={(e) => olcekSatir(i, 'min', e.target.value)}
+                    style={{ ...girdi, width: 56, padding: '6px 8px', textAlign: 'center' }}
+                  />
+                  <span style={{ color: '#9CA3AF' }}>–</span>
+                  <input
+                    value={r.max ?? ''}
+                    onChange={(e) => olcekSatir(i, 'max', e.target.value)}
+                    style={{ ...girdi, width: 56, padding: '6px 8px', textAlign: 'center' }}
+                  />
+                </span>
+                <input
+                  value={r.harf ?? ''}
+                  onChange={(e) => olcekSatir(i, 'harf', e.target.value)}
+                  style={{
+                    ...girdi,
+                    width: 78,
+                    padding: '6px 8px',
+                    textAlign: 'center',
+                    fontWeight: 700,
+                  }}
+                />
+                <input
+                  value={r.katsayi ?? ''}
+                  onChange={(e) => olcekSatir(i, 'katsayi', e.target.value)}
+                  style={{ ...girdi, width: 78, padding: '6px 8px', textAlign: 'center' }}
+                />
+                <label
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: '#374151',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!r.gecer}
+                    onChange={(e) => olcekSatir(i, 'gecer', e.target.checked)}
+                  />
+                  {r.gecer ? 'Geçer' : 'Kalır'}
+                </label>
+                <button onClick={() => olcekSil(i)} style={{ ...cip(false), padding: '4px 10px' }}>
+                  Sil
+                </button>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            <button onClick={olcekEkle} style={cip(false)}>
+              + Aralık ekle
+            </button>
+            <button onClick={olcegiSifirla} style={cip(false)}>
+              Varsayılan ölçeğe dön
+            </button>
+          </div>
+
+          {/* Katsayısı olması geçtiği anlamına gelmiyor (F1: 1,50 ama kalır) —
+              bu ayrım kaybolursa öğrenci geçmediği dersten geçmiş sayılır. */}
+          {olcekSorunlari.length > 0 && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: '8px 11px',
+                borderRadius: 8,
+                background: '#FEF3C7',
+                color: '#92400E',
+                fontSize: 11.5,
+                lineHeight: 1.6,
+              }}
+            >
+              {olcekSorunlari.slice(0, 6).map((s, i) => (
+                <div key={i}>• {s}</div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Puan aralığı olmayan harfler ── */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={etiket}>Diğer harf notları (puan aralığı olmayan)</label>
+          <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 8, lineHeight: 1.5 }}>
+            Devamsızlık, sınava girmeme, muafiyet gibi durumlar. “Ortalamada sayılan harf” doluysa
+            not, ortalama hesabında o harfin katsayısıyla işleme girer (ör. FF1/FF2/FF3 → F2).
+          </div>
+          <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
+            {(form.ekHarfler || []).map((r, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  alignItems: 'center',
+                  padding: '6px 10px',
+                  borderTop: i === 0 ? 'none' : '1px solid #F3F4F6',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <input
+                  value={r.harf ?? ''}
+                  onChange={(e) => ekHarfSatir(i, 'harf', e.target.value)}
+                  placeholder="FF1"
+                  style={{
+                    ...girdi,
+                    width: 78,
+                    padding: '6px 8px',
+                    textAlign: 'center',
+                    fontWeight: 700,
+                  }}
+                />
+                <input
+                  value={r.aciklama ?? ''}
+                  onChange={(e) => ekHarfSatir(i, 'aciklama', e.target.value)}
+                  placeholder="Açıklama"
+                  style={{ ...girdi, flex: '1 1 220px', padding: '6px 8px' }}
+                />
+                <input
+                  value={r.sayilanHarf ?? ''}
+                  onChange={(e) => ekHarfSatir(i, 'sayilanHarf', e.target.value)}
+                  placeholder="→ F2"
+                  title="Ortalamada sayılan harf"
+                  style={{ ...girdi, width: 78, padding: '6px 8px', textAlign: 'center' }}
+                />
+                <label
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, width: 90 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!r.gecer}
+                    onChange={(e) => ekHarfSatir(i, 'gecer', e.target.checked)}
+                  />
+                  {r.gecer ? 'Geçer' : 'Kalır'}
+                </label>
+                <button onClick={() => ekHarfSil(i)} style={{ ...cip(false), padding: '4px 10px' }}>
+                  Sil
+                </button>
+              </div>
+            ))}
+          </div>
+          <button onClick={ekHarfEkle} style={{ ...cip(false), marginTop: 8 }}>
+            + Harf ekle
+          </button>
+        </div>
+
+        {/* ── Ölçek dışında kalan notlar (serbest liste) ── */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
           <div style={{ flex: '1 1 260px' }}>
-            <label style={etiket}>Geçer sayılan harf notları</label>
+            <label style={etiket}>Ek geçer notlar (virgülle ayırın)</label>
+            {/* Metin HAM tutulup alandan çıkınca ayrıştırılıyor. Her tuşta
+                ayrıştırılınca yazdığınız virgül anında siliniyor ve listeyi
+                düzenlemek imkânsız hâle geliyordu. */}
             <input
-              value={notListesi(form.gecerNotlar)}
-              onChange={(e) => setForm({ ...form, gecerNotlar: notAyristir(e.target.value) })}
+              value={gecerMetin}
+              onChange={(e) => setGecerMetin(e.target.value)}
+              onBlur={() => setForm({ ...form, gecerNotlar: notAyristir(gecerMetin) })}
+              placeholder="S, MU"
               style={girdi}
             />
           </div>
           <div style={{ flex: '1 1 260px' }}>
-            <label style={etiket}>Kalır sayılan harf notları</label>
+            <label style={etiket}>Ek kalır notlar (virgülle ayırın)</label>
             <input
-              value={notListesi(form.kalirNotlar)}
-              onChange={(e) => setForm({ ...form, kalirNotlar: notAyristir(e.target.value) })}
+              value={kalirMetin}
+              onChange={(e) => setKalirMetin(e.target.value)}
+              onBlur={() => setForm({ ...form, kalirNotlar: notAyristir(kalirMetin) })}
+              placeholder="DZ, GR"
               style={girdi}
             />
           </div>
         </div>
         <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 14, lineHeight: 1.5 }}>
-          İki listede de yer almayan bir not <b>“belirsiz”</b> sayılır ve geçilmiş kabul edilmez —
-          öğrenciye olmayan bir mezuniyet vaat etmemek için. DD/DC gibi yönetmeliğe göre koşullu
-          geçer notları, bölümünüzün uygulamasına göre listeye ekleyin ya da çıkarın.
+          Ölçekte yer almayan bir not <b>“belirsiz”</b> sayılır ve geçilmiş kabul edilmez —
+          öğrenciye olmayan bir mezuniyet vaat etmemek için. Bu iki alan ölçeği <b>tamamlar</b>,
+          onun yerine geçmez.
         </div>
 
         <div style={{ marginBottom: 16 }}>
