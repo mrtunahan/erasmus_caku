@@ -315,6 +315,8 @@ function GelenBelgelerApp({ currentUser }) {
   const [tab, setTab] = useState('gelen');
   const [filtre, setFiltre] = useState('acik'); // 'acik' | 'hepsi'
   const [modulFiltre, setModulFiltre] = useState('hepsi'); // modül sekmesi
+  // Fakülte genelinde çalışan memurun kutusu kalabalıklaşıyor; ad/no ile arar.
+  const [arama, setArama] = useState('');
   const [msg, setMsg] = useState('');
 
   const isStudent = currentUser?.role === 'student';
@@ -377,14 +379,30 @@ function GelenBelgelerApp({ currentUser }) {
     return Object.keys(m).map((k) => ({ id: k, label: GB_TUR_ADI[k] || k, bekleyen: m[k] }));
   }, [gelenTum, modulFiltre]);
 
+  // Türkçe-duyarlı arama: İ/I önce eşlenir, yoksa "ISMAIL" yazan kullanıcı
+  // "İsmail" kaydını bulamıyor (JS'in küçültmesi bu iki harfi ayırıyor).
+  const gbKucuk = (x) =>
+    String(x || '')
+      .replace(/İ/g, 'i')
+      .replace(/I/g, 'ı')
+      .toLocaleLowerCase('tr-TR');
+
   const gelen = useMemo(() => {
     let all = gelenTum;
     if (modulFiltre !== 'hepsi') all = all.filter((i) => (i.doc.module || 'diger') === modulFiltre);
     if (GB_ALT_SEKMELI.has(modulFiltre) && turFiltre !== 'hepsi') {
       all = all.filter((i) => (i.doc.docType || 'diger') === turFiltre);
     }
+    const q = gbKucuk(arama).trim();
+    if (q) {
+      all = all.filter((i) =>
+        gbKucuk(
+          (i.doc.title || '') + ' ' + (i.doc.subtitle || '') + ' ' + (i.doc.ogrenciNo || '')
+        ).includes(q)
+      );
+    }
     return filtre === 'acik' ? all.filter((i) => i.gonderim.durum !== 'tamamlandi') : all;
-  }, [gelenTum, filtre, modulFiltre, turFiltre]);
+  }, [gelenTum, filtre, modulFiltre, turFiltre, arama]);
 
   // ── Yeni belge bildirimi ──
   // Bekleyen sayısı bir öncekine göre arttıysa ekranda bildirim gösterilir.
@@ -603,6 +621,25 @@ function GelenBelgelerApp({ currentUser }) {
         >
           🔔 {bildirim}
         </div>
+      )}
+
+      {/* Arama — fakülte genelinde çalışan memurun kutusu uzun olur */}
+      {tab === 'gelen' && gelenTum.length > 5 && (
+        <input
+          value={arama}
+          onChange={(e) => setArama(e.target.value)}
+          placeholder="Ad soyad, öğrenci no veya kurum ara…"
+          style={{
+            width: '100%',
+            padding: '9px 13px',
+            marginBottom: 12,
+            borderRadius: 9,
+            border: '1px solid ' + GB.border,
+            fontSize: 13,
+            fontFamily: 'inherit',
+            boxSizing: 'border-box',
+          }}
+        />
       )}
 
       {/* Modül sekmeleri — hangi modülden geldiyse ayrı sekme */}
