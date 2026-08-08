@@ -27,18 +27,6 @@ const muafiyetTamamlandiMi = (rec) =>
 const fmtName = (v) => (window.formatCaseTr ? window.formatCaseTr(v, 'name') : v || '');
 const fmtTitle = (v) => (window.formatCaseTr ? window.formatCaseTr(v, 'title') : v || '');
 
-// Dosya bağlantısı: PDF tarayıcıda önizlenir (/view); Office belgeleri
-// (.docx/.xlsx) Office Online ile açılamadığından doğrudan indirilir.
-const fileHref = (u) => {
-  const rel = String(u || '')
-    .replace('/api/files/download/', '')
-    .replace('/api/files/view/', '');
-  if (!rel) return '#';
-  return /\.pdf$/i.test(rel)
-    ? '/api/files/view/' + rel
-    : '/api/files/download/' + rel + '?download=true';
-};
-
 // ── Shared bileşenlerden import ──
 const _C = window.C;
 const _Card = window.Card;
@@ -6668,33 +6656,11 @@ const ExemptionHistory = ({
                 </div>
               )}
 
-              {/* Onaylı dilekçe (snapshot) — YALNIZ ÖĞRENCİDE.
-                  Akademisyende gösterilmez: "Belge Oluştur" akışı zaten
-                  önizleme + indirme + Belge Akışı'na gönderme yapıyor, bu
-                  şerit onun tekrarıydı. */}
-              {isStudent && rec.dilekceUrl && (
-                <div
-                  style={{
-                    padding: '0 20px 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    flexWrap: 'wrap',
-                    fontSize: 12.5,
-                    color: DS.textSecondary,
-                  }}
-                >
-                  <span style={{ fontWeight: 600 }}>Dilekçe:</span>
-                  <a
-                    href={fileHref(rec.dilekceUrl)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontWeight: 600, color: DS.accent }}
-                  >
-                    Dilekçemi İndir
-                  </a>
-                </div>
-              )}
+              {/* `rec.dilekceUrl` (akademisyenin "Belge Oluştur" ile ürettiği
+                  nihai belgenin snapshot'ı) BURADA GÖSTERİLMEZ. O belge
+                  dekanlık/memur çıktısıdır — app-shell'deki memur belge
+                  listesine besleniyor; öğrencinin onunla işi yok. Öğrencinin
+                  indireceği tek belge aşağıdaki BAŞVURU dilekçesidir. */}
 
               {/* ── ÖĞRENCİ: bölüm sekreterliğine götüreceği evraklar ──
                   Yaz intibakında öğrenci dilekçeyi ve onaylı ders içeriklerini
