@@ -7613,6 +7613,13 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
           ogrProfil = {};
         }
       }
+      // Yaz okulu başvurusu hangi akademik yıla ait? Başvuru tarihinden çıkar:
+      // akademik yıl eylülde başlar, yaz dönemi (haziran–ağustos) bir önceki
+      // eylülde başlayan yıla aittir. Kaydın tarihi yoksa bugün kullanılır.
+      const basvuruTarihi = rec.createdAt || null;
+      const basvuruAkademikYil = window.akademikYilBul ? window.akademikYilBul(basvuruTarihi) : '';
+      const basvuruDonem = window.donemEtiketi ? window.donemEtiketi(basvuruTarihi) : '';
+      const cakuBolumAd = rec.localDept || departmentInfo?.name || '';
       const staticData = {
         ogrenciNo: rec.studentNo || '',
         ogrenciAdSoyad: rec.studentName || '',
@@ -7622,15 +7629,21 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         kaynakUniversite: rec.otherUni || rec.otherUniversity || '',
         kaynakFakulte: rec.otherFaculty || '',
         kaynakBolum: rec.otherDept || rec.otherDepartment || '',
-        cakuBolum: rec.localDept || departmentInfo?.name || '',
+        cakuBolum: cakuBolumAd,
+        // Şablon başlığı eki kendi yazıyorsa ("{{bölüm}} Mühendisliği Bölümü")
+        // tam ad tekrara yol açar — kısa hâl ayrı değişken.
+        cakuBolumKisa: window.bolumKisaAd ? window.bolumKisaAd(cakuBolumAd) : cakuBolumAd,
         // Dilekçe anteti için: fakülte/üniversite adı kiracı ayarından gelir,
         // böylece aynı şablon başka bir fakültede de doğru başlıkla çıkar.
         cakuFakulte: window.TENANT?.facultyName || '',
         cakuUniversite: window.TENANT?.universityName || '',
         kaynakToplamAkts: String(sumBy('_kAkts')),
         cakuToplamAkts: String(sumBy('_cAkts')),
-        akademikYil: rec.akademikYil || '',
-        donem: rec.donem || '',
+        // Akademik yıl ve yarıyıl hiçbir formda sorulmuyor; başvuru tarihinden
+        // kesin olarak çıkar (akademik yıl eylülde başlar). Kayıtta elle
+        // girilmiş bir değer varsa o kazanır.
+        akademikYil: rec.akademikYil || basvuruAkademikYil,
+        donem: rec.donem || basvuruDonem,
         tarih: new Date().toLocaleDateString('tr-TR'),
         // Öncelik başvuru formunda girilen değerlerdedir: öğrenci talebi
         // gönderirken bunları zorunlu olarak doldurdu ve o an geçerliydi.

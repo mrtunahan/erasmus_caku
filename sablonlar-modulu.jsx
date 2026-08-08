@@ -1140,6 +1140,7 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           öğrenciadres: 'static:ogrenciAdres',
           bölümü: 'static:cakuBolum',
           çaküfakülte: 'static:cakuFakulte',
+          çakübölümkısa: 'static:cakuBolumKisa',
           çaküfakültesi: 'static:cakuFakulte',
           çaküüniversite: 'static:cakuUniversite',
           alınacaküniversite: 'static:kaynakUniversite',
