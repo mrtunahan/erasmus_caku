@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { ObjectId } = require('mongodb');
 const rateLimit = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
+const { zipYaz } = require('../lib/zip-yaz');
 const { softAuth } = require('../middleware/softAuth');
 const { requireAuth } = require('../middleware/auth');
 
@@ -492,6 +493,83 @@ function mergeYetki(req, res, next) {
   return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
 }
 
+// Bir dosya listesini tek PDF'e birleştirir. Hem /merge-pdf ucu hem de
+// /zip ucu (memurun toplu evrak paketi) bu çekirdeği kullanır.
+//
+// AYNI BELGE BİR KEZ EKLENİR: öğrenciler çoğu zaman aynı PDF'i (ör. bölümün
+// tüm Bologna ders içerikleri tek dosyada) her ders için ayrı ayrı yüklüyor.
+// Dosyalar ayrı adla kaydedildiği için adrese göre tekilleştirme İŞE YARAMAZ;
+// içerik özetine bakmak gerekiyor. Aksi hâlde 8 derslik bir başvuruda aynı
+// 200 sayfalık katalog 8 kez ekleniyor ve çıktı hem okunmaz hem devasa oluyor.
+// Maliyeti yok denecek kadar az: dosya zaten belleğe okunuyor.
+//
+// Ayraç/kapak sayfası ÜRETİLMEZ; `baslik` yalnızca atlanan dosyayı adıyla
+// bildirmek için taşınır, PDF'e yazılmaz.
+async function pdfBirlestir(PDFDocument, istenen) {
+  const atlananlar = [];
+  const tekrarlar = [];
+  const gorulenOzetler = new Set();
+  let toplamBayt = 0;
+  let eklenen = 0;
+
+  const hedef = await PDFDocument.create();
+  for (const d of istenen || []) {
+    const baslik = String((d && d.baslik) || '').slice(0, 200);
+    const rel = urlToRelPath(d && d.url);
+    const diskYolu = rel ? resolveSafePath(rel) : null;
+    if (!diskYolu) {
+      atlananlar.push({ baslik, sebep: 'dosya bulunamadı' });
+      continue;
+    }
+    if (path.extname(diskYolu).toLowerCase() !== '.pdf') {
+      atlananlar.push({ baslik, sebep: 'PDF değil (' + path.extname(diskYolu) + ')' });
+      continue;
+    }
+    let buf;
+    try {
+      buf = fs.readFileSync(diskYolu);
+    } catch (_e) {
+      atlananlar.push({ baslik, sebep: 'okunamadı' });
+      continue;
+    }
+    const ozet = crypto.createHash('sha256').update(buf).digest('hex');
+    if (gorulenOzetler.has(ozet)) {
+      tekrarlar.push(baslik);
+      continue;
+    }
+    gorulenOzetler.add(ozet);
+
+    toplamBayt += buf.length;
+    if (toplamBayt > MERGE_MAX_BAYT) {
+      atlananlar.push({ baslik, sebep: 'toplam boyut sınırı aşıldı' });
+      break;
+    }
+
+    let kaynak;
+    try {
+      // Şifreli PDF'leri de kabul et; okunamıyorsa aşağıda atlanır.
+      kaynak = await PDFDocument.load(buf, { ignoreEncryption: true });
+    } catch (_e) {
+      atlananlar.push({ baslik, sebep: 'bozuk ya da açılamayan PDF' });
+      continue;
+    }
+    try {
+      const sayfalar = await hedef.copyPages(kaynak, kaynak.getPageIndices());
+      sayfalar.forEach((pg) => hedef.addPage(pg));
+      eklenen += 1;
+    } catch (_e) {
+      atlananlar.push({ baslik, sebep: 'sayfalar kopyalanamadı' });
+    }
+  }
+
+  return {
+    eklenen,
+    atlananlar,
+    tekrarlar,
+    pdf: eklenen > 0 ? Buffer.from(await hedef.save()) : null,
+  };
+}
+
 // POST /api/files/merge-pdf  body: { dosyalar:[{url, baslik}], filename }
 // Yanıt: birleştirilmiş PDF (application/pdf).
 router.post('/merge-pdf', uploadLimiter, fileAuth, mergeYetki, async (req, res) => {
@@ -520,118 +598,173 @@ router.post('/merge-pdf', uploadLimiter, fileAuth, mergeYetki, async (req, res) 
     return res.status(400).json({ error: `En çok ${MERGE_MAX_DOSYA} dosya birleştirilebilir.` });
   }
 
+  let sonuc;
+  try {
+    sonuc = await pdfBirlestir(PDFDocument, istenen);
+  } catch (error) {
+    console.error('PDF merge error:', error.message);
+    return res.status(500).json({ error: 'PDF birleştirilemedi: ' + error.message });
+  }
+  if (sonuc.eklenen === 0) {
+    return res.status(422).json({
+      error: 'Birleştirilebilir PDF bulunamadı.',
+      atlananlar: sonuc.atlananlar,
+    });
+  }
+
+  const adAscii = asciiIndirge((req.body && req.body.filename) || 'birlesik.pdf') || 'birlesik.pdf';
+  const ad = /\.pdf$/i.test(adAscii) ? adAscii : adAscii + '.pdf';
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${ad.replace(/[^\x20-\x7E]/g, '_')}"`);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+  // Atlananlar gövdeye sığmaz (yanıt ikili) — başlıkla bildirilir.
+  res.setHeader('X-Merge-Eklenen', String(sonuc.eklenen));
+  res.setHeader('X-Merge-Atlanan', String(sonuc.atlananlar.length));
+  // Tekrar eden belge sayısı ayrı bildirilir: "atlandı" değil, "bir kez
+  // eklendi" demek — kullanıcı eksik çıktı sanmasın.
+  res.setHeader('X-Merge-Tekrar', String(sonuc.tekrarlar.length));
+  if (sonuc.tekrarlar.length > 0) {
+    res.setHeader(
+      'X-Merge-Tekrar-Detay',
+      encodeURIComponent(JSON.stringify(sonuc.tekrarlar.slice(0, 20)).slice(0, 1200))
+    );
+  }
+  if (sonuc.atlananlar.length > 0) {
+    res.setHeader(
+      'X-Merge-Atlanan-Detay',
+      encodeURIComponent(JSON.stringify(sonuc.atlananlar).slice(0, 1800))
+    );
+  }
+  return res.send(sonuc.pdf);
+});
+
+// ══════════════════════════════════════════════════════════════
+// POST /api/files/zip — memurun TOPLU EVRAK PAKETİ
+//
+// Memur ekranındaki "Listedekileri İndir", tarayıcıyı arka arkaya onlarca
+// indirmeye zorluyordu ("birden çok dosya indirilsin mi?" uyarısı, dağınık
+// dosya adları, karışan indirilenler klasörü). Bu uç hepsini TEK arşivde
+// verir.
+//
+// Gövde:
+//   dosyalar:    [{ url, ad }]                       → arşive olduğu gibi girer
+//   birlesimler: [{ ad, dosyalar:[{url, baslik}] }]  → önce tek PDF'e birleşir
+//   filename:    arşiv adı
+//
+// YALNIZ PERSONEL. Öğrenciye kapalıdır: burada dosya listesi istemciden
+// geliyor ve /merge-pdf'teki gibi kayıt sahipliğinden türetilemiyor —
+// öğrenciye açılsa başkasının evrakını paketleyebilirdi.
+// ══════════════════════════════════════════════════════════════
+const ZIP_MAX_DOSYA = 300;
+const ZIP_MAX_BAYT = 200 * 1024 * 1024;
+
+router.post('/zip', uploadLimiter, fileAuth, async (req, res) => {
+  if (FILES_AUTH_ENFORCED && (!req.user || !req.user.role || req.user.role === 'student')) {
+    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
+  }
+
+  const dosyalar = Array.isArray(req.body && req.body.dosyalar) ? req.body.dosyalar : [];
+  const birlesimler = Array.isArray(req.body && req.body.birlesimler) ? req.body.birlesimler : [];
+  if (dosyalar.length === 0 && birlesimler.length === 0) {
+    return res.status(400).json({ error: 'Paketlenecek dosya yok.' });
+  }
+  if (dosyalar.length + birlesimler.length > ZIP_MAX_DOSYA) {
+    return res.status(400).json({ error: `En çok ${ZIP_MAX_DOSYA} girdi paketlenebilir.` });
+  }
+
   const atlananlar = [];
+  const girdiler = [];
   let toplamBayt = 0;
 
-  // ── AYNI BELGE BİR KEZ EKLENİR ──
-  //
-  // Öğrenciler çoğu zaman aynı PDF'i (ör. bölümün tüm Bologna ders içerikleri
-  // tek dosyada) her ders için ayrı ayrı yüklüyor. Bu dosyaların her biri ayrı
-  // adla kaydedildiği için adrese göre tekilleştirme İŞE YARAMAZ; içerik
-  // özetine bakmak gerekiyor. Aksi hâlde 8 derslik bir başvuruda aynı 200
-  // sayfalık katalog 8 kez ekleniyor ve çıktı hem okunmaz hem devasa oluyor.
-  //
-  // Maliyeti yok denecek kadar az: dosya zaten belleğe okunuyor, üzerine bir
-  // SHA-256 geçmek birkaç milisaniye.
-  const gorulenOzetler = new Set();
-  const tekrarlar = [];
-
   try {
-    const hedef = await PDFDocument.create();
-    let eklenen = 0;
-
-    for (const d of istenen) {
-      const baslik = String((d && d.baslik) || '').slice(0, 200);
+    // 1) Doğrudan dosyalar
+    for (const d of dosyalar) {
+      const ad = String((d && d.ad) || '').slice(0, 200);
       const rel = urlToRelPath(d && d.url);
       const diskYolu = rel ? resolveSafePath(rel) : null;
       if (!diskYolu) {
-        atlananlar.push({ baslik, sebep: 'dosya bulunamadı' });
-        continue;
-      }
-      if (path.extname(diskYolu).toLowerCase() !== '.pdf') {
-        atlananlar.push({ baslik, sebep: 'PDF değil (' + path.extname(diskYolu) + ')' });
+        atlananlar.push({ ad, sebep: 'dosya bulunamadı' });
         continue;
       }
       let buf;
       try {
         buf = fs.readFileSync(diskYolu);
       } catch (_e) {
-        atlananlar.push({ baslik, sebep: 'okunamadı' });
+        atlananlar.push({ ad, sebep: 'okunamadı' });
         continue;
       }
-      // Tekrar eden içerik: bir kez eklenir, kalanı sayılıp bildirilir.
-      const ozet = crypto.createHash('sha256').update(buf).digest('hex');
-      if (gorulenOzetler.has(ozet)) {
-        tekrarlar.push(baslik);
-        continue;
-      }
-      gorulenOzetler.add(ozet);
-
       toplamBayt += buf.length;
-      if (toplamBayt > MERGE_MAX_BAYT) {
-        atlananlar.push({ baslik, sebep: 'toplam boyut sınırı aşıldı' });
+      if (toplamBayt > ZIP_MAX_BAYT) {
+        atlananlar.push({ ad, sebep: 'toplam boyut sınırı aşıldı' });
         break;
       }
+      // Uzantı dosyanın kendisinden alınır: kullanıcı adı uzantısız verse de
+      // arşivden çıkan dosya çift tıklamayla açılsın.
+      const uzanti = path.extname(diskYolu);
+      const tamAd = ad && path.extname(ad) ? ad : (ad || path.basename(diskYolu)) + uzanti;
+      girdiler.push({ ad: tamAd, veri: buf });
+    }
 
-      let kaynak;
+    // 2) Birleştirilecek gruplar (ör. bir başvurunun ders içerikleri)
+    if (birlesimler.length > 0) {
+      let PDFDocument;
       try {
-        // Şifreli PDF'leri de kabul et; okunamıyorsa aşağıda atlanır.
-        kaynak = await PDFDocument.load(buf, { ignoreEncryption: true });
+        ({ PDFDocument } = require('pdf-lib'));
       } catch (_e) {
-        atlananlar.push({ baslik, sebep: 'bozuk ya da açılamayan PDF' });
-        continue;
+        return res.status(503).json({
+          error:
+            'PDF birleştirme kütüphanesi kurulu değil (pdf-lib). ' +
+            'Sunucuda "cd server && npm install" çalıştırıp servisi yeniden başlatın.',
+        });
       }
-
-      // Ayraç/kapak sayfası ÜRETİLMEZ: çıktı, öğrencinin yüklediği
-      // belgelerin birebir birleşimidir. `baslik` yalnızca atlanan dosyaları
-      // kullanıcıya adıyla bildirmek için taşınır, PDF'e yazılmaz.
-      try {
-        const sayfalar = await hedef.copyPages(kaynak, kaynak.getPageIndices());
-        sayfalar.forEach((p) => hedef.addPage(p));
-        eklenen += 1;
-      } catch (_e) {
-        atlananlar.push({ baslik, sebep: 'sayfalar kopyalanamadı' });
+      for (const g of birlesimler) {
+        const ad = String((g && g.ad) || 'birlesik.pdf').slice(0, 200);
+        const liste = Array.isArray(g && g.dosyalar) ? g.dosyalar.slice(0, MERGE_MAX_DOSYA) : [];
+        if (liste.length === 0) continue;
+        const r = await pdfBirlestir(PDFDocument, liste);
+        if (r.eklenen === 0) {
+          atlananlar.push({ ad, sebep: 'birleştirilebilir PDF yok' });
+          continue;
+        }
+        toplamBayt += r.pdf.length;
+        if (toplamBayt > ZIP_MAX_BAYT) {
+          atlananlar.push({ ad, sebep: 'toplam boyut sınırı aşıldı' });
+          break;
+        }
+        girdiler.push({ ad: /\.pdf$/i.test(ad) ? ad : ad + '.pdf', veri: r.pdf });
       }
     }
 
-    if (eklenen === 0) {
-      return res.status(422).json({
-        error: 'Birleştirilebilir PDF bulunamadı.',
-        atlananlar,
-      });
+    if (girdiler.length === 0) {
+      return res.status(422).json({ error: 'Paketlenebilir dosya bulunamadı.', atlananlar });
     }
 
-    const cikti = Buffer.from(await hedef.save());
+    const arsiv = zipYaz(girdiler);
     const adAscii =
-      asciiIndirge((req.body && req.body.filename) || 'birlesik.pdf') || 'birlesik.pdf';
-    const ad = /\.pdf$/i.test(adAscii) ? adAscii : adAscii + '.pdf';
+      asciiIndirge((req.body && req.body.filename) || 'belgeler.zip') || 'belgeler.zip';
+    const ad = /\.zip$/i.test(adAscii) ? adAscii : adAscii + '.zip';
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${ad.replace(/[^\x20-\x7E]/g, '_')}"`);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${ad.replace(/[^\x20-\x7E]/g, '_')}"`
+    );
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
-    // Atlananlar gövdeye sığmaz (yanıt ikili) — başlıkla bildirilir.
-    res.setHeader('X-Merge-Eklenen', String(eklenen));
-    res.setHeader('X-Merge-Atlanan', String(atlananlar.length));
-    // Tekrar eden belge sayısı ayrı bildirilir: "atlandı" değil, "bir kez
-    // eklendi" demek — kullanıcı eksik çıktı sanmasın.
-    res.setHeader('X-Merge-Tekrar', String(tekrarlar.length));
-    if (tekrarlar.length > 0) {
-      res.setHeader(
-        'X-Merge-Tekrar-Detay',
-        encodeURIComponent(JSON.stringify(tekrarlar.slice(0, 20)).slice(0, 1200))
-      );
-    }
+    res.setHeader('X-Zip-Eklenen', String(girdiler.length));
+    res.setHeader('X-Zip-Atlanan', String(atlananlar.length));
     if (atlananlar.length > 0) {
       res.setHeader(
-        'X-Merge-Atlanan-Detay',
+        'X-Zip-Atlanan-Detay',
         encodeURIComponent(JSON.stringify(atlananlar).slice(0, 1800))
       );
     }
-    return res.send(cikti);
+    return res.send(arsiv);
   } catch (error) {
-    console.error('PDF merge error:', error.message);
-    return res.status(500).json({ error: 'PDF birleştirilemedi: ' + error.message });
+    console.error('ZIP error:', error.message);
+    return res.status(500).json({ error: 'Arşiv oluşturulamadı: ' + error.message });
   }
 });
 

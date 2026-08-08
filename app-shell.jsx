@@ -1677,7 +1677,7 @@ function MemurModuleOutputs({ route, currentUser }) {
           tarih: tarihi(o),
           title: o.title || '(başlıksız)',
           sub: o.subtitle || '',
-          files: [{ label: 'Belge', download: toDownload(o.url) }],
+          files: [{ label: 'Belge', download: toDownload(o.url), url: o.url }],
           ekler: [],
           icerikler: [],
         }));
@@ -1699,7 +1699,11 @@ function MemurModuleOutputs({ route, currentUser }) {
           if (!r) return;
           if (r.basvuruTuru) it.tur = r.basvuruTuru;
           if (r.transcriptUrl) {
-            it.ekler.push({ label: 'Transkript', download: toDownload(r.transcriptUrl) });
+            it.ekler.push({
+              label: 'Transkript',
+              download: toDownload(r.transcriptUrl),
+              url: r.transcriptUrl,
+            });
           }
           const karsiAd = r.otherUni || r.otherUniversity || 'Karşı kurum';
           const no = r.studentNo || r.id || 'kayit';
@@ -1741,7 +1745,7 @@ function MemurModuleOutputs({ route, currentUser }) {
                 (window.formatCaseTr ? window.formatCaseTr(r.studentName, 'name') : r.studentName) +
                 (r.studentNo ? '  ·  ' + r.studentNo : ''),
               sub: [r.otherUniversity || r.otherUni, r.localDept].filter(Boolean).join('  →  '),
-              files: [{ label: 'Dilekçe', download: toDownload(r.dilekceUrl) }],
+              files: [{ label: 'Dilekçe', download: toDownload(r.dilekceUrl), url: r.dilekceUrl }],
             });
             evrakBagla(list[list.length - 1], r);
           });
@@ -1767,39 +1771,72 @@ function MemurModuleOutputs({ route, currentUser }) {
       (i) => !aramaKucuk || trKucuk((i.title || '') + ' ' + (i.sub || '')).includes(aramaKucuk)
     );
 
-  // Listedeki tüm belgeleri (ve eklerini) sırayla indirir. Tarayıcı çoklu
-  // indirmeyi bir kez onaylatır; sunucuda toplu paket ucu olmadığı için
-  // dosyalar ardışık tetiklenir.
-  const tumunuIndir = () => {
-    const baglantilar = [];
+  // Listedeki TÜM evrakı tek ZIP olarak indirir. Dosyalar tek tek
+  // tetiklenmiyor: tarayıcının "birden çok dosya indirilsin mi?" uyarısı,
+  // dağınık dosya adları ve karışan indirilenler klasörü memurun işini
+  // zorlaştırıyordu. Ders içerikleri de arşivin içinde birleşik PDF olarak yer
+  // alır — sunucu paketlerken birleştirir.
+  const [zipBusy, setZipBusy] = useState(false);
+  const [zipHata, setZipHata] = useState('');
+  const tumunuIndir = async () => {
+    // Dosya adı: "Ad Soyad · No — Dilekçe" gibi, arşivde kim hangisi belli olsun.
+    const temiz = (x) =>
+      String(x || '')
+        .replace(/\s*·\s*/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 90);
+    const dosyalar = [];
+    const birlesimler = [];
     gorunen.forEach((i) => {
-      (i.files || []).forEach(
-        (f) => f.download && f.download !== '#' && baglantilar.push(f.download)
-      );
-      (i.ekler || []).forEach(
-        (f) => f.download && f.download !== '#' && baglantilar.push(f.download)
-      );
+      const kim = temiz(i.title) || 'belge';
+      [...(i.files || []), ...(i.ekler || [])].forEach((f) => {
+        if (f.url) dosyalar.push({ url: f.url, ad: kim + ' - ' + f.label });
+      });
+      (i.icerikler || []).forEach((g) => {
+        birlesimler.push({ ad: kim + ' - ' + g.etiket + '.pdf', dosyalar: g.dosyalar });
+      });
     });
-    if (baglantilar.length === 0) return;
-    if (
-      !confirm(
-        baglantilar.length +
-          ' dosya indirilecek.\n\nTarayıcınız "birden çok dosya indirilsin mi?" diye ' +
-          'sorarsa izin verin.\n\nDers içerikleri birleşik PDF olduğu için bu toplu ' +
-          'indirmeye dahil değildir; satırdaki düğmelerden ayrıca indirilir.'
-      )
-    )
-      return;
-    baglantilar.forEach((href, i) => {
-      setTimeout(() => {
-        const a = document.createElement('a');
-        a.href = href;
-        a.download = '';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      }, i * 400);
-    });
+    if (dosyalar.length === 0 && birlesimler.length === 0) return;
+
+    setZipBusy(true);
+    setZipHata('');
+    try {
+      const token = localStorage.getItem('caku_auth_token');
+      const res = await fetch('/api/files/zip', {
+        method: 'POST',
+        headers: Object.assign(
+          { 'Content-Type': 'application/json' },
+          token ? { Authorization: 'Bearer ' + token } : {}
+        ),
+        credentials: 'include',
+        body: JSON.stringify({
+          dosyalar,
+          birlesimler,
+          filename: (moduleLabel || 'belgeler').replace(/\s+/g, '_') + '_belgeleri.zip',
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || 'Arşiv oluşturulamadı (HTTP ' + res.status + ')');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (moduleLabel || 'belgeler').replace(/\s+/g, '_') + '_belgeleri.zip';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      // Okunamayan dosya varsa sessizce yutma — memur eksik paket indirdiğini bilsin.
+      const atlanan = parseInt(res.headers.get('X-Zip-Atlanan') || '0', 10) || 0;
+      if (atlanan > 0) setZipHata(atlanan + ' dosya arşive eklenemedi (okunamadı ya da silinmiş).');
+    } catch (e) {
+      setZipHata(e.message);
+    } finally {
+      setZipBusy(false);
+    }
   };
 
   return (
@@ -1846,15 +1883,19 @@ function MemurModuleOutputs({ route, currentUser }) {
           <button
             type="button"
             onClick={tumunuIndir}
-            disabled={gorunen.length === 0}
+            disabled={gorunen.length === 0 || zipBusy}
             style={{
               ...memurBtn('white', '#0F766E', '#0F766E'),
-              opacity: gorunen.length === 0 ? 0.5 : 1,
+              opacity: gorunen.length === 0 || zipBusy ? 0.5 : 1,
+              cursor: zipBusy ? 'wait' : 'pointer',
             }}
-            title="Listedeki tüm belgeleri ve eklerini indirir"
+            title="Listedeki tüm belgeleri, eklerini ve ders içeriklerini tek ZIP olarak indirir"
           >
-            Listedekileri İndir ({gorunen.length})
+            {zipBusy ? 'Arşiv hazırlanıyor…' : 'Tümünü ZIP İndir (' + gorunen.length + ')'}
           </button>
+          {zipHata && (
+            <span style={{ fontSize: 12, color: '#B45309', fontWeight: 600 }}>{zipHata}</span>
+          )}
         </div>
       )}
 
