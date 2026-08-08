@@ -30,6 +30,8 @@ import {
   duyuruKullaniciBolumleri,
 } from './lib/duyuru-kapsam.js';
 import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './lib/zengin-metin.js';
+import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
+import { bolumKisaAd } from './lib/bolum-ad.js';
 
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
@@ -2195,6 +2197,13 @@ const MUAFIYET_STATIC = [
   // ayarından gelir — şablon başka bir fakültede de kullanılabilsin diye.
   { id: 'cakuFakulte', label: 'ÇAKÜ Fakülte Adı', format: 'title' },
   { id: 'cakuUniversite', label: 'ÇAKÜ Üniversite Adı' },
+  // Şablon başlığı eki kendi yazıyorsa ("{{bölüm}} Mühendisliği Bölümü") tam
+  // ad tekrara yol açar — bu değişken eki atılmış hâli verir.
+  {
+    id: 'cakuBolumKisa',
+    label: 'ÇAKÜ Bölüm Adı (kısa — "Mühendisliği" eki olmadan)',
+    format: 'title',
+  },
 ];
 
 // ── Yatay Geçiş değişkenleri ──
@@ -11543,6 +11552,9 @@ window.zenginDuzMetin = zenginDuzMetin;
 window.zenginBosMu = zenginBosMu;
 window.duyuruKapsamCoz = duyuruKapsamCoz;
 window.duyuruKapsamdaMi = duyuruKapsamdaMi;
+window.akademikYilBul = akademikYilBul;
+window.donemEtiketi = donemEtiketi;
+window.bolumKisaAd = bolumKisaAd;
 
 // ══════════════════════════════════════════════════════════════
 // TABAN PUAN PANELİ — "adresi ver, puanları getirsin"
