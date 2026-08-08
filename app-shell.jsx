@@ -539,7 +539,12 @@ const Sidebar = ({
     const isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
     if (isMemur) {
       const mods = Array.isArray(currentUser?.memurModules) ? currentUser.memurModules : [];
-      return DEPARTMENT_MODULES.filter((m) => mods.includes(m.id));
+      // "Gelen / Giden Belgeler" HER memurda açıktır ve atamaya bağlı değildir:
+      // modül panelleri belgeleri modül modül dağıtırken bu ekran hepsini tek
+      // listede toplar, "İşleme Al / Tamamlandı" işaretleri buradan verilir.
+      // Memurun asıl çalışma ekranı burasıdır; en üstte durur.
+      const gelen = COMMON_MODULES.filter((m) => m.id === 'gelenbelgeler');
+      return gelen.concat(DEPARTMENT_MODULES.filter((m) => mods.includes(m.id)));
     }
 
     if (isErgunCinar) return DEPARTMENT_MODULES.filter((m) => m.id === 'staj');
@@ -671,7 +676,7 @@ const Sidebar = ({
             padding: '8px 4px 4px',
           }}
         >
-          Bölüm Modülleri
+          {isMemur ? 'Görev Alanım' : 'Bölüm Modülleri'}
         </div>
         {visibleModules.map((mod) => {
           const isActive = currentRoute === mod.id;
@@ -1486,6 +1491,91 @@ const memurBtn = (renk, zemin, kenar) => ({
   display: 'inline-block',
 });
 
+// Belgenin memura yönlendirilme durumu (memur_outputs.gonderimler içinden).
+// Rozet olarak gösterilir; işaretleme "Gelen / Giden Belgeler" ekranında.
+const MEMUR_DURUM = {
+  bekliyor: { label: 'Bekliyor', renk: '#B45309', zemin: '#FEF3C7' },
+  goruldu: { label: 'Görüldü', renk: '#1D4ED8', zemin: '#DBEAFE' },
+  islemde: { label: 'İşlemde', renk: '#7C3AED', zemin: '#EDE9FE' },
+  tamamlandi: { label: 'Tamamlandı', renk: '#047857', zemin: '#D1FAE5' },
+};
+
+// Kaydın eşleşmelerinden kurum başına ders içeriği dosya listesi.
+// (Ders Muafiyet modülündeki birlesikPdfListesi'nin memur ekranı karşılığı —
+// memur o modülü hiç yüklemediği için buraya küçük bir kopya konuldu.)
+function memurIcerikListesi(record, taraf) {
+  const out = [];
+  (record.matches || []).forEach((m, i) => {
+    const d = (taraf === 'caku' ? m.localCourse : m.sourceCourse) || {};
+    if (!d.fileUrl) return;
+    out.push({ url: d.fileUrl, baslik: i + 1 + '. ' + [d.code, d.name].filter(Boolean).join(' ') });
+  });
+  return out;
+}
+
+// Ders içeriklerini tek PDF'e birleştirip indirir. Personel için sunucu
+// istemcinin verdiği listeyi kabul eder (öğrencide liste sunucuda üretilir).
+async function memurBirlesikIndir(dosyalar, dosyaAdi) {
+  const token = localStorage.getItem('caku_auth_token');
+  const res = await fetch('/api/files/merge-pdf', {
+    method: 'POST',
+    headers: Object.assign(
+      { 'Content-Type': 'application/json' },
+      token ? { Authorization: 'Bearer ' + token } : {}
+    ),
+    credentials: 'include',
+    body: JSON.stringify({ dosyalar, filename: dosyaAdi }),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j.error || 'Birleştirilemedi (HTTP ' + res.status + ')');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = dosyaAdi;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// Birleşik içerik düğmesi — kendi yükleniyor/hata durumunu taşır.
+function MemurIcerikBtn({ dosyalar, etiket, dosyaAdi }) {
+  const [busy, setBusy] = useState(false);
+  const [hata, setHata] = useState('');
+  if (!dosyalar || dosyalar.length === 0) return null;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setHata('');
+          try {
+            await memurBirlesikIndir(dosyalar, dosyaAdi);
+          } catch (e) {
+            setHata(e.message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+        style={{
+          ...memurBtn('#1B2A4A', '#EEF2FF', '#1B2A4A22'),
+          opacity: busy ? 0.6 : 1,
+          cursor: busy ? 'wait' : 'pointer',
+        }}
+        title="Bu kurumun tüm ders içerikleri tek PDF olarak iner"
+      >
+        {busy ? 'Birleştiriliyor…' : etiket + ' (' + dosyalar.length + ')'}
+      </button>
+      {hata && <span style={{ fontSize: 11.5, color: '#DC2626' }}>{hata}</span>}
+    </span>
+  );
+}
+
 function MemurModuleOutputs({ route, currentUser }) {
   const moduleLabel = (DEPARTMENT_MODULES.find((m) => m.id === route) || {}).label || route;
   const [items, setItems] = useState(null); // null = yükleniyor
@@ -1494,8 +1584,11 @@ function MemurModuleOutputs({ route, currentUser }) {
   // Belge türü sekmesi (Erasmus: gidiş/dönüş · Muafiyet: 4 tür)
   const turSekmeleri = MEMUR_TUR_SEKMELERI[route] || null;
   const [turFiltre, setTurFiltre] = useState('');
+  // Fakülte genelinde çalışan memurun listesi uzun olur; ad/numara ile arar.
+  const [arama, setArama] = useState('');
   useEffect(() => {
     setTurFiltre('');
+    setArama('');
   }, [route]);
 
   // "Sil" = belgeyi YALNIZ kendi listemden kaldır. Kayıt, gönderim geçmişi ve
@@ -1558,19 +1651,35 @@ function MemurModuleOutputs({ route, currentUser }) {
       const outs = await window
         .apiRead('memur_outputs', { where: 'module:eq:s:' + route })
         .catch(() => []);
+      // Belgenin MEMURA yapılan yönlendirmesinin durumu — rozet olarak gösterilir.
+      const memurDurumu = (o) => {
+        const g = (o.gonderimler || []).filter((x) => x.hedefRol === 'memur');
+        if (g.length === 0) return '';
+        // Birden çok yönlendirme varsa en ileri durum yazılır.
+        const sira = ['bekliyor', 'goruldu', 'islemde', 'tamamlandi'];
+        return g.reduce(
+          (en, x) => (sira.indexOf(x.durum || 'bekliyor') > sira.indexOf(en) ? x.durum : en),
+          'bekliyor'
+        );
+      };
+      const tarihi = (o) =>
+        o.updatedAt || ((o.gonderimler || [])[0] || {}).gonderilmeTarihi || o.createdAt || '';
       const list = (outs || [])
         .filter(inScope)
-        .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
+        .sort((a, b) => String(tarihi(b)).localeCompare(String(tarihi(a))))
         .map((o) => ({
           id: 'mo_' + (o.id || o.sourceId),
           docId: o.id || o._docId || o.module + '__' + o.sourceId,
           kaynakId: String(o.sourceId || ''),
           kaynak: 'memur_output',
           tur: memurBelgeTuru(o, route),
+          durum: memurDurumu(o),
+          tarih: tarihi(o),
           title: o.title || '(başlıksız)',
           sub: o.subtitle || '',
           files: [{ label: 'Belge', download: toDownload(o.url) }],
           ekler: [],
+          icerikler: [],
         }));
       // 2) Muafiyet: eski dilekceUrl kayıtları (memur_outputs'a yazılmamış olabilir).
       if (route === 'muafiyet') {
@@ -1583,14 +1692,31 @@ function MemurModuleOutputs({ route, currentUser }) {
         (recs || []).forEach((r) => {
           kayitById[String(r.id)] = r;
         });
-        list.forEach((it) => {
-          const r = kayitById[it.kaynakId];
+        // Muafiyet başvurusunun TÜM evrakı tek satırda toplanır: memur belgeyi
+        // indirdikten sonra transkript ve ders içerikleri için başka ekrana
+        // gitmek zorunda kalmasın.
+        const evrakBagla = (it, r) => {
           if (!r) return;
           if (r.basvuruTuru) it.tur = r.basvuruTuru;
           if (r.transcriptUrl) {
             it.ekler.push({ label: 'Transkript', download: toDownload(r.transcriptUrl) });
           }
-        });
+          const karsiAd = r.otherUni || r.otherUniversity || 'Karşı kurum';
+          const no = r.studentNo || r.id || 'kayit';
+          [
+            { taraf: 'karsi', etiket: karsiAd + ' içerikleri', ad: 'karsi_kurum_ders_icerikleri' },
+            { taraf: 'caku', etiket: 'ÇAKÜ ders içerikleri', ad: 'caku_ders_icerikleri' },
+          ].forEach((g) => {
+            const dosyalar = memurIcerikListesi(r, g.taraf);
+            if (dosyalar.length === 0) return;
+            it.icerikler.push({
+              etiket: g.etiket,
+              dosyalar,
+              dosyaAdi: g.ad + '_' + no + '.pdf',
+            });
+          });
+        };
+        list.forEach((it) => evrakBagla(it, kayitById[it.kaynakId]));
         const seen = new Set((outs || []).map((o) => String(o.sourceId)));
         (recs || [])
           .filter((r) => r.dilekceUrl && !seen.has(String(r.id)))
@@ -1607,15 +1733,17 @@ function MemurModuleOutputs({ route, currentUser }) {
               // geliyor — silme davranışı farklı (yalnız belge bağlantısı).
               kaynak: 'muafiyet_record',
               tur: r.basvuruTuru || 'muafiyet',
-              ekler: r.transcriptUrl
-                ? [{ label: 'Transkript', download: toDownload(r.transcriptUrl) }]
-                : [],
+              durum: '',
+              tarih: r.updatedAt || r.createdAt || '',
+              ekler: [],
+              icerikler: [],
               title:
                 (window.formatCaseTr ? window.formatCaseTr(r.studentName, 'name') : r.studentName) +
                 (r.studentNo ? '  ·  ' + r.studentNo : ''),
               sub: [r.otherUniversity || r.otherUni, r.localDept].filter(Boolean).join('  →  '),
               files: [{ label: 'Dilekçe', download: toDownload(r.dilekceUrl) }],
             });
+            evrakBagla(list[list.length - 1], r);
           });
       }
       if (alive) setItems(list);
@@ -1625,19 +1753,110 @@ function MemurModuleOutputs({ route, currentUser }) {
     };
   }, [route, scopeDeptIds, currentUser, yenile]);
 
-  const gorunen = (items || []).filter((i) => !turFiltre || i.tur === turFiltre);
+  // Türkçe-duyarlı arama: İ/I önce eşlenir, yoksa "ISMAIL" yazan memur
+  // "İsmail" kaydını bulamıyor (JS'in küçültmesi bu iki harfi ayırıyor).
+  const trKucuk = (x) =>
+    String(x || '')
+      .replace(/İ/g, 'i')
+      .replace(/I/g, 'ı')
+      .toLocaleLowerCase('tr-TR');
+  const aramaKucuk = trKucuk(arama).trim();
+  const gorunen = (items || [])
+    .filter((i) => !turFiltre || i.tur === turFiltre)
+    .filter(
+      (i) => !aramaKucuk || trKucuk((i.title || '') + ' ' + (i.sub || '')).includes(aramaKucuk)
+    );
+
+  // Listedeki tüm belgeleri (ve eklerini) sırayla indirir. Tarayıcı çoklu
+  // indirmeyi bir kez onaylatır; sunucuda toplu paket ucu olmadığı için
+  // dosyalar ardışık tetiklenir.
+  const tumunuIndir = () => {
+    const baglantilar = [];
+    gorunen.forEach((i) => {
+      (i.files || []).forEach(
+        (f) => f.download && f.download !== '#' && baglantilar.push(f.download)
+      );
+      (i.ekler || []).forEach(
+        (f) => f.download && f.download !== '#' && baglantilar.push(f.download)
+      );
+    });
+    if (baglantilar.length === 0) return;
+    if (
+      !confirm(
+        baglantilar.length +
+          ' dosya indirilecek.\n\nTarayıcınız "birden çok dosya indirilsin mi?" diye ' +
+          'sorarsa izin verin.\n\nDers içerikleri birleşik PDF olduğu için bu toplu ' +
+          'indirmeye dahil değildir; satırdaki düğmelerden ayrıca indirilir.'
+      )
+    )
+      return;
+    baglantilar.forEach((href, i) => {
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = href;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }, i * 400);
+    });
+  };
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: '#1B2A4A' }}>
-          {moduleLabel} — Çıktılar
+          {moduleLabel} — Gelen Çıktılar
         </div>
-        <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 4 }}>
-          Akademisyenin ürettiği çıktıları indirebilir, işleme alabilir ve gerekirse silebilirsiniz.
-          "İşleme Al" ve "Tamamlandı" işaretleri belgeyi gönderen tarafta görünür.
+        <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 4, lineHeight: 1.6 }}>
+          Bu modülde akademisyenin ürettiği belgeler ve başvurunun tüm ekleri (transkript, ders
+          içerikleri) burada toplanır — indirmek için başka ekrana gitmeniz gerekmez.
+          <br />
+          <b>İşleme Al / Tamamlandı</b> işaretleri "Gelen / Giden Belgeler" ekranından verilir;
+          buradaki rozet o ekrandaki durumu gösterir.
         </div>
       </div>
+
+      {/* Arama + toplu indirme */}
+      {items !== null && items.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            marginBottom: 12,
+          }}
+        >
+          <input
+            value={arama}
+            onChange={(e) => setArama(e.target.value)}
+            placeholder="Ad soyad, öğrenci no veya kurum ara…"
+            style={{
+              flex: '1 1 260px',
+              minWidth: 200,
+              padding: '9px 13px',
+              borderRadius: 9,
+              border: '1px solid #E5E7EB',
+              fontSize: 13,
+              fontFamily: 'inherit',
+              boxSizing: 'border-box',
+            }}
+          />
+          <button
+            type="button"
+            onClick={tumunuIndir}
+            disabled={gorunen.length === 0}
+            style={{
+              ...memurBtn('white', '#0F766E', '#0F766E'),
+              opacity: gorunen.length === 0 ? 0.5 : 1,
+            }}
+            title="Listedeki tüm belgeleri ve eklerini indirir"
+          >
+            Listedekileri İndir ({gorunen.length})
+          </button>
+        </div>
+      )}
 
       {/* Belge türü sekmeleri */}
       {turSekmeleri && items !== null && items.length > 0 && (
@@ -1685,63 +1904,112 @@ function MemurModuleOutputs({ route, currentUser }) {
             lineHeight: 1.6,
           }}
         >
-          Henüz görüntülenecek <b>{moduleLabel}</b> çıktısı yok. Akademisyen bu modülde bir belge
-          ürettiğinde (ör. "Belge Oluştur") kopyası burada listelenir.
+          {arama ? (
+            <>
+              <b>"{arama}"</b> için sonuç yok. Aramayı temizleyip tüm listeye dönebilirsiniz.
+            </>
+          ) : (
+            <>
+              Henüz görüntülenecek <b>{moduleLabel}</b> çıktısı yok. Akademisyen bu modülde bir
+              belge ürettiğinde (ör. "Belge Oluştur") kopyası burada listelenir.
+            </>
+          )}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {gorunen.map((it) => (
-            <div
-              key={it.id}
-              style={{
-                background: 'white',
-                border: '1px solid #E5E7EB',
-                borderRadius: 12,
-                padding: '14px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-                flexWrap: 'wrap',
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#1B2A4A' }}>{it.title}</div>
-                {it.sub && (
-                  <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{it.sub}</div>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                {it.files.map((f, i) => (
-                  <a key={i} href={f.download} style={memurBtn()}>
-                    İndir
-                  </a>
-                ))}
-
-                {/* Belgenin EKLERİ — aynı satırda, belgeyle birlikte */}
-                {(it.ekler || []).map((e, i) => (
-                  <a
-                    key={'ek' + i}
-                    href={e.download}
-                    style={memurBtn('#B45309', '#FEF3C7', '#B4530933')}
-                    title="Belgenin eki"
-                  >
-                    Ek: {e.label}
-                  </a>
-                ))}
-
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => sil(it)}
-                  style={memurBtn('#DC2626', '#FEE2E2', '#DC262633')}
-                  title="Belgeyi yalnızca kendi listenizden kaldırır"
+          {gorunen.map((it) => {
+            const st = MEMUR_DURUM[it.durum] || null;
+            const tarih = it.tarih ? new Date(it.tarih).toLocaleDateString('tr-TR') : '';
+            return (
+              <div
+                key={it.id}
+                style={{
+                  background: 'white',
+                  border: '1px solid #E5E7EB',
+                  borderLeft: '3px solid ' + (st ? st.renk : '#E5E7EB'),
+                  borderRadius: 12,
+                  padding: '14px 16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                }}
+              >
+                {/* Künye: kim, nereden, ne zaman, hangi durumda */}
+                <div
+                  style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}
                 >
-                  Sil
-                </button>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1B2A4A' }}>
+                      {it.title}
+                    </div>
+                    {it.sub && (
+                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{it.sub}</div>
+                    )}
+                    {tarih && (
+                      <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: 4 }}>{tarih}</div>
+                    )}
+                  </div>
+                  {st && (
+                    <span
+                      style={{
+                        padding: '3px 10px',
+                        borderRadius: 20,
+                        background: st.zemin,
+                        color: st.renk,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {st.label}
+                    </span>
+                  )}
+                </div>
+
+                {/* Evrak — belgenin kendisi, ekleri ve birleşik ders içerikleri */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {it.files.map((f, i) => (
+                    <a key={i} href={f.download} style={memurBtn()}>
+                      {f.label}
+                    </a>
+                  ))}
+
+                  {(it.ekler || []).map((e, i) => (
+                    <a
+                      key={'ek' + i}
+                      href={e.download}
+                      style={memurBtn('#B45309', '#FEF3C7', '#B4530933')}
+                      title="Başvurunun eki"
+                    >
+                      {e.label}
+                    </a>
+                  ))}
+
+                  {(it.icerikler || []).map((g, i) => (
+                    <MemurIcerikBtn
+                      key={'ic' + i}
+                      dosyalar={g.dosyalar}
+                      etiket={g.etiket}
+                      dosyaAdi={g.dosyaAdi}
+                    />
+                  ))}
+
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => sil(it)}
+                    style={{
+                      ...memurBtn('#DC2626', '#FEE2E2', '#DC262633'),
+                      marginLeft: 'auto',
+                    }}
+                    title="Belgeyi yalnızca kendi listenizden kaldırır"
+                  >
+                    Sil
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -2077,11 +2345,12 @@ function AppShell() {
         userName.includes('çınar') ||
         userName.includes('cinar') ||
         userName.includes('cınar'));
-    // Memur → ilk atandığı modül (staj varsa staj). Böylece erişemediği
-    // 'portal' rotasında takılı kalmaz.
+    // Memur → staj memuruysa koordinatör paneli, değilse "Gelen / Giden
+    // Belgeler": tüm modüllerden gelen belgeleri tek listede toplayan asıl
+    // çalışma ekranı. Böylece erişemediği 'portal' rotasında takılı kalmaz.
     const memurMods = Array.isArray(user.memurModules) ? user.memurModules : [];
     if (user.isMemur || user.role === 'memur') {
-      navigate(memurMods.includes('staj') ? 'staj' : memurMods[0] || 'staj');
+      navigate(memurMods.includes('staj') ? 'staj' : 'gelenbelgeler');
     } else if (isErgun) {
       navigate('staj');
     } else {
@@ -2243,6 +2512,18 @@ function AppShell() {
     // Öğrenci ders seçimi yapmadıysa sadece "benim" rotası açık
     if (currentUser.role === 'student' && !studentHasCourses) {
       if (route !== 'benim') navigate('benim');
+      return;
+    }
+
+    // Memur — sidebar'daki setle AYNI izin listesi. Daha önce burada memur
+    // dalı yoktu; memur öğrenci listesine düşüyordu ve staj/muafiyet gibi
+    // öğrencide de bulunan modüller tesadüfen çalışırken 'sinav', 'performans'
+    // gibi bir modüle atanmış memur portala geri atılıyordu.
+    const _isMemurRota = currentUser?.role === 'memur' || !!currentUser?.isMemur;
+    if (_isMemurRota) {
+      const mods = Array.isArray(currentUser?.memurModules) ? currentUser.memurModules : [];
+      const izin = ['gelenbelgeler'].concat(mods);
+      if (!izin.includes(route)) navigate(izin.includes('staj') ? 'staj' : izin[0]);
       return;
     }
 
@@ -2437,10 +2718,11 @@ function AppShell() {
       );
     }
 
-    // Memur — 'staj' tam koordinatör paneli; diğer atanan modüller için
-    // akademisyen çıktılarının SALT-OKUNUR görünümü (MemurModuleOutputs).
+    // Memur — 'staj' tam koordinatör paneli, 'gelenbelgeler' ortak evrak akışı
+    // ekranı (kendi bileşeni var); diğer atanan modüller için akademisyen
+    // çıktılarının SALT-OKUNUR görünümü (MemurModuleOutputs).
     const _isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
-    if (_isMemur && route !== 'staj') {
+    if (_isMemur && route !== 'staj' && route !== 'gelenbelgeler') {
       return <MemurModuleOutputs route={route} currentUser={currentUser} />;
     }
 

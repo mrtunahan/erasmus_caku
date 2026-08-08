@@ -650,7 +650,9 @@ function FakYonetimiApp({ currentUser }) {
             <p style={{ fontSize: 15, fontWeight: 700, color: FAK.primary, margin: 0 }}>Memurlar</p>
             <p style={{ fontSize: 12, color: FAK.textMuted, margin: '2px 0 0' }}>
               Akademisyen değildir. Yalnızca atandıkları modülde akademisyenin ürettiği çıktıyı
-              salt-okunur görür/indirir. (Staj atanırsa Ergün Çınar paneline sahip olur.)
+              salt-okunur görür/indirir. Kendilerine yönlendirilen tüm evrakı tek listede
+              topladıkları "Gelen / Giden Belgeler" ekranı atamadan bağımsız olarak her memurda
+              açıktır. (Staj atanırsa Ergün Çınar paneline sahip olur.)
             </p>
           </div>
         </div>
