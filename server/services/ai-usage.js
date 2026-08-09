@@ -16,10 +16,9 @@ const COLLECTION = 'ai_usage_logs';
 const FIYAT = {
   'claude-haiku-4-5-20251001': { girdi: 1.0, cikti: 5.0 },
   'claude-haiku-4-5': { girdi: 1.0, cikti: 5.0 },
-  // Taban puan okuma bu modele düşüyor (bkz. claude-extract.js → TABAN_MODEL):
-  // yüz sayfalık PDF tablosundan tek satır okumak Haiku'nun altından
-  // kalkamadığı bir iş. Fiyatı tabloya yazılmazsa maliyet raporu bu çağrıları
-  // Haiku fiyatıyla, yani OLDUĞUNDAN UCUZ gösterirdi.
+  // Haiku dışı modeller: sistem şu an hepsini kullanmıyor ama fiyatları
+  // tabloda duruyor. Eksik bir model kimliği varsayılana (Haiku) düşer ve
+  // maliyet raporu o çağrıyı OLDUĞUNDAN UCUZ gösterirdi.
   'claude-sonnet-4-6': { girdi: 3.0, cikti: 15.0 },
   'claude-sonnet-5': { girdi: 3.0, cikti: 15.0 },
   'claude-opus-4-8': { girdi: 5.0, cikti: 25.0 },

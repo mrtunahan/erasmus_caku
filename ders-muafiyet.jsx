@@ -9763,17 +9763,18 @@ function DikeyTabanPuanPaneli({ records, currentUser, activeDepartment, departme
           departmentId={activeDepartment || ''}
           modul="dikey"
           programlar={programlar}
-          // Sayfada aynı yıl için ÖNLİSANS / LİSANS / DGS listeleri ayrı ayrı
-          // duruyor. Tür açıkça söylenmezse lisans listesi açılıp yanlış puan
-          // okunabiliyor — dikey geçişte gereken DGS listesidir.
+          // Kurumlar aynı yıl için ÖNLİSANS / LİSANS / DGS listelerini ayrı
+          // ayrı yayımlıyor ve puanlar bambaşka. Doğru listeyi seçmek artık
+          // yetkilinin işi — panel hangisini beklediğini yazıyor.
           puanTuru="DGS (dikey geçiş sınavı yerleştirme listesi)"
           onKayitlar={setTabanKayitlari}
-          baslik="DGS taban puan sayfasının adresi"
+          baslik="DGS taban puan tablosu"
           aciklama={
             'Dikey geçişte adayın DGS puanı, yerleştiği programın taban puanından küçük ' +
-            'olamaz. Adres verilirse sayfa (ve içindeki PDF bağlantıları) okunur; ' +
+            'olamaz. Kurumun DGS yerleştirme tablosunu yapıştırın ya da PDF/CSV olarak ' +
+            'yükleyin; ' +
             programlar[0].ad +
-            ' programının DGS taban puanı aranır.'
+            ' programının taban puanı otomatik eşleştirilir.'
           }
         />
       )}
