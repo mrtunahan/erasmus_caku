@@ -26,6 +26,16 @@ import {
 } from './lib/taban-puan.js';
 import { tabanTablosuCoz, metinKatmaniVarMi } from './lib/taban-tablo.js';
 import {
+  LISTE_TURLERI as TABAN_LISTE_TURLERI,
+  listeTuruEtiketi,
+  tabloEtiketi,
+  tabloAnahtari,
+  tablolariSirala as tabanTablolariSirala,
+  programuTablolardaBul,
+  varsayilanEslesme,
+  tabloNormalize as tabanTabloNormalize,
+} from './lib/taban-kutuphane.js';
+import {
   duyuruKapsamCoz,
   duyuruKapsamdaMi,
   duyuruKullaniciBolumleri,
@@ -382,6 +392,14 @@ const DEPARTMENT_MODULES = [
     id: 'yataygecis',
     label: 'Yatay Geçiş',
     icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4',
+  },
+  {
+    // Taban Puan Kütüphanesi — modülden BAĞIMSIZ ortak veri. Dikey geçiş de
+    // yatay geçiş de aynı kütüphaneden okur; geçmiş yıllar burada durur,
+    // çünkü aday yerleştiği yılın taban puanına göre değerlendirilir.
+    id: 'tabanpuan',
+    label: 'Taban Puanlar',
+    icon: 'M3 3v18h18M7 16l4-6 4 3 5-8',
   },
   {
     id: 'capyandal',
@@ -4279,6 +4297,15 @@ window.programAnahtari = programAnahtari;
 window.TABAN_DURUM_ETIKET = TABAN_DURUM_ETIKET;
 window.tabanTablosuCoz = tabanTablosuCoz;
 window.metinKatmaniVarMi = metinKatmaniVarMi;
+// Taban puan kütüphanesi — modüller buradan tablo seçip kullanır.
+window.TABAN_LISTE_TURLERI = TABAN_LISTE_TURLERI;
+window.tabanListeTuruEtiketi = listeTuruEtiketi;
+window.tabloEtiketi = tabloEtiketi;
+window.tabloAnahtari = tabloAnahtari;
+window.tabanTablolariSirala = tabanTablolariSirala;
+window.programuTablolardaBul = programuTablolardaBul;
+window.tabanVarsayilanEslesme = varsayilanEslesme;
+window.tabanTabloNormalize = tabanTabloNormalize;
 
 // Alan listesi verilmemişse şablon eşlemesinden çöz — iki bileşen de kullanır.
 function useAiAlanlari(alanlar, module, docType, departmentId) {
@@ -11647,35 +11674,75 @@ const TabanPuanPaneli = ({
   programlar,
   onKayitlar,
   puanTuru,
+  // Kütüphaneden hangi liste türü öne çıksın (dgs | lisans | onlisans)
+  varsayilanTur,
 }) => {
-  const { useState, useEffect, useCallback, useRef } = window.React;
+  const { useState, useEffect, useCallback, useMemo } = window.React;
   const docId = tabanKapsamAnahtari(departmentId, modul);
 
-  const [kayit, setKayit] = useState(null);
-  const [ham, setHam] = useState(''); // yapıştırılan / çıkarılan metin
-  const [cozum, setCozum] = useState(null); // { kayitlar, okunamayan, enCokPuanSutunu }
-  const [puanSutunu, setPuanSutunu] = useState(0);
+  const [kutuphane, setKutuphane] = useState(null); // tüm tablolar
+  const [secili, setSecili] = useState([]); // seçili tablo id'leri
+  const [kayit, setKayit] = useState(null); // bu modülün kaydı
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
   const [hata, setHata] = useState('');
-  const [taranmis, setTaranmis] = useState(false); // metin katmanı yok
-  const dosyaRef = useRef(null);
 
-  // Daha önce kaydedilmiş puanlar.
+  // ── Kütüphane + bu modülün önceki seçimi ──
   useEffect(() => {
     let iptal = false;
-    window
-      .apiRead(TABAN_KOLEKSIYON)
-      .then((liste) => {
+    Promise.all([
+      window.apiRead('taban_tablolari').catch(() => []),
+      window.apiRead(TABAN_KOLEKSIYON).catch(() => []),
+    ])
+      .then(([tablolar, kayitlar]) => {
         if (iptal) return;
-        const d = (liste || []).find((x) => (x.id || x._docId) === docId);
-        if (d) setKayit(d);
+        setKutuphane((tablolar || []).map(window.tabanTabloNormalize));
+        const d = (kayitlar || []).find((x) => (x.id || x._docId) === docId);
+        if (d) {
+          setKayit(d);
+          setSecili(Array.isArray(d.seciliTablolar) ? d.seciliTablolar : []);
+        }
       })
       .catch(() => {});
     return () => {
       iptal = true;
     };
   }, [docId]);
+
+  // Kütüphanede tek bir uygun tablo varsa ve seçim yapılmamışsa onu seç —
+  // yetkiliyi tek seçenekli bir listeyle uğraştırmanın anlamı yok.
+  useEffect(() => {
+    if (kutuphane === null || secili.length > 0) return;
+    const uygun = kutuphane.filter((t) => !varsayilanTur || t.tur === varsayilanTur);
+    if (uygun.length === 1) setSecili([uygun[0].id]);
+  }, [kutuphane, secili.length, varsayilanTur]);
+
+  const seciliTablolar = useMemo(
+    () => (kutuphane || []).filter((t) => secili.includes(t.id)),
+    [kutuphane, secili]
+  );
+
+  // ── Program başına eşleşmeler (her seçili tablo için ayrı) ──
+  const satirlar = useMemo(() => {
+    const istenen = (programlar || []).filter((p) => p && p.id && p.ad);
+    const elle = (kayit && kayit.elleGirilen) || {};
+    return istenen.map((p) => {
+      const eslesmeler = window.programuTablolardaBul(seciliTablolar, p.ad);
+      const varsayilan = window.tabanVarsayilanEslesme(eslesmeler, p.yil || '');
+      const secilenYil = (kayit && kayit.secilenYillar && kayit.secilenYillar[p.id]) || '';
+      const secilen = secilenYil ? eslesmeler.find((e) => e.yil === secilenYil) : null;
+      const etkin = secilen || varsayilan;
+      return {
+        id: p.id,
+        ad: p.ad,
+        eslesmeler,
+        etkin,
+        // Elle girilen değer HER ZAMAN kazanır — son söz insanda.
+        taban: elle[p.id] != null && elle[p.id] !== '' ? elle[p.id] : etkin ? etkin.taban : '',
+        elleMi: elle[p.id] != null && elle[p.id] !== '',
+      };
+    });
+  }, [programlar, seciliTablolar, kayit]);
 
   // Okunan puanları üst bileşene ilet (karşılaştırmayı orası yapar).
   const bildir = useCallback(
@@ -11685,137 +11752,38 @@ const TabanPuanPaneli = ({
     [onKayitlar]
   );
   useEffect(() => {
-    bildir((kayit && kayit.programlar) || []);
-  }, [kayit, bildir]);
-
-  // Metni çöz ve istenen programlarla eşleştir. Eşleştirmeyi lib yapar
-  // (tabanKaydiBul): belirsiz eşleşmede HİÇBİRİ seçilmez — yanlış taban puan,
-  // yanlış değerlendirme demektir.
-  const cozUygula = useCallback(
-    (metin, sutun) => {
-      const c = window.tabanTablosuCoz(metin, sutun);
-      setCozum(c);
-      const istenen = (programlar || []).filter((p) => p && p.id && p.ad);
-      const eslesen = istenen.map((p) => {
-        const bulunan = tabanKaydiBul(c.kayitlar, p.ad);
-        return {
-          id: p.id,
-          ad: p.ad,
-          taban: bulunan ? bulunan.taban : '',
-          kaynak: bulunan ? 'tablodan okundu' : '',
-          aciklama: bulunan ? '' : 'tabloda eşleşmedi — elle girin',
-        };
-      });
-      return { cozum: c, eslesen };
-    },
-    [programlar]
-  );
-
-  const metniIsle = (metin, kaynakAdi) => {
-    setHata('');
-    setMsg('');
-    setTaranmis(false);
-    const { cozum: c, eslesen } = cozUygula(metin, puanSutunu);
-    if (c.kayitlar.length === 0) {
-      setHata(
-        'Bu metinde taban puan satırı bulunamadı. Tabloyu program adı ve puan yan yana ' +
-          'olacak şekilde kopyaladığınızdan emin olun.'
-      );
-      return;
-    }
-    setKayit((onceki) => ({
-      ...(onceki || {}),
-      id: docId,
-      modul,
-      departmentId,
-      programlar: eslesen,
-      kaynakAdi: kaynakAdi || '',
-      okunmaZamani: new Date().toISOString(),
-      okuyan: String(currentUser?.name || currentUser?.identifier || ''),
-    }));
-    const bulunan = eslesen.filter((k) => k.taban).length;
-    const puansiz = (c.puansizlar || []).length;
-    setMsg(
-      c.kayitlar.length +
-        ' programın puanı okundu' +
-        (puansiz > 0 ? ' · ' + puansiz + ' programda puan yayımlanmamış' : '') +
-        ' · ' +
-        bulunan +
-        '/' +
-        eslesen.length +
-        ' aradığınız program eşleşti.' +
-        (bulunan < eslesen.length ? ' Eşleşmeyenleri elle girin.' : '')
+    bildir(
+      satirlar.map((r) => ({
+        id: r.id,
+        ad: r.ad,
+        taban: r.taban,
+        kaynak: r.elleMi ? 'elle girildi' : r.etkin ? r.etkin.etiket : '',
+      }))
     );
-  };
+  }, [satirlar, bildir]);
 
-  // Puan sütunu değişince aynı metni yeniden çöz — dosyayı tekrar yüklemeye
-  // gerek yok.
-  const sutunDegistir = (yeni) => {
-    setPuanSutunu(yeni);
-    if (!ham) return;
-    const { eslesen } = cozUygula(ham, yeni);
-    setKayit((onceki) => ({ ...(onceki || {}), programlar: eslesen }));
-  };
-
-  const yapistir = () => {
-    if (!ham.trim()) {
-      setHata('Önce tabloyu yukarıdaki alana yapıştırın.');
-      return;
-    }
-    metniIsle(ham, 'yapıştırıldı');
-  };
-
-  const dosyaSec = async (e) => {
-    const f = (e.target.files && e.target.files[0]) || null;
-    e.target.value = '';
-    if (!f) return;
-    setHata('');
+  const tabloSec = (id) => {
+    setSecili((onceki) =>
+      onceki.includes(id) ? onceki.filter((x) => x !== id) : onceki.concat([id])
+    );
     setMsg('');
-    setTaranmis(false);
-    setBusy('dosya');
-    try {
-      if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
-        const { metin, sayfaSayisi } = await window.pdfMetniCikar(f);
-        if (!window.metinKatmaniVarMi(metin, sayfaSayisi)) {
-          // Taranmış PDF: sayfalar GÖRÜNTÜ, metin katmanı yok. "Tablo
-          // bulunamadı" demek yanıltıcı olurdu — çözümü bambaşka.
-          setTaranmis(true);
-          setHam('');
-          setHata(
-            'Bu PDF taranmış görüntülerden oluşuyor; içinde seçilebilir metin yok, ' +
-              'bu yüzden tablo okunamıyor.'
-          );
-          return;
-        }
-        setHam(metin);
-        metniIsle(metin, f.name);
-      } else {
-        // .csv / .txt — düz metin
-        const metin = await f.text();
-        setHam(metin);
-        metniIsle(metin, f.name);
-      }
-    } catch (err) {
-      setHata('Dosya okunamadı: ' + err.message);
-    } finally {
-      setBusy('');
-    }
   };
 
-  // Elle düzeltme — son söz insanda.
-  const elleYaz = (id, deger) => {
-    setKayit((onceki) => {
-      const guncel = ((onceki && onceki.programlar) || []).map((k) =>
-        k.id === id ? { ...k, taban: deger, kaynak: 'elle girildi', aciklama: '' } : k
-      );
-      return { ...(onceki || { modul, departmentId }), programlar: guncel };
-    });
+  const yilSec = (programId, yil) => {
+    setKayit((onceki) => ({
+      ...(onceki || { modul, departmentId }),
+      secilenYillar: { ...((onceki && onceki.secilenYillar) || {}), [programId]: yil },
+    }));
   };
 
-  // Kaydet — panel değerleri ancak burada kalıcı olur.
+  const elleYaz = (programId, deger) => {
+    setKayit((onceki) => ({
+      ...(onceki || { modul, departmentId }),
+      elleGirilen: { ...((onceki && onceki.elleGirilen) || {}), [programId]: deger },
+    }));
+  };
+
   const kaydet = async () => {
-    const liste = (kayit && kayit.programlar) || [];
-    if (liste.length === 0) return;
     setBusy('kayit');
     setHata('');
     try {
@@ -11825,15 +11793,24 @@ const TabanPuanPaneli = ({
         {
           modul,
           departmentId,
-          programlar: liste,
-          kaynakAdi: (kayit && kayit.kaynakAdi) || '',
+          seciliTablolar: secili,
+          secilenYillar: (kayit && kayit.secilenYillar) || {},
+          elleGirilen: (kayit && kayit.elleGirilen) || {},
+          // Kullanılan değerler kaydın içinde de dursun: kütüphaneden bir
+          // tablo silinse bile geçmiş değerlendirmenin dayanağı kaybolmasın.
+          programlar: satirlar.map((r) => ({
+            id: r.id,
+            ad: r.ad,
+            taban: r.taban,
+            kaynak: r.elleMi ? 'elle girildi' : r.etkin ? r.etkin.etiket : '',
+          })),
           okunmaZamani: new Date().toISOString(),
           okuyan: String(currentUser?.name || currentUser?.identifier || ''),
         },
         true
       );
-      setMsg('Taban puanlar kaydedildi.');
-      setTimeout(() => setMsg(''), 4000);
+      setMsg('Kaydedildi.');
+      setTimeout(() => setMsg(''), 3000);
     } catch (e) {
       setHata('Kaydedilemedi: ' + e.message);
     } finally {
@@ -11841,128 +11818,76 @@ const TabanPuanPaneli = ({
     }
   };
 
-  // Hiç okuma yapılmamışsa bile istenen programlar elle doldurulabilsin.
-  const okunanlar =
-    (kayit && kayit.programlar && kayit.programlar.length > 0 && kayit.programlar) ||
-    (programlar || []).map((p) => ({ id: p.id, ad: p.ad, taban: '', kaynak: '', aciklama: '' }));
-
-  const dugme = (bg, renk, kenar) => ({
-    padding: '8px 16px',
-    borderRadius: 8,
-    border: kenar ? '1px solid ' + kenar : 'none',
-    background: bg,
-    color: renk,
-    fontSize: 12.5,
-    fontWeight: 700,
-    fontFamily: 'inherit',
-    cursor: busy ? 'wait' : 'pointer',
-    opacity: busy ? 0.6 : 1,
-  });
+  const siraliKutuphane = useMemo(() => window.tabanTablolariSirala(kutuphane || []), [kutuphane]);
+  const bulunan = satirlar.filter((r) => r.taban).length;
 
   return (
     <div style={tabanKart}>
       <label style={tabanEtiket}>{baslik || 'Taban puan tablosu'}</label>
 
-      {/* Yapıştırma alanı — birincil yol. Kurumun sayfasındaki ya da PDF'teki
-          tabloyu seçip kopyalamak, hem en hızlı hem en güvenilir yöntem:
-          hangi listenin (ÖNLİSANS / LİSANS / DGS) doğru olduğuna İNSAN karar
-          verir, o yüzden yanlış liste okuma diye bir hata kalmaz. */}
-      <textarea
-        value={ham}
-        onChange={(e) => setHam(e.target.value)}
-        placeholder={
-          'Tabloyu buraya yapıştırın. Örnek:\n' +
-          'Bilgisayar Mühendisliği\t412,338\n' +
-          'Makine Mühendisliği\t355,201'
-        }
-        rows={5}
-        style={{ ...tabanGirdi, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
-      />
-
-      <div
-        style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}
-      >
-        <button onClick={yapistir} disabled={!!busy || !ham.trim()} style={dugme(C.navy, '#fff')}>
-          Tabloyu Oku
-        </button>
-        <button
-          onClick={() => dosyaRef.current && dosyaRef.current.click()}
-          disabled={!!busy}
-          style={dugme('#fff', C.navy, C.border)}
-        >
-          {busy === 'dosya' ? 'Okunuyor…' : 'PDF / CSV Yükle'}
-        </button>
-        <input
-          ref={dosyaRef}
-          type="file"
-          accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain"
-          style={{ display: 'none' }}
-          onChange={dosyaSec}
-        />
-        <button
-          onClick={kaydet}
-          disabled={!!busy || okunanlar.length === 0}
-          style={dugme(C.green, '#fff')}
-        >
-          {busy === 'kayit' ? 'Kaydediliyor…' : 'Kaydet'}
-        </button>
-      </div>
-
-      <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8, lineHeight: 1.5 }}>
-        {aciklama ||
-          'Kurumun taban-tavan sayfasındaki tabloyu seçip kopyalayın ve buraya yapıştırın; ' +
-            'ya da PDF/CSV dosyasını yükleyin.'}{' '}
-        Okunan puanlar bir <b>öneridir</b>: her satırı elle düzeltebilirsiniz, kaydedilen değer
-        sizin girdiğinizdir.
+      <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
+        {aciklama || 'Kullanılacak taban puan tablosunu Taban Puan Kütüphanesi’nden seçin.'}{' '}
         {puanTuru ? (
           <>
-            {' '}
-            Bu panel <b>{puanTuru}</b> listesini bekliyor — doğru listeyi kopyaladığınızdan emin
-            olun.
+            Bu panel <b>{puanTuru}</b> listesini bekliyor.{' '}
           </>
         ) : null}
+        Birden çok yıl seçebilirsiniz — aday, <b>yerleştiği yılın</b> taban puanıyla
+        değerlendirilir. Değerler bir <b>öneridir</b>; her satırı elle değiştirebilirsiniz.
       </div>
 
-      {/* Birden çok puan sütunu varsa hangisinin taban olduğunu SOR. En
-          sağdakini varsaymak, taban-tavan tablolarında tavan puanı taban
-          sanmaya ve şartı sağlayan adayı elemeye yol açıyordu. */}
-      {cozum && cozum.enCokPuanSutunu > 1 && (
+      {/* ── Kütüphaneden tablo seçimi ── */}
+      {kutuphane === null ? (
+        <div style={{ fontSize: 12, color: C.textMuted }}>Kütüphane yükleniyor…</div>
+      ) : siraliKutuphane.length === 0 ? (
         <div
           style={{
-            marginTop: 10,
-            padding: '8px 12px',
+            padding: '10px 12px',
             borderRadius: 7,
-            background: C.bg,
+            background: C.accentLight,
+            color: C.accent,
             fontSize: 12,
-            display: 'flex',
-            gap: 8,
-            alignItems: 'center',
-            flexWrap: 'wrap',
+            fontWeight: 600,
+            lineHeight: 1.55,
           }}
         >
-          <span style={{ fontWeight: 600, color: C.text }}>
-            Satırlarda {cozum.enCokPuanSutunu} puan sütunu var. Taban puan hangisi?
-          </span>
-          {Array.from({ length: cozum.enCokPuanSutunu }).map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => sutunDegistir(i)}
-              style={{
-                padding: '4px 12px',
-                borderRadius: 16,
-                border: '1px solid ' + (puanSutunu === i ? C.navy : C.border),
-                background: puanSutunu === i ? C.navy : '#fff',
-                color: puanSutunu === i ? '#fff' : C.textMuted,
-                fontSize: 11.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              {i + 1}. sütun
-            </button>
-          ))}
+          Kütüphanede hiç taban puan tablosu yok. <b>Taban Puanlar</b> modülünden kurumun listesini
+          bir kez ekleyin; sonra tüm modüller o tabloyu kullanabilir. (Bu arada aşağıdaki tablodan
+          puanları elle de girebilirsiniz.)
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+          {siraliKutuphane.map((t) => {
+            const on = secili.includes(t.id);
+            // Panelin beklediği türden olmayan tablolar solgun gösterilir —
+            // engellenmez (kurum listeyi başka türde yayımlamış olabilir) ama
+            // yanlışlıkla seçilmesi zorlaşır.
+            const uyumsuz = varsayilanTur && t.tur !== varsayilanTur;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => tabloSec(t.id)}
+                title={uyumsuz ? 'Bu panelin beklediği liste türü değil' : ''}
+                style={{
+                  padding: '6px 13px',
+                  borderRadius: 20,
+                  border: '1px solid ' + (on ? C.navy : C.border),
+                  background: on ? C.navy : 'white',
+                  color: on ? '#fff' : uyumsuz ? '#9CA3AF' : C.textMuted,
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {window.tabloEtiketi(t)}
+                <span style={{ marginLeft: 6, opacity: 0.75, fontWeight: 600 }}>
+                  {(t.satirlar || []).length}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -11976,17 +11901,9 @@ const TabanPuanPaneli = ({
             color: C.accent,
             fontSize: 12,
             fontWeight: 600,
-            lineHeight: 1.55,
           }}
         >
           {hata}
-          {taranmis && (
-            <div style={{ marginTop: 6, fontWeight: 500 }}>
-              Ne yapabilirsiniz: PDF'i tarayıcıda açıp tabloyu <b>fareyle seçmeyi</b> deneyin —
-              seçilebiliyorsa kopyalayıp yukarıya yapıştırın. Seçilemiyorsa belge gerçekten
-              görüntüdür; puanları elle girmeniz gerekir (aşağıdaki tablodan).
-            </div>
-          )}
         </div>
       )}
       {msg && (
@@ -12005,50 +11922,7 @@ const TabanPuanPaneli = ({
         </div>
       )}
 
-      {/* Puanı yayımlanmamış programlar — HATA DEĞİL. Tabloda "-- --" yazan
-          satırlar: program o yıl açılmamış ya da hiç yerleşen olmamış. Bunları
-          "çözülemedi" diye göstermek, okumanın başarısız olduğu izlenimi
-          veriyordu. */}
-      {cozum && (cozum.puansizlar || []).length > 0 && (
-        <details style={{ marginTop: 10 }}>
-          <summary
-            style={{ fontSize: 11.5, color: C.textMuted, cursor: 'pointer', fontWeight: 600 }}
-          >
-            {cozum.puansizlar.length} programın puanı yayımlanmamış (tabloda “--”)
-          </summary>
-          <div style={{ fontSize: 11.5, color: C.textMuted, margin: '6px 0 0', lineHeight: 1.6 }}>
-            Bu programlar o yıl açılmamış ya da hiç yerleşen olmamış; taban puanları yok. Okuma
-            hatası değildir.
-          </div>
-          <ul style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 11.5, lineHeight: 1.7 }}>
-            {cozum.puansizlar.slice(0, 25).map((k, i) => (
-              <li key={i} style={{ color: C.textMuted }}>
-                {k.ad}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-
-      {/* Okunamayan satırlar sessizce yutulmaz — eksik puanın sebebi burada. */}
-      {cozum && cozum.okunamayan.length > 0 && (
-        <details style={{ marginTop: 10 }}>
-          <summary
-            style={{ fontSize: 11.5, color: C.textMuted, cursor: 'pointer', fontWeight: 600 }}
-          >
-            Çözülemeyen {cozum.okunamayan.length} satır
-          </summary>
-          <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 11.5, lineHeight: 1.7 }}>
-            {cozum.okunamayan.slice(0, 25).map((sat, i) => (
-              <li key={i} style={{ color: C.textMuted, wordBreak: 'break-all' }}>
-                {sat}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-
-      {okunanlar.length > 0 && (
+      {satirlar.length > 0 && (
         <div style={{ marginTop: 12, overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
@@ -12062,35 +11936,105 @@ const TabanPuanPaneli = ({
                   Taban puan
                 </th>
                 <th style={{ textAlign: 'left', padding: '6px 8px', color: C.textMuted }}>
-                  Kaynak
+                  Kaynak (yıl)
                 </th>
               </tr>
             </thead>
             <tbody>
-              {okunanlar.map((k) => (
-                <tr key={k.id} style={{ borderTop: '1px solid ' + C.borderLight }}>
-                  <td style={{ padding: '6px 8px', fontWeight: 600, color: C.text }}>{k.ad}</td>
+              {satirlar.map((r) => (
+                <tr key={r.id} style={{ borderTop: '1px solid ' + C.borderLight }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 600, color: C.text }}>{r.ad}</td>
                   <td style={{ padding: '6px 8px' }}>
                     <input
-                      value={k.taban || ''}
-                      onChange={(e) => elleYaz(k.id, e.target.value)}
+                      value={r.taban || ''}
+                      onChange={(e) => elleYaz(r.id, e.target.value)}
                       placeholder="—"
                       style={{ ...tabanGirdi, padding: '5px 8px', fontSize: 12 }}
                     />
                   </td>
                   <td style={{ padding: '6px 8px', color: C.textMuted, fontSize: 11.5 }}>
-                    {k.kaynak || '—'}
-                    {k.aciklama ? ' · ' + k.aciklama : ''}
+                    {r.elleMi ? (
+                      <span style={{ color: C.accent, fontWeight: 600 }}>elle girildi</span>
+                    ) : r.eslesmeler.length === 0 ? (
+                      'seçili tablolarda yok'
+                    ) : (
+                      /* Birden çok yıl eşleştiyse hangisinin kullanıldığı
+                         GÖRÜNÜR ve değiştirilebilir olmalı: adayın yılı
+                         değerlendirmeyi doğrudan belirliyor. */
+                      <span style={{ display: 'inline-flex', gap: 5, flexWrap: 'wrap' }}>
+                        {r.eslesmeler.map((e) => {
+                          const on = r.etkin && e.tabloId === r.etkin.tabloId;
+                          return (
+                            <button
+                              key={e.tabloId}
+                              type="button"
+                              onClick={() => yilSec(r.id, e.yil)}
+                              disabled={e.puansiz}
+                              title={
+                                e.puansiz ? 'Bu yıl puan yayımlanmamış' : e.etiket + ' → ' + e.taban
+                              }
+                              style={{
+                                padding: '2px 9px',
+                                borderRadius: 12,
+                                border: '1px solid ' + (on ? C.navy : C.border),
+                                background: on ? C.navy : 'white',
+                                color: on ? '#fff' : e.puansiz ? '#9CA3AF' : C.textMuted,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: e.puansiz ? 'not-allowed' : 'pointer',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              {e.yil || '—'}
+                              {e.puansiz ? ' (puan yok)' : ''}
+                            </button>
+                          );
+                        })}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              marginTop: 10,
+            }}
+          >
+            <span style={{ fontSize: 11.5, color: C.textMuted }}>
+              {bulunan}/{satirlar.length} programın taban puanı hazır.
+            </span>
+            <span style={{ flex: 1 }} />
+            <button
+              onClick={kaydet}
+              disabled={!!busy}
+              style={{
+                padding: '7px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: C.green,
+                color: '#fff',
+                fontSize: 12.5,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: busy ? 'wait' : 'pointer',
+                opacity: busy ? 0.6 : 1,
+              }}
+            >
+              {busy === 'kayit' ? 'Kaydediliyor…' : 'Kaydet'}
+            </button>
+          </div>
+
           {kayit && kayit.okunmaZamani && (
             <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
               Son güncelleme: {new Date(kayit.okunmaZamani).toLocaleString('tr-TR')}
               {kayit.okuyan ? ' · ' + kayit.okuyan : ''}
-              {kayit.kaynakAdi ? ' · kaynak: ' + kayit.kaynakAdi : ''}
             </div>
           )}
         </div>

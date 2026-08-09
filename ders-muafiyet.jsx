@@ -9767,12 +9767,12 @@ function DikeyTabanPuanPaneli({ records, currentUser, activeDepartment, departme
           // ayrı yayımlıyor ve puanlar bambaşka. Doğru listeyi seçmek artık
           // yetkilinin işi — panel hangisini beklediğini yazıyor.
           puanTuru="DGS (dikey geçiş sınavı yerleştirme listesi)"
+          varsayilanTur="dgs"
           onKayitlar={setTabanKayitlari}
-          baslik="DGS taban puan tablosu"
+          baslik="DGS taban puanı"
           aciklama={
             'Dikey geçişte adayın DGS puanı, yerleştiği programın taban puanından küçük ' +
-            'olamaz. Kurumun DGS yerleştirme tablosunu yapıştırın ya da PDF/CSV olarak ' +
-            'yükleyin; ' +
+            'olamaz. Kütüphaneden DGS tablosunu seçin; ' +
             programlar[0].ad +
             ' programının taban puanı otomatik eşleştirilir.'
           }

@@ -1764,11 +1764,11 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                 // geçebiliyor ama puanları bambaşka. Panel hangisini beklediğini
                 // yazsın ki yetkili doğru tabloyu kopyalasın.
                 puanTuru="LİSANS (ÖSYS/YKS merkezi yerleştirme listesi)"
-                baslik="Taban puan tablosu (ÖSYS/YKS)"
+                varsayilanTur="lisans"
+                baslik="Taban puan (ÖSYS/YKS)"
                 aciklama={
                   'Merkezi yerleştirme puanıyla geçişte adayın YKS puanı, başvurduğu programın ' +
-                  'taban puanından küçük olamaz. Kurumun taban-tavan tablosunu yapıştırın ya da ' +
-                  'PDF/CSV olarak yükleyin; ' +
+                  'taban puanından küçük olamaz. Kütüphaneden lisans tablosunu seçin; ' +
                   tabanProgramlari.length +
                   ' program otomatik eşleştirilir.'
                 }

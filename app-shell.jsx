@@ -574,6 +574,9 @@ const Sidebar = ({
         'projeler',
         'staj',
         'performans',
+        // Taban puan kütüphanesi akademisyene de açık: yatay/dikey geçiş
+        // değerlendirmesini yapan kişi tabloyu görebilmeli.
+        'tabanpuan',
       ];
       const allowed = base.concat(commissionModules);
       return DEPARTMENT_MODULES.filter((m) => allowed.includes(m.id));
@@ -2593,7 +2596,16 @@ function AppShell() {
       : isDeptManager || isAdmin || isHierarchyManager
         ? DEPARTMENT_MODULES.filter((m) => m.id !== 'benim').map((m) => m.id)
         : isProfessor
-          ? ['sinav', 'formlar', 'dersprogrami', 'lisansustu', 'projeler', 'staj', 'performans']
+          ? [
+              'sinav',
+              'formlar',
+              'dersprogrami',
+              'lisansustu',
+              'projeler',
+              'staj',
+              'performans',
+              'tabanpuan',
+            ]
           : [
               'benim',
               'erasmus',
@@ -2798,6 +2810,7 @@ function AppShell() {
         yapayzeka: window.YapayZekaApp,
         yolharitalari: window.YolHaritalariApp,
         yataygecis: window.YatayGecisApp,
+        tabanpuan: window.TabanPuanModuluApp,
         dikeygecis: window.DikeyGecisApp,
       };
       const FallbackComponent = fallback[route];

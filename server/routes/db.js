@@ -165,10 +165,14 @@ const ALLOWED_COLLECTIONS = [
   // Öğrencinin transkriptinden türetilen akademik kayıt (doc id = öğrenci no):
   // aldığı dersler, notlar, AGNO. Öğrenci kendi kaydını yazar.
   'ogrenci_akademik_kayit',
-  // Programların taban puanları — kurumun taban/tavan puan sayfasından AI ile
-  // okunup saklanır (doc id = '<bölüm|fakülte>:<modül>'). Değerlendirmede
-  // adayın puanıyla kıyaslanır; öğrenci tarafına kapalıdır.
+  // Programların taban puanları — modül panelinde çözülmüş, o modüle özel
+  // kayıt (doc id = '<bölüm|fakülte>:<modül>').
   'taban_puanlar',
+  // TABAN PUAN KÜTÜPHANESİ — yıl ve liste türü başına bir tablo
+  // (doc id = '<yıl>__<tür>', ör. '2025__dgs'). Modülden bağımsızdır: dikey
+  // geçiş de yatay geçiş de buradan seçip kullanır, geçmiş yıllar durur.
+  // Öğrenci tarafına kapalıdır — değerlendirmenin iç eşiği.
+  'taban_tablolari',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -315,6 +319,7 @@ const DEPT_MANAGER_WRITE = new Set([
   // Taban puanlar başvuru değerlendirmesinin eşiğidir; kaydı yalnız bölüm
   // yetkilisi ve üstü tazeleyebilir.
   'taban_puanlar',
+  'taban_tablolari',
 ]);
 
 // ── Öğrencinin KENDİ `students` kaydı ──
@@ -381,6 +386,7 @@ const STUDENT_READ_DENY = new Set([
   // Taban puanlar başvuru değerlendirmesinin iç eşiğidir; öğrenci kendi
   // başvurusunun sonucunu önceden hesaplasın diye açmıyoruz.
   'taban_puanlar',
+  'taban_tablolari',
 ]);
 // Öğrenci okumalarında kendi kaydına zorlanan koleksiyonlar (alan → JWT kimliği)
 const STUDENT_READ_SCOPED = {

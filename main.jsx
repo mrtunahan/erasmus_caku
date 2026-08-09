@@ -70,6 +70,10 @@ window.__lazyModules = {
     component: 'BolumYonetimiModuluApp',
   },
   muafiyet: { loader: () => import('./ders-muafiyet.jsx'), component: 'DersMuafiyetApp' },
+  tabanpuan: {
+    loader: () => import('./taban-puan-modulu.jsx'),
+    component: 'TabanPuanModuluApp',
+  },
   capyandal: { loader: () => import('./cap-yandal-modulu.jsx'), component: 'CapYandalApp' },
   gelenbelgeler: {
     loader: () => import('./gelen-belgeler-modulu.jsx'),
