@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { tabanSatiriCoz, tabanTablosuCoz, metinKatmaniVarMi } from '../lib/taban-tablo.js';
+import { tabanKaydiBul } from '../lib/taban-puan.js';
 
 describe('tabanSatiriCoz — biçimler', () => {
   it('sekmeli (Excel/HTML kopyası)', () => {
@@ -85,10 +86,19 @@ describe('tabanSatiriCoz — reddedilenler', () => {
     expect(tabanSatiriCoz('Sayfa 3')).toBeNull();
   });
 
-  it('ondalıksız sayı taban puan sayılmaz (kontenjan / "dolmadı")', () => {
-    // Taban puanlar her zaman ondalıklı yayımlanıyor; "85" kontenjandır.
+  it('ÖSYM ilanının çok satıra bölünmüş başlığı', () => {
+    // Gerçek dosyada başlık dört ayrı satıra dağılıyordu ve hepsi
+    // "çözülemedi" diye raporlanıyordu.
+    expect(
+      tabanSatiriCoz('2025 DGS Yerleştirme Sonuçlarına İlişkin En Küçük ve En Büyük Puanlar')
+    ).toBeNull();
+    expect(tabanSatiriCoz('PROGRAM\tEN KÜÇÜK\tEN BÜYÜK')).toBeNull();
+    expect(tabanSatiriCoz('Fakülte Program PUAN TÜRÜ')).toBeNull();
+    expect(tabanSatiriCoz('KODU \tPUAN\tPUAN')).toBeNull();
+  });
+
+  it('ondalıksız sayı taban puan sayılmaz — "85" kontenjandır', () => {
     expect(tabanSatiriCoz('Bilgisayar Mühendisliği\t85')).toBeNull();
-    expect(tabanSatiriCoz('Maden Mühendisliği\tDolmadı')).toBeNull();
   });
 
   it('adı olmayan / yalnız sayıdan ibaret satır', () => {
@@ -130,9 +140,16 @@ describe('tabanTablosuCoz', () => {
     expect(r.kayitlar[0].taban).toBe('412,338');
   });
 
-  it('çözülemeyen satırları saklar — sessizce yutmaz', () => {
+  it('puanı olmayan programı ayrı kümeye koyar, çözülemeyene değil', () => {
+    // "Dolmadı" bir okuma hatası değil, bilgi: o programa yerleşen olmamış.
     const r = tabanTablosuCoz(yapistirilan);
-    expect(r.okunamayan.some((s) => s.includes('Maden'))).toBe(true);
+    expect(r.okunamayan).toEqual([]);
+    expect(r.puansizlar.map((k) => k.ad)).toEqual(['Maden Mühendisliği']);
+  });
+
+  it('gerçekten anlaşılmayan satır çözülemeyene düşer', () => {
+    const r = tabanTablosuCoz('lorem ipsum dolor sit');
+    expect(r.okunamayan).toHaveLength(1);
   });
 
   it('tekrar eden programı bir kez alır', () => {
@@ -206,5 +223,66 @@ describe('tabanTablosuCoz — puan sütunu seçimi', () => {
     expect(tabanTablosuCoz(tabanTavan).enCokPuanSutunu).toBe(2);
     expect(tabanTablosuCoz('Gıda Mühendisliği\t301,45').enCokPuanSutunu).toBe(1);
     expect(tabanTablosuCoz('').enCokPuanSutunu).toBe(0);
+  });
+});
+
+// ── Gerçek dosya: 2025 DGS Taban ve Tavan ilanı (ÇAKÜ) ──
+// Bu düzen kodu iki yerden kırdı: başlık dört satıra bölünmüştü ve puanı
+// yayımlanmamış programlar ("-- --") "çözülemedi" diye raporlanıyordu.
+describe('ÖSYM DGS ilanı düzeni', () => {
+  const gercek = [
+    '2025 DGS Yerleştirme Sonuçlarına İlişkin En Küçük ve En Büyük Puanlar',
+    'PROGRAM\tEN KÜÇÜK\tEN BÜYÜK',
+    'Fakülte Program PUAN TÜRÜ',
+    'KODU \tPUAN\tPUAN',
+    '102810138 Fen Fakültesi Biyoloji SAY 245,38197 263,26446',
+    '102890200 Fen Fakültesi Fizik SAY -- --',
+    '102890059 Mühendislik Fakültesi Bilgisayar Mühendisliği SAY 307,84423 311,79782',
+    '102890070 Mühendislik Fakültesi Makine Mühendisliği SAY 283,62244 283,62244',
+  ].join('\n');
+
+  it('program kodunu addan ayırır', () => {
+    const k = tabanSatiriCoz(
+      '102890059 Mühendislik Fakültesi Bilgisayar Mühendisliği SAY 307,84423 311,79782'
+    );
+    expect(k.kod).toBe('102890059');
+    expect(k.ad).toBe('Mühendislik Fakültesi Bilgisayar Mühendisliği');
+    expect(k.puanTuru).toBe('SAY');
+  });
+
+  it('EN KÜÇÜK puanı taban alır — EN BÜYÜK değil', () => {
+    // Tavan alınsaydı 307,84 yerine 311,79 taban sanılır, aradaki adaylar
+    // haksız yere elenirdi.
+    const k = tabanSatiriCoz(
+      '102890059 Mühendislik Fakültesi Bilgisayar Mühendisliği SAY 307,84423 311,79782'
+    );
+    expect(k.taban).toBe('307,84423');
+  });
+
+  it('"-- --" satırı HATA değil, puanı yayımlanmamış programdır', () => {
+    const k = tabanSatiriCoz('102890200 Fen Fakültesi Fizik SAY -- --');
+    expect(k.puansiz).toBe(true);
+    expect(k.ad).toBe('Fen Fakültesi Fizik');
+    expect(k.taban).toBe('');
+  });
+
+  it('"Dolmadı" da puansız sayılır', () => {
+    const k = tabanSatiriCoz('Maden Mühendisliği\tDolmadı');
+    expect(k.puansiz).toBe(true);
+    expect(k.ad).toBe('Maden Mühendisliği');
+  });
+
+  it('tam dosyada başlık ve puansız satırlar çözülemeyene düşmez', () => {
+    const r = tabanTablosuCoz(gercek);
+    expect(r.kayitlar).toHaveLength(3);
+    expect(r.puansizlar).toHaveLength(1);
+    expect(r.okunamayan).toEqual([]); // ← asıl şikâyet buydu
+  });
+
+  it('istenen program tablodan eşleşir (kod ve fakülte adına rağmen)', () => {
+    const r = tabanTablosuCoz(gercek);
+    const bulunan = tabanKaydiBul(r.kayitlar, 'Bilgisayar Mühendisliği');
+    expect(bulunan).not.toBeNull();
+    expect(bulunan.taban).toBe('307,84423');
   });
 });

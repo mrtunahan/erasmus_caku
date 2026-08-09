@@ -11734,13 +11734,16 @@ const TabanPuanPaneli = ({
       okuyan: String(currentUser?.name || currentUser?.identifier || ''),
     }));
     const bulunan = eslesen.filter((k) => k.taban).length;
+    const puansiz = (c.puansizlar || []).length;
     setMsg(
       c.kayitlar.length +
-        ' satır okundu · ' +
+        ' programın puanı okundu' +
+        (puansiz > 0 ? ' · ' + puansiz + ' programda puan yayımlanmamış' : '') +
+        ' · ' +
         bulunan +
         '/' +
         eslesen.length +
-        ' program eşleşti.' +
+        ' aradığınız program eşleşti.' +
         (bulunan < eslesen.length ? ' Eşleşmeyenleri elle girin.' : '')
     );
   };
@@ -12000,6 +12003,31 @@ const TabanPuanPaneli = ({
         >
           {msg}
         </div>
+      )}
+
+      {/* Puanı yayımlanmamış programlar — HATA DEĞİL. Tabloda "-- --" yazan
+          satırlar: program o yıl açılmamış ya da hiç yerleşen olmamış. Bunları
+          "çözülemedi" diye göstermek, okumanın başarısız olduğu izlenimi
+          veriyordu. */}
+      {cozum && (cozum.puansizlar || []).length > 0 && (
+        <details style={{ marginTop: 10 }}>
+          <summary
+            style={{ fontSize: 11.5, color: C.textMuted, cursor: 'pointer', fontWeight: 600 }}
+          >
+            {cozum.puansizlar.length} programın puanı yayımlanmamış (tabloda “--”)
+          </summary>
+          <div style={{ fontSize: 11.5, color: C.textMuted, margin: '6px 0 0', lineHeight: 1.6 }}>
+            Bu programlar o yıl açılmamış ya da hiç yerleşen olmamış; taban puanları yok. Okuma
+            hatası değildir.
+          </div>
+          <ul style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 11.5, lineHeight: 1.7 }}>
+            {cozum.puansizlar.slice(0, 25).map((k, i) => (
+              <li key={i} style={{ color: C.textMuted }}>
+                {k.ad}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {/* Okunamayan satırlar sessizce yutulmaz — eksik puanın sebebi burada. */}
