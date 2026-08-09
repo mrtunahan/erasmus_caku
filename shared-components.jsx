@@ -24,6 +24,7 @@ import {
   programAnahtari,
   TABAN_DURUM_ETIKET,
 } from './lib/taban-puan.js';
+import { tabanTablosuCoz, metinKatmaniVarMi } from './lib/taban-tablo.js';
 import {
   duyuruKapsamCoz,
   duyuruKapsamdaMi,
@@ -777,6 +778,83 @@ async function ensureDocxPreview() {
   return window.docx;
 }
 window.ensureDocxPreview = ensureDocxPreview;
+
+// ── PDF METİN KATMANI OKUMA (pdf.js) ──
+//
+// Taban puan tabloları çoğunlukla PDF olarak yayımlanıyor. Metin katmanı olan
+// bir PDF'te tablo İSTEMCİDE, hiçbir sunucu/model çağrısı olmadan okunabilir.
+// Metin katmanı yoksa (belge taranmış görüntüyse) bunu ayrıca bildiririz —
+// çözümü bambaşkadır, "tablo bulunamadı" demek yanıltıcı olurdu.
+//
+// pdf.js CDN'den bir kez yüklenir (JSZip/docx-preview ile aynı desen).
+async function ensurePdfJs() {
+  if (window.pdfjsLib) return window.pdfjsLib;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+    s.onload = res;
+    s.onerror = () => rej(new Error('PDF okuyucu (pdf.js) yüklenemedi'));
+    document.head.appendChild(s);
+  });
+  if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  }
+  return window.pdfjsLib;
+}
+window.ensurePdfJs = ensurePdfJs;
+
+// Sütun sınırı sayılan yatay boşluk (punto). Bunun altındaki boşluk aynı
+// hücrenin kelimeleri sayılır. pdf.js her hücreyi ayrı parça olarak verse de
+// bazı üreticiler kelime kelime bölüyor; ayrımı boşluk genişliği belirler.
+const PDF_SUTUN_BOSLUGU = 6;
+
+/**
+ * PDF'ten satır/sütun düzenini koruyarak metin çıkarır.
+ * Sütun sınırlarına sekme konur — taban-tablo ayrıştırıcısı sekmeyi kesin
+ * sınır sayıyor, böylece "Gıda Mühendisliği" gibi boşluklu adlar bölünmez.
+ *
+ * @param {File|Blob|ArrayBuffer} kaynak
+ * @returns {Promise<{metin:string, sayfaSayisi:number}>}
+ */
+window.pdfMetniCikar = async function (kaynak) {
+  const lib = await ensurePdfJs();
+  if (!lib) throw new Error('PDF okuyucu yüklenemedi.');
+  const buf = kaynak instanceof ArrayBuffer ? kaynak : await kaynak.arrayBuffer();
+  const belge = await lib.getDocument({ data: buf }).promise;
+  const satirlar = [];
+  for (let s = 1; s <= belge.numPages; s += 1) {
+    const sayfa = await belge.getPage(s);
+    const icerik = await sayfa.getTextContent();
+    // Parçaları y konumuna göre satırlara topla (aynı satır = aynı taban çizgi).
+    const satirHaritasi = new Map();
+    (icerik.items || []).forEach((it) => {
+      if (!it || !it.str) return;
+      const x = it.transform ? it.transform[4] : 0;
+      const y = it.transform ? Math.round(it.transform[5]) : 0;
+      if (!satirHaritasi.has(y)) satirHaritasi.set(y, []);
+      satirHaritasi.get(y).push({ x, genislik: it.width || 0, metin: it.str });
+    });
+    // y azalarak gider (PDF'te yukarı = büyük y) → sayfa sırası için ters çevir.
+    [...satirHaritasi.keys()]
+      .sort((a, b) => b - a)
+      .forEach((y) => {
+        const parcalar = satirHaritasi.get(y).sort((a, b) => a.x - b.x);
+        let satir = '';
+        let oncekiSon = null;
+        parcalar.forEach((p) => {
+          if (oncekiSon != null) {
+            const bosluk = p.x - oncekiSon;
+            satir += bosluk > PDF_SUTUN_BOSLUGU ? '\t' : bosluk > 0.5 ? ' ' : '';
+          }
+          satir += p.metin;
+          oncekiSon = p.x + p.genislik;
+        });
+        if (satir.trim()) satirlar.push(satir.trim());
+      });
+  }
+  return { metin: satirlar.join('\n'), sayfaSayisi: belge.numPages };
+};
 
 // A4 sayfası kapsayıcıdan genişse zoom ile sığdır (yatay kaydırma olmasın).
 function fitDocxPreview(container) {
@@ -4171,63 +4249,6 @@ window.aiDersEslestir = async function (ciftler) {
   return data;
 };
 
-/**
- * Taban puan okuma işini BAŞLATIR (yalnız personel) — sonucu beklemez.
- *
- * İş dakikalarca sürebildiği için senkron çalışmıyor: sunucu 202 döner, sonucu
- * `taban_puanlar` kaydına yazar, istemci aiTabanPuanDurum ile yoklar. Senkron
- * olsaydı nginx'in 60 saniyelik varsayılanına takılıp 504 verirdi (ve verdi).
- *
- * Model sayfayı ve sayfadaki PDF bağlantılarını okur, yalnız belgede yazan
- * sayıyı döndürür. "Uygun/uygun değil" kararı burada DEĞİL, tabanKarsilastir
- * ile istemcide verilir — karar aritmetiktir, modele bırakılmaz.
- *
- * @param {object} opt { url, programlar:[{id,ad,puanTuru}], yil, puanTuru, module, docType }
- * @returns {Promise<{ok, durum:'calisiyor', docId}>}
- */
-window.aiTabanPuanBul = async function (opt) {
-  const token = localStorage.getItem('caku_auth_token');
-  const res = await fetch('/api/ai/taban-puan', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: 'Bearer ' + token } : {}),
-    },
-    credentials: 'include',
-    body: JSON.stringify({
-      url: opt.url || '',
-      programlar: opt.programlar || [],
-      yil: opt.yil || '',
-      puanTuru: opt.puanTuru || '',
-      module: opt.module || '',
-      docType: opt.docType || 'default',
-      departmentId: opt.departmentId || '',
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const e = new Error(data.error || 'Taban puanlar okunamadı (HTTP ' + res.status + ')');
-    // Deneme dökümü hata yolunda da lazım — asıl tanı orada. Throw ile
-    // kaybolmasın diye hataya iliştiriliyor.
-    e.denemeler = data.denemeler || [];
-    throw e;
-  }
-  return data;
-};
-
-// Arka plan işinin durumu. Kayıt üzerinden okunur; önbelleğe alınmaz —
-// yoklamanın amacı zaten değişimi görmek.
-window.aiTabanPuanDurum = async function (docId) {
-  const token = localStorage.getItem('caku_auth_token');
-  const res = await fetch('/api/ai/taban-puan/' + encodeURIComponent(docId), {
-    headers: token ? { Authorization: 'Bearer ' + token } : {},
-    credentials: 'include',
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Durum alınamadı (HTTP ' + res.status + ')');
-  return data;
-};
-
 // ── Dosya içerik özeti (SHA-256) ──
 //
 // Aynı belgenin ikinci kez yüklenmesini yakalamak için. Dosya ADI güvenilir
@@ -4256,6 +4277,8 @@ window.tabanKaydiBul = tabanKaydiBul;
 window.tabanKarsilastir = tabanKarsilastir;
 window.programAnahtari = programAnahtari;
 window.TABAN_DURUM_ETIKET = TABAN_DURUM_ETIKET;
+window.tabanTablosuCoz = tabanTablosuCoz;
+window.metinKatmaniVarMi = metinKatmaniVarMi;
 
 // Alan listesi verilmemişse şablon eşlemesinden çöz — iki bileşen de kullanır.
 function useAiAlanlari(alanlar, module, docType, departmentId) {
@@ -11625,26 +11648,20 @@ const TabanPuanPaneli = ({
   onKayitlar,
   puanTuru,
 }) => {
-  const { useState, useEffect, useCallback } = window.React;
+  const { useState, useEffect, useCallback, useRef } = window.React;
   const docId = tabanKapsamAnahtari(departmentId, modul);
 
-  const [url, setUrl] = useState('');
-  const [yil, setYil] = useState('');
   const [kayit, setKayit] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [ham, setHam] = useState(''); // yapıştırılan / çıkarılan metin
+  const [cozum, setCozum] = useState(null); // { kayitlar, okunamayan, enCokPuanSutunu }
+  const [puanSutunu, setPuanSutunu] = useState(0);
+  const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
   const [hata, setHata] = useState('');
-  // Hangi adresler denendi, hangisi açıldı. "Bulunamadı" mesajı tek başına
-  // tanı koydurmuyor: sayfa okunup program tabloda bulunamadı mı, yoksa sayfa
-  // hiç açılamadı mı — ayrımı yalnız bu döküm gösteriyor.
-  const [denemeler, setDenemeler] = useState([]);
-  // Süren yoklamanın zamanlayıcısı ve güncel yoklama işlevi. İşlev bir ref'te
-  // tutuluyor ki aşağıdaki ilk yükleme etkisi, tanımı kendisinden SONRA gelen
-  // yokla()'ya bağımlılık eklemek zorunda kalmadan çağırabilsin.
-  const yoklamaRef = window.React.useRef(null);
-  const yoklaRef = window.React.useRef(() => {});
+  const [taranmis, setTaranmis] = useState(false); // metin katmanı yok
+  const dosyaRef = useRef(null);
 
-  // Kayıtlı adres + daha önce okunmuş puanlar.
+  // Daha önce kaydedilmiş puanlar.
   useEffect(() => {
     let iptal = false;
     window
@@ -11652,20 +11669,7 @@ const TabanPuanPaneli = ({
       .then((liste) => {
         if (iptal) return;
         const d = (liste || []).find((x) => (x.id || x._docId) === docId);
-        if (!d) return;
-        setKayit(d);
-        setUrl(d.url || '');
-        setYil(d.yil || '');
-        setDenemeler(Array.isArray(d.denemeler) ? d.denemeler : []);
-        if (d.durum === 'hata' && d.hataMesaji) setHata(d.hataMesaji);
-        // Panel kapalıyken başlamış bir iş hâlâ sürüyor olabilir — sessizce
-        // "sonuç yok" göstermek yerine yoklamaya geri bağlan. (Çok eski
-        // "calisiyor" kaydı takılı kalmış demektir; ona bağlanmayız.)
-        const bas = Date.parse(d.baslangicZamani || '') || 0;
-        if (d.durum === 'calisiyor' && Date.now() - bas < 15 * 60 * 1000) {
-          setBusy(true);
-          yoklaRef.current(Date.now() + 8 * 60 * 1000);
-        }
+        if (d) setKayit(d);
       })
       .catch(() => {});
     return () => {
@@ -11684,226 +11688,280 @@ const TabanPuanPaneli = ({
     bildir((kayit && kayit.programlar) || []);
   }, [kayit, bildir]);
 
-  // İş bittiğinde sonucu ekrana yansıt. Sunucu kaydı zaten yazdı; burada
-  // yalnız yorumluyoruz.
-  const sonucuIsle = useCallback(
-    (d) => {
-      const okunan = Array.isArray(d.programlar) ? d.programlar : [];
-      setKayit((onceki) => ({
-        ...(onceki || {}),
-        id: docId,
-        url: d.url || '',
-        programlar: okunan,
-        okunmaZamani: d.okunmaZamani || '',
-        okuyan: d.okuyan || '',
-        maliyetUsd: d.maliyetUsd || 0,
-        kullanilanModel: d.kullanilanModel || '',
-      }));
-      setDenemeler(d.denemeler || []);
-      if (d.durum === 'hata') {
-        setHata(d.hataMesaji || 'Taban puanlar okunamadı.');
-        return;
-      }
-      const bulunan = okunan.filter((k) => k.taban).length;
-      const acilan = (d.denemeler || []).filter((x) => x.ok).length;
-      if (okunan.length > 0 && bulunan === 0 && acilan === 0) {
-        // Hiçbir sayfa açılamadıysa bu bir BAŞARISIZLIKTIR; yeşil "0 bulundu"
-        // kutusu göstermek, sorunun kaynağını gizler.
-        setHata(
-          'Hiçbir sayfa açılamadı — taban puan aranamadı. Aşağıdaki denemelere bakın; ' +
-            'adres yanlış ya da eskimiş olabilir.'
-        );
-      } else if (okunan.length > 0 && bulunan === 0) {
-        // Sayfa AÇILDI ama puan çıkmadı — bu bambaşka bir durum ve sebebi
-        // yalnız modelin kendi açıklamasında. Genellikle YANLIŞ BELGE açılmış
-        // oluyor (aynı yılın DGS listesi yerine lisans listesi gibi).
-        const nedenler = Array.from(new Set(okunan.map((k) => k.aciklama).filter(Boolean)));
-        setHata(
-          'Sayfa açıldı ama taban puan bulunamadı.' +
-            (nedenler.length > 0
-              ? ' Sebep: ' + nedenler.join(' · ')
-              : ' Yıl ya da belge türü sayfadakiyle uyuşmuyor olabilir.') +
-            ' Doğrudan doğru belgenin (ör. ilgili yılın DGS listesinin) adresini girmeyi deneyin' +
-            ' ya da puanı elle yazın.'
-        );
-      } else if (bulunan > 0) {
-        setMsg(
-          bulunan +
-            ' / ' +
-            okunan.length +
-            ' program için taban puan bulundu.' +
-            (bulunan < okunan.length ? ' Bulunamayanları elle girebilirsiniz.' : '')
-        );
-        setTimeout(() => setMsg(''), 12000);
-      }
+  // Metni çöz ve istenen programlarla eşleştir. Eşleştirmeyi lib yapar
+  // (tabanKaydiBul): belirsiz eşleşmede HİÇBİRİ seçilmez — yanlış taban puan,
+  // yanlış değerlendirme demektir.
+  const cozUygula = useCallback(
+    (metin, sutun) => {
+      const c = window.tabanTablosuCoz(metin, sutun);
+      setCozum(c);
+      const istenen = (programlar || []).filter((p) => p && p.id && p.ad);
+      const eslesen = istenen.map((p) => {
+        const bulunan = tabanKaydiBul(c.kayitlar, p.ad);
+        return {
+          id: p.id,
+          ad: p.ad,
+          taban: bulunan ? bulunan.taban : '',
+          kaynak: bulunan ? 'tablodan okundu' : '',
+          aciklama: bulunan ? '' : 'tabloda eşleşmedi — elle girin',
+        };
+      });
+      return { cozum: c, eslesen };
     },
-    [docId]
+    [programlar]
   );
 
-  // ── İşi yoklama ──
-  // Sunucu 202 dönüp arkada çalıştığı için sonucu kayıttan öğreniyoruz.
-  // Sekme kapansa bile iş sürer ve sonuç kayda yazılır; panel yeniden
-  // açıldığında (aşağıdaki ilk yükleme) sürmekte olan işe geri bağlanır.
-  useEffect(() => {
-    return () => {
-      if (yoklamaRef.current) clearTimeout(yoklamaRef.current);
-    };
-  }, []);
-
-  const yokla = useCallback(
-    (bitis) => {
-      if (Date.now() > bitis) {
-        setBusy(false);
-        setHata(
-          'Okuma hâlâ sürüyor. İş arka planda devam ediyor; birkaç dakika sonra bu ekranı ' +
-            'yeniden açtığınızda sonuç burada olacak.'
-        );
-        return;
-      }
-      yoklamaRef.current = setTimeout(async () => {
-        try {
-          const d = await window.aiTabanPuanDurum(docId);
-          if (d.durum === 'calisiyor') {
-            yokla(bitis);
-            return;
-          }
-          setBusy(false);
-          sonucuIsle(d);
-        } catch (e) {
-          // Tek bir yoklama hatası işi bitirmez — ağ dalgalanması olabilir.
-          yokla(bitis);
-        }
-      }, 4000);
-    },
-    [docId, sonucuIsle]
-  );
-  yoklaRef.current = yokla;
-
-  const getir = async () => {
-    const istenen = (programlar || []).filter((p) => p && p.id && p.ad);
-    if (istenen.length === 0) {
-      setHata('Taban puanı aranacak program yok.');
-      return;
-    }
-    // Aynı adres ve yıl için puanlar zaten okunmuşsa yeniden okumak PARA
-    // HARCAR ve yeni bir şey getirmez — taban puanlar yıl içinde değişmiyor.
-    // Yine de akademisyen isterse tekrarlayabilsin diye engel değil, uyarı.
-    const oncekiler = (kayit && kayit.programlar) || [];
-    const ayniSorgu = (kayit || {}).url === url && (kayit || {}).yil === yil;
-    const doluSayisi = oncekiler.filter((k) => k.taban).length;
-    if (
-      ayniSorgu &&
-      doluSayisi > 0 &&
-      !window.confirm(
-        'Bu adres ve yıl için ' +
-          doluSayisi +
-          ' programın taban puanı zaten okunmuş' +
-          (kayit.maliyetUsd > 0
-            ? ' (son okuma ≈ $' + Number(kayit.maliyetUsd).toFixed(3) + ')'
-            : '') +
-          '.\n\nTaban puanlar yıl içinde değişmez; yeniden okumak ücretli bir model ' +
-          'çağrısı daha yapar ve elle yaptığınız düzeltmelerin üzerine yazar.\n\n' +
-          'Yine de yeniden okunsun mu?'
-      )
-    ) {
-      return;
-    }
-    setBusy(true);
+  const metniIsle = (metin, kaynakAdi) => {
     setHata('');
     setMsg('');
-    setDenemeler([]);
+    setTaranmis(false);
+    const { cozum: c, eslesen } = cozUygula(metin, puanSutunu);
+    if (c.kayitlar.length === 0) {
+      setHata(
+        'Bu metinde taban puan satırı bulunamadı. Tabloyu program adı ve puan yan yana ' +
+          'olacak şekilde kopyaladığınızdan emin olun.'
+      );
+      return;
+    }
+    setKayit((onceki) => ({
+      ...(onceki || {}),
+      id: docId,
+      modul,
+      departmentId,
+      programlar: eslesen,
+      kaynakAdi: kaynakAdi || '',
+      okunmaZamani: new Date().toISOString(),
+      okuyan: String(currentUser?.name || currentUser?.identifier || ''),
+    }));
+    const bulunan = eslesen.filter((k) => k.taban).length;
+    setMsg(
+      c.kayitlar.length +
+        ' satır okundu · ' +
+        bulunan +
+        '/' +
+        eslesen.length +
+        ' program eşleşti.' +
+        (bulunan < eslesen.length ? ' Eşleşmeyenleri elle girin.' : '')
+    );
+  };
+
+  // Puan sütunu değişince aynı metni yeniden çöz — dosyayı tekrar yüklemeye
+  // gerek yok.
+  const sutunDegistir = (yeni) => {
+    setPuanSutunu(yeni);
+    if (!ham) return;
+    const { eslesen } = cozUygula(ham, yeni);
+    setKayit((onceki) => ({ ...(onceki || {}), programlar: eslesen }));
+  };
+
+  const yapistir = () => {
+    if (!ham.trim()) {
+      setHata('Önce tabloyu yukarıdaki alana yapıştırın.');
+      return;
+    }
+    metniIsle(ham, 'yapıştırıldı');
+  };
+
+  const dosyaSec = async (e) => {
+    const f = (e.target.files && e.target.files[0]) || null;
+    e.target.value = '';
+    if (!f) return;
+    setHata('');
+    setMsg('');
+    setTaranmis(false);
+    setBusy('dosya');
     try {
-      await window.aiTabanPuanBul({
-        url,
-        yil,
-        puanTuru: puanTuru || '',
-        programlar: istenen,
-        module: modul,
-        departmentId,
-        okuyan: String(currentUser?.name || currentUser?.identifier || ''),
-      });
-      // İş en fazla 8 dakika yoklanır; ötesinde arka planda sürmeye devam eder.
-      yokla(Date.now() + 8 * 60 * 1000);
-    } catch (e) {
-      setBusy(false);
-      setHata(e.message);
-      setDenemeler(e.denemeler || []);
+      if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
+        const { metin, sayfaSayisi } = await window.pdfMetniCikar(f);
+        if (!window.metinKatmaniVarMi(metin, sayfaSayisi)) {
+          // Taranmış PDF: sayfalar GÖRÜNTÜ, metin katmanı yok. "Tablo
+          // bulunamadı" demek yanıltıcı olurdu — çözümü bambaşka.
+          setTaranmis(true);
+          setHam('');
+          setHata(
+            'Bu PDF taranmış görüntülerden oluşuyor; içinde seçilebilir metin yok, ' +
+              'bu yüzden tablo okunamıyor.'
+          );
+          return;
+        }
+        setHam(metin);
+        metniIsle(metin, f.name);
+      } else {
+        // .csv / .txt — düz metin
+        const metin = await f.text();
+        setHam(metin);
+        metniIsle(metin, f.name);
+      }
+    } catch (err) {
+      setHata('Dosya okunamadı: ' + err.message);
+    } finally {
+      setBusy('');
     }
   };
 
-  // Elle düzeltme — model yanlış satırı eşleştirmiş olabilir, son söz insanda.
-  const elleYaz = async (id, deger) => {
-    const guncel = ((kayit && kayit.programlar) || []).map((k) =>
-      k.id === id ? { ...k, taban: deger, guven: 1, kaynak: 'elle girildi', aciklama: '' } : k
-    );
-    const yeni = { ...(kayit || { url, yil, modul, departmentId }), programlar: guncel };
-    setKayit(yeni);
+  // Elle düzeltme — son söz insanda.
+  const elleYaz = (id, deger) => {
+    setKayit((onceki) => {
+      const guncel = ((onceki && onceki.programlar) || []).map((k) =>
+        k.id === id ? { ...k, taban: deger, kaynak: 'elle girildi', aciklama: '' } : k
+      );
+      return { ...(onceki || { modul, departmentId }), programlar: guncel };
+    });
+  };
+
+  // Kaydet — panel değerleri ancak burada kalıcı olur.
+  const kaydet = async () => {
+    const liste = (kayit && kayit.programlar) || [];
+    if (liste.length === 0) return;
+    setBusy('kayit');
+    setHata('');
     try {
-      await window.DBWrite.set(TABAN_KOLEKSIYON, docId, { programlar: guncel }, true);
+      await window.DBWrite.set(
+        TABAN_KOLEKSIYON,
+        docId,
+        {
+          modul,
+          departmentId,
+          programlar: liste,
+          kaynakAdi: (kayit && kayit.kaynakAdi) || '',
+          okunmaZamani: new Date().toISOString(),
+          okuyan: String(currentUser?.name || currentUser?.identifier || ''),
+        },
+        true
+      );
+      setMsg('Taban puanlar kaydedildi.');
+      setTimeout(() => setMsg(''), 4000);
     } catch (e) {
       setHata('Kaydedilemedi: ' + e.message);
+    } finally {
+      setBusy('');
     }
   };
 
-  const okunanlar = (kayit && kayit.programlar) || [];
+  // Hiç okuma yapılmamışsa bile istenen programlar elle doldurulabilsin.
+  const okunanlar =
+    (kayit && kayit.programlar && kayit.programlar.length > 0 && kayit.programlar) ||
+    (programlar || []).map((p) => ({ id: p.id, ad: p.ad, taban: '', kaynak: '', aciklama: '' }));
+
+  const dugme = (bg, renk, kenar) => ({
+    padding: '8px 16px',
+    borderRadius: 8,
+    border: kenar ? '1px solid ' + kenar : 'none',
+    background: bg,
+    color: renk,
+    fontSize: 12.5,
+    fontWeight: 700,
+    fontFamily: 'inherit',
+    cursor: busy ? 'wait' : 'pointer',
+    opacity: busy ? 0.6 : 1,
+  });
 
   return (
     <div style={tabanKart}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 300px' }}>
-          <label style={tabanEtiket}>{baslik || 'Taban puan sayfasının adresi'}</label>
-          <input
-            value={url}
-            disabled={busy}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://oidb.karatekin.edu.tr/tabantavan-puanlar-…"
-            style={tabanGirdi}
-          />
-        </div>
-        <div style={{ width: 110 }}>
-          <label style={tabanEtiket}>Yıl</label>
-          <input
-            value={yil}
-            disabled={busy}
-            onChange={(e) => setYil(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder="ör. 2025"
-            style={tabanGirdi}
-          />
-        </div>
+      <label style={tabanEtiket}>{baslik || 'Taban puan tablosu'}</label>
+
+      {/* Yapıştırma alanı — birincil yol. Kurumun sayfasındaki ya da PDF'teki
+          tabloyu seçip kopyalamak, hem en hızlı hem en güvenilir yöntem:
+          hangi listenin (ÖNLİSANS / LİSANS / DGS) doğru olduğuna İNSAN karar
+          verir, o yüzden yanlış liste okuma diye bir hata kalmaz. */}
+      <textarea
+        value={ham}
+        onChange={(e) => setHam(e.target.value)}
+        placeholder={
+          'Tabloyu buraya yapıştırın. Örnek:\n' +
+          'Bilgisayar Mühendisliği\t412,338\n' +
+          'Makine Mühendisliği\t355,201'
+        }
+        rows={5}
+        style={{ ...tabanGirdi, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+      />
+
+      <div
+        style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}
+      >
+        <button onClick={yapistir} disabled={!!busy || !ham.trim()} style={dugme(C.navy, '#fff')}>
+          Tabloyu Oku
+        </button>
         <button
-          onClick={getir}
-          disabled={busy || !url.trim()}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: 'none',
-            background: C.navy,
-            color: '#fff',
-            fontSize: 12.5,
-            fontWeight: 700,
-            fontFamily: 'inherit',
-            opacity: busy || !url.trim() ? 0.5 : 1,
-            cursor: busy || !url.trim() ? 'not-allowed' : 'pointer',
-          }}
+          onClick={() => dosyaRef.current && dosyaRef.current.click()}
+          disabled={!!busy}
+          style={dugme('#fff', C.navy, C.border)}
         >
-          {busy ? 'Okunuyor…' : 'Taban Puanları Getir'}
+          {busy === 'dosya' ? 'Okunuyor…' : 'PDF / CSV Yükle'}
+        </button>
+        <input
+          ref={dosyaRef}
+          type="file"
+          accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain"
+          style={{ display: 'none' }}
+          onChange={dosyaSec}
+        />
+        <button
+          onClick={kaydet}
+          disabled={!!busy || okunanlar.length === 0}
+          style={dugme(C.green, '#fff')}
+        >
+          {busy === 'kayit' ? 'Kaydediliyor…' : 'Kaydet'}
         </button>
       </div>
 
-      {busy && (
-        <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8 }}>
-          Sayfa ve içindeki PDF'ler okunuyor — bu birkaç dakika sürebilir. İşlem <b>arka planda</b>{' '}
-          çalışıyor: bu ekrandan ayrılsanız bile sürer, sonuç buraya kaydedilir.
-        </div>
-      )}
-
       <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8, lineHeight: 1.5 }}>
         {aciklama ||
-          'Adresteki sayfa (ve sayfadaki PDF bağlantıları) okunur, istenen programların ' +
-            'taban puanı çıkarılır.'}{' '}
-        Getirilen puanlar bir <b>öneridir</b>: her satırı elle düzeltebilirsiniz, kaydedilen değer
+          'Kurumun taban-tavan sayfasındaki tabloyu seçip kopyalayın ve buraya yapıştırın; ' +
+            'ya da PDF/CSV dosyasını yükleyin.'}{' '}
+        Okunan puanlar bir <b>öneridir</b>: her satırı elle düzeltebilirsiniz, kaydedilen değer
         sizin girdiğinizdir.
+        {puanTuru ? (
+          <>
+            {' '}
+            Bu panel <b>{puanTuru}</b> listesini bekliyor — doğru listeyi kopyaladığınızdan emin
+            olun.
+          </>
+        ) : null}
       </div>
+
+      {/* Birden çok puan sütunu varsa hangisinin taban olduğunu SOR. En
+          sağdakini varsaymak, taban-tavan tablolarında tavan puanı taban
+          sanmaya ve şartı sağlayan adayı elemeye yol açıyordu. */}
+      {cozum && cozum.enCokPuanSutunu > 1 && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: '8px 12px',
+            borderRadius: 7,
+            background: C.bg,
+            fontSize: 12,
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ fontWeight: 600, color: C.text }}>
+            Satırlarda {cozum.enCokPuanSutunu} puan sütunu var. Taban puan hangisi?
+          </span>
+          {Array.from({ length: cozum.enCokPuanSutunu }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => sutunDegistir(i)}
+              style={{
+                padding: '4px 12px',
+                borderRadius: 16,
+                border: '1px solid ' + (puanSutunu === i ? C.navy : C.border),
+                background: puanSutunu === i ? C.navy : '#fff',
+                color: puanSutunu === i ? '#fff' : C.textMuted,
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {i + 1}. sütun
+            </button>
+          ))}
+        </div>
+      )}
 
       {hata && (
         <div
@@ -11915,9 +11973,17 @@ const TabanPuanPaneli = ({
             color: C.accent,
             fontSize: 12,
             fontWeight: 600,
+            lineHeight: 1.55,
           }}
         >
           {hata}
+          {taranmis && (
+            <div style={{ marginTop: 6, fontWeight: 500 }}>
+              Ne yapabilirsiniz: PDF'i tarayıcıda açıp tabloyu <b>fareyle seçmeyi</b> deneyin —
+              seçilebiliyorsa kopyalayıp yukarıya yapıştırın. Seçilemiyorsa belge gerçekten
+              görüntüdür; puanları elle girmeniz gerekir (aşağıdaki tablodan).
+            </div>
+          )}
         </div>
       )}
       {msg && (
@@ -11936,20 +12002,18 @@ const TabanPuanPaneli = ({
         </div>
       )}
 
-      {/* Deneme dökümü — "neden bulunamadı" sorusunun tek cevabı. */}
-      {denemeler.length > 0 && (
+      {/* Okunamayan satırlar sessizce yutulmaz — eksik puanın sebebi burada. */}
+      {cozum && cozum.okunamayan.length > 0 && (
         <details style={{ marginTop: 10 }}>
           <summary
             style={{ fontSize: 11.5, color: C.textMuted, cursor: 'pointer', fontWeight: 600 }}
           >
-            Denenen adresler ({denemeler.filter((d) => d.ok).length}/{denemeler.length} açıldı)
+            Çözülemeyen {cozum.okunamayan.length} satır
           </summary>
           <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 11.5, lineHeight: 1.7 }}>
-            {denemeler.map((d, i) => (
-              <li key={i} style={{ color: d.ok ? C.textMuted : C.accent }}>
-                <b>{d.arac === 'arama' ? 'Arama' : 'Getirme'}:</b>{' '}
-                <span style={{ wordBreak: 'break-all' }}>{d.url || '(sorgu)'}</span>
-                {d.ok ? ' — açıldı' : ' — ' + (d.hata || 'başarısız')}
+            {cozum.okunamayan.slice(0, 25).map((sat, i) => (
+              <li key={i} style={{ color: C.textMuted, wordBreak: 'break-all' }}>
+                {sat}
               </li>
             ))}
           </ul>
@@ -11980,29 +12044,15 @@ const TabanPuanPaneli = ({
                   <td style={{ padding: '6px 8px', fontWeight: 600, color: C.text }}>{k.ad}</td>
                   <td style={{ padding: '6px 8px' }}>
                     <input
-                      value={k.taban}
+                      value={k.taban || ''}
                       onChange={(e) => elleYaz(k.id, e.target.value)}
                       placeholder="—"
                       style={{ ...tabanGirdi, padding: '5px 8px', fontSize: 12 }}
                     />
                   </td>
                   <td style={{ padding: '6px 8px', color: C.textMuted, fontSize: 11.5 }}>
-                    {k.kaynak && /^https?:\/\//.test(k.kaynak) ? (
-                      <a
-                        href={k.kaynak}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: C.blue }}
-                      >
-                        Belgeyi aç
-                      </a>
-                    ) : (
-                      k.kaynak || '—'
-                    )}
+                    {k.kaynak || '—'}
                     {k.aciklama ? ' · ' + k.aciklama : ''}
-                    {k.taban && k.guven > 0 && k.guven < 0.7 ? (
-                      <b style={{ color: C.accent }}> · düşük güven, kontrol edin</b>
-                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -12010,14 +12060,9 @@ const TabanPuanPaneli = ({
           </table>
           {kayit && kayit.okunmaZamani && (
             <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
-              Son okuma: {new Date(kayit.okunmaZamani).toLocaleString('tr-TR')}
+              Son güncelleme: {new Date(kayit.okunmaZamani).toLocaleString('tr-TR')}
               {kayit.okuyan ? ' · ' + kayit.okuyan : ''}
-              {/* Maliyet, tuşa basanın gözünün önünde. Aylık toplama gömülü
-                  kalsa "bu tuş ne tutuyor" sorusu cevapsız kalırdı. */}
-              {kayit.maliyetUsd > 0
-                ? ' · bu okumanın maliyeti ≈ $' + Number(kayit.maliyetUsd).toFixed(3)
-                : ''}
-              {kayit.kullanilanModel ? ' · ' + kayit.kullanilanModel : ''}
+              {kayit.kaynakAdi ? ' · kaynak: ' + kayit.kaynakAdi : ''}
             </div>
           )}
         </div>

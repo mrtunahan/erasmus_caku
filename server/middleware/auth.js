@@ -1,9 +1,9 @@
-const jwt = require("jsonwebtoken");
+const jwt = require('jsonwebtoken');
 
 // Üretimde JWT_SECRET zorunlu — dev'de fallback (mevcut davranışla uyumlu).
-const DEV_FALLBACK_SECRET = "caku-erasmus-dev-secret-key";
+const DEV_FALLBACK_SECRET = 'caku-erasmus-dev-secret-key';
 if (
-  process.env.NODE_ENV === "production" &&
+  process.env.NODE_ENV === 'production' &&
   (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEV_FALLBACK_SECRET)
 ) {
   // Fail-fast: secret tanımsızsa VEYA bilinen zayıf dev-fallback değerine
@@ -13,11 +13,11 @@ if (
   );
 }
 const JWT_SECRET = process.env.JWT_SECRET || DEV_FALLBACK_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 if (JWT_SECRET === DEV_FALLBACK_SECRET) {
   console.warn(
-    "[auth] DİKKAT: JWT_SECRET ayarlanmamış — geliştirme fallback kullanılıyor. Üretimde mutlaka değiştirin."
+    '[auth] DİKKAT: JWT_SECRET ayarlanmamış — geliştirme fallback kullanılıyor. Üretimde mutlaka değiştirin.'
   );
 }
 
@@ -35,21 +35,21 @@ function verifyToken(token) {
 function getTokenCookieOptions() {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
     maxAge: 24 * 60 * 60 * 1000, // 24 saat
-    path: "/",
+    path: '/',
   };
 }
 
 // Token'ı httpOnly cookie olarak set et
 function setTokenCookie(res, token) {
-  res.cookie("caku_auth", token, getTokenCookieOptions());
+  res.cookie('caku_auth', token, getTokenCookieOptions());
 }
 
 // Token cookie'sini temizle
 function clearTokenCookie(res) {
-  res.clearCookie("caku_auth", { path: "/" });
+  res.clearCookie('caku_auth', { path: '/' });
 }
 
 // Express middleware: önce httpOnly cookie, yoksa Authorization header
@@ -64,8 +64,8 @@ function requireAuth(req, res, next) {
   // 2. Fallback: Authorization header (geriye dönük uyumluluk)
   if (!token) {
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      token = authHeader.split(" ")[1];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
     }
   }
 
@@ -78,11 +78,18 @@ function requireAuth(req, res, next) {
     req.user = decoded;
     next();
   } catch (err) {
-    if (err.name === "TokenExpiredError") {
-      return res.status(401).json({ error: "Token süresi dolmuş." });
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token süresi dolmuş.' });
     }
-    return res.status(401).json({ error: "Geçersiz token." });
+    return res.status(401).json({ error: 'Geçersiz token.' });
   }
 }
 
-module.exports = { generateToken, verifyToken, requireAuth, setTokenCookie, clearTokenCookie, JWT_SECRET };
+module.exports = {
+  generateToken,
+  verifyToken,
+  requireAuth,
+  setTokenCookie,
+  clearTokenCookie,
+  JWT_SECRET,
+};

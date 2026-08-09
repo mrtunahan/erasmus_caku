@@ -39,9 +39,7 @@
     );
   });
 
-  const fenDepts = fenId
-    ? departments.filter((d) => String(d.facultyId) === String(fenId))
-    : [];
+  const fenDepts = fenId ? departments.filter((d) => String(d.facultyId) === String(fenId)) : [];
   console.log('\n════════ ÖZET ════════');
   console.log(`  Toplam fakülte : ${faculties.length}`);
   console.log(`  Toplam bölüm   : ${departments.length}`);
@@ -50,12 +48,14 @@
     console.log(
       '\n  ⚠ Fen fakültesine bağlı HİÇ bölüm yok — sağ menüde "Fen Fakültesi" grubu\n' +
         '    bu yüzden görünmez. Olası nedenler:\n' +
-        '      1) Bölümler DB\'de yok  → move-deps-to-fen-fakultesi.js\n' +
-        '      2) Bölümlerin facultyId\'si farklı/eski (ObjectId) → normalize-fen-faculty.js\n' +
-        '      3) Bölümlerin facultyId\'si boş.'
+        "      1) Bölümler DB'de yok  → move-deps-to-fen-fakultesi.js\n" +
+        "      2) Bölümlerin facultyId'si farklı/eski (ObjectId) → normalize-fen-faculty.js\n" +
+        "      3) Bölümlerin facultyId'si boş."
     );
   } else {
-    console.log('\n  ✓ Fen bölümleri mevcut. Sorun istemci tarafında (adminScope/bayrak/derleme) olabilir.');
+    console.log(
+      '\n  ✓ Fen bölümleri mevcut. Sorun istemci tarafında (adminScope/bayrak/derleme) olabilir.'
+    );
   }
 
   // A. Tunahan KORKMAZ'ın yetki bayrakları (üniversite admini mi?)

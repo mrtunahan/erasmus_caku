@@ -1746,7 +1746,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       {/* Başvuru listesi */}
       {sekme === 'basvurular' && (
         <>
-          {/* Akademisyen: taban puanları kurumun sayfasından oku.
+          {/* Akademisyen: taban puan tablosunu yapıştır ya da yükle.
               Yalnız merkezi yerleştirmede — kurum içi/kurumlararası geçişte
               taban puan şartı yoktur, ölçüt AGNO ve yerleştirme puanıdır. */}
           {isStaff &&
@@ -1759,18 +1759,18 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                 modul="yatay-merkezi"
                 programlar={tabanProgramlari}
                 onKayitlar={setTabanKayitlari}
-                // Belge türü ipucu ŞART: kurumlar aynı yıl için ÖNLİSANS,
-                // LİSANS ve DGS listelerini AYRI AYRI yayımlıyor; bir program
-                // hepsinde geçebiliyor ama puanları bambaşka. Tür söylenmezse
-                // yanlış listeden okuma riski var.
+                // Liste türü ŞART: kurumlar aynı yıl için ÖNLİSANS, LİSANS ve
+                // DGS listelerini AYRI AYRI yayımlıyor; bir program hepsinde
+                // geçebiliyor ama puanları bambaşka. Panel hangisini beklediğini
+                // yazsın ki yetkili doğru tabloyu kopyalasın.
                 puanTuru="LİSANS (ÖSYS/YKS merkezi yerleştirme listesi)"
-                baslik="Taban puan sayfasının adresi (ÖSYS/YKS)"
+                baslik="Taban puan tablosu (ÖSYS/YKS)"
                 aciklama={
                   'Merkezi yerleştirme puanıyla geçişte adayın YKS puanı, başvurduğu programın ' +
-                  'taban puanından küçük olamaz. Adres verilirse sayfa (ve içindeki PDF ' +
-                  'bağlantıları) okunur; ' +
+                  'taban puanından küçük olamaz. Kurumun taban-tavan tablosunu yapıştırın ya da ' +
+                  'PDF/CSV olarak yükleyin; ' +
                   tabanProgramlari.length +
-                  ' program için taban puan aranır.'
+                  ' program otomatik eşleştirilir.'
                 }
               />
             )}
