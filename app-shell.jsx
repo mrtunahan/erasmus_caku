@@ -574,9 +574,6 @@ const Sidebar = ({
         'projeler',
         'staj',
         'performans',
-        // Taban puan kütüphanesi akademisyene de açık: yatay/dikey geçiş
-        // değerlendirmesini yapan kişi tabloyu görebilmeli.
-        'tabanpuan',
       ];
       const allowed = base.concat(commissionModules);
       return DEPARTMENT_MODULES.filter((m) => allowed.includes(m.id));
@@ -2596,16 +2593,7 @@ function AppShell() {
       : isDeptManager || isAdmin || isHierarchyManager
         ? DEPARTMENT_MODULES.filter((m) => m.id !== 'benim').map((m) => m.id)
         : isProfessor
-          ? [
-              'sinav',
-              'formlar',
-              'dersprogrami',
-              'lisansustu',
-              'projeler',
-              'staj',
-              'performans',
-              'tabanpuan',
-            ]
+          ? ['sinav', 'formlar', 'dersprogrami', 'lisansustu', 'projeler', 'staj', 'performans']
           : [
               'benim',
               'erasmus',
