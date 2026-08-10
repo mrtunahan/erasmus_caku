@@ -632,6 +632,24 @@ async function enforceWritePolicies(db, op, user) {
       return { allow: false, status: 403, error: 'Kimlik çözülemedi.' };
     }
 
+    // VEKÂLETEN DAMGASI ÖĞRENCİYE KAPALI.
+    //
+    // Yatay/dikey geçişle gelen adayın numarası henüz yokken başvurusunu
+    // akademisyen onun adına açabiliyor; kayda `vekaleten` + `girenPersonel`
+    // damgası düşüyor ve arayüz bu damgaya bakıp "bu başvuruyu personel açtı"
+    // diyor. Öğrenci bu alanları yazabilseydi kendi başvurusunu personel
+    // eliyle açılmış gibi gösterebilirdi — yanlış veri değil, yanlış KÖKEN
+    // beyanı olurdu. Alanlar sessizce düşürülür (istek reddedilmez: öğrenci
+    // arayüzü bunları zaten hiç göndermiyor, gönderiliyorsa gürültüdür).
+    if (
+      (op.collection === 'muafiyet_records' || op.collection === 'yatay_gecis_basvurular') &&
+      op.data &&
+      typeof op.data === 'object'
+    ) {
+      delete op.data.vekaleten;
+      delete op.data.girenPersonel;
+    }
+
     // student_courses: sahiplik alanı her zaman JWT kimliğine sabitlenir —
     // öğrenci başkası adına dönem dersi kaydı oluşturamaz.
     if (

@@ -249,10 +249,16 @@ async function ygDosyaYukle(file) {
 // Sistemde karşılığı olan alanlar DOLU ve salt-okunur gelir; kalanlar
 // öğrenciden istenir. Hangi alanların istendiği geçiş türüne göre değişir.
 // ══════════════════════════════════════════════════════════════
-function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
-  // Sistemden gelenler
-  const sysAdSoyad = currentUser?.name || '';
-  const sysOgrNo = currentUser?.studentNumber || currentUser?.identifier || '';
+// `vekaleten`: akademisyen, HENÜZ ÖĞRENCİ NUMARASI OLMAYAN bir aday adına
+// dolduruyor. Yatay/dikey geçişle gelen aday kesin kayıt yapılana kadar
+// numarasız oluyor ama değerlendirme (ders eşleştirme, taban puan kıyası,
+// belge üretimi) daha önce başlıyor. Bu modda ad-soyad ve numara sistemden
+// değil formdan gelir; numara boş bırakılırsa geçici aday no üretilir.
+function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, mevcutKayitlar }) {
+  // Sistemden gelenler — vekâleten doldurulurken personelin kendi kimliği
+  // adayın yerine geçmemeli, o yüzden boş başlar.
+  const sysAdSoyad = vekaleten ? '' : currentUser?.name || '';
+  const sysOgrNo = vekaleten ? '' : currentUser?.studentNumber || currentUser?.identifier || '';
   const sysFakulte = window.TENANT?.facultyName || 'Mühendislik Fakültesi';
   const sysBolum = departmentInfo?.name || currentUser?.departmentName || '';
 
@@ -278,6 +284,9 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
     // İletişim
     telefon: '',
     eposta: '',
+    // Vekâleten: adayın kimliği (sistemde kaydı yok)
+    adayAdSoyad: '',
+    adayOgrNo: '',
   });
   const [ekler, setEkler] = useState({});
   const [yukleniyor, setYukleniyor] = useState('');
@@ -408,6 +417,9 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
 
   const eksikler = () => {
     const eksik = [];
+    // Vekâleten kayıtta adayın adı ZORUNLU; numara zorunlu DEĞİL — bu akış
+    // zaten "numarası henüz yok" diye var. Numara boşsa geçici üretilir.
+    if (vekaleten && !form.adayAdSoyad.trim()) eksik.push('Aday adı soyadı');
     if (!form.aktifUniversite.trim()) eksik.push('Aktif üniversite');
     if (!form.basvurduguFakulte.trim()) eksik.push('Başvurulan fakülte');
     if (!form.basvurduguBolum.trim()) eksik.push('Başvurulan bölüm');
@@ -433,10 +445,20 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
     }
     setKaydediliyor(true);
     try {
+      // Vekâleten: numara girilmişse o, girilmemişse çakışmayan geçici aday
+      // numarası. Geçici numara harf önekli olduğu için hiçbir öğrencinin
+      // numarasına eşit olamaz — kayıt yanlış kişiye görünmez.
+      const kimlikNo = vekaleten
+        ? form.adayOgrNo.trim() || window.adayNoUret(mevcutKayitlar || [])
+        : String(sysOgrNo);
       const kayit = {
         turu: tur.id,
-        ogrenciNo: String(sysOgrNo),
-        adSoyad: sysAdSoyad,
+        ogrenciNo: kimlikNo,
+        adSoyad: vekaleten ? form.adayAdSoyad.trim() : sysAdSoyad,
+        // Kaydı kimin, kimin adına açtığı kaybolmamalı: belge üretimi ve
+        // denetim bu bilgiyi ister.
+        vekaleten: !!vekaleten,
+        girenPersonel: vekaleten ? String(currentUser?.name || currentUser?.identifier || '') : '',
         departmentId: currentUser?.departmentId || '',
         // Aktif
         aktifUniversite: form.aktifUniversite.trim(),
@@ -465,7 +487,10 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
         updatedAt: new Date().toISOString(),
       };
       await window.DBWrite.add('yatay_gecis_basvurular', kayit);
-      setMesaj({ text: 'Başvurunuz alındı.', kind: 'ok' });
+      setMesaj({
+        text: vekaleten ? 'Aday başvurusu kaydedildi (' + kimlikNo + ').' : 'Başvurunuz alındı.',
+        kind: 'ok',
+      });
       if (onSaved) onSaved();
     } catch (e) {
       setMesaj({ text: 'Gönderilemedi: ' + e.message, kind: 'error' });
@@ -483,10 +508,51 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved }) {
 
   return (
     <div>
+      {/* Vekâleten: adayın kimliği. Sistemde kaydı olmadığı için elle girilir. */}
+      {vekaleten && (
+        <div style={{ ...ygCard, padding: 16, marginBottom: 14 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 4 }}>
+            Adayın kimliği
+          </div>
+          <div style={{ fontSize: 12, color: YG.textMuted, marginBottom: 10, lineHeight: 1.55 }}>
+            Bu başvuruyu <b>aday adına siz</b> dolduruyorsunuz. Öğrenci numarası henüz verilmediyse
+            boş bırakın — sistem geçici bir aday numarası üretir. Numara belli olunca kayıt
+            kartından tanımlayabilirsiniz; o an başvuru öğrencinin kendi ekranında görünür hâle
+            gelir.
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: 12,
+            }}
+          >
+            <div>
+              <label style={ygLabel}>Adı Soyadı *</label>
+              <input
+                value={form.adayAdSoyad}
+                onChange={(e) => setBuyuk('adayAdSoyad', e.target.value)}
+                placeholder="Adayın adı soyadı"
+                style={ygInput}
+              />
+            </div>
+            <div>
+              <label style={ygLabel}>Öğrenci Numarası (varsa)</label>
+              <input
+                value={form.adayOgrNo}
+                onChange={(e) => set('adayOgrNo', e.target.value.replace(/\D/g, ''))}
+                placeholder="Henüz yoksa boş bırakın"
+                style={ygInput}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Öğrenciden istenenler */}
       <div style={{ ...ygCard, padding: 16, marginBottom: 14 }}>
         <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 4 }}>
-          Aktif öğrenim gördüğünüz program
+          {vekaleten ? 'Adayın aktif öğrenim gördüğü program' : 'Aktif öğrenim gördüğünüz program'}
         </div>
         <div style={{ fontSize: 12, color: YG.textMuted, marginBottom: 10 }}>{tur.aciklama}</div>
         <div
@@ -828,6 +894,7 @@ function YgBasvuruKarti({
   tur,
   isStaff,
   onDegerlendir,
+  onNumaraTanimla,
   busy,
   currentUser,
   onSilindi,
@@ -836,6 +903,8 @@ function YgBasvuruKarti({
   const [acik, setAcik] = useState(false);
   // Akademisyende yan panelde açılan ek (PDF)
   const [acikEk, setAcikEk] = useState('');
+  // Vekâleten açılmış kayda sonradan tanımlanacak gerçek öğrenci numarası.
+  const [yeniNo, setYeniNo] = useState('');
   const deg = YG_DEGERLENDIRME.find((d) => d.id === rec.degerlendirme);
   const st = rec.degerlendirme ? YG_DURUMLAR.degerlendirildi : YG_DURUMLAR.beklemede;
   const hesap = tur?.hesapla ? ygYerlesmePuani(rec.yksPuani, rec.notOrtalamasi) : null;
@@ -943,6 +1012,13 @@ function YgBasvuruKarti({
           <div style={{ fontSize: 14, fontWeight: 700, color: YG.navy }}>
             {rec.adSoyad || '—'}
             {rec.ogrenciNo ? '  ·  ' + rec.ogrenciNo : ''}
+            {/* Geçici numaralı kayıt açıkça işaretlenir: bu başvurunun sahibi
+                henüz sisteme giremiyor, öğrenci ekranında görünmüyor. */}
+            {window.adayNoMu && window.adayNoMu(rec.ogrenciNo) && (
+              <span style={{ ...ygPill(YG.accent, YG.accentPale), marginLeft: 8 }}>
+                numarası bekleniyor
+              </span>
+            )}
           </div>
           <div style={{ fontSize: 11.5, color: YG.textMuted, marginTop: 3 }}>
             {[rec.aktifUniversite, rec.aktifBolum].filter(Boolean).join(' / ')}
@@ -1102,6 +1178,45 @@ function YgBasvuruKarti({
                 ogrenciAdi: rec.adSoyad,
                 onSilindi,
               })}
+            </div>
+          )}
+
+          {/* Aday numarası tanımlama — kesin kayıt yapılınca. Numara girildiği
+              an başvuru öğrencinin KENDİ ekranında görünür hâle gelir; liste
+              zaten ogrenciNo eşitliğiyle süzülüyor. */}
+          {isStaff && window.vekaletenMi && window.vekaletenMi(rec) && onNumaraTanimla && (
+            <div
+              style={{
+                border: '1px solid ' + YG.accent + '55',
+                background: YG.accentPale,
+                borderRadius: 10,
+                padding: 12,
+                marginBottom: 14,
+              }}
+            >
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#7c4a03', marginBottom: 4 }}>
+                Bu başvuruyu aday adına {rec.girenPersonel || 'bir akademisyen'} açtı
+              </div>
+              <div style={{ fontSize: 11.5, color: '#7c4a03', marginBottom: 10, lineHeight: 1.55 }}>
+                Kesin kayıt yapılıp öğrenci numarası verildiğinde buraya yazın. O andan itibaren
+                başvuru öğrencinin kendi ekranında görünür.
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  value={yeniNo}
+                  onChange={(e) => setYeniNo(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Öğrenci numarası"
+                  style={{ ...ygInput, width: 190 }}
+                />
+                <button
+                  type="button"
+                  disabled={busy || !yeniNo.trim()}
+                  onClick={() => onNumaraTanimla(rec, yeniNo.trim(), () => setYeniNo(''))}
+                  style={ygBtn(!!yeniNo.trim() && !busy)}
+                >
+                  Numarayı Tanımla
+                </button>
+              </div>
             </div>
           )}
 
@@ -1468,6 +1583,33 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
+  // Vekâleten açılmış kayda gerçek öğrenci numarasını tanımla.
+  //
+  // Kural lib/aday-kimlik.js'te: numara yalnız rakam olmalı, geçici numara
+  // kalıcı sayılmaz ve ZATEN numarası olan bir kaydın sahibi değiştirilemez —
+  // aksi hâlde başvuru sessizce başka bir öğrenciye devredilirdi.
+  const numaraTanimla = async (rec, no, temizle) => {
+    const kontrol = window.numaraTanimlanabilirMi(rec, no);
+    if (!kontrol.ok) {
+      alert(kontrol.sebep);
+      return;
+    }
+    if (
+      !confirm(
+        (rec.adSoyad || 'Aday') +
+          ' başvurusuna ' +
+          no +
+          ' numarası tanımlanacak.\n\nBu andan sonra başvuru öğrencinin kendi ' +
+          'ekranında görünür. Devam edilsin mi?'
+      )
+    )
+      return;
+    await kaydetDegerlendirme(rec, { ogrenciNo: no, vekaleten: false });
+    if (temizle) temizle();
+    setMsg('Öğrenci numarası tanımlandı.');
+    setTimeout(() => setMsg(''), 3000);
+  };
+
   // ── Değerlendirme raporu (tüm başvuranlar tek belgede) ──
   const belgeOlustur = async () => {
     if (!window.TemplateEngine || !window.TemplateEngine.produceFromTemplate) {
@@ -1618,7 +1760,13 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
         { id: 'yeni', label: 'Yeni Başvuru' },
         { id: 'basvurular', label: 'Başvurularım' },
       ]
-    : [{ id: 'basvurular', label: 'Başvurular' }];
+    : [
+        { id: 'basvurular', label: 'Başvurular' },
+        // Yatay/dikey geçişle gelen adayın kesin kaydı yapılana kadar öğrenci
+        // numarası olmuyor; sisteme giremediği için başvurusunu da açamıyor.
+        // Bu sekmede akademisyen aday adına tüm işlemi yürütür.
+        { id: 'aday', label: 'Aday Adına Başvuru' },
+      ];
 
   if (loading) {
     return <div style={{ padding: 60, textAlign: 'center', color: YG.textMuted }}>Yükleniyor…</div>;
@@ -1736,6 +1884,24 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           departmentInfo={departmentInfo}
           onSaved={() => {
             setMsg('Başvurunuz alındı.');
+            setSekme('basvurular');
+            yukle();
+            setTimeout(() => setMsg(''), 3000);
+          }}
+        />
+      )}
+
+      {/* Akademisyen: numarası olmayan aday adına başvuru */}
+      {isStaff && sekme === 'aday' && (
+        <YgBasvuruFormu
+          key={'aday-' + turId}
+          tur={tur}
+          currentUser={currentUser}
+          departmentInfo={departmentInfo}
+          vekaleten
+          mevcutKayitlar={kayitlar}
+          onSaved={() => {
+            setMsg('Aday başvurusu kaydedildi.');
             setSekme('basvurular');
             yukle();
             setTimeout(() => setMsg(''), 3000);
@@ -1923,6 +2089,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                   busy={busy}
                   currentUser={currentUser}
                   onDegerlendir={kaydetDegerlendirme}
+                  onNumaraTanimla={numaraTanimla}
                   onSilindi={yukle}
                   tabanKayitlari={tabanKayitlari}
                 />
