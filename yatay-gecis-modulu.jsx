@@ -235,6 +235,13 @@ const ygBolumKisa = (ad) => window.bolumKisaAd(ad);
 //
 // Sınıf alanı "2", "2." ya da "2. Sınıf" olarak girilmiş olabilir; hangisi
 // yazılırsa yazılsın çıktı tek biçime indirgenir.
+// Başarı sıralamasını okunabilir yazar: "245678" → "245.678".
+// Okunamayan değer BOŞ döner — 0 gösterip adayı en iyi sıradaymış gibi
+// göstermek, tam olarak gizlemesi gereken hatayı gizlerdi.
+function ygSira(v) {
+  return window.siraYaz ? window.siraYaz(v) : String(v == null ? '' : v);
+}
+
 function ygSinifMetni(ham) {
   const s = String(ham || '').trim();
   if (!s) return '';
@@ -320,6 +327,9 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
     yksYerlesmeYili: '',
     yksPuanTuru: '',
     yksPuani: '',
+    // Uygunluk şartı bu alan üzerinden işler (bkz. lib/yatay-kriter.js):
+    // yerleştiği puan türündeki YERLEŞTİRME BAŞARI SIRASI.
+    yksBasariSirasi: '',
     notOrtalamasi: '',
     // İletişim
     telefon: '',
@@ -419,6 +429,16 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
             'Sonuç belgesindeki "YERLEŞTİRME PUANLARI VE BAŞARI SIRALARI" bölümünden, ' +
             'adayın YERLEŞTİĞİ puan türüne ait YERLEŞTİRME PUANI. Ham puanı, OBP’yi ya da ' +
             'başarı sırasını ALMA. Birden çok tür varsa yalnız yerleştiği türün satırını al.',
+        },
+        {
+          // Uygunluk şartının ölçütü budur — puan değil sıralama.
+          id: 'yksBasariSirasi',
+          label: 'Yerleştirme başarı sıralaması',
+          hint:
+            'AYNI bölümdeki ("YERLEŞTİRME PUANLARI VE BAŞARI SIRALARI"), adayın YERLEŞTİĞİ ' +
+            'puan türüne ait YERLEŞTİRME BAŞARI SIRASI. Puanı değil SIRAYI al. ' +
+            'Genel başarı sırasını, ham/OBP sırasını ya da başka puan türünün sırasını ALMA. ' +
+            'Yalnız rakam yaz, binlik ayracı serbest (ör. 245.678 ya da 245678).',
         }
       );
     }
@@ -504,6 +524,12 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
       if (!form.yksPuani.trim()) eksik.push('YKS puanı');
       if (!form.yksYerlesmeYili.trim()) eksik.push('YKS yerleşme yılı');
       if (!form.yksPuanTuru.trim()) eksik.push('Puan türü');
+      // Uygunluk şartı bu alandan okunur; boş kalırsa aday hiçbir kritere
+      // göre değerlendirilemez.
+      if (!form.yksBasariSirasi.trim()) eksik.push('Yerleştirme başarı sıralaması');
+      else if (window.siraOku && window.siraOku(form.yksBasariSirasi) == null) {
+        eksik.push('Yerleştirme başarı sıralaması (yalnız rakam, ör. 245.678)');
+      }
     }
     ygEkler(tur.id)
       .filter((e) => e.zorunlu)
@@ -549,6 +575,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
         yksYerlesmeYili: form.yksYerlesmeYili.trim(),
         yksPuanTuru: form.yksPuanTuru.trim(),
         yksPuani: form.yksPuani.trim(),
+        yksBasariSirasi: form.yksBasariSirasi.trim(),
         notOrtalamasi: form.notOrtalamasi.trim(),
         // İletişim
         telefon: form.telefon.trim(),
@@ -802,6 +829,24 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                     style={ygInput}
                   />
                 </div>
+                {/* Uygunluk şartının ölçütü budur: yatay geçiş taban şartı
+                    puanla değil BAŞARI SIRASI ile konur (ör. 300.000'inci
+                    başarı sırası). Sıralamada küçük sayı daha iyidir. */}
+                <div>
+                  <label style={ygLabel}>Yerleştirme başarı sıralaması *</label>
+                  <input
+                    value={form.yksBasariSirasi}
+                    onChange={(e) =>
+                      set('yksBasariSirasi', e.target.value.replace(/[^\d.,\s]/g, ''))
+                    }
+                    placeholder="ör. 245.678"
+                    style={ygInput}
+                  />
+                  <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
+                    Sonuç belgesindeki “YERLEŞTİRME PUANLARI VE BAŞARI SIRALARI” bölümünde,
+                    yerleştiğiniz puan türünün <b>başarı sırası</b>. Puan değil sıra.
+                  </div>
+                </div>
               </>
             )}
             {tur.notIster && (
@@ -1007,7 +1052,7 @@ function YgBasvuruKarti({
   onNumaraTanimla,
   onDuzenle,
   onEkYukle,
-  osymEsik,
+  siralamaEsik,
   busy,
   currentUser,
   onSilindi,
@@ -1017,8 +1062,10 @@ function YgBasvuruKarti({
   // Akademisyende yan panelde açılan ek (PDF)
   const [acikEk, setAcikEk] = useState('');
   // Taban puan şartı — kurum eşiği VE programın kendi taban puanı.
-  const elemeSebebi = window.elemeNedeni ? window.elemeNedeni(rec, osymEsik) : '';
-  const esikDurumu = window.osymEsikDurumu ? window.osymEsikDurumu(rec.yksPuani, osymEsik) : null;
+  const elemeSebebi = window.elemeNedeni ? window.elemeNedeni(rec, siralamaEsik) : '';
+  const esikDurumu = window.siraEsikDurumu
+    ? window.siraEsikDurumu(rec.yksBasariSirasi, siralamaEsik)
+    : null;
   // Vekâleten açılmış kayda sonradan tanımlanacak gerçek öğrenci numarası.
   const [yeniNo, setYeniNo] = useState('');
   // Gönderilmiş başvurunun beyan alanlarını düzenleme kipi.
@@ -1029,7 +1076,7 @@ function YgBasvuruKarti({
   const deg = YG_DEGERLENDIRME.find((d) => d.id === rec.degerlendirme);
   // Rozette ve belgede geçerli sonuç görünür; "Sonuç" kutusu ise personelin
   // kendi seçimini gösterir (düzenlenebilir kalması gerekiyor).
-  const etkin = ygEtkinSonuc(rec, osymEsik);
+  const etkin = ygEtkinSonuc(rec, siralamaEsik);
   const st = etkin.degerlendirme ? YG_DURUMLAR.degerlendirildi : YG_DURUMLAR.beklemede;
   const hesap = tur?.hesapla ? ygYerlesmePuani(rec.yksPuani, rec.notOrtalamasi) : null;
 
@@ -1064,8 +1111,11 @@ function YgBasvuruKarti({
         { id: 'yksYerlesmeYili', label: 'YKS yerleşme yılı' },
         { id: 'yksPuanTuru', label: 'Yerleştiği puan türü' },
         { id: 'yksPuani', label: 'YKS puanı' },
+        { id: 'yksBasariSirasi', label: 'Yerleştirme başarı sıralaması' },
       ].filter((a) => {
-        if (['yksYerlesmeYili', 'yksPuanTuru', 'yksPuani'].includes(a.id)) return !!tur?.puanIster;
+        if (['yksYerlesmeYili', 'yksPuanTuru', 'yksPuani', 'yksBasariSirasi'].includes(a.id)) {
+          return !!tur?.puanIster;
+        }
         if (a.id === 'notOrtalamasi') return !!tur?.notIster;
         return true;
       }),
@@ -1171,34 +1221,35 @@ function YgBasvuruKarti({
             {rec.basvurduguSinif ? '  →  ' + rec.basvurduguSinif + '. sınıf' : ''}
           </div>
         </div>
-        {/* Taban ÖSYM puanının altında kalan aday, sıralamaya girmeden
-            elenir; bunu kartta görmek değerlendirmenin gerekçesidir. */}
+        {/* Taban başarı sıralamasının altında kalan aday, sıralamaya girmeden
+            elenir; bunu kartta görmek değerlendirmenin gerekçesidir.
+            Ölçüt PUAN değil SIRA — küçük sıra daha iyidir. */}
         {isStaff && elemeSebebi && (
           <span
             style={ygPill(YG.red, YG.redLight)}
             title={
-              elemeSebebi === 'program_taban'
-                ? 'Programın taban puanı: ' +
-                  (rec.basvurduguBolumOsysPuani || '—') +
-                  ' · adayın puanı: ' +
-                  (rec.yksPuani || '—')
-                : 'Taban ÖSYM puanı: ' +
-                  (osymEsik || '—') +
-                  ' · adayın puanı: ' +
-                  (rec.yksPuani || '—')
+              (elemeSebebi === 'program_sira'
+                ? 'Programın taban başarı sıralaması: ' +
+                  (ygSira(rec.basvurduguBolumTabanSirasi) || '—')
+                : 'Taban başarı sıralaması: ' + (ygSira(siralamaEsik) || '—')) +
+              ' · adayın başarı sırası: ' +
+              (ygSira(rec.yksBasariSirasi) || '—')
             }
           >
-            {(window.ELEME_ETIKET || {})[elemeSebebi] || 'Taban puan şartını karşılamıyor'}
+            {(window.ELEME_ETIKET || {})[elemeSebebi] || 'Taban sıralama şartını karşılamıyor'}
           </span>
         )}
         {isStaff && !elemeSebebi && esikDurumu && esikDurumu.durum === 'belirsiz' && (
-          <span style={ygPill(YG.accent, YG.accentPale)} title="ÖSYM puanı okunamadı">
-            ÖSYM puanı yok
+          <span
+            style={ygPill(YG.accent, YG.accentPale)}
+            title="Adayın yerleştirme başarı sıralaması girilmemiş — taban sıralama şartı uygulanamıyor"
+          >
+            Başarı sıralaması yok
           </span>
         )}
         {hesap && <span style={ygPill(YG.navy, YG.bg)}>Yerleşme puanı: {hesap.toplam}</span>}
         <span style={ygPill(st.color, st.bg)}>
-          {etkin.degerlendirme ? ygDegerlendirmeMetni(rec, osymEsik) || st.label : st.label}
+          {etkin.degerlendirme ? ygDegerlendirmeMetni(rec, siralamaEsik) || st.label : st.label}
         </span>
         <span style={{ color: YG.textMuted, fontSize: 11.5, fontWeight: 600 }}>
           {acik ? 'Gizle' : 'Detaylar'}
@@ -1228,6 +1279,11 @@ function YgBasvuruKarti({
             {satir('YKS yerleşme yılı', rec.yksYerlesmeYili, 'yksYerlesmeYili')}
             {satir('Puan türü', rec.yksPuanTuru, 'yksPuanTuru')}
             {satir('YKS puanı', rec.yksPuani, 'yksPuani')}
+            {satir(
+              'Başarı sıralaması',
+              ygSira(rec.yksBasariSirasi) || rec.yksBasariSirasi,
+              'yksBasariSirasi'
+            )}
             {satir('Not ortalaması', rec.notOrtalamasi, 'notOrtalamasi')}
             {hesap && satir('YKS %40', hesap.p40)}
             {hesap && satir('AGNO %60', hesap.n60)}
@@ -1625,6 +1681,28 @@ function YgBasvuruKarti({
 
                     Yukarıdaki panelde bir adres verildiyse, o programın taban
                     puanı oradan gelir ve tek tıkla bu alana yazılır. */}
+                {/* Programın KENDİ taban başarı sırası — kurumun genel eşiğinden
+                    ayrı, başvuru başına şart. Boş bırakılırsa uygulanmaz.
+                    Ölçüt sıralamadır: küçük sıra daha iyidir. */}
+                {tur?.puanIster && (
+                  <div>
+                    <label style={ygLabel}>Başvurulan bölümün taban başarı sıralaması</label>
+                    <input
+                      value={rec.basvurduguBolumTabanSirasi || ''}
+                      disabled={busy}
+                      onChange={(e) =>
+                        onDegerlendir(rec, {
+                          basvurduguBolumTabanSirasi: e.target.value.replace(/[^\d.,\s]/g, ''),
+                        })
+                      }
+                      placeholder="ör. 180.000"
+                      style={ygInput}
+                    />
+                    <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
+                      Boş bırakılırsa bu şart uygulanmaz.
+                    </div>
+                  </div>
+                )}
                 {tur?.id === 'merkezi' && (
                   <div>
                     <label style={ygLabel}>Başvurulan bölümün ÖSYS/YKS taban puanı</label>
@@ -1723,7 +1801,7 @@ function YgBasvuruKarti({
               {etkin.degerlendirme && (
                 <div style={{ fontSize: 12, color: YG.textMuted, marginTop: 8 }}>
                   Belgeye yazılacak:{' '}
-                  <b style={{ color: YG.navy }}>{ygDegerlendirmeMetni(rec, osymEsik)}</b>
+                  <b style={{ color: YG.navy }}>{ygDegerlendirmeMetni(rec, siralamaEsik)}</b>
                 </div>
               )}
             </div>
@@ -1741,7 +1819,7 @@ function YgBasvuruKarti({
                 color: '#065F46',
               }}
             >
-              Değerlendirme sonucunuz: <b>{ygDegerlendirmeMetni(rec, osymEsik)}</b>
+              Değerlendirme sonucunuz: <b>{ygDegerlendirmeMetni(rec, siralamaEsik)}</b>
             </div>
           )}
         </div>
@@ -1817,9 +1895,11 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   // Kontenjan SINIF BAŞINA ilan edilir (2. sınıfa 5, 3. sınıfa 3 gibi).
   // Tek bir sayı bütün sınıflara uygulanıyordu ve gerçek ilanla uyuşmuyordu.
   const [kontenjanlar, setKontenjanlar] = useState({});
-  // Kurumun elle belirlediği taban ÖSYM yerleştirme puanı. Altında kalan
-  // aday, sıralamada nerede olursa olsun "uygun değil"dir.
-  const [osymEsik, setOsymEsik] = useState('');
+  // Kurumun elle belirlediği taban yerleştirme BAŞARI SIRASI (ör. 300.000).
+  // Gerisinde kalan aday, sıralamada nerede olursa olsun "uygun değil"dir.
+  // ⚠ Ayrı bir anahtarda saklanır: eski `osymEsik` bir PUANDI, sıralama diye
+  // okunsaydı 300'lük bir eşik hiç kimseyi elemezdi.
+  const [siralamaEsik, setSiralamaEsik] = useState('');
   const [kriterKaydediliyor, setKriterKaydediliyor] = useState(false);
 
   // ── Taban puanlar (yalnız merkezi yerleştirme) ──
@@ -1851,8 +1931,10 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
     return Array.from(set).sort((a, b) => Number(a) - Number(b) || a.localeCompare(b, 'tr'));
   }, [gorunen]);
 
-  // Kriterler (taban ÖSYM puanı + sınıf kontenjanları) bölüm ve tür başına
-  // saklanır — mevcut taban_puanlar koleksiyonundaki aynı kapsam anahtarı.
+  // Kriterler (taban başarı sıralaması + sınıf kontenjanları) bölüm ve tür
+  // başına saklanır — mevcut taban_puanlar koleksiyonundaki aynı kapsam
+  // anahtarı. Eski `osymEsik` alanı okunmaz: o bir PUANDI ve sıralama sanılıp
+  // kullanılsaydı (300 ≪ 300.000) kriter fiilen kalkardı.
   const kriterDocId = (activeDepartment || 'genel') + ':yatay-kriter-' + turId;
   useEffect(() => {
     let iptal = false;
@@ -1861,7 +1943,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       .then((liste) => {
         if (iptal) return;
         const d = (liste || []).find((x) => (x.id || x._docId) === kriterDocId);
-        setOsymEsik(d && d.osymEsik ? String(d.osymEsik) : '');
+        setSiralamaEsik(d && d.siralamaEsik ? String(d.siralamaEsik) : '');
         setKontenjanlar(
           d && d.kontenjanlar && typeof d.kontenjanlar === 'object' ? d.kontenjanlar : {}
         );
@@ -1881,7 +1963,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
         {
           modul: 'yatay-kriter-' + turId,
           departmentId: activeDepartment || '',
-          osymEsik: String(osymEsik || '').trim(),
+          siralamaEsik: String(siralamaEsik || '').trim(),
           kontenjanlar,
           guncelleyen: String(currentUser?.name || currentUser?.identifier || ''),
           guncellemeZamani: new Date().toISOString(),
@@ -1904,14 +1986,14 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
     }));
 
   // Taban puan şartını karşılamayanlar — İKİ ayrı şart var:
-  //   • kurumun elle girdiği asgari ÖSYM puanı (osymEsik)
+  //   • kurumun elle girdiği taban başarı sıralaması (siralamaEsik)
   //   • adayın BAŞVURDUĞU PROGRAMIN kendi ÖSYM taban puanı
   // İkincisi kartta gösteriliyordu ama sıralamaya girmiyordu; taban puanın
   // altındaki aday yine sıraya alınıp YEDEK yazılıyordu. Artık ikisi de
   // kontenjana sayılmadan eliyor.
   const esikDisi = useMemo(
-    () => (window.elenecekler ? window.elenecekler(gorunen, osymEsik) : new Map()),
-    [gorunen, osymEsik]
+    () => (window.elenecekler ? window.elenecekler(gorunen, siralamaEsik) : new Map()),
+    [gorunen, siralamaEsik]
   );
 
   // Hiç kontenjan girilmemişse sıralama uygulanmaz — herkesi "uygun değil"
@@ -1933,7 +2015,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
     const yedekAdet = uygulanacak.filter((o) => o.degerlendirme === 'uygun_yedek').length;
     const disarida = uygulanacak.filter((o) => o.degerlendirme === 'uygun_degil').length;
     const esikNedeniyle = uygulanacak.filter(
-      (o) => o.sebep === 'taban_osym' || o.sebep === 'program_taban'
+      (o) => o.sebep === 'taban_sira' || o.sebep === 'program_sira'
     ).length;
     if (
       !confirm(
@@ -1948,7 +2030,9 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           disarida +
           ' kontenjan dışı (UYGUN DEĞİL)' +
           (esikNedeniyle > 0
-            ? ' — bunların ' + esikNedeniyle + ' tanesi taban puan şartını karşılamıyor'
+            ? ' — bunların ' +
+              esikNedeniyle +
+              ' tanesi taban başarı sıralaması şartını karşılamıyor'
             : '') +
           '\n' +
           (puansiz > 0 ? '  • ' + puansiz + ' başvuru puansız — dokunulmayacak\n' : '') +
@@ -2138,9 +2222,11 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           notOrtYuzde60: h ? String(h.n60) : '',
           yerlesmePuani: h ? String(h.toplam) : '',
           basvurduguBolumOsysPuani: r.basvurduguBolumOsysPuani || '',
+          yksBasariSirasi: r.yksBasariSirasi || '',
+          basvurduguBolumTabanSirasi: r.basvurduguBolumTabanSirasi || '',
           // Taban puan şartı burada da uygulanır: rapor, kayıtta artakalmış
           // eski bir sıralamanın sonucunu değil GEÇERLİ sonucu yazar.
-          degerlendirme: ygDegerlendirmeMetni(r, osymEsik),
+          degerlendirme: ygDegerlendirmeMetni(r, siralamaEsik),
         };
       });
 
@@ -2494,9 +2580,10 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                 </button>
               </div>
 
-              {/* Taban ÖSYM puanı — kurumun elle belirlediği asgari şart.
-                  Altında kalan aday, sıralamada nerede olursa olsun
-                  "uygun değil"dir ve kontenjanı işgal etmez. */}
+              {/* Taban BAŞARI SIRALAMASI — kurumun elle belirlediği asgari şart
+                  (yönetmelikteki "başarı sırası şartı"). Gerisinde kalan aday,
+                  sıralamada nerede olursa olsun "uygun değil"dir ve kontenjanı
+                  işgal etmez. */}
               <div
                 style={{
                   marginTop: 12,
@@ -2509,12 +2596,12 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                 }}
               >
                 <div style={{ width: 190 }}>
-                  <label style={ygLabel}>Taban ÖSYM başarı puanı</label>
+                  <label style={ygLabel}>Taban yerleştirme başarı sıralaması</label>
                   <input
-                    value={osymEsik}
+                    value={siralamaEsik}
                     disabled={busy}
-                    onChange={(e) => setOsymEsik(e.target.value.replace(/[^\d.,]/g, ''))}
-                    placeholder="ör. 300"
+                    onChange={(e) => setSiralamaEsik(e.target.value.replace(/[^\d.,\s]/g, ''))}
+                    placeholder="ör. 300.000"
                     style={ygInput}
                   />
                 </div>
@@ -2526,12 +2613,14 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                     lineHeight: 1.5,
                   }}
                 >
-                  Adayın ÖSYM yerleştirme puanı bu değerin altındaysa başvuru <b>UYGUN DEĞİL</b>{' '}
-                  olur ve kontenjana sayılmaz. Boş bırakılırsa bu kriter uygulanmaz.
+                  Adayın <b>yerleştirme başarı sırası</b> bu değerden büyükse (yani sıralamada
+                  gerisindeyse) başvuru <b>UYGUN DEĞİL</b> olur ve kontenjana sayılmaz. Ölçüt puan
+                  değil <b>sıralamadır</b>; küçük sıra daha iyidir — 300.000 eşiğinde 245.678 sıralı
+                  aday geçer, 350.000 sıralı aday elenir. Boş bırakılırsa bu kriter uygulanmaz.
                   {esikDisi.size > 0 && (
                     <>
                       {' '}
-                      Şu an <b>{esikDisi.size}</b> başvuru bu eşiğin altında.
+                      Şu an <b>{esikDisi.size}</b> başvuru bu eşiğin gerisinde.
                     </>
                   )}
                 </div>
@@ -2703,7 +2792,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                   onNumaraTanimla={numaraTanimla}
                   onDuzenle={basvuruDuzenle}
                   onEkYukle={ekYukle}
-                  osymEsik={osymEsik}
+                  siralamaEsik={siralamaEsik}
                   onSilindi={yukle}
                   tabanKayitlari={tabanKayitlari}
                 />
