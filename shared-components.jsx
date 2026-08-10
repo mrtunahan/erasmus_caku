@@ -18,6 +18,7 @@ import {
   mezOlcekDogrula,
 } from './lib/mezuniyet.js';
 import { veriSatiriSec } from './lib/xlsx-satir.js';
+import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
   tabanKaydiBul,
   tabanKarsilastir,
@@ -33,6 +34,7 @@ import {
   esikAltindakiler,
   elemeNedeni,
   elenecekler,
+  gecerliDegerlendirme,
   ELEME_ETIKET,
   OSYM_ESIK_ETIKET,
 } from './lib/yatay-kriter.js';
@@ -3812,9 +3814,12 @@ const TemplateEngine = (() => {
       if (!/\st="s"/.test(oz)) return tam;
       const m = ic.match(/<v>(\d+)<\/v>/);
       if (!m) return tam;
-      const metin = strings[Number(m[1])];
+      const siIdx = Number(m[1]);
+      const metin = strings[siIdx];
       if (metin == null || metin.indexOf('{{') < 0) return tam;
-      const yeni = doldur(metin);
+      // Paylaşılan metnin indeksi doldurucuya geçirilir: aynı yer tutucunun
+      // KAÇINCI geçişi olduğu ancak bu indeksle bilinebilir.
+      const yeni = doldur(metin, siIdx);
       if (yeni === metin) return tam;
       const ozTemiz = oz.replace(/\st="[^"]*"/, '');
       return (
@@ -3878,12 +3883,11 @@ const TemplateEngine = (() => {
         decodeEnt([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((x) => x[1]).join(''))
       );
 
-      const tokenHarita = {};
-      eslesme.forEach((f) => {
-        if (!f || !f.token || !f.variable) return;
-        const parts = String(f.variable).split(':');
-        tokenHarita[f.token] = { tip: parts[0], id: parts[1] };
-      });
+      // Eşleme GEÇİŞ BAZLI çözülür: aynı yer tutucu başlıkta ve veri satırında
+      // farklı değişkene bağlanabilir (bkz. lib/sablon-eslesme.js).
+      const harita = eslesmeHaritasi(eslesme);
+      const tokenHarita = harita.ozet; // veri satırı seçimi token bazlı bakar
+      const gecisIndeksi = ilkGecisIndeksi(strings);
 
       // Türkçe harf normalizasyonu — docx üreticisiyle aynı `format` katalogu.
       const _vars =
@@ -3902,10 +3906,15 @@ const TemplateEngine = (() => {
       const statik = _applyFmt(opts.staticData || {});
       const veri = (Array.isArray(opts.rows) ? opts.rows : []).map(_applyFmt);
 
-      const doldurYap = (kayit) => (metin) => {
+      const doldurYap = (kayit, satirIci) => (metin, siIdx) => {
+        const ilk = gecisIndeksi[siIdx] || {};
+        // Bu hücre içinde her token'ın kaçıncı kez görüldüğü.
+        const sayac = {};
         TOKEN_RX.lastIndex = 0;
         return String(metin).replace(TOKEN_RX, (t) => {
-          const h = tokenHarita[t];
+          sayac[t] = (sayac[t] || 0) + 1;
+          const gecis = (ilk[t] || 1) + sayac[t] - 1;
+          const h = tokenCoz(harita, t, gecis, !!satirIci);
           if (!h) return t;
           const kaynak = h.tip === 'row' ? kayit || {} : statik;
           const v = kaynak[h.id];
@@ -3922,14 +3931,27 @@ const TemplateEngine = (() => {
       // tutucusu bulunamazsa satır değişkenleri boş dizeyle değiştiriliyor,
       // kullanıcı da "veri neden gelmedi" diye bakacak hiçbir şey bulamıyordu.
       // Artık ne bulunduğu sayılıyor ve bulunamazsa hata dönüyor.
-      const dosyadakiTokenlar = new Set();
+      const gecisSayisi = {};
       strings.forEach((s) => {
         TOKEN_RX.lastIndex = 0;
-        (String(s || '').match(TOKEN_RX) || []).forEach((t) => dosyadakiTokenlar.add(t));
+        (String(s || '').match(TOKEN_RX) || []).forEach((t) => {
+          gecisSayisi[t] = (gecisSayisi[t] || 0) + 1;
+        });
       });
       const eslenenTokenlar = Object.keys(tokenHarita);
       const satirTokenuEslenmis = eslenenTokenlar.filter((t) => tokenHarita[t].tip === 'row');
-      const dosyadaOlmayan = eslenenTokenlar.filter((t) => !dosyadakiTokenlar.has(t));
+      const dosyadaOlmayan = eslenenTokenlar.filter((t) => !gecisSayisi[t]);
+      // Şablonda birden çok geçen ama tek eşlemesi olan yer tutucular: her
+      // geçiş aynı değeri alır. Genelde istenen budur, ama "{{başvurduğu_bölüm}}"
+      // gibi hem başlıkta hem satırda geçen bir alan için DEĞİLDİR — kullanıcı
+      // #2'yi eşlemediği sürece sütun başlıktaki kısa adı taşır.
+      const eksikGecisler = eslenenTokenlar
+        .filter((t) => (gecisSayisi[t] || 0) > (harita.tokenlar[t] || []).length)
+        .map((t) => ({
+          token: t,
+          dosyada: gecisSayisi[t],
+          eslenen: (harita.tokenlar[t] || []).length,
+        }));
 
       let uretilen = 0;
       let sablonSatiriBulundu = false;
@@ -3956,12 +3978,19 @@ const TemplateEngine = (() => {
           if (i === sablonIdx && veri.length > 0) {
             veri.forEach((kayit, sira) => {
               no += 1;
-              yeni.push(xlSatirDoldur(r, no, strings, doldurYap(kayit), sira + 1));
+              yeni.push(xlSatirDoldur(r, no, strings, doldurYap(kayit, true), sira + 1));
             });
             uretilen += veri.length;
           } else {
             no += 1;
-            yeni.push(xlSatirDoldur(r, no, strings, doldurYap(i === sablonIdx ? {} : ilkKayit)));
+            yeni.push(
+              xlSatirDoldur(
+                r,
+                no,
+                strings,
+                doldurYap(i === sablonIdx ? {} : ilkKayit, i === sablonIdx)
+              )
+            );
           }
         });
 
@@ -4014,6 +4043,7 @@ const TemplateEngine = (() => {
         // Çağıran uyarabilsin diye: eşlenmiş ama dosyada bulunamayan
         // yer tutucular (şablon eşlemeden sonra değiştirilmişse dolar).
         dosyadaOlmayan,
+        eksikGecisler,
       };
     } catch (e) {
       return { ok: false, reason: 'invalid-output', message: e.message };
@@ -4335,6 +4365,7 @@ window.osymEsikDurumu = osymEsikDurumu;
 window.esikAltindakiler = esikAltindakiler;
 window.elemeNedeni = elemeNedeni;
 window.elenecekler = elenecekler;
+window.gecerliDegerlendirme = gecerliDegerlendirme;
 window.ELEME_ETIKET = ELEME_ETIKET;
 window.OSYM_ESIK_ETIKET = OSYM_ESIK_ETIKET;
 window.BASVURU_DUZENLENEBILIR_ALANLAR = DUZENLENEBILIR_ALANLAR;

@@ -7,6 +7,7 @@ import {
   esikAltindakiler,
   elemeNedeni,
   elenecekler,
+  gecerliDegerlendirme,
 } from '../lib/yatay-kriter.js';
 import { asilYedekOner } from '../lib/yatay-siralama.js';
 
@@ -264,5 +265,88 @@ describe('asilYedekOner — program taban puanı yedek yapmaz', () => {
     });
     expect(bul(o, 'b').degerlendirme).toBe('uygun_degil');
     expect(bul(o, 'b').sebep).toBe('taban_osym');
+  });
+});
+
+describe('gecerliDegerlendirme', () => {
+  // Sıralamayı düzeltmek tek başına yetmiyordu: değerlendirme kayıtta saklı
+  // durduğu için, daha önceki bir sıralamadan kalan "3. YEDEK" hem kartta hem
+  // resmî raporda görünmeye devam ediyordu.
+  const aday = (p, ek) => ({ id: 'a', yksPuani: p, ...(ek || {}) });
+
+  it('taban puanın altındaki adayın KAYITLI yedek sonucu geçersizdir', () => {
+    const g = gecerliDegerlendirme(
+      aday('290,22', {
+        degerlendirme: 'uygun_yedek',
+        degerlendirmeSinif: '2',
+        degerlendirmeSira: '3',
+      }),
+      '308,50'
+    );
+    expect(g.degerlendirme).toBe('uygun_degil');
+    expect(g.sebep).toBe('taban_osym');
+    expect(g.cakisma).toBe(true);
+  });
+
+  it('elenen kayıtta sınıf/sıra taşınmaz', () => {
+    // Aksi hâlde belgeye "UYGUN DEĞİL (3. YEDEK)" gibi bir metin düşerdi.
+    const g = gecerliDegerlendirme(
+      aday('290', { degerlendirme: 'uygun_asil', degerlendirmeSinif: '2', degerlendirmeSira: '1' }),
+      '300'
+    );
+    expect(g.degerlendirmeSinif).toBe('');
+    expect(g.degerlendirmeSira).toBe('');
+  });
+
+  it('programın kendi taban puanı da aynı sonucu doğurur', () => {
+    const g = gecerliDegerlendirme(
+      aday('380', { basvurduguBolumOsysPuani: '412,338', degerlendirme: 'uygun_yedek' }),
+      ''
+    );
+    expect(g.degerlendirme).toBe('uygun_degil');
+    expect(g.sebep).toBe('program_taban');
+  });
+
+  it('şartı karşılayan adayın kayıtlı sonucuna DOKUNULMAZ', () => {
+    const g = gecerliDegerlendirme(
+      aday('325,17', {
+        degerlendirme: 'uygun_asil',
+        degerlendirmeSinif: '2',
+        degerlendirmeSira: '1',
+      }),
+      '308,50'
+    );
+    expect(g).toMatchObject({
+      degerlendirme: 'uygun_asil',
+      degerlendirmeSinif: '2',
+      degerlendirmeSira: '1',
+      sebep: '',
+      cakisma: false,
+    });
+  });
+
+  it('kriter tanımlı değilse hiçbir şey değişmez', () => {
+    const g = gecerliDegerlendirme(aday('100', { degerlendirme: 'uygun_yedek' }), '');
+    expect(g.degerlendirme).toBe('uygun_yedek');
+  });
+
+  it('puan okunamıyorsa aday elenmez — 0 varsayılmaz', () => {
+    const g = gecerliDegerlendirme(aday('', { degerlendirme: 'uygun_asil' }), '300');
+    expect(g.degerlendirme).toBe('uygun_asil');
+  });
+
+  it('zaten uygun değil yazan kayıtta çakışma bildirilmez', () => {
+    const g = gecerliDegerlendirme(aday('290', { degerlendirme: 'uygun_degil' }), '300');
+    expect(g.cakisma).toBe(false);
+  });
+
+  it('hiç değerlendirilmemiş kayıt şartı karşılamıyorsa uygun değildir', () => {
+    const g = gecerliDegerlendirme(aday('290'), '300');
+    expect(g.degerlendirme).toBe('uygun_degil');
+    expect(g.cakisma).toBe(false);
+  });
+
+  it('boş girdide çökmez', () => {
+    expect(gecerliDegerlendirme(null, '300').degerlendirme).toBe('');
   });
 });

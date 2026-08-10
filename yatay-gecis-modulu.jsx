@@ -242,17 +242,32 @@ function ygSinifMetni(ham) {
   return n ? n[0] + '. Sınıf' : s;
 }
 
-function ygDegerlendirmeMetni(rec) {
-  const d = YG_DEGERLENDIRME.find((x) => x.id === rec.degerlendirme);
+// Kayıtta saklı sonuç yerine GEÇERLİ sonuç okunur: taban puan şartını
+// karşılamayan aday, kayıtta eski bir sıralamadan "3. YEDEK" kalmış olsa bile
+// uygun değildir (bkz. lib/yatay-kriter.js → gecerliDegerlendirme).
+function ygEtkinSonuc(rec, esik) {
+  if (window.gecerliDegerlendirme) return window.gecerliDegerlendirme(rec, esik);
+  return {
+    degerlendirme: rec?.degerlendirme || '',
+    degerlendirmeSinif: rec?.degerlendirmeSinif || '',
+    degerlendirmeSira: rec?.degerlendirmeSira || '',
+    sebep: '',
+    cakisma: false,
+  };
+}
+
+function ygDegerlendirmeMetni(rec, esik) {
+  const e = ygEtkinSonuc(rec, esik);
+  const d = YG_DEGERLENDIRME.find((x) => x.id === e.degerlendirme);
   if (!d || !d.id) return '';
   // Sınıf/sıra soran sonuçlarda gövde "UYGUN"dur; asil/yedek ayrımı zaten
   // parantez içinde yazılıyor. Etiketi ("UYGUN (ASİL)") olduğu gibi bırakmak,
   // sınıf boş kaldığında "UYGUN (ASİL) (1. ASİL)" gibi tekrara yol açıyordu.
   let m = d.sinifSorar || d.siraSorar ? 'UYGUN' : d.label;
-  const sinif = d.sinifSorar ? ygSinifMetni(rec.degerlendirmeSinif) : '';
+  const sinif = d.sinifSorar ? ygSinifMetni(e.degerlendirmeSinif) : '';
   if (sinif) m += ' ' + sinif;
-  if (d.siraSorar && rec.degerlendirmeSira) {
-    m += ' (' + rec.degerlendirmeSira + (d.id === 'uygun_yedek' ? '. YEDEK)' : '. ASİL)');
+  if (d.siraSorar && e.degerlendirmeSira) {
+    m += ' (' + e.degerlendirmeSira + (d.id === 'uygun_yedek' ? '. YEDEK)' : '. ASİL)');
   }
   return m;
 }
@@ -1012,7 +1027,10 @@ function YgBasvuruKarti({
   // Akademisyenin eksik eki yerine yüklemesi.
   const [ekYukleniyor, setEkYukleniyor] = useState('');
   const deg = YG_DEGERLENDIRME.find((d) => d.id === rec.degerlendirme);
-  const st = rec.degerlendirme ? YG_DURUMLAR.degerlendirildi : YG_DURUMLAR.beklemede;
+  // Rozette ve belgede geçerli sonuç görünür; "Sonuç" kutusu ise personelin
+  // kendi seçimini gösterir (düzenlenebilir kalması gerekiyor).
+  const etkin = ygEtkinSonuc(rec, osymEsik);
+  const st = etkin.degerlendirme ? YG_DURUMLAR.degerlendirildi : YG_DURUMLAR.beklemede;
   const hesap = tur?.hesapla ? ygYerlesmePuani(rec.yksPuani, rec.notOrtalamasi) : null;
 
   // ── Taban puan: sayfadan okunan öneri + karşılaştırma ──
@@ -1180,7 +1198,7 @@ function YgBasvuruKarti({
         )}
         {hesap && <span style={ygPill(YG.navy, YG.bg)}>Yerleşme puanı: {hesap.toplam}</span>}
         <span style={ygPill(st.color, st.bg)}>
-          {rec.degerlendirme ? ygDegerlendirmeMetni(rec) || st.label : st.label}
+          {etkin.degerlendirme ? ygDegerlendirmeMetni(rec, osymEsik) || st.label : st.label}
         </span>
         <span style={{ color: YG.textMuted, fontSize: 11.5, fontWeight: 600 }}>
           {acik ? 'Gizle' : 'Detaylar'}
@@ -1676,16 +1694,43 @@ function YgBasvuruKarti({
                 </div>
               )}
 
-              {rec.degerlendirme && (
+              {/* Kayıttaki sonuç taban puan şartıyla çelişiyorsa sessizce
+                  düzeltmek yetmez: personel, listede neden bir isim eksildiğini
+                  görebilmeli. Veriye dokunulmaz — "Sıralamayı Uygula" yazar. */}
+              {etkin.cakisma && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: YG.redLight,
+                    color: YG.red,
+                  }}
+                >
+                  Kayıtta önceki sıralamadan kalan sonuç:{' '}
+                  <b>
+                    {(YG_DEGERLENDIRME.find((d) => d.id === rec.degerlendirme) || {}).label ||
+                      rec.degerlendirme}
+                  </b>
+                  . {(window.ELEME_ETIKET || {})[etkin.sebep] || 'Taban puan şartı karşılanmıyor'}{' '}
+                  olduğu için aday <b>UYGUN DEĞİL</b> sayılır ve belgeye böyle yazılır. Listeyi
+                  kalıcı düzeltmek için “Sıralamayı Uygula”yı yeniden çalıştırın.
+                </div>
+              )}
+
+              {etkin.degerlendirme && (
                 <div style={{ fontSize: 12, color: YG.textMuted, marginTop: 8 }}>
-                  Belgeye yazılacak: <b style={{ color: YG.navy }}>{ygDegerlendirmeMetni(rec)}</b>
+                  Belgeye yazılacak:{' '}
+                  <b style={{ color: YG.navy }}>{ygDegerlendirmeMetni(rec, osymEsik)}</b>
                 </div>
               )}
             </div>
           )}
 
           {/* Öğrenci: kendi değerlendirme sonucu */}
-          {!isStaff && rec.degerlendirme && (
+          {!isStaff && etkin.degerlendirme && (
             <div
               style={{
                 padding: '10px 12px',
@@ -1696,7 +1741,7 @@ function YgBasvuruKarti({
                 color: '#065F46',
               }}
             >
-              Değerlendirme sonucunuz: <b>{ygDegerlendirmeMetni(rec)}</b>
+              Değerlendirme sonucunuz: <b>{ygDegerlendirmeMetni(rec, osymEsik)}</b>
             </div>
           )}
         </div>
@@ -2093,7 +2138,9 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           notOrtYuzde60: h ? String(h.n60) : '',
           yerlesmePuani: h ? String(h.toplam) : '',
           basvurduguBolumOsysPuani: r.basvurduguBolumOsysPuani || '',
-          degerlendirme: ygDegerlendirmeMetni(r),
+          // Taban puan şartı burada da uygulanır: rapor, kayıtta artakalmış
+          // eski bir sıralamanın sonucunu değil GEÇERLİ sonucu yazar.
+          degerlendirme: ygDegerlendirmeMetni(r, osymEsik),
         };
       });
 
@@ -2151,6 +2198,22 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       // o sütunlar sessizce boş kalır — kullanıcıya söyle.
       if (Array.isArray(res.dosyadaOlmayan) && res.dosyadaOlmayan.length > 0) {
         console.warn('Şablonda bulunamayan yer tutucular:', res.dosyadaOlmayan);
+      }
+
+      // Aynı yer tutucu şablonda birden çok yerde geçiyor ama tek eşlemesi
+      // varsa hepsi aynı değeri alır. Bu, "{{başvurduğu_bölüm}}" gibi hem rapor
+      // başlığında (kısa ad) hem sütunda (tam ad) geçen alanlarda yanlış çıktı
+      // verir; sessiz kalmak yerine hangi alanı eşlemek gerektiğini söyle.
+      if (Array.isArray(res.eksikGecisler) && res.eksikGecisler.length > 0) {
+        setMsg(
+          'Belge üretildi. Not: ' +
+            res.eksikGecisler
+              .map((e) => e.token + ' şablonda ' + e.dosyada + ' yerde geçiyor')
+              .join(', ') +
+            ' — her geçiş için ayrı alan eşlemesi yapılmazsa hepsi aynı değeri taşır ' +
+            '(Şablonlar → Eşlemeyi Düzenle → #1, #2 …).'
+        );
+        setTimeout(() => setMsg(''), 15000);
       }
 
       // Snapshot sakla ve önizlemeyi aç
