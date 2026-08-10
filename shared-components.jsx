@@ -26,6 +26,13 @@ import {
 } from './lib/taban-puan.js';
 import { tabanTablosuCoz, metinKatmaniVarMi } from './lib/taban-tablo.js';
 import {
+  DUZENLENEBILIR_ALANLAR,
+  duzenlemeYamasi,
+  beyandanFarkliMi,
+  beyanFarklari,
+  duzenlemeFormu,
+} from './lib/basvuru-duzenle.js';
+import {
   adayNoMu,
   gercekOgrenciNoMu,
   adayNoUret,
@@ -4307,6 +4314,13 @@ window.TABAN_DURUM_ETIKET = TABAN_DURUM_ETIKET;
 window.tabanTablosuCoz = tabanTablosuCoz;
 window.metinKatmaniVarMi = metinKatmaniVarMi;
 // Aday kimliği — numarası henüz olmayan yatay/dikey geçiş başvuranları.
+// Başvuru düzenleme — akademisyen gönderilmiş kaydı düzeltir, adayın
+// özgün beyanı korunur.
+window.BASVURU_DUZENLENEBILIR_ALANLAR = DUZENLENEBILIR_ALANLAR;
+window.duzenlemeYamasi = duzenlemeYamasi;
+window.beyandanFarkliMi = beyandanFarkliMi;
+window.beyanFarklari = beyanFarklari;
+window.duzenlemeFormu = duzenlemeFormu;
 window.adayNoMu = adayNoMu;
 window.gercekOgrenciNoMu = gercekOgrenciNoMu;
 window.adayNoUret = adayNoUret;

@@ -648,6 +648,14 @@ async function enforceWritePolicies(db, op, user) {
     ) {
       delete op.data.vekaleten;
       delete op.data.girenPersonel;
+      // Aynı gerekçe düzenleme izi için de geçerli: `ilkBeyan` adayın ÖZGÜN
+      // beyanıdır ve personel düzeltmesinin dayanağıdır. Öğrenci bu alanları
+      // yazabilseydi kendi beyanını geçmişe dönük değiştirip düzeltmeyi
+      // görünmez kılabilirdi.
+      delete op.data.ilkBeyan;
+      delete op.data.duzenlemeGecmisi;
+      delete op.data.duzenleyen;
+      delete op.data.duzenlenmeZamani;
     }
 
     // student_courses: sahiplik alanı her zaman JWT kimliğine sabitlenir —
