@@ -31,6 +31,9 @@ import {
   gnoDogrula,
   osymEsikDurumu,
   esikAltindakiler,
+  elemeNedeni,
+  elenecekler,
+  ELEME_ETIKET,
   OSYM_ESIK_ETIKET,
 } from './lib/yatay-kriter.js';
 import {
@@ -4330,6 +4333,9 @@ window.puanTuruNormalize = puanTuruNormalize;
 window.gnoDogrula = gnoDogrula;
 window.osymEsikDurumu = osymEsikDurumu;
 window.esikAltindakiler = esikAltindakiler;
+window.elemeNedeni = elemeNedeni;
+window.elenecekler = elenecekler;
+window.ELEME_ETIKET = ELEME_ETIKET;
 window.OSYM_ESIK_ETIKET = OSYM_ESIK_ETIKET;
 window.BASVURU_DUZENLENEBILIR_ALANLAR = DUZENLENEBILIR_ALANLAR;
 window.duzenlemeYamasi = duzenlemeYamasi;
