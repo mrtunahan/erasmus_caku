@@ -1001,7 +1001,8 @@ function YgBasvuruKarti({
   const [acik, setAcik] = useState(false);
   // Akademisyende yan panelde açılan ek (PDF)
   const [acikEk, setAcikEk] = useState('');
-  // Taban ÖSYM puanı karşılaştırması (kriter girilmediyse 'kriter_yok').
+  // Taban puan şartı — kurum eşiği VE programın kendi taban puanı.
+  const elemeSebebi = window.elemeNedeni ? window.elemeNedeni(rec, osymEsik) : '';
   const esikDurumu = window.osymEsikDurumu ? window.osymEsikDurumu(rec.yksPuani, osymEsik) : null;
   // Vekâleten açılmış kayda sonradan tanımlanacak gerçek öğrenci numarası.
   const [yeniNo, setYeniNo] = useState('');
@@ -1154,23 +1155,29 @@ function YgBasvuruKarti({
         </div>
         {/* Taban ÖSYM puanının altında kalan aday, sıralamaya girmeden
             elenir; bunu kartta görmek değerlendirmenin gerekçesidir. */}
-        {isStaff &&
-          esikDurumu &&
-          (esikDurumu.durum === 'altinda' || esikDurumu.durum === 'belirsiz') && (
-            <span
-              style={ygPill(
-                esikDurumu.durum === 'altinda' ? YG.red : YG.accent,
-                esikDurumu.durum === 'altinda' ? YG.redLight : YG.accentPale
-              )}
-              title={
-                esikDurumu.durum === 'altinda'
-                  ? 'Taban ÖSYM puanı: ' + esikDurumu.esik + ' · adayın puanı: ' + esikDurumu.aday
-                  : 'ÖSYM puanı okunamadı'
-              }
-            >
-              {esikDurumu.durum === 'altinda' ? 'Taban ÖSYM puanının altında' : 'ÖSYM puanı yok'}
-            </span>
-          )}
+        {isStaff && elemeSebebi && (
+          <span
+            style={ygPill(YG.red, YG.redLight)}
+            title={
+              elemeSebebi === 'program_taban'
+                ? 'Programın taban puanı: ' +
+                  (rec.basvurduguBolumOsysPuani || '—') +
+                  ' · adayın puanı: ' +
+                  (rec.yksPuani || '—')
+                : 'Taban ÖSYM puanı: ' +
+                  (osymEsik || '—') +
+                  ' · adayın puanı: ' +
+                  (rec.yksPuani || '—')
+            }
+          >
+            {(window.ELEME_ETIKET || {})[elemeSebebi] || 'Taban puan şartını karşılamıyor'}
+          </span>
+        )}
+        {isStaff && !elemeSebebi && esikDurumu && esikDurumu.durum === 'belirsiz' && (
+          <span style={ygPill(YG.accent, YG.accentPale)} title="ÖSYM puanı okunamadı">
+            ÖSYM puanı yok
+          </span>
+        )}
         {hesap && <span style={ygPill(YG.navy, YG.bg)}>Yerleşme puanı: {hesap.toplam}</span>}
         <span style={ygPill(st.color, st.bg)}>
           {rec.degerlendirme ? ygDegerlendirmeMetni(rec) || st.label : st.label}
@@ -1851,10 +1858,14 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       [sinif]: { ...(k[sinif] || {}), [alan]: deger.replace(/\D/g, '') },
     }));
 
-  // Taban ÖSYM puanının altında kalanlar — sıralamada kontenjana sayılmadan
-  // elenirler ve kartta gerekçesiyle görünürler.
+  // Taban puan şartını karşılamayanlar — İKİ ayrı şart var:
+  //   • kurumun elle girdiği asgari ÖSYM puanı (osymEsik)
+  //   • adayın BAŞVURDUĞU PROGRAMIN kendi ÖSYM taban puanı
+  // İkincisi kartta gösteriliyordu ama sıralamaya girmiyordu; taban puanın
+  // altındaki aday yine sıraya alınıp YEDEK yazılıyordu. Artık ikisi de
+  // kontenjana sayılmadan eliyor.
   const esikDisi = useMemo(
-    () => (window.esikAltindakiler ? window.esikAltindakiler(gorunen, osymEsik) : new Set()),
+    () => (window.elenecekler ? window.elenecekler(gorunen, osymEsik) : new Map()),
     [gorunen, osymEsik]
   );
 
@@ -1876,7 +1887,9 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
     const asilAdet = uygulanacak.filter((o) => o.degerlendirme === 'uygun_asil').length;
     const yedekAdet = uygulanacak.filter((o) => o.degerlendirme === 'uygun_yedek').length;
     const disarida = uygulanacak.filter((o) => o.degerlendirme === 'uygun_degil').length;
-    const esikNedeniyle = uygulanacak.filter((o) => o.sebep === 'taban_osym').length;
+    const esikNedeniyle = uygulanacak.filter(
+      (o) => o.sebep === 'taban_osym' || o.sebep === 'program_taban'
+    ).length;
     if (
       !confirm(
         'Yerleştirmeye esas puana göre sıralanıp değerlendirme sonuçları yazılacak:\n\n' +
@@ -1890,7 +1903,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           disarida +
           ' kontenjan dışı (UYGUN DEĞİL)' +
           (esikNedeniyle > 0
-            ? ' — bunların ' + esikNedeniyle + ' tanesi taban ÖSYM puanının altında'
+            ? ' — bunların ' + esikNedeniyle + ' tanesi taban puan şartını karşılamıyor'
             : '') +
           '\n' +
           (puansiz > 0 ? '  • ' + puansiz + ' başvuru puansız — dokunulmayacak\n' : '') +
@@ -2249,21 +2262,25 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                 fontFamily: 'inherit',
               }}
             >
+              {/* Yalnız ana başlık — tür açıklamaları kaldırıldı; kayıt
+                  sayısı bilgi olarak kaldı. */}
               <span
                 style={{
                   display: 'block',
                   fontSize: 15.5,
                   fontWeight: 700,
                   color: sel ? t.color : YG.text,
-                  marginBottom: 5,
                 }}
               >
                 {t.label}
               </span>
-              <span style={{ fontSize: 11.5, color: YG.textMuted }}>
-                {t.aciklama}
-                {cnt ? '  ·  ' + cnt + ' kayıt' : ''}
-              </span>
+              {cnt ? (
+                <span
+                  style={{ fontSize: 11.5, color: YG.textMuted, display: 'block', marginTop: 4 }}
+                >
+                  {cnt} kayıt
+                </span>
+              ) : null}
             </button>
           );
         })}

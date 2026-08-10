@@ -5,6 +5,8 @@ import {
   gnoDogrula,
   osymEsikDurumu,
   esikAltindakiler,
+  elemeNedeni,
+  elenecekler,
 } from '../lib/yatay-kriter.js';
 import { asilYedekOner } from '../lib/yatay-siralama.js';
 
@@ -192,5 +194,75 @@ describe('asilYedekOner — taban ÖSYM eşiği', () => {
     expect(bul(o, 'c').degerlendirme).toBe('uygun_asil');
     expect(bul(o, 'b').degerlendirme).toBe('uygun_degil'); // kontenjan doldu
     expect(bul(o, 'b').sebep).toBeUndefined();
+  });
+});
+
+// ── Programın KENDİ taban puanı ──
+// Merkezi yerleştirmeyle geçişte aday, gitmek istediği programın ÖSYM taban
+// puanını da karşılamak zorunda. Bu şart kartta gösteriliyordu ama sıralamaya
+// hiç girmiyordu: taban puanın altındaki aday yine sıraya alınıp YEDEK
+// yazılıyordu. Şart karşılanmadığı için yedek bile olamaz.
+describe('elemeNedeni / elenecekler', () => {
+  it('programın taban puanının altındaki aday elenir', () => {
+    const k = { id: 'a', yksPuani: '280', basvurduguBolumOsysPuani: '300' };
+    expect(elemeNedeni(k, '')).toBe('program_taban');
+  });
+
+  it('kurum eşiği programın taban puanından ÖNCE gelir', () => {
+    // İkisini de karşılamıyorsa daha genel olan neden yazılır.
+    const k = { id: 'a', yksPuani: '200', basvurduguBolumOsysPuani: '300' };
+    expect(elemeNedeni(k, '250')).toBe('taban_osym');
+  });
+
+  it('her iki şartı da karşılayan elenmez', () => {
+    const k = { id: 'a', yksPuani: '320', basvurduguBolumOsysPuani: '300' };
+    expect(elemeNedeni(k, '250')).toBe('');
+  });
+
+  it('program taban puanı girilmemişse o şart uygulanmaz', () => {
+    const k = { id: 'a', yksPuani: '280', basvurduguBolumOsysPuani: '' };
+    expect(elemeNedeni(k, '')).toBe('');
+  });
+
+  it('elenecekler id → neden haritası döner', () => {
+    const m = elenecekler(
+      [
+        { id: 'a', yksPuani: '320', basvurduguBolumOsysPuani: '300' },
+        { id: 'b', yksPuani: '280', basvurduguBolumOsysPuani: '300' },
+        { id: 'c', yksPuani: '100', basvurduguBolumOsysPuani: '300' },
+      ],
+      '150'
+    );
+    expect(m.get('a')).toBeUndefined();
+    expect(m.get('b')).toBe('program_taban');
+    expect(m.get('c')).toBe('taban_osym');
+  });
+});
+
+describe('asilYedekOner — program taban puanı yedek yapmaz', () => {
+  const kayitlar = [
+    { id: 'a', basvurduguSinif: '2', yksPuani: '400', basvurduguBolumOsysPuani: '300' },
+    { id: 'b', basvurduguSinif: '2', yksPuani: '280', basvurduguBolumOsysPuani: '300' },
+    { id: 'c', basvurduguSinif: '2', yksPuani: '350', basvurduguBolumOsysPuani: '300' },
+  ];
+  const bul = (o, id) => o.find((x) => x.id === id);
+
+  it('taban puanın altındaki aday YEDEK DEĞİL, uygun değil olur', () => {
+    // Asıl bildirilen hata: b, 1 asil + 2 yedek kontenjanında yedek yazılıyordu.
+    const esikDisi = elenecekler(kayitlar, '');
+    const o = asilYedekOner(kayitlar, 'merkezi', { 2: { asil: 1, yedek: 2 } }, null, { esikDisi });
+    expect(bul(o, 'b').degerlendirme).toBe('uygun_degil');
+    expect(bul(o, 'b').sebep).toBe('program_taban');
+    // Şartı taşıyanlar yerlerini korur.
+    expect(bul(o, 'a').degerlendirme).toBe('uygun_asil');
+    expect(bul(o, 'c').degerlendirme).toBe('uygun_yedek');
+  });
+
+  it('Set de kabul edilir (eski çağrı biçimi)', () => {
+    const o = asilYedekOner(kayitlar, 'merkezi', { 2: { asil: 3, yedek: 0 } }, null, {
+      esikDisi: new Set(['b']),
+    });
+    expect(bul(o, 'b').degerlendirme).toBe('uygun_degil');
+    expect(bul(o, 'b').sebep).toBe('taban_osym');
   });
 });
