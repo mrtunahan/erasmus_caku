@@ -26,6 +26,14 @@ import {
 } from './lib/taban-puan.js';
 import { tabanTablosuCoz, metinKatmaniVarMi } from './lib/taban-tablo.js';
 import {
+  adayNoMu,
+  gercekOgrenciNoMu,
+  adayNoUret,
+  kimlikEtiketi,
+  vekaletenMi,
+  numaraTanimlanabilirMi,
+} from './lib/aday-kimlik.js';
+import {
   LISTE_TURLERI as TABAN_LISTE_TURLERI,
   listeTuruEtiketi,
   tabloEtiketi,
@@ -4298,6 +4306,13 @@ window.programAnahtari = programAnahtari;
 window.TABAN_DURUM_ETIKET = TABAN_DURUM_ETIKET;
 window.tabanTablosuCoz = tabanTablosuCoz;
 window.metinKatmaniVarMi = metinKatmaniVarMi;
+// Aday kimliği — numarası henüz olmayan yatay/dikey geçiş başvuranları.
+window.adayNoMu = adayNoMu;
+window.gercekOgrenciNoMu = gercekOgrenciNoMu;
+window.adayNoUret = adayNoUret;
+window.kimlikEtiketi = kimlikEtiketi;
+window.vekaletenMi = vekaletenMi;
+window.numaraTanimlanabilirMi = numaraTanimlanabilirMi;
 // Taban puan kütüphanesi — modüller buradan tablo seçip kullanır.
 window.TABAN_LISTE_TURLERI = TABAN_LISTE_TURLERI;
 window.tabanListeTuruEtiketi = listeTuruEtiketi;

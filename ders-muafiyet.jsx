@@ -52,6 +52,10 @@ const STUDENT_TABS = [
 ];
 const STAFF_TABS = [
   { id: 'onay', label: 'Onay Bekleyenler', icon: 'plus' },
+  // Yatay/dikey geçişle gelen adayın kesin kaydı yapılana kadar öğrenci
+  // numarası olmuyor; sisteme giremediği için talebini de açamıyor. Bu
+  // sekmede akademisyen aday adına tüm işlemi yürütür.
+  { id: 'aday', label: 'Aday Adına Talep', icon: 'plus' },
   { id: 'gecmis', label: 'Geçmiş Kayıtlar', icon: 'history' },
   { id: 'esgecmis', label: 'Eşleştirme Geçmişi', icon: 'history' },
   { id: 'ayarlar', label: 'Ayarlar', icon: 'settings' },
@@ -6551,6 +6555,23 @@ const ExemptionHistory = ({
                     >
                       {rec.studentNo || '-'}
                     </span>
+                    {/* Geçici numaralı kayıt açıkça işaretlenir: sahibi henüz
+                        sisteme giremiyor, talep öğrenci ekranında görünmüyor. */}
+                    {window.adayNoMu && window.adayNoMu(rec.studentNo) && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          padding: '2px 9px',
+                          borderRadius: 20,
+                          background: '#FEF3C7',
+                          color: '#B45309',
+                          fontSize: 10.5,
+                          fontWeight: 800,
+                        }}
+                      >
+                        numarası bekleniyor
+                      </span>
+                    )}
                   </div>
                   <div
                     style={{
@@ -7951,6 +7972,23 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
           />
         )}
         {/* Yeni Muafiyet: yalnızca öğrenci oluşturur; akademisyen onaylar */}
+        {activeTab === 'aday' && !isStudent && (
+          <ManualExemptionForm
+            key={'aday-' + basvuruTuru}
+            currentUser={currentUser}
+            courseContents={courseContents}
+            basvuruTuru={basvuruTuru}
+            turMeta={turMeta}
+            vekaleten
+            mevcutKayitlar={records}
+            onSave={function (saved) {
+              setRecords(function (prev) {
+                return [saved, ...prev];
+              });
+              setActiveTab('onay');
+            }}
+          />
+        )}
         {activeTab === 'yeni' && isStudent && (
           <ManualExemptionForm
             key={basvuruTuru}
@@ -8143,10 +8181,22 @@ const normalizeStatu = (s) => {
   return '';
 };
 
-const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru, turMeta }) => {
-  const [studentName, setStudentName] = useState(currentUser?.name || '');
+// `vekaleten`: akademisyen, henüz öğrenci numarası olmayan bir aday adına
+// dolduruyor. Bu modda ad-soyad ve numara sistemden DEĞİL formdan gelir
+// (personelin kendi kimliği adayın yerine geçmemeli) ve numara boş
+// bırakılırsa geçici aday numarası üretilir.
+const ManualExemptionForm = ({
+  currentUser,
+  onSave,
+  courseContents,
+  basvuruTuru,
+  turMeta,
+  vekaleten,
+  mevcutKayitlar,
+}) => {
+  const [studentName, setStudentName] = useState(vekaleten ? '' : currentUser?.name || '');
   const [studentNo, setStudentNo] = useState(
-    currentUser?.studentNumber || currentUser?.identifier || ''
+    vekaleten ? '' : currentUser?.studentNumber || currentUser?.identifier || ''
   );
   // İletişim bilgileri — dilekçe şablonunda {{öğrenci_telefon/eposta/adres}}
   // yer tutucuları var. Önce Benim Sayfam profilinden doldurulur; profil boşsa
@@ -8548,8 +8598,13 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
   };
 
   const validate = () => {
-    if (!studentName.trim() || !studentNo.trim()) {
-      setMsg({ text: 'Öğrenci adı ve numarası zorunlu.', kind: 'error' });
+    // Vekâleten kayıtta numara ZORUNLU DEĞİL — bu akış zaten "adayın numarası
+    // henüz yok" diye var. Boş bırakılırsa geçici aday numarası üretilir.
+    if (!studentName.trim() || (!vekaleten && !studentNo.trim())) {
+      setMsg({
+        text: vekaleten ? 'Aday adı soyadı zorunlu.' : 'Öğrenci adı ve numarası zorunlu.',
+        kind: 'error',
+      });
       return false;
     }
     // İletişim bilgileri dilekçeye basılıyor — eksik giderse belge boş
@@ -8770,9 +8825,17 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
         }
       }
 
+      // Vekâleten: numara girilmediyse çakışmayan geçici aday numarası. Harf
+      // önekli olduğu için hiçbir öğrencinin numarasına eşit olamaz — kayıt
+      // yanlış kişinin ekranında görünmez.
+      const kimlikNo = vekaleten
+        ? studentNo.trim() || window.adayNoUret(mevcutKayitlar || [])
+        : studentNo;
       const record = await MuafiyetDB.saveRecord({
         studentName,
-        studentNo,
+        studentNo: kimlikNo,
+        vekaleten: !!vekaleten,
+        girenPersonel: vekaleten ? String(currentUser?.name || currentUser?.identifier || '') : '',
         studentPhone: studentPhone.trim(),
         studentEmail: studentEmail.trim(),
         studentAddress: studentAddress.trim(),
@@ -9398,22 +9461,47 @@ const ManualExemptionForm = ({ currentUser, onSave, courseContents, basvuruTuru,
         }}
       >
         <div style={{ flex: 1 }}>
-          <label style={labelStyle}>Öğrenci Adı Soyadı *</label>
+          <label style={labelStyle}>
+            {vekaleten ? 'Aday Adı Soyadı *' : 'Öğrenci Adı Soyadı *'}
+          </label>
           <input
             value={studentName}
             onChange={(e) => setStudentName(e.target.value)}
+            placeholder={vekaleten ? 'Adayın adı soyadı' : ''}
             style={inputStyle}
           />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={labelStyle}>Öğrenci No *</label>
+          <label style={labelStyle}>{vekaleten ? 'Öğrenci No (varsa)' : 'Öğrenci No *'}</label>
           <input
             value={studentNo}
             onChange={(e) => setStudentNo(e.target.value.replace(/\D/g, ''))}
+            placeholder={vekaleten ? 'Henüz yoksa boş bırakın' : ''}
             style={inputStyle}
           />
         </div>
       </div>
+
+      {/* Vekâleten kayıtta ne olduğu açıkça yazılır — personel kendi adına
+          değil, adayın adına kaydediyor. */}
+      {vekaleten && (
+        <div
+          style={{
+            background: '#FEF3C7',
+            border: '1px solid #B4530955',
+            borderRadius: 10,
+            padding: '10px 14px',
+            marginBottom: 18,
+            fontSize: 12,
+            color: '#7c4a03',
+            lineHeight: 1.55,
+          }}
+        >
+          Bu talebi <b>aday adına siz</b> dolduruyorsunuz. Öğrenci numarası henüz verilmediyse boş
+          bırakın — sistem geçici bir aday numarası üretir. Numara belli olunca kayıt kartından
+          tanımlayabilirsiniz; o an talep öğrencinin kendi ekranında görünür hâle gelir.
+        </div>
+      )}
 
       {/* İletişim bilgileri — dilekçeye basılır. Benim Sayfam'da kayıtlıysa
           otomatik gelir; değilse öğrenci burada girer. */}
