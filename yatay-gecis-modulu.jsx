@@ -924,6 +924,8 @@ function YgBasvuruKarti({
   isStaff,
   onDegerlendir,
   onNumaraTanimla,
+  onDuzenle,
+  onEkYukle,
   busy,
   currentUser,
   onSilindi,
@@ -934,6 +936,11 @@ function YgBasvuruKarti({
   const [acikEk, setAcikEk] = useState('');
   // Vekâleten açılmış kayda sonradan tanımlanacak gerçek öğrenci numarası.
   const [yeniNo, setYeniNo] = useState('');
+  // Gönderilmiş başvurunun beyan alanlarını düzenleme kipi.
+  const [duzenle, setDuzenle] = useState(false);
+  const [duzForm, setDuzForm] = useState({});
+  // Akademisyenin eksik eki yerine yüklemesi.
+  const [ekYukleniyor, setEkYukleniyor] = useState('');
   const deg = YG_DEGERLENDIRME.find((d) => d.id === rec.degerlendirme);
   const st = rec.degerlendirme ? YG_DURUMLAR.degerlendirildi : YG_DURUMLAR.beklemede;
   const hesap = tur?.hesapla ? ygYerlesmePuani(rec.yksPuani, rec.notOrtalamasi) : null;
@@ -998,7 +1005,9 @@ function YgBasvuruKarti({
   }, [rec]);
 
   // Etiket üstte, değer altta — sütunlar eşit genişlikte, satırlar hizalı.
-  const satir = (k, v) =>
+  // `alanId` verilirse ve değer adayın beyanından farklıysa "düzeltildi"
+  // rozeti çıkar: personelin düzeltmesi, adayın beyanı gibi görünmemeli.
+  const satir = (k, v, alanId) =>
     v ? (
       <div key={k} style={{ minWidth: 0 }}>
         <div
@@ -1012,6 +1021,24 @@ function YgBasvuruKarti({
           }}
         >
           {k}
+          {alanId && window.beyandanFarkliMi && window.beyandanFarkliMi(rec, alanId) && (
+            <span
+              title={'Adayın beyanı: ' + ((rec.ilkBeyan || {})[alanId] || '—')}
+              style={{
+                marginLeft: 6,
+                padding: '1px 7px',
+                borderRadius: 20,
+                background: YG.accentPale,
+                color: YG.accent,
+                fontSize: 9.5,
+                fontWeight: 800,
+                textTransform: 'none',
+                letterSpacing: 0,
+              }}
+            >
+              düzeltildi
+            </span>
+          )}
         </div>
         <div
           style={{
@@ -1078,21 +1105,21 @@ function YgBasvuruKarti({
               borderRadius: 10,
             }}
           >
-            {satir('Aktif üniversite', rec.aktifUniversite)}
-            {satir('Aktif fakülte', rec.aktifFakulte)}
-            {satir('Aktif bölüm', rec.aktifBolum)}
-            {satir('Sınıfı', rec.aktifSinif)}
-            {satir('Başvurduğu fakülte', rec.basvurduguFakulte)}
-            {satir('Başvurduğu bölüm', rec.basvurduguBolum)}
-            {satir('Başvurduğu sınıf', rec.basvurduguSinif)}
-            {satir('YKS yerleşme yılı', rec.yksYerlesmeYili)}
-            {satir('Puan türü', rec.yksPuanTuru)}
-            {satir('YKS puanı', rec.yksPuani)}
-            {satir('Not ortalaması', rec.notOrtalamasi)}
+            {satir('Aktif üniversite', rec.aktifUniversite, 'aktifUniversite')}
+            {satir('Aktif fakülte', rec.aktifFakulte, 'aktifFakulte')}
+            {satir('Aktif bölüm', rec.aktifBolum, 'aktifBolum')}
+            {satir('Sınıfı', rec.aktifSinif, 'aktifSinif')}
+            {satir('Başvurduğu fakülte', rec.basvurduguFakulte, 'basvurduguFakulte')}
+            {satir('Başvurduğu bölüm', rec.basvurduguBolum, 'basvurduguBolum')}
+            {satir('Başvurduğu sınıf', rec.basvurduguSinif, 'basvurduguSinif')}
+            {satir('YKS yerleşme yılı', rec.yksYerlesmeYili, 'yksYerlesmeYili')}
+            {satir('Puan türü', rec.yksPuanTuru, 'yksPuanTuru')}
+            {satir('YKS puanı', rec.yksPuani, 'yksPuani')}
+            {satir('Not ortalaması', rec.notOrtalamasi, 'notOrtalamasi')}
             {hesap && satir('YKS %40', hesap.p40)}
             {hesap && satir('AGNO %60', hesap.n60)}
-            {satir('Telefon', rec.telefon)}
-            {satir('E-posta', rec.eposta)}
+            {satir('Telefon', rec.telefon, 'telefon')}
+            {satir('E-posta', rec.eposta, 'eposta')}
           </div>
 
           {/* Ekler — akademisyende seçilen belge YAN PANELDE açılır (PDF) */}
@@ -1109,13 +1136,53 @@ function YgBasvuruKarti({
               {ygEkler(rec.turu).map((ek) => {
                 const f = (rec.ekler || {})[ek.id];
                 if (!f) {
+                  // Eksik ek — akademisyen yerine yükleyebilir. Öğrenci
+                  // Belgesi gibi sonradan zorunlu olan belgeler eski
+                  // kayıtlarda hep eksik kalıyor; başvuruyu geri göndermek
+                  // yerine burada tamamlanabilmeli.
                   return (
-                    <span
-                      key={ek.id}
-                      style={{ ...ygPill(YG.textMuted, YG.bg), textAlign: 'center' }}
-                    >
-                      {ek.title} — yok
-                    </span>
+                    <div key={ek.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span
+                        style={{ ...ygPill(YG.textMuted, YG.bg), flex: 1, textAlign: 'center' }}
+                      >
+                        {ek.title} — yok
+                      </span>
+                      {isStaff && onEkYukle && (
+                        <label style={{ cursor: ekYukleniyor ? 'wait' : 'pointer' }}>
+                          <input
+                            type="file"
+                            style={{ display: 'none' }}
+                            onChange={async (e) => {
+                              const dosya = (e.target.files || [])[0];
+                              e.target.value = '';
+                              if (!dosya) return;
+                              setEkYukleniyor(ek.id);
+                              try {
+                                await onEkYukle(rec, ek.id, dosya);
+                              } finally {
+                                setEkYukleniyor('');
+                              }
+                            }}
+                          />
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              color: YG.navy,
+                              border: '1px solid ' + YG.border,
+                              background: 'white',
+                              borderRadius: 8,
+                              padding: '5px 10px',
+                              whiteSpace: 'nowrap',
+                              opacity: ekYukleniyor ? 0.6 : 1,
+                            }}
+                          >
+                            {ekYukleniyor === ek.id ? 'Yükleniyor…' : 'Yükle'}
+                          </span>
+                        </label>
+                      )}
+                    </div>
                   );
                 }
                 const secili = acikEk === ek.id;
@@ -1210,6 +1277,118 @@ function YgBasvuruKarti({
                 onSilindi,
               })}
             </div>
+          )}
+
+          {/* Gönderilmiş başvurunun beyan alanlarını düzenle.
+              Adayın özgün beyanı `ilkBeyan` altında saklanır ve bir daha
+              üzerine yazılmaz — belge-beyan denetimi anlamını yitirmesin. */}
+          {isStaff && onDuzenle && (
+            <div style={{ marginBottom: 14 }}>
+              {!duzenle ? (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDuzForm(window.duzenlemeFormu(rec));
+                      setDuzenle(true);
+                    }}
+                    style={ygBtn(false)}
+                  >
+                    Başvuruyu Düzenle
+                  </button>
+                  {rec.duzenleyen && (
+                    <span style={{ fontSize: 11.5, color: YG.textMuted }}>
+                      Son düzenleme: {rec.duzenleyen}
+                      {rec.duzenlenmeZamani
+                        ? ' · ' + new Date(rec.duzenlenmeZamani).toLocaleDateString('tr-TR')
+                        : ''}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    border: '1px solid ' + YG.border,
+                    borderRadius: 10,
+                    padding: 14,
+                    background: 'white',
+                  }}
+                >
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 4 }}>
+                    Başvuruyu düzenle
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11.5,
+                      color: YG.textMuted,
+                      marginBottom: 12,
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    Değiştirdiğiniz alanlar &quot;düzeltildi&quot; olarak işaretlenir; adayın özgün
+                    beyanı kayıtta saklı kalır. Kim neyi ne zaman değiştirdiği günlüğe yazılır.
+                  </div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+                      gap: 10,
+                      marginBottom: 12,
+                    }}
+                  >
+                    {(window.BASVURU_DUZENLENEBILIR_ALANLAR || []).map((a) => (
+                      <div key={a.id}>
+                        <label style={ygLabel}>{a.label}</label>
+                        <input
+                          value={duzForm[a.id] || ''}
+                          onChange={(e) => setDuzForm((f) => ({ ...f, [a.id]: e.target.value }))}
+                          style={ygInput}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button type="button" onClick={() => setDuzenle(false)} style={ygBtn(false)}>
+                      Vazgeç
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={async () => {
+                        const ok = await onDuzenle(rec, duzForm);
+                        if (ok) setDuzenle(false);
+                      }}
+                      style={ygBtn(!busy)}
+                    >
+                      Değişiklikleri Kaydet
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Adayın özgün beyanından ayrılan alanlar — tek bakışta görünsün. */}
+          {isStaff && window.beyanFarklari && window.beyanFarklari(rec).length > 0 && !duzenle && (
+            <details style={{ marginBottom: 14 }}>
+              <summary
+                style={{
+                  fontSize: 11.5,
+                  color: YG.accent,
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                }}
+              >
+                {window.beyanFarklari(rec).length} alan adayın beyanından farklı
+              </summary>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 11.5, lineHeight: 1.8 }}>
+                {window.beyanFarklari(rec).map((f) => (
+                  <li key={f.id} style={{ color: YG.textMuted }}>
+                    <b>{f.label}:</b> {f.beyan || '—'} → <b>{f.guncel || '—'}</b>
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
 
           {/* Aday numarası tanımlama — kesin kayıt yapılınca. Numara girildiği
@@ -1639,6 +1818,59 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
     if (temizle) temizle();
     setMsg('Öğrenci numarası tanımlandı.');
     setTimeout(() => setMsg(''), 3000);
+  };
+
+  // Gönderilmiş başvurunun beyan alanlarını düzenle.
+  //
+  // Yama lib/basvuru-duzenle.js'te üretilir: yalnız izinli alanlar geçer
+  // (değerlendirme ve kimlik alanlarının kendi akışları var), adayın özgün
+  // beyanı ilk düzenlemede saklanır ve her düzenleme günlüğe yazılır.
+  const basvuruDuzenle = async (rec, yeniDegerler) => {
+    const kim = String(currentUser?.name || currentUser?.identifier || '');
+    const { patch, degisenler } = window.duzenlemeYamasi(rec, yeniDegerler, kim);
+    if (!patch) {
+      setMsg('Değişiklik yok.');
+      setTimeout(() => setMsg(''), 2500);
+      return true;
+    }
+    if (
+      !confirm(
+        degisenler.length +
+          ' alan değişecek:\n\n' +
+          degisenler
+            .map((d) => '• ' + d.label + ': ' + (d.eski || '—') + ' → ' + d.yeni)
+            .join('\n') +
+          '\n\nAdayın özgün beyanı kayıtta saklı kalacak. Devam edilsin mi?'
+      )
+    ) {
+      return false;
+    }
+    await kaydetDegerlendirme(rec, patch);
+    setMsg(degisenler.length + ' alan güncellendi.');
+    setTimeout(() => setMsg(''), 3000);
+    return true;
+  };
+
+  // Akademisyen eksik eki adayın yerine yükler. Ek listesi kaydın kendi
+  // ekleriyle BİRLEŞTİRİLİR — mevcut dosyalar silinmez.
+  const ekYukle = async (rec, ekId, dosya) => {
+    try {
+      const url = await ygDosyaYukle(dosya);
+      if (!url) {
+        alert('Dosya yüklenemedi, tekrar deneyin.');
+        return;
+      }
+      const ekler = { ...(rec.ekler || {}), [ekId]: { url, ad: dosya.name } };
+      await kaydetDegerlendirme(rec, {
+        ekler,
+        duzenleyen: String(currentUser?.name || currentUser?.identifier || ''),
+        duzenlenmeZamani: new Date().toISOString(),
+      });
+      setMsg('Belge yüklendi.');
+      setTimeout(() => setMsg(''), 3000);
+    } catch (e) {
+      alert('Yüklenemedi: ' + e.message);
+    }
   };
 
   // ── Değerlendirme raporu (tüm başvuranlar tek belgede) ──
@@ -2121,6 +2353,8 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                   currentUser={currentUser}
                   onDegerlendir={kaydetDegerlendirme}
                   onNumaraTanimla={numaraTanimla}
+                  onDuzenle={basvuruDuzenle}
+                  onEkYukle={ekYukle}
                   onSilindi={yukle}
                   tabanKayitlari={tabanKayitlari}
                 />
