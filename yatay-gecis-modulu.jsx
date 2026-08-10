@@ -379,13 +379,42 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
     }
     if (tur.puanIster) {
       liste.push(
-        { id: 'yksYerlesmeYili', label: 'YKS yerleşme yılı', hint: 'Örn. 2023' },
-        { id: 'yksPuanTuru', label: 'Yerleştiği puan türü', hint: 'SAY / EA / SÖZ / DİL' },
-        { id: 'yksPuani', label: 'YKS yerleştirme puanı' }
+        {
+          id: 'yksYerlesmeYili',
+          label: 'YKS yerleşme yılı',
+          hint: 'Adayın bir yükseköğretim programına YERLEŞTİĞİ yıl. Örn. 2023',
+        },
+        {
+          id: 'yksPuanTuru',
+          label: 'Yerleştiği puan türü',
+          // Liste tam verilmezse YÖS ve DGS ile gelen adaylar SAY/EA/SÖZ'e
+          // sıkıştırılıyor ya da boş bırakılıyordu.
+          hint:
+            'Yerleştiği sınavın puan türü. Şunlardan BİRİ olmalı: ' +
+            'SAY, EA, SÖZ, DİL, TYT, DGS SAY, DGS EA, DGS SÖZ, YÖS, ÖZEL YETENEK. ' +
+            'Belgede "DGS" tek başına geçiyorsa DGS SAY yaz; "YÖS"/"Yurt Dışından Öğrenci" ' +
+            'geçiyorsa YÖS yaz.',
+        },
+        {
+          id: 'yksPuani',
+          label: 'YKS yerleştirme puanı',
+          // Sonuç belgesinde birden çok puan var (ham/yerleştirme/OBP...).
+          // Hangisinin alınacağı söylenmezse yanlış sütun okunuyordu.
+          hint:
+            'Sonuç belgesindeki "YERLEŞTİRME PUANLARI VE BAŞARI SIRALARI" bölümünden, ' +
+            'adayın YERLEŞTİĞİ puan türüne ait YERLEŞTİRME PUANI. Ham puanı, OBP’yi ya da ' +
+            'başarı sırasını ALMA. Birden çok tür varsa yalnız yerleştiği türün satırını al.',
+        }
       );
     }
     return liste;
   }, [icGecis, tur.notIster, tur.puanIster]);
+
+  // AGNO denetimi — 100'lük sistem şartı (bkz. lib/yatay-kriter.js).
+  const gnoKontrol = useMemo(
+    () => (window.gnoDogrula ? window.gnoDogrula(form.notOrtalamasi) : { uyari: '', hata: '' }),
+    [form.notOrtalamasi]
+  );
 
   const aiDosyalari = useMemo(() => {
     const cikar = window.aiDosyaAdi;
@@ -452,7 +481,10 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
     if (!form.basvurduguBolum.trim()) eksik.push('Başvurulan bölüm');
     if (!form.aktifBolum.trim()) eksik.push('Aktif bölüm');
     if (!form.basvurduguSinif.trim()) eksik.push('Başvurduğu sınıf');
-    if (tur.notIster && !form.notOrtalamasi.trim()) eksik.push('Not ortalaması');
+    if (tur.notIster) {
+      if (!form.notOrtalamasi.trim()) eksik.push('Not ortalaması');
+      else if (gnoKontrol.hata) eksik.push('Not ortalaması (100’lük, 0-100)');
+    }
     if (tur.puanIster) {
       if (!form.yksPuani.trim()) eksik.push('YKS puanı');
       if (!form.yksYerlesmeYili.trim()) eksik.push('YKS yerleşme yılı');
@@ -730,12 +762,21 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                 </div>
                 <div>
                   <label style={ygLabel}>Yerleştiği puan türü *</label>
-                  <input
+                  {/* Serbest metindi ve YÖS / DGS gibi türler ya yanlış
+                      yazılıyor ya da hiç girilmiyordu. Liste kapalı olunca
+                      belge okuma tarafı da aynı kanonik değerleri görüyor. */}
+                  <select
                     value={form.yksPuanTuru}
-                    onChange={(e) => setBuyuk('yksPuanTuru', e.target.value)}
-                    placeholder="ör. SAY"
+                    onChange={(e) => set('yksPuanTuru', e.target.value)}
                     style={ygInput}
-                  />
+                  >
+                    <option value="">— Seçiniz —</option>
+                    {(window.YKS_PUAN_TURLERI || []).map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label style={ygLabel}>YKS puanı *</label>
@@ -760,6 +801,31 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                 <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
                   Yalnızca 100&apos;lük sistemde girilir (0-100).
                 </div>
+                {/* 4'lük AGNO sessizce geçerse sıralama puanı
+                    (YKS×0,40 + AGNO×0,60) saçmalar ve aday listenin dibine
+                    düşer — hata değil, uyarı: 4,00 teoride geçerli bir
+                    100'lük değer. */}
+                {gnoKontrol.uyari && (
+                  <div
+                    style={{
+                      fontSize: 11.5,
+                      color: '#7c4a03',
+                      background: YG.accentPale,
+                      border: '1px solid ' + YG.accent + '55',
+                      borderRadius: 8,
+                      padding: '7px 10px',
+                      marginTop: 6,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {gnoKontrol.uyari}
+                  </div>
+                )}
+                {gnoKontrol.hata && form.notOrtalamasi.trim() && (
+                  <div style={{ fontSize: 11.5, color: YG.red, marginTop: 6, fontWeight: 600 }}>
+                    {gnoKontrol.hata}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -926,6 +992,7 @@ function YgBasvuruKarti({
   onNumaraTanimla,
   onDuzenle,
   onEkYukle,
+  osymEsik,
   busy,
   currentUser,
   onSilindi,
@@ -934,6 +1001,8 @@ function YgBasvuruKarti({
   const [acik, setAcik] = useState(false);
   // Akademisyende yan panelde açılan ek (PDF)
   const [acikEk, setAcikEk] = useState('');
+  // Taban ÖSYM puanı karşılaştırması (kriter girilmediyse 'kriter_yok').
+  const esikDurumu = window.osymEsikDurumu ? window.osymEsikDurumu(rec.yksPuani, osymEsik) : null;
   // Vekâleten açılmış kayda sonradan tanımlanacak gerçek öğrenci numarası.
   const [yeniNo, setYeniNo] = useState('');
   // Gönderilmiş başvurunun beyan alanlarını düzenleme kipi.
@@ -1083,6 +1152,25 @@ function YgBasvuruKarti({
             {rec.basvurduguSinif ? '  →  ' + rec.basvurduguSinif + '. sınıf' : ''}
           </div>
         </div>
+        {/* Taban ÖSYM puanının altında kalan aday, sıralamaya girmeden
+            elenir; bunu kartta görmek değerlendirmenin gerekçesidir. */}
+        {isStaff &&
+          esikDurumu &&
+          (esikDurumu.durum === 'altinda' || esikDurumu.durum === 'belirsiz') && (
+            <span
+              style={ygPill(
+                esikDurumu.durum === 'altinda' ? YG.red : YG.accent,
+                esikDurumu.durum === 'altinda' ? YG.redLight : YG.accentPale
+              )}
+              title={
+                esikDurumu.durum === 'altinda'
+                  ? 'Taban ÖSYM puanı: ' + esikDurumu.esik + ' · adayın puanı: ' + esikDurumu.aday
+                  : 'ÖSYM puanı okunamadı'
+              }
+            >
+              {esikDurumu.durum === 'altinda' ? 'Taban ÖSYM puanının altında' : 'ÖSYM puanı yok'}
+            </span>
+          )}
         {hesap && <span style={ygPill(YG.navy, YG.bg)}>Yerleşme puanı: {hesap.toplam}</span>}
         <span style={ygPill(st.color, st.bg)}>
           {rec.degerlendirme ? ygDegerlendirmeMetni(rec) || st.label : st.label}
@@ -1674,8 +1762,13 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   // yerleştirmeye esas puana göre sıralayıp öneriyi kayıtlara uygular.
   // Uygulandıktan sonra her satır tek tek değiştirilebilir — son karar
   // akademisyenindir, bu yalnız elle doldurmayı ortadan kaldırır.
-  const [asilSayisi, setAsilSayisi] = useState('');
-  const [yedekSayisi, setYedekSayisi] = useState('');
+  // Kontenjan SINIF BAŞINA ilan edilir (2. sınıfa 5, 3. sınıfa 3 gibi).
+  // Tek bir sayı bütün sınıflara uygulanıyordu ve gerçek ilanla uyuşmuyordu.
+  const [kontenjanlar, setKontenjanlar] = useState({});
+  // Kurumun elle belirlediği taban ÖSYM yerleştirme puanı. Altında kalan
+  // aday, sıralamada nerede olursa olsun "uygun değil"dir.
+  const [osymEsik, setOsymEsik] = useState('');
+  const [kriterKaydediliyor, setKriterKaydediliyor] = useState(false);
 
   // ── Taban puanlar (yalnız merkezi yerleştirme) ──
   // Aranacak programlar = başvurulardaki farklı "başvurduğu bölüm" değerleri.
@@ -1696,8 +1789,83 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
     return Array.from(adlar.entries()).map(([k, ad]) => ({ id: 'p_' + k.slice(0, 50), ad }));
   }, [turId, gorunen, departmentInfo]);
 
+  // Başvurulan sınıflar — kontenjan alanları bunlara göre çıkar.
+  const basvuruSiniflari = useMemo(() => {
+    const set = new Set();
+    gorunen.forEach((r) => {
+      const s2 = String(r.basvurduguSinif || '').trim();
+      if (s2) set.add(s2);
+    });
+    return Array.from(set).sort((a, b) => Number(a) - Number(b) || a.localeCompare(b, 'tr'));
+  }, [gorunen]);
+
+  // Kriterler (taban ÖSYM puanı + sınıf kontenjanları) bölüm ve tür başına
+  // saklanır — mevcut taban_puanlar koleksiyonundaki aynı kapsam anahtarı.
+  const kriterDocId = (activeDepartment || 'genel') + ':yatay-kriter-' + turId;
+  useEffect(() => {
+    let iptal = false;
+    window
+      .apiRead('taban_puanlar')
+      .then((liste) => {
+        if (iptal) return;
+        const d = (liste || []).find((x) => (x.id || x._docId) === kriterDocId);
+        setOsymEsik(d && d.osymEsik ? String(d.osymEsik) : '');
+        setKontenjanlar(
+          d && d.kontenjanlar && typeof d.kontenjanlar === 'object' ? d.kontenjanlar : {}
+        );
+      })
+      .catch(() => {});
+    return () => {
+      iptal = true;
+    };
+  }, [kriterDocId]);
+
+  const kriterKaydet = async () => {
+    setKriterKaydediliyor(true);
+    try {
+      await window.DBWrite.set(
+        'taban_puanlar',
+        kriterDocId,
+        {
+          modul: 'yatay-kriter-' + turId,
+          departmentId: activeDepartment || '',
+          osymEsik: String(osymEsik || '').trim(),
+          kontenjanlar,
+          guncelleyen: String(currentUser?.name || currentUser?.identifier || ''),
+          guncellemeZamani: new Date().toISOString(),
+        },
+        true
+      );
+      setMsg('Kriterler kaydedildi.');
+      setTimeout(() => setMsg(''), 3000);
+    } catch (e) {
+      alert('Kaydedilemedi: ' + e.message);
+    } finally {
+      setKriterKaydediliyor(false);
+    }
+  };
+
+  const kontenjanYaz = (sinif, alan, deger) =>
+    setKontenjanlar((k) => ({
+      ...k,
+      [sinif]: { ...(k[sinif] || {}), [alan]: deger.replace(/\D/g, '') },
+    }));
+
+  // Taban ÖSYM puanının altında kalanlar — sıralamada kontenjana sayılmadan
+  // elenirler ve kartta gerekçesiyle görünürler.
+  const esikDisi = useMemo(
+    () => (window.esikAltindakiler ? window.esikAltindakiler(gorunen, osymEsik) : new Set()),
+    [gorunen, osymEsik]
+  );
+
+  // Hiç kontenjan girilmemişse sıralama uygulanmaz — herkesi "uygun değil"
+  // yapmak, kontenjanı unutmuş bir bölümde tüm başvuruları elemek olurdu.
+  const kontenjanBos = !Object.values(kontenjanlar || {}).some(
+    (k) => (parseInt(k && k.asil, 10) || 0) > 0 || (parseInt(k && k.yedek, 10) || 0) > 0
+  );
+
   const siralamayiUygula = async () => {
-    const oneri = asilYedekOner(gorunen, turId, asilSayisi, yedekSayisi);
+    const oneri = asilYedekOner(gorunen, turId, kontenjanlar, null, { esikDisi });
     const uygulanacak = oneri.filter((o) => o.degerlendirme);
     if (uygulanacak.length === 0) {
       setMsg('Sıralanacak başvuru yok (puan bilgisi eksik olabilir).');
@@ -1708,6 +1876,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
     const asilAdet = uygulanacak.filter((o) => o.degerlendirme === 'uygun_asil').length;
     const yedekAdet = uygulanacak.filter((o) => o.degerlendirme === 'uygun_yedek').length;
     const disarida = uygulanacak.filter((o) => o.degerlendirme === 'uygun_degil').length;
+    const esikNedeniyle = uygulanacak.filter((o) => o.sebep === 'taban_osym').length;
     if (
       !confirm(
         'Yerleştirmeye esas puana göre sıralanıp değerlendirme sonuçları yazılacak:\n\n' +
@@ -1719,7 +1888,11 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           ' yedek\n' +
           '  • ' +
           disarida +
-          ' kontenjan dışı (UYGUN DEĞİL)\n' +
+          ' kontenjan dışı (UYGUN DEĞİL)' +
+          (esikNedeniyle > 0
+            ? ' — bunların ' + esikNedeniyle + ' tanesi taban ÖSYM puanının altında'
+            : '') +
+          '\n' +
           (puansiz > 0 ? '  • ' + puansiz + ' başvuru puansız — dokunulmayacak\n' : '') +
           '\nDaha önce girilmiş değerlendirmeler bu kayıtlarda değişecek. ' +
           'Uygulandıktan sonra her satırı tek tek düzeltebilirsiniz.\n\nDevam edilsin mi?'
@@ -2228,37 +2401,132 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                     göre sıralanır; sınıf başına ilk sıradakiler asil, sonrakiler yedek yazılır.
                   </div>
                 </div>
-                <div style={{ width: 110 }}>
-                  <label style={ygLabel}>Asil sayısı</label>
-                  <input
-                    value={asilSayisi}
-                    disabled={busy}
-                    onChange={(e) => setAsilSayisi(e.target.value.replace(/\D/g, ''))}
-                    placeholder="ör. 3"
-                    style={ygInput}
-                  />
-                </div>
-                <div style={{ width: 110 }}>
-                  <label style={ygLabel}>Yedek sayısı</label>
-                  <input
-                    value={yedekSayisi}
-                    disabled={busy}
-                    onChange={(e) => setYedekSayisi(e.target.value.replace(/\D/g, ''))}
-                    placeholder="ör. 2"
-                    style={ygInput}
-                  />
-                </div>
                 <button
                   onClick={siralamayiUygula}
-                  disabled={busy || (!asilSayisi && !yedekSayisi)}
+                  disabled={busy || kontenjanBos}
                   style={{
                     ...ygBtn(true),
-                    opacity: busy || (!asilSayisi && !yedekSayisi) ? 0.5 : 1,
-                    cursor: busy || (!asilSayisi && !yedekSayisi) ? 'not-allowed' : 'pointer',
+                    opacity: busy || kontenjanBos ? 0.5 : 1,
+                    cursor: busy || kontenjanBos ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {busy ? 'Uygulanıyor…' : 'Sıralamayı Uygula'}
                 </button>
+              </div>
+
+              {/* Taban ÖSYM puanı — kurumun elle belirlediği asgari şart.
+                  Altında kalan aday, sıralamada nerede olursa olsun
+                  "uygun değil"dir ve kontenjanı işgal etmez. */}
+              <div
+                style={{
+                  marginTop: 12,
+                  paddingTop: 12,
+                  borderTop: '1px solid ' + YG.border,
+                  display: 'flex',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                  alignItems: 'flex-end',
+                }}
+              >
+                <div style={{ width: 190 }}>
+                  <label style={ygLabel}>Taban ÖSYM başarı puanı</label>
+                  <input
+                    value={osymEsik}
+                    disabled={busy}
+                    onChange={(e) => setOsymEsik(e.target.value.replace(/[^\d.,]/g, ''))}
+                    placeholder="ör. 300"
+                    style={ygInput}
+                  />
+                </div>
+                <div
+                  style={{
+                    flex: '1 1 260px',
+                    fontSize: 11.5,
+                    color: YG.textMuted,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Adayın ÖSYM yerleştirme puanı bu değerin altındaysa başvuru <b>UYGUN DEĞİL</b>{' '}
+                  olur ve kontenjana sayılmaz. Boş bırakılırsa bu kriter uygulanmaz.
+                  {esikDisi.size > 0 && (
+                    <>
+                      {' '}
+                      Şu an <b>{esikDisi.size}</b> başvuru bu eşiğin altında.
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Kontenjan SINIF BAŞINA — 2. ve 3. sınıf için ayrı ilan edilir. */}
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: YG.navy, marginBottom: 6 }}>
+                  Sınıf başına kontenjan
+                </div>
+                {basvuruSiniflari.length === 0 ? (
+                  <div style={{ fontSize: 11.5, color: YG.textMuted }}>
+                    Henüz sınıf bilgisi olan başvuru yok.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    {basvuruSiniflari.map((sf) => (
+                      <div
+                        key={sf}
+                        style={{
+                          border: '1px solid ' + YG.border,
+                          borderRadius: 10,
+                          padding: '10px 12px',
+                          background: YG.bg,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 11.5,
+                            fontWeight: 800,
+                            color: YG.navy,
+                            marginBottom: 6,
+                          }}
+                        >
+                          {sf}. sınıf
+                          <span style={{ fontWeight: 600, color: YG.textMuted, marginLeft: 6 }}>
+                            (
+                            {
+                              gorunen.filter((r) => String(r.basvurduguSinif || '').trim() === sf)
+                                .length
+                            }{' '}
+                            başvuru)
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <div style={{ width: 92 }}>
+                            <label style={ygLabel}>Asil</label>
+                            <input
+                              value={(kontenjanlar[sf] || {}).asil || ''}
+                              disabled={busy}
+                              onChange={(e) => kontenjanYaz(sf, 'asil', e.target.value)}
+                              placeholder="0"
+                              style={ygInput}
+                            />
+                          </div>
+                          <div style={{ width: 92 }}>
+                            <label style={ygLabel}>Yedek</label>
+                            <input
+                              value={(kontenjanlar[sf] || {}).yedek || ''}
+                              disabled={busy}
+                              onChange={(e) => kontenjanYaz(sf, 'yedek', e.target.value)}
+                              placeholder="0"
+                              style={ygInput}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
+                  <button onClick={kriterKaydet} disabled={kriterKaydediliyor} style={ygBtn(false)}>
+                    {kriterKaydediliyor ? 'Kaydediliyor…' : 'Kriterleri Kaydet'}
+                  </button>
+                </div>
               </div>
               <div style={{ fontSize: 11.5, color: YG.textMuted, marginTop: 8 }}>
                 Bu bir <b>öneridir</b>: uygulandıktan sonra her satırın değerlendirmesini tek tek
@@ -2355,6 +2623,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                   onNumaraTanimla={numaraTanimla}
                   onDuzenle={basvuruDuzenle}
                   onEkYukle={ekYukle}
+                  osymEsik={osymEsik}
                   onSilindi={yukle}
                   tabanKayitlari={tabanKayitlari}
                 />
