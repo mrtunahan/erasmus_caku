@@ -38,6 +38,7 @@ import {
   elenecekler,
   gecerliDegerlendirme,
   ELEME_ETIKET,
+  ELEME_KISA,
   SIRA_ESIK_ETIKET,
 } from './lib/yatay-kriter.js';
 import {
@@ -4374,6 +4375,7 @@ window.elemeNedeni = elemeNedeni;
 window.elenecekler = elenecekler;
 window.gecerliDegerlendirme = gecerliDegerlendirme;
 window.ELEME_ETIKET = ELEME_ETIKET;
+window.ELEME_KISA = ELEME_KISA;
 window.SIRA_ESIK_ETIKET = SIRA_ESIK_ETIKET;
 window.BASVURU_DUZENLENEBILIR_ALANLAR = DUZENLENEBILIR_ALANLAR;
 window.duzenlemeYamasi = duzenlemeYamasi;
@@ -11828,6 +11830,10 @@ const TabanPuanPaneli = ({
         etkin,
         // Elle girilen değer HER ZAMAN kazanır — son söz insanda.
         taban: elle[p.id] != null && elle[p.id] !== '' ? elle[p.id] : etkin ? etkin.taban : '',
+        // Taban başarı sırası da taşınır: yatay geçişteki uygunluk şartı
+        // puanla değil sırayla işliyor. Tabloda sıra sütunu işaretlenmemişse
+        // boş kalır ve o şart uygulanmaz.
+        tabanSira: etkin ? etkin.tabanSira || '' : '',
         elleMi: elle[p.id] != null && elle[p.id] !== '',
       };
     });
@@ -11846,6 +11852,7 @@ const TabanPuanPaneli = ({
         id: r.id,
         ad: r.ad,
         taban: r.taban,
+        tabanSira: r.tabanSira,
         kaynak: r.elleMi ? 'elle girildi' : r.etkin ? r.etkin.etiket : '',
       }))
     );

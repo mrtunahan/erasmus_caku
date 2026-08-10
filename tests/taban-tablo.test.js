@@ -286,3 +286,66 @@ describe('ÖSYM DGS ilanı düzeni', () => {
     expect(bulunan.taban).toBe('307,84423');
   });
 });
+
+// ── Taban BAŞARI SIRASI sütunu ──
+// Yatay geçişteki uygunluk şartı puanla değil sırayla konuyor; bölümler
+// geçmiş yılların tablolarını bu şart için kullanmak istiyor.
+describe('tabanSatiriCoz — başarı sırası sütunu', () => {
+  // ÖSYM satırı: kod, ad, tür, kontenjan, yerleşen, taban puan, tavan puan,
+  // taban başarı sırası, tavan başarı sırası
+  const satir =
+    '102890059\tBilgisayar Mühendisliği\tSAY\t60\t60\t412,33812\t456,78901\t185.432\t92.104';
+
+  it('puandan SONRAKİ tüm sayı sütunları saklanır', () => {
+    const k = tabanSatiriCoz(satir);
+    // Kontenjan ve yerleşen (60, 60) puandan ÖNCE geldiği için sayılmaz.
+    expect(k.sayilar).toEqual(['412,33812', '456,78901', '185.432', '92.104']);
+  });
+
+  it('seçilen sütun taban sırası olur', () => {
+    expect(tabanSatiriCoz(satir, 0, 2).tabanSira).toBe('185.432');
+    expect(tabanSatiriCoz(satir, 0, 3).tabanSira).toBe('92.104');
+  });
+
+  it('sütun seçilmezse sıra OKUNMAZ — tahmin edilmez', () => {
+    // "185.432" biçimsel olarak hem 185 tam 432 küsurat bir puan hem de
+    // yüz seksen beş binlik bir sıra olabilir. Yanlış tahmin, yanlış
+    // kriterle eleme demek.
+    expect(tabanSatiriCoz(satir).tabanSira).toBe('');
+    expect(tabanSatiriCoz(satir, 0, -1).tabanSira).toBe('');
+  });
+
+  it('aralık dışı sütun seçimi boş bırakır, çökmez', () => {
+    expect(tabanSatiriCoz(satir, 0, 99).tabanSira).toBe('');
+  });
+
+  it('taban puan seçimi sıradan bağımsızdır', () => {
+    const k = tabanSatiriCoz(satir, 0, 2);
+    expect(k.taban).toBe('412,33812');
+    expect(k.tabanSira).toBe('185.432');
+  });
+
+  it('puansız satırda sıra da boştur', () => {
+    const k = tabanSatiriCoz('102890059\tYeni Program\tSAY\t--\t--', 0, 2);
+    expect(k.puansiz).toBe(true);
+    expect(k.tabanSira).toBe('');
+  });
+});
+
+describe('tabanTablosuCoz — sayı sütunu sayısı', () => {
+  const metin = [
+    '102890059\tBilgisayar Mühendisliği\tSAY\t60\t60\t412,33812\t456,78901\t185.432\t92.104',
+    '102890068\tGıda Mühendisliği\tSAY\t50\t50\t298,11223\t340,55600\t420.911\t250.300',
+  ].join('\n');
+
+  it('panel kaç sütun soracağını bilir', () => {
+    const c = tabanTablosuCoz(metin);
+    expect(c.enCokSayiSutunu).toBe(4);
+    expect(c.enCokPuanSutunu).toBe(4);
+  });
+
+  it('seçilen sıra sütunu tüm satırlara uygulanır', () => {
+    const c = tabanTablosuCoz(metin, 0, 2);
+    expect(c.kayitlar.map((k) => k.tabanSira)).toEqual(['185.432', '420.911']);
+  });
+});

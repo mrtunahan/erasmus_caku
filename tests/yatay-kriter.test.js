@@ -243,7 +243,9 @@ describe('asilYedekOner — taban başarı sıralaması eşiği', () => {
     expect(bul(o, 'a').degerlendirme).toBe('uygun_asil');
     expect(bul(o, 'c').degerlendirme).toBe('uygun_asil');
     expect(bul(o, 'b').degerlendirme).toBe('uygun_degil'); // kontenjan doldu
-    expect(bul(o, 'b').sebep).toBeUndefined();
+    // Gerekçe her zaman yazılır: belgede asil olmayan her satırın NEDEN öyle
+    // olduğu görünmeli. Burada şart ihlali değil, yer yokluğu.
+    expect(bul(o, 'b').sebep).toBe('kontenjan');
   });
 });
 
@@ -422,6 +424,34 @@ describe('gecerliDegerlendirme', () => {
     const g = gecerliDegerlendirme(aday('420.000'), '300.000');
     expect(g.degerlendirme).toBe('uygun_degil');
     expect(g.cakisma).toBe(false);
+  });
+
+  it('kayıtlı gerekçe korunur — belgeye "UYGUN DEĞİL (Kontenjan dışı)" yazılsın', () => {
+    // Şart ihlali yok (sıra eşiği karşılıyor) ama sıralama turunda kontenjan
+    // dolmuş. Asil olmayan her satırın NEDEN öyle olduğu çıktıda görünmeli.
+    const g = gecerliDegerlendirme(
+      aday('120.000', { degerlendirme: 'uygun_degil', degerlendirmeSebebi: 'kontenjan' }),
+      '300.000'
+    );
+    expect(g.degerlendirme).toBe('uygun_degil');
+    expect(g.sebep).toBe('kontenjan');
+  });
+
+  it('şart ihlali kayıtlı gerekçenin ÖNÜNE geçer', () => {
+    // Kayıtta "kontenjan" yazsa bile gerçek sebep şartın karşılanmamasıdır.
+    const g = gecerliDegerlendirme(
+      aday('420.000', { degerlendirme: 'uygun_degil', degerlendirmeSebebi: 'kontenjan' }),
+      '300.000'
+    );
+    expect(g.sebep).toBe('taban_sira');
+  });
+
+  it('uygun sonuçta kayıtlı gerekçe taşınmaz', () => {
+    const g = gecerliDegerlendirme(
+      aday('120.000', { degerlendirme: 'uygun_asil', degerlendirmeSebebi: 'kontenjan' }),
+      '300.000'
+    );
+    expect(g.sebep).toBe('');
   });
 
   it('boş girdide çökmez', () => {
