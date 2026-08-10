@@ -73,11 +73,23 @@ const YG_TURLER = [
 ];
 
 // ── Zorunlu ekler ──
+// `turler` verilmezse ek TÜM geçiş türlerinde istenir; verilirse yalnız
+// sayılan türlerde görünür ve yalnız orada zorunluluk denetimine girer.
 const YG_EKLER = [
   {
     id: 'transkript',
     title: 'Öğrenci Not Çizelgesi (Transkript)',
     zorunlu: true,
+  },
+  {
+    // Adayın BAŞKA bir kurumda hâlen kayıtlı olduğunu kanıtlar. Kurum içi
+    // geçişte istenmez: öğrenci zaten bizim kaydımızda, belgeyi kendi
+    // kurumundan istemek anlamsız olurdu.
+    id: 'ogrenci_belgesi',
+    title: 'Öğrenci Belgesi',
+    aciklama: 'Hâlen kayıtlı olduğunuz kurumdan alınan, güncel tarihli öğrenci belgesi',
+    zorunlu: true,
+    turler: ['kurumlararasi', 'merkezi'],
   },
   {
     id: 'yks_sonuc',
@@ -92,6 +104,19 @@ const YG_EKLER = [
     zorunlu: false,
   },
 ];
+
+// Bir geçiş türünde istenen ekler. Tür bilinmiyorsa (eski kayıt) tümü
+// döner — mevcut kayıtların ekleri gizlenmesin diye.
+function ygEkler(turId) {
+  const t = String(turId || '');
+  if (!t) return YG_EKLER;
+  return YG_EKLER.filter((e) => !e.turler || e.turler.includes(t));
+}
+// Kural testten görülebilsin diye dışa veriliyor (bkz. tests/yatay-ekler.test.js).
+if (typeof window !== 'undefined') {
+  window.YG_EKLER = YG_EKLER;
+  window.ygEkler = ygEkler;
+}
 
 // ── Akademisyenin seçtiği değerlendirme sonuçları ──
 // Belgeye yazılan metin bu listeden üretilir: "UYGUN 2. Sınıf (1. ASİL)".
@@ -365,12 +390,14 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
   const aiDosyalari = useMemo(() => {
     const cikar = window.aiDosyaAdi;
     if (!cikar) return [];
-    return YG_EKLER.map((ek) => {
-      const y = ekler[ek.id];
-      const fileName = y && y.url ? cikar(y.url) : '';
-      return fileName ? { fileName, name: ek.title } : null;
-    }).filter(Boolean);
-  }, [ekler]);
+    return ygEkler(tur.id)
+      .map((ek) => {
+        const y = ekler[ek.id];
+        const fileName = y && y.url ? cikar(y.url) : '';
+        return fileName ? { fileName, name: ek.title } : null;
+      })
+      .filter(Boolean);
+  }, [ekler, tur.id]);
 
   // Benim Sayfam iletişim bilgileri — varsa forma önden doldur
   useEffect(() => {
@@ -431,9 +458,11 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
       if (!form.yksYerlesmeYili.trim()) eksik.push('YKS yerleşme yılı');
       if (!form.yksPuanTuru.trim()) eksik.push('Puan türü');
     }
-    YG_EKLER.filter((e) => e.zorunlu).forEach((e) => {
-      if (!ekler[e.id]) eksik.push(e.title);
-    });
+    ygEkler(tur.id)
+      .filter((e) => e.zorunlu)
+      .forEach((e) => {
+        if (!ekler[e.id]) eksik.push(e.title);
+      });
     return eksik;
   };
 
@@ -769,7 +798,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
           Tüm ekler <b>PDF</b> olarak yüklenir.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {YG_EKLER.map((ek) => {
+          {ygEkler(tur.id).map((ek) => {
             const yuklu = ekler[ek.id];
             return (
               <div
@@ -959,11 +988,13 @@ function YgBasvuruKarti({
   const kiyasDosyalari = useMemo(() => {
     const cikar = window.aiDosyaAdi;
     if (!cikar) return [];
-    return YG_EKLER.map((ek) => {
-      const f = (rec.ekler || {})[ek.id];
-      const fileName = f && f.url ? cikar(f.url) : '';
-      return fileName ? { fileName, name: ek.title } : null;
-    }).filter(Boolean);
+    return ygEkler(rec.turu)
+      .map((ek) => {
+        const f = (rec.ekler || {})[ek.id];
+        const fileName = f && f.url ? cikar(f.url) : '';
+        return fileName ? { fileName, name: ek.title } : null;
+      })
+      .filter(Boolean);
   }, [rec]);
 
   // Etiket üstte, değer altta — sütunlar eşit genişlikte, satırlar hizalı.
@@ -1075,7 +1106,7 @@ function YgBasvuruKarti({
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {YG_EKLER.map((ek) => {
+              {ygEkler(rec.turu).map((ek) => {
                 const f = (rec.ekler || {})[ek.id];
                 if (!f) {
                   return (
