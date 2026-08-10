@@ -3,7 +3,9 @@ import {
   YKS_PUAN_TURLERI,
   puanTuruNormalize,
   gnoDogrula,
-  osymEsikDurumu,
+  siraOku,
+  siraYaz,
+  siraEsikDurumu,
   esikAltindakiler,
   elemeNedeni,
   elenecekler,
@@ -84,43 +86,90 @@ describe('gnoDogrula — 100’lük sistem', () => {
   });
 });
 
-describe('osymEsikDurumu', () => {
-  it('eşiği karşılayan uygun, altında kalan elenir', () => {
-    expect(osymEsikDurumu('320,5', '300').durum).toBe('uygun');
-    expect(osymEsikDurumu('280', '300').durum).toBe('altinda');
+describe('siraOku — başarı sırası okuma', () => {
+  it('Türkçe binlik ayracını DOĞRU okur', () => {
+    // ⚠ Asıl tehlike bu: puanOku('300.000') → 300 verir. 300.000'lik bir eşik
+    // 300'e dönerse hiçbir aday elenmez, kriter sessizce kalkar.
+    expect(siraOku('300.000')).toBe(300000);
+    expect(siraOku('300000')).toBe(300000);
+    expect(siraOku('1.234.567')).toBe(1234567);
+    expect(siraOku('245 678')).toBe(245678);
   });
 
-  it('EŞİT puan eşiği KARŞILAR', () => {
-    // "taban puandan az olmamak" — sınırdaki aday elenmez.
-    expect(osymEsikDurumu('300', '300').durum).toBe('uygun');
+  it('sıralama TAM SAYIdır — virgül de binlik ayracı sayılır', () => {
+    expect(siraOku('300,000')).toBe(300000);
+  });
+
+  it('sayı olmayanda null — 0 varsayılmaz', () => {
+    // 0 dönseydi aday "1. sıra" gibi görünür, elenmesi gerekirken geçerdi.
+    expect(siraOku('')).toBe(null);
+    expect(siraOku('300 bin')).toBe(null);
+    expect(siraOku('abc')).toBe(null);
+    expect(siraOku(null)).toBe(null);
+    expect(siraOku('0')).toBe(null);
+  });
+
+  it('sayı tipini de kabul eder', () => {
+    expect(siraOku(245678)).toBe(245678);
+  });
+});
+
+describe('siraYaz', () => {
+  it('okunabilir yazar', () => {
+    expect(siraYaz('300000')).toBe('300.000');
+    expect(siraYaz('245.678')).toBe('245.678');
+  });
+
+  it('okunamayanda boş — uydurma değer göstermez', () => {
+    expect(siraYaz('')).toBe('');
+    expect(siraYaz('abc')).toBe('');
+  });
+});
+
+describe('siraEsikDurumu — KÜÇÜK sıra daha iyidir', () => {
+  it('eşiğin önündeki uygun, gerisindeki elenir', () => {
+    // 300.000 eşiğinde: 245.678 geçer, 350.000 elenir. Puandaki
+    // karşılaştırmanın TAM TERSİ yön — karıştırılırsa yanlış adaylar elenir.
+    expect(siraEsikDurumu('245.678', '300.000').durum).toBe('uygun');
+    expect(siraEsikDurumu('350.000', '300.000').durum).toBe('altinda');
+  });
+
+  it('EŞİT sıra eşiği KARŞILAR', () => {
+    // "300.000'inci başarı sırası" şartında 300.000'inci aday şartı sağlar.
+    expect(siraEsikDurumu('300.000', '300.000').durum).toBe('uygun');
+  });
+
+  it('fark = eşik - aday (pozitifse aday önde)', () => {
+    expect(siraEsikDurumu('245.000', '300.000').fark).toBe(55000);
+    expect(siraEsikDurumu('350.000', '300.000').fark).toBe(-50000);
   });
 
   it('eşik tanımlı değilse kimse elenmez', () => {
     // Kriteri hiç koymamış bölümde herkesi elemek olurdu.
-    expect(osymEsikDurumu('280', '').durum).toBe('kriter_yok');
-    expect(osymEsikDurumu('280', null).durum).toBe('kriter_yok');
+    expect(siraEsikDurumu('350.000', '').durum).toBe('kriter_yok');
+    expect(siraEsikDurumu('350.000', null).durum).toBe('kriter_yok');
   });
 
-  it('okunamayan aday puanında BELİRSİZ — sıfır varsayılmaz', () => {
-    expect(osymEsikDurumu('', '300').durum).toBe('belirsiz');
-    expect(osymEsikDurumu('abc', '300').durum).toBe('belirsiz');
+  it('okunamayan aday sırasında BELİRSİZ — sıfır varsayılmaz', () => {
+    expect(siraEsikDurumu('', '300.000').durum).toBe('belirsiz');
+    expect(siraEsikDurumu('abc', '300.000').durum).toBe('belirsiz');
   });
 });
 
 describe('esikAltindakiler', () => {
   const kayitlar = [
-    { id: 'a', yksPuani: '320' },
-    { id: 'b', yksPuani: '280' },
-    { id: 'c', yksPuani: '' },
+    { id: 'a', yksBasariSirasi: '245.678' },
+    { id: 'b', yksBasariSirasi: '350.000' },
+    { id: 'c', yksBasariSirasi: '' },
   ];
 
-  it('yalnız eşiğin altındakileri döner', () => {
-    const s = esikAltindakiler(kayitlar, '300');
+  it('yalnız eşiğin gerisindekileri döner', () => {
+    const s = esikAltindakiler(kayitlar, '300.000');
     expect([...s]).toEqual(['b']);
   });
 
-  it('puanı okunamayan kayıt elenmez — belirsizlik eleme sebebi değil', () => {
-    expect(esikAltindakiler(kayitlar, '300').has('c')).toBe(false);
+  it('sırası okunamayan kayıt elenmez — belirsizlik eleme sebebi değil', () => {
+    expect(esikAltindakiler(kayitlar, '300.000').has('c')).toBe(false);
   });
 
   it('eşik yoksa küme boş', () => {
@@ -171,20 +220,20 @@ describe('asilYedekOner — sınıf başına kontenjan', () => {
   });
 });
 
-describe('asilYedekOner — taban ÖSYM eşiği', () => {
+describe('asilYedekOner — taban başarı sıralaması eşiği', () => {
   const kayitlar = [
-    { id: 'a', basvurduguSinif: '2', yksPuani: '400' },
-    { id: 'b', basvurduguSinif: '2', yksPuani: '280' },
-    { id: 'c', basvurduguSinif: '2', yksPuani: '390' },
+    { id: 'a', basvurduguSinif: '2', yksPuani: '400', yksBasariSirasi: '120.000' },
+    { id: 'b', basvurduguSinif: '2', yksPuani: '280', yksBasariSirasi: '420.000' },
+    { id: 'c', basvurduguSinif: '2', yksPuani: '390', yksBasariSirasi: '150.000' },
   ];
   const bul = (o, id) => o.find((x) => x.id === id);
 
-  it('eşik altındaki aday kontenjanı İŞGAL ETMEDEN elenir', () => {
+  it('eşiğin gerisindeki aday kontenjanı İŞGAL ETMEDEN elenir', () => {
     // b elenmezse a ve c'den birinin yerini kapatırdı.
-    const esikDisi = esikAltindakiler(kayitlar, '300');
+    const esikDisi = esikAltindakiler(kayitlar, '300.000');
     const o = asilYedekOner(kayitlar, 'merkezi', { 2: { asil: 2, yedek: 0 } }, null, { esikDisi });
     expect(bul(o, 'b').degerlendirme).toBe('uygun_degil');
-    expect(bul(o, 'b').sebep).toBe('taban_osym');
+    expect(bul(o, 'b').sebep).toBe('taban_sira');
     expect(bul(o, 'a').degerlendirme).toBe('uygun_asil');
     expect(bul(o, 'c').degerlendirme).toBe('uygun_asil');
   });
@@ -198,62 +247,86 @@ describe('asilYedekOner — taban ÖSYM eşiği', () => {
   });
 });
 
-// ── Programın KENDİ taban puanı ──
-// Merkezi yerleştirmeyle geçişte aday, gitmek istediği programın ÖSYM taban
-// puanını da karşılamak zorunda. Bu şart kartta gösteriliyordu ama sıralamaya
-// hiç girmiyordu: taban puanın altındaki aday yine sıraya alınıp YEDEK
-// yazılıyordu. Şart karşılanmadığı için yedek bile olamaz.
+// ── Programın KENDİ taban başarı sırası ──
+// Merkezi yerleştirmeyle geçişte aday, gitmek istediği programın taban başarı
+// sıralamasını da karşılamak zorunda. Şart karşılanmadığı için bu kayıt yedek
+// bile olamaz.
 describe('elemeNedeni / elenecekler', () => {
-  it('programın taban puanının altındaki aday elenir', () => {
-    const k = { id: 'a', yksPuani: '280', basvurduguBolumOsysPuani: '300' };
-    expect(elemeNedeni(k, '')).toBe('program_taban');
+  it('programın taban sıralamasının gerisindeki aday elenir', () => {
+    const k = { id: 'a', yksBasariSirasi: '250.000', basvurduguBolumTabanSirasi: '180.000' };
+    expect(elemeNedeni(k, '')).toBe('program_sira');
   });
 
-  it('kurum eşiği programın taban puanından ÖNCE gelir', () => {
+  it('kurum eşiği programın taban sıralamasından ÖNCE gelir', () => {
     // İkisini de karşılamıyorsa daha genel olan neden yazılır.
-    const k = { id: 'a', yksPuani: '200', basvurduguBolumOsysPuani: '300' };
-    expect(elemeNedeni(k, '250')).toBe('taban_osym');
+    const k = { id: 'a', yksBasariSirasi: '500.000', basvurduguBolumTabanSirasi: '180.000' };
+    expect(elemeNedeni(k, '300.000')).toBe('taban_sira');
   });
 
   it('her iki şartı da karşılayan elenmez', () => {
-    const k = { id: 'a', yksPuani: '320', basvurduguBolumOsysPuani: '300' };
-    expect(elemeNedeni(k, '250')).toBe('');
+    const k = { id: 'a', yksBasariSirasi: '120.000', basvurduguBolumTabanSirasi: '180.000' };
+    expect(elemeNedeni(k, '300.000')).toBe('');
   });
 
-  it('program taban puanı girilmemişse o şart uygulanmaz', () => {
-    const k = { id: 'a', yksPuani: '280', basvurduguBolumOsysPuani: '' };
+  it('program taban sıralaması girilmemişse o şart uygulanmaz', () => {
+    const k = { id: 'a', yksBasariSirasi: '250.000', basvurduguBolumTabanSirasi: '' };
+    expect(elemeNedeni(k, '')).toBe('');
+  });
+
+  it('PUAN alanları artık kriter DEĞİLDİR', () => {
+    // Şart puanla değil sırayla konur; eski puan alanları dolu olsa bile
+    // sıralama şartı yoksa kimse elenmez.
+    const k = { id: 'a', yksPuani: '200', basvurduguBolumOsysPuani: '400' };
     expect(elemeNedeni(k, '')).toBe('');
   });
 
   it('elenecekler id → neden haritası döner', () => {
     const m = elenecekler(
       [
-        { id: 'a', yksPuani: '320', basvurduguBolumOsysPuani: '300' },
-        { id: 'b', yksPuani: '280', basvurduguBolumOsysPuani: '300' },
-        { id: 'c', yksPuani: '100', basvurduguBolumOsysPuani: '300' },
+        { id: 'a', yksBasariSirasi: '120.000', basvurduguBolumTabanSirasi: '180.000' },
+        { id: 'b', yksBasariSirasi: '250.000', basvurduguBolumTabanSirasi: '180.000' },
+        { id: 'c', yksBasariSirasi: '900.000', basvurduguBolumTabanSirasi: '180.000' },
       ],
-      '150'
+      '400.000'
     );
     expect(m.get('a')).toBeUndefined();
-    expect(m.get('b')).toBe('program_taban');
-    expect(m.get('c')).toBe('taban_osym');
+    expect(m.get('b')).toBe('program_sira');
+    expect(m.get('c')).toBe('taban_sira');
   });
 });
 
-describe('asilYedekOner — program taban puanı yedek yapmaz', () => {
+describe('asilYedekOner — taban sıralaması yedek yapmaz', () => {
   const kayitlar = [
-    { id: 'a', basvurduguSinif: '2', yksPuani: '400', basvurduguBolumOsysPuani: '300' },
-    { id: 'b', basvurduguSinif: '2', yksPuani: '280', basvurduguBolumOsysPuani: '300' },
-    { id: 'c', basvurduguSinif: '2', yksPuani: '350', basvurduguBolumOsysPuani: '300' },
+    {
+      id: 'a',
+      basvurduguSinif: '2',
+      yksPuani: '400',
+      yksBasariSirasi: '120.000',
+      basvurduguBolumTabanSirasi: '180.000',
+    },
+    {
+      id: 'b',
+      basvurduguSinif: '2',
+      yksPuani: '280',
+      yksBasariSirasi: '250.000',
+      basvurduguBolumTabanSirasi: '180.000',
+    },
+    {
+      id: 'c',
+      basvurduguSinif: '2',
+      yksPuani: '350',
+      yksBasariSirasi: '150.000',
+      basvurduguBolumTabanSirasi: '180.000',
+    },
   ];
   const bul = (o, id) => o.find((x) => x.id === id);
 
-  it('taban puanın altındaki aday YEDEK DEĞİL, uygun değil olur', () => {
+  it('taban sıralamasının gerisindeki aday YEDEK DEĞİL, uygun değil olur', () => {
     // Asıl bildirilen hata: b, 1 asil + 2 yedek kontenjanında yedek yazılıyordu.
     const esikDisi = elenecekler(kayitlar, '');
     const o = asilYedekOner(kayitlar, 'merkezi', { 2: { asil: 1, yedek: 2 } }, null, { esikDisi });
     expect(bul(o, 'b').degerlendirme).toBe('uygun_degil');
-    expect(bul(o, 'b').sebep).toBe('program_taban');
+    expect(bul(o, 'b').sebep).toBe('program_sira');
     // Şartı taşıyanlar yerlerini korur.
     expect(bul(o, 'a').degerlendirme).toBe('uygun_asil');
     expect(bul(o, 'c').degerlendirme).toBe('uygun_yedek');
@@ -264,7 +337,7 @@ describe('asilYedekOner — program taban puanı yedek yapmaz', () => {
       esikDisi: new Set(['b']),
     });
     expect(bul(o, 'b').degerlendirme).toBe('uygun_degil');
-    expect(bul(o, 'b').sebep).toBe('taban_osym');
+    expect(bul(o, 'b').sebep).toBe('taban_sira');
   });
 });
 
@@ -272,49 +345,53 @@ describe('gecerliDegerlendirme', () => {
   // Sıralamayı düzeltmek tek başına yetmiyordu: değerlendirme kayıtta saklı
   // durduğu için, daha önceki bir sıralamadan kalan "3. YEDEK" hem kartta hem
   // resmî raporda görünmeye devam ediyordu.
-  const aday = (p, ek) => ({ id: 'a', yksPuani: p, ...(ek || {}) });
+  const aday = (sira, ek) => ({ id: 'a', yksBasariSirasi: sira, ...(ek || {}) });
 
-  it('taban puanın altındaki adayın KAYITLI yedek sonucu geçersizdir', () => {
+  it('taban sıralamasının gerisindeki adayın KAYITLI yedek sonucu geçersizdir', () => {
     const g = gecerliDegerlendirme(
-      aday('290,22', {
+      aday('420.000', {
         degerlendirme: 'uygun_yedek',
         degerlendirmeSinif: '2',
         degerlendirmeSira: '3',
       }),
-      '308,50'
+      '300.000'
     );
     expect(g.degerlendirme).toBe('uygun_degil');
-    expect(g.sebep).toBe('taban_osym');
+    expect(g.sebep).toBe('taban_sira');
     expect(g.cakisma).toBe(true);
   });
 
   it('elenen kayıtta sınıf/sıra taşınmaz', () => {
     // Aksi hâlde belgeye "UYGUN DEĞİL (3. YEDEK)" gibi bir metin düşerdi.
     const g = gecerliDegerlendirme(
-      aday('290', { degerlendirme: 'uygun_asil', degerlendirmeSinif: '2', degerlendirmeSira: '1' }),
-      '300'
+      aday('420.000', {
+        degerlendirme: 'uygun_asil',
+        degerlendirmeSinif: '2',
+        degerlendirmeSira: '1',
+      }),
+      '300.000'
     );
     expect(g.degerlendirmeSinif).toBe('');
     expect(g.degerlendirmeSira).toBe('');
   });
 
-  it('programın kendi taban puanı da aynı sonucu doğurur', () => {
+  it('programın kendi taban sıralaması da aynı sonucu doğurur', () => {
     const g = gecerliDegerlendirme(
-      aday('380', { basvurduguBolumOsysPuani: '412,338', degerlendirme: 'uygun_yedek' }),
+      aday('250.000', { basvurduguBolumTabanSirasi: '180.000', degerlendirme: 'uygun_yedek' }),
       ''
     );
     expect(g.degerlendirme).toBe('uygun_degil');
-    expect(g.sebep).toBe('program_taban');
+    expect(g.sebep).toBe('program_sira');
   });
 
   it('şartı karşılayan adayın kayıtlı sonucuna DOKUNULMAZ', () => {
     const g = gecerliDegerlendirme(
-      aday('325,17', {
+      aday('120.000', {
         degerlendirme: 'uygun_asil',
         degerlendirmeSinif: '2',
         degerlendirmeSira: '1',
       }),
-      '308,50'
+      '300.000'
     );
     expect(g).toMatchObject({
       degerlendirme: 'uygun_asil',
@@ -326,27 +403,28 @@ describe('gecerliDegerlendirme', () => {
   });
 
   it('kriter tanımlı değilse hiçbir şey değişmez', () => {
-    const g = gecerliDegerlendirme(aday('100', { degerlendirme: 'uygun_yedek' }), '');
+    const g = gecerliDegerlendirme(aday('900.000', { degerlendirme: 'uygun_yedek' }), '');
     expect(g.degerlendirme).toBe('uygun_yedek');
   });
 
-  it('puan okunamıyorsa aday elenmez — 0 varsayılmaz', () => {
-    const g = gecerliDegerlendirme(aday('', { degerlendirme: 'uygun_asil' }), '300');
+  it('sıra okunamıyorsa aday elenmez — 0 varsayılmaz', () => {
+    // 0 varsayılsaydı aday "1. sıra" sayılıp şartı sağlar görünürdü.
+    const g = gecerliDegerlendirme(aday('', { degerlendirme: 'uygun_asil' }), '300.000');
     expect(g.degerlendirme).toBe('uygun_asil');
   });
 
   it('zaten uygun değil yazan kayıtta çakışma bildirilmez', () => {
-    const g = gecerliDegerlendirme(aday('290', { degerlendirme: 'uygun_degil' }), '300');
+    const g = gecerliDegerlendirme(aday('420.000', { degerlendirme: 'uygun_degil' }), '300.000');
     expect(g.cakisma).toBe(false);
   });
 
   it('hiç değerlendirilmemiş kayıt şartı karşılamıyorsa uygun değildir', () => {
-    const g = gecerliDegerlendirme(aday('290'), '300');
+    const g = gecerliDegerlendirme(aday('420.000'), '300.000');
     expect(g.degerlendirme).toBe('uygun_degil');
     expect(g.cakisma).toBe(false);
   });
 
   it('boş girdide çökmez', () => {
-    expect(gecerliDegerlendirme(null, '300').degerlendirme).toBe('');
+    expect(gecerliDegerlendirme(null, '300.000').degerlendirme).toBe('');
   });
 });

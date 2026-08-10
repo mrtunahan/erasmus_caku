@@ -1195,6 +1195,11 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           notortalamasıyüzde60: 'row:notOrtYuzde60',
           yerleşmepuanı: 'row:yerlesmePuani',
           başvurduğubölümösyspuanı: 'row:basvurduguBolumOsysPuani',
+          başarısırası: 'row:yksBasariSirasi',
+          yksbaşarısırası: 'row:yksBasariSirasi',
+          yerleştirmebaşarısırası: 'row:yksBasariSirasi',
+          yerleştirmebaşarısıralaması: 'row:yksBasariSirasi',
+          başvurduğubölümtabansırası: 'row:basvurduguBolumTabanSirasi',
           eğitimyılı2: 'static:egitimYili',
         };
         let auto = 0;

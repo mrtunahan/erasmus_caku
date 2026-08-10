@@ -30,13 +30,15 @@ import {
   YKS_PUAN_TURLERI,
   puanTuruNormalize,
   gnoDogrula,
-  osymEsikDurumu,
+  siraOku,
+  siraYaz,
+  siraEsikDurumu,
   esikAltindakiler,
   elemeNedeni,
   elenecekler,
   gecerliDegerlendirme,
   ELEME_ETIKET,
-  OSYM_ESIK_ETIKET,
+  SIRA_ESIK_ETIKET,
 } from './lib/yatay-kriter.js';
 import {
   DUZENLENEBILIR_ALANLAR,
@@ -2376,6 +2378,8 @@ const YATAY_ROWS = [
   { id: 'yksYerlesmeYili', label: 'YKS Yerleşme Yılı' },
   { id: 'yksPuanTuru', label: 'Yerleştiği Puan Türü', format: 'title' },
   { id: 'yksPuani', label: 'YKS Puanı' },
+  // Uygunluk şartının ölçütü: puan değil SIRA (bkz. lib/yatay-kriter.js).
+  { id: 'yksBasariSirasi', label: 'Yerleştirme Başarı Sıralaması' },
   { id: 'notOrtalamasi', label: 'Not Ortalaması' },
   // Kurumlararası hesaplama (sistem hesaplar)
   { id: 'yksPuaniYuzde40', label: "YKS Puanının %40'ı" },
@@ -2383,6 +2387,7 @@ const YATAY_ROWS = [
   { id: 'yerlesmePuani', label: 'Yerleştirmeye Esas Puan' },
   // Merkezi yerleştirme
   { id: 'basvurduguBolumOsysPuani', label: 'Başvurduğu Bölümün ÖSYS Puanı' },
+  { id: 'basvurduguBolumTabanSirasi', label: 'Başvurduğu Bölümün Taban Başarı Sıralaması' },
   // Akademisyenin verdiği karar (belgedeki son sütun) — resmî sonuç
   // olduğu için tamamı büyük yazılır.
   { id: 'degerlendirme', label: 'Değerlendirme Sonucu', format: 'upper' },
@@ -4357,17 +4362,19 @@ window.metinKatmaniVarMi = metinKatmaniVarMi;
 // Aday kimliği — numarası henüz olmayan yatay/dikey geçiş başvuranları.
 // Başvuru düzenleme — akademisyen gönderilmiş kaydı düzeltir, adayın
 // özgün beyanı korunur.
-// Yatay geçiş kriterleri — puan türü, 100'lük AGNO, taban ÖSYM eşiği.
+// Yatay geçiş kriterleri — puan türü, 100'lük AGNO, taban başarı sıralaması.
 window.YKS_PUAN_TURLERI = YKS_PUAN_TURLERI;
 window.puanTuruNormalize = puanTuruNormalize;
 window.gnoDogrula = gnoDogrula;
-window.osymEsikDurumu = osymEsikDurumu;
+window.siraOku = siraOku;
+window.siraYaz = siraYaz;
+window.siraEsikDurumu = siraEsikDurumu;
 window.esikAltindakiler = esikAltindakiler;
 window.elemeNedeni = elemeNedeni;
 window.elenecekler = elenecekler;
 window.gecerliDegerlendirme = gecerliDegerlendirme;
 window.ELEME_ETIKET = ELEME_ETIKET;
-window.OSYM_ESIK_ETIKET = OSYM_ESIK_ETIKET;
+window.SIRA_ESIK_ETIKET = SIRA_ESIK_ETIKET;
 window.BASVURU_DUZENLENEBILIR_ALANLAR = DUZENLENEBILIR_ALANLAR;
 window.duzenlemeYamasi = duzenlemeYamasi;
 window.beyandanFarkliMi = beyandanFarkliMi;
