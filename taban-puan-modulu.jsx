@@ -70,13 +70,17 @@ function TabloEkle({ currentUser, mevcutlar, onKaydedildi, onIptal }) {
   const [ham, setHam] = useState('');
   const [cozum, setCozum] = useState(null);
   const [puanSutunu, setPuanSutunu] = useState(0);
+  // Taban BAŞARI SIRASI hangi sayı sütununda? -1: okunmuyor.
+  // Tahmin edilmiyor, soruluyor: "185.432" hem bir puan hem bir sıra olabilir
+  // ve biçime bakarak ayırmak mümkün değil.
+  const [siraSutunu, setSiraSutunu] = useState(-1);
   const [busy, setBusy] = useState('');
   const [hata, setHata] = useState('');
   const [taranmis, setTaranmis] = useState(false);
   const dosyaRef = useRef(null);
 
-  const coz = (metin, sutun) => {
-    const c = window.tabanTablosuCoz(metin, sutun);
+  const coz = (metin, sutun, sira) => {
+    const c = window.tabanTablosuCoz(metin, sutun, sira == null ? siraSutunu : sira);
     setCozum(c);
     if (c.kayitlar.length === 0 && c.puansizlar.length === 0) {
       setHata(
@@ -107,11 +111,11 @@ function TabloEkle({ currentUser, mevcutlar, onKaydedildi, onIptal }) {
           return;
         }
         setHam(metin);
-        coz(metin, puanSutunu);
+        coz(metin, puanSutunu, siraSutunu);
       } else {
         const metin = await f.text();
         setHam(metin);
-        coz(metin, puanSutunu);
+        coz(metin, puanSutunu, siraSutunu);
       }
     } catch (err) {
       setHata('Dosya okunamadı: ' + err.message);
@@ -122,7 +126,13 @@ function TabloEkle({ currentUser, mevcutlar, onKaydedildi, onIptal }) {
 
   const sutunDegistir = (i) => {
     setPuanSutunu(i);
-    if (ham) coz(ham, i);
+    if (ham) coz(ham, i, siraSutunu);
+  };
+
+  const siraSutunDegistir = (i) => {
+    const yeni = siraSutunu === i ? -1 : i; // aynı sütuna tekrar basmak kapatır
+    setSiraSutunu(yeni);
+    if (ham) coz(ham, puanSutunu, yeni);
   };
 
   const kaydet = async () => {
@@ -227,7 +237,7 @@ function TabloEkle({ currentUser, mevcutlar, onKaydedildi, onIptal }) {
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
         <button
-          onClick={() => coz(ham, puanSutunu)}
+          onClick={() => coz(ham, puanSutunu, siraSutunu)}
           disabled={!!busy || !ham.trim()}
           style={{ ...tpBtn(TP.navy, '#fff'), opacity: busy || !ham.trim() ? 0.5 : 1 }}
         >
@@ -302,6 +312,58 @@ function TabloEkle({ currentUser, mevcutlar, onKaydedildi, onIptal }) {
         </div>
       )}
 
+      {/* Taban BAŞARI SIRASI sütunu — yatay geçişteki uygunluk şartı puanla
+          değil sırayla konur, o yüzden tablodan sıra da okunabilmeli. Hangi
+          sütun olduğu SORULUR: "185.432" biçimsel olarak hem puan hem sıra
+          olabilir, tahmin etmek yanlış kriterle eleme demektir. */}
+      {cozum && cozum.enCokSayiSutunu > 0 && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: '9px 12px',
+            borderRadius: 8,
+            background: TP.bg,
+            fontSize: 12,
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ fontWeight: 600, color: TP.text }}>
+            Taban başarı sıralaması hangi sütunda?
+          </span>
+          {Array.from({ length: cozum.enCokSayiSutunu }).map((_, i) => {
+            const ornek = (cozum.kayitlar.find((k) => (k.sayilar || [])[i]) || {}).sayilar;
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => siraSutunDegistir(i)}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: 16,
+                  border: '1px solid ' + (siraSutunu === i ? TP.navy : TP.border),
+                  background: siraSutunu === i ? TP.navy : '#fff',
+                  color: siraSutunu === i ? '#fff' : TP.textMuted,
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {i + 1}. sütun{ornek && ornek[i] ? ' · ' + ornek[i] : ''}
+              </button>
+            );
+          })}
+          <span style={{ color: TP.textMuted, fontSize: 11 }}>
+            {siraSutunu < 0
+              ? 'Seçilmedi — bu tablodan sıralama okunmaz.'
+              : 'Tekrar tıklayınca seçim kalkar.'}
+          </span>
+        </div>
+      )}
+
       {hata && (
         <div
           style={{
@@ -359,6 +421,12 @@ function TabloEkle({ currentUser, mevcutlar, onKaydedildi, onIptal }) {
                     {k.puanTuru}
                   </td>
                   <td style={{ padding: '5px 8px', fontWeight: 700, width: 100 }}>{k.taban}</td>
+                  <td
+                    style={{ padding: '5px 8px', width: 100, color: TP.textMuted }}
+                    title="Taban başarı sıralaması"
+                  >
+                    {k.tabanSira || ''}
+                  </td>
                 </tr>
               ))}
             </tbody>

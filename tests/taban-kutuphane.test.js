@@ -137,7 +137,16 @@ describe('tabloNormalize', () => {
     expect(t.id).toBe('x');
     expect(t.tur).toBe('diger');
     expect(t.puansizlar).toEqual([]);
-    expect(t.satirlar[0]).toEqual({ ad: 'A', taban: '1', kod: '', puanlar: [], puanTuru: '' });
+    // Sıra alanları eski kayıtlarda yok; boş doldurulur — o şart uygulanmaz.
+    expect(t.satirlar[0]).toEqual({
+      ad: 'A',
+      taban: '1',
+      kod: '',
+      puanlar: [],
+      tabanSira: '',
+      sayilar: [],
+      puanTuru: '',
+    });
   });
 
   it('boş girdide çökmez', () => {
