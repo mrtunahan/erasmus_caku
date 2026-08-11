@@ -36,6 +36,7 @@ import {
   tabanPuanDurumu,
   ekMadde1Durumu,
   yanlisTabloSuphesi,
+  manuelElemeMi,
   esikAltindakiler,
   elemeNedeni,
   elenecekler,
@@ -4381,6 +4382,7 @@ window.siraEsikDurumu = siraEsikDurumu;
 window.tabanPuanDurumu = tabanPuanDurumu;
 window.ekMadde1Durumu = ekMadde1Durumu;
 window.yanlisTabloSuphesi = yanlisTabloSuphesi;
+window.manuelElemeMi = manuelElemeMi;
 window.esikAltindakiler = esikAltindakiler;
 window.elemeNedeni = elemeNedeni;
 window.elenecekler = elenecekler;

@@ -13,6 +13,8 @@ import {
   tabanPuanDurumu,
   ekMadde1Durumu,
   yanlisTabloSuphesi,
+  manuelElemeMi,
+  ELEME_KISA,
 } from '../lib/yatay-kriter.js';
 import { asilYedekOner } from '../lib/yatay-siralama.js';
 
@@ -648,5 +650,68 @@ describe('yanlisTabloSuphesi', () => {
 
   it('okunamayan değerler şüphe üretmez', () => {
     expect(yanlisTabloSuphesi({ yksPuani: 'abc', sinavPuani: 'abc' }).suphe).toBe(false);
+  });
+});
+
+// ── Personelin eleyici kararı ──
+// Personel "EKSİK BELGE" işaretlediği hâlde sıralama o kaydı ASİL öneriyor,
+// kontenjandan bir yer kapatıyordu; kartta "EKSİK BELGE" ile
+// "UYGUN 3. Sınıf (1. ASİL)" yan yana duruyordu.
+describe('manuel eleme — kabul edilebilirlik kararları', () => {
+  const ELEYICI = ['eksik_belge', 'sartlari_tasimiyor', 'basvuru_geri'];
+
+  it('eleyici sonuçlar tanınır', () => {
+    ELEYICI.forEach((id) => expect(manuelElemeMi(id)).toBe(true));
+  });
+
+  it('asil/yedek/uygun değil ELEYİCİ SAYILMAZ', () => {
+    // 'uygun_degil' zaten sonucun kendisi; sıralamadan çıkarma sebebi değil.
+    ['uygun_asil', 'uygun_yedek', 'uygun_degil', '', null].forEach((id) =>
+      expect(manuelElemeMi(id)).toBe(false)
+    );
+  });
+
+  it('eleme nedeni olarak personelin kararı döner', () => {
+    ELEYICI.forEach((id) => {
+      expect(elemeNedeni({ id: 'a', degerlendirme: id }, '')).toBe(id);
+    });
+  });
+
+  it('personelin kararı hesaplanan şartların ÖNÜNE geçer', () => {
+    // İnsanın yazdığı gerekçeyi hesaplanmış bir gerekçeyle değiştirmek,
+    // kararı sahiplenmemek olurdu.
+    const k = { id: 'a', degerlendirme: 'eksik_belge', yksBasariSirasi: '900.000' };
+    expect(elemeNedeni(k, '300.000')).toBe('eksik_belge');
+  });
+
+  it('sonuç UYGUN DEĞİL olur ve gerekçe belgeye geçer', () => {
+    const g = gecerliDegerlendirme({ id: 'a', degerlendirme: 'eksik_belge' }, '');
+    expect(g.degerlendirme).toBe('uygun_degil');
+    expect(g.sebep).toBe('eksik_belge');
+    expect(ELEME_KISA.eksik_belge).toBe('Eksik / hatalı belge');
+  });
+
+  it('personelin kararı "artakalan sonuç" uyarısı ÜRETMEZ', () => {
+    // Bu bir çakışma değil, güncel karar; "Sıralamayı Uygula" uyarısı
+    // burada yanıltıcı olurdu.
+    expect(gecerliDegerlendirme({ id: 'a', degerlendirme: 'eksik_belge' }, '').cakisma).toBe(false);
+  });
+
+  it('eleyici kayıt KONTENJAN İŞGAL ETMEZ ve ASİL önerilmez', () => {
+    const kayitlar = [
+      { id: 'a', basvurduguSinif: '3', yksPuani: '450' },
+      { id: 'b', basvurduguSinif: '3', yksPuani: '500', degerlendirme: 'eksik_belge' },
+      { id: 'c', basvurduguSinif: '3', yksPuani: '400' },
+    ];
+    const o = asilYedekOner(kayitlar, 'merkezi', { 3: { asil: 1, yedek: 1 } }, null, {
+      esikDisi: elenecekler(kayitlar, ''),
+    });
+    const bul = (id) => o.find((x) => x.id === id);
+    // b en yüksek puanlı ama eleyici kararı var: sıraya girmez.
+    expect(bul('b').degerlendirme).toBe('uygun_degil');
+    expect(bul('b').sebep).toBe('eksik_belge');
+    // Yeri boşa gitmez: asil ve yedek diğerlerine kalır.
+    expect(bul('a').degerlendirme).toBe('uygun_asil');
+    expect(bul('c').degerlendirme).toBe('uygun_yedek');
   });
 });
