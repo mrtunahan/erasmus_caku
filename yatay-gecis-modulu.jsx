@@ -664,11 +664,12 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
         eksik.push('Yerleştirme başarı sıralaması (yalnız rakam, ör. 245.678)');
       }
     }
-    // Ek Madde-1 hakkı bir kez kullanılır; beyan alınmadan başvuru
-    // değerlendirilemez.
-    if (tur.ekMadde1 && !form.oncekiEkMadde1Gecisi) {
-      eksik.push('Ek Madde-1 ile daha önce yatay geçiş yapıp yapmadığınız');
-    }
+    // ⚠ Ek Madde-1 beyanı ZORUNLU DEĞİL. Şartın kendisi geçerli — daha önce
+    // Ek Madde-1 geçişi yapmış aday elenir — ama beyanı zorunlu kılmak
+    // başvurunun ÖNÜNÜ kesiyordu: aday alanı işaretlemeyi atlayabilir ya da
+    // bilgi yüklediği belgeden okunamayabilir. Bilinmeyen bir şart, başvuru
+    // engeli değil personelin tespit edeceği bir açıktır (karttaki
+    // "Ek Madde-1 tespiti yapılmadı" uyarısı).
     ygEkler(tur.id)
       .filter((e) => ygEkZorunlu(e, tur.id))
       .forEach((e) => {
@@ -1025,19 +1026,20 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                 tespit, yüklediğiniz Öğrenci Belgesine bakılarak yapılır. */}
             {tur.ekMadde1 && (
               <div>
-                <label style={ygLabel}>Ek Madde-1 ile daha önce yatay geçiş yaptınız mı? *</label>
+                <label style={ygLabel}>Ek Madde-1 ile daha önce yatay geçiş yaptınız mı?</label>
                 <select
                   value={form.oncekiEkMadde1Gecisi}
                   onChange={(e) => set('oncekiEkMadde1Gecisi', e.target.value)}
                   style={{ ...ygInput, cursor: 'pointer' }}
                 >
-                  <option value="">— Seçiniz —</option>
+                  <option value="">— Bilmiyorum / belirtmek istemiyorum —</option>
                   <option value="hayir">Hayır, daha önce yapmadım</option>
                   <option value="evet">Evet, daha önce yaptım</option>
                 </select>
                 <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
-                  Merkezi yerleştirme puanıyla yatay geçiş hakkı <b>bir kez</b> kullanılır. Bu bilgi
-                  Öğrenci Belgenizde yazar ve belgeden doğrulanır.
+                  Merkezi yerleştirme puanıyla yatay geçiş hakkı <b>bir kez</b> kullanılır. Bu alan
+                  <b> zorunlu değildir</b>: boş bırakırsanız bilgi, yüklediğiniz Öğrenci Belgesinden
+                  doğrulanır.
                 </div>
               </div>
             )}
