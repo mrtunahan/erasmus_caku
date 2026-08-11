@@ -10,6 +10,8 @@ import {
   elemeNedeni,
   elenecekler,
   gecerliDegerlendirme,
+  tabanPuanDurumu,
+  ekMadde1Durumu,
 } from '../lib/yatay-kriter.js';
 import { asilYedekOner } from '../lib/yatay-siralama.js';
 
@@ -275,11 +277,12 @@ describe('elemeNedeni / elenecekler', () => {
     expect(elemeNedeni(k, '')).toBe('');
   });
 
-  it('PUAN alanları artık kriter DEĞİLDİR', () => {
-    // Şart puanla değil sırayla konur; eski puan alanları dolu olsa bile
-    // sıralama şartı yoksa kimse elenmez.
-    const k = { id: 'a', yksPuani: '200', basvurduguBolumOsysPuani: '400' };
-    expect(elemeNedeni(k, '')).toBe('');
+  it('kurumun genel eşiği SIRALAMA üzerinden işler, puan üzerinden değil', () => {
+    // Elle girilen eşik bir başarı sıralamasıdır; adayın puanı ne olursa
+    // olsun ona uygulanmaz. (Programın taban PUANI ayrı bir şart — merkezi
+    // yerleştirmede geçerli, aşağıda ayrıca sınanıyor.)
+    const k = { id: 'a', yksPuani: '200', yksBasariSirasi: '120.000' };
+    expect(elemeNedeni(k, '300.000')).toBe('');
   });
 
   it('elenecekler id → neden haritası döner', () => {
@@ -456,5 +459,130 @@ describe('gecerliDegerlendirme', () => {
 
   it('boş girdide çökmez', () => {
     expect(gecerliDegerlendirme(null, '300.000').degerlendirme).toBe('');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// MERKEZİ YERLEŞTİRME (Ek Madde-1) — iki ek şart
+// ══════════════════════════════════════════════════════════════
+
+describe('tabanPuanDurumu — yıl eşlemeli program taban puanı', () => {
+  it('taban puandan YÜKSEK olan uygun', () => {
+    expect(tabanPuanDurumu('420,50', '412,338').durum).toBe('uygun');
+  });
+
+  it('taban puandan düşük olan elenir', () => {
+    expect(tabanPuanDurumu('400', '412,338').durum).toBe('altinda');
+  });
+
+  it('TAM EŞİTLİK şartı SAĞLAMAZ', () => {
+    // Kural "taban puanından yüksek olmalıdır" biçiminde konuldu; sıralama
+    // şartındaki (siraEsikDurumu) eşitlik davranışından bilerek farklı.
+    expect(tabanPuanDurumu('412,338', '412,338').durum).toBe('altinda');
+  });
+
+  it('taban puan girilmemişse şart uygulanmaz', () => {
+    expect(tabanPuanDurumu('400', '').durum).toBe('kriter_yok');
+    expect(tabanPuanDurumu('400', null).durum).toBe('kriter_yok');
+  });
+
+  it('aday puanı okunamıyorsa BELİRSİZ — 0 varsayılmaz', () => {
+    expect(tabanPuanDurumu('', '412,338').durum).toBe('belirsiz');
+    expect(tabanPuanDurumu('abc', '412,338').durum).toBe('belirsiz');
+  });
+
+  it('virgül ve nokta ayracı aynı okunur', () => {
+    expect(tabanPuanDurumu('420.50', '412.338').durum).toBe(
+      tabanPuanDurumu('420,50', '412,338').durum
+    );
+  });
+});
+
+describe('ekMadde1Durumu — hak bir kez kullanılır', () => {
+  it('personel tespiti beyanın ÖNÜNE geçer', () => {
+    // Aday "yapmadım" dese de belge aksini söylüyorsa belge kazanır.
+    expect(ekMadde1Durumu({ oncekiEkMadde1Gecisi: 'hayir', ekMadde1Dogrulama: 'var' })).toBe(
+      'onceki_gecis_var'
+    );
+    expect(ekMadde1Durumu({ oncekiEkMadde1Gecisi: 'evet', ekMadde1Dogrulama: 'yok' })).toBe(
+      'temiz'
+    );
+  });
+
+  it('tespit yoksa beyan okunur', () => {
+    expect(ekMadde1Durumu({ oncekiEkMadde1Gecisi: 'evet' })).toBe('onceki_gecis_var');
+    expect(ekMadde1Durumu({ oncekiEkMadde1Gecisi: 'hayir' })).toBe('beyan_var');
+  });
+
+  it('hiçbir bilgi yoksa BİLİNMİYOR — "temiz" varsayılmaz', () => {
+    expect(ekMadde1Durumu({})).toBe('bilinmiyor');
+    expect(ekMadde1Durumu(null)).toBe('bilinmiyor');
+  });
+});
+
+describe('elemeNedeni — Ek Madde-1 şartları', () => {
+  it('programın o yıla ait taban puanının altındaki aday elenir', () => {
+    const k = { id: 'a', yksPuani: '400', basvurduguBolumOsysPuani: '412,338' };
+    expect(elemeNedeni(k, '')).toBe('program_taban_puan');
+  });
+
+  it('daha önce Ek Madde-1 geçişi yapmış aday elenir', () => {
+    expect(elemeNedeni({ id: 'a', ekMadde1Dogrulama: 'var' }, '')).toBe('onceki_gecis');
+    expect(elemeNedeni({ id: 'a', oncekiEkMadde1Gecisi: 'evet' }, '')).toBe('onceki_gecis');
+  });
+
+  it('BELİRSİZLİK eleme sebebi değildir', () => {
+    // Belge okunmadı diye adayı elemek, doğrulanmamış bir gerekçeyle karar
+    // vermek olurdu. Arayüz bunu "tespit yapılmadı" diye uyarır.
+    expect(elemeNedeni({ id: 'a' }, '')).toBe('');
+    expect(elemeNedeni({ id: 'a', oncekiEkMadde1Gecisi: 'hayir' }, '')).toBe('');
+  });
+
+  it('şartların tümünü karşılayan elenmez', () => {
+    const k = {
+      id: 'a',
+      yksBasariSirasi: '120.000',
+      yksPuani: '450',
+      basvurduguBolumOsysPuani: '412,338',
+      basvurduguBolumTabanSirasi: '180.000',
+      ekMadde1Dogrulama: 'yok',
+    };
+    expect(elemeNedeni(k, '300.000')).toBe('');
+  });
+
+  it('sıralama şartı taban puan şartının ÖNÜNE geçer', () => {
+    const k = {
+      id: 'a',
+      yksBasariSirasi: '420.000',
+      yksPuani: '400',
+      basvurduguBolumOsysPuani: '412,338',
+    };
+    expect(elemeNedeni(k, '300.000')).toBe('taban_sira');
+  });
+
+  it('taban puan şartı Ek Madde-1 geçmişinin ÖNÜNE geçer', () => {
+    const k = {
+      id: 'a',
+      yksPuani: '400',
+      basvurduguBolumOsysPuani: '412,338',
+      ekMadde1Dogrulama: 'var',
+    };
+    expect(elemeNedeni(k, '')).toBe('program_taban_puan');
+  });
+
+  it('elenen kayıt kontenjanı işgal etmeden uygun değil olur', () => {
+    const kayitlar = [
+      { id: 'a', basvurduguSinif: '2', yksPuani: '450', basvurduguBolumOsysPuani: '412,338' },
+      { id: 'b', basvurduguSinif: '2', yksPuani: '400', basvurduguBolumOsysPuani: '412,338' },
+      { id: 'c', basvurduguSinif: '2', yksPuani: '430', basvurduguBolumOsysPuani: '412,338' },
+    ];
+    const o = asilYedekOner(kayitlar, 'merkezi', { 2: { asil: 2, yedek: 0 } }, null, {
+      esikDisi: elenecekler(kayitlar, ''),
+    });
+    const bul = (id) => o.find((x) => x.id === id);
+    expect(bul('b').degerlendirme).toBe('uygun_degil');
+    expect(bul('b').sebep).toBe('program_taban_puan');
+    expect(bul('a').degerlendirme).toBe('uygun_asil');
+    expect(bul('c').degerlendirme).toBe('uygun_asil');
   });
 });
