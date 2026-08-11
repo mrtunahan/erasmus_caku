@@ -80,6 +80,21 @@ const YG_TURLER = [
 // ── Zorunlu ekler ──
 // `turler` verilmezse ek TÜM geçiş türlerinde istenir; verilirse yalnız
 // sayılan türlerde görünür ve yalnız orada zorunluluk denetimine girer.
+// ÖSYM sonuç belgesinde yan yana İKİ tablo var ve sütun başlıkları birebir
+// aynı ("Puanı", "Başarı Sırası"); satırlar yalnız "Y-" önekiyle ayrılıyor.
+// Yatay geçişte ölçüt SAĞDAKİ tablonun "Yerleştirme" sütunudur. Bunu her
+// seferinde tek tek anlatmak yerine tek metin: belge okuma ipuçları da,
+// formdaki yardım metni de buradan besleniyor.
+const YG_TABLO_IPUCU =
+  'Sonuç belgesinde YAN YANA İKİ tablo vardır ve sütun başlıkları aynıdır. ' +
+  'SOLDAKİ "SINAV PUANLARI VE BAŞARI SIRALARI" tablosunu KULLANMA. ' +
+  'SAĞDAKİ "YERLEŞTİRME PUANLARI VE BAŞARI SIRALARI" tablosunu kullan; ' +
+  'o tablonun da "Yerleştirme" sütun grubunu al, "Ek Puanlı Yerleştirme" grubunu ALMA. ' +
+  'Satır, adayın yerleştiği puan türünün "Y-" ÖNEKLİ karşılığıdır: ' +
+  'SAY→Y-SAY, EA→Y-EA, SÖZ→Y-SÖZ, DİL→Y-DİL, TYT→Y-TYT. ' +
+  '"---" yazan satırları alma. ' +
+  'DGS/YÖS belgelerinde bu tablo yoksa belgedeki yerleştirme puanını kullan. ';
+
 // Merkezi yerleştirme puanıyla geçişte (Ek Madde-1) istenen belgeler ve
 // hangilerinin ZORUNLU olduğu kurumca ilan edilir: 1, 2, 5 ve 6.
 //
@@ -405,6 +420,9 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
     // Uygunluk şartı bu alan üzerinden işler (bkz. lib/yatay-kriter.js):
     // yerleştiği puan türündeki YERLEŞTİRME BAŞARI SIRASI.
     yksBasariSirasi: '',
+    // Kıyasta kullanılmaz — yalnız doğru tablonun okunduğunu denetler.
+    sinavPuani: '',
+    sinavBasariSirasi: '',
     notOrtalamasi: '',
     // Ek Madde-1 hakkı bir kez kullanılır. Beyan burada alınır, tespit
     // personel tarafından Öğrenci Belgesine bakılarak yapılır.
@@ -511,22 +529,37 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
         {
           id: 'yksPuani',
           label: 'YKS yerleştirme puanı',
-          // Sonuç belgesinde birden çok puan var (ham/yerleştirme/OBP...).
-          // Hangisinin alınacağı söylenmezse yanlış sütun okunuyordu.
-          hint:
-            'Sonuç belgesindeki "YERLEŞTİRME PUANLARI VE BAŞARI SIRALARI" bölümünden, ' +
-            'adayın YERLEŞTİĞİ puan türüne ait YERLEŞTİRME PUANI. Ham puanı, OBP’yi ya da ' +
-            'başarı sırasını ALMA. Birden çok tür varsa yalnız yerleştiği türün satırını al.',
+          hint: YG_TABLO_IPUCU + 'Bu satırdaki "Puanı" hücresini yaz (ör. 355,29843).',
         },
         {
           // Uygunluk şartının ölçütü budur — puan değil sıralama.
           id: 'yksBasariSirasi',
           label: 'Yerleştirme başarı sıralaması',
           hint:
-            'AYNI bölümdeki ("YERLEŞTİRME PUANLARI VE BAŞARI SIRALARI"), adayın YERLEŞTİĞİ ' +
-            'puan türüne ait YERLEŞTİRME BAŞARI SIRASI. Puanı değil SIRAYI al. ' +
-            'Genel başarı sırasını, ham/OBP sırasını ya da başka puan türünün sırasını ALMA. ' +
-            'Yalnız rakam yaz, binlik ayracı serbest (ör. 245.678 ya da 245678).',
+            YG_TABLO_IPUCU +
+            'Bu satırdaki "Başarı Sırası" hücresini yaz (ör. 164.283). Puanı değil SIRAYI al. ' +
+            'Yalnız rakam yaz, binlik ayracı serbest.',
+        },
+        // ── Yanlış tablo denetimi ──
+        // Soldaki SINAV tablosu da okunuyor; kullanılmıyor ama karşılaştırma
+        // için gerekiyor. Modelden iki tabloyu AYIRMASINI istemek, tek tablo
+        // sormaktan daha güvenilir sonuç veriyor: hangi hücreyi almadığını da
+        // açıkça belirtmek zorunda kalıyor.
+        {
+          id: 'sinavPuani',
+          label: 'Sınav puanı (ham)',
+          hint:
+            'SOLDAKİ "SINAV PUANLARI VE BAŞARI SIRALARI" tablosundan, adayın yerleştiği puan ' +
+            'türünün ("Y-" ÖNEKSİZ satır: TYT / SAY / SÖZ / EA / DİL) "Puanı" hücresi ' +
+            '(ör. 298,59699). Bu değer kıyasta KULLANILMAZ; yalnız doğru tablonun okunduğunu ' +
+            'denetlemek için isteniyor. Bulamazsan boş bırak.',
+        },
+        {
+          id: 'sinavBasariSirasi',
+          label: 'Sınav başarı sırası (ham)',
+          hint:
+            'AYNI soldaki tablodan, aynı satırın "Başarı Sırası" hücresi (ör. 172.218). ' +
+            'Kıyasta KULLANILMAZ. Bulamazsan boş bırak.',
         }
       );
     }
@@ -681,6 +714,8 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
         yksPuanTuru: form.yksPuanTuru.trim(),
         yksPuani: form.yksPuani.trim(),
         yksBasariSirasi: form.yksBasariSirasi.trim(),
+        sinavPuani: form.sinavPuani.trim(),
+        sinavBasariSirasi: form.sinavBasariSirasi.trim(),
         notOrtalamasi: form.notOrtalamasi.trim(),
         oncekiEkMadde1Gecisi: tur.ekMadde1 ? form.oncekiEkMadde1Gecisi : '',
         // İletişim
@@ -927,13 +962,18 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                   </select>
                 </div>
                 <div>
-                  <label style={ygLabel}>YKS puanı *</label>
+                  <label style={ygLabel}>YKS yerleştirme puanı *</label>
                   <input
                     value={form.yksPuani}
                     onChange={(e) => set('yksPuani', e.target.value)}
-                    placeholder="ör. 385,412"
+                    placeholder="ör. 355,29843"
                     style={ygInput}
                   />
+                  <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
+                    Sonuç belgesinde <b>sağdaki</b> “YERLEŞTİRME PUANLARI VE BAŞARI SIRALARI”
+                    tablosu · <b>Yerleştirme</b> sütunu · <b>Y-</b> önekli satır (SAY için Y-SAY).
+                    Soldaki “SINAV PUANLARI” tablosunu kullanmayın.
+                  </div>
                 </div>
                 {/* Uygunluk şartının ölçütü budur: yatay geçiş taban şartı
                     puanla değil BAŞARI SIRASI ile konur (ör. 300.000'inci
@@ -949,8 +989,34 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                     style={ygInput}
                   />
                   <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
-                    Sonuç belgesindeki “YERLEŞTİRME PUANLARI VE BAŞARI SIRALARI” bölümünde,
-                    yerleştiğiniz puan türünün <b>başarı sırası</b>. Puan değil sıra.
+                    Aynı hücrenin yanındaki <b>Başarı Sırası</b> (ör. 164.283). Puan değil sıra; “Ek
+                    Puanlı Yerleştirme” sütununu kullanmayın.
+                  </div>
+                </div>
+                {/* Ham sınav değerleri — kıyasta KULLANILMAZ. Yalnız doğru
+                    tablonun okunduğunu denetlemek için isteniyor; iki tablonun
+                    değerleri aynı çıkarsa yanlış sütun okunmuş demektir. */}
+                <div>
+                  <label style={ygLabel}>Sınav puanı ve başarı sırası (ham)</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      value={form.sinavPuani}
+                      onChange={(e) => set('sinavPuani', e.target.value)}
+                      placeholder="ör. 298,59699"
+                      style={{ ...ygInput, flex: 1 }}
+                    />
+                    <input
+                      value={form.sinavBasariSirasi}
+                      onChange={(e) =>
+                        set('sinavBasariSirasi', e.target.value.replace(/[^\d.,\s]/g, ''))
+                      }
+                      placeholder="ör. 172.218"
+                      style={{ ...ygInput, flex: 1 }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
+                    <b>Soldaki</b> “SINAV PUANLARI VE BAŞARI SIRALARI” tablosundan, Y-öneksiz satır.
+                    Değerlendirmede kullanılmaz; doğru tablonun okunduğunu denetler.
                   </div>
                 </div>
               </>
@@ -1196,6 +1262,11 @@ function YgBasvuruKarti({
   const [acikEk, setAcikEk] = useState('');
   // Taban puan şartı — kurum eşiği VE programın kendi taban puanı.
   const elemeSebebi = window.elemeNedeni ? window.elemeNedeni(rec, siralamaEsik) : '';
+  // Yanlış tablo denetimi: yerleştirme değerleri ham sınav değerleriyle
+  // aynıysa soldaki tablo okunmuş demektir (bkz. lib/yatay-kriter.js).
+  const tabloSuphesi = window.yanlisTabloSuphesi
+    ? window.yanlisTabloSuphesi(rec)
+    : { suphe: false };
   const esikDurumu = window.siraEsikDurumu
     ? window.siraEsikDurumu(rec.yksBasariSirasi, siralamaEsik)
     : null;
@@ -1272,8 +1343,19 @@ function YgBasvuruKarti({
         { id: 'yksPuanTuru', label: 'Yerleştiği puan türü' },
         { id: 'yksPuani', label: 'YKS puanı' },
         { id: 'yksBasariSirasi', label: 'Yerleştirme başarı sıralaması' },
+        { id: 'sinavPuani', label: 'Sınav puanı (ham)' },
+        { id: 'sinavBasariSirasi', label: 'Sınav başarı sırası (ham)' },
       ].filter((a) => {
-        if (['yksYerlesmeYili', 'yksPuanTuru', 'yksPuani', 'yksBasariSirasi'].includes(a.id)) {
+        if (
+          [
+            'yksYerlesmeYili',
+            'yksPuanTuru',
+            'yksPuani',
+            'yksBasariSirasi',
+            'sinavPuani',
+            'sinavBasariSirasi',
+          ].includes(a.id)
+        ) {
           return !!tur?.puanIster;
         }
         if (a.id === 'notOrtalamasi') return !!tur?.notIster;
@@ -1399,6 +1481,26 @@ function YgBasvuruKarti({
             {(window.ELEME_ETIKET || {})[elemeSebebi] || 'Taban sıralama şartını karşılamıyor'}
           </span>
         )}
+        {/* Yerleştirme değerleri ham SINAV değerleriyle birebir aynıysa yanlış
+            tablo okunmuştur: yerleştirme puanı sınav puanına OBP katkısı
+            eklenerek bulunur, ikisi aynı çıkamaz. Eleme DEĞİL, uyarı. */}
+        {isStaff && tabloSuphesi.suphe && (
+          <span
+            style={ygPill(YG.red, YG.redLight)}
+            title={
+              'Beyan edilen ' +
+              (tabloSuphesi.puan && tabloSuphesi.sira
+                ? 'puan ve başarı sırası'
+                : tabloSuphesi.puan
+                  ? 'puan'
+                  : 'başarı sırası') +
+              ', belgedeki SINAV tablosundaki değerle aynı. Yerleştirme tablosundan ' +
+              '(Y- önekli satır) alınmış olmalı.'
+            }
+          >
+            Yanlış tablo şüphesi
+          </span>
+        )}
         {/* Ek Madde-1 tespiti yapılmadan başvuru sonuçlandırılmamalı. Eleme
             DEĞİL, uyarı: belge okunmadı diye adayı elemek olmaz. */}
         {isStaff && tur?.ekMadde1 && !elemeSebebi && !rec.ekMadde1Dogrulama && (
@@ -1463,6 +1565,12 @@ function YgBasvuruKarti({
               'Başarı sıralaması',
               ygSira(rec.yksBasariSirasi) || rec.yksBasariSirasi,
               'yksBasariSirasi'
+            )}
+            {satir('Sınav puanı (ham)', rec.sinavPuani, 'sinavPuani')}
+            {satir(
+              'Sınav başarı sırası (ham)',
+              ygSira(rec.sinavBasariSirasi) || rec.sinavBasariSirasi,
+              'sinavBasariSirasi'
             )}
             {satir('Not ortalaması', rec.notOrtalamasi, 'notOrtalamasi')}
             {tur?.ekMadde1 &&
@@ -2539,6 +2647,8 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           yerlesmePuani: h ? String(h.toplam) : '',
           basvurduguBolumOsysPuani: r.basvurduguBolumOsysPuani || '',
           yksBasariSirasi: r.yksBasariSirasi || '',
+          sinavPuani: r.sinavPuani || '',
+          sinavBasariSirasi: r.sinavBasariSirasi || '',
           basvurduguBolumTabanSirasi: r.basvurduguBolumTabanSirasi || '',
           ekMadde1Gecmisi:
             r.ekMadde1Dogrulama === 'var'
