@@ -1196,6 +1196,8 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           yerleşmepuanı: 'row:yerlesmePuani',
           başvurduğubölümösyspuanı: 'row:basvurduguBolumOsysPuani',
           başarısırası: 'row:yksBasariSirasi',
+          sınavpuanı: 'row:sinavPuani',
+          sınavbaşarısırası: 'row:sinavBasariSirasi',
           yksbaşarısırası: 'row:yksBasariSirasi',
           yerleştirmebaşarısırası: 'row:yksBasariSirasi',
           yerleştirmebaşarısıralaması: 'row:yksBasariSirasi',

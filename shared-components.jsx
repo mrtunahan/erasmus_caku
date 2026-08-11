@@ -35,6 +35,7 @@ import {
   siraEsikDurumu,
   tabanPuanDurumu,
   ekMadde1Durumu,
+  yanlisTabloSuphesi,
   esikAltindakiler,
   elemeNedeni,
   elenecekler,
@@ -2383,6 +2384,8 @@ const YATAY_ROWS = [
   { id: 'yksPuani', label: 'YKS Puanı' },
   // Uygunluk şartının ölçütü: puan değil SIRA (bkz. lib/yatay-kriter.js).
   { id: 'yksBasariSirasi', label: 'Yerleştirme Başarı Sıralaması' },
+  { id: 'sinavPuani', label: 'Sınav Puanı (ham — kıyasta kullanılmaz)' },
+  { id: 'sinavBasariSirasi', label: 'Sınav Başarı Sırası (ham — kıyasta kullanılmaz)' },
   { id: 'notOrtalamasi', label: 'Not Ortalaması' },
   // Kurumlararası hesaplama (sistem hesaplar)
   { id: 'yksPuaniYuzde40', label: "YKS Puanının %40'ı" },
@@ -4375,6 +4378,7 @@ window.siraYaz = siraYaz;
 window.siraEsikDurumu = siraEsikDurumu;
 window.tabanPuanDurumu = tabanPuanDurumu;
 window.ekMadde1Durumu = ekMadde1Durumu;
+window.yanlisTabloSuphesi = yanlisTabloSuphesi;
 window.esikAltindakiler = esikAltindakiler;
 window.elemeNedeni = elemeNedeni;
 window.elenecekler = elenecekler;

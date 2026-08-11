@@ -12,6 +12,7 @@ import {
   gecerliDegerlendirme,
   tabanPuanDurumu,
   ekMadde1Durumu,
+  yanlisTabloSuphesi,
 } from '../lib/yatay-kriter.js';
 import { asilYedekOner } from '../lib/yatay-siralama.js';
 
@@ -584,5 +585,68 @@ describe('elemeNedeni — Ek Madde-1 şartları', () => {
     expect(bul('b').sebep).toBe('program_taban_puan');
     expect(bul('a').degerlendirme).toBe('uygun_asil');
     expect(bul('c').degerlendirme).toBe('uygun_asil');
+  });
+});
+
+// ── ÖSYM sonuç belgesinde hangi tablo okundu? ──
+// Belgede yan yana iki tablo var, sütun başlıkları aynı ("Puanı",
+// "Başarı Sırası"), satırlar yalnız "Y-" önekiyle ayrılıyor. Yanlış tabloyu
+// okumak hem puanı hem sırayı sistematik olarak bozar.
+describe('yanlisTabloSuphesi', () => {
+  // Gerçek bir belgeden: SAY 298,59699 / 172.218 · Y-SAY 355,29843 / 164.283
+  const dogru = {
+    yksPuani: '355,29843',
+    yksBasariSirasi: '164.283',
+    sinavPuani: '298,59699',
+    sinavBasariSirasi: '172.218',
+  };
+
+  it('doğru tablodan okunmuşsa şüphe yok', () => {
+    expect(yanlisTabloSuphesi(dogru).suphe).toBe(false);
+  });
+
+  it('SINAV tablosundan okunmuşsa yakalanır', () => {
+    const yanlis = {
+      yksPuani: '298,59699',
+      yksBasariSirasi: '172.218',
+      sinavPuani: '298,59699',
+      sinavBasariSirasi: '172.218',
+    };
+    const r = yanlisTabloSuphesi(yanlis);
+    expect(r.puan).toBe(true);
+    expect(r.sira).toBe(true);
+    expect(r.suphe).toBe(true);
+  });
+
+  it('yalnız biri yanlışsa da yakalanır', () => {
+    // Puanı doğru satırdan, sırayı yanlış satırdan almak tipik bir hata.
+    const r = yanlisTabloSuphesi({ ...dogru, yksBasariSirasi: '172.218' });
+    expect(r.puan).toBe(false);
+    expect(r.sira).toBe(true);
+    expect(r.suphe).toBe(true);
+  });
+
+  it('ayraç farkı şüphe üretmez', () => {
+    // "298.59699" ile "298,59699" aynı sayıdır; biçim farkı yanlış tablo demek
+    // değildir.
+    const r = yanlisTabloSuphesi({
+      yksPuani: '298.59699',
+      sinavPuani: '298,59699',
+      yksBasariSirasi: '164283',
+      sinavBasariSirasi: '172.218',
+    });
+    expect(r.puan).toBe(true);
+    expect(r.sira).toBe(false);
+  });
+
+  it('sınav değerleri yoksa şüphe ÜRETİLMEZ', () => {
+    // Denetim verisi olmaması, hata olduğu anlamına gelmez.
+    expect(yanlisTabloSuphesi({ yksPuani: '355,29843' }).suphe).toBe(false);
+    expect(yanlisTabloSuphesi({}).suphe).toBe(false);
+    expect(yanlisTabloSuphesi(null).suphe).toBe(false);
+  });
+
+  it('okunamayan değerler şüphe üretmez', () => {
+    expect(yanlisTabloSuphesi({ yksPuani: 'abc', sinavPuani: 'abc' }).suphe).toBe(false);
   });
 });
