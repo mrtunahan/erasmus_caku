@@ -7,6 +7,8 @@ import {
   varsayilanEslesme,
   tabloNormalize,
   listeTuruEtiketi,
+  basvuruTabani,
+  tabanUygula,
 } from '../lib/taban-kutuphane.js';
 
 const tablo = (yil, tur, satirlar, puansizlar) => ({
@@ -153,5 +155,101 @@ describe('tabloNormalize', () => {
     const t = tabloNormalize(null);
     expect(t.satirlar).toEqual([]);
     expect(t.yil).toBe('');
+  });
+});
+
+// ── Başvuru başına otomatik taban çözümü ──
+// Program taban puanı/sırası önceden her başvuruda ELLE giriliyordu. Artık
+// kütüphaneden çözülüyor; ama iki şey bozulmamalı: yıl eşlemesi ve insanın
+// elle girdiği değerin üstünlüğü.
+describe('basvuruTabani', () => {
+  const tablolar = [
+    {
+      id: '2023__lisans',
+      yil: '2023',
+      tur: 'lisans',
+      satirlar: [{ ad: 'Bilgisayar Mühendisliği', taban: '380,111', tabanSira: '210.000' }],
+    },
+    {
+      id: '2025__lisans',
+      yil: '2025',
+      tur: 'lisans',
+      satirlar: [{ ad: 'Bilgisayar Mühendisliği', taban: '412,338', tabanSira: '180.000' }],
+    },
+  ];
+  const aday = (yil, ek) => ({
+    id: 'a',
+    basvurduguBolum: 'BİLGİSAYAR MÜHENDİSLİĞİ',
+    yksYerlesmeYili: yil,
+    ...(ek || {}),
+  });
+
+  it('adayın YERLEŞTİĞİ yılın tablosunu seçer', () => {
+    // Asıl mesele bu: 2023'te yerleşeni 2025 tablosuyla ölçmek yanlış sonuç
+    // verir; program başına tek değer bu ayrımı taşıyamaz.
+    expect(basvuruTabani(aday('2023'), tablolar).taban).toBe('380,111');
+    expect(basvuruTabani(aday('2025'), tablolar).taban).toBe('412,338');
+  });
+
+  it('sıra da aynı yıldan gelir', () => {
+    expect(basvuruTabani(aday('2023'), tablolar).tabanSira).toBe('210.000');
+  });
+
+  it('ELLE girilen değer kütüphaneyi EZER', () => {
+    // Kütüphaneden gelen bir okumadır, personelin yazdığı bir karardır.
+    const c = basvuruTabani(
+      aday('2025', { basvurduguBolumOsysPuani: '400,000', basvurduguBolumTabanSirasi: '150.000' }),
+      tablolar
+    );
+    expect(c.taban).toBe('400,000');
+    expect(c.tabanSira).toBe('150.000');
+    expect(c.kaynak).toBe('elle');
+  });
+
+  it('yalnız biri elle girilmişse ÖTEKİ tablodan dolar', () => {
+    const c = basvuruTabani(aday('2025', { basvurduguBolumOsysPuani: '400,000' }), tablolar);
+    expect(c.taban).toBe('400,000');
+    expect(c.tabanSira).toBe('180.000');
+  });
+
+  it('adayın yılına ait tablo seçili değilse UYARIR', () => {
+    // Değer yine de üretilir (en yeni tablo), ama yıl tutmadığı işaretlenir —
+    // yanlış yılın puanı yanlış karar demek.
+    const c = basvuruTabani(aday('2019'), tablolar);
+    expect(c.yilUyuyor).toBe(false);
+    expect(c.yil).toBe('2025');
+  });
+
+  it('yıl bilinmiyorsa en yeni tablo kullanılır ve uyarı verilmez', () => {
+    const c = basvuruTabani(aday(''), tablolar);
+    expect(c.yil).toBe('2025');
+    expect(c.yilUyuyor).toBe(true);
+  });
+
+  it('program bulunamazsa boş döner — şart uygulanmaz', () => {
+    const c = basvuruTabani({ id: 'a', basvurduguBolum: 'Tarih' }, tablolar);
+    expect(c.taban).toBe('');
+    expect(c.kaynak).toBe('yok');
+  });
+
+  it('tablo yoksa çökmez', () => {
+    expect(basvuruTabani(aday('2025'), []).taban).toBe('');
+    expect(basvuruTabani(null, null).taban).toBe('');
+  });
+});
+
+describe('tabanUygula', () => {
+  it('kaydın KOPYASINA yazar — özgün kayıt değişmez', () => {
+    // Çözüm bir okumadır; kayda yazmak ayrı bir karardır.
+    const kayit = { id: 'a', basvurduguBolumOsysPuani: '' };
+    const yeni = tabanUygula(kayit, { taban: '412,338', tabanSira: '180.000' });
+    expect(yeni.basvurduguBolumOsysPuani).toBe('412,338');
+    expect(yeni.basvurduguBolumTabanSirasi).toBe('180.000');
+    expect(kayit.basvurduguBolumOsysPuani).toBe('');
+  });
+
+  it('boş çözümde kayıt olduğu gibi döner', () => {
+    const kayit = { id: 'a' };
+    expect(tabanUygula(kayit, null)).toBe(kayit);
   });
 });
