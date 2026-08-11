@@ -67,6 +67,8 @@ import {
   tablolariSirala as tabanTablolariSirala,
   programuTablolardaBul,
   varsayilanEslesme,
+  basvuruTabani,
+  tabanUygula,
   tabloNormalize as tabanTabloNormalize,
 } from './lib/taban-kutuphane.js';
 import {
@@ -4405,6 +4407,8 @@ window.tabloAnahtari = tabloAnahtari;
 window.tabanTablolariSirala = tabanTablolariSirala;
 window.programuTablolardaBul = programuTablolardaBul;
 window.tabanVarsayilanEslesme = varsayilanEslesme;
+window.basvuruTabani = basvuruTabani;
+window.tabanUygula = tabanUygula;
 window.tabanTabloNormalize = tabanTabloNormalize;
 
 // Alan listesi verilmemişse şablon eşlemesinden çöz — iki bileşen de kullanır.

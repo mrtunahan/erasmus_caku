@@ -265,21 +265,6 @@ function ygPuanYaz(n) {
   return String(n).replace('.', ',');
 }
 
-// İki puan yazımı aynı sayıyı mı gösteriyor? ("412,338" ile "412.338" aynıdır)
-// "Sayfadan okunanı yaz" düğmesi, zaten yazılmış bir değeri tekrar önermesin.
-function ygAyniPuan(a, b) {
-  const oku = (v) => {
-    const s = String(v == null ? '' : v)
-      .trim()
-      .replace(',', '.');
-    const x = parseFloat(s);
-    return isNaN(x) ? null : x;
-  };
-  const x = oku(a);
-  const y = oku(b);
-  return x != null && y != null && Math.abs(x - y) < 1e-9;
-}
-
 // Bölüm adının "çıplak" hâli — sondaki "Mühendisliği" / "Bölümü" eki atılır.
 // {{basvurulanBolumKisa}} değişkenini besler. Kural lib/bolum-ad.js'te;
 // muafiyet dilekçesi de aynı kuralı kullanıyor (bkz. cakuBolumKisa).
@@ -1256,21 +1241,27 @@ function YgBasvuruKarti({
   busy,
   currentUser,
   onSilindi,
-  tabanKayitlari,
-  tabanTablolari,
+  tabanCozum,
 }) {
   const [acik, setAcik] = useState(false);
   // Akademisyende yan panelde açılan ek (PDF)
   const [acikEk, setAcikEk] = useState('');
+  // Kriterler ÇÖZÜLMÜŞ değerler üzerinden okunur: program taban puanı/sırası
+  // artık elle girilmiyor, kütüphaneden adayın yılına göre çözülüyor. Kart
+  // ile listedeki karar aynı sayıya bakmalı.
+  const kriterKaydi = useMemo(
+    () => (tabanCozum && window.tabanUygula ? window.tabanUygula(rec, tabanCozum) : rec),
+    [rec, tabanCozum]
+  );
   // Taban puan şartı — kurum eşiği VE programın kendi taban puanı.
-  const elemeSebebi = window.elemeNedeni ? window.elemeNedeni(rec, siralamaEsik) : '';
+  const elemeSebebi = window.elemeNedeni ? window.elemeNedeni(kriterKaydi, siralamaEsik) : '';
   // Yanlış tablo denetimi: yerleştirme değerleri ham sınav değerleriyle
   // aynıysa soldaki tablo okunmuş demektir (bkz. lib/yatay-kriter.js).
   const tabloSuphesi = window.yanlisTabloSuphesi
     ? window.yanlisTabloSuphesi(rec)
     : { suphe: false };
   const esikDurumu = window.siraEsikDurumu
-    ? window.siraEsikDurumu(rec.yksBasariSirasi, siralamaEsik)
+    ? window.siraEsikDurumu(kriterKaydi.yksBasariSirasi, siralamaEsik)
     : null;
   // Vekâleten açılmış kayda sonradan tanımlanacak gerçek öğrenci numarası.
   const [yeniNo, setYeniNo] = useState('');
@@ -1282,52 +1273,18 @@ function YgBasvuruKarti({
   const deg = YG_DEGERLENDIRME.find((d) => d.id === rec.degerlendirme);
   // Rozette ve belgede geçerli sonuç görünür; "Sonuç" kutusu ise personelin
   // kendi seçimini gösterir (düzenlenebilir kalması gerekiyor).
-  const etkin = ygEtkinSonuc(rec, siralamaEsik);
+  const etkin = ygEtkinSonuc(kriterKaydi, siralamaEsik);
   // Güncel kriterlerin bu kayda ne diyeceği — henüz yazılmamış öneri.
   const oneriFarkli = isStaff && ygOneriFarkliMi(canliOneri, etkin);
   const st = etkin.degerlendirme ? YG_DURUMLAR.degerlendirildi : YG_DURUMLAR.beklemede;
   const hesap = tur?.hesapla ? ygYerlesmePuani(rec.yksPuani, rec.notOrtalamasi) : null;
 
-  // ── Taban puan: sayfadan okunan öneri + karşılaştırma ──
-  // `tabanOneri` yalnız ÖNERİDİR — kayda giren değer akademisyenin alandaki
-  // girdisidir (`basvurduguBolumOsysPuani`), karşılaştırma da onun üzerinden
-  // yapılır. Böylece elle düzeltilen bir taban puan, ekrandaki kararı da
-  // hemen düzeltir.
-  // ⚠ YIL EŞLEMESİ: Ek Madde-1'de aday, YERLEŞTİĞİ YILA ait taban puanla
-  // ölçülür. 2023'te yerleşen adayı 2025 tablosuyla ölçmek yanlış sonuç
-  // verir. Bu yüzden öneri, kütüphanenin tamamından ADAYIN YILINA göre
-  // seçilir; program başına tek bir değer bu ayrımı taşıyamazdı.
-  const tabanOneri = useMemo(() => {
-    if (!tur?.puanIster) return null;
-    const tablolar = tabanTablolari || [];
-    if (tablolar.length > 0 && window.programuTablolardaBul) {
-      const eslesmeler = window.programuTablolardaBul(tablolar, rec.basvurduguBolum || '');
-      const secilen = window.tabanVarsayilanEslesme(eslesmeler, rec.yksYerlesmeYili || '');
-      if (secilen && (secilen.taban || secilen.tabanSira)) {
-        return {
-          taban: secilen.taban,
-          tabanSira: secilen.tabanSira,
-          yil: secilen.yil,
-          etiket: secilen.etiket,
-          // Adayın yılıyla tablonun yılı tutuyor mu? Tutmuyorsa değeri
-          // yazmadan önce personel bunu görmeli.
-          yilUyuyor:
-            !rec.yksYerlesmeYili || String(secilen.yil) === String(rec.yksYerlesmeYili).trim(),
-        };
-      }
-      return null;
-    }
-    if (!window.tabanKaydiBul) return null;
-    const k = window.tabanKaydiBul(tabanKayitlari || [], rec.basvurduguBolum || '');
-    return k && (k.taban || k.tabanSira) ? { ...k, yil: '', etiket: '', yilUyuyor: true } : null;
-  }, [tabanTablolari, tabanKayitlari, rec.basvurduguBolum, rec.yksYerlesmeYili, tur]);
-
   // Kıyas, elemeyi yapan kuralın TA KENDİSİYLE hesaplanır (tabanPuanDurumu):
   // ekranda "uygun" yazıp listede elenen bir aday, açıklanamaz bir sonuç olurdu.
   const tabanKiyas = useMemo(() => {
     if (!tur?.ekMadde1 || !window.tabanPuanDurumu) return null;
-    return window.tabanPuanDurumu(rec.yksPuani, rec.basvurduguBolumOsysPuani);
-  }, [rec.yksPuani, rec.basvurduguBolumOsysPuani, tur]);
+    return window.tabanPuanDurumu(rec.yksPuani, kriterKaydi.basvurduguBolumOsysPuani);
+  }, [rec.yksPuani, kriterKaydi.basvurduguBolumOsysPuani, tur]);
 
   // ── Belge kıyaslaması için alan/değer/dosya üçlüsü ──
   // Öğrencinin BEYAN ETTİĞİ, yani belgeden doğrulanabilir alanlar. Sistemin
@@ -1474,7 +1431,7 @@ function YgBasvuruKarti({
             title={
               (elemeSebebi === 'program_sira'
                 ? 'Programın taban başarı sıralaması: ' +
-                  (ygSira(rec.basvurduguBolumTabanSirasi) || '—')
+                  (ygSira(kriterKaydi.basvurduguBolumTabanSirasi) || '—')
                 : 'Taban başarı sıralaması: ' + (ygSira(siralamaEsik) || '—')) +
               ' · adayın başarı sırası: ' +
               (ygSira(rec.yksBasariSirasi) || '—')
@@ -1523,7 +1480,9 @@ function YgBasvuruKarti({
         )}
         {hesap && <span style={ygPill(YG.navy, YG.bg)}>Yerleşme puanı: {hesap.toplam}</span>}
         <span style={ygPill(st.color, st.bg)}>
-          {etkin.degerlendirme ? ygDegerlendirmeMetni(rec, siralamaEsik) || st.label : st.label}
+          {etkin.degerlendirme
+            ? ygDegerlendirmeMetni(kriterKaydi, siralamaEsik) || st.label
+            : st.label}
         </span>
         {/* Kriterler değişti ve bu satırın sonucu değişecek. Kayda YAZILMADI —
             karar hâlâ personelin; ama ne olacağı beklemeden görünüyor. */}
@@ -1998,41 +1957,19 @@ function YgBasvuruKarti({
                           basvurduguBolumTabanSirasi: e.target.value.replace(/[^\d.,\s]/g, ''),
                         })
                       }
-                      placeholder="ör. 180.000"
+                      placeholder={
+                        tabanCozum && tabanCozum.tabanSira
+                          ? 'Tablodan: ' + ygSira(tabanCozum.tabanSira)
+                          : 'ör. 180.000'
+                      }
                       style={ygInput}
                     />
-                    {/* Kütüphanedeki (seçili yılın) tablosundan okunan değer —
-                        ÖNERİDİR, kayda giren değer akademisyenin onayladığıdır. */}
-                    {tabanOneri &&
-                      tabanOneri.tabanSira &&
-                      window.siraOku &&
-                      window.siraOku(tabanOneri.tabanSira) !==
-                        window.siraOku(rec.basvurduguBolumTabanSirasi) && (
-                        <button
-                          onClick={() =>
-                            onDegerlendir(rec, {
-                              basvurduguBolumTabanSirasi: tabanOneri.tabanSira,
-                            })
-                          }
-                          disabled={busy}
-                          style={{
-                            marginTop: 5,
-                            padding: '4px 9px',
-                            borderRadius: 6,
-                            border: '1px solid ' + YG.border,
-                            background: '#fff',
-                            color: YG.navy,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            fontFamily: 'inherit',
-                            cursor: busy ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          Tablodan yaz: {ygSira(tabanOneri.tabanSira)}
-                        </button>
-                      )}
                     <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
-                      Boş bırakılırsa bu şart uygulanmaz.
+                      {tabanCozum && tabanCozum.tabanSira && !rec.basvurduguBolumTabanSirasi
+                        ? 'Kütüphaneden çözüldü (' +
+                          (tabanCozum.etiket || 'tablo') +
+                          ') — elle yazarsanız sizin değeriniz geçerli olur.'
+                        : 'Boş bırakılırsa kütüphaneden çözülür; kütüphanede de yoksa bu şart uygulanmaz.'}
                     </div>
                   </div>
                 )}
@@ -2054,48 +1991,41 @@ function YgBasvuruKarti({
                           basvurduguBolumOsysPuani: e.target.value.replace(/[^\d.,]/g, ''),
                         })
                       }
-                      placeholder="ör. 412,338"
+                      placeholder={
+                        tabanCozum && tabanCozum.taban
+                          ? 'Tablodan: ' + tabanCozum.taban
+                          : 'ör. 412,338'
+                      }
                       style={ygInput}
                     />
-                    {tabanOneri &&
-                      tabanOneri.taban &&
-                      !ygAyniPuan(tabanOneri.taban, rec.basvurduguBolumOsysPuani) && (
-                        <button
-                          onClick={() =>
-                            onDegerlendir(rec, {
-                              basvurduguBolumOsysPuani: tabanOneri.taban,
-                              tabanPuanKaynagi: tabanOneri.etiket || '',
-                            })
-                          }
-                          disabled={busy}
-                          title={
-                            tabanOneri.yilUyuyor
-                              ? 'Adayın yerleştiği yılın tablosundan'
-                              : 'DİKKAT: bu değer adayın yerleştiği yıla ait DEĞİL'
-                          }
-                          style={{
-                            marginTop: 5,
-                            padding: '4px 9px',
-                            borderRadius: 6,
-                            border: '1px solid ' + (tabanOneri.yilUyuyor ? YG.border : YG.accent),
-                            background: '#fff',
-                            color: tabanOneri.yilUyuyor ? YG.navy : YG.accent,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            fontFamily: 'inherit',
-                            cursor: busy ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          {tabanOneri.yilUyuyor ? 'Tablodan yaz: ' : '⚠ Farklı yıl — '}
-                          {tabanOneri.taban}
-                          {tabanOneri.etiket ? ' (' + tabanOneri.etiket + ')' : ''}
-                        </button>
-                      )}
-                    {rec.tabanPuanKaynagi && (
-                      <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
-                        Kaynak: {rec.tabanPuanKaynagi}
-                      </div>
-                    )}
+                    {/* Değer artık elle yazılmıyor: kütüphaneden, adayın
+                        yerleştiği yıla göre çözülüyor. Buradaki satır hangi
+                        tablodan geldiğini söyler — yanlış yılın puanı yanlış
+                        karar demek, o yüzden yıl tutmuyorsa uyarır. */}
+                    <div
+                      style={{
+                        fontSize: 11,
+                        marginTop: 3,
+                        color:
+                          tabanCozum && !tabanCozum.yilUyuyor && !rec.basvurduguBolumOsysPuani
+                            ? YG.accent
+                            : YG.textMuted,
+                      }}
+                    >
+                      {rec.basvurduguBolumOsysPuani
+                        ? 'Elle girildi — kütüphanedeki değerin yerine bu kullanılır.'
+                        : tabanCozum && tabanCozum.taban
+                          ? (tabanCozum.yilUyuyor ? 'Kütüphaneden çözüldü' : '⚠ FARKLI YIL') +
+                            ' (' +
+                            (tabanCozum.etiket || 'tablo') +
+                            ')' +
+                            (tabanCozum.yilUyuyor
+                              ? ''
+                              : ' — adayın yerleştiği yıl ' +
+                                (rec.yksYerlesmeYili || '?') +
+                                '. O yılın tablosunu kütüphaneden seçin.')
+                          : 'Kütüphanede bu programın taban puanı bulunamadı — şart uygulanmaz.'}
+                    </div>
                   </div>
                 )}
                 {/* Ek Madde-1 hakkının daha önce kullanılıp kullanılmadığının
@@ -2190,7 +2120,9 @@ function YgBasvuruKarti({
               {etkin.degerlendirme && (
                 <div style={{ fontSize: 12, color: YG.textMuted, marginTop: 8 }}>
                   Belgeye yazılacak:{' '}
-                  <b style={{ color: YG.navy }}>{ygDegerlendirmeMetni(rec, siralamaEsik)}</b>
+                  <b style={{ color: YG.navy }}>
+                    {ygDegerlendirmeMetni(kriterKaydi, siralamaEsik)}
+                  </b>
                 </div>
               )}
             </div>
@@ -2208,7 +2140,7 @@ function YgBasvuruKarti({
                 color: '#065F46',
               }}
             >
-              Değerlendirme sonucunuz: <b>{ygDegerlendirmeMetni(rec, siralamaEsik)}</b>
+              Değerlendirme sonucunuz: <b>{ygDegerlendirmeMetni(kriterKaydi, siralamaEsik)}</b>
             </div>
           )}
         </div>
@@ -2295,7 +2227,6 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   // Aranacak programlar = başvurulardaki farklı "başvurduğu bölüm" değerleri.
   // Bölümün adı da eklenir: henüz başvuru yokken bile adres girilip puan
   // çekilebilsin diye.
-  const [tabanKayitlari, setTabanKayitlari] = useState([]);
   // Seçili kütüphane tabloları — yıl eşlemesi başvuru başına yapılır.
   const [tabanTablolari, setTabanTablolari] = useState([]);
   const tabanProgramlari = useMemo(() => {
@@ -2315,8 +2246,15 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   }, [tur, gorunen, departmentInfo]);
 
   // Başvurulan sınıflar — kontenjan alanları bunlara göre çıkar.
+  // Kontenjan 1'den 5'e HER SINIF için ayrı ilan edilir. Liste önceden
+  // yalnız başvuru gelmiş sınıfları gösteriyordu: henüz başvurusu olmayan
+  // bir sınıfa kontenjan girilemiyor, ilan tamamlanamıyordu.
+  //
+  // Listede olmayan bir sınıfa başvuru varsa (ör. hazırlık ya da 6. sınıf)
+  // o da eklenir — aksi hâlde o kayıtlar kontenjansız kalıp sessizce
+  // "uygun değil" olurdu.
   const basvuruSiniflari = useMemo(() => {
-    const set = new Set();
+    const set = new Set(['1', '2', '3', '4', '5']);
     gorunen.forEach((r) => {
       const s2 = String(r.basvurduguSinif || '').trim();
       if (s2) set.add(s2);
@@ -2384,9 +2322,34 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   // İkincisi kartta gösteriliyordu ama sıralamaya girmiyordu; taban puanın
   // altındaki aday yine sıraya alınıp YEDEK yazılıyordu. Artık ikisi de
   // kontenjana sayılmadan eliyor.
+  // ── Taban değerlerinin OTOMATİK çözümü ──
+  // Program taban puanı/sırası önceden başvuru başına ELLE giriliyordu.
+  // Artık kütüphaneden, adayın YERLEŞTİĞİ YILA göre kendiliğinden çözülüyor;
+  // elle girilmiş bir değer varsa o kazanır (insanın kararı okumanın önünde).
+  // Çözüm kayda YAZILMAZ — yalnız kriter hesabında ve ekranda kullanılır.
+  const tabanCozumleri = useMemo(() => {
+    const m = new Map();
+    if (!window.basvuruTabani) return m;
+    gorunen.forEach((r) => {
+      m.set(String(r.id || r._docId), window.basvuruTabani(r, tabanTablolari || []));
+    });
+    return m;
+  }, [gorunen, tabanTablolari]);
+
+  // Kriterlerin üzerinde çalıştığı kayıtlar: çözülen taban değerleri işlenmiş
+  // kopyalar. Kaydın kendisi değişmez.
+  const kriterKayitlari = useMemo(
+    () =>
+      gorunen.map((r) => {
+        const c = tabanCozumleri.get(String(r.id || r._docId));
+        return c && window.tabanUygula ? window.tabanUygula(r, c) : r;
+      }),
+    [gorunen, tabanCozumleri]
+  );
+
   const esikDisi = useMemo(
-    () => (window.elenecekler ? window.elenecekler(gorunen, siralamaEsik) : new Map()),
-    [gorunen, siralamaEsik]
+    () => (window.elenecekler ? window.elenecekler(kriterKayitlari, siralamaEsik) : new Map()),
+    [kriterKayitlari, siralamaEsik]
   );
 
   // Hiç kontenjan girilmemişse sıralama uygulanmaz — herkesi "uygun değil"
@@ -2399,8 +2362,8 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   // değişiminde yeniden hesaplanır ve kartlarda anında görünür; kayda
   // yazılması için hâlâ "Sıralamayı Uygula" gerekir.
   const canliOneriler = useMemo(
-    () => asilYedekOner(gorunen, turId, kontenjanlar, null, { esikDisi }),
-    [gorunen, turId, kontenjanlar, esikDisi]
+    () => asilYedekOner(kriterKayitlari, turId, kontenjanlar, null, { esikDisi }),
+    [kriterKayitlari, turId, kontenjanlar, esikDisi]
   );
   const canliHarita = useMemo(() => {
     const m = new Map();
@@ -2418,11 +2381,11 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       if (o.degerlendirme === 'uygun_asil') asil += 1;
       else if (o.degerlendirme === 'uygun_yedek') yedek += 1;
       else if (o.degerlendirme === 'uygun_degil') disarida += 1;
-      const rec = gorunen.find((r) => String(r.id || r._docId) === String(o.id));
+      const rec = kriterKayitlari.find((r) => String(r.id || r._docId) === String(o.id));
       if (rec && ygOneriFarkliMi(o, ygEtkinSonuc(rec, siralamaEsik))) farkli += 1;
     });
     return { asil, yedek, disarida, farkli };
-  }, [canliOneriler, gorunen, siralamaEsik]);
+  }, [canliOneriler, kriterKayitlari, siralamaEsik]);
 
   const siralamayiUygula = async () => {
     const oneri = canliOneriler;
@@ -2958,7 +2921,6 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
               departmentId={activeDepartment || ''}
               modul="yatay-merkezi"
               programlar={tabanProgramlari}
-              onKayitlar={setTabanKayitlari}
               // Liste türü ŞART: kurumlar aynı yıl için ÖNLİSANS, LİSANS ve
               // DGS listelerini AYRI AYRI yayımlıyor; bir program hepsinde
               // geçebiliyor ama puanları bambaşka. Panel hangisini beklediğini
@@ -3060,71 +3022,66 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                 </div>
               </div>
 
-              {/* Kontenjan SINIF BAŞINA — 2. ve 3. sınıf için ayrı ilan edilir. */}
+              {/* Kontenjan SINIF BAŞINA ilan edilir — 1'den 5'e her sınıf için
+                  ayrı. Başvurusu olmayan sınıfa da kontenjan girilebilmeli. */}
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: YG.navy, marginBottom: 6 }}>
                   Sınıf başına kontenjan
                 </div>
-                {basvuruSiniflari.length === 0 ? (
-                  <div style={{ fontSize: 11.5, color: YG.textMuted }}>
-                    Henüz sınıf bilgisi olan başvuru yok.
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    {basvuruSiniflari.map((sf) => (
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  {basvuruSiniflari.map((sf) => (
+                    <div
+                      key={sf}
+                      style={{
+                        border: '1px solid ' + YG.border,
+                        borderRadius: 10,
+                        padding: '10px 12px',
+                        background: YG.bg,
+                      }}
+                    >
                       <div
-                        key={sf}
                         style={{
-                          border: '1px solid ' + YG.border,
-                          borderRadius: 10,
-                          padding: '10px 12px',
-                          background: YG.bg,
+                          fontSize: 11.5,
+                          fontWeight: 800,
+                          color: YG.navy,
+                          marginBottom: 6,
                         }}
                       >
-                        <div
-                          style={{
-                            fontSize: 11.5,
-                            fontWeight: 800,
-                            color: YG.navy,
-                            marginBottom: 6,
-                          }}
-                        >
-                          {sf}. sınıf
-                          <span style={{ fontWeight: 600, color: YG.textMuted, marginLeft: 6 }}>
-                            (
-                            {
-                              gorunen.filter((r) => String(r.basvurduguSinif || '').trim() === sf)
-                                .length
-                            }{' '}
-                            başvuru)
-                          </span>
+                        {sf}. sınıf
+                        <span style={{ fontWeight: 600, color: YG.textMuted, marginLeft: 6 }}>
+                          (
+                          {
+                            gorunen.filter((r) => String(r.basvurduguSinif || '').trim() === sf)
+                              .length
+                          }{' '}
+                          başvuru)
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ width: 92 }}>
+                          <label style={ygLabel}>Asil</label>
+                          <input
+                            value={(kontenjanlar[sf] || {}).asil || ''}
+                            disabled={busy}
+                            onChange={(e) => kontenjanYaz(sf, 'asil', e.target.value)}
+                            placeholder="0"
+                            style={ygInput}
+                          />
                         </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <div style={{ width: 92 }}>
-                            <label style={ygLabel}>Asil</label>
-                            <input
-                              value={(kontenjanlar[sf] || {}).asil || ''}
-                              disabled={busy}
-                              onChange={(e) => kontenjanYaz(sf, 'asil', e.target.value)}
-                              placeholder="0"
-                              style={ygInput}
-                            />
-                          </div>
-                          <div style={{ width: 92 }}>
-                            <label style={ygLabel}>Yedek</label>
-                            <input
-                              value={(kontenjanlar[sf] || {}).yedek || ''}
-                              disabled={busy}
-                              onChange={(e) => kontenjanYaz(sf, 'yedek', e.target.value)}
-                              placeholder="0"
-                              style={ygInput}
-                            />
-                          </div>
+                        <div style={{ width: 92 }}>
+                          <label style={ygLabel}>Yedek</label>
+                          <input
+                            value={(kontenjanlar[sf] || {}).yedek || ''}
+                            disabled={busy}
+                            onChange={(e) => kontenjanYaz(sf, 'yedek', e.target.value)}
+                            placeholder="0"
+                            style={ygInput}
+                          />
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  ))}
+                </div>
                 {/* Güncel kriterlerin listeye ne diyeceği — her eşik/kontenjan
                     değişiminde anında güncellenir. Kayda YAZILMAZ; kimin asil,
                     kimin kontenjan dışı kalacağı beklemeden görünsün diye. */}
@@ -3256,8 +3213,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                   siralamaEsik={siralamaEsik}
                   canliOneri={canliHarita.get(String(r.id || r._docId))}
                   onSilindi={yukle}
-                  tabanKayitlari={tabanKayitlari}
-                  tabanTablolari={tabanTablolari}
+                  tabanCozum={tabanCozumleri.get(String(r.id || r._docId))}
                 />
               ))}
             </div>
