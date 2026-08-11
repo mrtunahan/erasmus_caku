@@ -33,6 +33,8 @@ import {
   siraOku,
   siraYaz,
   siraEsikDurumu,
+  tabanPuanDurumu,
+  ekMadde1Durumu,
   esikAltindakiler,
   elemeNedeni,
   elenecekler,
@@ -2389,6 +2391,7 @@ const YATAY_ROWS = [
   // Merkezi yerleştirme
   { id: 'basvurduguBolumOsysPuani', label: 'Başvurduğu Bölümün ÖSYS Puanı' },
   { id: 'basvurduguBolumTabanSirasi', label: 'Başvurduğu Bölümün Taban Başarı Sıralaması' },
+  { id: 'ekMadde1Gecmisi', label: 'Ek Madde-1 Geçmişi (tespit sonucu)' },
   // Akademisyenin verdiği karar (belgedeki son sütun) — resmî sonuç
   // olduğu için tamamı büyük yazılır.
   { id: 'degerlendirme', label: 'Değerlendirme Sonucu', format: 'upper' },
@@ -4370,6 +4373,8 @@ window.gnoDogrula = gnoDogrula;
 window.siraOku = siraOku;
 window.siraYaz = siraYaz;
 window.siraEsikDurumu = siraEsikDurumu;
+window.tabanPuanDurumu = tabanPuanDurumu;
+window.ekMadde1Durumu = ekMadde1Durumu;
 window.esikAltindakiler = esikAltindakiler;
 window.elemeNedeni = elemeNedeni;
 window.elenecekler = elenecekler;
@@ -11753,6 +11758,8 @@ const tabanGirdi = {
  * @param {string}   p.baslik        panel başlığı
  * @param {string}   p.aciklama      panelin altında görünen tek satırlık açıklama
  * @param {Array<{id,ad,puanTuru}>} p.programlar  taban puanı aranacak programlar
+ * @param {function} p.onTablolar    (tablolar) => void — SEÇİLİ tabloların kendisi
+ *   (yıl eşlemesi başvuru başına yapılabilsin diye)
  * @param {function} p.onKayitlar    (kayitlar) => void — okunan puanlar üst bileşene
  * @param {string}   [p.puanTuru]    genel puan türü ipucu (ör. 'DGS SAY')
  */
@@ -11764,6 +11771,7 @@ const TabanPuanPaneli = ({
   aciklama,
   programlar,
   onKayitlar,
+  onTablolar,
   puanTuru,
   // Kütüphaneden hangi liste türü öne çıksın (dgs | lisans | onlisans)
   varsayilanTur,
@@ -11838,6 +11846,14 @@ const TabanPuanPaneli = ({
       };
     });
   }, [programlar, seciliTablolar, kayit]);
+
+  // Seçili tabloların KENDİSİNİ de ilet. Yıl eşlemesi başvuru başına
+  // yapılmalı: 2023'te yerleşen adayla 2025'te yerleşen aday aynı programa
+  // başvursa bile FARKLI yılların taban puanıyla ölçülür. Program başına tek
+  // bir değer (aşağıdaki `onKayitlar`) bu ayrımı taşıyamaz.
+  useEffect(() => {
+    if (onTablolar) onTablolar(seciliTablolar);
+  }, [seciliTablolar, onTablolar]);
 
   // Okunan puanları üst bileşene ilet (karşılaştırmayı orası yapar).
   const bildir = useCallback(

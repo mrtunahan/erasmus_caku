@@ -66,15 +66,25 @@ const YG_TURLER = [
     tamAd: 'Merkezi Yerleştirme Puanı ile Yatay Geçiş (Ek Madde 1)',
     color: '#6D28D9',
     bg: '#F3E8FF',
-    aciklama: 'ÖSYS/YKS yerleştirme puanı, başvurulan programın taban puanına eşit veya üstü ise',
+    aciklama:
+      'Adayın yerleştiği yıla ait yerleştirme puanı, başvurduğu programın O YILA ait ' +
+      'taban puanından yüksekse — ve Ek Madde-1 hakkını daha önce kullanmamışsa',
     puanIster: true,
     notIster: false,
+    // Ek Madde-1'e özgü iki şart: yıl eşlemeli taban puan ve hakkın daha
+    // önce kullanılmamış olması.
+    ekMadde1: true,
   },
 ];
 
 // ── Zorunlu ekler ──
 // `turler` verilmezse ek TÜM geçiş türlerinde istenir; verilirse yalnız
 // sayılan türlerde görünür ve yalnız orada zorunluluk denetimine girer.
+// Merkezi yerleştirme puanıyla geçişte (Ek Madde-1) istenen belgeler ve
+// hangilerinin ZORUNLU olduğu kurumca ilan edilir: 1, 2, 5 ve 6.
+//
+// `zorunlu` tür başına değişebilir: aynı belge bir sekmede zorunluyken
+// diğerinde istenmeyebilir. Boolean da bir tür dizisi de kabul edilir.
 const YG_EKLER = [
   {
     id: 'transkript',
@@ -92,10 +102,34 @@ const YG_EKLER = [
     turler: ['kurumlararasi', 'merkezi'],
   },
   {
+    // Zorunlu DEĞİL: içerikler kurumun bilgi sisteminden doğrulanıyor.
+    id: 'ders_icerikleri',
+    title: 'Ders İçerikleri',
+    aciklama: 'Ders içerikleri üniversitenizin bilgi sisteminden kontrol edilecektir',
+    zorunlu: false,
+  },
+  {
+    id: 'disiplin_belgesi',
+    title: 'Disiplin Cezası Belgesi',
+    aciklama: 'Disiplin cezası alıp almadığına ilişkin belge',
+    zorunlu: false,
+  },
+  {
     id: 'yks_sonuc',
     title: 'YKS/YGS/LYS/DGS Sonuç Belgesi',
     aciklama: 'Yerleştirme puanları ve başarı sıralamaları dâhil',
     zorunlu: true,
+  },
+  {
+    // Ek Madde-1 hakkı bir kez kullanılır; bu belge onun tespitini sağlar.
+    // Yalnız merkezi sekmesinde anlamlı — Ek Madde-1 zaten bu geçiş türüdür.
+    id: 'ek_madde1_belgesi',
+    title: 'Ek Madde-1 Yatay Geçiş Yapmadığına Dair Belge',
+    aciklama:
+      'Ek Madde-1 uyarınca daha önce yatay geçiş yapmadığınızı gösterir belge — ' +
+      'bu bilgi Öğrenci Belgesinde yazmalıdır',
+    zorunlu: ['merkezi'],
+    turler: ['merkezi'],
   },
   {
     id: 'ozel_yetenek',
@@ -104,6 +138,13 @@ const YG_EKLER = [
     zorunlu: false,
   },
 ];
+
+// Bu ek, bu geçiş türünde ZORUNLU mu?
+function ygEkZorunlu(ek, turId) {
+  if (!ek) return false;
+  if (Array.isArray(ek.zorunlu)) return ek.zorunlu.includes(String(turId || ''));
+  return !!ek.zorunlu;
+}
 
 // Bir geçiş türünde istenen ekler. Tür bilinmiyorsa (eski kayıt) tümü
 // döner — mevcut kayıtların ekleri gizlenmesin diye.
@@ -116,6 +157,7 @@ function ygEkler(turId) {
 if (typeof window !== 'undefined') {
   window.YG_EKLER = YG_EKLER;
   window.ygEkler = ygEkler;
+  window.ygEkZorunlu = ygEkZorunlu;
 }
 
 // ── Akademisyenin seçtiği değerlendirme sonuçları ──
@@ -364,6 +406,9 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
     // yerleştiği puan türündeki YERLEŞTİRME BAŞARI SIRASI.
     yksBasariSirasi: '',
     notOrtalamasi: '',
+    // Ek Madde-1 hakkı bir kez kullanılır. Beyan burada alınır, tespit
+    // personel tarafından Öğrenci Belgesine bakılarak yapılır.
+    oncekiEkMadde1Gecisi: '',
     // İletişim
     telefon: '',
     eposta: '',
@@ -485,8 +530,20 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
         }
       );
     }
+    if (tur.ekMadde1) {
+      liste.push({
+        id: 'oncekiEkMadde1Gecisi',
+        label: 'Ek Madde-1 ile daha önce yatay geçiş',
+        // Belgede geçmiyorsa BOŞ bırakılmalı: "yapmamıştır" diye
+        // varsaymak, doğrulanmamış bir bilgiyi beyana yazmak olurdu.
+        hint:
+          'Öğrenci Belgesinde "Ek Madde-1 uyarınca yatay geçiş" ifadesini ara. ' +
+          'Daha önce böyle bir geçiş YAPTIĞI yazıyorsa "evet", YAPMADIĞI yazıyorsa "hayir" yaz. ' +
+          'Belgede bu konuda hiçbir ifade yoksa BOŞ bırak — varsayma.',
+      });
+    }
     return liste;
-  }, [icGecis, vekaleten, tur.notIster, tur.puanIster]);
+  }, [icGecis, vekaleten, tur.notIster, tur.puanIster, tur.ekMadde1]);
 
   // AGNO denetimi — 100'lük sistem şartı (bkz. lib/yatay-kriter.js).
   const gnoKontrol = useMemo(
@@ -574,8 +631,13 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
         eksik.push('Yerleştirme başarı sıralaması (yalnız rakam, ör. 245.678)');
       }
     }
+    // Ek Madde-1 hakkı bir kez kullanılır; beyan alınmadan başvuru
+    // değerlendirilemez.
+    if (tur.ekMadde1 && !form.oncekiEkMadde1Gecisi) {
+      eksik.push('Ek Madde-1 ile daha önce yatay geçiş yapıp yapmadığınız');
+    }
     ygEkler(tur.id)
-      .filter((e) => e.zorunlu)
+      .filter((e) => ygEkZorunlu(e, tur.id))
       .forEach((e) => {
         if (!ekler[e.id]) eksik.push(e.title);
       });
@@ -620,6 +682,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
         yksPuani: form.yksPuani.trim(),
         yksBasariSirasi: form.yksBasariSirasi.trim(),
         notOrtalamasi: form.notOrtalamasi.trim(),
+        oncekiEkMadde1Gecisi: tur.ekMadde1 ? form.oncekiEkMadde1Gecisi : '',
         // İletişim
         telefon: form.telefon.trim(),
         eposta: form.eposta.trim(),
@@ -892,6 +955,26 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                 </div>
               </>
             )}
+            {/* Ek Madde-1 hakkı bir kez kullanılır. Beyan burada alınır;
+                tespit, yüklediğiniz Öğrenci Belgesine bakılarak yapılır. */}
+            {tur.ekMadde1 && (
+              <div>
+                <label style={ygLabel}>Ek Madde-1 ile daha önce yatay geçiş yaptınız mı? *</label>
+                <select
+                  value={form.oncekiEkMadde1Gecisi}
+                  onChange={(e) => set('oncekiEkMadde1Gecisi', e.target.value)}
+                  style={{ ...ygInput, cursor: 'pointer' }}
+                >
+                  <option value="">— Seçiniz —</option>
+                  <option value="hayir">Hayır, daha önce yapmadım</option>
+                  <option value="evet">Evet, daha önce yaptım</option>
+                </select>
+                <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
+                  Merkezi yerleştirme puanıyla yatay geçiş hakkı <b>bir kez</b> kullanılır. Bu bilgi
+                  Öğrenci Belgenizde yazar ve belgeden doğrulanır.
+                </div>
+              </div>
+            )}
             {tur.notIster && (
               <div>
                 <label style={ygLabel}>Not ortalaması (AGNO) — 100&apos;lük *</label>
@@ -986,7 +1069,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                 <div style={{ flex: '1 1 240px', minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: YG.text }}>
                     {ek.title}
-                    {ek.zorunlu ? ' *' : ''}
+                    {ygEkZorunlu(ek, tur.id) ? ' *' : ''}
                   </div>
                   {ek.aciklama && (
                     <div style={{ fontSize: 11.5, color: YG.textMuted, marginTop: 2 }}>
@@ -1106,6 +1189,7 @@ function YgBasvuruKarti({
   currentUser,
   onSilindi,
   tabanKayitlari,
+  tabanTablolari,
 }) {
   const [acik, setAcik] = useState(false);
   // Akademisyende yan panelde açılan ek (PDF)
@@ -1136,15 +1220,40 @@ function YgBasvuruKarti({
   // girdisidir (`basvurduguBolumOsysPuani`), karşılaştırma da onun üzerinden
   // yapılır. Böylece elle düzeltilen bir taban puan, ekrandaki kararı da
   // hemen düzeltir.
+  // ⚠ YIL EŞLEMESİ: Ek Madde-1'de aday, YERLEŞTİĞİ YILA ait taban puanla
+  // ölçülür. 2023'te yerleşen adayı 2025 tablosuyla ölçmek yanlış sonuç
+  // verir. Bu yüzden öneri, kütüphanenin tamamından ADAYIN YILINA göre
+  // seçilir; program başına tek bir değer bu ayrımı taşıyamazdı.
   const tabanOneri = useMemo(() => {
-    if (!tur?.puanIster || !window.tabanKaydiBul) return null;
+    if (!tur?.puanIster) return null;
+    const tablolar = tabanTablolari || [];
+    if (tablolar.length > 0 && window.programuTablolardaBul) {
+      const eslesmeler = window.programuTablolardaBul(tablolar, rec.basvurduguBolum || '');
+      const secilen = window.tabanVarsayilanEslesme(eslesmeler, rec.yksYerlesmeYili || '');
+      if (secilen && (secilen.taban || secilen.tabanSira)) {
+        return {
+          taban: secilen.taban,
+          tabanSira: secilen.tabanSira,
+          yil: secilen.yil,
+          etiket: secilen.etiket,
+          // Adayın yılıyla tablonun yılı tutuyor mu? Tutmuyorsa değeri
+          // yazmadan önce personel bunu görmeli.
+          yilUyuyor:
+            !rec.yksYerlesmeYili || String(secilen.yil) === String(rec.yksYerlesmeYili).trim(),
+        };
+      }
+      return null;
+    }
+    if (!window.tabanKaydiBul) return null;
     const k = window.tabanKaydiBul(tabanKayitlari || [], rec.basvurduguBolum || '');
-    return k && (k.taban || k.tabanSira) ? k : null;
-  }, [tabanKayitlari, rec.basvurduguBolum, tur]);
+    return k && (k.taban || k.tabanSira) ? { ...k, yil: '', etiket: '', yilUyuyor: true } : null;
+  }, [tabanTablolari, tabanKayitlari, rec.basvurduguBolum, rec.yksYerlesmeYili, tur]);
 
+  // Kıyas, elemeyi yapan kuralın TA KENDİSİYLE hesaplanır (tabanPuanDurumu):
+  // ekranda "uygun" yazıp listede elenen bir aday, açıklanamaz bir sonuç olurdu.
   const tabanKiyas = useMemo(() => {
-    if (tur?.id !== 'merkezi' || !window.tabanKarsilastir) return null;
-    return window.tabanKarsilastir(rec.yksPuani, rec.basvurduguBolumOsysPuani);
+    if (!tur?.ekMadde1 || !window.tabanPuanDurumu) return null;
+    return window.tabanPuanDurumu(rec.yksPuani, rec.basvurduguBolumOsysPuani);
   }, [rec.yksPuani, rec.basvurduguBolumOsysPuani, tur]);
 
   // ── Belge kıyaslaması için alan/değer/dosya üçlüsü ──
@@ -1290,6 +1399,16 @@ function YgBasvuruKarti({
             {(window.ELEME_ETIKET || {})[elemeSebebi] || 'Taban sıralama şartını karşılamıyor'}
           </span>
         )}
+        {/* Ek Madde-1 tespiti yapılmadan başvuru sonuçlandırılmamalı. Eleme
+            DEĞİL, uyarı: belge okunmadı diye adayı elemek olmaz. */}
+        {isStaff && tur?.ekMadde1 && !elemeSebebi && !rec.ekMadde1Dogrulama && (
+          <span
+            style={ygPill(YG.accent, YG.accentPale)}
+            title="6 nolu belgeye bakıp “Ek Madde-1 tespiti” alanını işaretleyin"
+          >
+            Ek Madde-1 tespiti yapılmadı
+          </span>
+        )}
         {isStaff && !elemeSebebi && esikDurumu && esikDurumu.durum === 'belirsiz' && (
           <span
             style={ygPill(YG.accent, YG.accentPale)}
@@ -1346,6 +1465,19 @@ function YgBasvuruKarti({
               'yksBasariSirasi'
             )}
             {satir('Not ortalaması', rec.notOrtalamasi, 'notOrtalamasi')}
+            {tur?.ekMadde1 &&
+              satir(
+                'Ek Madde-1 geçmişi',
+                rec.ekMadde1Dogrulama === 'var'
+                  ? 'Daha önce yapmış (belgeden)'
+                  : rec.ekMadde1Dogrulama === 'yok'
+                    ? 'Yapmamış (belgeden doğrulandı)'
+                    : rec.oncekiEkMadde1Gecisi === 'evet'
+                      ? 'Beyan: daha önce yaptım'
+                      : rec.oncekiEkMadde1Gecisi === 'hayir'
+                        ? 'Beyan: yapmadım (doğrulanmadı)'
+                        : ''
+              )}
             {hesap && satir('YKS %40', hesap.p40)}
             {hesap && satir('AGNO %60', hesap.n60)}
             {satir('Telefon', rec.telefon, 'telefon')}
@@ -1794,9 +1926,16 @@ function YgBasvuruKarti({
                     </div>
                   </div>
                 )}
-                {tur?.id === 'merkezi' && (
+                {/* Ek Madde-1 kuralı: adayın YERLEŞTİĞİ YILA ait yerleştirme
+                    puanı, programın O YILA ait taban puanından yüksek olmalı.
+                    Bu yüzden alanın yanında hangi yılın tablosundan geldiği de
+                    yazıyor — yanlış yılın puanı yanlış karar demek. */}
+                {tur?.ekMadde1 && (
                   <div>
-                    <label style={ygLabel}>Başvurulan bölümün ÖSYS/YKS taban puanı</label>
+                    <label style={ygLabel}>
+                      Programın taban puanı
+                      {rec.yksYerlesmeYili ? ' (' + rec.yksYerlesmeYili + ' yılı)' : ''}
+                    </label>
                     <input
                       value={rec.basvurduguBolumOsysPuani || ''}
                       disabled={busy}
@@ -1808,28 +1947,74 @@ function YgBasvuruKarti({
                       placeholder="ör. 412,338"
                       style={ygInput}
                     />
-                    {tabanOneri && !ygAyniPuan(tabanOneri.taban, rec.basvurduguBolumOsysPuani) && (
-                      <button
-                        onClick={() =>
-                          onDegerlendir(rec, { basvurduguBolumOsysPuani: tabanOneri.taban })
-                        }
-                        disabled={busy}
-                        style={{
-                          marginTop: 5,
-                          padding: '4px 9px',
-                          borderRadius: 6,
-                          border: '1px solid ' + YG.border,
-                          background: '#fff',
-                          color: YG.navy,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          fontFamily: 'inherit',
-                          cursor: busy ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        Sayfadan okunanı yaz: {tabanOneri.taban}
-                      </button>
+                    {tabanOneri &&
+                      tabanOneri.taban &&
+                      !ygAyniPuan(tabanOneri.taban, rec.basvurduguBolumOsysPuani) && (
+                        <button
+                          onClick={() =>
+                            onDegerlendir(rec, {
+                              basvurduguBolumOsysPuani: tabanOneri.taban,
+                              tabanPuanKaynagi: tabanOneri.etiket || '',
+                            })
+                          }
+                          disabled={busy}
+                          title={
+                            tabanOneri.yilUyuyor
+                              ? 'Adayın yerleştiği yılın tablosundan'
+                              : 'DİKKAT: bu değer adayın yerleştiği yıla ait DEĞİL'
+                          }
+                          style={{
+                            marginTop: 5,
+                            padding: '4px 9px',
+                            borderRadius: 6,
+                            border: '1px solid ' + (tabanOneri.yilUyuyor ? YG.border : YG.accent),
+                            background: '#fff',
+                            color: tabanOneri.yilUyuyor ? YG.navy : YG.accent,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            fontFamily: 'inherit',
+                            cursor: busy ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {tabanOneri.yilUyuyor ? 'Tablodan yaz: ' : '⚠ Farklı yıl — '}
+                          {tabanOneri.taban}
+                          {tabanOneri.etiket ? ' (' + tabanOneri.etiket + ')' : ''}
+                        </button>
+                      )}
+                    {rec.tabanPuanKaynagi && (
+                      <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
+                        Kaynak: {rec.tabanPuanKaynagi}
+                      </div>
                     )}
+                  </div>
+                )}
+                {/* Ek Madde-1 hakkının daha önce kullanılıp kullanılmadığının
+                    TESPİTİ. Aritmetikle bilinemez; 6 numaralı belgeye (Öğrenci
+                    Belgesi) bakılarak karara bağlanır. Belirsizlik eleme sebebi
+                    değildir — okunmamış bir belge yüzünden aday elenemez. */}
+                {tur?.ekMadde1 && (
+                  <div>
+                    <label style={ygLabel}>Ek Madde-1 tespiti (6 nolu belge)</label>
+                    <select
+                      value={rec.ekMadde1Dogrulama || ''}
+                      disabled={busy}
+                      onChange={(e) => onDegerlendir(rec, { ekMadde1Dogrulama: e.target.value })}
+                      style={{ ...ygInput, cursor: 'pointer' }}
+                    >
+                      <option value="">— Kontrol edilmedi —</option>
+                      <option value="yok">Daha önce Ek Madde-1 geçişi YOK</option>
+                      <option value="var">Daha önce Ek Madde-1 geçişi VAR</option>
+                    </select>
+                    <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
+                      Adayın beyanı:{' '}
+                      <b>
+                        {rec.oncekiEkMadde1Gecisi === 'evet'
+                          ? 'daha önce yaptım'
+                          : rec.oncekiEkMadde1Gecisi === 'hayir'
+                            ? 'daha önce yapmadım'
+                            : 'beyan yok'}
+                      </b>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1837,31 +2022,34 @@ function YgBasvuruKarti({
               {/* Taban puan karşılaştırması — kararı model değil bu satır verir.
                   Yalnız bilgilendirir: "Sonuç" alanını kendiliğinden
                   DEĞİŞTİRMEZ, son söz akademisyenindir. */}
-              {tur?.id === 'merkezi' && tabanKiyas && tabanKiyas.durum !== 'belirsiz' && (
-                <div
-                  style={{
-                    marginTop: 10,
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    background:
-                      tabanKiyas.durum === 'uygun' ? YG.greenLight + '66' : YG.accent + '18',
-                    color: tabanKiyas.durum === 'uygun' ? '#065F46' : YG.accent,
-                  }}
-                >
-                  {tabanKiyas.durum === 'uygun'
-                    ? 'Adayın puanı taban puanı karşılıyor'
-                    : 'Adayın puanı taban puanının ALTINDA'}
-                  {' — ' +
-                    ygPuanYaz(tabanKiyas.aday) +
-                    (tabanKiyas.durum === 'uygun' ? ' ≥ ' : ' < ') +
-                    ygPuanYaz(tabanKiyas.taban) +
-                    ' (fark ' +
-                    ygPuanYaz(tabanKiyas.fark) +
-                    ')'}
-                </div>
-              )}
+              {tur?.ekMadde1 &&
+                tabanKiyas &&
+                tabanKiyas.durum !== 'belirsiz' &&
+                tabanKiyas.durum !== 'kriter_yok' && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background:
+                        tabanKiyas.durum === 'uygun' ? YG.greenLight + '66' : YG.accent + '18',
+                      color: tabanKiyas.durum === 'uygun' ? '#065F46' : YG.accent,
+                    }}
+                  >
+                    {tabanKiyas.durum === 'uygun'
+                      ? 'Adayın puanı programın taban puanından YÜKSEK'
+                      : 'Adayın puanı programın taban puanından yüksek DEĞİL'}
+                    {' — ' +
+                      ygPuanYaz(tabanKiyas.aday) +
+                      (tabanKiyas.durum === 'uygun' ? ' > ' : ' ≤ ') +
+                      ygPuanYaz(tabanKiyas.taban) +
+                      ' (fark ' +
+                      ygPuanYaz(tabanKiyas.fark) +
+                      ')'}
+                  </div>
+                )}
 
               {/* Kayıttaki sonuç taban puan şartıyla çelişiyorsa sessizce
                   düzeltmek yetmez: personel, listede neden bir isim eksildiğini
@@ -1998,6 +2186,8 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   // Bölümün adı da eklenir: henüz başvuru yokken bile adres girilip puan
   // çekilebilsin diye.
   const [tabanKayitlari, setTabanKayitlari] = useState([]);
+  // Seçili kütüphane tabloları — yıl eşlemesi başvuru başına yapılır.
+  const [tabanTablolari, setTabanTablolari] = useState([]);
   const tabanProgramlari = useMemo(() => {
     // Taban BAŞARI SIRASI şartı yalnız merkezi geçişte değil, kurumlararası
     // geçişte de uygulanıyor — kütüphane ikisinde de kullanılabilmeli.
@@ -2350,6 +2540,12 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           basvurduguBolumOsysPuani: r.basvurduguBolumOsysPuani || '',
           yksBasariSirasi: r.yksBasariSirasi || '',
           basvurduguBolumTabanSirasi: r.basvurduguBolumTabanSirasi || '',
+          ekMadde1Gecmisi:
+            r.ekMadde1Dogrulama === 'var'
+              ? 'DAHA ÖNCE YATAY GEÇİŞ YAPMIŞ'
+              : r.ekMadde1Dogrulama === 'yok'
+                ? 'DAHA ÖNCE YATAY GEÇİŞ YAPMAMIŞ'
+                : '',
           // Taban puan şartı burada da uygulanır: rapor, kayıtta artakalmış
           // eski bir sıralamanın sonucunu değil GEÇERLİ sonucu yazar.
           degerlendirme: ygDegerlendirmeMetni(r, siralamaEsik),
@@ -2949,6 +3145,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                   canliOneri={canliHarita.get(String(r.id || r._docId))}
                   onSilindi={yukle}
                   tabanKayitlari={tabanKayitlari}
+                  tabanTablolari={tabanTablolari}
                 />
               ))}
             </div>
