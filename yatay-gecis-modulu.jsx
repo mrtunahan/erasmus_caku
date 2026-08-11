@@ -2389,7 +2389,15 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const siralamayiUygula = async () => {
     const oneri = canliOneriler;
-    const uygulanacak = oneri.filter((o) => o.degerlendirme);
+    // Personelin eleyici kararına (EKSİK BELGE, ŞARTLARI TAŞIMIYOR,
+    // VAZGEÇTİ) DOKUNULMAZ: bu kayıtlar sıralamaya zaten girmiyor, üzerine
+    // genel "UYGUN DEĞİL" yazmak insanın yazdığı gerekçeyi silerdi.
+    const korunanlar = new Set(
+      gorunen
+        .filter((r) => window.manuelElemeMi && window.manuelElemeMi(r.degerlendirme))
+        .map((r) => String(r.id || r._docId))
+    );
+    const uygulanacak = oneri.filter((o) => o.degerlendirme && !korunanlar.has(String(o.id)));
     if (uygulanacak.length === 0) {
       setMsg('Sıralanacak başvuru yok (puan bilgisi eksik olabilir).');
       setTimeout(() => setMsg(''), 6000);
