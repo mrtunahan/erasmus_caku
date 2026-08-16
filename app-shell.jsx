@@ -206,6 +206,19 @@ const TopHeader = ({
   const dept = DEPARTMENTS.find((d) => d.id === activeDepartment);
   const [deptMenuOpen, setDeptMenuOpen] = React.useState(false);
   const canSwitchDept = availableDepts.length > 1;
+  // Banttaki fakülte adı kurum geneli tek bir ayardan geliyordu; çok fakülteli
+  // kurumda Orman Fakültesi'ni yöneten yetkiliye "Mühendislik Fakültesi"
+  // yazıyordu. Artık bakılan bağlamın fakültesi yazılır (bkz. lib/bolum-kapsam.js).
+  const fakulteAdlari = window.useFakulteAdlari ? window.useFakulteAdlari() : {};
+  const bantFakulte = window.fakulteBasligi
+    ? window.fakulteBasligi({
+        aktifBolum: activeDepartment,
+        bolumler: DEPARTMENTS,
+        kullanici: currentUser,
+        fakulteAdlari,
+        varsayilan: window.TENANT?.facultyName || FACULTY.name,
+      })
+    : window.TENANT?.facultyName || FACULTY.name;
 
   return (
     <header
@@ -280,7 +293,7 @@ const TopHeader = ({
                 lineHeight: 1.2,
               }}
             >
-              {window.TENANT?.facultyName || FACULTY.name}
+              {bantFakulte}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: isMobile ? 10 : 11 }}>
               {window.TENANT?.universityName || FACULTY.university}
@@ -1085,44 +1098,18 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
   // Ortak helper — Sidebar ile aynı kuralları kullanır.
   const availableDepts = computeAvailableDepts(currentUser, adminScope);
 
-  // Tek bölüm varsa sağ sidebar gösterme
-  if (availableDepts.length <= 1) return null;
-
+  // ⚠ "Tek bölüm varsa gösterme" kontrolü BURADA (hook'lardan önce) erken
+  // return yapıyordu. Bölüm listesi açılıştan sonra dolduğu için bileşen
+  // 1 bölümlü → 2 bölümlü hâle geçiyor, yani önce hooksuz sonra hook'lu
+  // render ediliyordu: React "Rendered more hooks than during the previous
+  // render" ile patlar. Karar artık hook'lardan SONRA veriliyor.
+  //
   // ── FAKÜLTE BAZLI GRUPLAMA ──
   // departments koleksiyonundan veya DEPARTMENTS sabit listesinden facultyId
-  // okunur. faculties koleksiyonundan fakülte adları çekilir (lazy state).
-  const [facultyNames, setFacultyNames] = React.useState({});
+  // okunur. Fakülte adları ortak önbellekten gelir (üst bant da aynı haritayı
+  // kullanır; iki ayrı okuma iki farklı sonuç üretebiliyordu).
+  const facultyNames = window.useFakulteAdlari ? window.useFakulteAdlari() : {};
   const [openFaculties, setOpenFaculties] = React.useState(() => new Set());
-
-  React.useEffect(() => {
-    let cancelled = false;
-    // strict + yeniden deneme: geçici okuma hatasında apiRead [] döndürüp
-    // facultyNames'i boş bıraktığından "Fen Fakültesi" başlığı ham id'ye
-    // düşüyordu. Hata artık "fakülte yok" ile karıştırılmaz.
-    const loadFacultyNames = async () => {
-      const MAX_TRIES = 5;
-      for (let attempt = 1; attempt <= MAX_TRIES && !cancelled; attempt++) {
-        try {
-          const facs = await window.apiRead.strict('faculties');
-          if (cancelled) return;
-          const map = {};
-          (facs || []).forEach((f) => {
-            const id = f._docId || f.id || (f._id && f._id.toString());
-            if (id) map[id] = f.name || id;
-          });
-          setFacultyNames(map);
-          return; // başarılı — yeniden denemeye gerek yok
-        } catch (_) {
-          if (cancelled || attempt === MAX_TRIES) return;
-          await new Promise((r) => setTimeout(r, attempt * 1000));
-        }
-      }
-    };
-    loadFacultyNames();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Fakülte → bölümler haritası
   const facultyGroups = React.useMemo(() => {
@@ -1164,6 +1151,9 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
       return next;
     });
   };
+
+  // Tek bölüm varsa sağ sidebar gösterilmez (hook'lardan sonra karar verilir).
+  if (availableDepts.length <= 1) return null;
 
   const sidebarWidth = 240;
 

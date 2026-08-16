@@ -88,7 +88,13 @@ import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './l
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
 import { slotBirlestir } from './lib/ders-slot.js';
-import { aktifBolumKarari, bolumKapsami, fakulteKapsamli } from './lib/bolum-kapsam.js';
+import {
+  aktifBolumKarari,
+  aktifFakulteId,
+  bolumKapsami,
+  fakulteBasligi,
+  fakulteKapsamli,
+} from './lib/bolum-kapsam.js';
 import {
   PROGRAM_GUNLERI,
   PROGRAM_SAATLERI,
@@ -2225,6 +2231,70 @@ window.TENANT = {
     /* config yoksa varsayılanlarla devam */
   }
 })();
+
+// ══════════════════════════════════════════════════════════════
+// FAKÜLTE ADLARI (fakülte kimliği → ad)
+//
+// Üst bant ve yan menü aynı haritaya ihtiyaç duyuyor; ikisi de ayrı ayrı
+// okusaydı her açılışta iki istek olur, biri hata alırsa iki ekran farklı
+// şey gösterirdi. Tek okuma, tek önbellek, tek yeniden deneme.
+//
+// strict + yeniden deneme: geçici okuma hatasında apiRead [] döndürüyor ve
+// bu "fakülte yok" ile karışıyor — o zaman başlıklar ham kimliğe düşüyordu.
+// ══════════════════════════════════════════════════════════════
+let _fakulteAdlari = null; // { id: ad } — çözülünce doldurulur
+let _fakulteSozu = null; // devam eden okuma (aynı anda tek istek)
+
+function fakulteAdlariniYukle() {
+  if (_fakulteAdlari) return Promise.resolve(_fakulteAdlari);
+  if (_fakulteSozu) return _fakulteSozu;
+  _fakulteSozu = (async () => {
+    const MAX = 5;
+    for (let deneme = 1; deneme <= MAX; deneme++) {
+      try {
+        const facs = await apiRead.strict('faculties');
+        const harita = {};
+        (facs || []).forEach((f) => {
+          const id = f._docId || f.id || (f._id && f._id.toString());
+          if (id) harita[String(id)] = f.name || String(id);
+        });
+        _fakulteAdlari = harita;
+        try {
+          window.dispatchEvent(new CustomEvent('faculties:loaded'));
+        } catch (_) {
+          /* yok say */
+        }
+        return harita;
+      } catch (_) {
+        if (deneme === MAX) {
+          _fakulteSozu = null; // sonraki çağrı yeniden denesin
+          return {};
+        }
+        await new Promise((r) => setTimeout(r, deneme * 1000));
+      }
+    }
+    return {};
+  })();
+  return _fakulteSozu;
+}
+
+/** Fakülte adları haritası — yüklenene kadar {} döner, gelince re-render eder. */
+function useFakulteAdlari() {
+  const [adlar, setAdlar] = useState(() => _fakulteAdlari || {});
+  useEffect(() => {
+    let iptal = false;
+    fakulteAdlariniYukle().then((h) => {
+      if (!iptal) setAdlar(h || {});
+    });
+    return () => {
+      iptal = true;
+    };
+  }, []);
+  return adlar;
+}
+
+window.fakulteAdlariniYukle = fakulteAdlariniYukle;
+window.useFakulteAdlari = useFakulteAdlari;
 
 // ══════════════════════════════════════════════════════════════
 // ── PerfData: Performans cevaplarını modüller arası paylaşımlı okuma ──
@@ -12082,6 +12152,8 @@ window.slotBirlestir = slotBirlestir;
 window.aktifBolumKarari = aktifBolumKarari;
 window.bolumKapsami = bolumKapsami;
 window.fakulteKapsamli = fakulteKapsamli;
+window.aktifFakulteId = aktifFakulteId;
+window.fakulteBasligi = fakulteBasligi;
 
 window.DUYURU_TURLERI = DUYURU_TURLERI;
 window.DUYURU_HEDEF_ROLLER = DUYURU_HEDEF_ROLLER;

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { aktifBolumKarari, bolumKapsami, fakulteKapsamli } from '../lib/bolum-kapsam.js';
+import {
+  aktifBolumKarari,
+  aktifFakulteId,
+  bolumKapsami,
+  fakulteBasligi,
+  fakulteKapsamli,
+} from '../lib/bolum-kapsam.js';
 
 const ORMAN = [
   { id: 'orman-muh', name: 'Orman Mühendisliği', facultyId: 'orman-fak' },
@@ -35,6 +41,80 @@ describe('fakulteKapsamli', () => {
   it('fakültesi olmayan kullanıcı kapsamlı değildir', () => {
     expect(fakulteKapsamli({ isFacultyManager: true })).toBe(false);
     expect(fakulteKapsamli(null)).toBe(false);
+  });
+});
+
+describe('aktifFakulteId / fakulteBasligi', () => {
+  const BOLUMLER = [
+    ...ORMAN,
+    // Koda gömülü eski kayıtlar facultyId taşımaz
+    { id: 'makine', name: 'Makine Mühendisliği' },
+    { id: 'fizik', name: 'Fizik', facultyId: 'fen-fak' },
+  ];
+  const ADLAR = { 'orman-fak': 'Orman Fakültesi', 'fen-fak': 'Fen Fakültesi' };
+  const VARSAYILAN = 'Mühendislik Fakültesi';
+
+  it('bant, aktif bölümün fakültesini gösterir', () => {
+    const ad = fakulteBasligi({
+      aktifBolum: 'peyzaj',
+      bolumler: BOLUMLER,
+      kullanici: { isFacultyManager: true, facultyId: 'orman-fak' },
+      fakulteAdlari: ADLAR,
+      varsayilan: VARSAYILAN,
+    });
+    expect(ad).toBe('Orman Fakültesi');
+  });
+
+  it('üniversite yetkilisi başka fakültenin bölümüne geçince bant onu gösterir', () => {
+    const ad = fakulteBasligi({
+      aktifBolum: 'fizik',
+      bolumler: BOLUMLER,
+      kullanici: { isUniversityAdmin: true, facultyId: 'orman-fak' },
+      fakulteAdlari: ADLAR,
+      varsayilan: VARSAYILAN,
+    });
+    expect(ad).toBe('Fen Fakültesi');
+  });
+
+  it('bölümün fakültesi bilinmiyorsa kullanıcının fakültesine düşer', () => {
+    // makine kaydı facultyId taşımıyor
+    expect(
+      aktifFakulteId({
+        aktifBolum: 'makine',
+        bolumler: BOLUMLER,
+        kullanici: { facultyId: 'orman-fak' },
+      })
+    ).toBe('orman-fak');
+  });
+
+  it('hiçbir fakülte çözülemezse kurum varsayılanı yazılır', () => {
+    expect(
+      fakulteBasligi({
+        aktifBolum: 'makine',
+        bolumler: BOLUMLER,
+        kullanici: { role: 'professor' },
+        fakulteAdlari: ADLAR,
+        varsayilan: VARSAYILAN,
+      })
+    ).toBe(VARSAYILAN);
+  });
+
+  it('fakülte adı henüz yüklenmediyse ham kimlik basılmaz', () => {
+    // faculties okuması gecikirse bantta "orman-fak" gibi bir dize durmamalı
+    expect(
+      fakulteBasligi({
+        aktifBolum: 'peyzaj',
+        bolumler: BOLUMLER,
+        kullanici: {},
+        fakulteAdlari: {},
+        varsayilan: VARSAYILAN,
+      })
+    ).toBe(VARSAYILAN);
+  });
+
+  it('bozuk girdide çökmez', () => {
+    expect(aktifFakulteId()).toBe('');
+    expect(fakulteBasligi()).toBe('');
   });
 });
 
