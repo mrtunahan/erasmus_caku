@@ -16,7 +16,7 @@
 // Veri: yatay_gecis_basvurular
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 import { puanaGoreSirala, asilYedekOner } from './lib/yatay-siralama.js';
 
@@ -234,6 +234,24 @@ const ygLabel = {
   fontWeight: 600,
   color: YG.textMuted,
   marginBottom: 4,
+};
+// Sistemin kendiliğinden doldurduğu alanlar: insanın yazdığıyla karışmasın.
+// Değer görünür ama "bunu ben yazmadım" bilgisi de görünür kalır.
+const ygOtoInput = {
+  background: '#F0F9FF',
+  borderColor: '#7DD3FC',
+  color: '#0C4A6E',
+  fontWeight: 600,
+};
+const ygOtoRozet = {
+  marginLeft: 6,
+  padding: '1px 6px',
+  borderRadius: 8,
+  background: '#E0F2FE',
+  color: '#0369A1',
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: 0.2,
 };
 
 const ygFileHref = (u) => {
@@ -1242,17 +1260,22 @@ function YgBasvuruKarti({
   currentUser,
   onSilindi,
   tabanCozum,
+  gecmis,
 }) {
   const [acik, setAcik] = useState(false);
   // Akademisyende yan panelde açılan ek (PDF)
   const [acikEk, setAcikEk] = useState('');
   // Kriterler ÇÖZÜLMÜŞ değerler üzerinden okunur: program taban puanı/sırası
-  // artık elle girilmiyor, kütüphaneden adayın yılına göre çözülüyor. Kart
-  // ile listedeki karar aynı sayıya bakmalı.
-  const kriterKaydi = useMemo(
-    () => (tabanCozum && window.tabanUygula ? window.tabanUygula(rec, tabanCozum) : rec),
-    [rec, tabanCozum]
-  );
+  // artık elle girilmiyor, kütüphaneden adayın yılına göre çözülüyor; Ek
+  // Madde-1 tespiti de sistem kaydından/beyandan çözülüyor. Kart ile
+  // listedeki karar aynı değerlere bakmalı.
+  const kriterKaydi = useMemo(() => {
+    let k = tabanCozum && window.tabanUygula ? window.tabanUygula(rec, tabanCozum) : rec;
+    if (tur?.ekMadde1 && window.ekMadde1Otomatik && window.ekMadde1Uygula) {
+      k = window.ekMadde1Uygula(k, window.ekMadde1Otomatik(rec, gecmis));
+    }
+    return k;
+  }, [rec, tabanCozum, gecmis, tur]);
   // Taban puan şartı — kurum eşiği VE programın kendi taban puanı.
   const elemeSebebi = window.elemeNedeni ? window.elemeNedeni(kriterKaydi, siralamaEsik) : '';
   // Yanlış tablo denetimi: yerleştirme değerleri ham sınav değerleriyle
@@ -1285,6 +1308,22 @@ function YgBasvuruKarti({
     if (!tur?.ekMadde1 || !window.tabanPuanDurumu) return null;
     return window.tabanPuanDurumu(rec.yksPuani, kriterKaydi.basvurduguBolumOsysPuani);
   }, [rec.yksPuani, kriterKaydi.basvurduguBolumOsysPuani, tur]);
+
+  // Kütüphaneden çözülüp alana yazılan (elle girilmemiş) değerler. Ayrımı
+  // görünür tutmak şart: ekranda duran bir sayının kim tarafından konduğu
+  // belli olmalı, aksi hâlde otomatik bir okuma insan kararı sanılır.
+  const tabanOtomatik = !!(tabanCozum && tabanCozum.taban && !rec.basvurduguBolumOsysPuani);
+  const siraOtomatik = !!(tabanCozum && tabanCozum.tabanSira && !rec.basvurduguBolumTabanSirasi);
+  // Ek Madde-1 tespitinin sistemdeki karşılığı (kayıt geçmişi + beyan).
+  const ekOto = useMemo(
+    () => (tur?.ekMadde1 && window.ekMadde1Otomatik ? window.ekMadde1Otomatik(rec, gecmis) : null),
+    [rec, gecmis, tur]
+  );
+  const ekKaynak = rec.ekMadde1Dogrulama
+    ? rec.ekMadde1Kaynak || 'personel'
+    : ekOto && ekOto.deger
+      ? ekOto.kaynak
+      : '';
 
   // ── Belge kıyaslaması için alan/değer/dosya üçlüsü ──
   // Öğrencinin BEYAN ETTİĞİ, yani belgeden doğrulanabilir alanlar. Sistemin
@@ -1462,12 +1501,22 @@ function YgBasvuruKarti({
         )}
         {/* Ek Madde-1 tespiti yapılmadan başvuru sonuçlandırılmamalı. Eleme
             DEĞİL, uyarı: belge okunmadı diye adayı elemek olmaz. */}
-        {isStaff && tur?.ekMadde1 && !elemeSebebi && !rec.ekMadde1Dogrulama && (
+        {/* Otomatik doldurulan tespit, BELGENİN okunduğu anlamına gelmez:
+            uyarı, kaynağı "personel" olana kadar durur — yalnız metni
+            yumuşar. Aksi hâlde kimsenin bakmadığı bir alan denetlenmiş
+            görünürdü. */}
+        {isStaff && tur?.ekMadde1 && !elemeSebebi && ekKaynak !== 'personel' && (
           <span
             style={ygPill(YG.accent, YG.accentPale)}
-            title="6 nolu belgeye bakıp “Ek Madde-1 tespiti” alanını işaretleyin"
+            title={
+              ekKaynak
+                ? 'Değer sistemden geldi (' +
+                  ((window.EK_MADDE1_KAYNAK_ETIKET || {})[ekKaynak] || ekKaynak) +
+                  '). 6 nolu belgeye bakıp onaylayın.'
+                : '6 nolu belgeye bakıp “Ek Madde-1 tespiti” alanını işaretleyin'
+            }
           >
-            Ek Madde-1 tespiti yapılmadı
+            {ekKaynak ? 'Ek Madde-1 belge kontrolü bekliyor' : 'Ek Madde-1 tespiti yapılmadı'}
           </span>
         )}
         {isStaff && !elemeSebebi && esikDurumu && esikDurumu.durum === 'belirsiz' && (
@@ -1534,18 +1583,23 @@ function YgBasvuruKarti({
               'sinavBasariSirasi'
             )}
             {satir('Not ortalaması', rec.notOrtalamasi, 'notOrtalamasi')}
+            {/* "Belgeden doğrulandı" yalnız personel işaretlediyse yazılır:
+                sistemden çıkarılmış bir değer, okunmuş bir belge değildir. */}
             {tur?.ekMadde1 &&
               satir(
                 'Ek Madde-1 geçmişi',
-                rec.ekMadde1Dogrulama === 'var'
-                  ? 'Daha önce yapmış (belgeden)'
-                  : rec.ekMadde1Dogrulama === 'yok'
-                    ? 'Yapmamış (belgeden doğrulandı)'
-                    : rec.oncekiEkMadde1Gecisi === 'evet'
-                      ? 'Beyan: daha önce yaptım'
-                      : rec.oncekiEkMadde1Gecisi === 'hayir'
-                        ? 'Beyan: yapmadım (doğrulanmadı)'
-                        : ''
+                (() => {
+                  const deger = rec.ekMadde1Dogrulama || (ekOto && ekOto.deger) || '';
+                  if (!deger) return '';
+                  const yapmis = deger === 'var' ? 'Daha önce yapmış' : 'Yapmamış';
+                  const ek =
+                    ekKaynak === 'personel'
+                      ? ' (belgeden doğrulandı)'
+                      : ekKaynak === 'sistem_kaydi'
+                        ? ' (sistem kaydından — belge kontrolü bekliyor)'
+                        : ' (adayın beyanı — belge kontrolü bekliyor)';
+                  return yapmis + ek;
+                })()
               )}
             {hesap && satir('YKS %40', hesap.p40)}
             {hesap && satir('AGNO %60', hesap.n60)}
@@ -1948,28 +2002,34 @@ function YgBasvuruKarti({
                     Ölçüt sıralamadır: küçük sıra daha iyidir. */}
                 {tur?.puanIster && (
                   <div>
-                    <label style={ygLabel}>Başvurulan bölümün taban başarı sıralaması</label>
+                    <label style={ygLabel}>
+                      Başvurulan bölümün taban başarı sıralaması
+                      {siraOtomatik && <span style={ygOtoRozet}>otomatik</span>}
+                    </label>
+                    {/* Alan artık BOŞ durmaz: kütüphaneden çözülen değer
+                        doğrudan içinde görünür. Üzerine yazılırsa personelin
+                        değeri kazanır; temizlenirse yeniden otomatiğe döner. */}
                     <input
-                      value={rec.basvurduguBolumTabanSirasi || ''}
+                      value={
+                        rec.basvurduguBolumTabanSirasi || (tabanCozum && tabanCozum.tabanSira) || ''
+                      }
                       disabled={busy}
                       onChange={(e) =>
                         onDegerlendir(rec, {
                           basvurduguBolumTabanSirasi: e.target.value.replace(/[^\d.,\s]/g, ''),
                         })
                       }
-                      placeholder={
-                        tabanCozum && tabanCozum.tabanSira
-                          ? 'Tablodan: ' + ygSira(tabanCozum.tabanSira)
-                          : 'ör. 180.000'
-                      }
-                      style={ygInput}
+                      placeholder="ör. 180.000"
+                      style={siraOtomatik ? { ...ygInput, ...ygOtoInput } : ygInput}
                     />
                     <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
-                      {tabanCozum && tabanCozum.tabanSira && !rec.basvurduguBolumTabanSirasi
+                      {siraOtomatik
                         ? 'Kütüphaneden çözüldü (' +
                           (tabanCozum.etiket || 'tablo') +
-                          ') — elle yazarsanız sizin değeriniz geçerli olur.'
-                        : 'Boş bırakılırsa kütüphaneden çözülür; kütüphanede de yoksa bu şart uygulanmaz.'}
+                          ') — üzerine yazarsanız sizin değeriniz geçerli olur.'
+                        : rec.basvurduguBolumTabanSirasi
+                          ? 'Elle girildi — kütüphanedeki değerin yerine bu kullanılır.'
+                          : 'Kütüphanede bu programın taban sırası yok — bu şart uygulanmaz.'}
                     </div>
                   </div>
                 )}
@@ -1982,21 +2042,22 @@ function YgBasvuruKarti({
                     <label style={ygLabel}>
                       Programın taban puanı
                       {rec.yksYerlesmeYili ? ' (' + rec.yksYerlesmeYili + ' yılı)' : ''}
+                      {tabanOtomatik && <span style={ygOtoRozet}>otomatik</span>}
                     </label>
+                    {/* Değer adayın YERLEŞTİĞİ YILA göre kütüphaneden çözülüp
+                        doğrudan alana yazılır — akademisyen elle girmez.
+                        Üzerine yazılan değer kazanır (insan kararı okumanın
+                        önündedir); alan temizlenirse otomatiğe döner. */}
                     <input
-                      value={rec.basvurduguBolumOsysPuani || ''}
+                      value={rec.basvurduguBolumOsysPuani || (tabanCozum && tabanCozum.taban) || ''}
                       disabled={busy}
                       onChange={(e) =>
                         onDegerlendir(rec, {
                           basvurduguBolumOsysPuani: e.target.value.replace(/[^\d.,]/g, ''),
                         })
                       }
-                      placeholder={
-                        tabanCozum && tabanCozum.taban
-                          ? 'Tablodan: ' + tabanCozum.taban
-                          : 'ör. 412,338'
-                      }
-                      style={ygInput}
+                      placeholder="ör. 412,338"
+                      style={tabanOtomatik ? { ...ygInput, ...ygOtoInput } : ygInput}
                     />
                     {/* Değer artık elle yazılmıyor: kütüphaneden, adayın
                         yerleştiği yıla göre çözülüyor. Buradaki satır hangi
@@ -2034,18 +2095,49 @@ function YgBasvuruKarti({
                     değildir — okunmamış bir belge yüzünden aday elenemez. */}
                 {tur?.ekMadde1 && (
                   <div>
-                    <label style={ygLabel}>Ek Madde-1 tespiti (6 nolu belge)</label>
+                    <label style={ygLabel}>
+                      Ek Madde-1 tespiti (6 nolu belge)
+                      {!rec.ekMadde1Dogrulama && ekOto && ekOto.deger && (
+                        <span style={ygOtoRozet}>otomatik</span>
+                      )}
+                    </label>
+                    {/* Seçim sistemden gelir: önce kurumun KENDİ kaydı (aynı
+                        numaraya ait, asil sonuçlanmış önceki merkezi başvuru),
+                        o yoksa adayın beyanı. Personel değiştirirse kaynak
+                        "personel" olur ve otomatik bir daha dokunmaz. */}
                     <select
-                      value={rec.ekMadde1Dogrulama || ''}
+                      value={rec.ekMadde1Dogrulama || (ekOto && ekOto.deger) || ''}
                       disabled={busy}
-                      onChange={(e) => onDegerlendir(rec, { ekMadde1Dogrulama: e.target.value })}
-                      style={{ ...ygInput, cursor: 'pointer' }}
+                      onChange={(e) =>
+                        onDegerlendir(rec, {
+                          ekMadde1Dogrulama: e.target.value,
+                          ekMadde1Kaynak: 'personel',
+                          ekMadde1Gerekce: '',
+                        })
+                      }
+                      style={{
+                        ...ygInput,
+                        cursor: 'pointer',
+                        ...(!rec.ekMadde1Dogrulama && ekOto && ekOto.deger ? ygOtoInput : {}),
+                      }}
                     >
                       <option value="">— Kontrol edilmedi —</option>
                       <option value="yok">Daha önce Ek Madde-1 geçişi YOK</option>
                       <option value="var">Daha önce Ek Madde-1 geçişi VAR</option>
                     </select>
-                    <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
+                    <div
+                      style={{ fontSize: 11, color: YG.textMuted, marginTop: 3, lineHeight: 1.5 }}
+                    >
+                      {ekKaynak && (
+                        <>
+                          Kaynak:{' '}
+                          <b>{(window.EK_MADDE1_KAYNAK_ETIKET || {})[ekKaynak] || ekKaynak}</b>
+                          {ekOto && ekOto.gerekce && !rec.ekMadde1Dogrulama
+                            ? ' — ' + ekOto.gerekce
+                            : ''}
+                          <br />
+                        </>
+                      )}
                       Adayın beyanı:{' '}
                       <b>
                         {rec.oncekiEkMadde1Gecisi === 'evet'
@@ -2342,9 +2434,17 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
     () =>
       gorunen.map((r) => {
         const c = tabanCozumleri.get(String(r.id || r._docId));
-        return c && window.tabanUygula ? window.tabanUygula(r, c) : r;
+        let k = c && window.tabanUygula ? window.tabanUygula(r, c) : r;
+        // Ek Madde-1 tespiti de otomatik çözülür (kurumun kendi kaydı ya da
+        // adayın beyanı). Bu değer ELEYİCİ olabildiği için sıralamadan ÖNCE
+        // kritere girmeli: sonradan yazılsaydı, elenmesi gereken bir aday
+        // önce asil önerilip kontenjandan yer kapatırdı.
+        if (tur?.ekMadde1 && window.ekMadde1Uygula && window.ekMadde1Otomatik) {
+          k = window.ekMadde1Uygula(k, window.ekMadde1Otomatik(r, kayitlar));
+        }
+        return k;
       }),
-    [gorunen, tabanCozumleri]
+    [gorunen, tabanCozumleri, tur, kayitlar]
   );
 
   const esikDisi = useMemo(
@@ -2370,6 +2470,84 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
     canliOneriler.forEach((o) => m.set(String(o.id), o));
     return m;
   }, [canliOneriler]);
+
+  // ── Değerlendirmenin OTOMATİK doldurulması ──
+  //
+  // Akademisyen elle üç şey yazıyordu; üçünün de kaynağı sistemde:
+  //   • asil/yedek sınıf ve sıra → diğer adayların puanlarından (kontenjanla)
+  //   • Ek Madde-1 tespiti      → kurumun kendi kayıtları ve adayın beyanı
+  // (taban puanı ayrı yoldan, kütüphaneden alanın içine çözülüyor)
+  //
+  // Yalnız BOŞ alan doldurulur; personelin verdiği hiçbir karar ezilmez.
+  //
+  // Nöbet ALAN BAŞINADIR (kayıt+alan), yalnız kayıt değil: kontenjan bilgisi
+  // kayıtlardan sonra yüklendiği için ilk turda çoğu zaman yalnız Ek Madde-1
+  // yazılabiliyor. Nöbet kayıt başına tutulsaydı sıralama "bu kayda zaten
+  // bakıldı" sayılıp bir daha hiç yazılmazdı. Yazma başarısız olsa bile nöbet
+  // düşer — hatalı bir istek sonsuz tekrarlanmamalı; toplu "Sıralamayı Uygula"
+  // düğmesi kurtarma yolu olarak durur.
+  const otoYazilanlar = useRef(new Set());
+  useEffect(() => {
+    // Öğrenci ekranında ve kayıtlar yüklenirken çalışmaz; kontenjan
+    // girilmemişse sıralama önerisi anlamsızdır (herkes "uygun değil" olurdu).
+    if (!isStaff || loading || busy || !window.otomatikYazimlar) return;
+    const nobet = (id, not) => id + '|' + not;
+    const yazimlar = window
+      .otomatikYazimlar(gorunen, canliHarita, {
+        gecmis: kayitlar,
+        siralama: turId !== 'kurumici' && !kontenjanBos,
+        ekMadde1: !!tur?.ekMadde1,
+      })
+      .filter((y) => (y.notlar || []).some((n) => !otoYazilanlar.current.has(nobet(y.id, n))));
+    if (yazimlar.length === 0) return;
+    // Nöbet SENKRON alınır: aynı turda ikinci bir render (React 18 geliştirme
+    // kipinde effect iki kez çalışır) aynı kayıtları yeniden yazmaya kalkmasın.
+    yazimlar.forEach((y) =>
+      (y.notlar || []).forEach((n) => otoYazilanlar.current.add(nobet(y.id, n)))
+    );
+
+    let iptal = false;
+    (async () => {
+      const yazildi = [];
+      for (const y of yazimlar) {
+        try {
+          await window.DBWrite.set(
+            'yatay_gecis_basvurular',
+            String(y.id),
+            { ...y.patch, updatedAt: new Date().toISOString() },
+            true
+          );
+          yazildi.push(y);
+        } catch (e) {
+          console.warn('[yatay-gecis] otomatik değerlendirme yazılamadı:', y.id, e?.message);
+        }
+      }
+      if (iptal || yazildi.length === 0) return;
+      setKayitlar((prev) =>
+        prev.map((r) => {
+          const y = yazildi.find((x) => String(x.id) === String(r.id || r._docId));
+          return y ? { ...r, ...y.patch } : r;
+        })
+      );
+      const ozet = window.otomatikOzet ? window.otomatikOzet(yazildi) : null;
+      if (ozet) {
+        const parcalar = [];
+        if (ozet.siralama > 0) parcalar.push(ozet.siralama + ' başvuruya sıralama (sınıf ve sıra)');
+        if (ozet.ekMadde1 > 0) parcalar.push(ozet.ekMadde1 + ' başvuruya Ek Madde-1 tespiti');
+        if (parcalar.length > 0) {
+          setMsg(
+            'Sistemdeki bilgilerden otomatik yazıldı: ' +
+              parcalar.join(' · ') +
+              '. Her satırı tek tek değiştirebilirsiniz.'
+          );
+          setTimeout(() => setMsg(''), 10000);
+        }
+      }
+    })();
+    return () => {
+      iptal = true;
+    };
+  }, [isStaff, loading, busy, gorunen, canliHarita, kayitlar, kontenjanBos, turId, tur]);
 
   // Kayıtla öneri arasındaki fark — panelde özet olarak gösterilir.
   const canliOzet = useMemo(() => {
@@ -2599,7 +2777,12 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       const egitimYili = yil + '-' + (yil + 1);
       const donem = bugun.getMonth() >= 7 || bugun.getMonth() <= 0 ? 'GÜZ' : 'BAHAR';
 
-      const rows = gorunen.map((r) => {
+      // Belge, EKRANDA görünen değerlerle birebir aynı olmalı: satırlar ham
+      // kayıttan üretiliyordu, bu yüzden kütüphaneden çözülen taban puanı /
+      // taban sırası ve sistemden çözülen Ek Madde-1 tespiti çıktıda BOŞ
+      // kalıyordu (kayda yazılmıyorlar, yalnız hesapta kullanılıyorlar).
+      // `kriterKayitlari` bu çözümleri işlenmiş kopyalardır — sıra da aynıdır.
+      const rows = kriterKayitlari.map((r) => {
         const h = tur.hesapla ? ygYerlesmePuani(r.yksPuani, r.notOrtalamasi) : null;
         return {
           adSoyad: r.adSoyad || '',
@@ -2929,6 +3112,12 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
               departmentId={activeDepartment || ''}
               modul="yatay-merkezi"
               programlar={tabanProgramlari}
+              // ⚠ Bu bağlantı yoktu: panel seçili tabloları yayımlıyor ama
+              // modül dinlemiyordu, `tabanTablolari` hep boş kalıyordu. Taban
+              // puanı "kütüphaneden çözülür" diye yazılmıştı ama çözecek tablo
+              // eline geçmediği için alan hep boş kalıyor, akademisyen puanı
+              // elle giriyordu. Yıl eşlemesi başvuru başına burada yapılır.
+              onTablolar={setTabanTablolari}
               // Liste türü ŞART: kurumlar aynı yıl için ÖNLİSANS, LİSANS ve
               // DGS listelerini AYRI AYRI yayımlıyor; bir program hepsinde
               // geçebiliyor ama puanları bambaşka. Panel hangisini beklediğini
@@ -3222,6 +3411,9 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                   canliOneri={canliHarita.get(String(r.id || r._docId))}
                   onSilindi={yukle}
                   tabanCozum={tabanCozumleri.get(String(r.id || r._docId))}
+                  // Ek Madde-1 tespiti kurumun KENDİ kayıtlarından çözülür:
+                  // bölüm/tür süzgecinden geçmemiş tam liste gerekir.
+                  gecmis={kayitlar}
                 />
               ))}
             </div>
