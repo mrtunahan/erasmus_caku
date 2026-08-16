@@ -5,6 +5,10 @@
 
 const { useState, useEffect, useMemo, useCallback } = React;
 
+// Akademisyenin üniversite geneli haftalık programı — Bölüm Yönetimi ile ortak
+// bileşen (shared-components.jsx), tek belge biçimi.
+const AkademisyenProgramModal = window.AkademisyenProgramModal;
+
 const DP = {
   primary: '#7C3AED',
   primaryLight: '#A78BFA',
@@ -31,27 +35,14 @@ const DPIcon = ({ path, size = 18, color = 'currentColor' }) => (
   </svg>
 );
 
-const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'];
+// Gün ve saat dizileri lib/akademisyen-programi.js'te tanımlıdır (akademisyen
+// programı da aynı ızgarayı kullanır); slot anahtarı saat İNDEKSİ olduğu için
+// bu sıralama veri sözleşmesidir ve tek yerden gelmelidir.
+const DAYS = window.PROGRAM_GUNLERI;
+const HOURS = window.PROGRAM_SAATLERI;
 // İlk 9 satır lisans programıdır; sonraki 5 akşam satırı YALNIZ lisansüstü
-// görünümünde gösterilir (slot anahtarı saat İNDEKSİ olduğundan ekleme
-// mevcut verileri bozmaz).
+// görünümünde gösterilir.
 const LISANS_HOURS_COUNT = 9;
-const HOURS = [
-  '08:30-09:15',
-  '09:30-10:15',
-  '10:30-11:15',
-  '11:30-12:15',
-  '12:30-13:15',
-  '13:30-14:15',
-  '14:30-15:15',
-  '15:30-16:15',
-  '16:15-17:00',
-  '17:15-18:00',
-  '18:15-19:00',
-  '19:15-20:00',
-  '20:15-21:00',
-  '21:15-22:00',
-];
 
 const SLOT_COLORS = [
   '#3B82F6',
@@ -616,6 +607,8 @@ function DersProgramiApp({
   const [allFacultySlots, setAllFacultySlots] = useState([]);
   // Slot ekleme esnasında çakışma uyarıları
   const [addSlotWarnings, setAddSlotWarnings] = useState([]);
+  // Akademisyenin kendi üniversite geneli haftalık programı (ortak bileşen)
+  const [showMyProgram, setShowMyProgram] = useState(false);
 
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
@@ -1354,6 +1347,36 @@ function DersProgramiApp({
                 color="#DC2626"
               />
               {conflicts.length} Çakışma
+            </button>
+          )}
+          {/* Akademisyenin ÜNİVERSİTE GENELİ kendi haftalık programı: hangi
+              bölümde ders verdiği fark etmeksizin tüm saatleri tek belgede
+              toplar (bu ekran yalnız aktif bölüm+sınıfı gösterir). Bölüm
+              yetkilisi aynı belgeye Bölüm Yönetimi → Akademisyen Bilgileri'nden
+              ulaşır. */}
+          {isProfessor && currentUser?.name && (
+            <button
+              onClick={() => setShowMyProgram(true)}
+              style={{
+                padding: '7px 12px',
+                borderRadius: 8,
+                border: '1px solid #C4B5FD',
+                background: '#F5F3FF',
+                color: DP.primary,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <DPIcon
+                path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                size={13}
+                color={DP.primary}
+              />
+              Benim Ders Programım
             </button>
           )}
           {/* Fakülte birleşik programı (ve Yazdır/PDF dekanlık çıktısı) yalnızca
@@ -3216,6 +3239,18 @@ function DersProgramiApp({
             )}
           </div>
         </div>
+      )}
+
+      {/* Akademisyenin kendi programı — Bölüm Yönetimi'ndeki görüntüleyicinin
+          aynısı (ortak bileşen, tek belge biçimi). */}
+      {showMyProgram && AkademisyenProgramModal && (
+        <AkademisyenProgramModal
+          open={showMyProgram}
+          onClose={() => setShowMyProgram(false)}
+          ad={currentUser?.name || ''}
+          unvan={currentUser?.title || currentUser?.unvan || ''}
+          birim={departmentInfo?.name || ''}
+        />
       )}
     </div>
   );
