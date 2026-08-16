@@ -88,6 +88,7 @@ import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './l
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
 import { slotBirlestir } from './lib/ders-slot.js';
+import { aktifBolumKarari, bolumKapsami, fakulteKapsamli } from './lib/bolum-kapsam.js';
 import {
   PROGRAM_GUNLERI,
   PROGRAM_SAATLERI,
@@ -12077,6 +12078,10 @@ window.programDosyaAdi = programDosyaAdi;
 window.PROGRAM_GUNLERI = PROGRAM_GUNLERI;
 window.PROGRAM_SAATLERI = PROGRAM_SAATLERI;
 window.slotBirlestir = slotBirlestir;
+// Aktif bölüm kapsamı — app-shell kullanır (yanlış fakültenin verisi açılmasın).
+window.aktifBolumKarari = aktifBolumKarari;
+window.bolumKapsami = bolumKapsami;
+window.fakulteKapsamli = fakulteKapsamli;
 
 window.DUYURU_TURLERI = DUYURU_TURLERI;
 window.DUYURU_HEDEF_ROLLER = DUYURU_HEDEF_ROLLER;
