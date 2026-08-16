@@ -99,6 +99,12 @@ function computeAvailableDepts(currentUser, adminScope) {
   return merge(mainList, extraDepts);
 }
 
+// Aktif bölümü hiç kullanmayan, kapsamını doğrudan kullanıcının fakültesinden
+// alan ekranlar. Aktif bölüm kapsamı çözülmeden diğer modüller açılmaz; bunlar
+// açılır — aksi hâlde fakültesinde henüz bölüm olmayan bir yetkili, bölüm
+// ekleyeceği ekrana (Fakülte Yönetimi) hiç ulaşamazdı.
+const BOLUMDEN_BAGIMSIZ_MODULLER = new Set(['univ', 'fakulte', 'akreditasyon', 'yapayzeka']);
+
 // Fakülte staj yetkilisi (SGK onayı + fakülte geneli staj erişimi) tespiti.
 // Yeni: isStajCoordinator bayrağı (Fakülte Yönetimi'nden atanır).
 // Geriye dönük: "Ergün ÇINAR" ismi de tanınır (eski hardcoded kullanıcı).
@@ -2086,7 +2092,14 @@ function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [commissionModules, setCommissionModules] = useState([]);
-  const [, setDeptVersion] = useState(0); // DB bölümleri yüklenince re-render tetikler
+  // DB bölümleri yüklenince artar. ⚠ Değeri ATILIYORDU (`const [, setDeptVersion]`):
+  // kapsam denetimi bu değişimi göremediği için, bölümler geldiğinde aktif bölüm
+  // bir daha hiç doğrulanmıyordu. Yeni fakültenin yetkilisi başka fakültenin
+  // bölümünde asılı kalıyordu — bkz. lib/bolum-kapsam.js.
+  const [deptVersion, setDeptVersion] = useState(0);
+  // Bölüm listesi güvenilir mi? DB okuması bitmeden BOŞ kapsam listesi
+  // "kısıt yok" ile karıştırılmamalı.
+  const [deptsLoaded, setDeptsLoaded] = useState(false);
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth <= 768;
 
@@ -2135,12 +2148,19 @@ function AppShell() {
             existingNames.add(norm(d.name));
             added++;
           });
-          if (added > 0) setDeptVersion((v) => v + 1);
+          // Sürüm, hiç yeni bölüm eklenmese de artar: kapsam denetimi
+          // "liste artık güvenilir" bilgisini bu değişimden alır.
+          setDeptVersion((v) => v + 1);
+          setDeptsLoaded(true);
           return; // başarılı okuma — yeniden denemeye gerek yok
         } catch (e) {
           if (cancelled) return;
           if (attempt === MAX_TRIES) {
             console.warn('DB bölümleri yüklenemedi (sabit listeyle devam):', e?.message);
+            // Okuma kalıcı olarak başarısız: liste eksik kalacak ama sonsuza
+            // kadar "yükleniyor" demek de doğru değil — denemeler bitti.
+            setDeptsLoaded(true);
+            setDeptVersion((v) => v + 1);
             return;
           }
           // Artan bekleme (1s, 2s, 3s, 4s) ile yeniden dene.
@@ -2276,22 +2296,38 @@ function AppShell() {
     [currentUser, adminScope]
   );
 
+  // ── Aktif bölüm kapsam denetimi ──
   // Aktif bölüm, kullanıcının erişebildiği bölümler arasında değilse ilk
-  // erişilebilir bölüme geç. Özellikle üniversite dışı akademisyen için önemli:
-  // ana bölümü olmadığından varsayılan bölümde kalıp o bölümün tam akademisyen
-  // setine erişmemeli — yalnız atandığı bölüme (ek bölüm) düşmeli.
-  useEffect(() => {
-    if (!currentUser) return;
-    const allowed = computeAvailableDepts(currentUser, adminScope);
-    if (allowed.length > 0 && !allowed.some((d) => d.id === activeDepartment)) {
-      setActiveDepartment(allowed[0].id);
-      try {
-        localStorage.setItem('caku_active_department', allowed[0].id);
-      } catch {
-        /* yok say */
-      }
+  // erişilebilir bölüme geçilir. Özellikle üniversite dışı akademisyen için
+  // önemli: ana bölümü olmadığından varsayılan bölümde kalıp o bölümün tam
+  // akademisyen setine erişmemeli — yalnız atandığı bölüme (ek bölüm) düşmeli.
+  //
+  // ⚠ Denetim `deptVersion`e de bağlıdır: bölüm listesi AÇILIŞTAN SONRA
+  // yükleniyor ve `facultyId` yalnız orada var. Bağımlılık yokken denetim
+  // bir kez, liste eksikken çalışıyor ve bir daha tekrarlanmıyordu; yeni bir
+  // fakültenin yetkilisi başka fakültenin bölümünde asılı kalıyordu.
+  const bolumKarari = useMemo(() => {
+    if (!currentUser || !window.aktifBolumKarari) {
+      return { durum: 'gecerli', bolumId: activeDepartment, sebep: '' };
     }
-  }, [currentUser, adminScope, activeDepartment]);
+    void deptVersion; // liste değiştikçe yeniden hesapla (DEPARTMENTS bir dizi)
+    return window.aktifBolumKarari({
+      izinliler: computeAvailableDepts(currentUser, adminScope),
+      aktif: activeDepartment,
+      kapsam: window.bolumKapsami ? window.bolumKapsami(currentUser, adminScope) : 'yok',
+      bolumlerYuklendi: deptsLoaded,
+    });
+  }, [currentUser, adminScope, activeDepartment, deptVersion, deptsLoaded]);
+
+  useEffect(() => {
+    if (bolumKarari.durum !== 'degistir' || !bolumKarari.bolumId) return;
+    setActiveDepartment(bolumKarari.bolumId);
+    try {
+      localStorage.setItem('caku_active_department', bolumKarari.bolumId);
+    } catch {
+      /* yok say */
+    }
+  }, [bolumKarari]);
 
   // Rol kapsamı değişimi: localStorage'a yaz; fakülte kapsamına geçildiğinde
   // aktif bölüm o fakültenin bir bölümüne otomatik düşer (yetkisiz görünüm
@@ -2755,6 +2791,46 @@ function AppShell() {
               }}
             />
           </div>
+        </div>
+      );
+    }
+
+    // ── Kapsam çözülmeden modül açılmaz ──
+    // Kapsamı olan bir kullanıcının (fakülte yetkilisi, memur, akademisyen)
+    // erişebildiği bölüm listesi henüz boşsa, aktif bölüm BAŞKA bir bölüm
+    // olabilir — bölüm/fakülte kimliğini taşıyan kayıtlar DB'den sonradan
+    // geliyor. Modülü o bölümle render etmek yetkisiz veriyi okumak demektir;
+    // liste gelene kadar beklenir.
+    // Fakülte/üniversite düzeyindeki ekranlar aktif bölümü hiç kullanmaz
+    // (kapsamlarını currentUser.facultyId'den alır) — onlar kilitlenmez.
+    // Fakülte Yönetimi özellikle kilitlenmemeli: fakültesinde henüz bölüm
+    // olmayan yetkilinin bölüm ekleyeceği yer tam olarak orasıdır.
+    if (bolumKarari.durum === 'bekle' && !BOLUMDEN_BAGIMSIZ_MODULLER.has(route)) {
+      const bolumYok = bolumKarari.sebep !== 'bolumler_yuklenmedi';
+      return (
+        <div style={{ padding: '80px 20px', textAlign: 'center' }}>
+          {!bolumYok && (
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                border: '3px solid #E5E1D8',
+                borderTopColor: C.navy,
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite',
+                margin: '0 auto 16px',
+              }}
+            />
+          )}
+          <p style={{ color: '#666', fontSize: 14, margin: 0, lineHeight: 1.6 }}>
+            {bolumKarari.sebep === 'fakultede_bolum_yok'
+              ? 'Fakültenize bağlı bölüm bulunamadı. Fakülte Yönetimi ekranından bölüm ekleyin.'
+              : bolumKarari.sebep === 'bolum_bulunamadi'
+                ? 'Hesabınıza tanımlı bölüm bulunamadı. Başka bir bölümün verisi ' +
+                  'gösterilmemesi için modül açılmadı; fakülte yetkilinizden bölüm ' +
+                  'atamasını isteyin.'
+                : 'Bölümler yükleniyor...'}
+          </p>
         </div>
       );
     }
