@@ -271,28 +271,11 @@ function checkSlotConflict(
   return warnings;
 }
 
-// Bölünmüş hücreyi (tek slotta iki ders) çıktı/görünüm için TEK karta birleştir:
-//  • iki ders kodu her zaman yazılır (KML312 / TLK543)
-//  • ders adı: iki ad aynıysa tek kez, farklıysa ikisi de (Ad1 / Ad2)
-//  • akademisyen, derslik ve sınıf yalnız bir kez (bölme zaten aynı hoca/derslik/saat)
-function mergeSplitSlot(slot, extra) {
-  const ik = slot && slot.ikinci;
-  const code2 = ik && ik.courseCode;
-  const courseCode = code2 ? `${slot.courseCode} / ${ik.courseCode}` : slot.courseCode;
-  let courseName = slot.courseName || '';
-  if (code2) {
-    const n2 = ik.courseName || '';
-    if (n2 && n2 !== courseName) courseName = courseName ? `${courseName} / ${n2}` : n2;
-  }
-  return {
-    courseCode,
-    courseName,
-    instructor: slot.instructor || (ik && ik.instructor) || '',
-    classroom: slot.classroom || (ik && ik.classroom) || '',
-    sinif: slot.sinif,
-    ...(extra || {}),
-  };
-}
+// Bölünmüş hücreyi (tek slotta iki ders) çıktı/görünüm için TEK karta
+// birleştirir. Kural ve gerekçesi lib/ders-slot.js'te: her alanda iki değer de
+// yazılır ama tekrar yazılmaz — iki FARKLI hocanın dersi bölündüğünde ikinci
+// hoca da çıktıda görünür (önceden sessizce düşüyordu).
+const mergeSplitSlot = window.slotBirlestir;
 
 // ── Fakülte Birleşik Program Çıktısı (tüm bölümler, tüm sınıflar) ──
 function exportFacultySchedule(allFacultySlots, semester) {

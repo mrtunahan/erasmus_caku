@@ -87,6 +87,7 @@ import {
 import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './lib/zengin-metin.js';
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
+import { slotBirlestir } from './lib/ders-slot.js';
 import {
   PROGRAM_GUNLERI,
   PROGRAM_SAATLERI,
@@ -12075,6 +12076,7 @@ window.programIzgarasi = programIzgarasi;
 window.programDosyaAdi = programDosyaAdi;
 window.PROGRAM_GUNLERI = PROGRAM_GUNLERI;
 window.PROGRAM_SAATLERI = PROGRAM_SAATLERI;
+window.slotBirlestir = slotBirlestir;
 
 window.DUYURU_TURLERI = DUYURU_TURLERI;
 window.DUYURU_HEDEF_ROLLER = DUYURU_HEDEF_ROLLER;
