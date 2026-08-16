@@ -73,6 +73,13 @@ import {
   tabloNormalize as tabanTabloNormalize,
 } from './lib/taban-kutuphane.js';
 import {
+  EK_MADDE1_KAYNAK_ETIKET,
+  ekMadde1Otomatik,
+  ekMadde1Uygula,
+  otomatikOzet,
+  otomatikYazimlar,
+} from './lib/yatay-otomatik.js';
+import {
   duyuruKapsamCoz,
   duyuruKapsamdaMi,
   duyuruKullaniciBolumleri,
@@ -4422,6 +4429,12 @@ window.tabanVarsayilanEslesme = varsayilanEslesme;
 window.basvuruTabani = basvuruTabani;
 window.tabanUygula = tabanUygula;
 window.tabanTabloNormalize = tabanTabloNormalize;
+// Değerlendirmenin otomatik doldurulması (sıra + Ek Madde-1 tespiti).
+window.ekMadde1Otomatik = ekMadde1Otomatik;
+window.ekMadde1Uygula = ekMadde1Uygula;
+window.otomatikYazimlar = otomatikYazimlar;
+window.otomatikOzet = otomatikOzet;
+window.EK_MADDE1_KAYNAK_ETIKET = EK_MADDE1_KAYNAK_ETIKET;
 
 // Alan listesi verilmemişse şablon eşlemesinden çöz — iki bileşen de kullanır.
 function useAiAlanlari(alanlar, module, docType, departmentId) {
