@@ -463,7 +463,17 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
       )}
 
       {activeTab === 'akademisyenbilgi' && (
-        <AkademisyenBilgileri professors={bolumAkademisyenleri} onSaved={loadData} />
+        <AkademisyenBilgileri
+          professors={bolumAkademisyenleri}
+          onSaved={loadData}
+          bolumAdi={
+            (departments || []).find((d) =>
+              [d.id, d._id, d._docId, d.code].some((k) => k && String(k) === activeDepartment)
+            )?.name ||
+            (window.DEPARTMENTS || []).find((x) => x.id === activeDepartment)?.name ||
+            ''
+          }
+        />
       )}
 
       {activeTab === 'memurbilgi' && <MemurBilgileri currentUser={currentUser} />}
@@ -1341,7 +1351,8 @@ function BenimSayfamAyarlari({ activeDepartment }) {
 // gösterir; danışmanlık da bölüm bazlıdır — bir bölümün öğrencisine yalnızca o
 // bölümün akademisyeni danışman olabilir.
 // ══════════════════════════════════════════════════════════════
-function AkademisyenKart({ prof, onSaved }) {
+function AkademisyenKart({ prof, onSaved, bolumAdi }) {
+  const AkademisyenProgramButonu = window.AkademisyenProgramButonu;
   const profId = prof.id || prof._docId;
   const [email, setEmail] = useState(prof.email || '');
   const [dahili, setDahili] = useState(prof.dahili || '');
@@ -1548,6 +1559,19 @@ function AkademisyenKart({ prof, onSaved }) {
         />
       </div>
 
+      {/* Üniversite geneli haftalık ders programı — bölüm yetkilisi buradan
+          görüntüler ve indirir; akademisyenin kendisi Ders Programı modülündeki
+          "Benim Ders Programım" butonundan aynı belgeye ulaşır. */}
+      {AkademisyenProgramButonu && (
+        <AkademisyenProgramButonu
+          ad={prof.name}
+          unvan={prof.title || prof.unvan || ''}
+          birim={bolumAdi || ''}
+          etiket="Ders Programı Görüntüle"
+          style={{ width: '100%', justifyContent: 'center' }}
+        />
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
         <Btn small onClick={save} disabled={saving || !dirty}>
           {saving ? 'Kaydediliyor…' : 'Kaydet'}
@@ -1571,7 +1595,7 @@ function AkademisyenKart({ prof, onSaved }) {
   );
 }
 
-function AkademisyenBilgileri({ professors, onSaved }) {
+function AkademisyenBilgileri({ professors, onSaved, bolumAdi }) {
   const sorted = (professors || [])
     .slice()
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
@@ -1581,7 +1605,9 @@ function AkademisyenBilgileri({ professors, onSaved }) {
       <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 16px', lineHeight: 1.5 }}>
         Bu bölümün akademisyenleri. İletişim bilgileri, danışmanı bu akademisyen olan öğrencilerin{' '}
         <b>Benim Sayfam → Danışman Bilgileri</b> alanında görünür. Danışmanlık bölüm bazlıdır: bir
-        bölümün öğrencisine yalnızca o bölümün akademisyeni danışman olabilir.
+        bölümün öğrencisine yalnızca o bölümün akademisyeni danışman olabilir.{' '}
+        <b>Ders Programı Görüntüle</b> ile akademisyenin üniversite genelindeki (tüm bölüm ve
+        sınıflar) haftalık ders programı açılır; yazdırılabilir veya indirilebilir.
       </p>
       {sorted.length === 0 ? (
         <div
@@ -1606,7 +1632,12 @@ function AkademisyenBilgileri({ professors, onSaved }) {
           }}
         >
           {sorted.map((p) => (
-            <AkademisyenKart key={p.id || p._docId} prof={p} onSaved={onSaved} />
+            <AkademisyenKart
+              key={p.id || p._docId}
+              prof={p}
+              onSaved={onSaved}
+              bolumAdi={bolumAdi}
+            />
           ))}
         </div>
       )}

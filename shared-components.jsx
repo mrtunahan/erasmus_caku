@@ -80,6 +80,16 @@ import {
 import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './lib/zengin-metin.js';
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
+import {
+  PROGRAM_GUNLERI,
+  PROGRAM_SAATLERI,
+  akademisyenKayitlari,
+  akademisyenProgramHTML,
+  bolumRengi,
+  hucreCakisiyor,
+  programDosyaAdi,
+  programIzgarasi,
+} from './lib/akademisyen-programi.js';
 
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
@@ -11695,6 +11705,363 @@ const DuyuruPopup = ({ currentUser }) => {
     </div>
   );
 };
+
+// ══════════════════════════════════════════════════════════════
+// AKADEMİSYEN HAFTALIK DERS PROGRAMI (ÜNİVERSİTE GENELİ)
+//
+// Ders programı bölüm+sınıf başına saklandığı için bir akademisyenin haftalık
+// programı hiçbir ekranda bütün olarak görünmüyordu: birden çok bölümde ders
+// veren hoca kendi programını parça parça topluyordu. Bu bileşen tüm
+// course_schedules dokümanlarını okuyup adına düşen saatleri TEK ızgarada
+// birleştirir — kapsam üniversite geneli, bölüm sınırı yoktur.
+//
+// İki yerden açılır ve aynı belgeyi üretir:
+//   • Bölüm Yönetimi → Akademisyen Bilgileri → "Ders Programı Görüntüle"
+//     (bölüm yetkilisi, bölümündeki her akademisyen için)
+//   • Ders Programı → "Benim Ders Programım" (akademisyenin kendisi)
+// Saf hesap lib/akademisyen-programi.js'te; burada yalnız veri okuma ve
+// gösterim vardır.
+// ══════════════════════════════════════════════════════════════
+const AkademisyenProgramModal = ({ open, onClose, ad, unvan = '', birim = '' }) => {
+  const varsayilanDonem = donemEtiketi(new Date()) === 'Bahar' ? 'bahar' : 'guz';
+  const [donem, setDonem] = useState(varsayilanDonem);
+  const [dokumanlar, setDokumanlar] = useState([]);
+  const [bolumler, setBolumler] = useState([]);
+  const [yukleniyor, setYukleniyor] = useState(false);
+  const [hata, setHata] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    let iptal = false;
+    setYukleniyor(true);
+    setHata('');
+    Promise.all([
+      apiRead('course_schedules').catch(() => []),
+      apiRead('departments').catch(() => []),
+    ])
+      .then(([programlar, bolumKayitlari]) => {
+        if (iptal) return;
+        setDokumanlar(Array.isArray(programlar) ? programlar : []);
+        const liste = Array.isArray(bolumKayitlari) ? bolumKayitlari.slice() : [];
+        // window.DEPARTMENTS gömülü listesi de eklenir: kimliği veritabanında
+        // olmayan (eski/gömülü) bölümlerin adı ham id olarak basılmasın.
+        (window.DEPARTMENTS || []).forEach((d) => liste.push(d));
+        setBolumler(liste);
+      })
+      .catch((e) => {
+        if (!iptal) setHata(e?.message || 'Programlar yüklenemedi');
+      })
+      .finally(() => {
+        if (!iptal) setYukleniyor(false);
+      });
+    return () => {
+      iptal = true;
+    };
+  }, [open]);
+
+  const kayitlar = useMemo(
+    () => akademisyenKayitlari(dokumanlar, { ad, donem, bolumler }),
+    [dokumanlar, bolumler, ad, donem]
+  );
+  const { izgara, doluSaatler, cakismalar, ozet } = useMemo(
+    () => programIzgarasi(kayitlar),
+    [kayitlar]
+  );
+
+  const belge = () =>
+    akademisyenProgramHTML(kayitlar, {
+      ad,
+      unvan,
+      donem,
+      birim,
+      kurum: (window.TENANT && window.TENANT.universityName) || 'Çankırı Karatekin Üniversitesi',
+      akademikYil: akademikYilBul(new Date()),
+    });
+
+  const yazdir = () => {
+    const w = window.open('', '_blank');
+    if (!w) {
+      alert('Yazdırma penceresi açılamadı — tarayıcı açılır pencereleri engelliyor olabilir.');
+      return;
+    }
+    w.document.write(belge());
+    w.document.close();
+    setTimeout(() => w.print(), 500);
+  };
+
+  const indir = () => {
+    const blob = new Blob([belge()], { type: 'text/html;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = programDosyaAdi(ad, donem);
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
+
+  const donemButonu = (id, etiket) => (
+    <button
+      onClick={() => setDonem(id)}
+      style={{
+        padding: '6px 14px',
+        borderRadius: 8,
+        border: 'none',
+        background: donem === id ? T.color.primary : 'transparent',
+        color: donem === id ? '#fff' : T.color.textMuted,
+        fontSize: 12.5,
+        fontWeight: 600,
+        cursor: 'pointer',
+      }}
+    >
+      {etiket}
+    </button>
+  );
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Ders Programı — ${[unvan, ad].filter(Boolean).join(' ')}`}
+      width={980}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 12,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 14,
+        }}
+      >
+        <div
+          style={{ display: 'flex', gap: 4, background: '#F3F4F6', padding: 3, borderRadius: 10 }}
+        >
+          {donemButonu('guz', 'Güz')}
+          {donemButonu('bahar', 'Bahar')}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Btn small variant="secondary" onClick={yazdir} disabled={yukleniyor}>
+            Yazdır / PDF
+          </Btn>
+          <Btn small onClick={indir} disabled={yukleniyor}>
+            İndir
+          </Btn>
+        </div>
+      </div>
+
+      <p style={{ fontSize: 12, color: T.color.textMuted, margin: '0 0 12px', lineHeight: 1.5 }}>
+        Üniversite genelindeki <b>tüm bölüm ve sınıfların</b> programları taranarak bu akademisyenin
+        haftalık programı birleştirildi. Ders saatleri ders programı modülünde yapılan
+        yerleştirmelerden gelir.
+      </p>
+
+      {hata && (
+        <div
+          style={{
+            padding: 12,
+            borderRadius: 8,
+            background: '#FEF2F2',
+            border: '1px solid #FECACA',
+            color: '#991B1B',
+            fontSize: 12.5,
+            marginBottom: 12,
+          }}
+        >
+          {hata}
+        </div>
+      )}
+
+      {yukleniyor ? (
+        <div style={{ padding: 40, textAlign: 'center', color: T.color.textMuted, fontSize: 13 }}>
+          Programlar yükleniyor…
+        </div>
+      ) : doluSaatler.length === 0 ? (
+        <div
+          style={{
+            padding: 40,
+            textAlign: 'center',
+            color: '#9CA3AF',
+            fontSize: 13,
+            border: '1px dashed #D1D5DB',
+            borderRadius: 12,
+          }}
+        >
+          {donem === 'guz' ? 'Güz' : 'Bahar'} döneminde bu akademisyene atanmış ders bulunamadı.
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize: 12, color: T.color.textMuted, marginBottom: 8 }}>
+            {ozet.dersSayisi} ders • {ozet.dersSaati} ders saati • {ozet.bolumSayisi} bölüm
+            {ozet.bolumler.length > 0 ? ` (${ozet.bolumler.join(', ')})` : ''}
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table
+              style={{
+                width: '100%',
+                minWidth: 720,
+                borderCollapse: 'collapse',
+                fontSize: 11,
+                tableLayout: 'fixed',
+              }}
+            >
+              <thead>
+                <tr>
+                  <th
+                    style={{
+                      width: 90,
+                      padding: '8px 6px',
+                      border: '1px solid #D1D5DB',
+                      background: T.color.navy,
+                      color: '#fff',
+                      fontSize: 11.5,
+                    }}
+                  >
+                    Saat
+                  </th>
+                  {PROGRAM_GUNLERI.map((g) => (
+                    <th
+                      key={g}
+                      style={{
+                        padding: '8px 6px',
+                        border: '1px solid #D1D5DB',
+                        background: T.color.navy,
+                        color: '#fff',
+                        fontSize: 11.5,
+                      }}
+                    >
+                      {g}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {doluSaatler.map((si) => (
+                  <tr key={si}>
+                    <td
+                      style={{
+                        padding: '6px 8px',
+                        border: '1px solid #D1D5DB',
+                        background: '#F9FAFB',
+                        fontWeight: 600,
+                        textAlign: 'center',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {PROGRAM_SAATLERI[si]}
+                    </td>
+                    {PROGRAM_GUNLERI.map((gun) => {
+                      const liste = izgara[gun][si] || [];
+                      const cakisiyor = hucreCakisiyor(liste);
+                      return (
+                        <td
+                          key={gun}
+                          style={{
+                            padding: 3,
+                            border: '1px solid #E5E7EB',
+                            verticalAlign: 'top',
+                            background: cakisiyor ? '#FEF2F2' : 'transparent',
+                            outline: cakisiyor ? '2px solid #DC2626' : 'none',
+                            outlineOffset: -2,
+                          }}
+                        >
+                          {liste.map((k, i) => {
+                            const renk = bolumRengi(k.bolumAdi, ozet.bolumler);
+                            return (
+                              <div
+                                key={i}
+                                style={{
+                                  padding: '4px 6px',
+                                  margin: '1px 0',
+                                  borderRadius: 6,
+                                  background: renk.bg,
+                                  color: renk.text,
+                                }}
+                              >
+                                <div style={{ fontWeight: 700 }}>{k.dersKodu}</div>
+                                {k.dersAdi && <div style={{ fontSize: 10 }}>{k.dersAdi}</div>}
+                                <div style={{ fontSize: 9.5, opacity: 0.85 }}>
+                                  {k.bolumAdi}
+                                  {k.sinif ? ` — ${k.sinif}. Sınıf` : ''}
+                                  {k.seviye && k.seviye !== 'lisans' ? ' • Lisansüstü' : ''}
+                                </div>
+                                {k.derslik && (
+                                  <div style={{ fontSize: 10, fontWeight: 700 }}>{k.derslik}</div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {cakismalar.length > 0 && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 8,
+                background: '#FEF2F2',
+                border: '1px solid #FECACA',
+                color: '#991B1B',
+                fontSize: 12,
+              }}
+            >
+              <b>{cakismalar.length} çakışma:</b> aynı saatte birden fazla ders atanmış.
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {cakismalar.map((c, i) => (
+                  <li key={i}>{c.mesaj}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+};
+
+// Butonu + modalı tek parçada veren sarmalayıcı: çağıran modülün state
+// tutmasına gerek kalmaz.
+const AkademisyenProgramButonu = ({
+  ad,
+  unvan = '',
+  birim = '',
+  etiket = 'Ders Programı Görüntüle',
+  variant = 'ghost',
+  small = true,
+  style,
+}) => {
+  const [acik, setAcik] = useState(false);
+  if (!ad) return null;
+  return (
+    <>
+      <Btn small={small} variant={variant} onClick={() => setAcik(true)} style={style}>
+        {etiket}
+      </Btn>
+      <AkademisyenProgramModal
+        open={acik}
+        onClose={() => setAcik(false)}
+        ad={ad}
+        unvan={unvan}
+        birim={birim}
+      />
+    </>
+  );
+};
+
+window.AkademisyenProgramModal = AkademisyenProgramModal;
+window.AkademisyenProgramButonu = AkademisyenProgramButonu;
+window.akademisyenKayitlari = akademisyenKayitlari;
+window.akademisyenProgramHTML = akademisyenProgramHTML;
+window.programIzgarasi = programIzgarasi;
+window.programDosyaAdi = programDosyaAdi;
+window.PROGRAM_GUNLERI = PROGRAM_GUNLERI;
+window.PROGRAM_SAATLERI = PROGRAM_SAATLERI;
 
 window.DUYURU_TURLERI = DUYURU_TURLERI;
 window.DUYURU_HEDEF_ROLLER = DUYURU_HEDEF_ROLLER;
