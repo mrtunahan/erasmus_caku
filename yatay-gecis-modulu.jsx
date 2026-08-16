@@ -399,8 +399,22 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
   // adayın yerine geçmemeli, o yüzden boş başlar.
   const sysAdSoyad = vekaleten ? '' : currentUser?.name || '';
   const sysOgrNo = vekaleten ? '' : currentUser?.studentNumber || currentUser?.identifier || '';
-  const sysFakulte = window.TENANT?.facultyName || 'Mühendislik Fakültesi';
   const sysBolum = departmentInfo?.name || currentUser?.departmentName || '';
+  // Öğrencinin MEVCUT fakültesi (kurum içi geçişte forma sistemden dolar ve
+  // kayda yazılır). Kurum geneli tek ayardan (TENANT.facultyName) geliyordu:
+  // çok fakülteli kurumda Orman'lı bir öğrencinin kaydına "Mühendislik
+  // Fakültesi" yazılıyordu. Artık öğrencinin kendi bölümünün fakültesinden
+  // çözülür; çözülemezse kurum varsayılanına düşer.
+  const fakulteAdlari = window.useFakulteAdlari ? window.useFakulteAdlari() : {};
+  const sysFakulte = window.fakulteBasligi
+    ? window.fakulteBasligi({
+        aktifBolum: departmentInfo?.id || currentUser?.departmentId || '',
+        bolumler: window.DEPARTMENTS || [],
+        kullanici: currentUser,
+        fakulteAdlari,
+        varsayilan: window.TENANT?.facultyName || 'Mühendislik Fakültesi',
+      })
+    : window.TENANT?.facultyName || 'Mühendislik Fakültesi';
 
   // Kurum içi geçişte öğrencinin AKTİF programı sistemden bilinir.
   const icGecis = tur.id === 'kurumici';
@@ -441,6 +455,20 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
   const [yukleniyor, setYukleniyor] = useState('');
   const [kaydediliyor, setKaydediliyor] = useState(false);
   const [mesaj, setMesaj] = useState({ text: '', kind: '' });
+
+  // Fakülte adları asenkron geliyor; ilk render'da henüz çözülmemiş olabilir
+  // ve yukarıdaki başlangıç değeri varsayılana düşmüş olabilir. Ad gelince
+  // alan tazelenir — ama YALNIZ kullanıcı dokunmadıysa (değer hâlâ sistemin
+  // koyduğu değerse). Öğrencinin elle yazdığı fakülte ezilmemeli.
+  const oncekiSysFakulte = useRef(sysFakulte);
+  useEffect(() => {
+    const onceki = oncekiSysFakulte.current;
+    if (!icGecis || onceki === sysFakulte) return;
+    oncekiSysFakulte.current = sysFakulte;
+    setForm((f) =>
+      !f.aktifFakulte || f.aktifFakulte === onceki ? { ...f, aktifFakulte: sysFakulte } : f
+    );
+  }, [sysFakulte, icGecis]);
 
   // Başvurulacak program için fakülte + bölüm listeleri
   const [bolumler, setBolumler] = useState([]);
@@ -2248,6 +2276,18 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   const isStudent = currentUser?.role === 'student';
   const isStaff = !isStudent;
 
+  // Raporun ait olduğu fakülte — aktif bölümün fakültesinden çözülür.
+  const fakulteAdlari = window.useFakulteAdlari ? window.useFakulteAdlari() : {};
+  const raporFakultesi = window.fakulteBasligi
+    ? window.fakulteBasligi({
+        aktifBolum: activeDepartment,
+        bolumler: window.DEPARTMENTS || [],
+        kullanici: currentUser,
+        fakulteAdlari,
+        varsayilan: window.TENANT?.facultyName || 'Mühendislik Fakültesi',
+      })
+    : window.TENANT?.facultyName || 'Mühendislik Fakültesi';
+
   const [turId, setTurId] = useState('kurumici');
   const tur = YG_TURLER.find((t) => t.id === turId) || YG_TURLER[0];
   const [sekme, setSekme] = useState(isStudent ? 'yeni' : 'basvurular');
@@ -2828,7 +2868,12 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           donem,
           basvurulanBolum: bolumAd,
           basvurulanBolumKisa: ygBolumKisa(bolumAd),
-          fakulteAd: window.TENANT?.facultyName || 'Mühendislik Fakültesi',
+          // Şablonun antedi kendi dosyasından gelir; bu değişken yalnız şablon
+          // {{fakulteAd}} eşlemesi yaptığında kullanılır — ki bu en çok
+          // ÜNİVERSİTE kapsamlı (tüm fakültelerce paylaşılan) şablonda olur.
+          // Paylaşılan şablonda "hangi fakültenin belgesi" sorusunun cevabı
+          // kurum varsayılanı olamaz: raporun ait olduğu bölümün fakültesidir.
+          fakulteAd: raporFakultesi,
           tarih: bugun.toLocaleDateString('tr-TR'),
         },
         rows,
