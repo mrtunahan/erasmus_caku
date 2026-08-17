@@ -348,45 +348,14 @@ function FakYonetimiApp({ currentUser }) {
     }
   };
 
-  // Fakülte Staj Yetkilisi (SGK onayı + fakülte geneli staj erişimi).
-  // Birden fazla kişi olabilir; her biri staj modülünü fakülte genelinde görür.
-  const stajCoordinators = useMemo(
-    () => professors.filter((p) => p.isStajCoordinator && (p.facultyId || '') === myFacultyId),
-    [professors, myFacultyId]
-  );
-  const assignStajCoordinator = async (prof) => {
-    try {
-      await window.DBWrite.set(
-        'professors',
-        prof.id,
-        { isStajCoordinator: true, facultyId: myFacultyId },
-        true
-      );
-      await load();
-      showMsg(`${prof.name} fakülte staj yetkilisi yapıldı.`);
-    } catch (e) {
-      showMsg('Atama hatası: ' + e.message, 'error');
-    }
-  };
-  const revokeStajCoordinator = async (prof) => {
-    if (!confirm(`${prof.name} fakülte staj yetkiliğinden alınsın mı?`)) return;
-    try {
-      await window.DBWrite.set('professors', prof.id, { isStajCoordinator: false }, true);
-      await load();
-      showMsg('Staj yetkiliği kaldırıldı.');
-    } catch (e) {
-      showMsg('İşlem hatası: ' + e.message, 'error');
-    }
-  };
+  // Fakülte staj yetkiliği ARTIK BURADAN atanmıyor: kişi memur havuzunda
+  // durur ve staj yetkisi, bir bölümün ona staj modülünü atamasıyla verilir
+  // (Bölüm Yönetimi → Memurlar). `isStajCoordinator` bayrağı orada
+  // senkronlanır — kural: HERHANGİ bir bölüm staj atadıysa yetkilidir.
 
-  // ── Memurlar (öğrenci/akademisyen dışı üçüncü rol) ──
-  // Fakülte yetkilisi memur ekler/siler ve atandıkları modül çıktılarını belirler.
   // Memurlar 'professors' koleksiyonunda isMemur:true ile tutulur; akademisyen
-  // sayılmaz. Atanabilir modüller (çıktı üreten): 'benim' hariç tüm bölüm modülleri.
-  const MEMUR_ASSIGNABLE = useMemo(
-    () => (window.DEPARTMENT_MODULES || []).filter((m) => m.id !== 'benim'),
-    []
-  );
+  // sayılmaz. Bu ekran yalnız HAVUZU yönetir (ekle/sil); hangi bölümün hangi
+  // modülü açtığı Bölüm Yönetimi → Memurlar ekranındadır.
   const memurlar = useMemo(
     () => professors.filter((p) => p.isMemur && (p.facultyId || '') === myFacultyId),
     [professors, myFacultyId]
@@ -426,25 +395,6 @@ function FakYonetimiApp({ currentUser }) {
       showMsg('Silme hatası: ' + e.message, 'error');
     }
   };
-  const toggleMemurModule = async (memur, moduleId) => {
-    const cur = Array.isArray(memur.memurModules) ? memur.memurModules : [];
-    const has = cur.includes(moduleId);
-    const next = has ? cur.filter((m) => m !== moduleId) : cur.concat(moduleId);
-    const patch = { memurModules: next };
-    // 'staj' atanınca/kaldırılınca staj koordinatör bayrağını senkronla — böylece
-    // memur, staj modülünde Ergün Çınar paneline (SGK onayı dahil) sahip olur.
-    if (moduleId === 'staj') {
-      patch.isStajCoordinator = !has;
-      if (!has) patch.facultyId = myFacultyId;
-    }
-    try {
-      await window.DBWrite.set('professors', memur.id, patch, true);
-      await load();
-    } catch (e) {
-      showMsg('Güncelleme hatası: ' + e.message, 'error');
-    }
-  };
-
   if (!isFacultyManager) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
@@ -555,75 +505,12 @@ function FakYonetimiApp({ currentUser }) {
         </div>
       )}
 
-      {/* Fakülte Staj Yetkilisi (SGK onayı + fakülte geneli staj erişimi) */}
-      <div style={{ ...fCard, marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <div
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 9,
-              background: FAK.amberLight,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <FIcon
-              path="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              size={20}
-              color={FAK.amber}
-            />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 15, fontWeight: 700, color: FAK.primary, margin: 0 }}>
-              Fakülte Staj Yetkilisi
-            </p>
-            <p style={{ fontSize: 12, color: FAK.textMuted, margin: '2px 0 0' }}>
-              Staj modülünü fakülte genelinde (tüm bölümler) yönetir, SGK onayı verir
-            </p>
-          </div>
-        </div>
-        {stajCoordinators.length === 0 ? (
-          <p style={{ fontSize: 12, color: FAK.textMuted, margin: '0 0 10px' }}>
-            Henüz staj yetkilisi atanmadı.
-          </p>
-        ) : (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-            {stajCoordinators.map((m) => (
-              <span
-                key={m.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '5px 10px',
-                  borderRadius: 20,
-                  background: FAK.amberLight,
-                  color: FAK.amber,
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
-                {m.name}
-                <span
-                  onClick={() => revokeStajCoordinator(m)}
-                  title="Yetkiyi kaldır"
-                  style={{ cursor: 'pointer', display: 'flex' }}
-                >
-                  <FIcon path="M6 18L18 6M6 6l12 12" size={12} color={FAK.amber} />
-                </span>
-              </span>
-            ))}
-          </div>
-        )}
-        <ProfPicker
-          professors={assignableProfs.filter((p) => !p.isStajCoordinator)}
-          placeholder="Staj yetkilisi eklemek için akademisyen ara…"
-          onPick={(p) => assignStajCoordinator(p)}
-        />
-      </div>
+      {/* Fakülte Staj Yetkilisi için AYRI alan KALDIRILDI.
+          Aynı kişi hem burada hem Memurlar listesinde görünüyordu; staj
+          yetkisi zaten memurun staj modülü atamasıyla veriliyor (bkz.
+          Bölüm Yönetimi → Memurlar). Bayrak (isStajCoordinator) kayıtta
+          KALIR: SGK onayı fakülte çapında tek elden verilir, staj modülüne
+          atanmış memur bütün bölümlerin stajını görür. */}
 
       {/* Memurlar (üçüncü rol) — ekle/sil + modül çıktısı atama */}
       <div style={{ ...fCard, marginBottom: 16 }}>
@@ -664,7 +551,6 @@ function FakYonetimiApp({ currentUser }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
             {memurlar.map((m) => {
-              const mods = Array.isArray(m.memurModules) ? m.memurModules : [];
               return (
                 <div
                   key={m.id}
@@ -698,33 +584,12 @@ function FakYonetimiApp({ currentUser }) {
                       />
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: FAK.textMuted, marginBottom: 6 }}>
-                    Atandığı modül çıktıları (tıklayarak aç/kapat):
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {MEMUR_ASSIGNABLE.map((mod) => {
-                      const on = mods.includes(mod.id);
-                      return (
-                        <button
-                          key={mod.id}
-                          type="button"
-                          onClick={() => toggleMemurModule(m, mod.id)}
-                          style={{
-                            padding: '4px 10px',
-                            borderRadius: 20,
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            border: '1px solid ' + (on ? FAK.accent : FAK.border),
-                            background: on ? FAK.accentPale : 'white',
-                            color: on ? FAK.accent : FAK.textMuted,
-                          }}
-                        >
-                          {on ? '✓ ' : ''}
-                          {mod.label}
-                        </button>
-                      );
-                    })}
+                  {/* Modül ataması BÖLÜMÜN kararıdır (Bölüm Yönetimi →
+                      Memurlar): havuz fakültede, atama bölümde. Buradan
+                      atanınca ayar bütün bölümlerde geçerli oluyordu. */}
+                  <div style={{ fontSize: 11.5, color: FAK.textMuted, lineHeight: 1.5 }}>
+                    Modül atamasını <b>her bölüm kendisi</b> yapar: <b>Bölüm Yönetimi → Memurlar</b>
+                    .{m.isStajCoordinator ? ' Staj yetkisi fakülte genelinde açık.' : ''}
                   </div>
                 </div>
               );

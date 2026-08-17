@@ -173,6 +173,12 @@ const ALLOWED_COLLECTIONS = [
   // geçiş de yatay geçiş de buradan seçip kullanır, geçmiş yıllar durur.
   // Öğrenci tarafına kapalıdır — değerlendirmenin iç eşiği.
   'taban_tablolari',
+  // MEMUR BÖLÜM ATAMALARI — (bölüm, memur) başına bir kayıt
+  // (doc id = '<bölüm>::<memurId>'), alanı: modules[].
+  // Memur havuzu fakültededir; hangi bölümün hangi memura hangi modülleri
+  // açtığı burada durur. Kayıt bölüm başına AYRI olduğu için iki bölüm
+  // yetkilisi birbirinin ayarını ezmez. Yalnız bölüm yetkilisi ve üstü yazar.
+  'memur_bolum_modulleri',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -320,6 +326,9 @@ const DEPT_MANAGER_WRITE = new Set([
   // yetkilisi ve üstü tazeleyebilir.
   'taban_puanlar',
   'taban_tablolari',
+  // Memurun hangi bölümde hangi modülleri göreceğini bölüm yetkilisi belirler;
+  // sade akademisyen ya da öğrenci memur ataması yapamaz.
+  'memur_bolum_modulleri',
 ]);
 
 // ── Öğrencinin KENDİ `students` kaydı ──
