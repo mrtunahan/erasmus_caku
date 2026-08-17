@@ -84,6 +84,71 @@ const BYBos = ({ children }) => (
   </div>
 );
 
+// Sekmeler tek listede: ekleme/çıkarma tek satır, sıralama burada görünür.
+const BY_SEKMELER = [
+  { id: 'classrooms', label: 'Sınıf / Salon', ipucu: 'Bölümün derslik ve salon tanımları' },
+  { id: 'supervisors', label: 'Gözetmenler', ipucu: 'Sınav gözetmeni akademisyenler' },
+  { id: 'kilitler', label: 'Ders Seçim Kilitleri', ipucu: 'Öğrencinin ders seçimini aç/kapat' },
+  { id: 'benimayar', label: 'Benim Sayfam', ipucu: 'Öğrenci sayfasında görünecek alanlar' },
+  { id: 'akademisyenbilgi', label: 'Akademisyenler', ipucu: 'İletişim bilgileri ve ders programı' },
+  { id: 'memurbilgi', label: 'Memurlar', ipucu: 'Bu bölüme memur ata ve modüllerini seç' },
+  { id: 'duyurular', label: 'Duyurular', ipucu: 'Kapsamındaki bölümlere pop-up duyuru' },
+  { id: 'mezuniyet', label: 'Mezuniyet Kuralları', ipucu: 'AKTS, AGNO ve staj şartı' },
+];
+
+// Hangi bölümü düzenlediğimizi söyleyen şerit — modül bölüme özeldir, bu
+// ekranda yapılan her ayar yalnız o bölümü etkiler.
+const byBolumBaslik = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 1,
+  padding: '10px 14px',
+  marginBottom: 10,
+  background: BY.surfaceMuted,
+  border: `1px solid ${BY.border}`,
+  borderLeft: `3px solid ${BY.blue}`,
+  borderRadius: 8,
+};
+
+const byySekmeCubugu = {
+  display: 'flex',
+  gap: 4,
+  flexWrap: 'wrap',
+  padding: 4,
+  marginBottom: 20,
+  background: BY.surfaceMuted,
+  border: `1px solid ${BY.border}`,
+  borderRadius: 10,
+};
+
+// Tablolar üç sekmede aynı işi yapıyor ama her biri kendi hücre dolgusunu,
+// başlık rengini ve zebrasını taşıyordu. Tek biçim:
+const byTablo = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
+const byTh = {
+  padding: '10px 14px',
+  textAlign: 'left',
+  color: BY.textMuted,
+  fontSize: 11.5,
+  fontWeight: 700,
+  letterSpacing: 0.3,
+  textTransform: 'uppercase',
+  borderBottom: `1px solid ${BY.border}`,
+  background: BY.surfaceMuted,
+};
+const byTd = { padding: '11px 14px', color: BY.text, borderBottom: `1px solid ${BY.border}` };
+
+/** Tablo içi "kayıt yok" satırı — boş ekran sessiz kalmasın. */
+const BYTabloBos = ({ kolon, children }) => (
+  <tr>
+    <td
+      colSpan={kolon}
+      style={{ ...byTd, textAlign: 'center', color: '#94A3B8', padding: '26px 14px' }}
+    >
+      {children}
+    </td>
+  </tr>
+);
+
 const BYRozet = ({ children, renk, zemin }) => (
   <span
     style={{
@@ -411,147 +476,55 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         }}
       >
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1B2A4A', margin: 0 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: BY.navy, margin: 0 }}>
             Bölüm Yönetimi
           </h1>
-          <p style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
-            Bölüme ait derslikler, gözetmenler ve hiyerarşi
+          {/* Eski alt başlık "hiyerarşi"den söz ediyordu; o sekme kaldırılmıştı
+              (bölüm tanımı artık Fakülte Yönetimi'nde). */}
+          <p style={{ fontSize: 13, color: BY.textMuted, marginTop: 4 }}>
+            Derslikler, gözetmenler, akademisyen ve memur ayarları — <b>yalnız bu bölüm için</b>
           </p>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div
-        style={{ display: 'flex', gap: 16, borderBottom: '1px solid #E5E7EB', marginBottom: 24 }}
-      >
-        <button
-          onClick={() => setActiveTab('classrooms')}
-          style={{
-            padding: '12px 16px',
-            background: 'none',
-            border: 'none',
-            borderBottom:
-              activeTab === 'classrooms' ? `2px solid ${C.blue}` : '2px solid transparent',
-            color: activeTab === 'classrooms' ? C.blue : '#6B7280',
-            fontWeight: activeTab === 'classrooms' ? 600 : 500,
-            cursor: 'pointer',
-            fontSize: 14,
-          }}
-        >
-          Sınıf/Salon Tanımları
-        </button>
-        <button
-          onClick={() => setActiveTab('supervisors')}
-          style={{
-            padding: '12px 16px',
-            background: 'none',
-            border: 'none',
-            borderBottom:
-              activeTab === 'supervisors' ? `2px solid ${C.blue}` : '2px solid transparent',
-            color: activeTab === 'supervisors' ? C.blue : '#6B7280',
-            fontWeight: activeTab === 'supervisors' ? 600 : 500,
-            cursor: 'pointer',
-            fontSize: 14,
-          }}
-        >
-          Gözetmen Akademisyenler
-        </button>
-        <button
-          onClick={() => setActiveTab('kilitler')}
-          style={{
-            padding: '12px 16px',
-            background: 'none',
-            border: 'none',
-            borderBottom:
-              activeTab === 'kilitler' ? `2px solid ${C.blue}` : '2px solid transparent',
-            color: activeTab === 'kilitler' ? C.blue : '#6B7280',
-            fontWeight: activeTab === 'kilitler' ? 600 : 500,
-            cursor: 'pointer',
-            fontSize: 14,
-          }}
-        >
-          Ders Seçim Kilitleri
-        </button>
-        <button
-          onClick={() => setActiveTab('benimayar')}
-          style={{
-            padding: '12px 16px',
-            background: 'none',
-            border: 'none',
-            borderBottom:
-              activeTab === 'benimayar' ? `2px solid ${C.blue}` : '2px solid transparent',
-            color: activeTab === 'benimayar' ? C.blue : '#6B7280',
-            fontWeight: activeTab === 'benimayar' ? 600 : 500,
-            cursor: 'pointer',
-            fontSize: 14,
-          }}
-        >
-          Benim Sayfam Ayarları
-        </button>
-        <button
-          onClick={() => setActiveTab('akademisyenbilgi')}
-          style={{
-            padding: '12px 16px',
-            background: 'none',
-            border: 'none',
-            borderBottom:
-              activeTab === 'akademisyenbilgi' ? `2px solid ${C.blue}` : '2px solid transparent',
-            color: activeTab === 'akademisyenbilgi' ? C.blue : '#6B7280',
-            fontWeight: activeTab === 'akademisyenbilgi' ? 600 : 500,
-            cursor: 'pointer',
-            fontSize: 14,
-          }}
-        >
-          Akademisyen Bilgileri
-        </button>
-        <button
-          onClick={() => setActiveTab('memurbilgi')}
-          style={{
-            padding: '12px 16px',
-            background: 'none',
-            border: 'none',
-            borderBottom:
-              activeTab === 'memurbilgi' ? `2px solid ${C.blue}` : '2px solid transparent',
-            color: activeTab === 'memurbilgi' ? C.blue : '#6B7280',
-            fontWeight: activeTab === 'memurbilgi' ? 600 : 500,
-            cursor: 'pointer',
-            fontSize: 14,
-          }}
-        >
-          Memur Bilgileri
-        </button>
-        <button
-          onClick={() => setActiveTab('duyurular')}
-          style={{
-            padding: '12px 16px',
-            background: 'none',
-            border: 'none',
-            borderBottom:
-              activeTab === 'duyurular' ? `2px solid ${C.blue}` : '2px solid transparent',
-            color: activeTab === 'duyurular' ? C.blue : '#6B7280',
-            fontWeight: activeTab === 'duyurular' ? 600 : 500,
-            cursor: 'pointer',
-            fontSize: 14,
-          }}
-        >
-          Duyurular
-        </button>
-        <button
-          onClick={() => setActiveTab('mezuniyet')}
-          style={{
-            padding: '12px 16px',
-            background: 'none',
-            border: 'none',
-            borderBottom:
-              activeTab === 'mezuniyet' ? `2px solid ${C.blue}` : '2px solid transparent',
-            color: activeTab === 'mezuniyet' ? C.blue : '#6B7280',
-            fontWeight: activeTab === 'mezuniyet' ? 600 : 500,
-            cursor: 'pointer',
-            fontSize: 14,
-          }}
-        >
-          Mezuniyet Kuralları
-        </button>
+      {/* ── Sekmeler ──
+          Yedi sekme, yedi kez kopyalanmış aynı 16 satırlık düğme bloğuydu;
+          bir sekmenin rengi ya da boşluğu değişince diğerleri geride
+          kalıyordu. Liste artık veri: yeni sekme bir satır. */}
+      <div style={byBolumBaslik}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: BY.textMuted, letterSpacing: 0.3 }}>
+          DÜZENLENEN BÖLÜM
+        </div>
+        <div style={{ fontSize: 14.5, fontWeight: 700, color: BY.navy }}>
+          {aktifBolumAdi || 'Bölüm seçilmedi'}
+        </div>
+      </div>
+      <div style={byySekmeCubugu}>
+        {BY_SEKMELER.map((t) => {
+          const aktif = activeTab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              title={t.ipucu}
+              style={{
+                padding: '9px 14px',
+                borderRadius: 8,
+                border: '1px solid ' + (aktif ? BY.blue : 'transparent'),
+                background: aktif ? BY.bluePale : 'transparent',
+                color: aktif ? BY.blue : BY.textMuted,
+                fontWeight: aktif ? 700 : 500,
+                fontSize: 13,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                fontFamily: 'inherit',
+                transition: 'all .15s',
+              }}
+            >
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
       {activeTab === 'kilitler' && (
@@ -608,37 +581,24 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
             <div style={{ overflowX: 'auto' }}>
               {/* DEPARTMENTS TAB (ADMIN) */}
               {activeTab === 'departments' && isAdmin && (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead style={{ background: '#F9FAFB' }}>
+                <table style={byTablo}>
+                  <thead>
                     <tr>
-                      <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151' }}>
-                        Bölüm Adı
-                      </th>
-                      <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151' }}>
-                        Yetkili Kişi
-                      </th>
-                      <th
-                        style={{
-                          padding: '12px 16px',
-                          textAlign: 'center',
-                          color: '#374151',
-                          width: 120,
-                        }}
-                      >
-                        İşlem
-                      </th>
+                      <th style={byTh}>Bölüm Adı</th>
+                      <th style={byTh}>Yetkili Kişi</th>
+                      <th style={{ ...byTh, textAlign: 'center', width: 120 }}>İşlem</th>
                     </tr>
                   </thead>
                   <tbody>
                     {departments.map((d) => (
-                      <tr key={d.id} style={{ borderBottom: '1px solid #E5E7EB' }}>
-                        <td style={{ padding: '12px 16px', fontWeight: 500 }}>{d.name}</td>
-                        <td style={{ padding: '12px 16px' }}>
+                      <tr key={d.id}>
+                        <td style={{ ...byTd, fontWeight: 600 }}>{d.name}</td>
+                        <td style={byTd}>
                           {d.managerNames?.join(', ') || d.managerName || (
                             <span style={{ color: '#9CA3AF' }}>Atanmadı</span>
                           )}
                         </td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <td style={{ ...byTd, textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                             <GhostBtn onClick={() => startDeptEdit(d)}>Düzenle</GhostBtn>
                             <GhostBtn
@@ -654,7 +614,12 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                     <tr>
                       <td
                         colSpan={3}
-                        style={{ padding: '12px 16px', textAlign: 'right', background: '#F9FAFB' }}
+                        style={{
+                          ...byTd,
+                          textAlign: 'right',
+                          background: BY.surfaceMuted,
+                          borderBottom: 'none',
+                        }}
                       >
                         <Btn onClick={() => startDeptEdit()}>+ Yeni Bölüm Tanımla</Btn>
                       </td>
@@ -665,35 +630,25 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
 
               {/* CLASSROOMS TAB */}
               {activeTab === 'classrooms' && (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead style={{ background: '#F9FAFB' }}>
+                <table style={byTablo}>
+                  <thead>
                     <tr>
-                      <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151' }}>
-                        Sınıf/Salon Adı
-                      </th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center', color: '#374151' }}>
-                        Kapasite
-                      </th>
-                      <th
-                        style={{
-                          padding: '12px 16px',
-                          textAlign: 'center',
-                          color: '#374151',
-                          width: 120,
-                        }}
-                      >
-                        İşlem
-                      </th>
+                      <th style={byTh}>Sınıf/Salon Adı</th>
+                      <th style={{ ...byTh, textAlign: 'center' }}>Kapasite</th>
+                      <th style={{ ...byTh, textAlign: 'center', width: 120 }}>İşlem</th>
                     </tr>
                   </thead>
                   <tbody>
+                    {classrooms.length === 0 && (
+                      <BYTabloBos kolon={3}>
+                        Bu bölümde tanımlı sınıf/salon yok. Aşağıdan ekleyebilirsiniz.
+                      </BYTabloBos>
+                    )}
                     {classrooms.map((c) => (
-                      <tr key={c.id} style={{ borderBottom: '1px solid #E5E7EB' }}>
-                        <td style={{ padding: '12px 16px', fontWeight: 500 }}>{c.name}</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                          {c.capacity || '-'}
-                        </td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      <tr key={c.id}>
+                        <td style={{ ...byTd, fontWeight: 600 }}>{c.name}</td>
+                        <td style={{ ...byTd, textAlign: 'center' }}>{c.capacity || '-'}</td>
+                        <td style={{ ...byTd, textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                             <GhostBtn onClick={() => startClassEdit(c)}>Düzenle</GhostBtn>
                             <GhostBtn
@@ -709,7 +664,12 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                     <tr>
                       <td
                         colSpan={3}
-                        style={{ padding: '12px 16px', textAlign: 'right', background: '#F9FAFB' }}
+                        style={{
+                          ...byTd,
+                          textAlign: 'right',
+                          background: BY.surfaceMuted,
+                          borderBottom: 'none',
+                        }}
                       >
                         <Btn onClick={() => startClassEdit()}>+ Yeni Sınıf Ekle</Btn>
                       </td>
@@ -721,29 +681,18 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
               {/* SUPERVISORS TAB — professors koleksiyonundan roles:gozetmen */}
               {activeTab === 'supervisors' && <GozetmenKurali departmentId={activeDepartment} />}
               {activeTab === 'supervisors' && (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead style={{ background: '#F9FAFB' }}>
+                <table style={byTablo}>
+                  <thead>
                     <tr>
-                      <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151' }}>
-                        Gözetmen Akademisyen
-                      </th>
-                      <th
-                        style={{
-                          padding: '12px 16px',
-                          textAlign: 'center',
-                          color: '#374151',
-                          width: 150,
-                        }}
-                      >
-                        İşlem
-                      </th>
+                      <th style={byTh}>Gözetmen Akademisyen</th>
+                      <th style={{ ...byTh, textAlign: 'center', width: 150 }}>İşlem</th>
                     </tr>
                   </thead>
                   <tbody>
                     {supervisors.map((s) => (
                       <tr key={s.id} style={{ borderBottom: '1px solid #E5E7EB' }}>
-                        <td style={{ padding: '12px 16px', fontWeight: 500 }}>{s.name}</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <td style={{ ...byTd, fontWeight: 600 }}>{s.name}</td>
+                        <td style={{ ...byTd, textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                             <GhostBtn onClick={() => startSupEdit(s)}>Düzenle</GhostBtn>
                             <GhostBtn
@@ -767,7 +716,10 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                       </tr>
                     )}
                     <tr>
-                      <td colSpan={2} style={{ padding: '12px 16px', background: '#F9FAFB' }}>
+                      <td
+                        colSpan={2}
+                        style={{ ...byTd, background: BY.surfaceMuted, borderBottom: 'none' }}
+                      >
                         <Btn onClick={startSupAdd}>+ Yeni Gözetmen Ekle</Btn>
                       </td>
                     </tr>
@@ -1072,7 +1024,7 @@ function DersSecimKilitleri({ activeDepartment, currentUser }) {
         </div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={byTablo}>
             <thead>
               <tr style={{ background: '#F9FAFB', textAlign: 'left' }}>
                 <th style={{ padding: '10px 12px' }}>Öğrenci No</th>
