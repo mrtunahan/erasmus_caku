@@ -29,7 +29,7 @@ const IDLE_ACTIVITY_KEY = 'caku_last_activity';
 //   • Üniversite yetkilisi → adminScope'a göre tüm fakülteler veya kendi fakültesi
 //   • Fakülte yetkilisi → kendi fakültesi + ek bölümler (additionalDepartments)
 //   • Bölüm yetkilisi / akademisyen → ana bölüm + ek bölümler
-function computeAvailableDepts(currentUser, adminScope) {
+function computeAvailableDepts(currentUser, adminScope, memurAtamalari) {
   const allDepts = window.DEPARTMENTS || DEPARTMENTS || [];
   if (!currentUser) return allDepts;
 
@@ -49,10 +49,21 @@ function computeAvailableDepts(currentUser, adminScope) {
   // Ergün ÇINAR — tüm bölümler (fakülte geneli staj erişimi)
   if (isErgun) return allDepts;
 
-  // Memur (staj dışı) — kendi fakültesinin bölümleri. Staj memuru zaten
-  // yukarıda isErgun (isStajCoordinator) dalından tüm bölümleri aldı.
+  // Memur — YALNIZ kendisini ekleyen bölümler. Havuz fakültededir ama erişim
+  // fakülte geneli değildir: memuru bölüm kendi modülleri için alır. Önceden
+  // fakültenin bütün bölümleri açılıyordu; bir bölümün aldığı memur, ataması
+  // olmayan bölümün çıktılarını da görebiliyordu.
+  // Staj memuru zaten yukarıda isErgun (isStajCoordinator) dalından tüm
+  // bölümleri aldı — SGK onayı fakülte çapındadır.
   const isMemur = currentUser.role === 'memur' || !!currentUser.isMemur;
   if (isMemur) {
+    const memurId = String(currentUser.id || currentUser._id || currentUser._docId || '');
+    // Atamalar AppShell'de bir kez okunur; bu yardımcı alt bileşenlerden de
+    // (yan menüler) çağrıldığı için global önbellekten okur.
+    const atamalar = memurAtamalari || window.__memurAtamalari || [];
+    const atanan = window.memurBolumleri ? window.memurBolumleri(atamalar, memurId) : [];
+    if (atanan.length > 0) return allDepts.filter((d) => atanan.includes(String(d.id)));
+    // Ataması hiç olmayan (eski) memur kilitlenmesin: fakültesine düşer.
     if (myFaculty) return allDepts.filter((d) => (d.facultyId || '') === myFaculty);
     return allDepts;
   }
@@ -2090,6 +2101,8 @@ function AppShell() {
   // Bölüm listesi güvenilir mi? DB okuması bitmeden BOŞ kapsam listesi
   // "kısıt yok" ile karıştırılmamalı.
   const [deptsLoaded, setDeptsLoaded] = useState(false);
+  // Memur bölüm atamaları — yalnız memur oturumunda okunur.
+  const [memurAtamalari, setMemurAtamalari] = useState([]);
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth <= 768;
 
@@ -2285,6 +2298,50 @@ function AppShell() {
     },
     [currentUser, adminScope]
   );
+
+  // ── Memur atamaları ──
+  // Havuz fakültede, atama (bölüm, memur) başına. Memurun hangi bölümleri ve
+  // o bölümlerde hangi modülleri göreceği buradan çözülür.
+  useEffect(() => {
+    const isMemurOturum = currentUser?.role === 'memur' || !!currentUser?.isMemur;
+    if (!isMemurOturum) return;
+    let iptal = false;
+    window
+      .apiRead(window.MEMUR_ATAMA_KOLEKSIYONU || 'memur_bolum_modulleri')
+      .then((list) => {
+        if (iptal) return;
+        const arr = Array.isArray(list) ? list : [];
+        // computeAvailableDepts alt bileşenlerden de çağrıldığı için global.
+        window.__memurAtamalari = arr;
+        setMemurAtamalari(arr);
+      })
+      .catch(() => {
+        /* atama okunamazsa eski davranış (fakülte geneli) sürer */
+      });
+    return () => {
+      iptal = true;
+    };
+  }, [currentUser?.id, currentUser?.role, currentUser?.isMemur]);
+
+  // Aktif bölümün modül listesi kullanıcıya yansıtılır: menü, yönlendirme ve
+  // salt-okunur çıktı ekranı hepsi `currentUser.memurModules` okuyor, tek
+  // yerden çözmek hepsini birden doğru yapar. `memurModulesHavuz` atamadan
+  // ÖNCEKİ (eski düz) listeyi saklar — ataması olmayan bölümde geriye dönük
+  // davranış korunsun.
+  useEffect(() => {
+    const isMemurOturum = currentUser?.role === 'memur' || !!currentUser?.isMemur;
+    if (!isMemurOturum || !window.memurModulleri) return;
+    const memurId = String(currentUser.id || currentUser._id || currentUser._docId || '');
+    const havuz = Array.isArray(currentUser.memurModulesHavuz)
+      ? currentUser.memurModulesHavuz
+      : Array.isArray(currentUser.memurModules)
+        ? currentUser.memurModules
+        : [];
+    const cozulen = window.memurModulleri(memurAtamalari, activeDepartment, memurId, havuz);
+    const mevcut = Array.isArray(currentUser.memurModules) ? currentUser.memurModules : [];
+    if (cozulen.join('|') === mevcut.join('|')) return;
+    setCurrentUser((u) => ({ ...u, memurModulesHavuz: havuz, memurModules: cozulen }));
+  }, [memurAtamalari, activeDepartment, currentUser]);
 
   // ── Aktif bölüm kapsam denetimi ──
   // Aktif bölüm, kullanıcının erişebildiği bölümler arasında değilse ilk

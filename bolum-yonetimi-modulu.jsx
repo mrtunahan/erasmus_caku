@@ -13,6 +13,94 @@ const FormField = window.FormField;
 const Btn = window.Btn;
 const DBWrite = window.DBWrite || {};
 
+// ══════════════════════════════════════════════════════════════
+// GÖRSEL DİL
+//
+// Modül zamanla farklı ellerden geçti: her sekme kendi renk ve boşluk
+// değerlerini satır içinde taşıyordu (aynı gri için üç ayrı hex, kartlarda
+// 12/16/18 karışık padding). Ekranlar tek tek çalışıyor ama bir arada
+// dağınık duruyordu. Aşağıdaki palet ve küçük bileşenler tek kaynak: yeni
+// bir sekme eklerken renk uydurmak gerekmez.
+// ══════════════════════════════════════════════════════════════
+const BY = {
+  navy: '#1B2A4A',
+  blue: '#2563EB',
+  bluePale: '#EFF6FF',
+  teal: '#0F766E',
+  tealText: '#0F766E',
+  tealPale: '#F0FDFA',
+  tealBorder: '#99F6E4',
+  amber: '#B45309',
+  amberPale: '#FFFBEB',
+  red: '#DC2626',
+  redPale: '#FEF2F2',
+  text: '#1F2937',
+  textMuted: '#64748B',
+  border: '#E5E7EB',
+  surface: '#FFFFFF',
+  surfaceMuted: '#F8FAFC',
+};
+
+const byKart = {
+  background: BY.surface,
+  border: `1px solid ${BY.border}`,
+  borderRadius: 12,
+  padding: 16,
+  boxShadow: '0 1px 2px rgba(16,24,40,0.04)',
+};
+
+/** Sekme başındaki açıklama bloğu — her sekmede aynı biçim. */
+const BYAciklama = ({ children }) => (
+  <div
+    style={{
+      background: BY.bluePale,
+      border: `1px solid #BFDBFE`,
+      borderRadius: 10,
+      padding: '11px 14px',
+      margin: '0 0 16px',
+      fontSize: 12.5,
+      color: '#1E3A5F',
+      lineHeight: 1.6,
+    }}
+  >
+    {children}
+  </div>
+);
+
+/** Boş/yükleniyor durumu — her sekmede aynı görünsün. */
+const BYBos = ({ children }) => (
+  <div
+    style={{
+      ...byKart,
+      padding: 40,
+      textAlign: 'center',
+      color: '#94A3B8',
+      fontSize: 13.5,
+      borderStyle: 'dashed',
+      boxShadow: 'none',
+    }}
+  >
+    {children}
+  </div>
+);
+
+const BYRozet = ({ children, renk, zemin }) => (
+  <span
+    style={{
+      padding: '2px 9px',
+      borderRadius: 20,
+      background: zemin || BY.surfaceMuted,
+      color: renk || BY.textMuted,
+      fontSize: 10.5,
+      fontWeight: 700,
+      whiteSpace: 'nowrap',
+      flexShrink: 0,
+    }}
+  >
+    {children}
+  </span>
+);
+
 function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
@@ -32,6 +120,18 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [editDeptProfs, setEditDeptProfs] = useState([]);
+
+  // Modül BÖLÜME ÖZELDİR; ekranın her yerinde hangi bölümü düzenlediğimiz
+  // yazsın diye ad tek yerde çözülür (DB kaydı → gömülü liste → boş).
+  const aktifBolumAdi = useMemo(
+    () =>
+      (departments || []).find((d) =>
+        [d.id, d._id, d._docId, d.code].some((k) => k && String(k) === activeDepartment)
+      )?.name ||
+      (window.DEPARTMENTS || []).find((x) => x.id === activeDepartment)?.name ||
+      '',
+    [departments, activeDepartment]
+  );
 
   // Bölümün KENDİ akademisyenleri: memurlar ve yalnızca çapraz-bölüm olarak
   // (additionalDepartments üzerinden) eklenmiş dışarıdan hocalar HARİÇ.
@@ -466,17 +566,19 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         <AkademisyenBilgileri
           professors={bolumAkademisyenleri}
           onSaved={loadData}
-          bolumAdi={
-            (departments || []).find((d) =>
-              [d.id, d._id, d._docId, d.code].some((k) => k && String(k) === activeDepartment)
-            )?.name ||
-            (window.DEPARTMENTS || []).find((x) => x.id === activeDepartment)?.name ||
-            ''
-          }
+          bolumAdi={aktifBolumAdi}
         />
       )}
 
-      {activeTab === 'memurbilgi' && <MemurBilgileri currentUser={currentUser} />}
+      {activeTab === 'memurbilgi' && (
+        <MemurBilgileri
+          currentUser={currentUser}
+          // Memur ataması BÖLÜM başınadır: hangi bölümün ayarını
+          // düzenlediğimiz açık olmalı.
+          activeDepartment={activeDepartment}
+          bolumAdi={aktifBolumAdi}
+        />
+      )}
 
       {activeTab === 'duyurular' && (
         <DuyuruYonetimi currentUser={currentUser} activeDepartment={activeDepartment} />
@@ -1649,123 +1751,248 @@ function AkademisyenBilgileri({ professors, onSaved, bolumAdi }) {
 // yetkilisi modül çıktılarını memura yönlendirir (memurModules). Ekleme/silme
 // Fakülte Yönetimi'ndedir. Memur, atandığı modülde akademisyen çıktısını
 // salt-okunur görür/indirir.
-function MemurBilgileri({ currentUser }) {
+function MemurBilgileri({ currentUser, activeDepartment, bolumAdi }) {
   const myFacultyId = currentUser?.facultyId || '';
   const [memurlar, setMemurlar] = useState([]);
+  const [atamalar, setAtamalar] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [yazilan, setYazilan] = useState('');
   const MEMUR_ASSIGNABLE = useMemo(
     () => (window.DEPARTMENT_MODULES || []).filter((m) => m.id !== 'benim'),
     []
   );
   const load = () => {
     setLoading(true);
-    window
-      .apiRead('professors')
-      .then((all) => {
+    Promise.all([
+      window.apiRead('professors').catch(() => []),
+      window.apiRead(window.MEMUR_ATAMA_KOLEKSIYONU || 'memur_bolum_modulleri').catch(() => []),
+    ])
+      .then(([all, at]) => {
         const list = (all || [])
           .filter((p) => p.isMemur && (!myFacultyId || (p.facultyId || '') === myFacultyId))
           .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
         setMemurlar(list);
+        setAtamalar(Array.isArray(at) ? at : []);
       })
-      .catch(() => setMemurlar([]))
+      .catch(() => {
+        setMemurlar([]);
+        setAtamalar([]);
+      })
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     load();
   }, [myFacultyId]);
 
+  // Bu BÖLÜMÜN atamaları. Havuz fakültede, atama bölümde: aynı memuru başka
+  // bölüm de kullanabilir ve onun ayarı buradan görünmez/etkilenmez.
+  const bolumModulleri = (memur) =>
+    window.memurModulleri
+      ? window.memurModulleri(
+          atamalar,
+          activeDepartment,
+          memur.id || memur._docId,
+          // Geriye dönük: atama kaydı yoksa memur kaydındaki eski düz liste.
+          memur.memurModules
+        )
+      : [];
+
   const toggleModule = async (memur, moduleId) => {
-    const cur = Array.isArray(memur.memurModules) ? memur.memurModules : [];
+    if (!activeDepartment) return;
+    const memurId = String(memur.id || memur._docId || '');
+    const cur = bolumModulleri(memur);
     const has = cur.includes(moduleId);
     const next = has ? cur.filter((m) => m !== moduleId) : cur.concat(moduleId);
-    const patch = { memurModules: next };
-    // 'staj' atanınca/kaldırılınca staj koordinatör bayrağını senkronla (Ergün
-    // Çınar paneli + SGK onayı).
-    if (moduleId === 'staj') {
-      patch.isStajCoordinator = !has;
-      if (!has) patch.facultyId = memur.facultyId || myFacultyId;
-    }
+    setYazilan(memurId + ':' + moduleId);
     try {
-      await DBWrite.set('professors', memur.id, patch, true);
+      const kayit = window.memurAtamaKaydi
+        ? window.memurAtamaKaydi({
+            bolumId: activeDepartment,
+            memur,
+            modules: next,
+            yazan: currentUser?.name || currentUser?.identifier || '',
+          })
+        : null;
+      if (!kayit) return;
+      await DBWrite.set(
+        window.MEMUR_ATAMA_KOLEKSIYONU || 'memur_bolum_modulleri',
+        kayit.id,
+        kayit,
+        true
+      );
+
+      // ── Staj bilerek İSTİSNA ──
+      // SGK onayı fakülte çapında tek elden verilir; bu yüzden staj yetkisi
+      // memur kaydında fakülte düzeyinde durur. Kural: HERHANGİ bir bölüm staj
+      // atadıysa yetkilidir. Bu yüzden bayrak, yalnız bu bölümün seçimine göre
+      // değil TÜM atamalara göre hesaplanır — başka bölüm staj atamışsa bu
+      // bölümden kaldırmak yetkiyi düşürmemeli.
+      const sonrakiAtamalar = atamalar
+        .filter(
+          (a) =>
+            !(String(a.departmentId) === String(activeDepartment) && String(a.memurId) === memurId)
+        )
+        .concat([{ departmentId: activeDepartment, memurId, modules: next }]);
+      const stajli = window.memurStajYetkilisiMi
+        ? window.memurStajYetkilisiMi(sonrakiAtamalar, memurId)
+        : false;
+      if (!!memur.isStajCoordinator !== stajli) {
+        await DBWrite.set(
+          'professors',
+          memurId,
+          {
+            isStajCoordinator: stajli,
+            ...(stajli ? { facultyId: memur.facultyId || myFacultyId } : {}),
+          },
+          true
+        );
+      }
       load();
     } catch (e) {
       alert('Güncelleme hatası: ' + e.message);
+    } finally {
+      setYazilan('');
     }
   };
 
+  const atanmisSayisi = memurlar.filter((m) => bolumModulleri(m).length > 0).length;
+
   return (
     <div>
-      <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 16px', lineHeight: 1.5 }}>
-        Sisteme eklenen memurlar. Memur <b>akademisyen değildir</b>; yalnızca kendisine atanan
-        modülde akademisyenin ürettiği çıktıyı <b>salt-okunur</b> görüntüler/indirir. Aşağıdan
-        istediğiniz modül çıktılarını memura yönlendirebilirsiniz. (Yeni memur ekleme/silme{' '}
-        <b>Fakülte Yönetimi → Memurlar</b> alanındadır.)
-      </p>
+      <BYAciklama>
+        Memurlar <b>fakülte havuzunda</b> toplanır; her bölüm havuzdan istediği memuru{' '}
+        <b>kendi bölümüne</b> alır ve o bölüm için hangi modülleri göreceğini belirler. Memur{' '}
+        <b>akademisyen değildir</b>: atandığı modülde akademisyenin ürettiği çıktıyı{' '}
+        <b>salt-okunur</b> görüntüler/indirir. Buradaki ayar yalnız <b>{bolumAdi || 'bu bölüm'}</b>{' '}
+        için geçerlidir — aynı memuru başka bölüm de kendi modülleriyle kullanabilir. (Havuza memur
+        ekleme/silme <b>Fakülte Yönetimi → Memurlar</b>
+        alanındadır.)
+      </BYAciklama>
+
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>Yükleniyor...</div>
+        <BYBos>Yükleniyor…</BYBos>
       ) : memurlar.length === 0 ? (
-        <div
-          style={{
-            background: 'white',
-            border: '1px solid #E5E7EB',
-            borderRadius: 12,
-            padding: 40,
-            textAlign: 'center',
-            color: '#9CA3AF',
-            fontSize: 13.5,
-          }}
-        >
-          Henüz memur eklenmemiş. Fakülte Yönetimi → Memurlar alanından ekleyebilirsiniz.
-        </div>
+        <BYBos>
+          Fakülte havuzunda memur yok. <b>Fakülte Yönetimi → Memurlar</b> alanından
+          ekleyebilirsiniz.
+        </BYBos>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {memurlar.map((m) => {
-            const mods = Array.isArray(m.memurModules) ? m.memurModules : [];
-            return (
-              <div
-                key={m.id}
-                style={{
-                  background: 'white',
-                  border: '1px solid #E5E7EB',
-                  borderRadius: 12,
-                  padding: 16,
-                }}
-              >
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#1B2A4A', marginBottom: 8 }}>
-                  {m.name}
+        <>
+          <div
+            style={{
+              fontSize: 12,
+              color: BY.textMuted,
+              margin: '0 0 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
+            }}
+          >
+            <span>
+              Havuzda <b>{memurlar.length}</b> memur
+            </span>
+            <span style={{ color: BY.border }}>•</span>
+            <span>
+              bu bölüme atanmış <b>{atanmisSayisi}</b>
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {memurlar.map((m) => {
+              const memurId = String(m.id || m._docId || '');
+              const mods = bolumModulleri(m);
+              const atanmis = mods.length > 0;
+              return (
+                <div
+                  key={memurId}
+                  style={{
+                    ...byKart,
+                    padding: 0,
+                    overflow: 'hidden',
+                    borderColor: atanmis ? BY.tealBorder : BY.border,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '13px 16px',
+                      background: atanmis ? BY.tealPale : BY.surfaceMuted,
+                      borderBottom: `1px solid ${atanmis ? BY.tealBorder : BY.border}`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: '50%',
+                        flexShrink: 0,
+                        background: atanmis ? BY.teal : '#94A3B8',
+                        color: 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {(m.name || '?').trim().charAt(0).toLocaleUpperCase('tr-TR')}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: BY.navy }}>{m.name}</div>
+                      <div style={{ fontSize: 11.5, color: BY.textMuted, marginTop: 1 }}>
+                        {atanmis
+                          ? `${mods.length} modül • bu bölümde atanmış`
+                          : 'bu bölüme atanmamış'}
+                      </div>
+                    </div>
+                    {m.isStajCoordinator && (
+                      <BYRozet renk={BY.amber} zemin={BY.amberPale}>
+                        Fakülte staj yetkilisi
+                      </BYRozet>
+                    )}
+                  </div>
+                  <div style={{ padding: '12px 16px 14px' }}>
+                    <div style={{ fontSize: 11.5, color: BY.textMuted, marginBottom: 8 }}>
+                      Bu bölümde göreceği modül çıktıları — tıklayarak aç/kapat:
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {MEMUR_ASSIGNABLE.map((mod) => {
+                        const on = mods.includes(mod.id);
+                        const bekliyor = yazilan === memurId + ':' + mod.id;
+                        return (
+                          <button
+                            key={mod.id}
+                            type="button"
+                            disabled={!!yazilan}
+                            onClick={() => toggleModule(m, mod.id)}
+                            style={{
+                              padding: '5px 11px',
+                              borderRadius: 20,
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              cursor: yazilan ? 'wait' : 'pointer',
+                              transition: 'all .15s',
+                              border: '1px solid ' + (on ? BY.teal : BY.border),
+                              background: on ? BY.tealPale : 'white',
+                              color: on ? BY.tealText : BY.textMuted,
+                              opacity: bekliyor ? 0.5 : 1,
+                            }}
+                          >
+                            {on ? '✓ ' : ''}
+                            {mod.label}
+                            {mod.id === 'staj' && on ? ' (fakülte geneli)' : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 8 }}>
-                  Atandığı modül çıktıları (tıklayarak aç/kapat):
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {MEMUR_ASSIGNABLE.map((mod) => {
-                    const on = mods.includes(mod.id);
-                    return (
-                      <button
-                        key={mod.id}
-                        type="button"
-                        onClick={() => toggleModule(m, mod.id)}
-                        style={{
-                          padding: '4px 10px',
-                          borderRadius: 20,
-                          fontSize: 11.5,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          border: '1px solid ' + (on ? '#0F766E' : '#E5E7EB'),
-                          background: on ? '#CCFBF1' : 'white',
-                          color: on ? '#0F766E' : '#6B7280',
-                        }}
-                      >
-                        {on ? '✓ ' : ''}
-                        {mod.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

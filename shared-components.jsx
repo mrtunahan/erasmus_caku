@@ -102,6 +102,13 @@ import {
   fakulteKapsamli,
 } from './lib/bolum-kapsam.js';
 import {
+  MEMUR_ATAMA_KOLEKSIYONU,
+  memurAtamaKaydi,
+  memurBolumleri,
+  memurModulleri,
+  memurStajYetkilisiMi,
+} from './lib/memur-atama.js';
+import {
   PROGRAM_GUNLERI,
   PROGRAM_SAATLERI,
   akademisyenKayitlari,
@@ -12160,6 +12167,12 @@ window.bolumKapsami = bolumKapsami;
 window.fakulteKapsamli = fakulteKapsamli;
 window.aktifFakulteId = aktifFakulteId;
 window.fakulteBasligi = fakulteBasligi;
+// Memur atamaları: havuz fakültede, atama (bölüm, memur) başına.
+window.MEMUR_ATAMA_KOLEKSIYONU = MEMUR_ATAMA_KOLEKSIYONU;
+window.memurAtamaKaydi = memurAtamaKaydi;
+window.memurBolumleri = memurBolumleri;
+window.memurModulleri = memurModulleri;
+window.memurStajYetkilisiMi = memurStajYetkilisiMi;
 
 window.DUYURU_TURLERI = DUYURU_TURLERI;
 window.DUYURU_HEDEF_ROLLER = DUYURU_HEDEF_ROLLER;
