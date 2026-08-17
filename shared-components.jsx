@@ -84,6 +84,12 @@ import {
   duyuruKapsamdaMi,
   duyuruKullaniciBolumleri,
 } from './lib/duyuru-kapsam.js';
+import {
+  yayinKapsamCoz,
+  yayinKapsamYamasi,
+  yayinKapsamdaMi,
+  yayinYonetilebilirMi,
+} from './lib/yayin-kapsami.js';
 import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './lib/zengin-metin.js';
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
@@ -12167,6 +12173,11 @@ window.zenginDuzMetin = zenginDuzMetin;
 window.zenginBosMu = zenginBosMu;
 window.duyuruKapsamCoz = duyuruKapsamCoz;
 window.duyuruKapsamdaMi = duyuruKapsamdaMi;
+// Yayın kapsamı (duyuru + anket ortak): yayımlayanın yetki alanı dışına çıkmaz.
+window.yayinKapsamCoz = yayinKapsamCoz;
+window.yayinKapsamYamasi = yayinKapsamYamasi;
+window.yayinKapsamdaMi = yayinKapsamdaMi;
+window.yayinYonetilebilirMi = yayinYonetilebilirMi;
 window.akademikYilBul = akademikYilBul;
 window.donemEtiketi = donemEtiketi;
 window.bolumKisaAd = bolumKisaAd;
