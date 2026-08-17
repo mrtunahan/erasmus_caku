@@ -1601,21 +1601,50 @@ const InstitutionMatchesModal = ({
   onClose,
   onSelect,
   matchType = 'outgoing',
+  departmentId,
 }) => {
   const r = useResponsive();
   const [selectedMatches, setSelectedMatches] = useState([]);
   const [tripHistory, setTripHistory] = useState([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
 
-  // Load trip history from DB on mount
+  // ⚠ BÖLÜM İZOLASYONU: burada kurumun TÜM bölümlerdeki eşleştirme geçmişi
+  // çekiliyordu. Yalnız Bilgisayar Mühendisliği'nin geçmişi olduğu için, aynı
+  // kuruma öğrenci gönderen HER bölüm bu listede Bilgisayar öğrencilerinin
+  // adını ve ders eşleştirmelerini görüyordu. Geçmiş, açıldığı bölümün
+  // kaydıdır: bölümün tüm kimlik varyantlarıyla süzülür, bölümü çözülemeyen
+  // kayıt hiçbir bölüme gösterilmez (Eşleştirme Geçmişi ekranıyla aynı kural).
   useEffect(() => {
-    DB.fetchTripHistory(hostInstitution)
-      .then((entries) => {
-        setTripHistory(entries);
-        setHistoryLoaded(true);
-      })
-      .catch(() => setHistoryLoaded(true));
-  }, [hostInstitution]);
+    let iptal = false;
+    (async () => {
+      try {
+        let varyantlar = departmentId ? [departmentId] : [];
+        if (departmentId && window.deptIdVariants) {
+          try {
+            varyantlar = await window.deptIdVariants(departmentId);
+          } catch (_) {
+            varyantlar = [departmentId];
+          }
+        }
+        const varyantSet = new Set((varyantlar || []).map(String));
+        const entries = await DB.fetchTripHistory(hostInstitution);
+        if (iptal) return;
+        const kendi = departmentId
+          ? (entries || []).filter(
+              (e) => e && e.departmentId && varyantSet.has(String(e.departmentId))
+            )
+          : entries || [];
+        setTripHistory(kendi);
+      } catch (_) {
+        /* yok say */
+      } finally {
+        if (!iptal) setHistoryLoaded(true);
+      }
+    })();
+    return () => {
+      iptal = true;
+    };
+  }, [hostInstitution, departmentId]);
 
   // Collect unique matches from all students at the same institution + trip history
   const institutionMatches = [];
@@ -4513,6 +4542,9 @@ const StudentDetailModal = ({
           allStudents={allStudents}
           currentStudentId={editedStudent.id}
           matchType={showInstitutionMatches}
+          // Geçmiş yalnız bu bölümün kaydından gelir — başka bölümün
+          // öğrencilerinin eşleştirmeleri buraya düşmemeli.
+          departmentId={editedStudent.departmentId || activeDepartment || ''}
           onClose={() => setShowInstitutionMatches(false)}
           onSelect={(matches) => {
             const type = showInstitutionMatches;

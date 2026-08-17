@@ -309,6 +309,16 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
   const isAdmin = currentUser?.role === 'admin';
   const FACULTY_DEPARTMENTS = window.DEPARTMENTS || [];
 
+  // Bu yetkilinin yayın kapsamı (bölüm / fakülte / üniversite) — atama yazarken
+  // kayda geçer, atama listesini süzerken de kullanılır.
+  const yayinKapsami = useMemo(
+    () =>
+      window.yayinKapsamCoz
+        ? window.yayinKapsamCoz(currentUser, FACULTY_DEPARTMENTS)
+        : { kapsamTuru: 'bolum', facultyId: '', departmentIds: [] },
+    [currentUser, FACULTY_DEPARTMENTS]
+  );
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -326,6 +336,18 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
       setLoading(false);
     }
   }, []);
+
+  // Yetkilinin yönetebileceği atamalar. Koleksiyonun tamamı okunuyor (atama
+  // sayısı küçük), ama listede yalnız kendi kapsamına girenler görünür: bir
+  // bölüm yetkilisi başka bölümün — hele başka fakültenin — atamasını
+  // görmemeli, kaldıramamalı.
+  const yonetilebilirAtamalar = useMemo(
+    () =>
+      window.yayinYonetilebilirMi
+        ? (assignments || []).filter((a) => window.yayinYonetilebilirMi(a, yayinKapsami))
+        : assignments || [],
+    [assignments, yayinKapsami]
+  );
 
   useEffect(() => {
     load();
@@ -381,9 +403,21 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
     await load();
     toast.show('Anket çoğaltıldı');
   };
+  // Atamanın KAPSAMI kayda yazılır: bölüm yetkilisi → kendi bölüm(ler)i,
+  // fakülte yetkilisi → fakültesinin tüm bölümleri, üniversite yetkilisi →
+  // tüm fakülteler. Önceden yalnız `departmentId` yazılıyordu ve okuma tarafı
+  // "alan boşsa herkese göster" diyordu; Bilgisayar'a atanan anket Orman'da
+  // görünüyordu. Kapsam artık kaydın üzerinde durur ve okumada zorunludur.
   const saveAssignment = async (data) => {
+    const { kapsamBolumu, ...kayit } = data;
+    const kapsam = window.yayinKapsamCoz
+      ? window.yayinKapsamCoz(currentUser, FACULTY_DEPARTMENTS)
+      : null;
+    const kapsamYamasi =
+      kapsam && window.yayinKapsamYamasi ? window.yayinKapsamYamasi(kapsam, kapsamBolumu) : {};
     await window.DBWrite.add('survey_assignments', {
-      ...data,
+      ...kayit,
+      ...kapsamYamasi,
       assignedBy: currentUser?.name || '',
       assignedByRole: currentUser?.role || '',
     });
@@ -454,13 +488,15 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
           {tab === 'atama' && (
             <AtamaPaneli
               surveys={surveys}
-              assignments={assignments}
+              // Yetkili yalnız KENDİ kapsamındaki atamaları görür ve kaldırır —
+              // bir bölüm yetkilisinin başka bölümün atamasını silmesi olmaz.
+              assignments={yonetilebilirAtamalar}
               onAssign={saveAssignment}
               onRemoveAssignment={removeAssignment}
-              isAdmin={isAdmin}
               activeDepartment={activeDepartment}
               departmentInfo={departmentInfo}
               departments={FACULTY_DEPARTMENTS}
+              kapsam={yayinKapsami}
             />
           )}
           {tab === 'sonuclar' && <SonuclarPaneli surveys={surveys} />}
@@ -1837,26 +1873,55 @@ function AtamaPaneli({
   assignments,
   onAssign,
   onRemoveAssignment,
-  isAdmin,
   activeDepartment,
   departmentInfo,
   departments,
+  kapsam,
 }) {
   const [surveyId, setSurveyId] = useState('');
   const [targetRole, setTargetRole] = useState(null);
   const [groups, setGroups] = useState([]);
   const [dueDate, setDueDate] = useState('');
   const [mandatory, setMandatory] = useState(false);
-  const [deptId, setDeptId] = useState(isAdmin ? '' : activeDepartment || '');
 
-  const deptName = isAdmin
-    ? departments.find((d) => d.id === deptId)?.name || ''
-    : departmentInfo?.name || '';
+  // ── Atamanın kapsamı ──
+  // Anket, atayanın yetki alanının dışına çıkamaz: bölüm yetkilisi kendi
+  // bölümüne, fakülte yetkilisi fakültesinin tüm bölümlerine, üniversite
+  // yetkilisi tüm fakültelere atar. Seçim yalnız DARALTMAK içindir.
+  const kapsamTuru = (kapsam && kapsam.kapsamTuru) || 'bolum';
+  const kapsamBolumleri = useMemo(
+    () =>
+      (departments || []).filter(
+        (d) =>
+          kapsamTuru === 'universite' ||
+          ((kapsam && kapsam.departmentIds) || []).includes(String(d.id))
+      ),
+    [departments, kapsam, kapsamTuru]
+  );
+  // Tek bölümü olan yetkili (tipik bölüm yetkilisi) seçim yapmaz.
+  const tekBolum = kapsamTuru === 'bolum' && kapsamBolumleri.length <= 1;
+  const [kapsamBolumu, setKapsamBolumu] = useState('');
+  const seciliKapsamBolumu = tekBolum
+    ? String(kapsamBolumleri[0]?.id || activeDepartment || '')
+    : kapsamBolumu;
+
+  const tumEtiket =
+    kapsamTuru === 'universite'
+      ? 'Tüm fakülteler (üniversite geneli)'
+      : kapsamTuru === 'fakulte'
+        ? 'Fakültemin tüm bölümleri'
+        : 'Bağlı olduğum tüm bölümler';
+  const deptName =
+    (departments || []).find((d) => String(d.id) === String(seciliKapsamBolumu))?.name ||
+    departmentInfo?.name ||
+    '';
+  const kapsamEtiketi = seciliKapsamBolumu ? deptName : tumEtiket;
 
   const toggleGroup = (g) =>
     setGroups((p) => (p.includes(g) ? p.filter((x) => x !== g) : [...p, g]));
 
-  const canSubmit = surveyId && targetRole && groups.length && (isAdmin ? deptId : true);
+  // Bölüm seçimi artık zorunlu DEĞİL: seçilmezse atayanın tüm kapsamına gider.
+  const canSubmit = surveyId && targetRole && groups.length;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -1872,8 +1937,12 @@ function AtamaPaneli({
         // Zorunlu atamalar katılımcı sisteme girdiğinde tam-ekran kapı olarak
         // gösterilir; doldurmadan uygulamaya devam edemez.
         mandatory: !!mandatory,
-        departmentId: isAdmin ? deptId : activeDepartment || '',
-        departmentName: deptName,
+        // Kapsam kaydın üzerine yazılır (onAssign çözer); aşağıdakiler
+        // gösterim içindir.
+        kapsamBolumu: seciliKapsamBolumu,
+        departmentId: seciliKapsamBolumu,
+        departmentName: seciliKapsamBolumu ? deptName : '',
+        kapsamEtiketi,
       });
     }
     setSurveyId('');
@@ -1881,7 +1950,7 @@ function AtamaPaneli({
     setGroups([]);
     setDueDate('');
     setMandatory(false);
-    if (isAdmin) setDeptId('');
+    setKapsamBolumu('');
   };
 
   return (
@@ -1904,25 +1973,36 @@ function AtamaPaneli({
           </select>
         </div>
 
-        {/* Bölüm */}
+        {/* Kapsam — anket kimlere gidecek */}
         <div>
-          <label style={labelStyle}>{isAdmin ? 'Bölüm' : 'Bölüm (otomatik)'}</label>
-          {isAdmin ? (
+          <label style={labelStyle}>{tekBolum ? 'Kapsam (otomatik)' : 'Kapsam'}</label>
+          {tekBolum ? (
+            <input value={deptName} disabled style={{ ...inputStyle, background: '#F3F4F6' }} />
+          ) : (
             <select
-              value={deptId}
-              onChange={(e) => setDeptId(e.target.value)}
+              value={kapsamBolumu}
+              onChange={(e) => setKapsamBolumu(e.target.value)}
               style={{ ...inputStyle, cursor: 'pointer' }}
             >
-              <option value="">— Bölüm seçin —</option>
-              {departments.map((d) => (
+              <option value="">{tumEtiket}</option>
+              {kapsamBolumleri.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.name}
+                  Yalnız {d.name}
                 </option>
               ))}
             </select>
-          ) : (
-            <input value={deptName} disabled style={{ ...inputStyle, background: '#F3F4F6' }} />
           )}
+          <p style={{ fontSize: 11.5, color: ANK.textMuted, margin: '6px 0 0', lineHeight: 1.5 }}>
+            {tekBolum
+              ? 'Anket yalnız bu bölüme atanır.'
+              : kapsamBolumu
+                ? 'Anket yalnız seçtiğiniz bölüme atanır.'
+                : kapsamTuru === 'universite'
+                  ? 'Anket tüm fakültelerin bölümlerine atanır.'
+                  : kapsamTuru === 'fakulte'
+                    ? 'Anket fakültenizdeki tüm bölümlere atanır.'
+                    : 'Anket bağlı olduğunuz bölümlere atanır.'}
+          </p>
         </div>
 
         {/* Hedef rol */}
@@ -2121,9 +2201,18 @@ function AtamaPaneli({
                       >
                         {a.surveyTitle}
                       </p>
-                      {a.departmentName && (
+                      {/* Kapsam etiketi: atamanın kime gittiği kartta okunmalı
+                          — "Bilgisayar Mühendisliği" ile "fakültenin tümü"
+                          arasındaki fark listeye bakınca görünmeli. */}
+                      {(a.kapsamEtiketi || a.departmentName || a.kapsamTuru) && (
                         <p style={{ fontSize: 12, color: ANK.textMuted, margin: '3px 0 0' }}>
-                          {a.departmentName}
+                          {a.kapsamEtiketi ||
+                            a.departmentName ||
+                            (a.kapsamTuru === 'universite'
+                              ? 'Üniversite geneli'
+                              : a.kapsamTuru === 'fakulte'
+                                ? 'Fakülte geneli'
+                                : '')}
                         </p>
                       )}
                     </div>
@@ -2944,6 +3033,12 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
     },
     [isAlumni, myClass]
   );
+  // Atama bu kullanıcıya ulaşıyor mu? (bölüm/fakülte/üniversite kapsamı)
+  const kapsamdaMi = useCallback(
+    (a) => (window.yayinKapsamdaMi ? window.yayinKapsamdaMi(a, currentUser) : true),
+    [currentUser]
+  );
+
   const myAssignments = useMemo(() => {
     const seen = new Set();
     return assignments.filter((a) => {
@@ -2951,13 +3046,17 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
       const role = a.targetRole === 'alumni' ? 'student' : a.targetRole;
       const group = a.targetRole === 'alumni' ? 'Mezun' : a.targetGroup;
       if (role !== myRole) return false;
-      if (a.departmentId && activeDepartment && a.departmentId !== activeDepartment) return false;
+      // Kapsam ZORUNLU: eskiden "atamanın departmentId'si boşsa herkese göster"
+      // deniyordu ve Bilgisayar'a atanan anket Orman'da çıkıyordu. Karar artık
+      // atamanın kapsamına bakar; kullanıcının kendi bölümleri ölçüttür (aktif
+      // bölüm değil — hoca başka bölüme geçince o bölümün anketi ona düşmez).
+      if (!kapsamdaMi(a)) return false;
       if (!matchesGroup(role, group)) return false;
       if (seen.has(a.surveyId)) return false; // aynı anket birden fazla gruba atanmışsa tek göster
       seen.add(a.surveyId);
       return true;
     });
-  }, [assignments, myRole, activeDepartment, matchesGroup]);
+  }, [assignments, myRole, kapsamdaMi, matchesGroup]);
 
   const completed = (surveyId) => myResponses.some((r) => r.surveyId === surveyId);
 
@@ -3866,6 +3965,12 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
     return g.startsWith(myClass + '.');
   };
 
+  // Atama bu kullanıcıya ulaşıyor mu? (bölüm/fakülte/üniversite kapsamı)
+  // Zorunlu anket kapısı tam ekran açıldığı için burada kapsam hatası en
+  // görünür yerdedir: başka bölümün anketi kullanıcıyı uygulamadan kilitler.
+  const kapsamdaMi = (a) =>
+    window.yayinKapsamdaMi ? window.yayinKapsamdaMi(a, currentUser) : true;
+
   // İlk doldurulmamış zorunlu atama
   const pending = useMemo(() => {
     if (!myRole || myId === 'anon') return null;
@@ -3875,7 +3980,7 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
       const role = a.targetRole === 'alumni' ? 'student' : a.targetRole;
       const group = a.targetRole === 'alumni' ? 'Mezun' : a.targetGroup;
       if (role !== myRole) continue;
-      if (a.departmentId && activeDepartment && a.departmentId !== activeDepartment) continue;
+      if (!kapsamdaMi(a)) continue;
       if (!matchesGroup(role, group)) continue;
       if (completedIds.has(a.surveyId)) continue;
       const survey = surveys.find((s) => s.id === a.surveyId);
