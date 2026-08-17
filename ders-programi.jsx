@@ -592,6 +592,9 @@ function DersProgramiApp({
   const [addSlotWarnings, setAddSlotWarnings] = useState([]);
   // Akademisyenin kendi üniversite geneli haftalık programı (ortak bileşen)
   const [showMyProgram, setShowMyProgram] = useState(false);
+  // Fakülte kapsamı için tek ihtiyaç duyulan alan (nesne değil — bkz.
+  // loadAllSchedules bağımlılıkları).
+  const kullaniciFakultesi = currentUser?.facultyId || '';
 
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
@@ -1040,17 +1043,23 @@ function DersProgramiApp({
       // Kanonik olmayan kimlikle kaydedilmiş program dokümanları bayat
       // yinelenendir; fakülte kümesine alınmaz (hayalet ders + sahte çakışma).
       const variantToCanon = {};
+      // Her kimlik varyantı → bölümün FAKÜLTESİ. Yalnız değeri olan kayıt
+      // yazar: `facultyId` yalnız DB kayıtlarında var, koda gömülü listede
+      // yok — gömülü kayıt DB'dekini silmemeli.
+      const deptFacultyMap = {};
       const allDeptSources = Array.isArray(depts) ? depts : [];
       (window.DEPARTMENTS || []).forEach((d) => allDeptSources.push(d));
       allDeptSources.forEach((d) => {
         const nm = d && d.name;
         if (!nm) return;
         const canon = String(d.id || d._docId || d._id || d.code || '');
+        const fac = String((d && d.facultyId) || '');
         [d.id, d._id, d._docId, d.code].forEach((k) => {
           if (k) {
             deptNameMap[String(k)] = nm;
             validDeptIds.add(String(k));
             if (canon && !variantToCanon[String(k)]) variantToCanon[String(k)] = canon;
+            if (fac) deptFacultyMap[String(k)] = fac;
           }
         });
       });
@@ -1069,9 +1078,24 @@ function DersProgramiApp({
               .map(String)
           : [String(activeDepartment)]
       );
+      // ── Fakülte kapsamı ──
+      // Fakülte birleşik programı ve çıktıları YALNIZ kendi fakültesini
+      // içerir. Önceden "geçerli bir bölüme bağlanabilen" her program fakülte
+      // kümesine giriyordu; kullanıcının fakültesi hiç sorulmadığı için
+      // Mühendislik'te Orman Fakültesi'nin dersleri de görünüyordu (çakışma
+      // taraması da onlarla derslik çakışması üretiyordu).
+      //
+      // Ölçüt aktif bölümün fakültesidir; bilinmiyorsa kullanıcının fakültesi.
+      // İkisi de yoksa (koda gömülü eski bölümler facultyId taşımaz) kapsam
+      // "fakültesi bilinmeyen bölümler" olur — bu, gömülü Mühendislik
+      // listesini bir arada tutar ve yeni fakültelerin verisini içeri almaz.
+      const kapsamFakulte = String(
+        deptFacultyMap[String(activeDepartment)] || kullaniciFakultesi || ''
+      );
       const deptYears = [];
       const faculty = [];
       const orphans = [];
+      const digerFakulte = [];
       (allDocs || []).forEach((d) => {
         const parts = String(d.id || '').split('_');
         const deptId = d.departmentId || parts[0] || '';
@@ -1101,6 +1125,16 @@ function DersProgramiApp({
             });
             return;
           }
+          // BAŞKA FAKÜLTENİN bölümü: fakülte programı fakülteye özeldir.
+          const docFakulte = String(deptFacultyMap[String(deptId)] || '');
+          if (docFakulte !== kapsamFakulte) {
+            digerFakulte.push({
+              docId: d.id,
+              bolum: deptNameMap[String(deptId)] || deptId,
+              fakulte: docFakulte || '(bilinmiyor)',
+            });
+            return;
+          }
           faculty.push({ deptId, deptName: deptNameMap[String(deptId)], year: yr, slots });
         } else {
           // Yetim/eski kayıt: hiçbir canlı bölüme bağlanamıyor. Fakülte
@@ -1116,6 +1150,15 @@ function DersProgramiApp({
           orphans
         );
       }
+      if (digerFakulte.length) {
+        console.info(
+          '[ders-programi] Başka fakültenin programı olduğu için kapsam dışı ' +
+            'bırakılan kayıtlar (kapsam: ' +
+            (kapsamFakulte || '(fakültesi bilinmeyen bölümler)') +
+            '):',
+          digerFakulte
+        );
+      }
       setDeptAllYearsSlots(deptYears);
       setAllFacultySlots(faculty);
       return { deptYears, faculty };
@@ -1125,13 +1168,16 @@ function DersProgramiApp({
     } finally {
       setLoadingFaculty(false);
     }
-  }, [activeDepartment, semester]);
+    // ⚠ Bağımlılık kullanıcı NESNESİ değil, yalnız ihtiyaç duyulan ilkel
+    // değer: app-shell çapraz bölümde `effectiveUser`i her render'da yeniden
+    // kuruyor, nesneye bağlanmak sonsuz okuma döngüsü olurdu.
+  }, [activeDepartment, semester, seviye, kullaniciFakultesi]);
 
   // Yalnızca bölüm/dönem değişince yeniden yükle (scheduleData YOK → döngü
   // ve her düzenlemede N+1 yeniden okuma sorunu giderildi).
   useEffect(() => {
     loadAllSchedules();
-  }, [activeDepartment, semester]);
+  }, [loadAllSchedules]);
 
   // Çakışma tespiti — kalıcı veriye ek olarak DÜZENLENEN sınıfın canlı
   // scheduleData'sı yansıtılır (yeniden ağ okuması yapmadan).
