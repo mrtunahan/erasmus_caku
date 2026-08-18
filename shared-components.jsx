@@ -93,7 +93,15 @@ import {
 import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './lib/zengin-metin.js';
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
-import { slotBirlestir } from './lib/ders-slot.js';
+import {
+  slotBirlestir,
+  slotDersCikar,
+  slotDersEkle,
+  slotDersGuncelle,
+  slotDersSayisi,
+  slotDersVarMi,
+  slotDersleri,
+} from './lib/ders-slot.js';
 import { XLSX_STIL, calismaKitabiParcalari, xlsxDosyaAdi } from './lib/xlsx-yaz.js';
 import {
   aktifBolumKarari,
@@ -12162,6 +12170,13 @@ window.programDosyaAdi = programDosyaAdi;
 window.PROGRAM_GUNLERI = PROGRAM_GUNLERI;
 window.PROGRAM_SAATLERI = PROGRAM_SAATLERI;
 window.slotBirlestir = slotBirlestir;
+// Slot okuma/yazma yardımcıları — bir hücrede N ders (bkz. lib/ders-slot.js).
+window.slotDersleri = slotDersleri;
+window.slotDersSayisi = slotDersSayisi;
+window.slotDersVarMi = slotDersVarMi;
+window.slotDersEkle = slotDersEkle;
+window.slotDersCikar = slotDersCikar;
+window.slotDersGuncelle = slotDersGuncelle;
 
 // ══════════════════════════════════════════════════════════════
 // XLSX İNDİRME (şablonsuz)

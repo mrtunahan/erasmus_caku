@@ -67,28 +67,10 @@ const GRADE_COLORS = {
   5: { bg: '#E1BEE7', text: '#4A148C' },
 };
 
-// Bir slotu ders(ler)ine ayır: birinci + (varsa) bölünmüş ikinci ders.
-// İkinci ders dersliği yoksa birincininkini paylaşır (ortak hücre).
-function slotCourses(slot) {
-  if (!slot || !slot.courseCode) return [];
-  const list = [
-    {
-      courseCode: slot.courseCode,
-      courseName: slot.courseName,
-      instructor: slot.instructor,
-      classroom: slot.classroom,
-    },
-  ];
-  if (slot.ikinci && slot.ikinci.courseCode) {
-    list.push({
-      courseCode: slot.ikinci.courseCode,
-      courseName: slot.ikinci.courseName,
-      instructor: slot.ikinci.instructor,
-      classroom: slot.ikinci.classroom || slot.classroom,
-    });
-  }
-  return list;
-}
+// Bir slottaki dersler — TEK kaynak lib/ders-slot.js. Burada ayrı bir kopya
+// vardı ve yalnız iki dersi biliyordu; hücrede üçüncü ders varken çakışma
+// taraması onu hiç görmezdi.
+const slotCourses = window.slotDersleri;
 
 // ── Çakışma Tespit Fonksiyonu ──
 // deptAllYearsSlots: bölüm içi tüm sınıfların slotları [{year, slots}]
@@ -104,8 +86,12 @@ function detectConflicts(deptAllYearsSlots, allFacultySlots) {
     deptAllYearsSlots.forEach(({ year: yr, slots }) => {
       Object.entries(slots).forEach(([key, slot]) => {
         if (!timeMap[key]) timeMap[key] = [];
-        // Bölünmüş hücrenin İKİNCİ dersi de ayrı kayıt olarak çakışmaya girer
-        slotCourses(slot).forEach((c) => timeMap[key].push({ year: yr, ...c }));
+        // Hücredeki her ders ayrı kayıt olarak çakışmaya girer. `hucre`,
+        // kaydın HANGİ hücreden geldiğini söyler: aynı hücredeki dersler
+        // birbiriyle çakışmaz — bölme kasıtlıdır (aynı saatte yürüyen iki
+        // eşdeğer ders, ya da iki ayrı derslikteki iki grup).
+        const hucre = yr + '|' + key;
+        slotCourses(slot).forEach((c) => timeMap[key].push({ year: yr, hucre, ...c }));
       });
     });
     Object.entries(timeMap).forEach(([key, entries]) => {
@@ -124,6 +110,8 @@ function detectConflicts(deptAllYearsSlots, allFacultySlots) {
         if (roomEntries.length <= 1) return;
         const uniqueCourses = new Set(roomEntries.map((e) => e.courseCode));
         if (uniqueCourses.size <= 1) return;
+        // Hepsi AYNI hücrede duruyorsa çakışma yoktur (kasıtlı bölme).
+        if (new Set(roomEntries.map((e) => e.hucre)).size <= 1) return;
         const cKey = `dept_${day}_${hi}_${room}`;
         if (seen.has(cKey)) return;
         seen.add(cKey);
@@ -147,6 +135,8 @@ function detectConflicts(deptAllYearsSlots, allFacultySlots) {
         if (profEntries.length <= 1) return;
         const uniqueCourses = new Set(profEntries.map((e) => e.courseCode));
         if (uniqueCourses.size <= 1) return;
+        // Aynı hücrede iki dersi olan hoca iki yerde değildir — çakışma değil.
+        if (new Set(profEntries.map((e) => e.hucre)).size <= 1) return;
         const cKey = `prof_${day}_${hi}_${prof}`;
         if (seen.has(cKey)) return;
         seen.add(cKey);
@@ -443,8 +433,7 @@ function exportDeptSchedule(deptAllYearsSlots, deptName, semester) {
     const keys = Object.keys(slots);
     totalSlots += keys.length;
     Object.values(slots).forEach((s) => {
-      if (s.courseCode) allCodes.add(s.courseCode);
-      if (s.ikinci?.courseCode) allCodes.add(s.ikinci.courseCode);
+      window.slotDersleri(s).forEach((d) => allCodes.add(d.courseCode));
     });
   });
 
@@ -866,9 +855,10 @@ function DersProgramiApp({
       }
       const key = `${day}_${hi}`;
       const existing = scheduleData[key];
-      // Hücre BÖLME: dolu hücreye FARKLI bir ders bırakılırsa, aynı saat/sınıf/
-      // hocada ikinci ders olarak eklenir (KML312 & TLK543 gibi eşdeğer dersler).
-      const splitting = !!(existing && existing.courseCode && !existing.ikinci);
+      // Hücre BÖLME: dolu hücreye FARKLI bir ders bırakılırsa hücreye EKLENİR
+      // (KML312 & TLK543 gibi eşdeğer dersler, ya da ayrı dersliklerdeki
+      // gruplar). Ders sayısında sınır yok — her dersin kendi dersliği olur.
+      const splitting = window.slotDersSayisi(existing) > 0;
       if (!forceAdd) {
         const otherYearsSlots = deptAllYearsSlots.filter((s) => s.year !== year);
         const warnings = checkSlotConflict(
@@ -882,12 +872,10 @@ function DersProgramiApp({
           otherYearsSlots,
           allFacultySlots
         );
-        if (existing && existing.courseCode === course.code) {
+        // Aynı dersi ikinci kez eklemek anlamsız — hücredeki TÜM dersler
+        // taranır (eskiden yalnız birinci derse bakılıyordu).
+        if (window.slotDersVarMi(existing, course.code)) {
           alert('Bu ders bu saatte zaten var.');
-          return false;
-        }
-        if (existing && existing.ikinci) {
-          alert('Bu hücre dolu (2 ders). Bölmek için önce birini kaldırın.');
           return false;
         }
         // splitting durumunda "zaten ders var" uyarısı VERİLMEZ — bölme kasıtlıdır.
@@ -909,25 +897,17 @@ function DersProgramiApp({
         }
       }
       commitSlots((s) => {
-        const cur = s[key];
-        const yeni = {
+        // Her dersin KENDİ dersliği var: bölünen hücrede dersler ayrı
+        // dersliklerde olabilir. Sürükle-bırakta derslik seçilmediği için boş
+        // başlar; hücredeki satır içi seçiciden girilir.
+        s[key] = window.slotDersEkle(s[key], {
           courseCode: course.code || '',
           courseName: course.name || '',
           instructor: course.professor || '',
-          // Her dersin KENDİ dersliği var: bölünen hücrede iki ders aynı saatte
-          // iki farklı derslikte olabilir. Sürükle-bırakta derslik seçilmediği
-          // için boş başlar; hücredeki satır içi seçiciden girilir. (Eskiden
-          // ikinci ders birincinin dersliğini zorla paylaşıyordu.)
           classroom: classroom || '',
           courseId: course.id,
           sinif: course.sinif || 0,
-        };
-        if (cur && cur.courseCode) {
-          // Bölme: mevcut birinci ders korunur, ikinci eklenir
-          s[key] = { ...cur, ikinci: yeni };
-        } else {
-          s[key] = yeni;
-        }
+        });
       });
       return true;
     },
@@ -951,26 +931,20 @@ function DersProgramiApp({
     [placeCourse]
   );
 
-  // Yerleştirilmiş slotun dersliğini satır içi değiştir.
-  // `hangi`: 'birinci' | 'ikinci' — bölünmüş hücrede her dersin KENDİ dersliği
-  // vardır. Önceden tek bir derslik ikisine birden yazılıyordu; aynı saatte iki
-  // ayrı derslikte yürüyen iki ders girilemiyordu.
+  // Hücredeki BİR dersin dersliğini satır içi değiştir (indeks: 0 = birinci).
+  // Her dersin KENDİ dersliği vardır: aynı saatte kaç ders varsa o kadar
+  // derslik girilebilir.
   const handleSlotClassroom = useCallback(
-    (key, classroom, hangi = 'birinci') => {
-      const cur = scheduleData[key];
-      const ders = hangi === 'ikinci' ? cur && cur.ikinci : cur;
+    (key, classroom, indeks = 0) => {
+      const dersler = window.slotDersleri(scheduleData[key]);
+      const ders = dersler[indeks];
       // Akademisyen yalnız kendi dersinin dersliğini değiştirebilir
       if (isProfessor && currentUser?.name && ders && ders.instructor !== currentUser.name) {
         alert('Sadece kendi derslerinizin dersliğini değiştirebilirsiniz.');
         return;
       }
       commitSlots((s) => {
-        if (!s[key]) return;
-        if (hangi === 'ikinci') {
-          if (s[key].ikinci) s[key].ikinci = { ...s[key].ikinci, classroom };
-        } else {
-          s[key] = { ...s[key], classroom };
-        }
+        if (s[key]) s[key] = window.slotDersGuncelle(s[key], indeks, { classroom });
       });
     },
     [commitSlots, scheduleData, isProfessor, currentUser]
@@ -998,13 +972,10 @@ function DersProgramiApp({
       // dersliğini devralmaz (iki ders iki ayrı derslikte olabilir).
       const classroom = modalClassroom || '';
 
-      // Aynı ders / hücre dolu kontrolü
-      if (existing && existing.courseCode === course.code) {
+      // Aynı dersi ikinci kez eklemek anlamsız — hücredeki TÜM dersler taranır.
+      // Hücre kapasitesi SINIRSIZ: aynı saatte kaç ders varsa o kadar derslik.
+      if (window.slotDersVarMi(existing, course.code)) {
         alert('Bu ders bu saatte zaten var.');
-        return;
-      }
-      if (existing && existing.ikinci) {
-        alert('Bu hücre dolu (2 ders). Bölmek için önce birini kaldırın.');
         return;
       }
 
@@ -1026,20 +997,14 @@ function DersProgramiApp({
       }
 
       commitSlots((s) => {
-        const cur = s[key];
-        const yeni = {
+        s[key] = window.slotDersEkle(s[key], {
           courseCode: course.code || '',
           courseName: course.name || '',
           instructor: course.professor || '',
           classroom,
           courseId: course.id,
           sinif: course.sinif || 0,
-        };
-        if (cur && cur.courseCode) {
-          s[key] = { ...cur, ikinci: yeni }; // bölme
-        } else {
-          s[key] = yeni;
-        }
+        });
       });
       setShowAddModal(false);
       setModalCourseId('');
@@ -1072,40 +1037,22 @@ function DersProgramiApp({
     [isProfessor, currentUser]
   );
 
-  // Slot sil — birinci ders silinince ikinci varsa o birinciye TERFİ eder,
-  // yoksa hücre tamamen boşalır.
-  const handleRemoveSlot = useCallback(
-    (key) => {
-      const cur = scheduleData[key];
-      if (cur && cur.courseCode && !canEditInstructor(cur.instructor)) {
+  // Hücreden BİR dersi kaldır (indeks: 0 = birinci ders).
+  // Birinci ders kaldırılırsa sıradaki birinciliğe terfi eder; son ders de
+  // kaldırılınca hücre boşalır. (Eskiden iki ayrı işlev vardı: handleRemoveSlot
+  // ve handleRemoveSecond — hücre yalnız iki ders tutabildiği için.)
+  const handleRemoveDers = useCallback(
+    (key, indeks = 0) => {
+      const dersler = window.slotDersleri(scheduleData[key]);
+      const ders = dersler[indeks];
+      if (ders && !canEditInstructor(ders.instructor)) {
         alert('Sadece kendi derslerinizi kaldırabilirsiniz.');
         return;
       }
       commitSlots((s) => {
-        if (s[key] && s[key].ikinci) {
-          s[key] = { ...s[key].ikinci };
-        } else {
-          delete s[key];
-        }
-      });
-    },
-    [commitSlots, scheduleData, canEditInstructor]
-  );
-
-  // Bölünmüş hücrenin İKİNCİ dersini kaldır (birinci kalır)
-  const handleRemoveSecond = useCallback(
-    (key) => {
-      const cur = scheduleData[key];
-      if (cur && cur.ikinci && !canEditInstructor(cur.ikinci.instructor)) {
-        alert('Sadece kendi derslerinizi kaldırabilirsiniz.');
-        return;
-      }
-      commitSlots((s) => {
-        if (s[key] && s[key].ikinci) {
-          const { ikinci, ...rest } = s[key];
-          void ikinci;
-          s[key] = rest;
-        }
+        const sonraki = window.slotDersCikar(s[key], indeks);
+        if (sonraki) s[key] = sonraki;
+        else delete s[key];
       });
     },
     [commitSlots, scheduleData, canEditInstructor]
@@ -1306,8 +1253,8 @@ function DersProgramiApp({
       }
     };
     Object.values(scheduleData).forEach((slot) => {
-      addCode(slot?.courseCode);
-      addCode(slot?.ikinci?.courseCode); // bölünmüş hücrenin ikinci dersi
+      // Hücredeki HER derse renk atanır (yalnız ilk ikisine değil).
+      window.slotDersleri(slot).forEach((d) => addCode(d.courseCode));
     });
     return map;
   }, [scheduleData]);
@@ -1984,33 +1931,32 @@ function DersProgramiApp({
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: DP.text }}>
-                            {slot.courseCode} — {slot.courseName}
-                          </div>
-                          {slot.instructor && (
-                            <div style={{ fontSize: 11, color: DP.textMuted, marginTop: 1 }}>
-                              {slot.instructor}
-                            </div>
-                          )}
-                          {slot.ikinci && (
+                          {/* Hücredeki TÜM dersler: her biri kendi hocası ve
+                              dersliğiyle. Eskiden yalnız birinci ve ikinci ders
+                              elle yazılmıştı, üçüncüsü listede görünmezdi. */}
+                          {window.slotDersleri(slot).map((ders, di) => (
                             <div
-                              style={{
-                                marginTop: 4,
-                                paddingTop: 4,
-                                borderTop: '1px dashed #E5E7EB',
-                              }}
+                              key={di}
+                              style={
+                                di === 0
+                                  ? {}
+                                  : {
+                                      marginTop: 4,
+                                      paddingTop: 4,
+                                      borderTop: '1px dashed #E5E7EB',
+                                    }
+                              }
                             >
                               <div style={{ fontSize: 13, fontWeight: 600, color: DP.text }}>
-                                {slot.ikinci.courseCode} — {slot.ikinci.courseName}
+                                {ders.courseCode}
+                                {ders.courseName ? ' — ' + ders.courseName : ''}
                               </div>
-                              {slot.ikinci.instructor && (
+                              {ders.instructor && (
                                 <div style={{ fontSize: 11, color: DP.textMuted, marginTop: 1 }}>
-                                  {slot.ikinci.instructor}
+                                  {ders.instructor}
                                 </div>
                               )}
-                              {/* İkinci dersin kendi dersliği (birincininkinden
-                                  farklı olabilir); yoksa birincininkini paylaşır. */}
-                              {(slot.ikinci.classroom || slot.classroom) && (
+                              {di > 0 && ders.classroom && (
                                 <span
                                   style={{
                                     display: 'inline-block',
@@ -2023,15 +1969,15 @@ function DersProgramiApp({
                                     borderRadius: 4,
                                   }}
                                 >
-                                  {slot.ikinci.classroom || slot.classroom}
+                                  {ders.classroom}
                                 </span>
                               )}
                             </div>
-                          )}
+                          ))}
                         </div>
                         {editMode && (
                           <button
-                            onClick={() => handleRemoveSlot(slot.key)}
+                            onClick={() => handleRemoveDers(slot.key, 0)}
                             style={{
                               background: '#FEF2F2',
                               border: '1px solid #FECACA',
@@ -2171,7 +2117,9 @@ function DersProgramiApp({
                       const isToday = day === todayName;
                       // Boş hücreye ya da BİRİNCİSİ dolu-İKİNCİSİ boş hücreye
                       // (bölme için) ders bırakılabilir.
-                      const canDrop = editMode && (!slot || !slot.ikinci);
+                      // Hücre kapasitesi sınırsız: dolu hücreye de ders
+                      // bırakılabilir (eskiden ikinci dersten sonra kapanıyordu).
+                      const canDrop = editMode;
                       return (
                         <td
                           key={day}
@@ -2232,6 +2180,11 @@ function DersProgramiApp({
                           }}
                         >
                           {slot ? (
+                            /* ── HÜCREDEKİ DERSLER ──
+                               Hücrede kaç ders varsa hepsi listelenir; her
+                               dersin KENDİ dersliği, hocası ve kaldırma
+                               düğmesi vardır. Sayı sınırı yok: eskiden yalnız
+                               "birinci" ve "ikinci" ders elle yazılmıştı. */
                             <div
                               style={{
                                 padding: '5px 7px',
@@ -2242,136 +2195,51 @@ function DersProgramiApp({
                                 position: 'relative',
                               }}
                             >
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  color: courseColors[slot.courseCode] || DP.text,
-                                  letterSpacing: 0.3,
-                                }}
-                              >
-                                {slot.courseCode}
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: 10,
-                                  color: DP.text,
-                                  lineHeight: 1.3,
-                                  marginTop: 1,
-                                }}
-                              >
-                                {slot.courseName}
-                              </div>
-                              {slot.instructor && (
-                                <div style={{ fontSize: 9, color: DP.textMuted, marginTop: 2 }}>
-                                  {slot.instructor}
-                                </div>
-                              )}
-                              {editMode ? (
-                                <select
-                                  value={slot.classroom || ''}
-                                  onChange={(e) =>
-                                    handleSlotClassroom(key, e.target.value, 'birinci')
-                                  }
-                                  onClick={(e) => e.stopPropagation()}
-                                  style={{
-                                    marginTop: 3,
-                                    width: '100%',
-                                    fontSize: 9,
-                                    padding: '2px 4px',
-                                    borderRadius: 4,
-                                    border: '1px solid #E5E7EB',
-                                    outline: 'none',
-                                    background: 'white',
-                                    color: DP.primary,
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  <option value="">Derslik seç...</option>
-                                  {classrooms.map((r) => (
-                                    <option key={r.id} value={r.name}>
-                                      {r.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                slot.classroom && (
-                                  <div
-                                    style={{
-                                      fontSize: 9,
-                                      color: DP.primary,
-                                      fontWeight: 600,
-                                      marginTop: 1,
-                                    }}
-                                  >
-                                    {slot.classroom}
-                                  </div>
-                                )
-                              )}
-                              {editMode && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRemoveSlot(key);
-                                  }}
-                                  style={{
-                                    position: 'absolute',
-                                    top: 2,
-                                    right: 2,
-                                    background: '#FEF2F2',
-                                    border: '1px solid #FECACA',
-                                    borderRadius: 4,
-                                    cursor: 'pointer',
-                                    padding: '1px 3px',
-                                    opacity: 0.8,
-                                  }}
-                                >
-                                  <DPIcon path="M18 6L6 18M6 6l12 12" size={10} color="#EF4444" />
-                                </button>
-                              )}
-                              {/* İKİNCİ DERS (bölünmüş hücre) */}
-                              {slot.ikinci && (
+                              {window.slotDersleri(slot).map((ders, di) => (
                                 <div
-                                  style={{
-                                    marginTop: 5,
-                                    paddingTop: 5,
-                                    borderTop: '1px dashed #D1D5DB',
-                                    position: 'relative',
-                                  }}
+                                  key={di}
+                                  style={
+                                    di === 0
+                                      ? { position: 'relative' }
+                                      : {
+                                          marginTop: 5,
+                                          paddingTop: 5,
+                                          borderTop: '1px dashed #D1D5DB',
+                                          position: 'relative',
+                                        }
+                                  }
                                 >
                                   <div
                                     style={{
                                       fontSize: 11,
                                       fontWeight: 700,
-                                      color: courseColors[slot.ikinci.courseCode] || DP.text,
+                                      color: courseColors[ders.courseCode] || DP.text,
                                       letterSpacing: 0.3,
                                     }}
                                   >
-                                    {slot.ikinci.courseCode}
+                                    {ders.courseCode}
                                   </div>
-                                  <div
-                                    style={{
-                                      fontSize: 10,
-                                      color: DP.text,
-                                      lineHeight: 1.3,
-                                      marginTop: 1,
-                                    }}
-                                  >
-                                    {slot.ikinci.courseName}
-                                  </div>
-                                  {slot.ikinci.instructor && (
-                                    <div style={{ fontSize: 9, color: DP.textMuted, marginTop: 2 }}>
-                                      {slot.ikinci.instructor}
+                                  {ders.courseName && (
+                                    <div
+                                      style={{
+                                        fontSize: 10,
+                                        color: DP.text,
+                                        lineHeight: 1.3,
+                                        marginTop: 1,
+                                      }}
+                                    >
+                                      {ders.courseName}
                                     </div>
                                   )}
-                                  {/* İkinci dersin KENDİ dersliği: aynı saatte
-                                      iki ders iki ayrı derslikte olabilir. */}
+                                  {ders.instructor && (
+                                    <div style={{ fontSize: 9, color: DP.textMuted, marginTop: 2 }}>
+                                      {ders.instructor}
+                                    </div>
+                                  )}
                                   {editMode ? (
                                     <select
-                                      value={slot.ikinci.classroom || ''}
-                                      onChange={(e) =>
-                                        handleSlotClassroom(key, e.target.value, 'ikinci')
-                                      }
+                                      value={ders.classroom || ''}
+                                      onChange={(e) => handleSlotClassroom(key, e.target.value, di)}
                                       onClick={(e) => e.stopPropagation()}
                                       style={{
                                         marginTop: 3,
@@ -2394,7 +2262,7 @@ function DersProgramiApp({
                                       ))}
                                     </select>
                                   ) : (
-                                    slot.ikinci.classroom && (
+                                    ders.classroom && (
                                       <div
                                         style={{
                                           fontSize: 9,
@@ -2403,7 +2271,7 @@ function DersProgramiApp({
                                           marginTop: 1,
                                         }}
                                       >
-                                        {slot.ikinci.classroom}
+                                        {ders.classroom}
                                       </div>
                                     )
                                   )}
@@ -2411,11 +2279,12 @@ function DersProgramiApp({
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleRemoveSecond(key);
+                                        handleRemoveDers(key, di);
                                       }}
+                                      title={ders.courseCode + ' dersini bu saatten kaldır'}
                                       style={{
                                         position: 'absolute',
-                                        top: 4,
+                                        top: di === 0 ? 2 : 4,
                                         right: 2,
                                         background: '#FEF2F2',
                                         border: '1px solid #FECACA',
@@ -2433,7 +2302,7 @@ function DersProgramiApp({
                                     </button>
                                   )}
                                 </div>
-                              )}
+                              ))}
                             </div>
                           ) : editMode ? (
                             <div
@@ -2584,6 +2453,21 @@ function DersProgramiApp({
                   </h3>
                   <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', margin: '3px 0 0' }}>
                     {selectedSlot.day} &middot; {selectedSlot.hour}
+                    {/* Hücrede zaten ders varsa kaç tane olduğu görünsün:
+                        ekleme yapan kişi "boş sanıp" üstüne ders koymasın.
+                        Kapasite sınırı YOK, bilgi amaçlı. */}
+                    {(() => {
+                      const mevcut = window.slotDersleri(
+                        scheduleData[`${selectedSlot.day}_${selectedSlot.hourIndex}`]
+                      );
+                      return mevcut.length > 0
+                        ? ' · bu saatte ' +
+                            mevcut.length +
+                            ' ders var (' +
+                            mevcut.map((d) => d.courseCode).join(', ') +
+                            ')'
+                        : '';
+                    })()}
                   </p>
                 </div>
               </div>
