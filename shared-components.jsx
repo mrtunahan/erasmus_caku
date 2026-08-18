@@ -104,6 +104,28 @@ import {
 } from './lib/ders-slot.js';
 import { XLSX_STIL, calismaKitabiParcalari, xlsxDosyaAdi } from './lib/xlsx-yaz.js';
 import {
+  DERS_DK,
+  TENEFFUS_DK,
+  VARSAYILAN_AYAR,
+  ayarNormalize,
+  ayarOzeti,
+  birlesikEksen,
+  bolumAyari,
+  bolumSaatleri as bolumSaatleriCoz,
+  eksenHaritasi,
+  saatEtiketleri,
+  slotlariEksene,
+} from './lib/ders-saatleri.js';
+import {
+  BOLUM_RENK_PALETI,
+  ORTAK_DERS_RENGI,
+  bolumRenkHaritasi,
+  bolumRengiCoz,
+  koyuMetinRengi,
+  metinRengi,
+  renkNormalize,
+} from './lib/bolum-renkleri.js';
+import {
   akademikYilAdi,
   ciktiDosyaAdi,
   ciktiIzgarasi,
@@ -2724,13 +2746,26 @@ window.TEMPLATE_VARS = {
     default: { static: [], row: [] },
   },
   dersprogrami: {
+    // DÖRT çıktı, dört belge türü. Bir düğme iki belge üretir (.xlsx + PDF) ve
+    // her belgenin biçimi ayrıdır: Excel çıktısı .xlsx şablonundan, yazdırma
+    // çıktısı Word şablonundan doldurulur. Aynı belge türüne iki dosya
+    // yüklenemediği için ikisi ayrı türdür.
+    //
+    // Hiçbiri zorunlu değildir: yüklenmeyen tür için modül kendi yerleşik
+    // çıktısını üretir.
     docTypes: [
-      { id: 'bolum', label: 'Bölüm Haftalık Ders Programı' },
-      { id: 'fakulte', label: 'Fakülte Birleşik Ders Programı' },
+      { id: 'bolum-xlsx', label: 'Bölüm Programı — Excel (.xlsx)' },
+      { id: 'bolum-pdf', label: 'Bölüm Programı — Yazdırma / PDF (Word)' },
+      { id: 'fakulte-xlsx', label: 'Fakülte Programı — Excel (.xlsx)' },
+      { id: 'fakulte-pdf', label: 'Fakülte Programı — Yazdırma / PDF (Word)' },
     ],
+    'bolum-xlsx': { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
+    'bolum-pdf': { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
+    'fakulte-xlsx': { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
+    'fakulte-pdf': { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
+    // Geriye dönük: belge türü ayrılmadan önce yüklenmiş şablonlar
     bolum: { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
     fakulte: { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
-    // Geriye dönük: docType='default' ile kaydedilmiş şablonlar
     default: { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
   },
   akreditasyon: {
@@ -11938,9 +11973,39 @@ const AkademisyenProgramModal = ({ open, onClose, ad, unvan = '', birim = '' }) 
     };
   }, [open]);
 
+  // Her bölümün KENDİ saat listesi: bölümler programı farklı saatte
+  // başlatabildiği için slot indeksi tek başına saati söylemez.
+  const [bolumAyarlari, setBolumAyarlari] = useState({});
+  useEffect(() => {
+    if (!open) return;
+    let iptal = false;
+    bolumAyarlariniYukle().then((h) => {
+      if (!iptal) setBolumAyarlari(h || {});
+    });
+    return () => {
+      iptal = true;
+    };
+  }, [open]);
+  const bolumSaatleri = useMemo(() => {
+    const harita = {};
+    (bolumler || []).forEach((b) => {
+      const kimlikler = [b.id, b._id, b._docId, b.code].filter(Boolean).map(String);
+      const kanon = kimlikler[0];
+      const liste = bolumSaatleriCoz(bolumAyarlari[kanon], 'lisans');
+      const listeUstu = bolumSaatleriCoz(bolumAyarlari[kanon], 'lisansustu');
+      // Lisansüstü liste lisansı kapsar (aynı başlangıç, daha geç bitiş);
+      // uzun olanı kullanmak iki seviyenin dersini de doğru etiketler.
+      const secilen = listeUstu.length >= liste.length ? listeUstu : liste;
+      kimlikler.forEach((k) => {
+        if (!harita[k]) harita[k] = secilen;
+      });
+    });
+    return harita;
+  }, [bolumler, bolumAyarlari]);
+
   const kayitlar = useMemo(
-    () => akademisyenKayitlari(dokumanlar, { ad, donem, bolumler }),
-    [dokumanlar, bolumler, ad, donem]
+    () => akademisyenKayitlari(dokumanlar, { ad, donem, bolumler, bolumSaatleri }),
+    [dokumanlar, bolumler, ad, donem, bolumSaatleri]
   );
   const { izgara, doluSaatler, cakismalar, ozet } = useMemo(
     () => programIzgarasi(kayitlar),
@@ -12114,8 +12179,8 @@ const AkademisyenProgramModal = ({ open, onClose, ad, unvan = '', birim = '' }) 
                 </tr>
               </thead>
               <tbody>
-                {doluSaatler.map((si) => (
-                  <tr key={si}>
+                {doluSaatler.map((saat) => (
+                  <tr key={saat}>
                     <td
                       style={{
                         padding: '6px 8px',
@@ -12126,10 +12191,10 @@ const AkademisyenProgramModal = ({ open, onClose, ad, unvan = '', birim = '' }) 
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {PROGRAM_SAATLERI[si]}
+                      {saat}
                     </td>
                     {PROGRAM_GUNLERI.map((gun) => {
-                      const liste = izgara[gun][si] || [];
+                      const liste = izgara[gun][saat] || [];
                       const cakisiyor = hucreCakisiyor(liste);
                       return (
                         <td
@@ -12259,6 +12324,83 @@ window.dpDonemAdi = donemAdi;
 window.dpSeviyeAdi = seviyeAdi;
 window.dpAkademikYilAdi = akademikYilAdi;
 window.dpCiktiDosyaAdi = ciktiDosyaAdi;
+
+// ── Ders saatleri (bölüme özel başlangıç/bitiş) ve bölüm renkleri ──
+// Kurallar lib/ders-saatleri.js ve lib/bolum-renkleri.js'te, test altında.
+window.DERS_DK = DERS_DK;
+window.TENEFFUS_DK = TENEFFUS_DK;
+window.SAAT_VARSAYILAN_AYAR = VARSAYILAN_AYAR;
+window.saatAyarNormalize = ayarNormalize;
+window.saatAyarOzeti = ayarOzeti;
+window.saatEtiketleri = saatEtiketleri;
+window.bolumSaatAyari = bolumAyari;
+window.bolumSaatleri = bolumSaatleriCoz;
+window.saatBirlesikEksen = birlesikEksen;
+window.saatEksenHaritasi = eksenHaritasi;
+window.slotlariEksene = slotlariEksene;
+window.BOLUM_RENK_PALETI = BOLUM_RENK_PALETI;
+window.ORTAK_DERS_RENGI = ORTAK_DERS_RENGI;
+window.bolumRengiCoz = bolumRengiCoz;
+window.bolumRenkHaritasi = bolumRenkHaritasi;
+window.renkMetinRengi = metinRengi;
+window.renkKoyuMetin = koyuMetinRengi;
+window.renkNormalize = renkNormalize;
+
+// ══════════════════════════════════════════════════════════════
+// BÖLÜM PROGRAM AYARLARI (saat aralığı + renk)
+//
+// Ders programı modülü, Bölüm Yönetimi ve akademisyen programı aynı kayda
+// bakar; üçü ayrı ayrı okusaydı biri güncellenince diğerleri bayat kalırdı.
+// Tek okuma, tek önbellek, yazınca tazelenir.
+//   kayıt: { id: <bölüm>, lisans:{baslangic,bitis}, lisansustu:{…}, renk }
+// ══════════════════════════════════════════════════════════════
+const BOLUM_AYAR_KOLEKSIYONU = 'bolum_program_ayarlari';
+let _bolumAyarlari = null;
+let _bolumAyarSozu = null;
+
+function bolumAyarlariniYukle(tazele) {
+  if (tazele) {
+    _bolumAyarlari = null;
+    _bolumAyarSozu = null;
+  }
+  if (_bolumAyarlari) return Promise.resolve(_bolumAyarlari);
+  if (_bolumAyarSozu) return _bolumAyarSozu;
+  _bolumAyarSozu = (async () => {
+    try {
+      const kayitlar = await apiRead(BOLUM_AYAR_KOLEKSIYONU);
+      const harita = {};
+      (kayitlar || []).forEach((k) => {
+        const id = k && (k.id || k._docId || k.departmentId);
+        if (id) harita[String(id)] = k;
+      });
+      _bolumAyarlari = harita;
+      return harita;
+    } catch (_) {
+      _bolumAyarSozu = null;
+      return {};
+    }
+  })();
+  return _bolumAyarSozu;
+}
+
+/** Bölüm ayarları haritası — yüklenene kadar {} döner, gelince re-render eder. */
+function useBolumAyarlari(surum) {
+  const [ayarlar, setAyarlar] = useState(() => _bolumAyarlari || {});
+  useEffect(() => {
+    let iptal = false;
+    bolumAyarlariniYukle(surum > 0).then((h) => {
+      if (!iptal) setAyarlar(h || {});
+    });
+    return () => {
+      iptal = true;
+    };
+  }, [surum]);
+  return ayarlar;
+}
+
+window.BOLUM_AYAR_KOLEKSIYONU = BOLUM_AYAR_KOLEKSIYONU;
+window.bolumAyarlariniYukle = bolumAyarlariniYukle;
+window.useBolumAyarlari = useBolumAyarlari;
 
 // ══════════════════════════════════════════════════════════════
 // XLSX İNDİRME (şablonsuz)

@@ -39,10 +39,12 @@ const DPIcon = ({ path, size = 18, color = 'currentColor' }) => (
 // programı da aynı ızgarayı kullanır); slot anahtarı saat İNDEKSİ olduğu için
 // bu sıralama veri sözleşmesidir ve tek yerden gelmelidir.
 const DAYS = window.PROGRAM_GUNLERI;
+// Saat ETİKETLERİ artık bölüme özeldir (başlangıç/bitiş bölüm yetkilisince
+// seçilir; ritim sabit: 45 dk ders + 15 dk teneffüs — bkz. lib/ders-saatleri.js).
+// Aşağıdaki liste yalnız GERİYE DÜŞÜŞTÜR: ayar okunamadığında ve bölümü
+// bilinmeyen bir kayıt için etiket lazım olduğunda kullanılır.
 const HOURS = window.PROGRAM_SAATLERI;
-// İlk 9 satır lisans programıdır; sonraki 5 akşam satırı YALNIZ lisansüstü
-// görünümünde gösterilir.
-const LISANS_HOURS_COUNT = 9;
+const saatEtiketi = (saatler, hi) => (saatler || HOURS)[hi] || HOURS[hi] || '';
 
 const SLOT_COLORS = [
   '#3B82F6',
@@ -75,7 +77,11 @@ const slotCourses = window.slotDersleri;
 // ── Çakışma Tespit Fonksiyonu ──
 // deptAllYearsSlots: bölüm içi tüm sınıfların slotları [{year, slots}]
 // allFacultySlots: fakülte geneli tüm bölüm/sınıf slotları [{deptId, deptName, year, slots}]
-function detectConflicts(deptAllYearsSlots, allFacultySlots) {
+// `bolumSaatleri` bölümün kendi ızgarası, `fakulteSaatleri` ise fakülte
+// kümesinin ORTAK ekseni. İkisi ayrı verilir: bölüm içi çakışma bölümün
+// saatiyle, fakülte çakışması ortak eksenin saatiyle raporlanmalı, yoksa
+// yetkiliye yanlış saat gösterilir.
+function detectConflicts(deptAllYearsSlots, allFacultySlots, bolumSaatleri, fakulteSaatleri) {
   const conflicts = [];
   const seen = new Set();
 
@@ -98,7 +104,7 @@ function detectConflicts(deptAllYearsSlots, allFacultySlots) {
       if (entries.length <= 1) return;
       const [day, hiStr] = key.split('_');
       const hi = parseInt(hiStr);
-      const hour = HOURS[hi] || key;
+      const hour = saatEtiketi(bolumSaatleri, hi) || key;
       // Aynı derslik kullanan farklı dersler
       const classroomMap = {};
       entries.forEach((e) => {
@@ -189,10 +195,10 @@ function detectConflicts(deptAllYearsSlots, allFacultySlots) {
       conflicts.push({
         type: 'cross_dept',
         day,
-        hour: HOURS[hi] || '',
+        hour: saatEtiketi(fakulteSaatleri, hi),
         classroom,
         courses: entries.map((e) => `${e.deptName} (${e.year}. Sınıf): ${e.courseCode}`),
-        message: `Fakülte çakışması: ${classroom} — ${day} ${HOURS[hi] || ''} — ${entries.map((e) => e.deptName + ':' + e.courseCode).join(' & ')}`,
+        message: `Fakülte çakışması: ${classroom} — ${day} ${saatEtiketi(fakulteSaatleri, hi)} — ${entries.map((e) => e.deptName + ':' + e.courseCode).join(' & ')}`,
       });
     });
   }
@@ -206,11 +212,17 @@ function checkSlotConflict(
   classroom,
   instructor,
   deptAllYearsSlots,
-  allFacultySlots
+  allFacultySlots,
+  saatler,
+  // Aynı saatin FAKÜLTE ekseni'ndeki indeksi. Bölümlerin başlangıç saatleri
+  // farklı olabildiği için bölüm indeksi doğrudan fakülte kümesinde
+  // aranamaz; -1 ise bu saatin ortak eksende karşılığı yoktur.
+  fakulteIndeksi
 ) {
   const warnings = [];
   const key = `${day}_${hourIndex}`;
-  const hour = HOURS[hourIndex] || '';
+  const fakulteKey = `${day}_${fakulteIndeksi == null ? hourIndex : fakulteIndeksi}`;
+  const hour = saatEtiketi(saatler, hourIndex);
 
   // Bölüm içi: aynı saat + aynı derslik (bölünmüş ikinci ders dahil)
   if (deptAllYearsSlots && classroom) {
@@ -244,10 +256,10 @@ function checkSlotConflict(
   }
   // Fakülte geneli: aynı saat + aynı derslik (farklı bölüm). Boş kod ve aynı
   // kodlu (ortak) ders yanlış-pozitif üretmesin (Y7).
-  if (allFacultySlots && classroom) {
+  if (allFacultySlots && classroom && fakulteIndeksi !== -1) {
     allFacultySlots.forEach(({ deptName, year: yr, slots }) => {
       Object.entries(slots).forEach(([slotKey, slot]) => {
-        if (slotKey !== key) return;
+        if (slotKey !== fakulteKey) return;
         slotCourses(slot).forEach((c) => {
           if (c.classroom === classroom && c.courseCode) {
             warnings.push(
@@ -261,263 +273,47 @@ function checkSlotConflict(
   return warnings;
 }
 
-// Bölünmüş hücreyi (tek slotta iki ders) çıktı/görünüm için TEK karta
-// birleştirir. Kural ve gerekçesi lib/ders-slot.js'te: her alanda iki değer de
-// yazılır ama tekrar yazılmaz — iki FARKLI hocanın dersi bölündüğünde ikinci
-// hoca da çıktıda görünür (önceden sessizce düşüyordu).
+// ══════════════════════════════════════════════════════════════
+// ÇIKTILAR — bir düğme, iki belge
+//
+// Bölüm ve fakülte programının İKİ okuru var ve iki ayrı belge istiyorlar:
+//
+//   .xlsx → üzerinde çalışılan belge. Hücrede YALNIZ DERS KODU yazar; ders
+//           adı, hoca ve derslik yazılmaz. Kalabalık olmayan bu biçim
+//           fakültenin bugün elle tuttuğu programın karşılığıdır.
+//           Dersin hangi bölüme ait olduğu RENKTEN okunur.
+//   PDF   → yazdırılan/asılan belge. Ders adı, hoca ve derslik ile birlikte,
+//           sınıf renkleriyle. Biçim değişmedi.
+//
+// Tek düğme ikisini birden üretir: yetkili "çıktı al" der, hem Excel dosyası
+// iner hem yazdırma sayfası açılır. İki ayrı düğme, iki ayrı belgenin aynı
+// programdan üretildiğini gizliyordu.
+//
+// ── RENK NEDEN İKİ FARKLI YOLLA VERİLİYOR ──
+// Bölüm çıktısında bir hücredeki tüm dersler AYNI bölümündür; hücre o
+// bölümün renginde boyanır (fakültenin basılı programındaki görüntü).
+// Fakülte çıktısında ise bir hücrede birden çok bölümün dersi olabilir —
+// zemin tek renk olamaz, bu yüzden her ders kodu KENDİ renginde yazılır.
+// ══════════════════════════════════════════════════════════════
+
+// Bölünmüş hücreyi (tek slotta N ders) çıktı/görünüm için TEK karta
+// birleştirir. Kural ve gerekçesi lib/ders-slot.js'te: her alanda tüm
+// değerler yazılır ama tekrar yazılmaz.
 const mergeSplitSlot = window.slotBirlestir;
 
-// ── Fakülte Birleşik Program Çıktısı (tüm bölümler, tüm sınıflar) ──
-async function exportFacultySchedule(allFacultySlots, semester, baglam) {
-  const semesterLabel = semester === 'guz' ? 'GÜZ' : 'BAHAR';
-
-  // Fakültenin kendi antetli şablonu varsa resmî çıktı odur; yoksa aşağıdaki
-  // gömülü yazdırma sayfası kullanılır.
-  const sablon = await fakulteSablonuDene(allFacultySlots, semester, baglam);
-  if (sablon.ok) return;
-
-  const grid = {};
-  DAYS.forEach((day) => {
-    grid[day] = {};
-    HOURS.forEach((_, hi) => {
-      grid[day][hi] = [];
-    });
-  });
-
-  allFacultySlots.forEach(({ deptName, year: yr, slots }) => {
-    Object.entries(slots).forEach(([key, slot]) => {
-      const [day, hiStr] = key.split('_');
-      const hi = parseInt(hiStr);
-      if (grid[day] && grid[day][hi] !== undefined) {
-        // Bölünmüş hücre tek kartta birleştirilir (iki kod, ad aynıysa tek)
-        grid[day][hi].push(mergeSplitSlot(slot, { deptName, year: yr }));
-      }
-    });
-  });
-
-  let tableRows = '';
-  HOURS.forEach((hour, hi) => {
-    let hasAny = false;
-    DAYS.forEach((day) => {
-      if (grid[day][hi].length > 0) hasAny = true;
-    });
-    if (!hasAny) return;
-
-    let row = `<tr><td style="padding:6px 8px;border:1px solid #999;font-weight:600;text-align:center;background:#F9FAFB;white-space:nowrap">${hour}</td>`;
-    DAYS.forEach((day) => {
-      const entries = grid[day][hi];
-      if (entries.length === 0) {
-        row += `<td style="padding:4px;border:1px solid #ddd"></td>`;
-      } else {
-        const cells = entries
-          .map((e) => {
-            const bg = GRADE_COLORS[e.sinif]?.bg || '#F3F4F6';
-            return `<div style="padding:3px 6px;margin:2px 0;border-radius:4px;background:${bg};font-size:9px;line-height:1.3">
-            <strong>${e.courseCode}</strong>
-            <span style="color:#555;margin-left:3px">${e.deptName} ${e.year}.Sınıf</span>
-            ${e.classroom ? `<br/><span style="color:#7C3AED;font-weight:600">${e.classroom}</span>` : ''}
-          </div>`;
-          })
-          .join('');
-        row += `<td style="padding:2px;border:1px solid #ddd;vertical-align:top">${cells}</td>`;
-      }
-    });
-    row += '</tr>';
-    tableRows += row;
-  });
-
-  const deptNames = [...new Set(allFacultySlots.map((s) => s.deptName))];
-
-  const html = `<!DOCTYPE html>
-<html lang="tr">
-<head><meta charset="utf-8"><title>Fakülte Ders Programı</title>
-<style>
-  @media print { body { margin: 0; } @page { size: A4 landscape; margin: 0.8cm; } }
-  body { font-family: 'Times New Roman', serif; background: #e8e8e8; }
-  .page { max-width: 1100px; margin: 20px auto; background: white; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-  h1 { text-align: center; font-size: 16px; color: #1B2A4A; margin-bottom: 4px; border-bottom: 3px solid #1B2A4A; padding-bottom: 8px; }
-  h2 { text-align: center; font-size: 12px; color: #C00; margin-bottom: 12px; letter-spacing: 0.5px; }
-  table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  th { padding: 8px 6px; border: 1px solid #999; background: #1B2A4A; color: white; font-weight: 700; text-align: center; font-size: 11px; }
-  .legend { display: flex; gap: 12px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
-  .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; }
-  .legend-box { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #ccc; }
-  .footer { text-align: center; font-size: 9px; color: #999; margin-top: 14px; }
-</style>
-</head>
-<body>
-<div class="page">
-  <h1>ÇAKÜ MÜHENDİSLİK FAKÜLTESİ - BİRLEŞİK DERS PROGRAMI</h1>
-  <h2>${semesterLabel} DÖNEMİ — ${deptNames.join(', ')}</h2>
-  <table>
-    <thead><tr>
-      <th style="width:80px">Saat</th>
-      ${DAYS.map((d) => `<th>${d}</th>`).join('')}
-    </tr></thead>
-    <tbody>${tableRows}</tbody>
-  </table>
-  <div class="legend">
-    <div class="legend-item"><div class="legend-box" style="background:#B2EBF2"></div>1. Sınıf</div>
-    <div class="legend-item"><div class="legend-box" style="background:#C8E6C9"></div>2. Sınıf</div>
-    <div class="legend-item"><div class="legend-box" style="background:#FFE0B2"></div>3. Sınıf</div>
-    <div class="legend-item"><div class="legend-box" style="background:#F8BBD0"></div>4. Sınıf</div>
-    <div class="legend-item"><div class="legend-box" style="background:#E1BEE7"></div>Seçmeli</div>
-  </div>
-  <div class="footer">Oluşturulma: ${new Date().toLocaleDateString('tr-TR')} — ÇAKÜ Ders Programı Otomasyonu</div>
-</div>
-</body></html>`;
-
-  const w = window.open('', '_blank');
-  if (w) {
-    w.document.write(html);
-    w.document.close();
-    setTimeout(() => w.print(), 500);
-  }
-}
-
-// ── Bölüm Bazlı Ders Programı Çıktısı (tüm sınıflar birleşik) ──
-async function exportDeptSchedule(deptAllYearsSlots, deptName, semester, baglam) {
-  const semesterLabel = semester === 'guz' ? 'GÜZ' : 'BAHAR';
-
-  const sablon = await bolumSablonuDene(deptAllYearsSlots, deptName, semester, baglam);
-  if (sablon.ok) return;
-
-  // Grid: day -> hour -> [{year, slot}]
-  const grid = {};
-  DAYS.forEach((day) => {
-    grid[day] = {};
-    HOURS.forEach((_, hi) => {
-      grid[day][hi] = [];
-    });
-  });
-
-  deptAllYearsSlots.forEach(({ year: yr, slots }) => {
-    Object.entries(slots).forEach(([key, slot]) => {
-      const [day, hiStr] = key.split('_');
-      const hi = parseInt(hiStr);
-      if (grid[day] && grid[day][hi] !== undefined) {
-        // Bölünmüş hücre tek kartta: iki kod, ad aynıysa tek / farklıysa ikisi,
-        // akademisyen ve sınıf bir kez.
-        grid[day][hi].push(mergeSplitSlot(slot, { year: yr }));
-      }
-    });
-  });
-
-  let tableRows = '';
-  HOURS.forEach((hour, hi) => {
-    let hasAny = false;
-    DAYS.forEach((day) => {
-      if (grid[day][hi].length > 0) hasAny = true;
-    });
-    if (!hasAny) return;
-
-    let row = `<tr><td style="padding:8px 10px;border:1px solid #999;font-weight:600;text-align:center;background:#F9FAFB;white-space:nowrap">${hour}</td>`;
-    DAYS.forEach((day) => {
-      const entries = grid[day][hi];
-      if (entries.length === 0) {
-        row += `<td style="padding:4px;border:1px solid #ddd"></td>`;
-      } else {
-        const cells = entries
-          .map((e) => {
-            const bg = GRADE_COLORS[e.sinif]?.bg || '#F3F4F6';
-            return `<div style="padding:4px 6px;margin:1px 0;border-radius:4px;background:${bg}">
-            <div style="font-weight:700;font-size:11px">${e.courseCode} <span style="font-weight:400;color:#666">(${e.year}. Sınıf)</span></div>
-            <div style="font-size:10px;color:#444">${e.courseName}</div>
-            ${e.instructor ? `<div style="font-size:9px;color:#666">${e.instructor}</div>` : ''}
-            ${e.classroom ? `<div style="font-size:9px;color:#7C3AED;font-weight:600">${e.classroom}</div>` : ''}
-          </div>`;
-          })
-          .join('');
-        row += `<td style="padding:2px;border:1px solid #ddd;vertical-align:top">${cells}</td>`;
-      }
-    });
-    row += '</tr>';
-    tableRows += row;
-  });
-
-  let totalSlots = 0;
-  const allCodes = new Set();
-  deptAllYearsSlots.forEach(({ slots }) => {
-    const keys = Object.keys(slots);
-    totalSlots += keys.length;
-    Object.values(slots).forEach((s) => {
-      window.slotDersleri(s).forEach((d) => allCodes.add(d.courseCode));
-    });
-  });
-
-  const html = `<!DOCTYPE html>
-<html lang="tr">
-<head><meta charset="utf-8"><title>Ders Programı - ${deptName}</title>
-<style>
-  @media print { body { margin: 0; } @page { size: A4 landscape; margin: 1cm; } }
-  body { font-family: 'Times New Roman', serif; background: #e8e8e8; }
-  .page { max-width: 1050px; margin: 20px auto; background: white; padding: 35px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-  h1 { text-align: center; font-size: 17px; color: #1B2A4A; margin-bottom: 4px; border-bottom: 3px solid #1B2A4A; padding-bottom: 8px; }
-  h2 { text-align: center; font-size: 13px; color: #C00; margin-bottom: 14px; letter-spacing: 0.5px; }
-  .info { text-align: center; font-size: 11px; color: #666; margin-bottom: 12px; }
-  table { width: 100%; border-collapse: collapse; font-size: 10px; }
-  th { padding: 10px 8px; border: 1px solid #999; background: #1B2A4A; color: white; font-weight: 700; text-align: center; font-size: 12px; }
-  .legend { display: flex; gap: 12px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
-  .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; }
-  .legend-box { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #ccc; }
-  .footer { text-align: center; font-size: 9px; color: #999; margin-top: 16px; }
-</style>
-</head>
-<body>
-<div class="page">
-  <h1>ÇAKÜ MÜHENDİSLİK FAKÜLTESİ - HAFTALIK DERS PROGRAMI</h1>
-  <h2>${(deptName || '').toUpperCase()} — ${semesterLabel} DÖNEMİ — TÜM SINIFLAR</h2>
-  <div class="info">${allCodes.size} ders, ${totalSlots} ders saati, 1-4. Sınıf birleşik</div>
-  <table>
-    <thead><tr>
-      <th style="width:90px">Saat</th>
-      ${DAYS.map((d) => `<th>${d}</th>`).join('')}
-    </tr></thead>
-    <tbody>${tableRows}</tbody>
-  </table>
-  <div class="legend">
-    <div class="legend-item"><div class="legend-box" style="background:#B2EBF2"></div>1. Sınıf</div>
-    <div class="legend-item"><div class="legend-box" style="background:#C8E6C9"></div>2. Sınıf</div>
-    <div class="legend-item"><div class="legend-box" style="background:#FFE0B2"></div>3. Sınıf</div>
-    <div class="legend-item"><div class="legend-box" style="background:#F8BBD0"></div>4. Sınıf</div>
-    <div class="legend-item"><div class="legend-box" style="background:#E1BEE7"></div>Seçmeli</div>
-  </div>
-  <div class="footer">Oluşturulma: ${new Date().toLocaleDateString('tr-TR')} — ÇAKÜ Ders Programı Otomasyonu</div>
-</div>
-</body></html>`;
-
-  const w = window.open('', '_blank');
-  if (w) {
-    w.document.write(html);
-    w.document.close();
-    setTimeout(() => w.print(), 500);
-  }
-}
-
-// ── Çıktı Izgarası ve Şablon Köprüsü ──
-//
-// Bir ders programının ÜÇ çıktısı var ve üçü de AYNI ızgaradan üretilir
-// (hangi saatte hangi dersin göründüğü çıktılar arasında ayrışmasın):
-//   1) Yazdır/PDF — gömülü HTML, her zaman çalışır
-//   2) .xlsx      — gömülü çalışma kitabı (lib/xlsx-yaz.js)
-//   3) ŞABLON     — Şablonlar modülüne yüklenmiş .docx/.xlsx (resmî antet)
-//
-// Şablon varsa o kullanılır, yoksa sessizce gömülü çıktıya düşülür: şablon
-// yüklemeyen bölüm hiçbir şey kaybetmez. Izgara→satır çevrimi ve künye
-// lib/ders-programi-sablon.js'te (testli); burada yalnız bağlam toplama var.
-//
-// Hücre içeriği satır sonlarıyla yazılır (Excel'de kaydırmalı hücre); bölünmüş
-// hücrede dersler alt alta, her biri KENDİ dersliğiyle görünür.
-function programIzgarasiKur(kaynaklar, hucreYaz) {
-  return window.dpCiktiIzgarasi(kaynaklar, DAYS, HOURS.length, hucreYaz);
+// ── Izgara ──
+// Üç çıktı da (xlsx, PDF, şablon) AYNI ızgaradan üretilir: hangi saatte
+// hangi dersin göründüğü belgeler arasında ayrışmasın.
+function programIzgarasiKur(kaynaklar, hucreYaz, saatler) {
+  return window.dpCiktiIzgarasi(kaynaklar, DAYS, (saatler || HOURS).length, hucreYaz);
 }
 
 // Izgarayı xlsx satırlarına çevirir: başlık + yalnız DOLU saat satırları.
-function programSatirlari(grid) {
-  return window.dpTabloSatirlari(grid, DAYS, HOURS, (window.XLSX_STIL || {}).vurgu || 3);
+function programSatirlari(grid, saatler) {
+  return window.dpTabloSatirlari(grid, DAYS, saatler || HOURS, (window.XLSX_STIL || {}).vurgu || 3);
 }
 
-// Bölüm çıktısında hücre: kod (sınıf) / ad / hoca / derslik
+// PDF ve şablon hücresi — bölüm çıktısı: kod (sınıf) / ad / hoca / derslik
 function bolumHucresi(slot, kaynak) {
   const e = mergeSplitSlot(slot, { year: kaynak.year });
   return [
@@ -530,7 +326,7 @@ function bolumHucresi(slot, kaynak) {
     .join('\n');
 }
 
-// Fakülte çıktısında hücre: kod / bölüm — sınıf / hoca / derslik
+// PDF ve şablon hücresi — fakülte çıktısı: kod / bölüm — sınıf / hoca / derslik
 function fakulteHucresi(slot, kaynak) {
   const e = mergeSplitSlot(slot, { deptName: kaynak.deptName, year: kaynak.year });
   return [
@@ -543,144 +339,662 @@ function fakulteHucresi(slot, kaynak) {
     .join('\n');
 }
 
-/**
- * Atanmış şablondan çıktı üretmeyi dener.
- *
- * Yüklenen şablon .docx de olabilir .xlsx de — hangisi eşlenmişse o motor
- * çalışır. `bicim: 'xlsx'` verilirse yalnız .xlsx denenir: ".xlsx indir"
- * düğmesinin bir Word belgesi indirmesi kullanıcıyı şaşırtır.
- *
- * @returns {Promise<{ok:boolean, reason?:string}>} ok=false ise çağıran
- *          gömülü çıktıya düşer.
- */
+// .xlsx hücresi — YALNIZ ders kodu. Bölünmüş hücrede kodlar ' / ' ile
+// birleşir (aynı saatte yürüyen eşdeğer dersler tek satırda okunur).
+function kodMetni(slot) {
+  return window
+    .slotDersleri(slot)
+    .map((d) => d.courseCode)
+    .filter(Boolean)
+    .join(' / ');
+}
+
+// ── Yazdırma (PDF) ──
+function yazdirmaAc(html) {
+  const w = window.open('', '_blank');
+  if (!w) {
+    alert('Yazdırma penceresi açılamadı. Tarayıcının açılır pencere engelini kaldırın.');
+    return false;
+  }
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 500);
+  return true;
+}
+
+const SINIF_LEJANTI = `
+  <div class="legend">
+    <div class="legend-item"><div class="legend-box" style="background:#B2EBF2"></div>1. Sınıf</div>
+    <div class="legend-item"><div class="legend-box" style="background:#C8E6C9"></div>2. Sınıf</div>
+    <div class="legend-item"><div class="legend-box" style="background:#FFE0B2"></div>3. Sınıf</div>
+    <div class="legend-item"><div class="legend-box" style="background:#F8BBD0"></div>4. Sınıf</div>
+    <div class="legend-item"><div class="legend-box" style="background:#E1BEE7"></div>Seçmeli</div>
+  </div>`;
+
+const YAZDIRMA_STILI = `
+  @media print { body { margin: 0; } @page { size: A4 landscape; margin: 0.8cm; } }
+  body { font-family: 'Times New Roman', serif; background: #e8e8e8; }
+  .page { max-width: 1100px; margin: 20px auto; background: white; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  h1 { text-align: center; font-size: 16px; color: #1B2A4A; margin-bottom: 4px; border-bottom: 3px solid #1B2A4A; padding-bottom: 8px; }
+  h2 { text-align: center; font-size: 12px; color: #C00; margin-bottom: 6px; letter-spacing: 0.5px; }
+  .info { text-align: center; font-size: 11px; color: #666; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th { padding: 8px 6px; border: 1px solid #999; background: #1B2A4A; color: white; font-weight: 700; text-align: center; font-size: 11px; }
+  .legend { display: flex; gap: 12px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; }
+  .legend-box { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #ccc; }
+  .footer { text-align: center; font-size: 9px; color: #999; margin-top: 14px; }`;
+
+// Izgaradan yazdırma tablosunun satırlarını üretir (yalnız dolu saatler).
+function yazdirmaSatirlari(grid, saatler, hucreHTML) {
+  let out = '';
+  (saatler || HOURS).forEach((hour, hi) => {
+    if (!DAYS.some((day) => (grid[day][hi] || []).length > 0)) return;
+    let row = `<tr><td style="padding:6px 8px;border:1px solid #999;font-weight:600;text-align:center;background:#F9FAFB;white-space:nowrap">${hour}</td>`;
+    DAYS.forEach((day) => {
+      const entries = grid[day][hi] || [];
+      row += entries.length
+        ? `<td style="padding:2px;border:1px solid #ddd;vertical-align:top">${entries.map(hucreHTML).join('')}</td>`
+        : `<td style="padding:4px;border:1px solid #ddd"></td>`;
+    });
+    out += row + '</tr>';
+  });
+  return out;
+}
+
+function belgeHTML(baslik, ustBaslik, altBaslik, bilgi, tableRows) {
+  return `<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="utf-8"><title>${baslik}</title>
+<style>${YAZDIRMA_STILI}</style>
+</head>
+<body>
+<div class="page">
+  <h1>${ustBaslik}</h1>
+  <h2>${altBaslik}</h2>
+  <div class="info">${bilgi}</div>
+  <table>
+    <thead><tr>
+      <th style="width:90px">Saat</th>
+      ${DAYS.map((d) => `<th>${d}</th>`).join('')}
+    </tr></thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+  ${SINIF_LEJANTI}
+  <div class="footer">Oluşturulma: ${new Date().toLocaleDateString('tr-TR')} — ÇAKÜ Ders Programı Otomasyonu</div>
+</div>
+</body></html>`;
+}
+
+// Türkçe BÜYÜK harf: düz toUpperCase 'i' harfini 'I' yapıyor ve başlıkta
+// "BILGISAYAR MÜHENDISLIĞI" yazıyordu.
+const buyuk = (metin) => String(metin == null ? '' : metin).toLocaleUpperCase('tr-TR');
+
+// Antet artık koda gömülü değil: kurum ve fakülte adı bağlamdan gelir
+// (üniversite ayarı + programın kapsam fakültesi). Yeni bir fakülte açıldığında
+// çıktının başında başka bir fakültenin adı yazmıyor.
+function antetUst(baglam) {
+  const b = baglam || {};
+  return [b.kurumAd, b.fakulteAd].filter(Boolean).join(' — ') || 'DERS PROGRAMI';
+}
+
+// ── Bölüm PDF ──
+function bolumYazdir(deptAllYearsSlots, deptName, semester, baglam) {
+  const b = baglam || {};
+  const saatler = b.saatler || HOURS;
+  const donem = window.dpDonemAdi(semester);
+  const grid = programIzgarasiKur(
+    deptAllYearsSlots,
+    (slot, kaynak) => mergeSplitSlot(slot, { year: kaynak.year }),
+    saatler
+  );
+  const ozet = window.dpProgramOzeti(deptAllYearsSlots);
+  const tableRows = yazdirmaSatirlari(grid, saatler, (e) => {
+    const bg = GRADE_COLORS[e.sinif]?.bg || '#F3F4F6';
+    return `<div style="padding:4px 6px;margin:1px 0;border-radius:4px;background:${bg}">
+      <div style="font-weight:700;font-size:11px">${e.courseCode} <span style="font-weight:400;color:#666">(${e.year}. Sınıf)</span></div>
+      <div style="font-size:10px;color:#444">${e.courseName}</div>
+      ${e.instructor ? `<div style="font-size:9px;color:#666">${e.instructor}</div>` : ''}
+      ${e.classroom ? `<div style="font-size:9px;color:#7C3AED;font-weight:600">${e.classroom}</div>` : ''}
+    </div>`;
+  });
+  return yazdirmaAc(
+    belgeHTML(
+      'Ders Programı - ' + deptName,
+      antetUst(b) + ' — HAFTALIK DERS PROGRAMI',
+      `${buyuk(deptName)} — ${buyuk(donem)} DÖNEMİ — TÜM SINIFLAR`,
+      `${b.akademikYil || ''} ${b.seviyeAd || ''} · ${ozet.dersSayisi} ders, ${ozet.dersSaati} ders saati`,
+      tableRows
+    )
+  );
+}
+
+// ── Fakülte PDF ──
+function fakulteYazdir(allFacultySlots, semester, baglam) {
+  const b = baglam || {};
+  const saatler = b.saatler || HOURS;
+  const donem = window.dpDonemAdi(semester);
+  const grid = programIzgarasiKur(
+    allFacultySlots,
+    (slot, kaynak) => mergeSplitSlot(slot, { deptName: kaynak.deptName, year: kaynak.year }),
+    saatler
+  );
+  const ozet = window.dpProgramOzeti(allFacultySlots);
+  const tableRows = yazdirmaSatirlari(grid, saatler, (e) => {
+    const bg = GRADE_COLORS[e.sinif]?.bg || '#F3F4F6';
+    return `<div style="padding:3px 6px;margin:2px 0;border-radius:4px;background:${bg};font-size:9px;line-height:1.3">
+      <strong>${e.courseCode}</strong>
+      <span style="color:#555;margin-left:3px">${e.deptName} ${e.year}.Sınıf</span>
+      ${e.classroom ? `<br/><span style="color:#7C3AED;font-weight:600">${e.classroom}</span>` : ''}
+    </div>`;
+  });
+  return yazdirmaAc(
+    belgeHTML(
+      'Fakülte Ders Programı',
+      antetUst(b) + ' — BİRLEŞİK DERS PROGRAMI',
+      `${buyuk(donem)} DÖNEMİ — ${ozet.bolumler.join(', ')}`,
+      `${b.akademikYil || ''} ${b.seviyeAd || ''} · ${ozet.dersSayisi} ders, ${ozet.dersSaati} ders saati`,
+      tableRows
+    )
+  );
+}
+
+// ── .xlsx ortak gövdesi ──
+// Antet satırları tablonun ÜSTÜNDE durur ve tamamı bağlamdan gelir; hiçbiri
+// koda gömülü değildir.
+function antetSatirlari(baglam, altBaslik) {
+  const b = baglam || {};
+  const bos = new Array(DAYS.length).fill('');
+  const satir = (metin) => [{ v: metin, stil: (window.XLSX_STIL || {}).vurgu || 3 }].concat(bos);
+  return [
+    satir(b.kurumAd || ''),
+    satir(b.fakulteAd || ''),
+    satir(altBaslik),
+    satir(
+      [b.akademikYil, b.donemAd && b.donemAd + ' Dönemi', b.seviyeAd, b.kapsamAd]
+        .filter(Boolean)
+        .join(' · ')
+    ),
+    new Array(DAYS.length + 1).fill(''),
+  ];
+}
+
+function altBilgiSatirlari(baglam, ozet, renkler) {
+  const b = baglam || {};
+  const bos = new Array(DAYS.length).fill('');
+  const satirlar = [
+    new Array(DAYS.length + 1).fill(''),
+    [`Toplam ${ozet.dersSayisi} ders · ${ozet.dersSaati} ders saati`].concat(bos),
+    [`Belge Tarihi: ${new Date().toLocaleDateString('tr-TR')}`].concat(bos),
+  ];
+  if (b.hazirlayan) satirlar.push([`Hazırlayan: ${b.hazirlayan}`].concat(bos));
+  // Renk lejantı: fakülte çıktısında kodun rengi hangi bölümü gösteriyor?
+  const liste = Object.entries(renkler || {});
+  if (liste.length > 1) {
+    satirlar.push(new Array(DAYS.length + 1).fill(''));
+    satirlar.push(['Bölüm renkleri:'].concat(bos));
+    liste.forEach(([ad, renk]) => {
+      satirlar.push([{ v: ad, renk }].concat(bos));
+    });
+  }
+  return satirlar;
+}
+
+// ── Bölüm .xlsx — yalnız ders kodu, bölümün renginde ──
+function bolumXlsx(deptAllYearsSlots, deptName, semester, baglam) {
+  const b = baglam || {};
+  const saatler = b.saatler || HOURS;
+  const donem = window.dpDonemAdi(semester);
+  const renk = b.bolumRengi || window.bolumRengiCoz({ bolumAdi: deptName });
+  const grid = programIzgarasiKur(deptAllYearsSlots, (slot) => kodMetni(slot), saatler);
+  const govde = programSatirlari(grid, saatler).map((satir, i) =>
+    i === 0 ? satir : satir.map((h, j) => (j === 0 || !h ? h : { v: h, renk }))
+  );
+  const antet = antetSatirlari(
+    { ...b, donemAd: donem },
+    buyuk(deptName) + ' — HAFTALIK DERS PROGRAMI'
+  );
+  window.xlsxIndir(window.dpCiktiDosyaAdi([deptName, donem, b.akademikYil, 'ders programi']), {
+    sayfaAdi: donem + ' Dönemi',
+    satirlar: antet.concat(
+      govde,
+      altBilgiSatirlari(b, window.dpProgramOzeti(deptAllYearsSlots), {})
+    ),
+    sutunGenislikleri: [15].concat(new Array(DAYS.length).fill(26)),
+    baslikIndeksi: antet.length,
+  });
+}
+
+// ── Fakülte .xlsx — yalnız ders kodu, her kod KENDİ bölümünün renginde ──
+function fakulteXlsx(allFacultySlots, semester, baglam) {
+  const b = baglam || {};
+  const saatler = b.saatler || HOURS;
+  const donem = window.dpDonemAdi(semester);
+  const renkler = b.renkHaritasi || {};
+  // Hücre içeriği zengin metindir: her ders kodu ayrı bir parça, kendi
+  // rengiyle. Bir hücrede birden çok bölüm olabildiği için zemin rengi
+  // kullanılamaz (bkz. dosya başındaki açıklama).
+  const grid = programIzgarasiKur(
+    allFacultySlots,
+    (slot, kaynak) => ({
+      kod: kodMetni(slot),
+      renk: window.renkKoyuMetin(
+        renkler[kaynak.deptName] || window.bolumRengiCoz({ bolumAdi: kaynak.deptName })
+      ),
+    }),
+    saatler
+  );
+  const basliklar = ['Saat'].concat(DAYS);
+  const govde = [basliklar];
+  saatler.forEach((hour, hi) => {
+    if (!DAYS.some((day) => (grid[day][hi] || []).length > 0)) return;
+    govde.push(
+      [{ v: hour, stil: (window.XLSX_STIL || {}).vurgu || 3 }].concat(
+        DAYS.map((day) => {
+          const hucreler = (grid[day][hi] || []).filter((x) => x && x.kod);
+          if (hucreler.length === 0) return '';
+          const parcalar = [];
+          hucreler.forEach((x, i) => {
+            if (i > 0) parcalar.push({ t: '\n' });
+            parcalar.push({ t: x.kod, renk: x.renk });
+          });
+          return { parcalar, v: hucreler.map((x) => x.kod).join('\n') };
+        })
+      )
+    );
+  });
+  const antet = antetSatirlari({ ...b, donemAd: donem }, 'BİRLEŞİK HAFTALIK DERS PROGRAMI');
+  window.xlsxIndir(
+    window.dpCiktiDosyaAdi([b.fakulteAd || 'Fakulte', donem, b.akademikYil, 'ders programi']),
+    {
+      sayfaAdi: 'Fakülte ' + donem,
+      satirlar: antet.concat(
+        govde,
+        altBilgiSatirlari(b, window.dpProgramOzeti(allFacultySlots), renkler)
+      ),
+      sutunGenislikleri: [15].concat(new Array(DAYS.length).fill(30)),
+      baslikIndeksi: antet.length,
+    }
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// ŞABLON KÖPRÜSÜ
+//
+// Dört çıktının her biri Şablonlar modülünden AYRI bir şablon alabilir:
+//   bolum-xlsx · bolum-pdf · fakulte-xlsx · fakulte-pdf
+// Şablon yüklenmemişse yukarıdaki gömülü çıktı üretilir — şablon yüklemeyen
+// bölüm hiçbir şey kaybetmez.
+// ══════════════════════════════════════════════════════════════
 async function sablondanUret(secenek) {
   const TE = window.TemplateEngine;
   if (!TE) return { ok: false, reason: 'no-engine' };
   const { bicim, dosyaAdi, ...ortak } = secenek;
-  const xls = TE.produceRowsXlsx
-    ? await TE.produceRowsXlsx({ ...ortak, filename: dosyaAdi + '.xlsx' })
-    : { ok: false, reason: 'no-engine' };
-  if (xls.ok) return xls;
-  // 'not-xlsx' = şablon var ama Word belgesi; diğer sebepler (şablon yok,
-  // eşleme yok) iki motorda da aynıdır, ikinci kez denemenin anlamı olmaz.
-  if (xls.reason !== 'not-xlsx') return xls;
-  if (bicim === 'xlsx') return { ok: false, reason: 'not-xlsx' };
+  if (bicim === 'xlsx') {
+    if (!TE.produceRowsXlsx) return { ok: false, reason: 'no-engine' };
+    return await TE.produceRowsXlsx({ ...ortak, filename: dosyaAdi + '.xlsx' });
+  }
   if (!TE.produceFromTemplate) return { ok: false, reason: 'no-engine' };
   return await TE.produceFromTemplate({ ...ortak, filename: dosyaAdi + '.docx' });
 }
 
 // Şablon denemesi başarısızsa kullanıcıya YALNIZ düzeltebileceği durumlarda
 // haber verilir; "şablon yüklenmemiş" normal bir durumdur, uyarı değil.
-function sablonUyarisi(sonuc) {
+function sablonUyarisi(sonuc, belgeAdi) {
   if (sonuc.reason === 'no-mapping') {
     alert(
-      'Ders programı şablonunun alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp 🧩 ile alanları eşleyin. Şimdilik yerleşik çıktı kullanılacak.'
+      belgeAdi +
+        ' şablonunun alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp 🧩 ile alanları eşleyin. Şimdilik yerleşik çıktı kullanılacak.'
     );
-  } else if (sonuc.reason === 'invalid-output' || sonuc.reason === 'no-row-template') {
+  } else if (sonuc.reason === 'invalid-output') {
     alert(
-      'Yüklü ders programı şablonundan geçerli belge üretilemedi (şablonda {{Saat}} satırı bulunamadı ya da yapı desteklenmiyor). Yerleşik çıktı kullanılacak.'
+      'Yüklü ' +
+        belgeAdi.toLocaleLowerCase('tr-TR') +
+        ' şablonundan geçerli belge üretilemedi (şablonda {{Saat}} satırı bulunamadı ya da yapı desteklenmiyor). Yerleşik çıktı kullanılacak.'
+    );
+  } else if (sonuc.reason === 'not-xlsx' || sonuc.reason === 'not-docx') {
+    alert(
+      belgeAdi +
+        ' için yüklenen şablonun biçimi bu çıktıya uymuyor (.xlsx çıktısı için Excel, PDF çıktısı için Word şablonu gerekir). Yerleşik çıktı kullanılacak.'
     );
   }
 }
 
-/**
- * Şablon çıktısı için ortak veri: künye + saat satırları.
- * `baglam` ekrandan gelir (kurum, fakülte, bölüm, dönem, seviye).
- */
+/** Şablon çıktısı için ortak veri: künye + saat satırları. */
 function sablonVerisi(kaynaklar, hucreYaz, baglam) {
-  const izgara = programIzgarasiKur(kaynaklar, hucreYaz);
+  const b = baglam || {};
+  const saatler = b.saatler || HOURS;
+  const izgara = programIzgarasiKur(kaynaklar, hucreYaz, saatler);
   return {
-    staticData: window.dpSablonKunyesi({
-      ...baglam,
-      ozet: window.dpProgramOzeti(kaynaklar),
-    }),
-    rows: window.dpSablonSatirlari(izgara, DAYS, HOURS),
-    izgara,
+    staticData: window.dpSablonKunyesi({ ...b, ozet: window.dpProgramOzeti(kaynaklar) }),
+    rows: window.dpSablonSatirlari(izgara, DAYS, saatler),
   };
 }
 
-// Bölüm ve fakülte şablon denemeleri — dört düğme de aynı yoldan geçsin diye
-// tek yerde. `bicim: 'xlsx'` verildiğinde Word şablonu atlanır.
-async function bolumSablonuDene(deptAllYearsSlots, deptName, semester, baglam, bicim) {
-  const b = baglam || {};
-  const veri = sablonVerisi(deptAllYearsSlots, bolumHucresi, {
-    ...b,
-    bolumAd: deptName,
-    donem: semester,
-    kapsamAd: b.kapsamAd || 'Tüm Sınıflar',
-  });
+async function sablonDene(secenek) {
+  const { kaynaklar, hucreYaz, baglam, docType, bicim, belgeAdi, dosyaParcalari } = secenek;
+  const veri = sablonVerisi(kaynaklar, hucreYaz, baglam);
   const sonuc = await sablondanUret({
     module: 'dersprogrami',
-    docType: 'bolum',
-    departmentId: b.departmentId || '',
+    docType,
+    departmentId: (baglam || {}).departmentId || '',
     staticData: veri.staticData,
     rows: veri.rows,
     stripRowBold: true,
     bicim,
-    dosyaAdi: window.dpCiktiDosyaAdi([
-      deptName,
-      veri.staticData.donem,
-      veri.staticData.akademikYil,
-      'ders programi',
-    ]),
+    dosyaAdi: window.dpCiktiDosyaAdi(dosyaParcalari),
   });
-  if (!sonuc.ok) sablonUyarisi(sonuc);
+  if (!sonuc.ok) sablonUyarisi(sonuc, belgeAdi);
   return sonuc;
 }
 
-async function fakulteSablonuDene(allFacultySlots, semester, baglam, bicim) {
-  const b = baglam || {};
+// ══════════════════════════════════════════════════════════════
+// DIŞA AÇILAN İKİ GİRİŞ — her biri .xlsx ve PDF üretir
+// ══════════════════════════════════════════════════════════════
+async function exportDeptSchedule(deptAllYearsSlots, deptName, semester, baglam) {
+  const b = { ...(baglam || {}), bolumAd: deptName, donem: semester, kapsamAd: 'Tüm Sınıflar' };
+  const kunye = window.dpSablonKunyesi({ ...b, ozet: window.dpProgramOzeti(deptAllYearsSlots) });
+  const ortak = { ...b, akademikYil: kunye.akademikYil, seviyeAd: kunye.seviyeAd };
+  const dosya = [deptName, window.dpDonemAdi(semester), kunye.akademikYil, 'ders programi'];
+
+  const xls = await sablonDene({
+    kaynaklar: deptAllYearsSlots,
+    hucreYaz: bolumHucresi,
+    baglam: ortak,
+    docType: 'bolum-xlsx',
+    bicim: 'xlsx',
+    belgeAdi: 'Bölüm Excel çıktısı',
+    dosyaParcalari: dosya,
+  });
+  if (!xls.ok) bolumXlsx(deptAllYearsSlots, deptName, semester, ortak);
+
+  const pdf = await sablonDene({
+    kaynaklar: deptAllYearsSlots,
+    hucreYaz: bolumHucresi,
+    baglam: ortak,
+    docType: 'bolum-pdf',
+    bicim: 'docx',
+    belgeAdi: 'Bölüm PDF çıktısı',
+    dosyaParcalari: dosya,
+  });
+  if (!pdf.ok) bolumYazdir(deptAllYearsSlots, deptName, semester, ortak);
+}
+
+async function exportFacultySchedule(allFacultySlots, semester, baglam) {
   const ozet = window.dpProgramOzeti(allFacultySlots);
-  const veri = sablonVerisi(allFacultySlots, fakulteHucresi, {
-    ...b,
-    // Fakülte çıktısı tek bölüme ait değildir; bölüm alanı boş kalır ve
-    // hangi bölümlerin kapsandığı 'Kapsam' alanında listelenir.
+  // Fakülte çıktısı tek bölüme ait değildir: bölüm alanı boş kalır, kapsanan
+  // bölümler künyeye yazılır.
+  const b = {
+    ...(baglam || {}),
     bolumAd: '',
     donem: semester,
-    kapsamAd: b.kapsamAd || ozet.bolumler.join(', '),
+    kapsamAd: (baglam || {}).kapsamAd || ozet.bolumler.join(', '),
+  };
+  const kunye = window.dpSablonKunyesi({ ...b, ozet });
+  const ortak = { ...b, akademikYil: kunye.akademikYil, seviyeAd: kunye.seviyeAd };
+  const dosya = [
+    ortak.fakulteAd || 'Fakulte',
+    window.dpDonemAdi(semester),
+    kunye.akademikYil,
+    'ders programi',
+  ];
+
+  const xls = await sablonDene({
+    kaynaklar: allFacultySlots,
+    hucreYaz: fakulteHucresi,
+    baglam: ortak,
+    docType: 'fakulte-xlsx',
+    bicim: 'xlsx',
+    belgeAdi: 'Fakülte Excel çıktısı',
+    dosyaParcalari: dosya,
   });
-  const sonuc = await sablondanUret({
-    module: 'dersprogrami',
-    docType: 'fakulte',
-    departmentId: b.departmentId || '',
-    staticData: veri.staticData,
-    rows: veri.rows,
-    stripRowBold: true,
-    bicim,
-    dosyaAdi: window.dpCiktiDosyaAdi([
-      veri.staticData.fakulteAd || 'Fakulte',
-      veri.staticData.donem,
-      veri.staticData.akademikYil,
-      'ders programi',
-    ]),
+  if (!xls.ok) fakulteXlsx(allFacultySlots, semester, ortak);
+
+  const pdf = await sablonDene({
+    kaynaklar: allFacultySlots,
+    hucreYaz: fakulteHucresi,
+    baglam: ortak,
+    docType: 'fakulte-pdf',
+    bicim: 'docx',
+    belgeAdi: 'Fakülte PDF çıktısı',
+    dosyaParcalari: dosya,
   });
-  if (!sonuc.ok) sablonUyarisi(sonuc);
-  return sonuc;
+  if (!pdf.ok) fakulteYazdir(allFacultySlots, semester, ortak);
 }
 
-async function exportDeptScheduleXlsx(deptAllYearsSlots, deptName, semester, baglam) {
-  const sablon = await bolumSablonuDene(deptAllYearsSlots, deptName, semester, baglam, 'xlsx');
-  if (sablon.ok) return;
-  const donem = window.dpDonemAdi(semester);
-  const grid = programIzgarasiKur(deptAllYearsSlots, bolumHucresi);
-  window.xlsxIndir(deptName + ' ' + donem + ' ders programi', {
-    sayfaAdi: donem + ' Dönemi',
-    satirlar: programSatirlari(grid),
-    sutunGenislikleri: [13, 32, 32, 32, 32, 32],
-  });
-}
+// ══════════════════════════════════════════════════════════════
+// DERS SAATİ AYARI (bölüme özel)
+//
+// Bölüm yetkilisi programın günün kaçında başlayıp kaçında biteceğini seçer.
+// Ders 45 dakika, teneffüs 15 dakikadır ve ritim buradan değiştirilemez —
+// değişen yalnız pencerenin iki ucudur. Lisans ve lisansüstü ayrı ayarlanır
+// (lisansüstü akşam saatlerine taşar).
+//
+// ⚠ Kayıtlı program saat İNDEKSİYLE durur. Başlangıç saati değişince tüm
+// ızgara birlikte kayar: ders "günün 4. saati" olmaya devam eder, yalnız o
+// saatin adı değişir. Ders SAYISI azalırsa (bitiş öne çekilirse) sona düşen
+// dersler ızgarada görünmez olur — bu yüzden modal kaç dersin dışarıda
+// kalacağını önceden söyler.
+// ══════════════════════════════════════════════════════════════
+const SaatAyariModal = ({ acik, kapat, bolumId, bolumAdi, kayit, kaydedildi }) => {
+  const [lisans, setLisans] = useState(() => window.bolumSaatAyari(kayit, 'lisans'));
+  const [lisansustu, setLisansustu] = useState(() => window.bolumSaatAyari(kayit, 'doktora'));
+  const [kaydediyor, setKaydediyor] = useState(false);
+  const [hata, setHata] = useState('');
 
-async function exportFacultyScheduleXlsx(allFacultySlots, semester, baglam) {
-  const sablon = await fakulteSablonuDene(allFacultySlots, semester, baglam, 'xlsx');
-  if (sablon.ok) return;
-  const donem = window.dpDonemAdi(semester);
-  const grid = programIzgarasiKur(allFacultySlots, fakulteHucresi);
-  window.xlsxIndir('Fakulte ' + donem + ' ders programi', {
-    sayfaAdi: 'Fakülte ' + donem,
-    satirlar: programSatirlari(grid),
-    sutunGenislikleri: [13, 34, 34, 34, 34, 34],
-  });
-}
+  useEffect(() => {
+    if (!acik) return;
+    setLisans(window.bolumSaatAyari(kayit, 'lisans'));
+    setLisansustu(window.bolumSaatAyari(kayit, 'doktora'));
+    setHata('');
+  }, [acik, kayit]);
+
+  if (!acik) return null;
+
+  const kaydet = async () => {
+    setKaydediyor(true);
+    setHata('');
+    try {
+      await window.DBWrite.set(
+        window.BOLUM_AYAR_KOLEKSIYONU || 'bolum_program_ayarlari',
+        String(bolumId),
+        {
+          id: String(bolumId),
+          departmentId: String(bolumId),
+          // Normalize edilmiş hâli yazılır: bozuk aralık kaydedilmez, ekranda
+          // gördüğü ile dosyada duran aynı olur.
+          lisans: window.saatAyarNormalize(lisans, 'lisans'),
+          lisansustu: window.saatAyarNormalize(lisansustu, 'doktora'),
+          guncelleyen: new Date().toISOString(),
+        },
+        true
+      );
+      kaydedildi();
+      kapat();
+    } catch (e) {
+      setHata(e && e.message ? e.message : 'Ayar kaydedilemedi.');
+    } finally {
+      setKaydediyor(false);
+    }
+  };
+
+  const Bolme = ({ baslik, aciklama, deger, degistir }) => {
+    const saatler = window.saatEtiketleri(deger);
+    return (
+      <div
+        style={{
+          border: '1px solid ' + DP.border,
+          borderRadius: 10,
+          padding: 14,
+          background: '#FAFAFA',
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 700, color: DP.text }}>{baslik}</div>
+        <div style={{ fontSize: 11, color: DP.textMuted, marginTop: 2 }}>{aciklama}</div>
+        <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 11, color: DP.textMuted, fontWeight: 600 }}>
+            Başlangıç
+            <input
+              type="time"
+              value={deger.baslangic}
+              onChange={(e) => degistir({ ...deger, baslangic: e.target.value })}
+              style={{
+                display: 'block',
+                marginTop: 4,
+                padding: '6px 8px',
+                borderRadius: 6,
+                border: '1px solid ' + DP.border,
+                fontSize: 13,
+              }}
+            />
+          </label>
+          <label style={{ fontSize: 11, color: DP.textMuted, fontWeight: 600 }}>
+            Bitiş
+            <input
+              type="time"
+              value={deger.bitis}
+              onChange={(e) => degistir({ ...deger, bitis: e.target.value })}
+              style={{
+                display: 'block',
+                marginTop: 4,
+                padding: '6px 8px',
+                borderRadius: 6,
+                border: '1px solid ' + DP.border,
+                fontSize: 13,
+              }}
+            />
+          </label>
+        </div>
+        <div style={{ marginTop: 10, fontSize: 11, color: DP.textMuted }}>
+          {saatler.length} ders saati:
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
+          {saatler.map((h) => (
+            <span
+              key={h}
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: '3px 7px',
+                borderRadius: 5,
+                background: DP.primaryPale,
+                color: DP.primary,
+              }}
+            >
+              {h}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Ders saati azalıyorsa uyar: sondaki satırlara yerleşmiş dersler ızgarada
+  // görünmez olur (kayıttan silinmez, ayar geri alınınca geri gelir).
+  const oncekiLisans = window.saatEtiketleri(window.bolumSaatAyari(kayit, 'lisans')).length;
+  const yeniLisans = window.saatEtiketleri(lisans).length;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.45)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+      onClick={kapat}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'white',
+          borderRadius: 14,
+          padding: 22,
+          width: 'min(560px, 100%)',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+        }}
+      >
+        <div style={{ fontSize: 17, fontWeight: 700, color: DP.navy }}>Ders Saati Ayarı</div>
+        <div style={{ fontSize: 12, color: DP.textMuted, marginTop: 4 }}>
+          {bolumAdi} — bu ayar yalnız bu bölüm içindir. Ders 45 dakika, teneffüs 15 dakikadır;
+          başlangıç ve bitiş saatini siz seçersiniz.
+        </div>
+
+        <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
+          <Bolme baslik="Lisans" aciklama="Gündüz programı" deger={lisans} degistir={setLisans} />
+          <Bolme
+            baslik="Lisansüstü"
+            aciklama="Yüksek lisans / doktora — genelde akşam saatlerini de kapsar"
+            deger={lisansustu}
+            degistir={setLisansustu}
+          />
+        </div>
+
+        {yeniLisans < oncekiLisans && (
+          <div
+            style={{
+              marginTop: 14,
+              padding: '10px 12px',
+              borderRadius: 8,
+              background: '#FEF3C7',
+              border: '1px solid #FCD34D',
+              fontSize: 11,
+              color: '#92400E',
+              lineHeight: 1.5,
+            }}
+          >
+            Lisans programı {oncekiLisans} saatten {yeniLisans} saate iniyor. Son{' '}
+            {oncekiLisans - yeniLisans} satıra yerleştirilmiş dersler ızgarada görünmez olur —
+            kayıttan silinmezler, ayarı geri alırsanız geri gelirler.
+          </div>
+        )}
+
+        {hata && <div style={{ marginTop: 12, fontSize: 12, color: '#B91C1C' }}>{hata}</div>}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+          <button
+            onClick={kapat}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px solid ' + DP.border,
+              background: 'white',
+              color: DP.textMuted,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Vazgeç
+          </button>
+          <button
+            onClick={kaydet}
+            disabled={kaydediyor}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: DP.primary,
+              color: 'white',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: kaydediyor ? 'default' : 'pointer',
+              opacity: kaydediyor ? 0.6 : 1,
+            }}
+          >
+            {kaydediyor ? 'Kaydediliyor…' : 'Kaydet'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ── Sürüklenebilir Ders Kartı (havuzdan tabloya bırakma) ──
 const CourseChip = ({ course, color }) => {
@@ -742,8 +1056,24 @@ function DersProgramiApp({
 }) {
   // Seviye eki: lisans geriye-uyumlu (eksiz), lisansüstü ayrı belge uzayı.
   const seviyeSuffix = seviye && seviye !== 'lisans' ? '_' + seviye : '';
-  // Lisans yalnız gündüz satırlarını görür; lisansüstü akşam satırları dahil
-  const visibleHours = seviye === 'lisans' ? HOURS.slice(0, LISANS_HOURS_COUNT) : HOURS;
+  // Program ayarları (saat aralığı + bölüm rengi) — bölüm başına bir kayıt.
+  // `surum` artınca yeniden okunur: ayar kaydedilince ızgara hemen değişsin.
+  const [ayarSurumu, setAyarSurumu] = useState(0);
+  const bolumAyarlari = window.useBolumAyarlari(ayarSurumu);
+  const bolumAyarKaydi = bolumAyarlari[String(activeDepartment || '')] || null;
+  const [showSaatAyari, setShowSaatAyari] = useState(false);
+
+  // ── Bu bölümün ders saatleri ──
+  // Başlangıç/bitiş bölümün kendi kararıdır; ritim sabittir (45 dk ders +
+  // 15 dk teneffüs). Ayar yoksa varsayılan bugünkü ızgaranın aynısıdır, yani
+  // hiçbir bölüm ayar yapmadan da eskisi gibi çalışır.
+  const visibleHours = useMemo(
+    () => window.bolumSaatleri(bolumAyarKaydi, seviye),
+    [bolumAyarKaydi, seviye]
+  );
+  // Fakülte görünümünün ORTAK saat ekseni: bölümler farklı saatte başlıyorsa
+  // tek ızgarada buluşabilmeleri için (bkz. lib/ders-saatleri.js).
+  const [fakulteSaatleri, setFakulteSaatleri] = useState(visibleHours);
   const [scheduleData, setScheduleData] = useState({});
   const [loading, setLoading] = useState(true);
   const [semester, setSemester] = useState('guz');
@@ -803,9 +1133,60 @@ function DersProgramiApp({
       departmentId: activeDepartment || '',
       seviye,
       hazirlayan: currentUser?.name || '',
+      saatler: visibleHours,
+      // Bölüm çıktısında hücreler bu tek renkte boyanır.
+      bolumRengi: window.bolumRengiCoz({
+        ayarRengi: bolumAyarKaydi && bolumAyarKaydi.renk,
+        bolumAdi: departmentInfo?.name || '',
+      }),
     }),
-    [ciktiFakultesi, fakulteAdlari, activeDepartment, seviye, currentUser?.name]
+    [
+      ciktiFakultesi,
+      fakulteAdlari,
+      activeDepartment,
+      seviye,
+      currentUser?.name,
+      visibleHours,
+      bolumAyarKaydi,
+      departmentInfo?.name,
+    ]
   );
+
+  // Bölümün saat indeksini FAKÜLTE ekseninin indeksine çevirir. Bölümler
+  // farklı saatte başlayabildiği için indeksler bire bir değildir; karşılığı
+  // yoksa -1 döner ve fakülte taraması o saat için atlanır.
+  const eksenHaritam = useMemo(
+    () => window.saatEksenHaritasi(visibleHours, fakulteSaatleri),
+    [visibleHours, fakulteSaatleri]
+  );
+  const fakulteSaatIndeksi = useCallback(
+    (hi) => (eksenHaritam[hi] == null ? -1 : eksenHaritam[hi]),
+    [eksenHaritam]
+  );
+
+  // Fakülte çıktısının bağlamı: ortak saat ekseni + bölüm renk haritası.
+  // Renk, bölümün kendi ayarından gelir; ayarı yoksa adından ya da paletten
+  // (lib/bolum-renkleri.js) — böylece aynı bölüm her çıktıda aynı renkte.
+  const fakulteBaglami = useMemo(() => {
+    const adlar = [...new Set(allSchedules.map((s) => s.deptName).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, 'tr')
+    );
+    const kimlikler = {};
+    allSchedules.forEach((s) => {
+      if (s.deptName && s.deptId && !kimlikler[s.deptName])
+        kimlikler[s.deptName] = String(s.deptId);
+    });
+    return {
+      ...ciktiBaglami,
+      saatler: fakulteSaatleri,
+      renkHaritasi: window.bolumRenkHaritasi(
+        adlar.map((ad) => ({
+          ad,
+          renk: (bolumAyarlari[kimlikler[ad]] || {}).renk,
+        }))
+      ),
+    };
+  }, [ciktiBaglami, fakulteSaatleri, allSchedules, bolumAyarlari]);
 
   // Sınav otomasyonundaki dersleri, hocaları ve derslikleri yükle (bölüm bazlı)
   useEffect(() => {
@@ -1006,7 +1387,9 @@ function DersProgramiApp({
           classroom || '',
           course.professor || '',
           otherYearsSlots,
-          allFacultySlots
+          allFacultySlots,
+          visibleHours,
+          fakulteSaatIndeksi(hi)
         );
         // Aynı dersi ikinci kez eklemek anlamsız — hücredeki TÜM dersler
         // taranır (eskiden yalnız birinci derse bakılıyordu).
@@ -1124,7 +1507,9 @@ function DersProgramiApp({
           classroom,
           instructor,
           otherYearsSlots,
-          allFacultySlots
+          allFacultySlots,
+          visibleHours,
+          fakulteSaatIndeksi(hi)
         );
         if (warnings.length > 0) {
           setAddSlotWarnings(warnings);
@@ -1205,9 +1590,12 @@ function DersProgramiApp({
     }
     setLoadingFaculty(true);
     try {
-      const [allDocs, depts] = await Promise.all([
+      const [allDocs, depts, ayarlarSimdiki] = await Promise.all([
         window.apiRead('course_schedules'),
         window.apiRead('departments'),
+        // Bölümlerin saat ayarları — ortak eksen bunlardan kurulur. Önbellekli
+        // okuma, her yüklemede yeni istek atmaz.
+        window.bolumAyarlariniYukle(),
       ]);
       // Bölüm adı haritası — bölüm TÜM kimlik varyantlarıyla (id, _id, _docId,
       // code) anahtarlanır ki şablon belgesindeki departmentId hangi biçimde
@@ -1338,9 +1726,35 @@ function DersProgramiApp({
           digerFakulte
         );
       }
+      // ── ORTAK SAAT EKSENİ ──
+      // Bölümler farklı saatte başlayabildiği için slot indeksi bölümden
+      // bölüme aynı saati göstermez. Fakülte kümesi tek ızgarada
+      // gösterileceğinden her bölümün slotları ortak eksene çevrilir;
+      // çevrilmeseydi 08:15'teki ders 08:30'daki dersle aynı satıra düşer,
+      // olmayan bir derslik çakışması raporlanırdı.
+      const bolumSaatHaritasi = {};
+      const saatListesi = (dept) => {
+        const anahtar = String(dept || '');
+        if (!bolumSaatHaritasi[anahtar]) {
+          bolumSaatHaritasi[anahtar] = window.bolumSaatleri(ayarlarSimdiki[anahtar], seviye);
+        }
+        return bolumSaatHaritasi[anahtar];
+      };
+      const kendiSaatleri = saatListesi(activeDepartment);
+      const eksen = window.saatBirlesikEksen(
+        [kendiSaatleri].concat(faculty.map((f) => saatListesi(f.deptId)))
+      );
+      const eksende = faculty.map((f) => ({
+        ...f,
+        slots: window.slotlariEksene
+          ? window.slotlariEksene(f.slots, window.saatEksenHaritasi(saatListesi(f.deptId), eksen))
+          : f.slots,
+      }));
+
+      setFakulteSaatleri(eksen);
       setDeptAllYearsSlots(deptYears);
-      setAllFacultySlots(faculty);
-      return { deptYears, faculty };
+      setAllFacultySlots(eksende);
+      return { deptYears, faculty: eksende, eksen, kendiSaatleri };
     } catch (e) {
       console.error('Programlar yüklenirken hata:', e);
       return { deptYears: [], faculty: [] };
@@ -1350,7 +1764,7 @@ function DersProgramiApp({
     // ⚠ Bağımlılık kullanıcı NESNESİ değil, yalnız ihtiyaç duyulan ilkel
     // değer: app-shell çapraz bölümde `effectiveUser`i her render'da yeniden
     // kuruyor, nesneye bağlanmak sonsuz okuma döngüsü olurdu.
-  }, [activeDepartment, semester, seviye, kullaniciFakultesi]);
+  }, [activeDepartment, semester, seviye, kullaniciFakultesi, ayarSurumu]);
 
   // Yalnızca bölüm/dönem değişince yeniden yükle (scheduleData YOK → döngü
   // ve her düzenlemede N+1 yeniden okuma sorunu giderildi).
@@ -1363,9 +1777,9 @@ function DersProgramiApp({
   useEffect(() => {
     const merged = deptAllYearsSlots.filter((s) => String(s.year) !== String(year));
     merged.push({ year: String(year), slots: scheduleData });
-    const c = detectConflicts(merged, allFacultySlots);
+    const c = detectConflicts(merged, allFacultySlots, visibleHours, fakulteSaatleri);
     setConflicts(c);
-  }, [deptAllYearsSlots, allFacultySlots, scheduleData, year]);
+  }, [deptAllYearsSlots, allFacultySlots, scheduleData, year, visibleHours, fakulteSaatleri]);
 
   // Seçili döneme ait tüm dersler — akademisyen sadece kendi derslerini görebilir
   const yearCourses = useMemo(() => {
@@ -1592,12 +2006,16 @@ function DersProgramiApp({
           {(isAdmin || isDeptManager) && (
             <button
               onClick={async () => {
-                const { deptYears, faculty } = await loadAllSchedules();
+                const { deptYears, faculty, eksen, kendiSaatleri } = await loadAllSchedules();
+                // Kendi bölümümüzün slotları da ORTAK eksene çevrilir: fakülte
+                // görünümü tek ızgaradır, iki farklı saat düzeni yan yana
+                // konursa dersler yanlış satırda görünür.
+                const kendiHarita = window.saatEksenHaritasi(kendiSaatleri || [], eksen || []);
                 const ownDeptSlots = (deptYears || []).map((s) => ({
                   deptId: activeDepartment,
                   deptName: departmentInfo?.name || 'Bölüm',
                   year: s.year,
-                  slots: s.slots,
+                  slots: window.slotlariEksene(s.slots, kendiHarita),
                 }));
                 const combined = [...ownDeptSlots, ...(faculty || [])];
                 if (combined.length > 0) {
@@ -1631,6 +2049,8 @@ function DersProgramiApp({
               {loadingFaculty ? 'Yükleniyor...' : 'Fakülte Programı'}
             </button>
           )}
+          {/* Tek düğme, iki belge: .xlsx (yalnız ders kodları, bölümün
+              renginde) iner ve yazdırma/PDF sayfası açılır. */}
           {(isAdmin || isDeptManager) && deptAllYearsSlots.length > 0 && (
             <button
               onClick={() =>
@@ -1641,6 +2061,7 @@ function DersProgramiApp({
                   ciktiBaglami
                 )
               }
+              title="Bölüm programını .xlsx olarak indirir ve yazdırma sayfasını açar"
               style={{
                 padding: '7px 12px',
                 borderRadius: 8,
@@ -1656,46 +2077,11 @@ function DersProgramiApp({
               }}
             >
               <DPIcon
-                path="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                path="M12 10v6m0 0l-3-3m3 3l3-3M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
                 size={13}
                 color="#059669"
               />
-              Bölüm Çıktısı
-            </button>
-          )}
-          {/* Aynı programın .xlsx hâli: yazdırmak için değil, ÜZERİNDE
-              çalışmak için (kopyalama, kendi düzenlemesini yapma). */}
-          {(isAdmin || isDeptManager) && deptAllYearsSlots.length > 0 && (
-            <button
-              onClick={() =>
-                exportDeptScheduleXlsx(
-                  deptAllYearsSlots,
-                  departmentInfo?.name || 'Bölüm',
-                  semester,
-                  ciktiBaglami
-                )
-              }
-              title="Bölüm programını Excel (.xlsx) olarak indir"
-              style={{
-                padding: '7px 12px',
-                borderRadius: 8,
-                border: '1px solid #A7F3D0',
-                background: 'white',
-                color: '#047857',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
-            >
-              <DPIcon
-                path="M12 10v6m0 0l-3-3m3 3l3-3M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
-                size={13}
-                color="#047857"
-              />
-              Bölüm .xlsx
+              Bölüm Çıktısı (.xlsx + PDF)
             </button>
           )}
           {canManage && activeDepartment && !editMode && (
@@ -2144,7 +2530,7 @@ function DersProgramiApp({
                     {editMode && (
                       <button
                         onClick={() => {
-                          setSelectedSlot({ day, hourIndex: 0, hour: HOURS[0] });
+                          setSelectedSlot({ day, hourIndex: 0, hour: visibleHours[0] });
                           setAddSlotWarnings([]);
                           setShowAddModal(true);
                         }}
@@ -2680,7 +3066,7 @@ function DersProgramiApp({
                       setSelectedSlot({
                         ...selectedSlot,
                         hourIndex: parseInt(e.target.value),
-                        hour: HOURS[parseInt(e.target.value)],
+                        hour: visibleHours[parseInt(e.target.value)],
                       })
                     }
                     style={{
@@ -3281,8 +3667,11 @@ function DersProgramiApp({
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
+                {/* Tek düğme, iki belge: Excel dosyası iner ve yazdırma
+                    sayfası açılır (bkz. dosya başındaki ÇIKTILAR bölümü). */}
                 <button
-                  onClick={() => exportFacultySchedule(allSchedules, semester, ciktiBaglami)}
+                  onClick={() => exportFacultySchedule(allSchedules, semester, fakulteBaglami)}
+                  title="Fakülte birleşik programını .xlsx olarak indirir ve yazdırma sayfasını açar"
                   style={{
                     padding: '8px 16px',
                     borderRadius: 8,
@@ -3298,35 +3687,11 @@ function DersProgramiApp({
                   }}
                 >
                   <DPIcon
-                    path="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                    path="M12 10v6m0 0l-3-3m3 3l3-3M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
                     size={14}
                     color="white"
                   />
-                  Yazdır / PDF
-                </button>
-                <button
-                  onClick={() => exportFacultyScheduleXlsx(allSchedules, semester, ciktiBaglami)}
-                  title="Fakülte birleşik programını Excel (.xlsx) olarak indir"
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 8,
-                    border: '1px solid ' + DP.primaryLight,
-                    background: 'white',
-                    color: DP.primary,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <DPIcon
-                    path="M12 10v6m0 0l-3-3m3 3l3-3M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
-                    size={14}
-                    color={DP.primary}
-                  />
-                  .xlsx indir
+                  Fakülte Çıktısı (.xlsx + PDF)
                 </button>
                 <button
                   onClick={() => setShowFacultyView(false)}
@@ -3400,7 +3765,9 @@ function DersProgramiApp({
                   </tr>
                 </thead>
                 <tbody>
-                  {HOURS.map((hour, hi) => {
+                  {/* Fakülte tablosu ORTAK eksende çizilir — bölümlerin
+                      başlangıç saatleri farklı olabilir. */}
+                  {fakulteSaatleri.map((hour, hi) => {
                     // Check if this hour has any slots
                     let hasAny = false;
                     DAYS.forEach((day) => {
@@ -3515,6 +3882,14 @@ function DersProgramiApp({
 
       {/* Akademisyenin kendi programı — Bölüm Yönetimi'ndeki görüntüleyicinin
           aynısı (ortak bileşen, tek belge biçimi). */}
+      <SaatAyariModal
+        acik={showSaatAyari}
+        kapat={() => setShowSaatAyari(false)}
+        bolumId={activeDepartment}
+        bolumAdi={departmentInfo?.name || 'Bölüm'}
+        kayit={bolumAyarKaydi}
+        kaydedildi={() => setAyarSurumu((n) => n + 1)}
+      />
       {showMyProgram && AkademisyenProgramModal && (
         <AkademisyenProgramModal
           open={showMyProgram}
