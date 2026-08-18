@@ -497,6 +497,87 @@ function exportDeptSchedule(deptAllYearsSlots, deptName, semester) {
   }
 }
 
+// ── XLSX Çıktıları (bölüm ve fakülte) ──
+// Yazdır/PDF çıktısı sayfaya basmak için; .xlsx ise programı ÜZERİNDE
+// çalışılabilir biçimde verir (kopyalama, dekanlığa gönderme, kendi
+// düzenlemesini yapma). İkisi de AYNI ızgaradan üretilir: hangi saatte hangi
+// dersin göründüğü iki çıktıda ayrışmasın.
+//
+// Hücre içeriği satır sonlarıyla yazılır (Excel'de kaydırmalı hücre); bölünmüş
+// hücrede iki ders alt alta, her biri KENDİ dersliğiyle görünür.
+function programIzgarasiKur(kaynaklar, hucreYaz) {
+  const grid = {};
+  DAYS.forEach((day) => {
+    grid[day] = {};
+    HOURS.forEach((_, hi) => {
+      grid[day][hi] = [];
+    });
+  });
+  (kaynaklar || []).forEach((kaynak) => {
+    Object.entries(kaynak.slots || {}).forEach(([key, slot]) => {
+      const [day, hiStr] = key.split('_');
+      const hi = parseInt(hiStr);
+      if (grid[day] && grid[day][hi] !== undefined) grid[day][hi].push(hucreYaz(slot, kaynak));
+    });
+  });
+  return grid;
+}
+
+// Izgarayı xlsx satırlarına çevirir: başlık + yalnız DOLU saat satırları.
+function programSatirlari(grid) {
+  const satirlar = [['Saat'].concat(DAYS)];
+  HOURS.forEach((hour, hi) => {
+    const doluMu = DAYS.some((day) => grid[day][hi].length > 0);
+    if (!doluMu) return;
+    satirlar.push(
+      [{ v: hour, stil: (window.XLSX_STIL && window.XLSX_STIL.vurgu) || 3 }].concat(
+        DAYS.map((day) => grid[day][hi].join('\n\n'))
+      )
+    );
+  });
+  return satirlar;
+}
+
+function exportDeptScheduleXlsx(deptAllYearsSlots, deptName, semester) {
+  const donem = semester === 'guz' ? 'Güz' : 'Bahar';
+  const grid = programIzgarasiKur(deptAllYearsSlots, (slot, kaynak) => {
+    const e = mergeSplitSlot(slot, { year: kaynak.year });
+    return [
+      e.courseCode + (e.year ? ' (' + e.year + '. Sınıf)' : ''),
+      e.courseName,
+      e.instructor,
+      e.classroom,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  });
+  window.xlsxIndir(deptName + ' ' + donem + ' ders programi', {
+    sayfaAdi: donem + ' Dönemi',
+    satirlar: programSatirlari(grid),
+    sutunGenislikleri: [13, 32, 32, 32, 32, 32],
+  });
+}
+
+function exportFacultyScheduleXlsx(allFacultySlots, semester) {
+  const donem = semester === 'guz' ? 'Güz' : 'Bahar';
+  const grid = programIzgarasiKur(allFacultySlots, (slot, kaynak) => {
+    const e = mergeSplitSlot(slot, { deptName: kaynak.deptName, year: kaynak.year });
+    return [
+      e.courseCode,
+      (e.deptName || '') + (e.year ? ' — ' + e.year + '. Sınıf' : ''),
+      e.instructor,
+      e.classroom,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  });
+  window.xlsxIndir('Fakulte ' + donem + ' ders programi', {
+    sayfaAdi: 'Fakülte ' + donem,
+    satirlar: programSatirlari(grid),
+    sutunGenislikleri: [13, 34, 34, 34, 34, 34],
+  });
+}
+
 // ── Sürüklenebilir Ders Kartı (havuzdan tabloya bırakma) ──
 const CourseChip = ({ course, color }) => {
   const handleDragStart = (e) => {
@@ -793,7 +874,10 @@ function DersProgramiApp({
         const warnings = checkSlotConflict(
           day,
           hi,
-          classroom || existing?.classroom || '',
+          // Çakışma EKLENEN dersin dersliğine bakar; hücredeki diğer dersin
+          // dersliğini devralmak, sürükle-bırakta derslik seçilmediği hâlde
+          // "derslik çakışması" uyarısı üretiyordu.
+          classroom || '',
           course.professor || '',
           otherYearsSlots,
           allFacultySlots
@@ -830,8 +914,11 @@ function DersProgramiApp({
           courseCode: course.code || '',
           courseName: course.name || '',
           instructor: course.professor || '',
-          // ikinci ders varsayılan olarak birincinin dersliğini paylaşır
-          classroom: classroom || (cur && cur.classroom) || '',
+          // Her dersin KENDİ dersliği var: bölünen hücrede iki ders aynı saatte
+          // iki farklı derslikte olabilir. Sürükle-bırakta derslik seçilmediği
+          // için boş başlar; hücredeki satır içi seçiciden girilir. (Eskiden
+          // ikinci ders birincinin dersliğini zorla paylaşıyordu.)
+          classroom: classroom || '',
           courseId: course.id,
           sinif: course.sinif || 0,
         };
@@ -864,20 +951,25 @@ function DersProgramiApp({
     [placeCourse]
   );
 
-  // Yerleştirilmiş slotun dersliğini satır içi değiştir
+  // Yerleştirilmiş slotun dersliğini satır içi değiştir.
+  // `hangi`: 'birinci' | 'ikinci' — bölünmüş hücrede her dersin KENDİ dersliği
+  // vardır. Önceden tek bir derslik ikisine birden yazılıyordu; aynı saatte iki
+  // ayrı derslikte yürüyen iki ders girilemiyordu.
   const handleSlotClassroom = useCallback(
-    (key, classroom) => {
-      // Akademisyen yalnız kendi dersinin dersliğini değiştirebilir
+    (key, classroom, hangi = 'birinci') => {
       const cur = scheduleData[key];
-      if (isProfessor && currentUser?.name && cur && cur.instructor !== currentUser.name) {
+      const ders = hangi === 'ikinci' ? cur && cur.ikinci : cur;
+      // Akademisyen yalnız kendi dersinin dersliğini değiştirebilir
+      if (isProfessor && currentUser?.name && ders && ders.instructor !== currentUser.name) {
         alert('Sadece kendi derslerinizin dersliğini değiştirebilirsiniz.');
         return;
       }
       commitSlots((s) => {
-        // Derslik birinci ve (varsa) ikinci ders için ortaktır — ikisi de güncellenir
-        if (s[key]) {
-          s[key] = { ...s[key], classroom };
+        if (!s[key]) return;
+        if (hangi === 'ikinci') {
           if (s[key].ikinci) s[key].ikinci = { ...s[key].ikinci, classroom };
+        } else {
+          s[key] = { ...s[key], classroom };
         }
       });
     },
@@ -902,8 +994,9 @@ function DersProgramiApp({
       const key = `${day}_${hi}`;
       const existing = scheduleData[key];
       const instructor = course.professor || '';
-      // ikinci ders (bölme) birincinin dersliğini paylaşır
-      const classroom = modalClassroom || (existing && existing.classroom) || '';
+      // Derslik EKLENEN derse aittir; bölünen hücrede ikinci ders birincinin
+      // dersliğini devralmaz (iki ders iki ayrı derslikte olabilir).
+      const classroom = modalClassroom || '';
 
       // Aynı ders / hücre dolu kontrolü
       if (existing && existing.courseCode === course.code) {
@@ -1479,6 +1572,36 @@ function DersProgramiApp({
               Bölüm Çıktısı
             </button>
           )}
+          {/* Aynı programın .xlsx hâli: yazdırmak için değil, ÜZERİNDE
+              çalışmak için (kopyalama, kendi düzenlemesini yapma). */}
+          {(isAdmin || isDeptManager) && deptAllYearsSlots.length > 0 && (
+            <button
+              onClick={() =>
+                exportDeptScheduleXlsx(deptAllYearsSlots, departmentInfo?.name || 'Bölüm', semester)
+              }
+              title="Bölüm programını Excel (.xlsx) olarak indir"
+              style={{
+                padding: '7px 12px',
+                borderRadius: 8,
+                border: '1px solid #A7F3D0',
+                background: 'white',
+                color: '#047857',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <DPIcon
+                path="M12 10v6m0 0l-3-3m3 3l3-3M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
+                size={13}
+                color="#047857"
+              />
+              Bölüm .xlsx
+            </button>
+          )}
           {canManage && activeDepartment && !editMode && (
             <button
               onClick={() => setEditMode(true)}
@@ -1885,6 +2008,24 @@ function DersProgramiApp({
                                   {slot.ikinci.instructor}
                                 </div>
                               )}
+                              {/* İkinci dersin kendi dersliği (birincininkinden
+                                  farklı olabilir); yoksa birincininkini paylaşır. */}
+                              {(slot.ikinci.classroom || slot.classroom) && (
+                                <span
+                                  style={{
+                                    display: 'inline-block',
+                                    marginTop: 3,
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    color: DP.primary,
+                                    background: DP.primaryPale,
+                                    padding: '1px 6px',
+                                    borderRadius: 4,
+                                  }}
+                                >
+                                  {slot.ikinci.classroom || slot.classroom}
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -2129,7 +2270,9 @@ function DersProgramiApp({
                               {editMode ? (
                                 <select
                                   value={slot.classroom || ''}
-                                  onChange={(e) => handleSlotClassroom(key, e.target.value)}
+                                  onChange={(e) =>
+                                    handleSlotClassroom(key, e.target.value, 'birinci')
+                                  }
                                   onClick={(e) => e.stopPropagation()}
                                   style={{
                                     marginTop: 3,
@@ -2220,6 +2363,49 @@ function DersProgramiApp({
                                     <div style={{ fontSize: 9, color: DP.textMuted, marginTop: 2 }}>
                                       {slot.ikinci.instructor}
                                     </div>
+                                  )}
+                                  {/* İkinci dersin KENDİ dersliği: aynı saatte
+                                      iki ders iki ayrı derslikte olabilir. */}
+                                  {editMode ? (
+                                    <select
+                                      value={slot.ikinci.classroom || ''}
+                                      onChange={(e) =>
+                                        handleSlotClassroom(key, e.target.value, 'ikinci')
+                                      }
+                                      onClick={(e) => e.stopPropagation()}
+                                      style={{
+                                        marginTop: 3,
+                                        width: '100%',
+                                        fontSize: 9,
+                                        padding: '2px 4px',
+                                        borderRadius: 4,
+                                        border: '1px solid #E5E7EB',
+                                        outline: 'none',
+                                        background: 'white',
+                                        color: DP.primary,
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      <option value="">Derslik seç...</option>
+                                      {classrooms.map((r) => (
+                                        <option key={r.id} value={r.name}>
+                                          {r.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    slot.ikinci.classroom && (
+                                      <div
+                                        style={{
+                                          fontSize: 9,
+                                          color: DP.primary,
+                                          fontWeight: 600,
+                                          marginTop: 1,
+                                        }}
+                                      >
+                                        {slot.ikinci.classroom}
+                                      </div>
+                                    )
                                   )}
                                   {editMode && (
                                     <button
@@ -3084,6 +3270,30 @@ function DersProgramiApp({
                     color="white"
                   />
                   Yazdır / PDF
+                </button>
+                <button
+                  onClick={() => exportFacultyScheduleXlsx(allSchedules, semester)}
+                  title="Fakülte birleşik programını Excel (.xlsx) olarak indir"
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    border: '1px solid ' + DP.primaryLight,
+                    background: 'white',
+                    color: DP.primary,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <DPIcon
+                    path="M12 10v6m0 0l-3-3m3 3l3-3M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
+                    size={14}
+                    color={DP.primary}
+                  />
+                  .xlsx indir
                 </button>
                 <button
                   onClick={() => setShowFacultyView(false)}

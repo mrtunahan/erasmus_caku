@@ -78,7 +78,7 @@ describe('akademisyenKayitlari', () => {
     expect(kayitlar.map((k) => k.dersKodu)).toEqual(['BIL201', 'MAK101']);
     expect(kayitlar[0].bolumAdi).toBe('Bilgisayar Mühendisliği');
     expect(kayitlar[1].bolumAdi).toBe('Makine Mühendisliği');
-    expect(kayitlar[1].saat).toBe('11:30-12:15');
+    expect(kayitlar[1].saat).toBe('11:15-12:00');
   });
 
   it('bölünmüş hücrenin ikinci dersini de sayar ve dersliği devralır', () => {
@@ -245,7 +245,7 @@ describe('akademisyenProgramHTML', () => {
     {
       gun: 'Pazartesi',
       saatIndeksi: 0,
-      saat: '08:30-09:15',
+      saat: '08:15-09:00',
       dersKodu: 'BIL201',
       dersAdi: 'Veri Yapıları',
       derslik: 'D-101',

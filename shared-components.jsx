@@ -94,6 +94,7 @@ import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './l
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
 import { slotBirlestir } from './lib/ders-slot.js';
+import { XLSX_STIL, calismaKitabiParcalari, xlsxDosyaAdi } from './lib/xlsx-yaz.js';
 import {
   aktifBolumKarari,
   aktifFakulteId,
@@ -12161,6 +12162,50 @@ window.programDosyaAdi = programDosyaAdi;
 window.PROGRAM_GUNLERI = PROGRAM_GUNLERI;
 window.PROGRAM_SAATLERI = PROGRAM_SAATLERI;
 window.slotBirlestir = slotBirlestir;
+
+// ══════════════════════════════════════════════════════════════
+// XLSX İNDİRME (şablonsuz)
+//
+// Şablon motoru hazır bir .xlsx'i doldurur; bu ise sıfırdan çalışma kitabı
+// üretir (ders programı çıktıları gibi şablona bağlı olmayan tablolar için).
+// XML üretimi lib/xlsx-yaz.js'te ve testlidir; burada yalnız zip'leme ve
+// indirme var — ikisi de tarayıcı işi.
+// ══════════════════════════════════════════════════════════════
+window.xlsxIndir = async function xlsxIndir(dosyaAdi, secenek) {
+  const JSZipYukle = async () => {
+    if (window.JSZip) return window.JSZip;
+    await new Promise((res, rej) => {
+      const el = document.createElement('script');
+      el.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+      el.onload = res;
+      el.onerror = () => rej(new Error('JSZip yüklenemedi'));
+      document.head.appendChild(el);
+    });
+    return window.JSZip;
+  };
+  try {
+    const JSZip = await JSZipYukle();
+    const zip = new JSZip();
+    Object.entries(calismaKitabiParcalari(secenek || {})).forEach(([yol, icerik]) =>
+      zip.file(yol, icerik)
+    );
+    const blob = await zip.generateAsync({
+      type: 'blob',
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = xlsxDosyaAdi(dosyaAdi);
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    return true;
+  } catch (e) {
+    alert('Excel dosyası oluşturulamadı: ' + (e && e.message ? e.message : e));
+    return false;
+  }
+};
+window.xlsxDosyaAdi = xlsxDosyaAdi;
+window.XLSX_STIL = XLSX_STIL;
 // Aktif bölüm kapsamı — app-shell kullanır (yanlış fakültenin verisi açılmasın).
 window.aktifBolumKarari = aktifBolumKarari;
 window.bolumKapsami = bolumKapsami;
