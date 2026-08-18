@@ -1172,6 +1172,23 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           okuduğudönem: 'static:okudugiDonem',
           tercih1: 'static:tercih1',
           tercih2: 'static:tercih2',
+          // ── Ders programı yer tutucuları ──
+          // Değişken etiketleri zaten yer tutucu adlarıyla birebir seçildi
+          // (Kurum Adı / Fakülte Adı / Saat / Pazartesi …); buradakiler yaygın
+          // ALTERNATİF yazımlar. candKeys kontrolü sayesinde yalnız ders
+          // programı şablonlarında devreye girer.
+          kurum: 'static:kurumAd',
+          üniversite: 'static:kurumAd',
+          üniversiteadı: 'static:kurumAd',
+          tarih: 'static:tarih',
+          belgetarihi: 'static:tarih',
+          eğitimöğretimyılı: 'static:akademikYil',
+          yarıyıl: 'static:donem',
+          seviye: 'static:seviyeAd',
+          saati: 'row:saat',
+          pzt: 'row:pazartesi',
+          çrş: 'row:carsamba',
+          prş: 'row:persembe',
           // ── Yatay Geçiş değerlendirme raporu yer tutucuları ──
           // (şablonlardaki adlar birebir; normTr boşluk/işaret/kasa siler)
           adısoyadı: 'row:adSoyad',

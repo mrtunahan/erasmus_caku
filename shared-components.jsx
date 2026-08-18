@@ -17,7 +17,7 @@ import {
   mezHarfKatsayisi,
   mezOlcekDogrula,
 } from './lib/mezuniyet.js';
-import { veriSatiriSec } from './lib/xlsx-satir.js';
+import { satirlariAyir, satirlariYerlestir, veriSatiriSec } from './lib/xlsx-satir.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
   tabanKaydiBul,
@@ -103,6 +103,17 @@ import {
   slotDersleri,
 } from './lib/ders-slot.js';
 import { XLSX_STIL, calismaKitabiParcalari, xlsxDosyaAdi } from './lib/xlsx-yaz.js';
+import {
+  akademikYilAdi,
+  ciktiDosyaAdi,
+  ciktiIzgarasi,
+  donemAdi,
+  programOzeti,
+  sablonKunyesi,
+  sablonSatirlari,
+  seviyeAdi,
+  tabloSatirlari,
+} from './lib/ders-programi-sablon.js';
 import {
   aktifBolumKarari,
   aktifFakulteId,
@@ -2585,6 +2596,43 @@ const CAPYANDAL_STATIC = [
   { id: 'tarih', label: 'Günün Tarihi' },
 ];
 
+// ── Ders Programı değişkenleri ──
+// Çıktı bir IZGARADIR (gün × saat) ama şablon motoru SATIR çoğaltır; çevrim
+// lib/ders-programi-sablon.js'te anlatılıyor. Özeti: bir satır bir SAAT, her
+// gün bir SÜTUN. Yani şablondaki tablo şu tek satırdan ibarettir:
+//   {{Saat}} | {{Pazartesi}} | {{Salı}} | {{Çarşamba}} | {{Perşembe}} | {{Cuma}}
+// ve bu satır dolu saat sayısı kadar kopyalanır.
+//
+// Etiketler yer tutucu adlarıyla BİREBİR seçildi: Şablonlar modülü etiketle
+// eşleşen yer tutucuyu kendiliğinden bağlar, yetkilinin elle eşleme yapması
+// gerekmez (bkz. sablonlar-modulu.jsx otomatik eşleme).
+const DERSPROGRAMI_STATIC = [
+  // Belge künyesi — başlıkta/altlıkta bir kez geçer.
+  { id: 'kurumAd', label: 'Kurum Adı (üniversite)', format: 'title' },
+  { id: 'fakulteAd', label: 'Fakülte Adı', format: 'title' },
+  // Fakülte birleşik çıktısında bölüm tek değildir; orada bu alan boş kalır,
+  // bölüm listesi 'Kapsam' alanına yazılır.
+  { id: 'bolumAd', label: 'Bölüm Adı', format: 'title' },
+  { id: 'donem', label: 'Dönem (Güz/Bahar)' },
+  { id: 'akademikYil', label: 'Akademik Yıl (örn 2025-2026)' },
+  { id: 'seviyeAd', label: 'Öğretim Seviyesi (Lisans/Lisansüstü)' },
+  { id: 'kapsamAd', label: 'Kapsam (sınıflar veya bölümler)' },
+  { id: 'tarih', label: 'Tarih (belge oluşturma tarihi)' },
+  { id: 'hazirlayan', label: 'Hazırlayan', format: 'name' },
+  { id: 'dersSayisi', label: 'Ders Sayısı' },
+  { id: 'dersSaati', label: 'Ders Saati Sayısı' },
+];
+// Satır = SAAT. Alan adları gün adlarının ASCII karşılığıdır; sıraları
+// lib/akademisyen-programi.js'teki PROGRAM_GUNLERI ile aynıdır.
+const DERSPROGRAMI_ROWS = [
+  { id: 'saat', label: 'Saat' },
+  { id: 'pazartesi', label: 'Pazartesi' },
+  { id: 'sali', label: 'Salı' },
+  { id: 'carsamba', label: 'Çarşamba' },
+  { id: 'persembe', label: 'Perşembe' },
+  { id: 'cuma', label: 'Cuma' },
+];
+
 window.TEMPLATE_VARS = {
   muafiyet: {
     docTypes: [
@@ -2675,6 +2723,16 @@ window.TEMPLATE_VARS = {
     'uc-aylik': { static: [], row: [], rowKeyFill: true },
     default: { static: [], row: [] },
   },
+  dersprogrami: {
+    docTypes: [
+      { id: 'bolum', label: 'Bölüm Haftalık Ders Programı' },
+      { id: 'fakulte', label: 'Fakülte Birleşik Ders Programı' },
+    ],
+    bolum: { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
+    fakulte: { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
+    // Geriye dönük: docType='default' ile kaydedilmiş şablonlar
+    default: { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
+  },
   akreditasyon: {
     docTypes: [{ id: 'odr', label: 'Öz Değerlendirme Raporu (ÖDR)' }],
     odr: { static: AKREDITASYON_STATIC, row: AKREDITASYON_ROWS },
@@ -2730,6 +2788,14 @@ const TemplateEngine = (() => {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+
+  // Word'de SATIR SONU: docx'te '\n' bir karakter değil, <w:br/> etiketidir —
+  // olduğu gibi yazılırsa Word onu boşluğa çevirir ve çok satırlı değerler
+  // (ders programı hücresi: kod / ad / hoca / derslik) tek satıra yapışırdı.
+  // Değer her zaman bir <w:t xml:space="preserve"> içine yazıldığı için kesme,
+  // o elemanı kapatıp yeniden açarak araya konur.
+  const escapeXmlBr = (s) =>
+    escapeXml(s).split('\n').join('</w:t><w:br/><w:t xml:space="preserve">');
 
   // Yer tutucu deseni: YALNIZCA çift süslü parantez → {{Alan Adı}}
   // İçine boşluk, nokta, Türkçe harf vb. serbestçe yazılabilir (yalnız { } ve
@@ -2921,7 +2987,7 @@ const TemplateEngine = (() => {
     const sorted = repls.filter((r) => r._pos).sort((a, b) => b._pos.start - a._pos.start);
     let out = xml;
     sorted.forEach((r) => {
-      out = out.slice(0, r._pos.start) + escapeXml(r._value) + out.slice(r._pos.end);
+      out = out.slice(0, r._pos.start) + escapeXmlBr(r._value) + out.slice(r._pos.end);
     });
     return out;
   }
@@ -3229,7 +3295,7 @@ const TemplateEngine = (() => {
           '<w:r>' +
           rPr +
           '<w:t xml:space="preserve">' +
-          escapeXml(val) +
+          escapeXmlBr(val) +
           '</w:t></w:r>' +
           out.slice(insertAt);
       });
@@ -3572,7 +3638,7 @@ const TemplateEngine = (() => {
   // Boş bir hücrenin ilk paragrafına değeri run olarak enjekte et
   function fillCell(cellXml, val) {
     const rPr = cellRPr(cellXml);
-    const run = '<w:r>' + rPr + '<w:t xml:space="preserve">' + escapeXml(val) + '</w:t></w:r>';
+    const run = '<w:r>' + rPr + '<w:t xml:space="preserve">' + escapeXmlBr(val) + '</w:t></w:r>';
     const idx = cellXml.indexOf('</w:p>');
     if (idx < 0) return cellXml;
     return cellXml.slice(0, idx) + run + cellXml.slice(idx);
@@ -4083,8 +4149,9 @@ const TemplateEngine = (() => {
       let sablonSatiriBulundu = false;
       for (const sn of sheetAdlari) {
         const xml = await zip.file(sn).async('string');
-        const satirRx = /<row\b[^>]*>[\s\S]*?<\/row>|<row\b[^>]*\/>/g;
-        const satirlar = [...xml.matchAll(satirRx)].map((m) => m[0]);
+        // Satır ayırma kuralı (ve kendini kapatan '<row r="5"/>' tuzağı)
+        // lib/xlsx-satir.js'te, test altında.
+        const satirlar = satirlariAyir(xml);
         if (satirlar.length === 0) continue;
 
         // Veri satırı seçimi lib/xlsx-satir.js'te — kuralın kendisi ve neden
@@ -4098,15 +4165,20 @@ const TemplateEngine = (() => {
         // rapor başlığını sakat gösterirdi.
         const ilkKayit = veri.length > 0 ? veri[0] : {};
 
+        // Her ÖZGÜN şablon satırı için TEK bir çıktı metni üretilir; veri
+        // satırının kopyaları o metinde birleştirilir. Kopyalar ayrı ayrı
+        // sıraya konursa değiştirme şablondaki satır sayısı kadar çağrıldığı
+        // için sondaki satırlar (tarih, hazırlayan, imza) sessizce düşüyordu.
         const yeni = [];
         let no = 0;
         satirlar.forEach((r, i) => {
           if (i === sablonIdx && veri.length > 0) {
-            veri.forEach((kayit, sira) => {
+            const kopyalar = veri.map((kayit, sira) => {
               no += 1;
-              yeni.push(xlSatirDoldur(r, no, strings, doldurYap(kayit, true), sira + 1));
+              return xlSatirDoldur(r, no, strings, doldurYap(kayit, true), sira + 1);
             });
             uretilen += veri.length;
+            yeni.push(kopyalar.join(''));
           } else {
             no += 1;
             yeni.push(
@@ -4120,7 +4192,7 @@ const TemplateEngine = (() => {
           }
         });
 
-        let cikti = xml.replace(satirRx, () => yeni.shift() || '');
+        let cikti = satirlariYerlestir(xml, yeni);
 
         const kayma = veri.length > 0 ? veri.length - 1 : 0;
         if (kayma > 0 && sablonIdx >= 0) {
@@ -12177,6 +12249,16 @@ window.slotDersVarMi = slotDersVarMi;
 window.slotDersEkle = slotDersEkle;
 window.slotDersCikar = slotDersCikar;
 window.slotDersGuncelle = slotDersGuncelle;
+// Ders programı şablon verisi — ızgara ↔ satır çevrimi (lib/ders-programi-sablon.js).
+window.dpCiktiIzgarasi = ciktiIzgarasi;
+window.dpSablonSatirlari = sablonSatirlari;
+window.dpTabloSatirlari = tabloSatirlari;
+window.dpSablonKunyesi = sablonKunyesi;
+window.dpProgramOzeti = programOzeti;
+window.dpDonemAdi = donemAdi;
+window.dpSeviyeAdi = seviyeAdi;
+window.dpAkademikYilAdi = akademikYilAdi;
+window.dpCiktiDosyaAdi = ciktiDosyaAdi;
 
 // ══════════════════════════════════════════════════════════════
 // XLSX İNDİRME (şablonsuz)
