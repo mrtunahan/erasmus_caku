@@ -9,7 +9,12 @@
 //
 // Aşağıdaki yapı, kullanıcının gerçek şablonlarından birebir alınmıştır.
 import { describe, it, expect } from 'vitest';
-import { veriSatiriSec, satirTokenSayisi } from '../lib/xlsx-satir.js';
+import {
+  satirTokenSayisi,
+  satirlariAyir,
+  satirlariYerlestir,
+  veriSatiriSec,
+} from '../lib/xlsx-satir.js';
 
 // Paylaşılan metin tablosu (xl/sharedStrings.xml karşılığı)
 const strings = [
@@ -109,5 +114,65 @@ describe('veriSatiriSec', () => {
   it('veri satırı başlıktan ÖNCE gelse de doğru satırı bulur', () => {
     const tersSira = [satirlar[2], satirlar[0], satirlar[1]];
     expect(veriSatiriSec(tersSira, strings, tokenHarita)).toBe(0);
+  });
+});
+
+describe('satirlariAyir', () => {
+  it('satırları sırayla ayırır', () => {
+    const xml = '<sheetData><row r="1"><c/></row><row r="2"><c/></row></sheetData>';
+    expect(satirlariAyir(xml)).toEqual(['<row r="1"><c/></row>', '<row r="2"><c/></row>']);
+  });
+
+  it('KENDİNİ KAPATAN boş satır sonraki satırı yutmaz', () => {
+    // Excel biçimli ama boş satırı '<row r="2"/>' diye yazar. Açılış deseni
+    // önce denenirse bu satır '</row>'a kadar her şeyi yutar ve VERİ satırı
+    // görünmez olur — belge boş çıkardı.
+    const xml = '<row r="1"><c/></row><row r="2"/><row r="3"><c>veri</c></row>';
+    const satirlar = satirlariAyir(xml);
+    expect(satirlar).toHaveLength(3);
+    expect(satirlar[1]).toBe('<row r="2"/>');
+    expect(satirlar[2]).toContain('veri');
+  });
+
+  it('satırsız XML boş liste verir', () => {
+    expect(satirlariAyir('<sheetData/>')).toEqual([]);
+    expect(satirlariAyir(null)).toEqual([]);
+  });
+});
+
+describe('satirlariYerlestir', () => {
+  const xml =
+    '<sheetData><row r="1">B</row><row r="2">V</row><row r="3">A1</row><row r="4">A2</row></sheetData>';
+
+  it('satırları sırayla geri yazar', () => {
+    expect(
+      satirlariYerlestir(xml, [
+        '<row r="1">b</row>',
+        '<row r="2">v</row>',
+        '<row r="3">a1</row>',
+        '<row r="4">a2</row>',
+      ])
+    ).toBe(
+      '<sheetData><row r="1">b</row><row r="2">v</row><row r="3">a1</row><row r="4">a2</row></sheetData>'
+    );
+  });
+
+  it('VERİ SATIRI ÇOĞALINCA sondaki satırlar düşmez', () => {
+    // Veri satırının 3 kopyası TEK elemanda birleşik gelir; ayrı elemanlar
+    // olarak verilseydi son iki satır (altlık) kaybolurdu — eski hata buydu.
+    const cikti = satirlariYerlestir(xml, [
+      '<row r="1">b</row>',
+      '<row r="2">v1</row><row r="3">v2</row><row r="4">v3</row>',
+      '<row r="5">a1</row>',
+      '<row r="6">a2</row>',
+    ]);
+    expect(satirlariAyir(cikti)).toHaveLength(6);
+    expect(cikti).toContain('a1');
+    expect(cikti).toContain('a2');
+  });
+
+  it('eksik eleman satırı siler (fazladan satır bırakmaz)', () => {
+    const cikti = satirlariYerlestir(xml, ['<row r="1">b</row>']);
+    expect(satirlariAyir(cikti)).toHaveLength(1);
   });
 });

@@ -268,8 +268,13 @@ function checkSlotConflict(
 const mergeSplitSlot = window.slotBirlestir;
 
 // ── Fakülte Birleşik Program Çıktısı (tüm bölümler, tüm sınıflar) ──
-function exportFacultySchedule(allFacultySlots, semester) {
+async function exportFacultySchedule(allFacultySlots, semester, baglam) {
   const semesterLabel = semester === 'guz' ? 'GÜZ' : 'BAHAR';
+
+  // Fakültenin kendi antetli şablonu varsa resmî çıktı odur; yoksa aşağıdaki
+  // gömülü yazdırma sayfası kullanılır.
+  const sablon = await fakulteSablonuDene(allFacultySlots, semester, baglam);
+  if (sablon.ok) return;
 
   const grid = {};
   DAYS.forEach((day) => {
@@ -371,8 +376,11 @@ function exportFacultySchedule(allFacultySlots, semester) {
 }
 
 // ── Bölüm Bazlı Ders Programı Çıktısı (tüm sınıflar birleşik) ──
-function exportDeptSchedule(deptAllYearsSlots, deptName, semester) {
+async function exportDeptSchedule(deptAllYearsSlots, deptName, semester, baglam) {
   const semesterLabel = semester === 'guz' ? 'GÜZ' : 'BAHAR';
+
+  const sablon = await bolumSablonuDene(deptAllYearsSlots, deptName, semester, baglam);
+  if (sablon.ok) return;
 
   // Grid: day -> hour -> [{year, slot}]
   const grid = {};
@@ -486,60 +494,175 @@ function exportDeptSchedule(deptAllYearsSlots, deptName, semester) {
   }
 }
 
-// ── XLSX Çıktıları (bölüm ve fakülte) ──
-// Yazdır/PDF çıktısı sayfaya basmak için; .xlsx ise programı ÜZERİNDE
-// çalışılabilir biçimde verir (kopyalama, dekanlığa gönderme, kendi
-// düzenlemesini yapma). İkisi de AYNI ızgaradan üretilir: hangi saatte hangi
-// dersin göründüğü iki çıktıda ayrışmasın.
+// ── Çıktı Izgarası ve Şablon Köprüsü ──
+//
+// Bir ders programının ÜÇ çıktısı var ve üçü de AYNI ızgaradan üretilir
+// (hangi saatte hangi dersin göründüğü çıktılar arasında ayrışmasın):
+//   1) Yazdır/PDF — gömülü HTML, her zaman çalışır
+//   2) .xlsx      — gömülü çalışma kitabı (lib/xlsx-yaz.js)
+//   3) ŞABLON     — Şablonlar modülüne yüklenmiş .docx/.xlsx (resmî antet)
+//
+// Şablon varsa o kullanılır, yoksa sessizce gömülü çıktıya düşülür: şablon
+// yüklemeyen bölüm hiçbir şey kaybetmez. Izgara→satır çevrimi ve künye
+// lib/ders-programi-sablon.js'te (testli); burada yalnız bağlam toplama var.
 //
 // Hücre içeriği satır sonlarıyla yazılır (Excel'de kaydırmalı hücre); bölünmüş
-// hücrede iki ders alt alta, her biri KENDİ dersliğiyle görünür.
+// hücrede dersler alt alta, her biri KENDİ dersliğiyle görünür.
 function programIzgarasiKur(kaynaklar, hucreYaz) {
-  const grid = {};
-  DAYS.forEach((day) => {
-    grid[day] = {};
-    HOURS.forEach((_, hi) => {
-      grid[day][hi] = [];
-    });
-  });
-  (kaynaklar || []).forEach((kaynak) => {
-    Object.entries(kaynak.slots || {}).forEach(([key, slot]) => {
-      const [day, hiStr] = key.split('_');
-      const hi = parseInt(hiStr);
-      if (grid[day] && grid[day][hi] !== undefined) grid[day][hi].push(hucreYaz(slot, kaynak));
-    });
-  });
-  return grid;
+  return window.dpCiktiIzgarasi(kaynaklar, DAYS, HOURS.length, hucreYaz);
 }
 
 // Izgarayı xlsx satırlarına çevirir: başlık + yalnız DOLU saat satırları.
 function programSatirlari(grid) {
-  const satirlar = [['Saat'].concat(DAYS)];
-  HOURS.forEach((hour, hi) => {
-    const doluMu = DAYS.some((day) => grid[day][hi].length > 0);
-    if (!doluMu) return;
-    satirlar.push(
-      [{ v: hour, stil: (window.XLSX_STIL && window.XLSX_STIL.vurgu) || 3 }].concat(
-        DAYS.map((day) => grid[day][hi].join('\n\n'))
-      )
-    );
-  });
-  return satirlar;
+  return window.dpTabloSatirlari(grid, DAYS, HOURS, (window.XLSX_STIL || {}).vurgu || 3);
 }
 
-function exportDeptScheduleXlsx(deptAllYearsSlots, deptName, semester) {
-  const donem = semester === 'guz' ? 'Güz' : 'Bahar';
-  const grid = programIzgarasiKur(deptAllYearsSlots, (slot, kaynak) => {
-    const e = mergeSplitSlot(slot, { year: kaynak.year });
-    return [
-      e.courseCode + (e.year ? ' (' + e.year + '. Sınıf)' : ''),
-      e.courseName,
-      e.instructor,
-      e.classroom,
-    ]
-      .filter(Boolean)
-      .join('\n');
+// Bölüm çıktısında hücre: kod (sınıf) / ad / hoca / derslik
+function bolumHucresi(slot, kaynak) {
+  const e = mergeSplitSlot(slot, { year: kaynak.year });
+  return [
+    e.courseCode + (e.year ? ' (' + e.year + '. Sınıf)' : ''),
+    e.courseName,
+    e.instructor,
+    e.classroom,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+// Fakülte çıktısında hücre: kod / bölüm — sınıf / hoca / derslik
+function fakulteHucresi(slot, kaynak) {
+  const e = mergeSplitSlot(slot, { deptName: kaynak.deptName, year: kaynak.year });
+  return [
+    e.courseCode,
+    (e.deptName || '') + (e.year ? ' — ' + e.year + '. Sınıf' : ''),
+    e.instructor,
+    e.classroom,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * Atanmış şablondan çıktı üretmeyi dener.
+ *
+ * Yüklenen şablon .docx de olabilir .xlsx de — hangisi eşlenmişse o motor
+ * çalışır. `bicim: 'xlsx'` verilirse yalnız .xlsx denenir: ".xlsx indir"
+ * düğmesinin bir Word belgesi indirmesi kullanıcıyı şaşırtır.
+ *
+ * @returns {Promise<{ok:boolean, reason?:string}>} ok=false ise çağıran
+ *          gömülü çıktıya düşer.
+ */
+async function sablondanUret(secenek) {
+  const TE = window.TemplateEngine;
+  if (!TE) return { ok: false, reason: 'no-engine' };
+  const { bicim, dosyaAdi, ...ortak } = secenek;
+  const xls = TE.produceRowsXlsx
+    ? await TE.produceRowsXlsx({ ...ortak, filename: dosyaAdi + '.xlsx' })
+    : { ok: false, reason: 'no-engine' };
+  if (xls.ok) return xls;
+  // 'not-xlsx' = şablon var ama Word belgesi; diğer sebepler (şablon yok,
+  // eşleme yok) iki motorda da aynıdır, ikinci kez denemenin anlamı olmaz.
+  if (xls.reason !== 'not-xlsx') return xls;
+  if (bicim === 'xlsx') return { ok: false, reason: 'not-xlsx' };
+  if (!TE.produceFromTemplate) return { ok: false, reason: 'no-engine' };
+  return await TE.produceFromTemplate({ ...ortak, filename: dosyaAdi + '.docx' });
+}
+
+// Şablon denemesi başarısızsa kullanıcıya YALNIZ düzeltebileceği durumlarda
+// haber verilir; "şablon yüklenmemiş" normal bir durumdur, uyarı değil.
+function sablonUyarisi(sonuc) {
+  if (sonuc.reason === 'no-mapping') {
+    alert(
+      'Ders programı şablonunun alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp 🧩 ile alanları eşleyin. Şimdilik yerleşik çıktı kullanılacak.'
+    );
+  } else if (sonuc.reason === 'invalid-output' || sonuc.reason === 'no-row-template') {
+    alert(
+      'Yüklü ders programı şablonundan geçerli belge üretilemedi (şablonda {{Saat}} satırı bulunamadı ya da yapı desteklenmiyor). Yerleşik çıktı kullanılacak.'
+    );
+  }
+}
+
+/**
+ * Şablon çıktısı için ortak veri: künye + saat satırları.
+ * `baglam` ekrandan gelir (kurum, fakülte, bölüm, dönem, seviye).
+ */
+function sablonVerisi(kaynaklar, hucreYaz, baglam) {
+  const izgara = programIzgarasiKur(kaynaklar, hucreYaz);
+  return {
+    staticData: window.dpSablonKunyesi({
+      ...baglam,
+      ozet: window.dpProgramOzeti(kaynaklar),
+    }),
+    rows: window.dpSablonSatirlari(izgara, DAYS, HOURS),
+    izgara,
+  };
+}
+
+// Bölüm ve fakülte şablon denemeleri — dört düğme de aynı yoldan geçsin diye
+// tek yerde. `bicim: 'xlsx'` verildiğinde Word şablonu atlanır.
+async function bolumSablonuDene(deptAllYearsSlots, deptName, semester, baglam, bicim) {
+  const b = baglam || {};
+  const veri = sablonVerisi(deptAllYearsSlots, bolumHucresi, {
+    ...b,
+    bolumAd: deptName,
+    donem: semester,
+    kapsamAd: b.kapsamAd || 'Tüm Sınıflar',
   });
+  const sonuc = await sablondanUret({
+    module: 'dersprogrami',
+    docType: 'bolum',
+    departmentId: b.departmentId || '',
+    staticData: veri.staticData,
+    rows: veri.rows,
+    stripRowBold: true,
+    bicim,
+    dosyaAdi: window.dpCiktiDosyaAdi([
+      deptName,
+      veri.staticData.donem,
+      veri.staticData.akademikYil,
+      'ders programi',
+    ]),
+  });
+  if (!sonuc.ok) sablonUyarisi(sonuc);
+  return sonuc;
+}
+
+async function fakulteSablonuDene(allFacultySlots, semester, baglam, bicim) {
+  const b = baglam || {};
+  const ozet = window.dpProgramOzeti(allFacultySlots);
+  const veri = sablonVerisi(allFacultySlots, fakulteHucresi, {
+    ...b,
+    // Fakülte çıktısı tek bölüme ait değildir; bölüm alanı boş kalır ve
+    // hangi bölümlerin kapsandığı 'Kapsam' alanında listelenir.
+    bolumAd: '',
+    donem: semester,
+    kapsamAd: b.kapsamAd || ozet.bolumler.join(', '),
+  });
+  const sonuc = await sablondanUret({
+    module: 'dersprogrami',
+    docType: 'fakulte',
+    departmentId: b.departmentId || '',
+    staticData: veri.staticData,
+    rows: veri.rows,
+    stripRowBold: true,
+    bicim,
+    dosyaAdi: window.dpCiktiDosyaAdi([
+      veri.staticData.fakulteAd || 'Fakulte',
+      veri.staticData.donem,
+      veri.staticData.akademikYil,
+      'ders programi',
+    ]),
+  });
+  if (!sonuc.ok) sablonUyarisi(sonuc);
+  return sonuc;
+}
+
+async function exportDeptScheduleXlsx(deptAllYearsSlots, deptName, semester, baglam) {
+  const sablon = await bolumSablonuDene(deptAllYearsSlots, deptName, semester, baglam, 'xlsx');
+  if (sablon.ok) return;
+  const donem = window.dpDonemAdi(semester);
+  const grid = programIzgarasiKur(deptAllYearsSlots, bolumHucresi);
   window.xlsxIndir(deptName + ' ' + donem + ' ders programi', {
     sayfaAdi: donem + ' Dönemi',
     satirlar: programSatirlari(grid),
@@ -547,19 +670,11 @@ function exportDeptScheduleXlsx(deptAllYearsSlots, deptName, semester) {
   });
 }
 
-function exportFacultyScheduleXlsx(allFacultySlots, semester) {
-  const donem = semester === 'guz' ? 'Güz' : 'Bahar';
-  const grid = programIzgarasiKur(allFacultySlots, (slot, kaynak) => {
-    const e = mergeSplitSlot(slot, { deptName: kaynak.deptName, year: kaynak.year });
-    return [
-      e.courseCode,
-      (e.deptName || '') + (e.year ? ' — ' + e.year + '. Sınıf' : ''),
-      e.instructor,
-      e.classroom,
-    ]
-      .filter(Boolean)
-      .join('\n');
-  });
+async function exportFacultyScheduleXlsx(allFacultySlots, semester, baglam) {
+  const sablon = await fakulteSablonuDene(allFacultySlots, semester, baglam, 'xlsx');
+  if (sablon.ok) return;
+  const donem = window.dpDonemAdi(semester);
+  const grid = programIzgarasiKur(allFacultySlots, fakulteHucresi);
   window.xlsxIndir('Fakulte ' + donem + ' ders programi', {
     sayfaAdi: 'Fakülte ' + donem,
     satirlar: programSatirlari(grid),
@@ -665,11 +780,32 @@ function DersProgramiApp({
   // Fakülte kapsamı için tek ihtiyaç duyulan alan (nesne değil — bkz.
   // loadAllSchedules bağımlılıkları).
   const kullaniciFakultesi = currentUser?.facultyId || '';
+  // Çıktı künyesi için fakülte adı: kimlikten ada çeviren ortak önbellek.
+  const fakulteAdlari = window.useFakulteAdlari();
+  // Programın ait olduğu fakülte — loadAllSchedules'ta hesaplanan kapsam
+  // fakültesidir (aktif bölümün fakültesi, yoksa kullanıcınınki).
+  const [ciktiFakultesi, setCiktiFakultesi] = useState('');
 
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
   const isProfessor = currentUser?.role === 'professor';
   const canManage = isAdmin || isDeptManager || isProfessor;
+
+  // ── Çıktı bağlamı ──
+  // Şablona basılacak künye: kurum · fakülte · seviye · hazırlayan. Bölüm adı,
+  // dönem ve tarih çıktı fonksiyonunda eklenir (düğmeye göre değişir).
+  // `departmentId` şablon çözümünde kullanılır: bölümün kendi şablonu varsa o,
+  // yoksa fakültenin, o da yoksa üniversitenin şablonu (bkz. /templates/resolve).
+  const ciktiBaglami = useMemo(
+    () => ({
+      kurumAd: (window.TENANT && window.TENANT.universityName) || '',
+      fakulteAd: ciktiFakultesi ? fakulteAdlari[ciktiFakultesi] || '' : '',
+      departmentId: activeDepartment || '',
+      seviye,
+      hazirlayan: currentUser?.name || '',
+    }),
+    [ciktiFakultesi, fakulteAdlari, activeDepartment, seviye, currentUser?.name]
+  );
 
   // Sınav otomasyonundaki dersleri, hocaları ve derslikleri yükle (bölüm bazlı)
   useEffect(() => {
@@ -1132,6 +1268,9 @@ function DersProgramiApp({
       const kapsamFakulte = String(
         deptFacultyMap[String(activeDepartment)] || kullaniciFakultesi || ''
       );
+      // Çıktı künyesinde "hangi fakültenin programı" yazacak; kapsamla aynı
+      // olmalı ki belge, içindeki verinin kapsamını doğru bildirsin.
+      setCiktiFakultesi(kapsamFakulte);
       const deptYears = [];
       const faculty = [];
       const orphans = [];
@@ -1495,7 +1634,12 @@ function DersProgramiApp({
           {(isAdmin || isDeptManager) && deptAllYearsSlots.length > 0 && (
             <button
               onClick={() =>
-                exportDeptSchedule(deptAllYearsSlots, departmentInfo?.name || 'Bölüm', semester)
+                exportDeptSchedule(
+                  deptAllYearsSlots,
+                  departmentInfo?.name || 'Bölüm',
+                  semester,
+                  ciktiBaglami
+                )
               }
               style={{
                 padding: '7px 12px',
@@ -1524,7 +1668,12 @@ function DersProgramiApp({
           {(isAdmin || isDeptManager) && deptAllYearsSlots.length > 0 && (
             <button
               onClick={() =>
-                exportDeptScheduleXlsx(deptAllYearsSlots, departmentInfo?.name || 'Bölüm', semester)
+                exportDeptScheduleXlsx(
+                  deptAllYearsSlots,
+                  departmentInfo?.name || 'Bölüm',
+                  semester,
+                  ciktiBaglami
+                )
               }
               title="Bölüm programını Excel (.xlsx) olarak indir"
               style={{
@@ -3133,7 +3282,7 @@ function DersProgramiApp({
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
-                  onClick={() => exportFacultySchedule(allSchedules, semester)}
+                  onClick={() => exportFacultySchedule(allSchedules, semester, ciktiBaglami)}
                   style={{
                     padding: '8px 16px',
                     borderRadius: 8,
@@ -3156,7 +3305,7 @@ function DersProgramiApp({
                   Yazdır / PDF
                 </button>
                 <button
-                  onClick={() => exportFacultyScheduleXlsx(allSchedules, semester)}
+                  onClick={() => exportFacultyScheduleXlsx(allSchedules, semester, ciktiBaglami)}
                   title="Fakülte birleşik programını Excel (.xlsx) olarak indir"
                   style={{
                     padding: '8px 16px',
