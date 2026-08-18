@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  PROGRAM_SAATLERI,
   adAnahtari,
   akademisyenKayitlari,
   akademisyenProgramHTML,
@@ -226,10 +227,28 @@ describe('programIzgarasi', () => {
       kayit('Cuma', 7, 'B', 'Makine Mühendisliği'),
       kayit('Cuma', 8, 'B', 'Makine Mühendisliği'),
     ]);
-    expect(doluSaatler).toEqual([0, 7, 8]);
+    // Satır anahtarı SAAT etiketidir: bu belge birden çok bölümü birleştirir
+    // ve bölümlerin slot indeksleri aynı saati göstermeyebilir.
+    expect(doluSaatler).toEqual(['08:15-09:00', '15:15-16:00', '16:15-17:00']);
     expect(ozet.dersSaati).toBe(3);
     expect(ozet.dersSayisi).toBe(2);
     expect(ozet.bolumSayisi).toBe(2);
+  });
+
+  it('FARKLI SAATTE BAŞLAYAN iki bölüm ayrı satırlara düşer', () => {
+    // Bilgisayar 08:15'te, Makine 08:30'da başlıyor. İkisinin de "günün ilk
+    // dersi" (indeks 0) ama aynı zaman değil — indeksle anahtarlansaydı tek
+    // satıra yığılır ve hocaya olmayan bir çakışma gösterilirdi.
+    const erken = {
+      ...kayit('Pazartesi', 0, 'BIL101', 'Bilgisayar Mühendisliği'),
+      saat: '08:15-09:00',
+    };
+    const gec = { ...kayit('Pazartesi', 0, 'MAK101', 'Makine Mühendisliği'), saat: '08:30-09:15' };
+    const { doluSaatler, izgara, cakismalar } = programIzgarasi([erken, gec]);
+    expect(doluSaatler).toEqual(['08:15-09:00', '08:30-09:15']);
+    expect(izgara['Pazartesi']['08:15-09:00']).toHaveLength(1);
+    expect(izgara['Pazartesi']['08:30-09:15']).toHaveLength(1);
+    expect(cakismalar).toEqual([]);
   });
 
   it('boş kayıt listesinde çökmez', () => {
@@ -290,5 +309,71 @@ describe('programDosyaAdi', () => {
   it('Türkçe karakterleri sadeleştirir', () => {
     expect(programDosyaAdi('Ayşe Yılmaz', 'guz')).toBe('Ayse-Yilmaz-guz-ders-programi.html');
     expect(programDosyaAdi('Çağrı Öz', 'bahar')).toBe('Cagri-Oz-bahar-ders-programi.html');
+  });
+});
+
+describe('akademisyenKayitlari — bölüme özel saatler', () => {
+  const dok = (bolum, sinif, slots) => ({
+    id: `${bolum}_guz_${sinif}`,
+    departmentId: bolum,
+    semester: 'guz',
+    year: sinif,
+    slots,
+  });
+  const bolumler = [
+    { id: 'bilgisayar', name: 'Bilgisayar Mühendisliği' },
+    { id: 'makine', name: 'Makine Mühendisliği' },
+  ];
+
+  it('etiket bölümün KENDİ saat listesinden gelir', () => {
+    const kayitlar = akademisyenKayitlari(
+      [
+        dok('bilgisayar', '1', {
+          Pazartesi_0: { courseCode: 'BIL101', instructor: 'Ayşe Yılmaz' },
+        }),
+        dok('makine', '2', { Pazartesi_0: { courseCode: 'MAK201', instructor: 'Ayşe Yılmaz' } }),
+      ],
+      {
+        ad: 'Ayşe Yılmaz',
+        donem: 'guz',
+        bolumler,
+        bolumSaatleri: {
+          bilgisayar: ['08:15-09:00', '09:15-10:00'],
+          makine: ['08:30-09:15', '09:30-10:15'],
+        },
+      }
+    );
+    expect(kayitlar.map((k) => [k.dersKodu, k.saat])).toEqual([
+      ['BIL101', '08:15-09:00'],
+      ['MAK201', '08:30-09:15'],
+    ]);
+  });
+
+  it('ayarı olmayan bölüm GENEL ızgarayı kullanır (davranış değişmez)', () => {
+    const kayitlar = akademisyenKayitlari(
+      [dok('bilgisayar', '1', { Salı_2: { courseCode: 'BIL203', instructor: 'Ayşe Yılmaz' } })],
+      { ad: 'Ayşe Yılmaz', donem: 'guz', bolumler }
+    );
+    expect(kayitlar[0].saat).toBe(PROGRAM_SAATLERI[2]);
+  });
+
+  it('kayıtlar İNDEKSE değil SAATE göre sıralanır', () => {
+    const kayitlar = akademisyenKayitlari(
+      [
+        dok('bilgisayar', '1', { Pazartesi_1: { courseCode: 'GEC', instructor: 'Ayşe Yılmaz' } }),
+        dok('makine', '1', { Pazartesi_0: { courseCode: 'ERKEN', instructor: 'Ayşe Yılmaz' } }),
+      ],
+      {
+        ad: 'Ayşe Yılmaz',
+        donem: 'guz',
+        bolumler,
+        // Makine'nin 0. saati (13:15), Bilgisayar'ın 1. saatinden (09:15) SONRA.
+        bolumSaatleri: {
+          bilgisayar: ['08:15-09:00', '09:15-10:00'],
+          makine: ['13:15-14:00'],
+        },
+      }
+    );
+    expect(kayitlar.map((k) => k.dersKodu)).toEqual(['GEC', 'ERKEN']);
   });
 });

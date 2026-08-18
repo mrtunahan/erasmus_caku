@@ -179,6 +179,11 @@ const ALLOWED_COLLECTIONS = [
   // açtığı burada durur. Kayıt bölüm başına AYRI olduğu için iki bölüm
   // yetkilisi birbirinin ayarını ezmez. Yalnız bölüm yetkilisi ve üstü yazar.
   'memur_bolum_modulleri',
+  // BÖLÜM PROGRAM AYARLARI — bölüm başına bir kayıt (doc id = departmentId):
+  // ders programının başlangıç/bitiş saati (lisans ve lisansüstü ayrı) ve
+  // bölümün çıktı rengi. Saat ayarı bölüme özeldir; bir bölümün 08:30'da
+  // başlaması diğerini etkilemez. Yalnız bölüm yetkilisi ve üstü yazar.
+  'bolum_program_ayarlari',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -329,6 +334,8 @@ const DEPT_MANAGER_WRITE = new Set([
   // Memurun hangi bölümde hangi modülleri göreceğini bölüm yetkilisi belirler;
   // sade akademisyen ya da öğrenci memur ataması yapamaz.
   'memur_bolum_modulleri',
+  // Ders programının saat aralığı ve bölüm rengi bölümün kendi kararıdır.
+  'bolum_program_ayarlari',
 ]);
 
 // ── Öğrencinin KENDİ `students` kaydı ──

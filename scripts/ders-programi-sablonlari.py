@@ -81,6 +81,7 @@ STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="top" wrapText="1"/></xf>
 <xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
 </cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>"""
 
 
@@ -207,7 +208,7 @@ def bolum_xlsx():
     ]
     son = sutun(G - 1)
     xlsx_yaz(
-        os.path.join(KOK, 'bolum-ders-programi.xlsx'),
+        os.path.join(KOK, 'bolum-programi-xlsx.xlsx'),
         satirlar,
         ['A%d:%s%d' % (r, son, r) for r in (1, 2, 3, 4)],
         6,
@@ -240,7 +241,7 @@ def fakulte_xlsx():
     ]
     son = sutun(G - 1)
     xlsx_yaz(
-        os.path.join(KOK, 'fakulte-ders-programi.xlsx'),
+        os.path.join(KOK, 'fakulte-programi-xlsx.xlsx'),
         satirlar,
         ['A%d:%s%d' % (r, son, r) for r in (1, 2, 3, 4, 5)],
         7,
@@ -346,7 +347,7 @@ def docx_yaz(yol, baslik_paragraflari, alt_paragraflar):
 
 def bolum_docx():
     docx_yaz(
-        os.path.join(KOK, 'bolum-ders-programi.docx'),
+        os.path.join(KOK, 'bolum-programi-pdf.docx'),
         [
             p('{{Kurum Adı}}', 'center', True, 32),
             p('{{Fakülte Adı}}', 'center', True, 24),
@@ -370,7 +371,7 @@ def bolum_docx():
 
 def fakulte_docx():
     docx_yaz(
-        os.path.join(KOK, 'fakulte-ders-programi.docx'),
+        os.path.join(KOK, 'fakulte-programi-pdf.docx'),
         [
             p('{{Kurum Adı}}', 'center', True, 32),
             p('{{Fakülte Adı}}', 'center', True, 24),

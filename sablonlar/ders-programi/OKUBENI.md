@@ -17,8 +17,9 @@ kullanabilirsiniz — yer tutucuları bozmadığınız sürece her şey çalış
 
 1. **Şablonlar** modülünü açın → **Ders Programı** kartı.
 2. **Yeni Şablon** → dosyayı seçin.
-3. **Belge Türü**: `Bölüm Haftalık Ders Programı` ya da
-   `Fakülte Birleşik Ders Programı`.
+3. **Belge Türü**: dosya adının söylediği tür — `Bölüm Programı — Excel (.xlsx)`,
+   `Bölüm Programı — Yazdırma / PDF (Word)`, `Fakülte Programı — Excel (.xlsx)`
+   ya da `Fakülte Programı — Yazdırma / PDF (Word)`.
 4. **Kapsam**: bölüm / fakülte / üniversite. Çıktı üretilirken sırayla
    **bölüm → fakülte → üniversite** aranır; bölümün kendi şablonu yoksa
    fakültenin, o da yoksa üniversitenin şablonu kullanılır.

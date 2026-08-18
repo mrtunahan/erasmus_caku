@@ -94,6 +94,7 @@ const BY_SEKMELER = [
   { id: 'memurbilgi', label: 'Memurlar', ipucu: 'Bu bölüme memur ata ve modüllerini seç' },
   { id: 'duyurular', label: 'Duyurular', ipucu: 'Kapsamındaki bölümlere pop-up duyuru' },
   { id: 'mezuniyet', label: 'Mezuniyet Kuralları', ipucu: 'AKTS, AGNO ve staj şartı' },
+  { id: 'programayar', label: 'Program Ayarları', ipucu: 'Ders programı rengi ve saat aralığı' },
 ];
 
 // Hangi bölümü düzenlediğimizi söyleyen şerit — modül bölüme özeldir, bu
@@ -561,12 +562,21 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         <MezuniyetKurallari activeDepartment={activeDepartment} currentUser={currentUser} />
       )}
 
+      {activeTab === 'programayar' && (
+        <BolumRengiAyari
+          activeDepartment={activeDepartment}
+          bolumAdi={aktifBolumAdi}
+          currentUser={currentUser}
+        />
+      )}
+
       {activeTab !== 'kilitler' &&
         activeTab !== 'benimayar' &&
         activeTab !== 'akademisyenbilgi' &&
         activeTab !== 'memurbilgi' &&
         activeTab !== 'duyurular' &&
         activeTab !== 'mezuniyet' &&
+        activeTab !== 'programayar' &&
         (loading ? (
           <div style={{ padding: 40, textAlign: 'center' }}>Yükleniyor...</div>
         ) : (
@@ -2635,6 +2645,168 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
 //
 //   Kayıt yoksa shared-components'taki MEZUNIYET_VARSAYILAN geçerlidir.
 // ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// BÖLÜM RENGİ
+//
+// Fakülte birleşik ders programında bir hücrede yalnız DERS KODU yazar;
+// dersin hangi bölüme ait olduğu RENKTEN okunur. Bu yüzden renk süs değil,
+// belgenin okunabilirliğini taşıyan bilgidir ve bölüm başına sabittir.
+//
+// Ayar yapılmamışsa renk yine de belirlidir (bölüm adından tanınan renk, ya
+// da paletten sıradaki) — yani hiçbir bölüm bir şey seçmeden de tutarlı
+// çıktı alır. Buradaki seçim yalnız o varsayılanı EZER.
+// ══════════════════════════════════════════════════════════════
+const BolumRengiAyari = ({ activeDepartment, bolumAdi, currentUser }) => {
+  const [surum, setSurum] = useState(0);
+  const ayarlar = window.useBolumAyarlari(surum);
+  const kayit = ayarlar[String(activeDepartment || '')] || null;
+  const cozulen = window.bolumRengiCoz({
+    ayarRengi: kayit && kayit.renk,
+    bolumAdi,
+  });
+  const [secili, setSecili] = useState(cozulen);
+  const [kaydediyor, setKaydediyor] = useState(false);
+  const [hata, setHata] = useState('');
+
+  useEffect(() => {
+    setSecili(cozulen);
+  }, [cozulen]);
+
+  const kaydet = async (renk) => {
+    setKaydediyor(true);
+    setHata('');
+    try {
+      await window.DBWrite.set(
+        window.BOLUM_AYAR_KOLEKSIYONU || 'bolum_program_ayarlari',
+        String(activeDepartment),
+        {
+          id: String(activeDepartment),
+          departmentId: String(activeDepartment),
+          renk: window.renkNormalize(renk) || renk,
+          guncelleyen: currentUser?.name || '',
+        },
+        true
+      );
+      setSurum((n) => n + 1);
+    } catch (e) {
+      setHata(e && e.message ? e.message : 'Renk kaydedilemedi.');
+    } finally {
+      setKaydediyor(false);
+    }
+  };
+
+  const palet = window.BOLUM_RENK_PALETI || [];
+  const ayarli = !!(kayit && window.renkNormalize(kayit.renk));
+
+  return (
+    <div style={{ ...byKart, marginTop: 12 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: BY.text }}>Bölüm Rengi</div>
+      <BYAciklama>
+        Fakülte ders programı çıktısında bu bölümün ders kodları bu renkte yazılır. Seçim
+        yapmazsanız bölüm adına göre bilinen renk, o da yoksa paletten sıradaki renk kullanılır.
+      </BYAciklama>
+
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' }}
+      >
+        <div
+          style={{
+            width: 92,
+            height: 40,
+            borderRadius: 8,
+            border: `1px solid ${BY.border}`,
+            background: secili,
+            color: window.renkMetinRengi(secili),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 11,
+            fontWeight: 700,
+          }}
+        >
+          BLM101
+        </div>
+        <input
+          type="color"
+          value={secili}
+          onChange={(e) => setSecili(e.target.value)}
+          aria-label="Bölüm rengi"
+          style={{
+            width: 46,
+            height: 40,
+            padding: 0,
+            border: `1px solid ${BY.border}`,
+            borderRadius: 8,
+            background: 'white',
+            cursor: 'pointer',
+          }}
+        />
+        <button
+          onClick={() => kaydet(secili)}
+          disabled={kaydediyor || secili === cozulen}
+          style={{
+            padding: '9px 16px',
+            borderRadius: 8,
+            border: 'none',
+            background: secili === cozulen ? BY.border : BY.blue,
+            color: secili === cozulen ? BY.textMuted : 'white',
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: kaydediyor || secili === cozulen ? 'default' : 'pointer',
+          }}
+        >
+          {kaydediyor ? 'Kaydediliyor…' : 'Kaydet'}
+        </button>
+        {ayarli && (
+          <button
+            onClick={() => kaydet('')}
+            disabled={kaydediyor}
+            title="Seçimi kaldır — varsayılan renge dön"
+            style={{
+              padding: '9px 14px',
+              borderRadius: 8,
+              border: `1px solid ${BY.border}`,
+              background: 'white',
+              color: BY.textMuted,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Varsayılana dön
+          </button>
+        )}
+      </div>
+
+      <div style={{ fontSize: 11, color: BY.textMuted, marginTop: 14, fontWeight: 600 }}>
+        Fakültenin basılı programındaki renkler
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+        {palet.map((renk) => (
+          <button
+            key={renk}
+            onClick={() => setSecili(renk)}
+            title={renk}
+            aria-label={'Renk ' + renk}
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 7,
+              background: renk,
+              cursor: 'pointer',
+              border:
+                window.renkNormalize(renk) === window.renkNormalize(secili)
+                  ? `3px solid ${BY.text}`
+                  : `1px solid ${BY.border}`,
+            }}
+          />
+        ))}
+      </div>
+
+      {hata && <div style={{ marginTop: 10, fontSize: 12, color: '#B91C1C' }}>{hata}</div>}
+    </div>
+  );
+};
 function MezuniyetKurallari({ activeDepartment, currentUser }) {
   const varsayilan = window.MEZUNIYET_VARSAYILAN || {};
   const [form, setForm] = useState(null);
