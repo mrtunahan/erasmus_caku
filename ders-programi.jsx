@@ -46,6 +46,23 @@ const DAYS = window.PROGRAM_GUNLERI;
 const HOURS = window.PROGRAM_SAATLERI;
 const saatEtiketi = (saatler, hi) => (saatler || HOURS)[hi] || HOURS[hi] || '';
 
+// Önizleme başlığındaki çıktı düğmeleri: birincil (.xlsx) dolu, ikincil
+// (PDF) çerçeveli. İki önizleme de aynı görünsün diye tek yerde.
+const ciktiDugmesi = (birincil) => ({
+  padding: '8px 16px',
+  borderRadius: 8,
+  border: birincil ? 'none' : '1px solid ' + DP.primaryLight,
+  background: birincil ? DP.primary : 'white',
+  color: birincil ? 'white' : DP.primary,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  whiteSpace: 'nowrap',
+});
+
 const SLOT_COLORS = [
   '#3B82F6',
   '#EF4444',
@@ -213,7 +230,6 @@ function checkSlotConflict(
   instructor,
   deptAllYearsSlots,
   allFacultySlots,
-  saatler,
   // Aynı saatin FAKÜLTE ekseni'ndeki indeksi. Bölümlerin başlangıç saatleri
   // farklı olabildiği için bölüm indeksi doğrudan fakülte kümesinde
   // aranamaz; -1 ise bu saatin ortak eksende karşılığı yoktur.
@@ -222,7 +238,6 @@ function checkSlotConflict(
   const warnings = [];
   const key = `${day}_${hourIndex}`;
   const fakulteKey = `${day}_${fakulteIndeksi == null ? hourIndex : fakulteIndeksi}`;
-  const hour = saatEtiketi(saatler, hourIndex);
 
   // Bölüm içi: aynı saat + aynı derslik (bölünmüş ikinci ders dahil)
   if (deptAllYearsSlots && classroom) {
@@ -689,38 +704,28 @@ async function sablonDene(secenek) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// DIŞA AÇILAN İKİ GİRİŞ — her biri .xlsx ve PDF üretir
+// DIŞA AÇILAN ÇIKTILAR
+//
+// Her program için İKİ ayrı belge, iki ayrı düğme: .xlsx ve yazdırma/PDF.
+// İkisi de ÖNİZLEMENİN İÇİNDEDİR — yetkili önce programı ekranda görür,
+// doğru olduğuna karar verdikten sonra hangi belgeyi istiyorsa onu alır.
+//
+// Ortak künye (kurum, fakülte, dönem, akademik yıl, kapsam) tek yerde
+// hazırlanır ki iki belge aynı bilgiyi taşısın.
 // ══════════════════════════════════════════════════════════════
-async function exportDeptSchedule(deptAllYearsSlots, deptName, semester, baglam) {
+
+/** Bölüm çıktılarının ortak künyesi ve dosya adı parçaları. */
+function bolumCiktiBaglami(deptAllYearsSlots, deptName, semester, baglam) {
   const b = { ...(baglam || {}), bolumAd: deptName, donem: semester, kapsamAd: 'Tüm Sınıflar' };
   const kunye = window.dpSablonKunyesi({ ...b, ozet: window.dpProgramOzeti(deptAllYearsSlots) });
-  const ortak = { ...b, akademikYil: kunye.akademikYil, seviyeAd: kunye.seviyeAd };
-  const dosya = [deptName, window.dpDonemAdi(semester), kunye.akademikYil, 'ders programi'];
-
-  const xls = await sablonDene({
-    kaynaklar: deptAllYearsSlots,
-    hucreYaz: bolumHucresi,
-    baglam: ortak,
-    docType: 'bolum-xlsx',
-    bicim: 'xlsx',
-    belgeAdi: 'Bölüm Excel çıktısı',
-    dosyaParcalari: dosya,
-  });
-  if (!xls.ok) bolumXlsx(deptAllYearsSlots, deptName, semester, ortak);
-
-  const pdf = await sablonDene({
-    kaynaklar: deptAllYearsSlots,
-    hucreYaz: bolumHucresi,
-    baglam: ortak,
-    docType: 'bolum-pdf',
-    bicim: 'docx',
-    belgeAdi: 'Bölüm PDF çıktısı',
-    dosyaParcalari: dosya,
-  });
-  if (!pdf.ok) bolumYazdir(deptAllYearsSlots, deptName, semester, ortak);
+  return {
+    ortak: { ...b, akademikYil: kunye.akademikYil, seviyeAd: kunye.seviyeAd },
+    dosya: [deptName, window.dpDonemAdi(semester), kunye.akademikYil, 'ders programi'],
+  };
 }
 
-async function exportFacultySchedule(allFacultySlots, semester, baglam) {
+/** Fakülte çıktılarının ortak künyesi ve dosya adı parçaları. */
+function fakulteCiktiBaglami(allFacultySlots, semester, baglam) {
   const ozet = window.dpProgramOzeti(allFacultySlots);
   // Fakülte çıktısı tek bölüme ait değildir: bölüm alanı boş kalır, kapsanan
   // bölümler künyeye yazılır.
@@ -732,14 +737,51 @@ async function exportFacultySchedule(allFacultySlots, semester, baglam) {
   };
   const kunye = window.dpSablonKunyesi({ ...b, ozet });
   const ortak = { ...b, akademikYil: kunye.akademikYil, seviyeAd: kunye.seviyeAd };
-  const dosya = [
-    ortak.fakulteAd || 'Fakulte',
-    window.dpDonemAdi(semester),
-    kunye.akademikYil,
-    'ders programi',
-  ];
+  return {
+    ortak,
+    dosya: [
+      ortak.fakulteAd || 'Fakulte',
+      window.dpDonemAdi(semester),
+      kunye.akademikYil,
+      'ders programi',
+    ],
+  };
+}
 
-  const xls = await sablonDene({
+// ── Bölüm: Excel ──
+async function exportDeptScheduleXlsx(deptAllYearsSlots, deptName, semester, baglam) {
+  const { ortak, dosya } = bolumCiktiBaglami(deptAllYearsSlots, deptName, semester, baglam);
+  const sonuc = await sablonDene({
+    kaynaklar: deptAllYearsSlots,
+    hucreYaz: bolumHucresi,
+    baglam: ortak,
+    docType: 'bolum-xlsx',
+    bicim: 'xlsx',
+    belgeAdi: 'Bölüm Excel çıktısı',
+    dosyaParcalari: dosya,
+  });
+  if (!sonuc.ok) bolumXlsx(deptAllYearsSlots, deptName, semester, ortak);
+}
+
+// ── Bölüm: yazdırma / PDF ──
+async function exportDeptSchedulePdf(deptAllYearsSlots, deptName, semester, baglam) {
+  const { ortak, dosya } = bolumCiktiBaglami(deptAllYearsSlots, deptName, semester, baglam);
+  const sonuc = await sablonDene({
+    kaynaklar: deptAllYearsSlots,
+    hucreYaz: bolumHucresi,
+    baglam: ortak,
+    docType: 'bolum-pdf',
+    bicim: 'docx',
+    belgeAdi: 'Bölüm PDF çıktısı',
+    dosyaParcalari: dosya,
+  });
+  if (!sonuc.ok) bolumYazdir(deptAllYearsSlots, deptName, semester, ortak);
+}
+
+// ── Fakülte: Excel ──
+async function exportFacultyScheduleXlsx(allFacultySlots, semester, baglam) {
+  const { ortak, dosya } = fakulteCiktiBaglami(allFacultySlots, semester, baglam);
+  const sonuc = await sablonDene({
     kaynaklar: allFacultySlots,
     hucreYaz: fakulteHucresi,
     baglam: ortak,
@@ -748,9 +790,13 @@ async function exportFacultySchedule(allFacultySlots, semester, baglam) {
     belgeAdi: 'Fakülte Excel çıktısı',
     dosyaParcalari: dosya,
   });
-  if (!xls.ok) fakulteXlsx(allFacultySlots, semester, ortak);
+  if (!sonuc.ok) fakulteXlsx(allFacultySlots, semester, ortak);
+}
 
-  const pdf = await sablonDene({
+// ── Fakülte: yazdırma / PDF ──
+async function exportFacultySchedulePdf(allFacultySlots, semester, baglam) {
+  const { ortak, dosya } = fakulteCiktiBaglami(allFacultySlots, semester, baglam);
+  const sonuc = await sablonDene({
     kaynaklar: allFacultySlots,
     hucreYaz: fakulteHucresi,
     baglam: ortak,
@@ -759,7 +805,7 @@ async function exportFacultySchedule(allFacultySlots, semester, baglam) {
     belgeAdi: 'Fakülte PDF çıktısı',
     dosyaParcalari: dosya,
   });
-  if (!pdf.ok) fakulteYazdir(allFacultySlots, semester, ortak);
+  if (!sonuc.ok) fakulteYazdir(allFacultySlots, semester, ortak);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -996,6 +1042,218 @@ const SaatAyariModal = ({ acik, kapat, bolumId, bolumAdi, kayit, kaydedildi }) =
   );
 };
 
+// ══════════════════════════════════════════════════════════════
+// PROGRAM ÖNİZLEMESİ
+//
+// Belge almadan önce programı EKRANDA görmek: yetkili doğru dönemi, doğru
+// sınıfları ve çakışmaları görüp öyle karar veriyor. Bölüm ve fakülte
+// önizlemeleri aynı kabuğu ve aynı tabloyu kullanır; ikisi de aynı ızgaradan
+// çizildiği için ekranda gördüğü ile indirdiği belge birbirini tutar.
+//
+// Belgeler ÖNİZLEMENİN İÇİNDEKİ iki düğmeden alınır: .xlsx ve PDF ayrı ayrı.
+// ══════════════════════════════════════════════════════════════
+const OnizlemeKabuk = ({ baslik, altBaslik, kapat, dugmeler, children }) => (
+  <div
+    style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0,0,0,0.5)',
+      zIndex: 2000,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 16,
+    }}
+    onClick={kapat}
+  >
+    <div
+      style={{
+        background: 'white',
+        borderRadius: 16,
+        padding: 24,
+        width: '100%',
+        maxWidth: 1100,
+        maxHeight: '90vh',
+        overflow: 'auto',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 16,
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: DP.navy, margin: 0 }}>{baslik}</h3>
+          <p style={{ fontSize: 12, color: DP.textMuted, marginTop: 4 }}>{altBaslik}</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {dugmeler}
+          <button
+            onClick={kapat}
+            title="Kapat"
+            style={{
+              background: 'none',
+              border: '1px solid #D1D5DB',
+              borderRadius: 8,
+              padding: '8px 12px',
+              cursor: 'pointer',
+            }}
+          >
+            <DPIcon path="M18 6L6 18M6 6l12 12" size={14} color="#9CA3AF" />
+          </button>
+        </div>
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
+/**
+ * Haftalık ızgara önizlemesi — yalnız DOLU saat satırları.
+ * @param {Array}  kaynaklar [{deptName, year, slots}]
+ * @param {Array}  saatler   satır etiketleri (bölümün ya da fakültenin ekseni)
+ * @param {boolean} bolumGoster fakülte önizlemesinde bölüm adı da yazılır
+ */
+const ProgramOnizlemeTablosu = ({ kaynaklar, saatler, bolumGoster }) => (
+  <div style={{ overflow: 'auto' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 800 }}>
+      <thead>
+        <tr>
+          <th
+            style={{
+              padding: '10px 6px',
+              background: DP.navy,
+              color: 'white',
+              fontWeight: 700,
+              textAlign: 'center',
+              border: '1px solid #334155',
+              width: 80,
+            }}
+          >
+            Saat
+          </th>
+          {DAYS.map((day) => (
+            <th
+              key={day}
+              style={{
+                padding: '10px 6px',
+                background: DP.navy,
+                color: 'white',
+                fontWeight: 700,
+                textAlign: 'center',
+                border: '1px solid #334155',
+              }}
+            >
+              {day}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {saatler.map((hour, hi) => {
+          const doluMu = DAYS.some((day) => kaynaklar.some((s) => s.slots[`${day}_${hi}`]));
+          if (!doluMu) return null;
+          return (
+            <tr key={hour}>
+              <td
+                style={{
+                  padding: '6px',
+                  fontWeight: 600,
+                  textAlign: 'center',
+                  background: '#F9FAFB',
+                  border: '1px solid #E5E7EB',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {hour}
+              </td>
+              {DAYS.map((day) => {
+                const entries = kaynaklar
+                  .filter((s) => s.slots[`${day}_${hi}`])
+                  .map((s) =>
+                    mergeSplitSlot(s.slots[`${day}_${hi}`], { deptName: s.deptName, year: s.year })
+                  );
+                return (
+                  <td
+                    key={day}
+                    style={{ padding: 2, border: '1px solid #E5E7EB', verticalAlign: 'top' }}
+                  >
+                    {entries.map((e, ei) => (
+                      <div
+                        key={ei}
+                        style={{
+                          padding: '3px 6px',
+                          margin: '2px 0',
+                          borderRadius: 4,
+                          background: GRADE_COLORS[e.sinif]?.bg || '#F3F4F6',
+                          fontSize: 10,
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        <strong>{e.courseCode}</strong>
+                        <span style={{ color: '#555', marginLeft: 3 }}>
+                          {bolumGoster ? `${e.deptName} ${e.year}.Sınıf` : `${e.year}. Sınıf`}
+                        </span>
+                        {!bolumGoster && e.courseName && (
+                          <div style={{ color: '#444' }}>{e.courseName}</div>
+                        )}
+                        {e.instructor && (
+                          <div style={{ color: '#777', fontSize: 9 }}>{e.instructor}</div>
+                        )}
+                        {e.classroom && (
+                          <div style={{ color: DP.primary, fontWeight: 500 }}>{e.classroom}</div>
+                        )}
+                      </div>
+                    ))}
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+);
+
+/** Önizlemenin altındaki çakışma özeti (iki önizlemede de aynı). */
+const OnizlemeCakismalar = ({ conflicts }) =>
+  conflicts.length === 0 ? null : (
+    <div
+      style={{
+        marginTop: 16,
+        padding: 12,
+        background: '#FEF2F2',
+        border: '1px solid #FECACA',
+        borderRadius: 8,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#991B1B', marginBottom: 8 }}>
+        ⚠ {conflicts.length} çakışma tespit edildi:
+      </div>
+      {conflicts.slice(0, 5).map((c, i) => (
+        <div key={i} style={{ fontSize: 11, color: '#7F1D1D', marginBottom: 4 }}>
+          • {c.message}
+        </div>
+      ))}
+      {conflicts.length > 5 && (
+        <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+          ... ve {conflicts.length - 5} daha fazla
+        </div>
+      )}
+    </div>
+  );
+
 // ── Sürüklenebilir Ders Kartı (havuzdan tabloya bırakma) ──
 const CourseChip = ({ course, color }) => {
   const handleDragStart = (e) => {
@@ -1094,6 +1352,9 @@ function DersProgramiApp({
 
   // Fakülte birleşik görünüm & çakışma state
   const [showFacultyView, setShowFacultyView] = useState(false);
+  // Bölüm programı önizlemesi: tüm sınıflar tek ızgarada. Belgeler bu
+  // önizlemenin içindeki iki düğmeden alınır.
+  const [showDeptView, setShowDeptView] = useState(false);
   const [allSchedules, setAllSchedules] = useState([]);
   const [conflicts, setConflicts] = useState([]);
   const [showConflicts, setShowConflicts] = useState(false);
@@ -1388,7 +1649,6 @@ function DersProgramiApp({
           course.professor || '',
           otherYearsSlots,
           allFacultySlots,
-          visibleHours,
           fakulteSaatIndeksi(hi)
         );
         // Aynı dersi ikinci kez eklemek anlamsız — hücredeki TÜM dersler
@@ -1508,7 +1768,6 @@ function DersProgramiApp({
           instructor,
           otherYearsSlots,
           allFacultySlots,
-          visibleHours,
           fakulteSaatIndeksi(hi)
         );
         if (warnings.length > 0) {
@@ -2049,19 +2308,16 @@ function DersProgramiApp({
               {loadingFaculty ? 'Yükleniyor...' : 'Fakülte Programı'}
             </button>
           )}
-          {/* Tek düğme, iki belge: .xlsx (yalnız ders kodları, bölümün
-              renginde) iner ve yazdırma/PDF sayfası açılır. */}
-          {(isAdmin || isDeptManager) && deptAllYearsSlots.length > 0 && (
+          {/* Bölümün TÜM SINIFLARI tek ızgarada — önce önizleme, belgeler
+              önizlemenin içindeki iki düğmeden alınır. */}
+          {(isAdmin || isDeptManager) && (
             <button
-              onClick={() =>
-                exportDeptSchedule(
-                  deptAllYearsSlots,
-                  departmentInfo?.name || 'Bölüm',
-                  semester,
-                  ciktiBaglami
-                )
-              }
-              title="Bölüm programını .xlsx olarak indirir ve yazdırma sayfasını açar"
+              onClick={async () => {
+                await loadAllSchedules();
+                setShowDeptView(true);
+              }}
+              disabled={loadingFaculty}
+              title="Bölümün tüm sınıflarını tek programda görüntüle ve çıktı al"
               style={{
                 padding: '7px 12px',
                 borderRadius: 8,
@@ -2070,18 +2326,19 @@ function DersProgramiApp({
                 color: '#059669',
                 fontSize: 12,
                 fontWeight: 600,
-                cursor: 'pointer',
+                cursor: loadingFaculty ? 'wait' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 5,
+                opacity: loadingFaculty ? 0.6 : 1,
               }}
             >
               <DPIcon
-                path="M12 10v6m0 0l-3-3m3 3l3-3M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
+                path="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 size={13}
                 color="#059669"
               />
-              Bölüm Çıktısı (.xlsx + PDF)
+              {loadingFaculty ? 'Yükleniyor...' : 'Bölüm Programı'}
             </button>
           )}
           {canManage && activeDepartment && !editMode && (
@@ -3618,266 +3875,139 @@ function DersProgramiApp({
         </div>
       )}
 
-      {/* Fakülte Birleşik Görünüm Modal */}
-      {showFacultyView && allSchedules.length > 0 && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            zIndex: 2000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-          }}
-          onClick={() => setShowFacultyView(false)}
-        >
-          <div
-            style={{
-              background: 'white',
-              borderRadius: 16,
-              padding: 24,
-              width: '100%',
-              maxWidth: 1100,
-              maxHeight: '90vh',
-              overflow: 'auto',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 16,
-              }}
-            >
-              <div>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: DP.navy, margin: 0 }}>
-                  Fakülte Birleşik Ders Programı
-                </h3>
-                <p style={{ fontSize: 12, color: DP.textMuted, marginTop: 4 }}>
-                  {semester === 'guz' ? 'Güz' : 'Bahar'} Dönemi — Tüm Sınıflar —{' '}
-                  {[...new Set(allSchedules.map((s) => s.deptName))].length} bölüm
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {/* Tek düğme, iki belge: Excel dosyası iner ve yazdırma
-                    sayfası açılır (bkz. dosya başındaki ÇIKTILAR bölümü). */}
+      {/* ── BÖLÜM PROGRAMI ÖNİZLEMESİ — tüm sınıflar tek ızgarada ── */}
+      {showDeptView && (
+        <OnizlemeKabuk
+          baslik={(departmentInfo?.name || 'Bölüm') + ' — Haftalık Ders Programı'}
+          altBaslik={`${window.dpDonemAdi(semester)} Dönemi — Tüm Sınıflar — ${
+            window.dpProgramOzeti(deptAllYearsSlots).dersSayisi
+          } ders`}
+          kapat={() => setShowDeptView(false)}
+          dugmeler={
+            deptAllYearsSlots.length > 0 && (
+              <>
                 <button
-                  onClick={() => exportFacultySchedule(allSchedules, semester, fakulteBaglami)}
-                  title="Fakülte birleşik programını .xlsx olarak indirir ve yazdırma sayfasını açar"
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: DP.primary,
-                    color: 'white',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
+                  onClick={() =>
+                    exportDeptScheduleXlsx(
+                      deptAllYearsSlots,
+                      departmentInfo?.name || 'Bölüm',
+                      semester,
+                      ciktiBaglami
+                    )
+                  }
+                  title="Bölüm programını Excel (.xlsx) olarak indir"
+                  style={ciktiDugmesi(true)}
                 >
                   <DPIcon
                     path="M12 10v6m0 0l-3-3m3 3l3-3M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
                     size={14}
                     color="white"
                   />
-                  Fakülte Çıktısı (.xlsx + PDF)
+                  .xlsx İndir
                 </button>
                 <button
-                  onClick={() => setShowFacultyView(false)}
-                  style={{
-                    background: 'none',
-                    border: '1px solid #D1D5DB',
-                    borderRadius: 8,
-                    padding: '8px 12px',
-                    cursor: 'pointer',
-                  }}
+                  onClick={() =>
+                    exportDeptSchedulePdf(
+                      deptAllYearsSlots,
+                      departmentInfo?.name || 'Bölüm',
+                      semester,
+                      ciktiBaglami
+                    )
+                  }
+                  title="Bölüm programının yazdırma / PDF sayfasını aç"
+                  style={ciktiDugmesi(false)}
                 >
-                  <DPIcon path="M18 6L6 18M6 6l12 12" size={14} color="#9CA3AF" />
+                  <DPIcon
+                    path="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                    size={14}
+                    color={DP.primary}
+                  />
+                  PDF / Yazdır
                 </button>
-              </div>
+              </>
+            )
+          }
+        >
+          {deptAllYearsSlots.length === 0 ? (
+            <div style={{ padding: 32, textAlign: 'center', fontSize: 13, color: DP.textMuted }}>
+              Bu dönem için bölümde kayıtlı ders programı bulunamadı.
             </div>
+          ) : (
+            <>
+              {/* Bölüm ızgarası BÖLÜMÜN KENDİ saatleriyle çizilir. */}
+              <ProgramOnizlemeTablosu
+                kaynaklar={deptAllYearsSlots}
+                saatler={visibleHours}
+                bolumGoster={false}
+              />
+              <OnizlemeCakismalar conflicts={conflicts} />
+            </>
+          )}
+        </OnizlemeKabuk>
+      )}
 
-            {/* Legend */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-              {[...new Set(allSchedules.map((s) => s.deptName))].map((name, i) => (
-                <span
-                  key={i}
-                  style={{
-                    fontSize: 11,
-                    padding: '2px 8px',
-                    borderRadius: 4,
-                    background: '#F3F4F6',
-                    color: DP.text,
-                    fontWeight: 500,
-                  }}
-                >
-                  {name}
-                </span>
-              ))}
-            </div>
-
-            {/* Combined Grid */}
-            <div style={{ overflow: 'auto' }}>
-              <table
-                style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 800 }}
+      {/* ── FAKÜLTE BİRLEŞİK PROGRAM ÖNİZLEMESİ ── */}
+      {showFacultyView && allSchedules.length > 0 && (
+        <OnizlemeKabuk
+          baslik="Fakülte Birleşik Ders Programı"
+          altBaslik={`${window.dpDonemAdi(semester)} Dönemi — Tüm Sınıflar — ${
+            [...new Set(allSchedules.map((s) => s.deptName))].length
+          } bölüm`}
+          kapat={() => setShowFacultyView(false)}
+          dugmeler={
+            <>
+              {/* İki belge, iki düğme — önizlemenin içinde. Yetkili programı
+                  ekranda gördükten sonra hangi biçimi istiyorsa onu alır. */}
+              <button
+                onClick={() => exportFacultyScheduleXlsx(allSchedules, semester, fakulteBaglami)}
+                title="Fakülte birleşik programını Excel (.xlsx) olarak indir"
+                style={ciktiDugmesi(true)}
               >
-                <thead>
-                  <tr>
-                    <th
-                      style={{
-                        padding: '10px 6px',
-                        background: DP.navy,
-                        color: 'white',
-                        fontWeight: 700,
-                        textAlign: 'center',
-                        border: '1px solid #334155',
-                        width: 80,
-                      }}
-                    >
-                      Saat
-                    </th>
-                    {DAYS.map((day) => (
-                      <th
-                        key={day}
-                        style={{
-                          padding: '10px 6px',
-                          background: DP.navy,
-                          color: 'white',
-                          fontWeight: 700,
-                          textAlign: 'center',
-                          border: '1px solid #334155',
-                        }}
-                      >
-                        {day}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Fakülte tablosu ORTAK eksende çizilir — bölümlerin
-                      başlangıç saatleri farklı olabilir. */}
-                  {fakulteSaatleri.map((hour, hi) => {
-                    // Check if this hour has any slots
-                    let hasAny = false;
-                    DAYS.forEach((day) => {
-                      allSchedules.forEach((s) => {
-                        if (s.slots[`${day}_${hi}`]) hasAny = true;
-                      });
-                    });
-                    if (!hasAny) return null;
-
-                    return (
-                      <tr key={hi}>
-                        <td
-                          style={{
-                            padding: '6px',
-                            fontWeight: 600,
-                            textAlign: 'center',
-                            background: '#F9FAFB',
-                            border: '1px solid #E5E7EB',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {hour}
-                        </td>
-                        {DAYS.map((day) => {
-                          const entries = allSchedules
-                            .filter((s) => s.slots[`${day}_${hi}`])
-                            .map((s) =>
-                              mergeSplitSlot(s.slots[`${day}_${hi}`], {
-                                deptName: s.deptName,
-                                year: s.year,
-                              })
-                            );
-                          return (
-                            <td
-                              key={day}
-                              style={{
-                                padding: 2,
-                                border: '1px solid #E5E7EB',
-                                verticalAlign: 'top',
-                              }}
-                            >
-                              {entries.map((e, ei) => {
-                                const bg = GRADE_COLORS[e.sinif]?.bg || '#F3F4F6';
-                                return (
-                                  <div
-                                    key={ei}
-                                    style={{
-                                      padding: '3px 6px',
-                                      margin: '2px 0',
-                                      borderRadius: 4,
-                                      background: bg,
-                                      fontSize: 10,
-                                      lineHeight: 1.3,
-                                    }}
-                                  >
-                                    <strong>{e.courseCode}</strong>
-                                    <span style={{ color: '#555', marginLeft: 3 }}>
-                                      {e.deptName} {e.year}.Sınıf
-                                    </span>
-                                    {e.instructor && (
-                                      <div style={{ color: '#777', fontSize: 9 }}>
-                                        {e.instructor}
-                                      </div>
-                                    )}
-                                    {e.classroom && (
-                                      <div style={{ color: DP.primary, fontWeight: 500 }}>
-                                        {e.classroom}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Conflict summary in faculty view */}
-            {conflicts.length > 0 && (
-              <div
+                <DPIcon
+                  path="M12 10v6m0 0l-3-3m3 3l3-3M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
+                  size={14}
+                  color="white"
+                />
+                .xlsx İndir
+              </button>
+              <button
+                onClick={() => exportFacultySchedulePdf(allSchedules, semester, fakulteBaglami)}
+                title="Fakülte birleşik programının yazdırma / PDF sayfasını aç"
+                style={ciktiDugmesi(false)}
+              >
+                <DPIcon
+                  path="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                  size={14}
+                  color={DP.primary}
+                />
+                PDF / Yazdır
+              </button>
+            </>
+          }
+        >
+          {/* Bölüm renkleri — .xlsx çıktısındaki lejantın ekran karşılığı. */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            {Object.entries(fakulteBaglami.renkHaritasi || {}).map(([ad, renk]) => (
+              <span
+                key={ad}
                 style={{
-                  marginTop: 16,
-                  padding: 12,
-                  background: '#FEF2F2',
-                  border: '1px solid #FECACA',
-                  borderRadius: 8,
+                  fontSize: 11,
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  background: renk,
+                  color: window.renkMetinRengi(renk),
+                  fontWeight: 600,
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#991B1B', marginBottom: 8 }}>
-                  ⚠ {conflicts.length} çakışma tespit edildi:
-                </div>
-                {conflicts.slice(0, 5).map((c, i) => (
-                  <div key={i} style={{ fontSize: 11, color: '#7F1D1D', marginBottom: 4 }}>
-                    • {c.message}
-                  </div>
-                ))}
-                {conflicts.length > 5 && (
-                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
-                    ... ve {conflicts.length - 5} daha fazla
-                  </div>
-                )}
-              </div>
-            )}
+                {ad}
+              </span>
+            ))}
           </div>
-        </div>
+          {/* Fakülte tablosu ORTAK eksende çizilir — bölümlerin başlangıç
+              saatleri farklı olabilir. */}
+          <ProgramOnizlemeTablosu kaynaklar={allSchedules} saatler={fakulteSaatleri} bolumGoster />
+          <OnizlemeCakismalar conflicts={conflicts} />
+        </OnizlemeKabuk>
       )}
 
       {/* Akademisyenin kendi programı — Bölüm Yönetimi'ndeki görüntüleyicinin
