@@ -48,7 +48,13 @@ const norm = (s) => (s || '').toString().toLocaleLowerCase('tr').replace(/\s+/g,
     const codes = new Set();
     Object.values(slots).forEach((s) => {
       if (s && s.courseCode) codes.add(s.courseCode);
+      // Hücrede N ders olabilir: eski `ikinci` alanı ve yeni `dersler` dizisi.
       if (s && s.ikinci && s.ikinci.courseCode) codes.add(s.ikinci.courseCode);
+      if (s && Array.isArray(s.dersler)) {
+        s.dersler.forEach((d) => {
+          if (d && d.courseCode) codes.add(d.courseCode);
+        });
+      }
     });
     const row = {
       docId: doc._docId || doc._id,
