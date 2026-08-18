@@ -94,6 +94,7 @@ import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './l
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
 import {
+  dersKodEtiketi,
   slotBirlestir,
   slotDersCikar,
   slotDersEkle,
@@ -101,6 +102,8 @@ import {
   slotDersSayisi,
   slotDersVarMi,
   slotDersleri,
+  slotKodVarMi,
+  sonrakiSube,
 } from './lib/ders-slot.js';
 import { XLSX_STIL, calismaKitabiParcalari, xlsxDosyaAdi } from './lib/xlsx-yaz.js';
 import {
@@ -12314,6 +12317,11 @@ window.slotDersVarMi = slotDersVarMi;
 window.slotDersEkle = slotDersEkle;
 window.slotDersCikar = slotDersCikar;
 window.slotDersGuncelle = slotDersGuncelle;
+// Şube: aynı ders kodu bir slotta birden çok kez yürüyebilir (iki müfredat ×
+// iki şube = dört kayıt). Ayıran alan `sube` (bkz. lib/ders-slot.js).
+window.dersKodEtiketi = dersKodEtiketi;
+window.slotKodVarMi = slotKodVarMi;
+window.slotSonrakiSube = sonrakiSube;
 // Ders programı şablon verisi — ızgara ↔ satır çevrimi (lib/ders-programi-sablon.js).
 window.dpCiktiIzgarasi = ciktiIzgarasi;
 window.dpSablonSatirlari = sablonSatirlari;

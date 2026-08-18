@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  dersKodEtiketi,
   slotBirlestir,
   slotDersCikar,
   slotDersEkle,
@@ -8,6 +9,8 @@ import {
   slotDersVarMi,
   slotDersleri,
   slotEkDersler,
+  slotKodVarMi,
+  sonrakiSube,
 } from '../lib/ders-slot.js';
 
 const birinci = {
@@ -221,5 +224,110 @@ describe('slotBirlestir — çıktı', () => {
 
   it('boş slotta çökmez', () => {
     expect(slotBirlestir(null).courseCode).toBe('');
+  });
+});
+
+describe('şube — aynı ders kodunun birden çok kaydı', () => {
+  // Bir ders iki müfredatta olabiliyor, her müfredatın iki şubesi olabiliyor:
+  // tek slotta aynı kodun DÖRT kaydı yürüyebilir.
+  const subeli = (kod, sube, o) => ({ courseCode: kod, sube, ...(o || {}) });
+
+  it('aynı kodun dört şubesi tek slota sığar', () => {
+    let s = slotDersEkle(null, subeli('FZK181', '1', { classroom: 'D-1' }));
+    s = slotDersEkle(s, subeli('FZK181', '2', { classroom: 'D-2' }));
+    s = slotDersEkle(s, subeli('FİZ161', '1', { classroom: 'D-3' }));
+    s = slotDersEkle(s, subeli('FİZ161', '2', { classroom: 'D-4' }));
+    expect(slotDersSayisi(s)).toBe(4);
+    expect(slotDersleri(s).map((d) => d.classroom)).toEqual(['D-1', 'D-2', 'D-3', 'D-4']);
+  });
+
+  it('kod aynı + ŞUBE aynı → zaten var', () => {
+    const s = slotDersEkle(null, subeli('FZK181', '2'));
+    expect(slotDersVarMi(s, 'FZK181', '2')).toBe(true);
+    expect(slotDersVarMi(s, 'FZK181', '1')).toBe(false);
+    expect(slotDersVarMi(s, 'FZK181', '')).toBe(false);
+  });
+
+  it('şubesiz ders eskisi gibi kodla eşleşir', () => {
+    const s = slotDersEkle(null, ders('KML312'));
+    expect(slotDersVarMi(s, 'KML312')).toBe(true);
+    expect(slotDersVarMi(s, 'KML312', '')).toBe(true);
+    expect(slotDersVarMi(s, 'KML312', '2')).toBe(false);
+  });
+
+  it('slotKodVarMi şubeye bakmadan tarar', () => {
+    const s = slotDersEkle(null, subeli('FZK181', '1'));
+    expect(slotKodVarMi(s, 'FZK181')).toBe(true);
+    expect(slotKodVarMi(s, 'YOK999')).toBe(false);
+    expect(slotKodVarMi(s, '')).toBe(false);
+  });
+
+  it('ŞUBE devralınmaz — ikinci ders birincinin şubesini kopyalamaz', () => {
+    const s = {
+      courseCode: 'FZK181',
+      sube: '1',
+      classroom: 'D-1',
+      dersler: [{ courseCode: 'MAT101' }],
+    };
+    const d = slotDersleri(s);
+    expect(d[0].sube).toBe('1');
+    expect(d[1].sube).toBe('');
+    // Derslik ise devralınır (eski davranış korunur).
+    expect(d[1].classroom).toBe('D-1');
+  });
+
+  it('sonrakiSube boştaki ilk numarayı verir', () => {
+    expect(sonrakiSube(null, 'FZK181')).toBe('1');
+    let s = slotDersEkle(null, ders('FZK181')); // şubesiz = 1. şube sayılır
+    expect(sonrakiSube(s, 'FZK181')).toBe('2');
+    s = slotDersEkle(s, subeli('FZK181', '2'));
+    expect(sonrakiSube(s, 'FZK181')).toBe('3');
+    // Başka kod etkilenmez
+    expect(sonrakiSube(s, 'MAT101')).toBe('1');
+  });
+
+  it('sonrakiSube kullanılmış numarayı tekrar vermez', () => {
+    let s = slotDersEkle(null, subeli('FZK181', '2'));
+    s = slotDersEkle(s, subeli('FZK181', '3'));
+    // İki kayıt var → aday 3, ama 3 dolu → 4
+    expect(sonrakiSube(s, 'FZK181')).toBe('4');
+  });
+
+  it('dersKodEtiketi şubeyi koda ekler, şubesizi yalın bırakır', () => {
+    expect(dersKodEtiketi({ courseCode: 'FZK181', sube: '2' })).toBe('FZK181 (Şb:2)');
+    expect(dersKodEtiketi({ courseCode: 'FZK181' })).toBe('FZK181');
+    expect(dersKodEtiketi({ courseCode: '', sube: '2' })).toBe('');
+    expect(dersKodEtiketi(null)).toBe('');
+  });
+
+  it('ÇIKTIDA dört şube de ayrı ayrı görünür', () => {
+    let s = slotDersEkle(
+      null,
+      subeli('FZK181', '1', { instructor: 'Ayşe Yılmaz', classroom: 'D-1' })
+    );
+    s = slotDersEkle(s, subeli('FZK181', '2', { instructor: 'Can Su', classroom: 'D-2' }));
+    s = slotDersEkle(s, subeli('FİZ161', '1', { instructor: 'Ayşe Yılmaz', classroom: 'D-3' }));
+    s = slotDersEkle(s, subeli('FİZ161', '2', { instructor: 'Can Su', classroom: 'D-4' }));
+    const k = slotBirlestir(s);
+    // Tekrarsız birleştirme iki şubeyi TEK koda indirgemez.
+    expect(k.courseCode).toBe('FZK181 (Şb:1) / FZK181 (Şb:2) / FİZ161 (Şb:1) / FİZ161 (Şb:2)');
+    expect(k.classroom).toBe('D-1 / D-2 / D-3 / D-4');
+    // Hocalar tekrarsız: aynı hoca iki dersi veriyorsa bir kez yazılır.
+    expect(k.instructor).toBe('Ayşe Yılmaz / Can Su');
+  });
+
+  it('şube kayda yalnız VARSA yazılır (eski program değişmez)', () => {
+    const s = slotDersEkle(null, ders('KML312'));
+    expect(s.sube).toBeUndefined();
+    const t = slotDersEkle(s, subeli('KML312', '2'));
+    expect(t.dersler[0].sube).toBe('2');
+  });
+
+  it('şube güncellenebilir', () => {
+    let s = slotDersEkle(null, ders('KML312'));
+    s = slotDersEkle(s, ders('KML312'));
+    s = slotDersGuncelle(s, 1, { sube: '2' });
+    expect(slotDersleri(s)[1].sube).toBe('2');
+    expect(slotDersVarMi(s, 'KML312', '2')).toBe(true);
   });
 });

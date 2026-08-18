@@ -357,11 +357,14 @@ function fakulteHucresi(slot, kaynak) {
 // .xlsx hücresi — YALNIZ ders kodu. Bölünmüş hücrede kodlar ' / ' ile
 // birleşir (aynı saatte yürüyen eşdeğer dersler tek satırda okunur).
 function kodMetni(slot) {
-  return window
-    .slotDersleri(slot)
-    .map((d) => d.courseCode)
-    .filter(Boolean)
-    .join(' / ');
+  return (
+    window
+      .slotDersleri(slot)
+      // Aynı kodun iki şubesi varsa ikisi de yazılır: 'FZK181 (Şb:1) / FZK181 (Şb:2)'
+      .map((d) => window.dersKodEtiketi(d))
+      .filter(Boolean)
+      .join(' / ')
+  );
 }
 
 // ── Yazdırma (PDF) ──
@@ -1349,6 +1352,10 @@ function DersProgramiApp({
   // Modal form state
   const [modalCourseId, setModalCourseId] = useState('');
   const [modalClassroom, setModalClassroom] = useState('');
+  // Şube: aynı ders kodu bir slotta birden çok kez yürüyebilir — bir ders iki
+  // müfredatta olabiliyor ve her müfredatın iki şubesi olabiliyor, o zaman tek
+  // saatte aynı kodun dört kaydı durur. Kayıtları ayıran alan budur.
+  const [modalSube, setModalSube] = useState('');
 
   // Fakülte birleşik görünüm & çakışma state
   const [showFacultyView, setShowFacultyView] = useState(false);
@@ -1637,6 +1644,27 @@ function DersProgramiApp({
       // (KML312 & TLK543 gibi eşdeğer dersler, ya da ayrı dersliklerdeki
       // gruplar). Ders sayısında sınır yok — her dersin kendi dersliği olur.
       const splitting = window.slotDersSayisi(existing) > 0;
+      // ── Şube ──
+      // Sürükle-bırakta şube alanı yoktur. Aynı kod hücrede zaten varsa bu ya
+      // yanlışlıkla ikinci kez bırakma, ya da dersin BAŞKA BİR ŞUBESİ (bir ders
+      // iki müfredatta olabiliyor, her müfredatın iki şubesi olabiliyor).
+      // Kullanıcıya sorulur; onaylarsa boştaki numara kendiliğinden verilir.
+      //
+      // Bu karar çakışma taramasından ÖNCE ve forceAdd'den BAĞIMSIZ verilir:
+      // "geçersiz kıl" yolu şubesiz bir kopya yaratsaydı hücrede birbirinden
+      // ayırt edilemeyen iki aynı kod dururdu.
+      let sube = '';
+      if (window.slotKodVarMi(existing, course.code)) {
+        const oneri = window.slotSonrakiSube(existing, course.code);
+        if (
+          !window.confirm(
+            `${course.code} bu saatte zaten var.\n\n` +
+              `Aynı dersin başka bir şubesi ise ${oneri}. şube olarak eklenebilir. Eklensin mi?`
+          )
+        )
+          return false;
+        sube = oneri;
+      }
       if (!forceAdd) {
         const otherYearsSlots = deptAllYearsSlots.filter((s) => s.year !== year);
         const warnings = checkSlotConflict(
@@ -1651,12 +1679,6 @@ function DersProgramiApp({
           allFacultySlots,
           fakulteSaatIndeksi(hi)
         );
-        // Aynı dersi ikinci kez eklemek anlamsız — hücredeki TÜM dersler
-        // taranır (eskiden yalnız birinci derse bakılıyordu).
-        if (window.slotDersVarMi(existing, course.code)) {
-          alert('Bu ders bu saatte zaten var.');
-          return false;
-        }
         // splitting durumunda "zaten ders var" uyarısı VERİLMEZ — bölme kasıtlıdır.
         if (warnings.length > 0) {
           if (isAdmin) {
@@ -1684,6 +1706,7 @@ function DersProgramiApp({
           courseName: course.name || '',
           instructor: course.professor || '',
           classroom: classroom || '',
+          sube,
           courseId: course.id,
           sinif: course.sinif || 0,
         });
@@ -1751,10 +1774,16 @@ function DersProgramiApp({
       // dersliğini devralmaz (iki ders iki ayrı derslikte olabilir).
       const classroom = modalClassroom || '';
 
-      // Aynı dersi ikinci kez eklemek anlamsız — hücredeki TÜM dersler taranır.
-      // Hücre kapasitesi SINIRSIZ: aynı saatte kaç ders varsa o kadar derslik.
-      if (window.slotDersVarMi(existing, course.code)) {
-        alert('Bu ders bu saatte zaten var.');
+      const sube = String(modalSube || '').trim();
+      // Hücre kapasitesi SINIRSIZ. Engellenen tek şey AYNI dersin AYNI şubesini
+      // ikinci kez eklemek; aynı kodun farklı şubesi ayrı derstir ve girer
+      // (bir ders iki müfredatta olabiliyor, her müfredatın iki şubesi olabiliyor).
+      if (window.slotDersVarMi(existing, course.code, sube)) {
+        alert(
+          sube
+            ? `${course.code} dersinin ${sube}. şubesi bu saatte zaten var.`
+            : `${course.code} bu saatte zaten var. Aynı dersin başka bir şubesini ekliyorsanız Şube alanını doldurun.`
+        );
         return;
       }
 
@@ -1782,6 +1811,7 @@ function DersProgramiApp({
           courseName: course.name || '',
           instructor: course.professor || '',
           classroom,
+          sube,
           courseId: course.id,
           sinif: course.sinif || 0,
         });
@@ -1789,12 +1819,14 @@ function DersProgramiApp({
       setShowAddModal(false);
       setModalCourseId('');
       setModalClassroom('');
+      setModalSube('');
       setAddSlotWarnings([]);
     },
     [
       selectedSlot,
       modalCourseId,
       modalClassroom,
+      modalSube,
       scheduleData,
       courses,
       commitSlots,
@@ -2740,7 +2772,7 @@ function DersProgramiApp({
                               }
                             >
                               <div style={{ fontSize: 13, fontWeight: 600, color: DP.text }}>
-                                {ders.courseCode}
+                                {window.dersKodEtiketi(ders)}
                                 {ders.courseName ? ' — ' + ders.courseName : ''}
                               </div>
                               {ders.instructor && (
@@ -2789,6 +2821,7 @@ function DersProgramiApp({
                         onClick={() => {
                           setSelectedSlot({ day, hourIndex: 0, hour: visibleHours[0] });
                           setAddSlotWarnings([]);
+                          setModalSube('');
                           setShowAddModal(true);
                         }}
                         style={{
@@ -3009,7 +3042,7 @@ function DersProgramiApp({
                                       letterSpacing: 0.3,
                                     }}
                                   >
-                                    {ders.courseCode}
+                                    {window.dersKodEtiketi(ders)}
                                   </div>
                                   {ders.courseName && (
                                     <div
@@ -3509,6 +3542,81 @@ function DersProgramiApp({
                     onBlur={(e) => (e.target.style.borderColor = DP.border)}
                   />
                 )}
+              </div>
+
+              {/* ── Şube ──
+                  Aynı ders aynı saatte birden çok şubede okutulabilir (iki
+                  müfredat × iki şube = dört kayıt). Şube boş bırakılırsa ders
+                  tek şubelidir ve kod yalın yazılır. */}
+              <div style={{ marginBottom: 18 }}>
+                <label
+                  htmlFor="dp-sube"
+                  style={{
+                    display: 'block',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: DP.text,
+                    marginBottom: 6,
+                  }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <DPIcon
+                      path="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"
+                      size={14}
+                      color={DP.primary}
+                    />
+                    Şube
+                  </span>
+                  <span style={{ fontWeight: 400, color: '#9CA3AF', fontSize: 11, marginLeft: 6 }}>
+                    (opsiyonel — aynı ders birden çok şubedeyse)
+                  </span>
+                </label>
+                <input
+                  id="dp-sube"
+                  value={modalSube}
+                  onChange={(e) => setModalSube(e.target.value)}
+                  placeholder="ör: 1"
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    borderRadius: 10,
+                    border: `1.5px solid ${DP.border}`,
+                    fontSize: 13,
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = DP.primary)}
+                  onBlur={(e) => (e.target.style.borderColor = DP.border)}
+                />
+                {/* Kod zaten hücrede varsa boşta olan şubeyi öner — yetkili
+                    numarayı kendi bulmak zorunda kalmasın. */}
+                {(() => {
+                  if (!selectedSlot || !modalCourseId) return null;
+                  const c = courses.find((x) => x.id === modalCourseId);
+                  const mevcut = scheduleData[`${selectedSlot.day}_${selectedSlot.hourIndex}`];
+                  if (!c || !window.slotKodVarMi(mevcut, c.code)) return null;
+                  const oneri = window.slotSonrakiSube(mevcut, c.code);
+                  if (String(modalSube).trim() === oneri) return null;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setModalSube(oneri)}
+                      style={{
+                        marginTop: 8,
+                        padding: '6px 10px',
+                        borderRadius: 8,
+                        border: `1px solid ${DP.primaryLight}`,
+                        background: DP.primaryPale,
+                        color: DP.primary,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {c.code} bu saatte zaten var — {oneri}. şube olarak ekle
+                    </button>
+                  );
+                })()}
               </div>
 
               {/* Seçili ders önizleme */}
