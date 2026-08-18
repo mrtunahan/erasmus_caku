@@ -59,8 +59,9 @@ const yerTutucular = [
   ...new Set(
     [...uretici.matchAll(/\{\{([^{}\n]+)\}\}/g)]
       .map((m) => m[1])
-      // "'{{' + g + '}}'" gibi dize BİRLEŞTİRMELERİ gerçek yer tutucu değil.
-      .filter((t) => !/['+]/.test(t))
+      // "'{{' + g + '}}'" gibi dize BİRLEŞTİRMELERİ ve açıklamalardaki boş
+      // "{{ }}" gerçek yer tutucu değil.
+      .filter((t) => !/['+]/.test(t) && t.trim())
       .concat(uretilenGunler)
   ),
 ];
@@ -70,9 +71,22 @@ describe('hazır ders programı şablonları', () => {
     expect(yerTutucular.length).toBeGreaterThanOrEqual(15);
   });
 
+  // {{Gün}} ve {{Ders Saati}} DEĞİŞKEN DEĞİL, yapı işaretçisidir: Excel
+  // şablonunda ızgaranın nerede başladığını söylerler (bkz. lib/xlsx-izgara.js)
+  // ve çıktıda sütun başlığı olarak yazılırlar. Bu yüzden değişken
+  // kataloğunda aranmazlar.
+  const IZGARA_ISARETCILERI = ['Gün', 'Ders Saati'];
+
   it('HER yer tutucu bir değişken etiketiyle eşleşir (elle eşleme gerekmez)', () => {
-    const eslesmeyen = yerTutucular.filter((y) => !bilinen.has(normTr(y)));
+    const eslesmeyen = yerTutucular
+      .filter((y) => !IZGARA_ISARETCILERI.includes(y.trim()))
+      .filter((y) => !bilinen.has(normTr(y)));
     expect(eslesmeyen).toEqual([]);
+  });
+
+  it('Excel şablonu ızgara işaretçilerini taşır', () => {
+    // Bunlar olmadan motor tabloyu bulamaz ve belge boş çıkar.
+    IZGARA_ISARETCILERI.forEach((i) => expect(yerTutucular).toContain(i));
   });
 
   it('kullanıcının istediği künye alanları şablonda var: kurum, tarih, fakülte, dönem', () => {

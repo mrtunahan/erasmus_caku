@@ -751,19 +751,102 @@ function fakulteCiktiBaglami(allFacultySlots, semester, baglam) {
   };
 }
 
+/** Izgara şablonundaki {{…}} künye alanlarının değerleri. */
+function izgaraKunyesi(baglam) {
+  const b = baglam || {};
+  return {
+    'Kurum Adı': b.kurumAd || '',
+    'Fakülte Adı': b.fakulteAd || '',
+    'Bölüm Adı': b.bolumAd || '',
+    Dönem: window.dpDonemAdi(b.donem),
+    'Akademik Yıl': b.akademikYil || '',
+    'Öğretim Seviyesi': b.seviyeAd || '',
+    Kapsam: b.kapsamAd || '',
+    Tarih: new Date().toLocaleDateString('tr-TR'),
+    Hazırlayan: b.hazirlayan || '',
+  };
+}
+
+// ── Izgara şablonu için kayıt listesi ──
+// Kurumun şablonu DERSLİK sütunlu: her ders, dersliğinin sütunuyla gün+saat
+// satırının kesiştiği hücreye yazılır. Hücrede yalnız ders KODU durur — hangi
+// bölüme ait olduğu zemin renginden okunur.
+function izgaraKayitlari(kaynaklar, saatler, renkCoz) {
+  const kayitlar = [];
+  (kaynaklar || []).forEach((kaynak) => {
+    Object.entries((kaynak && kaynak.slots) || {}).forEach(([anahtar, slot]) => {
+      const ayrac = String(anahtar).lastIndexOf('_');
+      if (ayrac < 0) return;
+      const gun = String(anahtar).slice(0, ayrac);
+      const hi = parseInt(String(anahtar).slice(ayrac + 1), 10);
+      const saat = (saatler || [])[hi];
+      if (!saat) return;
+      // Hücredeki her ders AYRI kayıttır: dört şube dört ayrı dersliğe düşer.
+      window.slotDersleri(slot).forEach((ders) => {
+        kayitlar.push({
+          gun,
+          saat,
+          derslik: ders.classroom || '',
+          kod: window.dersKodEtiketi(ders),
+          renk: renkCoz(kaynak, ders),
+        });
+      });
+    });
+  });
+  return kayitlar;
+}
+
+/**
+ * Izgara şablonundan .xlsx üretmeyi dener.
+ * Şablon yoksa ya da içinde ızgara bulunamazsa false döner — çağıran gömülü
+ * çıktıya düşer. Yazılamayan dersler varsa yetkiliye SEBEBİYLE bildirilir:
+ * eksik bir programı sessizce vermek, yanlış program vermektir.
+ */
+async function izgaraSablonuDene(secenek) {
+  const TE = window.TemplateEngine;
+  if (!TE || !TE.produceGridXlsx) return false;
+  const sonuc = await TE.produceGridXlsx(secenek);
+  if (sonuc.ok) {
+    if (sonuc.atlanan && sonuc.atlanan.length) {
+      alert(
+        'Program şablona yazıldı, ancak bazı dersler yerleştirilemedi:\n\n• ' +
+          sonuc.atlanan.map((a) => a.metin).join('\n• ') +
+          '\n\nŞablondaki derslik sütunlarını ve saat satırlarını gözden geçirin.'
+      );
+    }
+    return true;
+  }
+  if (sonuc.reason === 'no-grid') {
+    alert(
+      'Yüklü şablonda ders programı ızgarası bulunamadı. Şablonun başlık satırında ' +
+        '{{Gün}} ve {{Ders Saati}} yer tutucuları, sağında da derslik başlıkları olmalı. ' +
+        'Şimdilik yerleşik çıktı kullanılacak.'
+    );
+  } else if (sonuc.reason === 'invalid-output' || sonuc.reason === 'download') {
+    alert(
+      'Şablondan belge üretilemedi (' +
+        (sonuc.message || sonuc.reason) +
+        '). Yerleşik çıktı kullanılacak.'
+    );
+  }
+  return false;
+}
+
 // ── Bölüm: Excel ──
 async function exportDeptScheduleXlsx(deptAllYearsSlots, deptName, semester, baglam) {
   const { ortak, dosya } = bolumCiktiBaglami(deptAllYearsSlots, deptName, semester, baglam);
-  const sonuc = await sablonDene({
-    kaynaklar: deptAllYearsSlots,
-    hucreYaz: bolumHucresi,
-    baglam: ortak,
+  // Bölüm çıktısında tek bölüm var: tüm kodlar o bölümün renginde.
+  const renk = ortak.bolumRengi || window.bolumRengiCoz({ bolumAdi: deptName });
+  const yazildi = await izgaraSablonuDene({
+    module: 'dersprogrami',
     docType: 'bolum-xlsx',
-    bicim: 'xlsx',
-    belgeAdi: 'Bölüm Excel çıktısı',
-    dosyaParcalari: dosya,
+    departmentId: ortak.departmentId || '',
+    kayitlar: izgaraKayitlari(deptAllYearsSlots, ortak.saatler || HOURS, () => renk),
+    kunye: izgaraKunyesi(ortak),
+    filename: window.dpCiktiDosyaAdi(dosya, 'xlsx'),
   });
-  if (!sonuc.ok) bolumXlsx(deptAllYearsSlots, deptName, semester, ortak);
+  if (yazildi) return;
+  bolumXlsx(deptAllYearsSlots, deptName, semester, ortak);
 }
 
 // ── Bölüm: yazdırma / PDF ──
@@ -784,16 +867,23 @@ async function exportDeptSchedulePdf(deptAllYearsSlots, deptName, semester, bagl
 // ── Fakülte: Excel ──
 async function exportFacultyScheduleXlsx(allFacultySlots, semester, baglam) {
   const { ortak, dosya } = fakulteCiktiBaglami(allFacultySlots, semester, baglam);
-  const sonuc = await sablonDene({
-    kaynaklar: allFacultySlots,
-    hucreYaz: fakulteHucresi,
-    baglam: ortak,
+  const renkler = ortak.renkHaritasi || {};
+  const yazildi = await izgaraSablonuDene({
+    module: 'dersprogrami',
     docType: 'fakulte-xlsx',
-    bicim: 'xlsx',
-    belgeAdi: 'Fakülte Excel çıktısı',
-    dosyaParcalari: dosya,
+    departmentId: ortak.departmentId || '',
+    // Fakülte çıktısında her ders KENDİ bölümünün renginde: hücrede yalnız kod
+    // yazdığı için dersin hangi bölüme ait olduğu renkten okunur.
+    kayitlar: izgaraKayitlari(
+      allFacultySlots,
+      ortak.saatler || HOURS,
+      (kaynak) => renkler[kaynak.deptName] || window.bolumRengiCoz({ bolumAdi: kaynak.deptName })
+    ),
+    kunye: izgaraKunyesi(ortak),
+    filename: window.dpCiktiDosyaAdi(dosya, 'xlsx'),
   });
-  if (!sonuc.ok) fakulteXlsx(allFacultySlots, semester, ortak);
+  if (yazildi) return;
+  fakulteXlsx(allFacultySlots, semester, ortak);
 }
 
 // ── Fakülte: yazdırma / PDF ──

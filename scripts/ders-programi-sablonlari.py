@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Ders Programı ÖRNEK ŞABLONLARINI üretir.
+Ders Programı ŞABLONLARINI üretir.
 
 Şablonlar modülüne yüklenecek .xlsx/.docx dosyalarını sıfırdan yazar. Yer
 tutucu adları, shared-components.jsx'teki DERSPROGRAMI_STATIC/ROWS etiketleriyle
@@ -16,6 +16,7 @@ Kullanım:  python3 scripts/ders-programi-sablonlari.py
 """
 
 import os
+import re
 import zipfile
 
 KOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'sablonlar', 'ders-programi')
@@ -44,208 +45,64 @@ def sutun(i):
 
 
 # ══════════════════════════════════════════════════════════════
-# XLSX
+# XLSX — KURUMUN KENDİ TABLOSUNDAN TÜRETİLİR
+#
+# Excel şablonu sıfırdan çizilmez: fakültenin elle tuttuğu tablo (sütun =
+# derslik, satır = gün + ders saati, sarı/yeşil alanlar elle dolu) olduğu gibi
+# korunur, üzerine yalnız {{ }} yer tutucuları işlenir. Böylece kenarlıklar,
+# birleşik hücreler, sütun genişlikleri ve baskı ayarları kurumun bıraktığı
+# gibi kalır.
+#
+# İşaretlenen üç şey:
+#   'Gün'        → {{Gün}}          ızgaranın gün sütununu bulur
+#   'Ders Saati' → {{Ders Saati}}   saat sütununu bulur; sağı derslik sütunları
+#   üst başlık   → künye alanları   (fakülte/bölüm adı, akademik yıl, dönem)
 # ══════════════════════════════════════════════════════════════
 
-# Stil indeksleri (xl/styles.xml cellXfs sırası)
-S_DUZ, S_BASLIK, S_ALTBASLIK, S_BILGI, S_SUTUN, S_SAAT, S_HUCRE, S_ALT = range(8)
-
-STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<fonts count="6">
-<font><sz val="10"/><name val="Calibri"/></font>
-<font><b/><sz val="16"/><name val="Calibri"/></font>
-<font><b/><sz val="12"/><name val="Calibri"/></font>
-<font><sz val="10"/><color rgb="FF555555"/><name val="Calibri"/></font>
-<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
-<font><b/><sz val="10"/><name val="Calibri"/></font>
-</fonts>
-<fills count="4">
-<fill><patternFill patternType="none"/></fill>
-<fill><patternFill patternType="gray125"/></fill>
-<fill><patternFill patternType="solid"><fgColor rgb="FF1B2A4A"/><bgColor indexed="64"/></patternFill></fill>
-<fill><patternFill patternType="solid"><fgColor rgb="FFF3F4F6"/><bgColor indexed="64"/></patternFill></fill>
-</fills>
-<borders count="2">
-<border><left/><right/><top/><bottom/><diagonal/></border>
-<border><left style="thin"><color rgb="FF9CA3AF"/></left><right style="thin"><color rgb="FF9CA3AF"/></right><top style="thin"><color rgb="FF9CA3AF"/></top><bottom style="thin"><color rgb="FF9CA3AF"/></bottom><diagonal/></border>
-</borders>
-<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="8">
-<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
-<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
-<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
-<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
-<xf numFmtId="0" fontId="4" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
-<xf numFmtId="0" fontId="5" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
-<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="top" wrapText="1"/></xf>
-<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
-</cellXfs>
-<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
-</styleSheet>"""
+HAM = os.path.join(KOK, 'kaynak', 'fakulte-cikti-ham.xlsx')
 
 
-def xlsx_yaz(yol, satirlar, birlestirmeler, dondur_satiri, sutun_genislikleri):
-    """satirlar: [[(metin, stil) | None, …], …] — 1. satır dosyanın 1. satırıdır."""
-    # Paylaşılan metin tablosu: doldurma motoru YALNIZ t="s" hücrelerini
-    # doldurur (bkz. xlSatirDoldur), bu yüzden her metin buraya girmelidir.
-    sozluk = {}
-    sira = []
-
-    def si(metin):
-        if metin not in sozluk:
-            sozluk[metin] = len(sira)
-            sira.append(metin)
-        return sozluk[metin]
-
-    satir_xml = []
-    for r, satir in enumerate(satirlar, start=1):
-        hucreler = []
-        for c, hucre in enumerate(satir):
-            if hucre is None:
-                continue
-            metin, stil = hucre
-            ref = sutun(c) + str(r)
-            if metin == '':
-                hucreler.append('<c r="%s" s="%d"/>' % (ref, stil))
-            else:
-                hucreler.append('<c r="%s" s="%d" t="s"><v>%d</v></c>' % (ref, stil, si(metin)))
-        # BOŞ satır da yazılır: doldurma motoru satırları baştan sıralı
-        # numaralandırır (bkz. xlSatirDoldur), atlanan satır numarası boşluğu
-        # kapatır ve başlık ile veri satırı yukarı kayardı.
-        if hucreler:
-            satir_xml.append('<row r="%d">%s</row>' % (r, ''.join(hucreler)))
-        else:
-            satir_xml.append('<row r="%d"></row>' % r)
-
-    cols = ''.join(
-        '<col min="%d" max="%d" width="%d" customWidth="1"/>' % (i + 1, i + 1, w)
-        for i, w in enumerate(sutun_genislikleri)
+def yer_tutucu_isle(shared, ust_baslik):
+    """Paylaşılan metin tablosuna yer tutucuları yazar."""
+    out = shared
+    # Izgara işaretçileri: motor tabloyu bunlardan bulur (lib/xlsx-izgara.js).
+    out = out.replace('<t>Gün</t>', '<t>{{Gün}}</t>')
+    out = out.replace('<t>Ders Saati</t>', '<t>{{Ders Saati}}</t>')
+    # Üst başlık: dosyadaki dönem yazısı künye alanlarıyla değiştirilir.
+    out = re.sub(
+        r'<t[^>]*>\s*20\d\d-\d\d[^<]*Dönemi\s*</t>',
+        '<t xml:space="preserve">' + ust_baslik + '</t>',
+        out,
+        count=1,
     )
-    merges = ''
-    if birlestirmeler:
-        merges = '<mergeCells count="%d">%s</mergeCells>' % (
-            len(birlestirmeler),
-            ''.join('<mergeCell ref="%s"/>' % m for m in birlestirmeler),
-        )
-    son = sutun(len(sutun_genislikleri) - 1) + str(len(satirlar))
-    sheet = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-        '<dimension ref="A1:%s"/>'
-        '<sheetViews><sheetView tabSelected="1" workbookViewId="0">'
-        '<pane ySplit="%d" topLeftCell="A%d" activePane="bottomLeft" state="frozen"/>'
-        '</sheetView></sheetViews>'
-        '<sheetFormatPr defaultRowHeight="15"/>'
-        '<cols>%s</cols>'
-        '<sheetData>%s</sheetData>%s'
-        '<pageMargins left="0.4" right="0.4" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>'
-        '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>'
-        '</worksheet>'
-    ) % (son, dondur_satiri, dondur_satiri + 1, cols, ''.join(satir_xml), merges)
+    return out
 
-    shared = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="%d" uniqueCount="%d">%s</sst>'
-    ) % (len(sira), len(sira), ''.join('<si><t xml:space="preserve">%s</t></si>' % kacir(m) for m in sira))
 
-    parcalar = {
-        '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-        '<Default Extension="xml" ContentType="application/xml"/>'
-        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
-        '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>'
-        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
-        '</Types>',
-        '_rels/.rels': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
-        '</Relationships>',
-        'xl/workbook.xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
-        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-        '<sheets><sheet name="Ders Programı" sheetId="1" r:id="rId1"/></sheets></workbook>',
-        'xl/_rels/workbook.xml.rels': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
-        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
-        '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>'
-        '</Relationships>',
-        'xl/styles.xml': STYLES,
-        'xl/sharedStrings.xml': shared,
-        'xl/worksheets/sheet1.xml': sheet,
-    }
-    with zipfile.ZipFile(yol, 'w', zipfile.ZIP_DEFLATED) as z:
-        for ad, icerik in parcalar.items():
-            z.writestr(ad, icerik.encode('utf-8'))
-    print('yazıldı:', yol)
+def xlsx_sablonu(hedef, ust_baslik):
+    if not os.path.exists(HAM):
+        print('ATLANDI (kaynak yok):', HAM)
+        return
+    with zipfile.ZipFile(HAM) as zin:
+        parcalar = [(i, zin.read(i.filename)) for i in zin.infolist()]
+    with zipfile.ZipFile(hedef, 'w', zipfile.ZIP_DEFLATED) as zo:
+        for bilgi, veri in parcalar:
+            if bilgi.filename == 'xl/sharedStrings.xml':
+                veri = yer_tutucu_isle(veri.decode('utf-8'), ust_baslik).encode('utf-8')
+            zo.writestr(bilgi.filename, veri)
+    print('yazıldı:', hedef)
 
 
 def bolum_xlsx():
-    G = len(GUNLER) + 1
-    bos = [None] * G
-    satirlar = [
-        [('{{Kurum Adı}}', S_BASLIK)] + [('', S_BASLIK)] * (G - 1),
-        [('{{Fakülte Adı}}', S_ALTBASLIK)] + [('', S_ALTBASLIK)] * (G - 1),
-        [('{{Bölüm Adı}} — HAFTALIK DERS PROGRAMI', S_ALTBASLIK)] + [('', S_ALTBASLIK)] * (G - 1),
-        [
-            (
-                '{{Akademik Yıl}} Eğitim-Öğretim Yılı · {{Dönem}} Dönemi · '
-                '{{Öğretim Seviyesi}} · {{Kapsam}}',
-                S_BILGI,
-            )
-        ]
-        + [('', S_BILGI)] * (G - 1),
-        list(bos),
-        [(b, S_SUTUN) for b in ['Saat'] + GUNLER],
-        [(VERI_SATIRI[0], S_SAAT)] + [(v, S_HUCRE) for v in VERI_SATIRI[1:]],
-        list(bos),
-        [('Toplam {{Ders Sayısı}} ders · {{Ders Saati Sayısı}} ders saati', S_ALT)] + [None] * (G - 1),
-        [('Belge Tarihi: {{Tarih}}', S_ALT)] + [None] * (G - 1),
-        [('Hazırlayan: {{Hazırlayan}}', S_ALT)] + [None] * (G - 1),
-    ]
-    son = sutun(G - 1)
-    xlsx_yaz(
+    xlsx_sablonu(
         os.path.join(KOK, 'bolum-programi-xlsx.xlsx'),
-        satirlar,
-        ['A%d:%s%d' % (r, son, r) for r in (1, 2, 3, 4)],
-        6,
-        [14] + [34] * len(GUNLER),
+        '{{Bölüm Adı}} — {{Akademik Yıl}} {{Dönem}} Dönemi',
     )
 
 
 def fakulte_xlsx():
-    G = len(GUNLER) + 1
-    bos = [None] * G
-    satirlar = [
-        [('{{Kurum Adı}}', S_BASLIK)] + [('', S_BASLIK)] * (G - 1),
-        [('{{Fakülte Adı}}', S_ALTBASLIK)] + [('', S_ALTBASLIK)] * (G - 1),
-        [('BİRLEŞİK HAFTALIK DERS PROGRAMI', S_ALTBASLIK)] + [('', S_ALTBASLIK)] * (G - 1),
-        [
-            (
-                '{{Akademik Yıl}} Eğitim-Öğretim Yılı · {{Dönem}} Dönemi · {{Öğretim Seviyesi}}',
-                S_BILGI,
-            )
-        ]
-        + [('', S_BILGI)] * (G - 1),
-        [('Kapsanan bölümler: {{Kapsam}}', S_BILGI)] + [('', S_BILGI)] * (G - 1),
-        list(bos),
-        [(b, S_SUTUN) for b in ['Saat'] + GUNLER],
-        [(VERI_SATIRI[0], S_SAAT)] + [(v, S_HUCRE) for v in VERI_SATIRI[1:]],
-        list(bos),
-        [('Toplam {{Ders Sayısı}} ders · {{Ders Saati Sayısı}} ders saati', S_ALT)] + [None] * (G - 1),
-        [('Belge Tarihi: {{Tarih}}', S_ALT)] + [None] * (G - 1),
-        [('Hazırlayan: {{Hazırlayan}}', S_ALT)] + [None] * (G - 1),
-    ]
-    son = sutun(G - 1)
-    xlsx_yaz(
+    xlsx_sablonu(
         os.path.join(KOK, 'fakulte-programi-xlsx.xlsx'),
-        satirlar,
-        ['A%d:%s%d' % (r, son, r) for r in (1, 2, 3, 4, 5)],
-        7,
-        [14] + [34] * len(GUNLER),
+        '{{Fakülte Adı}} — {{Akademik Yıl}} {{Dönem}} Dönemi',
     )
 
 

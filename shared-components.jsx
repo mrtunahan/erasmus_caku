@@ -18,6 +18,18 @@ import {
   mezOlcekDogrula,
 } from './lib/mezuniyet.js';
 import { satirlariAyir, satirlariYerlestir, veriSatiriSec } from './lib/xlsx-satir.js';
+import {
+  atlananOzeti,
+  birlesikAraliklar,
+  boyaliStiller,
+  hucreleriYaz,
+  izgaraCoz,
+  kunyeDoldur,
+  paylasilanMetinler,
+  renkliStilEkle,
+  sayfaHucreleri,
+  yerlesimPlani,
+} from './lib/xlsx-izgara.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
   tabanKaydiBul,
@@ -4063,6 +4075,118 @@ const TemplateEngine = (() => {
     return out;
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // IZGARA ŞABLONU — SABİT TABLOYU YERİNDE DOLDURMA
+  //
+  // Ders programı çıktısı satır çoğaltmayla üretilemez: tablo sabit bir
+  // ızgaradır (sütun = derslik, satır = gün + ders saati) ve kurumun kendi
+  // dosyasıdır — kenarlıkları, birleşik hücreleri, elle doldurduğu sarı/yeşil
+  // alanları vardır. Bu yüzden dosya yeniden üretilmez, YERİNDE düzenlenir.
+  //
+  // Kurallar ve adresleme lib/xlsx-izgara.js'te, test altında.
+  //   opts: { module, docType, departmentId, kayitlar, kunye, filename }
+  //   kayitlar: [{ gun, saat, derslik, kod, renk }]
+  // ══════════════════════════════════════════════════════════════
+  async function produceGridXlsx(opts) {
+    const token = localStorage.getItem('caku_auth_token');
+    const headers = token ? { Authorization: 'Bearer ' + token } : {};
+    const tryResolve = async (dep) => {
+      try {
+        const r = await fetch(
+          '/api/templates/resolve?module=' +
+            encodeURIComponent(opts.module) +
+            '&docType=' +
+            encodeURIComponent(opts.docType || 'default') +
+            '&departmentId=' +
+            encodeURIComponent(dep || ''),
+          { headers, credentials: 'include' }
+        );
+        const d = await r.json().catch(() => ({}));
+        return d.template || null;
+      } catch (_) {
+        return null;
+      }
+    };
+    let tpl = await tryResolve(opts.departmentId || '');
+    if (!tpl && opts.departmentId) tpl = await tryResolve('');
+    if (!tpl) return { ok: false, reason: 'no-template' };
+    if (!tpl.file || !/^xlsx?$/.test(tpl.file.extension || '')) {
+      return { ok: false, reason: 'not-xlsx' };
+    }
+
+    let buf;
+    try {
+      const fr = await fetch('/api/templates/' + tpl._id + '/download', {
+        headers,
+        credentials: 'include',
+      });
+      if (!fr.ok) throw new Error('indirilemedi (HTTP ' + fr.status + ')');
+      buf = await fr.arrayBuffer();
+    } catch (e) {
+      return { ok: false, reason: 'download', message: e.message };
+    }
+
+    try {
+      const JSZip = await ensureJSZip();
+      const zip = await JSZip.loadAsync(buf);
+      const sayfaAdlari = Object.keys(zip.files).filter((n) =>
+        /^xl\/worksheets\/sheet\d+\.xml$/.test(n)
+      );
+      const ssDosya = zip.file('xl/sharedStrings.xml');
+      const ssXml = ssDosya ? await ssDosya.async('string') : '';
+      const stilDosya = zip.file('xl/styles.xml');
+      const stilXml = stilDosya ? await stilDosya.async('string') : '';
+      const strings = paylasilanMetinler(ssXml);
+      const boyali = boyaliStiller(stilXml);
+
+      // Izgarayı taşıyan sayfayı bul: {{Gün}} + {{Ders Saati}} hangisindeyse.
+      let hedef = null;
+      for (const ad of sayfaAdlari) {
+        const xml = await zip.file(ad).async('string');
+        const hucreler = sayfaHucreleri(xml, strings, boyali);
+        const izgara = izgaraCoz(hucreler, birlesikAraliklar(xml));
+        if (izgara) {
+          hedef = { ad, xml, hucreler, izgara };
+          break;
+        }
+      }
+      if (!hedef) return { ok: false, reason: 'no-grid' };
+
+      const plan = yerlesimPlani(hedef.izgara, hedef.hucreler, opts.kayitlar || []);
+      const { xml: yeniStil, harita } = renkliStilEkle(
+        stilXml,
+        plan.yazimlar.map((y) => ({
+          temelStil: (hedef.hucreler[y.ref] || {}).stil || 0,
+          renk: y.renk,
+        }))
+      );
+      const stilNo = (y) => {
+        const m = /^#?([0-9A-Fa-f]{6})$/.exec(String(y.renk || ''));
+        if (!m) return undefined;
+        const anahtar = ((hedef.hucreler[y.ref] || {}).stil || 0) + '|FF' + m[1].toUpperCase();
+        return harita.get(anahtar);
+      };
+      zip.file(
+        hedef.ad,
+        hucreleriYaz(
+          hedef.xml,
+          plan.yazimlar.map((y) => ({ ...y, stil: stilNo(y) }))
+        )
+      );
+      if (stilDosya) zip.file('xl/styles.xml', yeniStil);
+      if (ssDosya) zip.file('xl/sharedStrings.xml', kunyeDoldur(ssXml, opts.kunye || {}));
+
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      downloadBlob(blob, opts.filename || 'ders-programi.xlsx');
+      return { ok: true, yazilan: plan.yazimlar.length, atlanan: atlananOzeti(plan.atlanan) };
+    } catch (e) {
+      return { ok: false, reason: 'invalid-output', message: e && e.message };
+    }
+  }
+
   async function produceRowsXlsx(opts) {
     const token = localStorage.getItem('caku_auth_token');
     const headers = token ? { Authorization: 'Bearer ' + token } : {};
@@ -4295,6 +4419,7 @@ const TemplateEngine = (() => {
     produceByRowKey,
     produceQuarterXlsx,
     produceRowsXlsx,
+    produceGridXlsx,
     detectPlaceholdersXlsx,
     fillRowsByKey,
     formatCaseTr,

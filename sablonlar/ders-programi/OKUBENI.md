@@ -37,62 +37,92 @@ yerleşik çıktısını üretmeye devam eder.
 | **Bölüm Çıktısı** / **Yazdır / PDF** | Önce şablonu dener (Word ya da Excel), yoksa yerleşik yazdırma sayfasını açar |
 | **Bölüm .xlsx** / **.xlsx indir**    | Yalnız **.xlsx** şablonu dener, yoksa yerleşik Excel dosyasını üretir         |
 
-## 3. Şablonun yapısı — tek veri satırı kuralı
+## 3. Excel şablonunun yapısı — derslik sütunlu ızgara
 
-Ders programı bir ızgaradır (5 gün × 14 saat) ama şablon motoru **satır
-çoğaltarak** çalışır. Bu yüzden şablondaki tablo şu iki satırdan ibarettir:
+Excel şablonu, fakültenin elle tuttuğu tablonun **aynısıdır**:
 
-| Saat       | Pazartesi       | Salı       | Çarşamba       | Perşembe       | Cuma       |
-| ---------- | --------------- | ---------- | -------------- | -------------- | ---------- |
-| `{{Saat}}` | `{{Pazartesi}}` | `{{Salı}}` | `{{Çarşamba}}` | `{{Perşembe}}` | `{{Cuma}}` |
+|     | `{{Gün}}` | `{{Ders Saati}}` | M10Z04 | M11101 | Bilgisayar Kat1 |
+| --- | --------- | ---------------- | ------ | ------ | --------------- |
+|     | Pazartesi | 08:30 - 09:15    |        | FZK181 |                 |
+|     |           | 09:30 - 10:15    | MAT242 |        | BLM307          |
 
-- **Bir satır = bir SAAT**, **bir sütun = bir GÜN**.
-- Yer tutuculu satır, programda **dolu olan saat sayısı kadar** kopyalanır.
-  Şablona 14 satır çizmeyin; **tek satır** bırakın.
-- Boş saatler (o hafta hiç ders olmayan saatler) çıktıya yazılmaz.
-- Bir hücrede birden çok ders varsa (bölünmüş hücre, farklı sınıflar veya
-  bölümler) hepsi **alt alta** yazılır. Excel'de hücrenin _Metni Kaydır_
-  ayarını açık bırakın.
+- **Sütun = derslik**, **satır = gün + ders saati**, hücre = **ders kodu**.
+- Dersin hangi bölüme ait olduğu **zemin renginden** okunur (fakülte çıktısı).
+- Sistem tabloyu şu iki yer tutucudan bulur:
+  - `{{Gün}}` → gün sütunu
+  - `{{Ders Saati}}` → ders saati sütunu; **sağında kalan her dolu başlık bir
+    dersliktir**
+- Derslik başlığı iki biçimde de yazılabilir; ikisi de eşleşir:
+  `M10Z04` + `(T45 - S25)` ya da `Bilgisayar Kat1` + `(M111BL)`.
 
-Hücre içeriği şu düzendedir:
+### Dolu ve boyalı alanlara dokunulmaz
 
-```
-BLM301 (3. Sınıf)      ← ders kodu (fakülte çıktısında bölüm/sınıf ayrı satırda)
-Bilgisayar Ağları      ← ders adı
-Prof. Dr. Ayşe YILMAZ  ← öğretim üyesi
-D-205                  ← derslik
-```
+Şablonda elle doldurduğunuz alanlar korunur — sistem üzerlerine **yazmaz**:
+
+- **Sarı** ortak zorunlu ders satırları (`OZD-…`)
+- **Yeşil** öğle arası satırı
+- İçinde metin olan her hücre
+
+Bir ders bu yüzden yerleştirilemezse çıktı alındığında **sebebiyle bildirilir**
+(“şablonda o hücre dolu ya da boyalı”, “o gün/saat satırı yok”, “o derslik
+sütunu yok”, “derse derslik atanmamış”). Eksik bir programı sessizce vermek,
+yanlış program vermektir.
+
+### Bölüm ve fakülte çıktısı aynı şablonu kullanır
+
+- **Bölüm çıktısı** → yalnız o bölümün ders kodları, hepsi bölümün renginde.
+- **Fakülte çıktısı** → tüm bölümlerin ders kodları tek tabloda, her biri kendi
+  bölümünün renginde.
+
+Çakışma önlemi programda alınıyor; şablona temiz veri gelir. Aynı hücreye iki
+ders düşerse ikincisi yazılmaz ve bildirilir.
+
+### Ders saatleri şablonla aynı olmalı
+
+Şablondaki saat satırları (`08:30 - 09:15` …) ile bölümün Ders Programı
+modülündeki saat ayarı **aynı saatleri** göstermelidir; sistem ikisini boşluk
+farkını yok sayarak eşleştirir. Bölümün saat aralığını Ders Programı'ndaki saat
+düğmesinden ayarlayın (ör. başlangıç `08:30`).
 
 ## 4. Kullanılabilir yer tutucular
 
-Yer tutucu yazımı **yalnızca** `{{...}}` biçimidir. Adlar aşağıdakilerle
-birebir yazılırsa eşleme otomatik olur.
+Yer tutucu yazımı **yalnızca** `{{...}}` biçimidir.
 
-### Künye (belgede bir kez geçer)
+### Excel şablonunda
 
-| Yer tutucu              | Değeri                                                           |
-| ----------------------- | ---------------------------------------------------------------- |
-| `{{Kurum Adı}}`         | Üniversite adı (sistem ayarından)                                |
-| `{{Fakülte Adı}}`       | Programın ait olduğu fakülte                                     |
-| `{{Bölüm Adı}}`         | Bölüm adı — _fakülte birleşik çıktısında boştur_                 |
-| `{{Dönem}}`             | `Güz` / `Bahar`                                                  |
-| `{{Akademik Yıl}}`      | Örn. `2025-2026` (Eylül'de yeni yıl başlar)                      |
-| `{{Öğretim Seviyesi}}`  | `Lisans` / `Lisansüstü`                                          |
-| `{{Kapsam}}`            | Bölüm çıktısında sınıf bilgisi, fakülte çıktısında bölüm listesi |
-| `{{Tarih}}`             | Belgenin oluşturulduğu gün                                       |
-| `{{Hazırlayan}}`        | Çıktıyı alan yetkilinin adı                                      |
-| `{{Ders Sayısı}}`       | Programdaki farklı ders sayısı                                   |
-| `{{Ders Saati Sayısı}}` | Dolu hücre sayısı (bölünmüş hücre bir saat sayılır)              |
+| Yer tutucu             | Ne işe yarar                                                     |
+| ---------------------- | ---------------------------------------------------------------- |
+| `{{Gün}}`              | **Zorunlu** — ızgaranın gün sütununu işaretler                   |
+| `{{Ders Saati}}`       | **Zorunlu** — saat sütununu işaretler, sağı derslik sütunları    |
+| `{{Kurum Adı}}`        | Üniversite adı                                                   |
+| `{{Fakülte Adı}}`      | Programın ait olduğu fakülte                                     |
+| `{{Bölüm Adı}}`        | Bölüm adı — _fakülte çıktısında boştur_                          |
+| `{{Dönem}}`            | `Güz` / `Bahar`                                                  |
+| `{{Akademik Yıl}}`     | Örn. `2025-2026`                                                 |
+| `{{Öğretim Seviyesi}}` | `Lisans` / `Lisansüstü`                                          |
+| `{{Kapsam}}`           | Bölüm çıktısında sınıf bilgisi, fakülte çıktısında bölüm listesi |
+| `{{Tarih}}`            | Belgenin oluşturulduğu gün                                       |
+| `{{Hazırlayan}}`       | Çıktıyı alan yetkilinin adı                                      |
 
-### Tablo satırı (her dolu saat için bir kez)
+`{{Gün}}` ve `{{Ders Saati}}` çıktıda **sütun başlığı olarak** yazılır
+(“Gün”, “Ders Saati”); yer tutucu görünmez. Karşılığı verilmeyen diğer
+yer tutucular silinir.
 
-`{{Saat}}` · `{{Pazartesi}}` · `{{Salı}}` · `{{Çarşamba}}` · `{{Perşembe}}` · `{{Cuma}}`
+### Word (PDF) şablonunda
+
+Word şablonu satır çoğaltmayla çalışır: tabloda **tek veri satırı** bırakın,
+o satır dolu saat sayısı kadar kopyalanır.
+
+`{{Saat}}` · `{{Pazartesi}}` · `{{Salı}}` · `{{Çarşamba}}` · `{{Perşembe}}` ·
+`{{Cuma}}` — künye alanları yukarıdaki listeyle aynıdır.
 
 ## 5. Kendi şablonunuzu hazırlarken
 
 - Yer tutucuyu **tek parça** yazın. Word bir kelimeyi biçimlendirme yüzünden
   parçalara bölebilir; `{{Kurum Adı}}` yazdıktan sonra üzerinden geçip tek
   biçimde (aynı yazı tipi/punto) olduğundan emin olun.
+- Excel şablonunda **derslik sütunu ekleyip çıkarabilirsiniz**; sistem sütunları
+  başlıklarından bulur. Aynı şey saat satırları için de geçerlidir.
 - Aynı yer tutucuyu birden çok yerde kullanabilirsiniz; hepsi aynı değeri alır.
 - Sayfa yönü **yatay** olsun — beş gün yan yana ancak öyle okunur.
 - Tablonun altına imza, tarih, onay bloğu ekleyebilirsiniz; veri satırının
@@ -101,7 +131,10 @@ birebir yazılırsa eşleme otomatik olur.
 
 ## 6. Dosyalar nasıl yeniden üretilir
 
-Bu dosyalar elle çizilmedi, bir betikle üretildi:
+Excel şablonları **sıfırdan çizilmedi**: fakültenin kendi tablosu
+(`kaynak/fakulte-cikti-ham.xlsx`) korunup üzerine yalnız `{{ }}` yer tutucuları
+işlendi. Kenarlıklar, birleşik hücreler, sütun genişlikleri ve baskı ayarları
+kurumun bıraktığı gibidir.
 
 ```bash
 python3 scripts/ders-programi-sablonlari.py

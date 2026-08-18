@@ -74,6 +74,8 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  // Belirli bir yükleme alanından açılan "yeni şablon" penceresi
+  const [addBaslangic, setAddBaslangic] = useState(null);
   const [editTpl, setEditTpl] = useState(null); // düzenlenen şablon (meta/dosya)
   const [mapping, setMapping] = useState(null); // { tpl, file? } — alan eşleme sihirbazı
   const [filter, setFilter] = useState({ module: 'all', search: '' });
@@ -233,6 +235,18 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
           {msg.text}
         </div>
       )}
+
+      {/* ── DERS PROGRAMI YÜKLEME ALANLARI ──
+          Ders programı modülünün DÖRT çıktısı var ve her biri ayrı bir belge:
+          bölüm/fakülte × Excel/PDF. Bir belge türüne tek dosya bağlanabildiği
+          için dördü ayrı ayrı yüklenir. Aşağıdaki dört alan hangisinin yüklü
+          hangisinin boş olduğunu tek bakışta gösterir — türü açılır listeden
+          aramak gerekmiyor. */}
+      <DersProgramiYuklemeAlanlari
+        templates={templates}
+        onYukle={(slot) => setAddBaslangic(slot)}
+        onDuzenle={(tpl) => setEditTpl(tpl)}
+      />
 
       {/* Filtre */}
       <div
@@ -526,11 +540,16 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
         </div>
       )}
 
-      {showAdd && (
+      {(showAdd || addBaslangic) && (
         <AddTemplateModal
-          onClose={() => setShowAdd(false)}
+          baslangic={addBaslangic}
+          onClose={() => {
+            setShowAdd(false);
+            setAddBaslangic(null);
+          }}
           onSaved={(tpl, file) => {
             setShowAdd(false);
+            setAddBaslangic(null);
             load();
             // .docx / .xlsx ise yer tutucu eşleme sihirbazını otomatik aç
             if (tpl && sbEslenebilir(tpl.file)) {
@@ -628,6 +647,166 @@ function textBtn(color, bg) {
   };
 }
 
+// ══════════════════════════════════════════════════════════════
+// DERS PROGRAMI — DÖRT YÜKLEME ALANI
+//
+// Ders programı modülü dört belge üretir: bölüm ve fakülte programının
+// Excel ve yazdırma (PDF) hâlleri. Bunlar AYRI belge türleridir çünkü bir
+// belge türüne tek dosya bağlanabilir, oysa Excel çıktısı .xlsx şablonundan,
+// yazdırma çıktısı Word şablonundan doldurulur.
+//
+// Hiçbiri zorunlu değildir: yüklenmeyen tür için modül kendi yerleşik
+// çıktısını üretir. Bu panel hangisinin yüklü olduğunu tek bakışta gösterir.
+// ══════════════════════════════════════════════════════════════
+const DP_SABLON_ALANLARI = [
+  {
+    docType: 'bolum-xlsx',
+    baslik: 'Bölüm Programı — Excel',
+    uzanti: '.xlsx',
+    ipucu: 'Bölümün ders kodları, derslik sütunlu ızgaraya yazılır',
+  },
+  {
+    docType: 'bolum-pdf',
+    baslik: 'Bölüm Programı — Yazdırma / PDF',
+    uzanti: '.docx',
+    ipucu: 'Yazdırılan/asılan bölüm programı',
+  },
+  {
+    docType: 'fakulte-xlsx',
+    baslik: 'Fakülte Programı — Excel',
+    uzanti: '.xlsx',
+    ipucu: 'Tüm bölümlerin ders kodları tek ızgarada, bölüm renkleriyle',
+  },
+  {
+    docType: 'fakulte-pdf',
+    baslik: 'Fakülte Programı — Yazdırma / PDF',
+    uzanti: '.docx',
+    ipucu: 'Yazdırılan/asılan fakülte birleşik programı',
+  },
+];
+
+function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
+  const yuklu = {};
+  (templates || []).forEach((t) => {
+    if (t && t.module === 'dersprogrami' && t.isActive !== false) {
+      const d = t.docType || 'default';
+      if (!yuklu[d]) yuklu[d] = t;
+    }
+  });
+  const renk = moduleMeta('dersprogrami').color;
+
+  return (
+    <div
+      style={{
+        background: 'white',
+        border: '1px solid #E5E7EB',
+        borderLeft: '4px solid ' + renk,
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 12,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
+          Ders Programı Şablonları
+        </span>
+        <span style={{ fontSize: 12, color: '#6B7280' }}>
+          Dört çıktı, dört ayrı dosya — hiçbiri zorunlu değil
+        </span>
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: 10,
+          marginTop: 12,
+        }}
+      >
+        {DP_SABLON_ALANLARI.map((alan) => {
+          const tpl = yuklu[alan.docType];
+          return (
+            <div
+              key={alan.docType}
+              style={{
+                border: '1px solid ' + (tpl ? renk + '55' : '#E5E7EB'),
+                background: tpl ? renk + '0C' : '#FAFAFA',
+                borderRadius: 10,
+                padding: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{alan.baslik}</div>
+              <div style={{ fontSize: 11, color: '#6B7280', lineHeight: 1.4 }}>{alan.ipucu}</div>
+              {tpl ? (
+                <>
+                  <div
+                    style={{
+                      fontSize: 11.5,
+                      color: '#166534',
+                      fontWeight: 600,
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    ✓ {tpl.name}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onDuzenle(tpl)}
+                    style={{
+                      marginTop: 2,
+                      padding: '6px 10px',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: 8,
+                      background: 'white',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#374151',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Değiştir / Düzenle
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 11.5, color: '#9CA3AF', fontWeight: 600 }}>
+                    Yüklenmedi — yerleşik çıktı kullanılıyor
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onYukle({
+                        module: 'dersprogrami',
+                        docType: alan.docType,
+                        ad: alan.baslik,
+                      })
+                    }
+                    style={{
+                      marginTop: 2,
+                      padding: '6px 10px',
+                      border: 'none',
+                      borderRadius: 8,
+                      background: renk,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: 'white',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {alan.uzanti} yükle
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function AddTemplateModal(props) {
   const {
     onClose,
@@ -638,12 +817,20 @@ function AddTemplateModal(props) {
     activeDepartment,
     currentUser,
     editTemplate,
+    // Belirli bir yükleme alanından açıldıysa modül ve belge türü hazır gelir
+    // (ör. Ders Programı → "Fakülte Programı — Excel"), kullanıcı listeden
+    // doğru türü kendi aramak zorunda kalmaz.
+    baslangic,
   } = props;
   const isEdit = !!editTemplate;
-  const [name, setName] = useState(editTemplate?.name || '');
+  const [name, setName] = useState(editTemplate?.name || (baslangic && baslangic.ad) || '');
   const [description, setDescription] = useState(editTemplate?.description || '');
-  const [module_, setModule] = useState(editTemplate?.module || 'erasmus');
-  const [docType, setDocType] = useState(editTemplate?.docType || (isEdit ? 'default' : 'gidis'));
+  const [module_, setModule] = useState(
+    editTemplate?.module || (baslangic && baslangic.module) || 'erasmus'
+  );
+  const [docType, setDocType] = useState(
+    editTemplate?.docType || (baslangic && baslangic.docType) || (isEdit ? 'default' : 'gidis')
+  );
   const [file, setFile] = useState(null);
   const [isDefault, setIsDefault] = useState(!!editTemplate?.isDefault);
   const [isActive, setIsActive] = useState(editTemplate ? editTemplate.isActive !== false : true);
