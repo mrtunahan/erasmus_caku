@@ -429,6 +429,9 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
     basvurduguFakulteId: '',
     basvurduguFakulte: '',
     basvurduguBolum: '',
+    // Bölümün ADI değil KİMLİĞİ de saklanır: başvuruyu değerlendirecek bölüm
+    // budur ve listeleme buna göre yapılır (bkz. lib/yatay-kapsam.js).
+    basvurduguBolumId: '',
     basvurduguSinif: '',
     // Yerleştirme
     yksYerlesmeYili: '',
@@ -731,7 +734,17 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
         // denetim bu bilgiyi ister.
         vekaleten: !!vekaleten,
         girenPersonel: vekaleten ? String(currentUser?.name || currentUser?.identifier || '') : '',
-        departmentId: currentUser?.departmentId || '',
+        // ── BAŞVURUYU HANGİ BÖLÜM DEĞERLENDİRİR ──
+        // Eskiden burada FORMU DOLDURANIN bölümü yazılıyordu
+        // (`currentUser?.departmentId`). Aday kurum dışındansa ya da kaydı
+        // fakülte/üniversite düzeyinde bir personel vekâleten açtıysa o kişinin
+        // bölümü olmadığı için alan BOŞ kalıyor, boş bölümlü kayıt da her
+        // bölümün listesinde görünüyordu. Kurum içi geçişte ise öğrencinin
+        // MEVCUT bölümü yazılıyordu; oysa başvuruyu gelmek istediği bölüm
+        // değerlendirir. Doğrusu başvurulan bölümdür.
+        basvurduguBolumId: form.basvurduguBolumId || '',
+        departmentId:
+          form.basvurduguBolumId || departmentInfo?.id || currentUser?.departmentId || '',
         // Aktif
         aktifUniversite: form.aktifUniversite.trim(),
         aktifFakulte: form.aktifFakulte.trim(),
@@ -902,6 +915,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                   basvurduguFakulte: buyuk(fak?.name || ''),
                   // Fakülte değişince bölüm seçimi sıfırlanır
                   basvurduguBolum: '',
+                  basvurduguBolumId: '',
                 }));
               }}
               style={{ ...ygInput, cursor: 'pointer' }}
@@ -918,7 +932,17 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
             <label style={ygLabel}>Bölüm / Program *</label>
             <select
               value={form.basvurduguBolum}
-              onChange={(e) => setBuyuk('basvurduguBolum', e.target.value)}
+              onChange={(e) => {
+                const ad = e.target.value;
+                // Seçim anında KİMLİK de yakalanır. Yalnız adı saklamak, eski
+                // kayıtlardaki gibi bölümü ada bakarak çözmeye mahkûm ederdi.
+                const secilen = hedefBolumler.find((b) => buyuk(b.name) === ad);
+                setForm((f) => ({
+                  ...f,
+                  basvurduguBolum: ad,
+                  basvurduguBolumId: secilen ? String(secilen.id || secilen._docId || '') : '',
+                }));
+              }}
               disabled={!form.basvurduguFakulteId}
               style={{
                 ...ygInput,
@@ -2300,6 +2324,22 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   const [uretilenBelge, setUretilenBelge] = useState(null);
   const [belgeUretiliyor, setBelgeUretiliyor] = useState(false);
 
+  // Bölüm listesi: eski kayıtlarda bölüm kimliği yok, yalnız ADI var
+  // (`basvurduguBolum`). Sahibi çözebilmek için ad→kimlik eşlemesi gerekir.
+  const [tumBolumler, setTumBolumler] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    window
+      .apiRead('departments')
+      .catch(() => [])
+      .then((d) => {
+        if (alive) setTumBolumler(d || []);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const yukle = useCallback(async () => {
     setLoading(true);
     try {
@@ -2324,18 +2364,43 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   // esas puana göre yüksekten düşüğe dizilir — belge de bu sırayla üretilir,
   // yani ekranda gördüğünüz sıra çıktıdaki sıradır. Kurum içi geçişte puan
   // ölçütü olmadığı için kayıt sırası (yeniden eskiye) korunur.
-  const gorunen = useMemo(() => {
+  // ── KAPSAM TEK YERDE ──
+  // Öğrenci yalnız kendi başvurularını; personel yalnız KENDİ BÖLÜMÜNE
+  // yapılmış başvuruları görür. Tür süzgeci bunun ÜSTÜNE binir.
+  //
+  // Eskiden kapsam yalnız `gorunen` içinde uygulanıyordu; tür seçicideki
+  // rozet sayıları ham `kayitlar` üzerinden hesaplanıyor ve ÜNİVERSİTE
+  // GENELİNİ gösteriyordu — her bölüm aynı "11 / 19" sayısını görüyordu.
+  const kapsamdaki = useMemo(() => {
     const myNo = String(currentUser?.studentNumber || currentUser?.identifier || '');
-    const liste = kayitlar
+    return kayitlar.filter((r) => {
+      if (isStudent) return String(r.ogrenciNo || '') === myNo;
+      if (!activeDepartment) return true;
+      // Eskiden ölçüt `!r.departmentId || r.departmentId === activeDepartment`
+      // idi: bölümü BOŞ kalan başvuru üniversitedeki HER bölümün listesinde
+      // görünüyordu. Artık sahip bölüm, başvurulan (yani değerlendiren)
+      // bölümden çözülür; çözülemeyen kayıt hiçbir bölümde listelenmez ve
+      // ayrıca bildirilir (bkz. lib/yatay-kapsam.js).
+      return window.ygBasvuruBolumdeMi
+        ? window.ygBasvuruBolumdeMi(r, activeDepartment, tumBolumler)
+        : r.departmentId === activeDepartment;
+    });
+  }, [kayitlar, isStudent, currentUser, activeDepartment, tumBolumler]);
+
+  // Bölümü çözülemeyen başvurular: sessizce kaybolmasınlar diye sayılır ve
+  // yetkiliye bildirilir. Eski davranışta bunlar HER bölümde görünüyordu;
+  // hiçbir yerde göstermek de aynı derecede kötü olurdu.
+  const sahipsizler = useMemo(() => {
+    if (isStudent || !activeDepartment || !window.ygSahipsizBasvurular) return [];
+    return window.ygSahipsizBasvurular(kayitlar, tumBolumler);
+  }, [kayitlar, tumBolumler, isStudent, activeDepartment]);
+
+  const gorunen = useMemo(() => {
+    const liste = kapsamdaki
       .filter((r) => (r.turu || 'kurumici') === turId)
-      .filter((r) => {
-        if (isStudent) return String(r.ogrenciNo || '') === myNo;
-        if (!activeDepartment) return true;
-        return !r.departmentId || r.departmentId === activeDepartment;
-      })
       .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
     return turId === 'kurumici' ? liste : puanaGoreSirala(liste, turId);
-  }, [kayitlar, turId, isStudent, currentUser, activeDepartment]);
+  }, [kapsamdaki, turId]);
 
   const degerlendirilmemis = gorunen.filter((r) => !r.degerlendirme).length;
   const belgeHazir = gorunen.length > 0 && degerlendirilmemis === 0;
@@ -3023,7 +3088,8 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       <div style={{ display: 'flex', gap: 10, margin: '18px 0 20px', flexWrap: 'wrap' }}>
         {YG_TURLER.map((t) => {
           const sel = turId === t.id;
-          const cnt = kayitlar.filter((r) => (r.turu || 'kurumici') === t.id).length;
+          // Rozet KAPSAM içinden sayılır: ham `kayitlar` üniversite geneliydi.
+          const cnt = kapsamdaki.filter((r) => (r.turu || 'kurumici') === t.id).length;
           return (
             <button
               key={t.id}
@@ -3147,6 +3213,32 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       {/* Başvuru listesi */}
       {sekme === 'basvurular' && (
         <>
+          {/* Bölümü çözülemeyen başvurular hiçbir bölümün listesinde çıkmaz;
+              sessizce kaybolmasınlar diye burada bildirilir. Eski davranışta
+              bunlar HER bölümde görünüyordu — asıl şikâyet buydu. */}
+          {sahipsizler.length > 0 && (
+            <div
+              style={{
+                background: '#FFFBEB',
+                border: '1px solid #FDE68A',
+                color: '#92400E',
+                borderRadius: 10,
+                padding: '10px 14px',
+                marginBottom: 14,
+                fontSize: 12.5,
+                lineHeight: 1.6,
+              }}
+            >
+              <b>{sahipsizler.length} başvurunun bölümü çözülemedi</b> ve hiçbir bölümün listesinde
+              görünmüyor:{' '}
+              {[...new Set(sahipsizler.map((r) => r.adSoyad || r.ogrenciNo || '?'))]
+                .slice(0, 6)
+                .join(', ')}
+              {sahipsizler.length > 6 ? ' …' : ''}. Bu kayıtlarda “başvurulan bölüm” boş ya da
+              sistemdeki bölüm adlarıyla eşleşmiyor. Kaydı açıp bölümü seçtiğinizde ilgili bölümün
+              listesine düşer.
+            </div>
+          )}
           {/* Akademisyen: geçmiş yılların taban tablolarını kütüphaneden seç.
               Bölümler çoğu zaman adayın YERLEŞTİĞİ YILIN tablosunu kullanmak
               ister; kütüphane yıl-tür başına saklandığı için istenen yıl(lar)

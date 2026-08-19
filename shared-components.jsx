@@ -32,6 +32,7 @@ import {
   yerlesimPlani,
 } from './lib/xlsx-izgara.js';
 import { universiteYetkilisiMi } from './lib/yetki.js';
+import { basvuruBolumId, basvuruBolumdeMi, sahipsizBasvurular } from './lib/yatay-kapsam.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
   adAnahtari,
@@ -4835,6 +4836,11 @@ window.dosyaOzeti = async function (file) {
 window.tabanKaydiBul = tabanKaydiBul;
 window.tabanKarsilastir = tabanKarsilastir;
 window.programAnahtari = programAnahtari;
+// Yatay geçiş başvurusunun SAHİBİ bölüm — başvurulan (değerlendiren) bölüm.
+// Kural ve gerekçesi lib/yatay-kapsam.js'te, test altında.
+window.ygBasvuruBolumId = basvuruBolumId;
+window.ygBasvuruBolumdeMi = basvuruBolumdeMi;
+window.ygSahipsizBasvurular = sahipsizBasvurular;
 window.TABAN_DURUM_ETIKET = TABAN_DURUM_ETIKET;
 window.tabanTablosuCoz = tabanTablosuCoz;
 window.metinKatmaniVarMi = metinKatmaniVarMi;
