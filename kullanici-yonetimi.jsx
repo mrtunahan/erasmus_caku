@@ -70,54 +70,60 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         DB.fetchStudents(),
         DB.fetchProfessors(),
       ]);
-      // Bölüm filtresi: departmentId OR department adı eşleştirmesi.
-      // Önemli: 'departmentId varsa sadece id'ye bak' kuralı YANLIŞTI; bir
-      // akademisyenin departmentId'si başka bir değere set edilmiş (eski/yanlış)
-      // ama department adı doğru ise, ad eşleşmesini de kabul etmek gerekir
-      // (aksi halde Fakülte Yönetimi'nde görünen akademisyen Kullanıcı
-      // Yönetimi'nde kayboluyor).
+      // ── BÖLÜM FİLTRESİ: ADI KOŞULSUZ DENEMEK BİR PANSUMANDI ──
+      // Burada eskiden "departmentId doğru bölümü göstermese bile adı
+      // eşleşiyorsa kabul et" kuralı vardı. Gerekçesi, kimliği "yanlış"
+      // görünen akademisyenlerin listeden kaybolmasıydı. Asıl sebep kimliğin
+      // yanlış olması değil, AYNI bölümün iki kimlik biçimi (slug ve
+      // ObjectId) taşıması ve ham eşitliğin bunları farklı bölüm saymasıydı.
+      // O kök neden artık kimlik varyantı eşleştirmesiyle kapandı; pansuman
+      // ise kendi arızasını üretiyordu: kimliği Makine'yi gösterip eski
+      // `department` metni Bilgisayar'da kalmış kişi İKİ bölümde birden
+      // görünüyordu ("hayalet akademisyen").
       const deptInfo = DEPARTMENTS.find((d) => d.id === activeDepartment);
       const deptName = deptInfo?.name || '';
       const normName = (s) => (s || '').toLowerCase().replace(/\s+/g, '');
-      const target = normName(deptName);
       const shortTarget = normName(deptInfo?.shortName);
+      // Bölüm eşleşmesi ORTAK kuralla (window.profMatchesDept): ham eşitlik
+      // yerine bölümün tüm kimlik biçimleri denenir ve bölüm ADI yalnız
+      // `departmentId` BOŞKEN devreye girer. Eskiden ad koşulsuz deneniyordu:
+      // kimliği Makine'yi gösteren ama eski `department` metni Bilgisayar'da
+      // kalmış kişi iki bölümde birden görünüyordu.
       const filterByDept = (item) => {
         if (!activeDepartment) return true;
         // Üniversite dışı akademisyen hiçbir bölümün asıl akademisyeni sayılmaz;
         // ana listede görünmez (yalnız "Üniversite Dışı Akademisyenler" havuzunda).
         if (item.external === true) return false;
-        if (item.departmentId === activeDepartment) return true;
-        // Çapraz-bölüm: ek bölüm listesinde aktifBölüm varsa kabul.
         if (
-          Array.isArray(item.additionalDepartments) &&
-          item.additionalDepartments.includes(activeDepartment)
+          window.profMatchesDept
+            ? window.profMatchesDept(item, activeDepartment, deptName)
+            : item.departmentId === activeDepartment
         ) {
           return true;
         }
-        // Yalnız TAM AD veya kısa ad eşleşmesi — substring eşleşmesi (includes)
-        // kaldırıldı. Çünkü "kimya" "kimyamühendisliği" içinde de geçer ve
-        // Kimya Bölümü aktifken Kimya Mühendisliği akademisyenleri de listeye
-        // yanlış pozitif olarak giriyordu.
-        const dept = normName(item.department);
-        if (!dept) return false;
-        return dept === target || (shortTarget && dept === shortTarget);
+        // Kısa ad, ortak kuralın kapsamadığı tek durum: eski kayıtlarda
+        // `department` alanına bölümün KISA adı yazılmış olabilir.
+        if (item.departmentId || !shortTarget) return false;
+        return normName(item.department) === shortTarget;
       };
       // Öğrenciler için de aynı OR mantığı — eski 'departmentId yoksa bilgisayar'
       // fallback'i kaldırıldı (yanlış bölüme düşürüyordu).
       const filterStudentByDept = (s) => {
         if (!activeDepartment) return true;
-        if (s.departmentId === activeDepartment) return true;
-        // ÇAP (çift anadal) öğrencisi: ek bölüm listesinde aktif bölüm varsa,
-        // bu bölümün öğrencisiymiş gibi listelenir (aynı seviye).
+        // Öğrenci kaydında bölüm adı `departmentName` alanında da olabilir;
+        // ortak kural `department`e bakar, bu yüzden normalize edilmiş bir
+        // kopya verilir. ÇAP (çift anadal) öğrencisi ek bölüm listesinden
+        // yakalanır — o da ortak kuralın içinde.
+        const aday = s.department ? s : { ...s, department: s.departmentName };
         if (
-          Array.isArray(s.additionalDepartments) &&
-          s.additionalDepartments.includes(activeDepartment)
+          window.profMatchesDept
+            ? window.profMatchesDept(aday, activeDepartment, deptName)
+            : s.departmentId === activeDepartment
         ) {
           return true;
         }
-        const dept = normName(s.department || s.departmentName);
-        if (!dept) return false;
-        return dept === target || (shortTarget && dept === shortTarget);
+        if (s.departmentId || !shortTarget) return false;
+        return normName(s.department || s.departmentName) === shortTarget;
       };
       // Memurlar akademisyen değildir — akademisyen listelerinde/ders atamada
       // görünmezler. En kaynakta ayıklanır ki tüm alt kullanımları kapsasın.

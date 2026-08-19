@@ -223,14 +223,20 @@ function FakYonetimiApp({ currentUser }) {
     [professors, myFacultyId]
   );
 
-  // Bir bölümün akademisyenleri — id (öncelikli) veya ad eşleşmesi ile bulunur.
-  // Eski kayıtlarda departmentId boş ama department='Gıda Mühendisliği' olabilir;
-  // her iki durumu da yakalar, sonra id'ye göre benzersizleştirir (UI duplicate
-  // önlemi). Ayrıca eski 'department adı eşleşmiş ama departmentId boş' kayıtları
-  // tespit etmek için kullanılır.
+  // Bir bölümün akademisyenleri — ORTAK kural window.profMatchesDept ile.
+  //
+  // ── HAYALET AKADEMİSYEN ──
+  // Burada eskiden `p.departmentId === deptId || p.department === deptName`
+  // vardı. İki kusuru vardı: (1) ham eşitlik, aynı bölümün slug ve ObjectId
+  // kimliklerini farklı bölüm sanıyordu; (2) bölüm ADI KOŞULSUZ deneniyordu,
+  // yani kimliği Makine'yi gösteren ama eski `department` metni Bilgisayar'da
+  // kalmış kişi İKİ bölümde birden görünüyordu. Ortak kural adı yalnız
+  // `departmentId` BOŞKEN dener; eski ham kayıtlar korunur, hayalet üretmez.
   const profsOfDept = (deptId, deptName) => {
-    const matched = professors.filter(
-      (p) => p.departmentId === deptId || (deptName && p.department === deptName)
+    const matched = professors.filter((p) =>
+      window.profMatchesDept
+        ? window.profMatchesDept(p, deptId, deptName)
+        : p.departmentId === deptId
     );
     const seen = new Set();
     return matched.filter((p) => {

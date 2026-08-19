@@ -37,6 +37,7 @@ import {
   ayniBolum as ayniBolumCoz,
 } from './lib/bolum-kimlik.js';
 import { bolumleriBirlestir as bolumleriBirlestirCoz } from './lib/bolum-birlestir.js';
+import { akademisyenBolumdeMi } from './lib/akademisyen-bolum.js';
 import { basvuruBolumId, basvuruBolumdeMi, sahipsizBasvurular } from './lib/yatay-kapsam.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
@@ -743,31 +744,14 @@ window.DEPARTMENTS = DEPARTMENTS;
 // 'admin' rolüyle geldiği için role bakmak yetmez.
 window.isUniversiteYetkilisi = universiteYetkilisiMi;
 
-// Akademisyen-bölüm eşleşme kontrolü — modüllerin ortak kullanımı için.
-// Bir akademisyen aşağıdaki durumlardan herhangi birinde belirtilen bölümde
-// sayılır:
-//   1. ana bölümü: prof.departmentId === deptId
-//   2. ek bölüm listesi: prof.additionalDepartments içerir deptId'yi
-//   3. eski/ham veride sadece ad eşleşmesi (departmentId hiç yoksa)
-// Modüller (proje, sınav otomasyonu, ders programı, anketler, kullanıcı
-// yönetimi) bu fonksiyonu kullanarak çapraz-bölüm akademisyen atamalarını
-// otomatik destekler.
-window.profMatchesDept = function (prof, deptId, deptName) {
-  if (!prof || !deptId) return false;
-  // Ham eşitlik yetmez: aynı bölüm slug ('bilgisayar') ve DB kimliği
-  // (ObjectId) ile anılabiliyor; akademisyenin kaydında hangisinin durduğu
-  // kaydın ne zaman açıldığına bağlı. Bölümün TÜM kimlikleri denenir.
-  const kimlikler = window.bolumKimlikleri ? window.bolumKimlikleri(deptId) : [String(deptId)];
-  if (kimlikler.includes(String(prof.departmentId || ''))) return true;
-  const extras = Array.isArray(prof.additionalDepartments) ? prof.additionalDepartments : [];
-  if (extras.some((x) => kimlikler.includes(String(x)))) return true;
-  // Ham veri fallback: departmentId boşsa ad ile dene
-  if (!prof.departmentId && deptName && prof.department) {
-    const norm = (s) => (s || '').toLocaleLowerCase('tr-TR').replace(/\s+/g, '');
-    if (norm(prof.department) === norm(deptName)) return true;
-  }
-  return false;
-};
+// Akademisyen-bölüm eşleşmesi — bölüm bazlı TÜM ekranların ortak kuralı
+// (proje, sınav otomasyonu, ders programı, anketler, komisyonlar, kullanıcı
+// ve fakülte yönetimi). Kural ve gerekçesi lib/akademisyen-bolum.js'te,
+// test altında: bölümün tüm kimlik biçimleri denenir, çapraz-bölüm ataması
+// desteklenir, bölüm ADI ise yalnız `departmentId` boşken son çare olarak
+// kullanılır (koşulsuz denemek "hayalet akademisyen" üretiyordu).
+window.profMatchesDept = (prof, deptId, deptName) =>
+  akademisyenBolumdeMi(prof, deptId, DEPARTMENTS, deptName);
 // Bir bölümün TÜM kimlik varyantlarını döndürür (id, _id, _docId, code).
 // Bölüm kimliği zamanla biçim değiştirmiş olabilir (üretilmiş _docId → slug);
 // eski kimlikle kaydedilmiş veriler (ders, derslik, program) ham eşitlik
