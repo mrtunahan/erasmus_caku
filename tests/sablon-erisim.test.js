@@ -205,3 +205,42 @@ describe('canViewTemplate — personel', () => {
     expect(canViewTemplate({}, sablon({ scope: 'faculty', facultyId: 'fen' }), MAP)).toBe(false);
   });
 });
+
+// ── CANLIDA GÖRÜLEN ARIZA ──
+// "Şablonu fakülte için yüklüyorum fakat şablon her bölümde yüklü
+// görünmüyor." Sebep: personel dalı fakülteyi kullanıcının PROFİLİNDEN
+// okuyordu; o alan yalnız fakülte yetkililerinde dolu.
+describe('fakülte şablonu, fakültedeki BÖLÜM akademisyenine görünür', () => {
+  const HARITA = { bilgisayar: 'F-MUH', makine: 'F-MUH', fizik: 'F-FEN' };
+  const fakSablonu = { scope: 'faculty', facultyId: 'F-MUH', module: 'staj' };
+
+  it('facultyId taşımayan akademisyen fakültesini BÖLÜMÜNDEN alır', () => {
+    const akademisyen = { departmentId: 'bilgisayar' }; // facultyId YOK
+    expect(canViewTemplate(akademisyen, fakSablonu, HARITA)).toBe(true);
+  });
+
+  it('aynı fakültenin diğer bölümü de görür', () => {
+    expect(canViewTemplate({ departmentId: 'makine' }, fakSablonu, HARITA)).toBe(true);
+  });
+
+  it('BAŞKA fakültenin akademisyeni görmez', () => {
+    expect(canViewTemplate({ departmentId: 'fizik' }, fakSablonu, HARITA)).toBe(false);
+  });
+
+  it('bölümü de fakültesi de olmayan kullanıcı görmez', () => {
+    expect(canViewTemplate({}, fakSablonu, HARITA)).toBe(false);
+  });
+
+  it('profilinde facultyId olan yetkili DAVRANIŞINI KORUR', () => {
+    const fakYetkilisi = { isFacultyManager: true, facultyId: 'F-MUH' };
+    expect(canViewTemplate(fakYetkilisi, fakSablonu, HARITA)).toBe(true);
+    expect(
+      canViewTemplate({ isFacultyManager: true, facultyId: 'F-FEN' }, fakSablonu, HARITA)
+    ).toBe(false);
+  });
+
+  it('GÖRME yetkisi YÖNETME yetkisi vermez', () => {
+    // Bölümdeki akademisyen fakülte şablonunu indirebilir ama silemez.
+    expect(canManageTemplate({ departmentId: 'bilgisayar' }, fakSablonu, HARITA)).toBe(false);
+  });
+});

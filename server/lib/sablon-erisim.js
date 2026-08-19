@@ -86,8 +86,16 @@ function canViewTemplate(scope, tpl, deptFacMap, kimlikHaritasi) {
   if (t.scope === 'department' && t.departmentId && ayni(t.departmentId, s.departmentId)) {
     return true;
   }
-  if (t.scope === 'faculty' && t.facultyId && t.facultyId === s.facultyId) {
-    return true;
+  // ── FAKÜLTE ŞABLONU BÖLÜMDEKİ AKADEMİSYENE GÖRÜNMÜYORDU ──
+  // Burada yalnız `s.facultyId` karşılaştırılıyordu. O alan profilde SADECE
+  // fakülte yetkililerinde dolu; sıradan bir akademisyenin kaydında yok.
+  // Sonuç: fakülte düzeyinde yüklenen şablon, o fakültenin bölümlerindeki
+  // akademisyenlerin hiçbirinde "yüklü" görünmüyordu — yalnız fakülte
+  // yetkilisinin kendi ekranında duruyordu. Öğrenci dalı (yukarıda) fakülteyi
+  // zaten bölümden türetiyor; personel dalı bunu yapmıyordu.
+  if (t.scope === 'faculty' && t.facultyId) {
+    const benimFakulte = s.facultyId || map[s.departmentId];
+    if (benimFakulte && t.facultyId === benimFakulte) return true;
   }
   return false;
 }

@@ -368,13 +368,16 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
   // sayısı küçük), ama listede yalnız kendi kapsamına girenler görünür: bir
   // bölüm yetkilisi başka bölümün — hele başka fakültenin — atamasını
   // görmemeli, kaldıramamalı.
-  const yonetilebilirAtamalar = useMemo(
-    () =>
-      window.yayinYonetilebilirMi
-        ? (assignments || []).filter((a) => window.yayinYonetilebilirMi(a, yayinKapsami))
-        : assignments || [],
-    [assignments, yayinKapsami]
-  );
+  const yonetilebilirAtamalar = useMemo(() => {
+    // Kural yüklenemediyse liste BOŞ kalır, tamamı DEĞİL. Bir yetki kararında
+    // "kural yoksa hepsini göster" yanlış taraftır: eksik gösterim fark
+    // edilip bildirilir, fazla gösterim sessizce yetki genişletir.
+    if (!window.yayinYonetilebilirMi) {
+      console.warn('Yayın kapsamı kuralı yüklenemedi — atama listesi gösterilmiyor.');
+      return [];
+    }
+    return (assignments || []).filter((a) => window.yayinYonetilebilirMi(a, yayinKapsami));
+  }, [assignments, yayinKapsami]);
 
   useEffect(() => {
     load();
