@@ -2807,6 +2807,34 @@ window.templateVarsFor = function (module, docType) {
   const mod = window.TEMPLATE_VARS[module] || window.TEMPLATE_VARS._generic;
   return mod[docType || 'default'] || mod.default || window.TEMPLATE_VARS._generic.default;
 };
+// ── YAPISAL YER TUTUCULAR ──
+// Bazı yer tutucular künye alanı DEĞİL, şablonun taşıyıcısıdır. Ders programı
+// ızgarasında `{{Gün}}` ve `{{Ders Saati}}` tablonun nerede başladığını
+// söyler; karşılıkları sabittir ("Gün", "Ders Saati") ve değişkene bağlanmaz.
+//
+// Eşleme sihirbazı bunları normal alan sanıp listeliyordu ve adı benzediği
+// için `{{Ders Saati}}` kendiliğinden "Ders Saati Sayısı" değişkenine
+// bağlanıyordu — yetkili sütun başlığının yerine bir SAYI eşlemiş oluyor,
+// üstelik seçimi hiçbir işe yaramıyordu. Sihirbaz artık bunları kilitli
+// gösterir; çıktı tarafında da künye değerleri bu başlıkların üzerine
+// yazamaz (bkz. lib/xlsx-izgara.js → IZGARA_BASLIKLARI).
+const YAPISAL_TOKENLAR = {
+  dersprogrami: ['gün', 'ders saati'],
+};
+const yapisalSade = (metin) =>
+  String(metin == null ? '' : metin)
+    .replace(/İ/g, 'i')
+    .replace(/I/g, 'ı')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[^0-9a-zçğıöşü]/g, '');
+/** Bu yer tutucu, o modülde şablonun yapısını işaretleyen bir token mı? */
+window.templateYapisalToken = function (module, token) {
+  const liste = YAPISAL_TOKENLAR[module];
+  if (!liste) return false;
+  const ic = yapisalSade(String(token || '').replace(/^\{\{|\}\}$/g, ''));
+  return !!ic && liste.some((ad) => yapisalSade(ad) === ic);
+};
+
 // Bir modülün belge türleri
 window.templateDocTypes = function (module) {
   const mod = window.TEMPLATE_VARS[module] || window.TEMPLATE_VARS._generic;

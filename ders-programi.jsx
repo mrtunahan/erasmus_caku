@@ -891,6 +891,14 @@ function izgaraCozumOnerisi(atlanan, sablonDerslikleri) {
         'kurumun ayırdığı alanlardır.'
     );
   }
+  if (sebepler.some((x) => /birleştirilmiş/.test(x))) {
+    oneriler.push(
+      'Şablonda o saat satırı derslik sütunları boyunca BİRLEŞTİRİLMİŞ (kurumun ' +
+        'öğle arası bandı). Birleşik alan tek hücredir; içine yazılan ders Excel’de ' +
+        'görünmez. O saatte ders yapılacaksa şablonda o satırın hücre birleştirmesini ' +
+        'kaldırın, yapılmayacaksa dersi başka saate alın.'
+    );
+  }
   return oneriler.join('\n\n');
 }
 

@@ -1234,6 +1234,10 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
   const vars = window.templateVarsFor
     ? window.templateVarsFor(tpl.module, tpl.docType)
     : { static: [], row: [] };
+  // Şablonun yapısını işaretleyen yer tutucular (ders programı ızgarasında
+  // {{Gün}} ve {{Ders Saati}}): eşlenmez, çıktıda sütun başlığı olarak basılır.
+  const yapisal = (token) =>
+    !!window.templateYapisalToken && window.templateYapisalToken(tpl.module, token);
 
   useEffect(() => {
     let alive = true;
@@ -1410,6 +1414,11 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
         };
         let auto = 0;
         merged = merged.map((f) => {
+          // Yapısal token (ızgaranın {{Gün}} / {{Ders Saati}} işaretçileri):
+          // künye alanı değildir, değişkene bağlanmaz. Kayıtlı bir eşleme
+          // varsa da temizlenir — eskiden '{{Ders Saati}}' adı benzediği için
+          // "Ders Saati Sayısı"na kendiliğinden bağlanıyordu.
+          if (yapisal(f.token)) return { ...f, variable: '', value: '' };
           if (f.variable) return f;
           const inner = normTr(String(f.token).replace(/^\{\{|\}\}$/g, ''));
           if (!inner) return f;
@@ -1480,7 +1489,10 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
     }
   };
 
-  const mappedCount = (fields || []).filter((f) => f.variable).length;
+  // Yapısal işaretçiler "eşlenecek alan" değildir; sayaç onları saymaz, yoksa
+  // "4 / 5 eşlendi" diye eksik kalmış izlenimi verirdi.
+  const eslenebilir = (fields || []).filter((f) => !yapisal(f.token));
+  const mappedCount = eslenebilir.filter((f) => f.variable).length;
   const selStyle = {
     width: '100%',
     padding: '7px 10px',
@@ -1593,33 +1605,51 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
                 </div>
               </div>
               <div>
-                <select
-                  value={f.variable}
-                  onChange={(e) => update(i, { variable: e.target.value })}
-                  style={selStyle}
-                >
-                  <option value="">— Atla —</option>
-                  {vars.static.length > 0 && (
-                    <optgroup label="Belge alanları">
-                      {vars.static.map((v) => (
-                        <option key={v.id} value={'static:' + v.id}>
-                          {v.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {vars.row.length > 0 && (
-                    <optgroup label="Tablo satırı (ders başına)">
-                      {vars.row.map((v) => (
-                        <option key={v.id} value={'row:' + v.id}>
-                          {v.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  <option value="const">Sabit metin…</option>
-                </select>
-                {f.variable === 'const' && (
+                {yapisal(f.token) ? (
+                  <div
+                    style={{
+                      ...selStyle,
+                      background: '#F3F4F6',
+                      color: '#4B5563',
+                      border: '1px dashed #D1D5DB',
+                      fontWeight: 600,
+                    }}
+                    title={
+                      'Bu yer tutucu tablonun kendisini işaretler; çıktıda sütun ' +
+                      'başlığı olarak basılır. Eşleme gerekmez.'
+                    }
+                  >
+                    🔒 Tablo işareti — otomatik
+                  </div>
+                ) : (
+                  <select
+                    value={f.variable}
+                    onChange={(e) => update(i, { variable: e.target.value })}
+                    style={selStyle}
+                  >
+                    <option value="">— Atla —</option>
+                    {vars.static.length > 0 && (
+                      <optgroup label="Belge alanları">
+                        {vars.static.map((v) => (
+                          <option key={v.id} value={'static:' + v.id}>
+                            {v.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {vars.row.length > 0 && (
+                      <optgroup label="Tablo satırı (ders başına)">
+                        {vars.row.map((v) => (
+                          <option key={v.id} value={'row:' + v.id}>
+                            {v.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <option value="const">Sabit metin…</option>
+                  </select>
+                )}
+                {!yapisal(f.token) && f.variable === 'const' && (
                   <input
                     value={f.value}
                     onChange={(e) => update(i, { value: e.target.value })}
@@ -1627,7 +1657,8 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
                     style={{ ...selStyle, marginTop: 5 }}
                   />
                 )}
-                {f.variable &&
+                {!yapisal(f.token) &&
+                  f.variable &&
                   fields.filter((x) => x.token === f.token).length > 1 &&
                   fields.some((x) => x.token === f.token && x.variable !== f.variable) && (
                     <button
@@ -1677,7 +1708,7 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
         }}
       >
         <span style={{ fontSize: 12, color: '#6B7280' }}>
-          {mappedCount} alan eşlendi{fields ? ' / ' + fields.length + ' tespit' : ''}
+          {mappedCount} alan eşlendi{fields ? ' / ' + eslenebilir.length + ' tespit' : ''}
         </span>
         <div style={{ display: 'flex', gap: 8 }}>
           <SB_Btn type="button" variant="secondary" onClick={onClose} disabled={saving}>
