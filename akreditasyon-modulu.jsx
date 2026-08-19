@@ -1816,7 +1816,45 @@ function AiDraftModal({ draft, criteria, onSave, onRetry, onClose }) {
 // ══════════════════════════════════════════════════════════════
 // Ana uygulama — Kanıt/Veri Havuzu
 // ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// HAZIRLIK EKRANI
+//
+// Modül henüz yayına hazır değil. Menüden tamamen kaldırmak yerine hazırlık
+// bildirimi gösteriliyor: yetkili modülün geleceğini bilir, ama yarım kalmış
+// bir çerçeveyle akreditasyon dosyası hazırlamaya başlamaz. İçerik HİÇ
+// yüklenmez — ekranda göstermemek yetmez, veri de çekilmemelidir.
+// ══════════════════════════════════════════════════════════════
+function AkreditasyonHazirlik() {
+  return (
+    <div style={{ maxWidth: 640, margin: '48px auto', textAlign: 'center', padding: '0 20px' }}>
+      <div style={{ fontSize: 46, marginBottom: 14 }}>🚧</div>
+      <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1B2A4A', margin: '0 0 10px' }}>
+        Akreditasyon — Hazırlık Aşamasında
+      </h1>
+      <p style={{ fontSize: 14, color: '#4B5563', lineHeight: 1.7, margin: 0 }}>
+        Bu modül üzerinde çalışılıyor ve henüz kullanıma açılmadı. Ölçüt çerçevesi kesinleşip kurum
+        ölçütleriyle eşleştirildiğinde erişiminize açılacak.
+      </p>
+      <p style={{ fontSize: 12.5, color: '#6B7280', lineHeight: 1.7, marginTop: 14 }}>
+        Bu süreçte kanıt toplamaya başlamanız gerekiyorsa üniversite yetkilisine iletebilirsiniz.
+      </p>
+    </div>
+  );
+}
+
+// ── ERİŞİM KAPISI ──
+// Karar AYRI bir bileşende veriliyor, içeriğin içinde erken `return` ile
+// değil: içerik bileşeni onlarca useState/useEffect taşıyor ve koşullu bir
+// erken dönüş, kullanıcı değiştiğinde React'in hook sayısını tutturamamasına
+// yol açardı ("Rendered fewer hooks than expected"). Sarmalayıcıda hiç hook
+// yok, o yüzden güvenli.
 function AkreditasyonApp({ currentUser }) {
+  const uniAdminMi = !!(window.isUniversiteYetkilisi && window.isUniversiteYetkilisi(currentUser));
+  // İçerik bileşeni HİÇ takılmaz: veri çeken effect'ler de çalışmaz.
+  return uniAdminMi ? <AkreditasyonIcerik currentUser={currentUser} /> : <AkreditasyonHazirlik />;
+}
+
+function AkreditasyonIcerik({ currentUser }) {
   const isFacultyManager = !!currentUser?.isFacultyManager;
   const myFacultyId = currentUser?.facultyId || '';
   const myUniversityId = currentUser?.universityId || '';

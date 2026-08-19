@@ -31,6 +31,7 @@ import {
   sayfaHucreleri,
   yerlesimPlani,
 } from './lib/xlsx-izgara.js';
+import { universiteYetkilisiMi } from './lib/yetki.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
   adAnahtari,
@@ -710,6 +711,10 @@ const HIERARCHY_MODULES = [
 
 window.FACULTY = FACULTY;
 window.DEPARTMENTS = DEPARTMENTS;
+
+// Kural ve gerekçesi lib/yetki.js'te (test altında): fakülte yetkilisi de
+// 'admin' rolüyle geldiği için role bakmak yetmez.
+window.isUniversiteYetkilisi = universiteYetkilisiMi;
 
 // Akademisyen-bölüm eşleşme kontrolü — modüllerin ortak kullanımı için.
 // Bir akademisyen aşağıdaki durumlardan herhangi birinde belirtilen bölümde

@@ -438,7 +438,7 @@ function TabloEkle({ currentUser, mevcutlar, onKaydedildi, onIptal }) {
 }
 
 // ── Tek tablonun ayrıntısı ──
-function TabloKarti({ tablo, onSil, arama }) {
+function TabloKarti({ tablo, onSil, arama, silebilir }) {
   const [acik, setAcik] = useState(false);
   const kucuk = (x) =>
     String(x || '')
@@ -477,13 +477,15 @@ function TabloKarti({ tablo, onSil, arama }) {
         <button onClick={() => setAcik(!acik)} style={tpBtn('#fff', TP.navy, TP.border)}>
           {acik ? 'Gizle' : 'Puanları Gör'}
         </button>
-        <button
-          onClick={() => onSil(tablo)}
-          style={tpBtn(TP.redLight, TP.red, TP.red + '33')}
-          title="Tabloyu kütüphaneden kaldırır"
-        >
-          Sil
-        </button>
+        {silebilir && (
+          <button
+            onClick={() => onSil(tablo)}
+            style={tpBtn(TP.redLight, TP.red, TP.red + '33')}
+            title="Tabloyu kütüphaneden kaldırır"
+          >
+            Sil
+          </button>
+        )}
       </div>
 
       {acik && (
@@ -540,6 +542,14 @@ function TabloKarti({ tablo, onSil, arama }) {
 }
 
 function TabanPuanModuluApp({ currentUser }) {
+  // ── SİLME YALNIZ ÜNİVERSİTE YETKİLİSİNDE ──
+  // Taban puan tablosu kurum geneli bir referanstır: Dikey ve Yatay Geçiş
+  // modülleri adayın şartını BURADAN okur ve aday, YERLEŞTİĞİ YILIN tablosuna
+  // göre değerlendirilir. Bir fakültenin sildiği tablo yalnız o fakülteyi
+  // değil, o yılın tablosunu kullanan tüm bölümlerin değerlendirmesini
+  // sessizce bozar — geçmiş yıl tabloları bu yüzden silinmiyor zaten.
+  // Yükleme ve görüntüleme herkese açık kalır; kaldıran tek merci üniversite.
+  const silebilir = !!(window.isUniversiteYetkilisi && window.isUniversiteYetkilisi(currentUser));
   const [tablolar, setTablolar] = useState(null);
   const [ekleAcik, setEkleAcik] = useState(false);
   const [arama, setArama] = useState('');
@@ -562,6 +572,9 @@ function TabanPuanModuluApp({ currentUser }) {
   const sirali = useMemo(() => window.tabanTablolariSirala(tablolar || []), [tablolar]);
 
   const sil = async (t) => {
+    // Düğme gizli olsa da kapı burada da kapalı: arayüz tek başına yetki
+    // denetimi değildir (sunucu tarafı da ayrıca reddeder).
+    if (!silebilir) return;
     if (
       !confirm(
         window.tabloEtiketi(t) +
@@ -656,7 +669,7 @@ function TabanPuanModuluApp({ currentUser }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {sirali.map((t) => (
-            <TabloKarti key={t.id} tablo={t} onSil={sil} arama={arama} />
+            <TabloKarti key={t.id} tablo={t} onSil={sil} arama={arama} silebilir={silebilir} />
           ))}
         </div>
       )}
