@@ -921,18 +921,107 @@ async function exportFacultySchedulePdf(allFacultySlots, semester, baglam) {
 // dersler ızgarada görünmez olur — bu yüzden modal kaç dersin dışarıda
 // kalacağını önceden söyler.
 // ══════════════════════════════════════════════════════════════
+// Bir seviyenin (lisans / lisansüstü) saat aralığı kutusu.
+//
+// ⚠ MODALIN İÇİNDE TANIMLANMAZ: her render'da yeni bir bileşen türü doğar,
+// React alt ağacı söküp yeniden kurar ve saat kutusu her tuş vuruşunda odağı
+// kaybeder. Modül düzeyinde durunca kimliği sabit kalır.
+const SaatAraligiBolmesi = ({ baslik, aciklama, deger, degistir }) => {
+  const saatler = window.saatEtiketleri(deger);
+  return (
+    <div
+      style={{
+        border: '1px solid ' + DP.border,
+        borderRadius: 10,
+        padding: 14,
+        background: '#FAFAFA',
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 700, color: DP.text }}>{baslik}</div>
+      <div style={{ fontSize: 11, color: DP.textMuted, marginTop: 2 }}>{aciklama}</div>
+      <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 11, color: DP.textMuted, fontWeight: 600 }}>
+          Başlangıç
+          <input
+            type="time"
+            value={deger.baslangic}
+            onChange={(e) => degistir({ ...deger, baslangic: e.target.value })}
+            style={{
+              display: 'block',
+              marginTop: 4,
+              padding: '6px 8px',
+              borderRadius: 6,
+              border: '1px solid ' + DP.border,
+              fontSize: 13,
+            }}
+          />
+        </label>
+        <label style={{ fontSize: 11, color: DP.textMuted, fontWeight: 600 }}>
+          Bitiş
+          <input
+            type="time"
+            value={deger.bitis}
+            onChange={(e) => degistir({ ...deger, bitis: e.target.value })}
+            style={{
+              display: 'block',
+              marginTop: 4,
+              padding: '6px 8px',
+              borderRadius: 6,
+              border: '1px solid ' + DP.border,
+              fontSize: 13,
+            }}
+          />
+        </label>
+      </div>
+      <div style={{ marginTop: 10, fontSize: 11, color: DP.textMuted }}>
+        {saatler.length} ders saati:
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
+        {saatler.map((h) => (
+          <span
+            key={h}
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              padding: '3px 7px',
+              borderRadius: 5,
+              background: DP.primaryPale,
+              color: DP.primary,
+            }}
+          >
+            {h}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const SaatAyariModal = ({ acik, kapat, bolumId, bolumAdi, kayit, kaydedildi }) => {
   const [lisans, setLisans] = useState(() => window.bolumSaatAyari(kayit, 'lisans'));
   const [lisansustu, setLisansustu] = useState(() => window.bolumSaatAyari(kayit, 'doktora'));
   const [kaydediyor, setKaydediyor] = useState(false);
   const [hata, setHata] = useState('');
 
+  // Kayıt değişince formu tazele. Bağımlılık NESNE DEĞİL, saatlerin kendisi:
+  // `kayit` her render'da yeni bir nesne olsaydı bu etki her render'da çalışır,
+  // her çalışmada yeni nesne yazar ve sonsuz döngüye girerdi (ekran donar).
+  // Değerlere bağlanınca döngü kapanır.
+  const kayitliLisans = window.bolumSaatAyari(kayit, 'lisans');
+  const kayitliUstu = window.bolumSaatAyari(kayit, 'doktora');
+  const kayitImzasi = [
+    kayitliLisans.baslangic,
+    kayitliLisans.bitis,
+    kayitliUstu.baslangic,
+    kayitliUstu.bitis,
+  ].join('|');
   useEffect(() => {
     if (!acik) return;
-    setLisans(window.bolumSaatAyari(kayit, 'lisans'));
-    setLisansustu(window.bolumSaatAyari(kayit, 'doktora'));
+    const [lb, lt, ub, ut] = kayitImzasi.split('|');
+    setLisans({ baslangic: lb, bitis: lt });
+    setLisansustu({ baslangic: ub, bitis: ut });
     setHata('');
-  }, [acik, kayit]);
+  }, [acik, kayitImzasi]);
 
   if (!acik) return null;
 
@@ -963,80 +1052,9 @@ const SaatAyariModal = ({ acik, kapat, bolumId, bolumAdi, kayit, kaydedildi }) =
     }
   };
 
-  const Bolme = ({ baslik, aciklama, deger, degistir }) => {
-    const saatler = window.saatEtiketleri(deger);
-    return (
-      <div
-        style={{
-          border: '1px solid ' + DP.border,
-          borderRadius: 10,
-          padding: 14,
-          background: '#FAFAFA',
-        }}
-      >
-        <div style={{ fontSize: 13, fontWeight: 700, color: DP.text }}>{baslik}</div>
-        <div style={{ fontSize: 11, color: DP.textMuted, marginTop: 2 }}>{aciklama}</div>
-        <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
-          <label style={{ fontSize: 11, color: DP.textMuted, fontWeight: 600 }}>
-            Başlangıç
-            <input
-              type="time"
-              value={deger.baslangic}
-              onChange={(e) => degistir({ ...deger, baslangic: e.target.value })}
-              style={{
-                display: 'block',
-                marginTop: 4,
-                padding: '6px 8px',
-                borderRadius: 6,
-                border: '1px solid ' + DP.border,
-                fontSize: 13,
-              }}
-            />
-          </label>
-          <label style={{ fontSize: 11, color: DP.textMuted, fontWeight: 600 }}>
-            Bitiş
-            <input
-              type="time"
-              value={deger.bitis}
-              onChange={(e) => degistir({ ...deger, bitis: e.target.value })}
-              style={{
-                display: 'block',
-                marginTop: 4,
-                padding: '6px 8px',
-                borderRadius: 6,
-                border: '1px solid ' + DP.border,
-                fontSize: 13,
-              }}
-            />
-          </label>
-        </div>
-        <div style={{ marginTop: 10, fontSize: 11, color: DP.textMuted }}>
-          {saatler.length} ders saati:
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
-          {saatler.map((h) => (
-            <span
-              key={h}
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                padding: '3px 7px',
-                borderRadius: 5,
-                background: DP.primaryPale,
-                color: DP.primary,
-              }}
-            >
-              {h}
-            </span>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
   // Ders saati azalıyorsa uyar: sondaki satırlara yerleşmiş dersler ızgarada
   // görünmez olur (kayıttan silinmez, ayar geri alınınca geri gelir).
-  const oncekiLisans = window.saatEtiketleri(window.bolumSaatAyari(kayit, 'lisans')).length;
+  const oncekiLisans = window.saatEtiketleri(kayitliLisans).length;
   const yeniLisans = window.saatEtiketleri(lisans).length;
 
   return (
@@ -1088,8 +1106,13 @@ const SaatAyariModal = ({ acik, kapat, bolumId, bolumAdi, kayit, kaydedildi }) =
         </div>
 
         <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
-          <Bolme baslik="Lisans" aciklama="Gündüz programı" deger={lisans} degistir={setLisans} />
-          <Bolme
+          <SaatAraligiBolmesi
+            baslik="Lisans"
+            aciklama="Gündüz programı"
+            deger={lisans}
+            degistir={setLisans}
+          />
+          <SaatAraligiBolmesi
             baslik="Lisansüstü"
             aciklama="Yüksek lisans / doktora — genelde akşam saatlerini de kapsar"
             deger={lisansustu}
@@ -1435,15 +1458,26 @@ function DersProgramiApp({
   const bolumAyarlari = window.useBolumAyarlari(ayarSurumu);
   const bolumAyarKaydi = bolumAyarlari[String(activeDepartment || '')] || null;
   const [showSaatAyari, setShowSaatAyari] = useState(false);
+  // Rengin kendisi (metin) — bağımlılıklarda kayıt nesnesi yerine bu kullanılır.
+  const bolumRenkAyari = (bolumAyarKaydi && bolumAyarKaydi.renk) || '';
 
   // ── Bu bölümün ders saatleri ──
   // Başlangıç/bitiş bölümün kendi kararıdır; ritim sabittir (45 dk ders +
   // 15 dk teneffüs). Ayar yoksa varsayılan bugünkü ızgaranın aynısıdır, yani
   // hiçbir bölüm ayar yapmadan da eskisi gibi çalışır.
-  const visibleHours = useMemo(
-    () => window.bolumSaatleri(bolumAyarKaydi, seviye),
-    [bolumAyarKaydi, seviye]
-  );
+  //
+  // ⚠ BAĞIMLILIK NESNE DEĞİL, İMZA. `bolumAyarKaydi` kimliği her render
+  // değişirse (ayar okuması taze nesne döndürdüğünde olur) buna bağlı useMemo
+  // her render yeni bir DİZİ üretir; o dizi çakışma taramasının bağımlılığında
+  // olduğu için etki her render çalışır, setState çağırır ve döngü kapanmaz —
+  // ekran donar, kullanıcı beyaz sayfa görür. İki metne indirgeyince kimlik
+  // sabitlenir ve döngü imkânsız hâle gelir.
+  const saatAyariSecimi = window.bolumSaatAyari(bolumAyarKaydi, seviye);
+  const saatImzasi = saatAyariSecimi.baslangic + '|' + saatAyariSecimi.bitis;
+  const visibleHours = useMemo(() => {
+    const [baslangic, bitis] = saatImzasi.split('|');
+    return window.saatEtiketleri({ baslangic, bitis });
+  }, [saatImzasi]);
   // Fakülte görünümünün ORTAK saat ekseni: bölümler farklı saatte başlıyorsa
   // tek ızgarada buluşabilmeleri için (bkz. lib/ders-saatleri.js).
   const [fakulteSaatleri, setFakulteSaatleri] = useState(visibleHours);
@@ -1516,7 +1550,7 @@ function DersProgramiApp({
       saatler: visibleHours,
       // Bölüm çıktısında hücreler bu tek renkte boyanır.
       bolumRengi: window.bolumRengiCoz({
-        ayarRengi: bolumAyarKaydi && bolumAyarKaydi.renk,
+        ayarRengi: bolumRenkAyari,
         bolumAdi: departmentInfo?.name || '',
       }),
     }),
@@ -1527,7 +1561,9 @@ function DersProgramiApp({
       seviye,
       currentUser?.name,
       visibleHours,
-      bolumAyarKaydi,
+      // Kayıt NESNESİ değil rengin kendisi: kimlik kararsızlığı bu memoyu da
+      // her render tazeler ve aşağıdaki zinciri boşuna yeniden kurardı.
+      bolumRenkAyari,
       departmentInfo?.name,
     ]
   );
