@@ -74,6 +74,8 @@ const { profilBirlestir } = require('./lib/akademisyen-kimlik');
   // ── Yedek ──
   // Yalnız gerçekten yazacaksak alınır; DRY_RUN'da dosya kirletmeyiz.
   if (!dry) {
+    // Yedek proje kökü yerine `yedek/` altına yazılır: kök dizin web sunucusu
+    // tarafından servis ediliyor olabilir ve `yedek/` zaten .gitignore'da.
     const dizin = process.env.YEDEK_DIZIN || path.join(__dirname, '..', 'yedek');
     const damga = new Date().toISOString().replace(/[:.]/g, '-');
     const dosya = path.join(dizin, `professors-dedupe-${damga}.json`);

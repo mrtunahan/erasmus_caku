@@ -41,3 +41,4 @@ debug_html/
 *.lcov
 scripts/service-account-key.json
 yedek/
+yedek-*.json
