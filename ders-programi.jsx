@@ -779,7 +779,12 @@ function izgaraKayitlari(kaynaklar, saatler, renkCoz) {
       if (ayrac < 0) return;
       const gun = String(anahtar).slice(0, ayrac);
       const hi = parseInt(String(anahtar).slice(ayrac + 1), 10);
-      const saat = (saatler || [])[hi];
+      // Bölümün saat ekseninin DIŞINDA kalan ders (ayar kısaltıldıktan sonra
+      // yerinde duran eski kayıt) eskiden burada sessizce düşüyordu: ne
+      // yazılıyor ne bildiriliyordu. Artık okunabilir bir etiketle geçiyor ve
+      // şablonda karşılığı bulunamayınca 'saat-yok' diye rapor ediliyor —
+      // yetkili dersin var olduğunu hiç değilse görüyor.
+      const saat = (saatler || [])[hi] || (hi >= 0 ? `${hi + 1}. ders saati` : '');
       if (!saat) return;
       // Hücredeki her ders AYRI kayıttır: dört şube dört ayrı dersliğe düşer.
       window.slotDersleri(slot).forEach((ders) => {
@@ -881,8 +886,11 @@ function izgaraCozumOnerisi(atlanan, sablonDerslikleri) {
   }
   if (sebepler.some((x) => /gün\/saat satırı yok/.test(x))) {
     oneriler.push(
-      'Şablondaki saat satırları ile bölümün saat aralığı aynı olmalı. ' +
-        'Üstteki "Ders Saatleri" düğmesinden iki bloğu da şablona göre ayarlayın.'
+      'Şablondaki saat satırları ile bölümün saat aralığı aynı olmalı. Yukarıda ' +
+        'adı geçen satırları şablona ekleyin (gün bloklarının UZUNLUĞU eşit ' +
+        'olmalı: bir günde olan saat satırı diğer günlerde de olmalı) ya da ' +
+        'üstteki "Ders Saatleri" düğmesinden bölümün saat aralığını şablona ' +
+        'göre daraltın.'
     );
   }
   if (sebepler.some((x) => /dolu ya da boyalı/.test(x))) {
