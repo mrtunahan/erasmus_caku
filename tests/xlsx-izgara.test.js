@@ -278,6 +278,34 @@ describe('atlananOzeti', () => {
     expect(ozet[0].metin).toContain('derslik atanmamış');
   });
 
+  it('EKSİK SATIRI adıyla söyler — ders kodu şablonun neresine bakacağını söylemez', () => {
+    // Kurumun tablosunda '17:15 - 18:00' satırı yalnız Pazartesi'de vardı;
+    // diğer dört günde o saatteki dersin yazılacağı yer yoktu.
+    const ozet = atlananOzeti([
+      { kod: 'MAK213', gun: 'Salı', saat: '17:15 - 18:00', sebep: 'saat-yok' },
+      { kod: 'MKM359', gun: 'Cuma', saat: '17:15 - 18:00', sebep: 'saat-yok' },
+    ]);
+    expect(ozet[0].nerede).toEqual(['Salı 17:15 - 18:00', 'Cuma 17:15 - 18:00']);
+    expect(ozet[0].metin).toContain('Şablonda bulunmayan satırlar');
+    expect(ozet[0].metin).toContain('Cuma 17:15 - 18:00');
+  });
+
+  it('engelli hücrenin YERİNİ verir (gün · saat · derslik)', () => {
+    const ozet = atlananOzeti([
+      { kod: 'X1', gun: 'Çarşamba', saat: '08:30 - 09:15', derslik: 'M10Z07', sebep: 'dolu-hucre' },
+    ]);
+    expect(ozet[0].metin).toContain('Çarşamba 08:30 - 09:15 · M10Z07');
+  });
+
+  it('aynı yer iki kez sayılmaz', () => {
+    const ozet = atlananOzeti([
+      { kod: 'A', gun: 'Salı', saat: '17:15 - 18:00', sebep: 'saat-yok' },
+      { kod: 'B', gun: 'Salı', saat: '17:15 - 18:00', sebep: 'saat-yok' },
+    ]);
+    expect(ozet[0].nerede).toEqual(['Salı 17:15 - 18:00']);
+    expect(ozet[0].sayi).toBe(2);
+  });
+
   it('boş listede boş özet', () => {
     expect(atlananOzeti([])).toEqual([]);
     expect(atlananOzeti(null)).toEqual([]);
