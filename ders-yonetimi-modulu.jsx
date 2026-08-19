@@ -23,6 +23,508 @@ const SINIF_COLORS = {
   5: { bg: '#E1BEE7', text: '#4A148C', label: 'Seçmeli Dersler' },
 };
 
+// ══════════════════════════════════════════════════════════════
+// AÇILAN DERSLER LİSTESİNİ İÇE AKTARMA
+//
+// Bölüm her dönem "açılan dersler" listesini Word olarak hazırlıyor; o liste
+// buraya elle tek tek giriliyordu. Belgeden okunabilen alanlar okunur, geri
+// kalanı yetkili verir.
+//
+// ── ÜÇ ALAN NEDEN TOPLU VERİLİYOR ──
+// Dönem, seviye ve Bologna linki belgede YOKTUR. Bir liste tek dönemi ve tek
+// seviyeyi anlatır, o yüzden üstteki toplu alanlar hepsine birden uygulanır;
+// ama istisna olur (yaz okulu dersi, ortak seviye dersi) ve her satır kendi
+// değerini taşır — toplu alan yalnız BAŞLANGIÇ değeridir, satır tek tek
+// değiştirilebilir.
+//
+// ── EKSİK SATIR KAYDEDİLMEZ ──
+// Zorunlu alanı boş bir satır sessizce yarım kaydedilmez: satır kırmızı
+// işaretlenir, eksiği yazılır ve seçimi kaldırılana ya da doldurulana kadar
+// "Kaydet" onu atlar. Yarım ders kaydı, sınav otomasyonunda ortaya çıkan bir
+// sorundur; girildiği anda görünmesi gerekir.
+// ══════════════════════════════════════════════════════════════
+function DersListesiIceAktarModal({
+  open,
+  onClose,
+  professors,
+  mevcutDersler,
+  departmentId,
+  onDone,
+}) {
+  const [dosyaAdi, setDosyaAdi] = useState('');
+  const [okunuyor, setOkunuyor] = useState(false);
+  const [hata, setHata] = useState('');
+  const [uyarilar, setUyarilar] = useState([]);
+  const [satirlar, setSatirlar] = useState(null);
+  const [toplu, setToplu] = useState({ donem: '', seviye: 'lisans', bolognaLink: '' });
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+
+  const DL = window.DersListesi || {};
+
+  const dosyaSec = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setHata('');
+    setSatirlar(null);
+    setOkunuyor(true);
+    setDosyaAdi(file.name);
+    try {
+      const sonuc = await DL.oku(file);
+      if (!sonuc.dersler.length) {
+        throw new Error(
+          'Belgede ders satırı bulunamadı. Tablonun başlık satırında en az ' +
+            '"DERS KODU" ve "DERSİN ADI" sütunları olmalı.'
+        );
+      }
+      const kunye = DL.kunyeTahmini((sonuc.baslik || []).join('\n'));
+      const baslangic = {
+        donem: kunye.donem || '',
+        seviye: kunye.seviye || 'lisans',
+        bolognaLink: '',
+      };
+      setToplu(baslangic);
+      setUyarilar(sonuc.uyarilar || []);
+      setSatirlar(
+        DL.iceAktarmaSatirlari(sonuc.dersler, {
+          akademisyenler: professors,
+          mevcutDersler,
+          ...baslangic,
+        })
+      );
+    } catch (err) {
+      setHata(err.message);
+    } finally {
+      setOkunuyor(false);
+      e.target.value = '';
+    }
+  };
+
+  // Toplu alanı DEĞİŞTİRMEK, satırlardaki değeri de günceller. Sessizce
+  // yalnız yenilere uygulamak, yetkilinin "hepsine verdim" sanmasına yol
+  // açardı; ne yaptığı görünür olmalı.
+  const topluUygula = (alan, deger) => {
+    setToplu((t) => ({ ...t, [alan]: deger }));
+    setSatirlar((liste) =>
+      (liste || []).map((r) => {
+        const yeni = { ...r, [alan]: deger };
+        // Dönem değişince "yeni mi güncelleme mi" de değişir: aynı kod başka
+        // dönemde ayrı bir derstir.
+        if (alan === 'donem') {
+          const m = DL.mevcutDersBul(yeni, deger, mevcutDersler);
+          yeni.mevcutId = m ? m.id : null;
+          yeni.durum = m ? 'guncelle' : 'yeni';
+        }
+        return yeni;
+      })
+    );
+  };
+
+  const satirGuncelle = (i, yama) =>
+    setSatirlar((liste) => (liste || []).map((r, idx) => (idx === i ? { ...r, ...yama } : r)));
+
+  const seciliSatirlar = (satirlar || []).filter((r) => r.secili);
+  const eksikli = seciliSatirlar.filter((r) => DL.eksikAlanlar(r).length > 0);
+  const yeniSayisi = seciliSatirlar.filter((r) => r.durum === 'yeni').length;
+  const guncelSayisi = seciliSatirlar.filter((r) => r.durum === 'guncelle').length;
+
+  const kaydet = async () => {
+    if (!seciliSatirlar.length) return;
+    if (eksikli.length) {
+      return alert(
+        eksikli.length +
+          ' satırda eksik alan var; bunlar kaydedilemez.\n\n' +
+          eksikli
+            .slice(0, 10)
+            .map((r) => `• ${r.kod}: ${DL.eksikAlanlar(r).join(', ')}`)
+            .join('\n') +
+          (eksikli.length > 10 ? '\n…' : '') +
+          '\n\nEksikleri doldurun ya da o satırların seçimini kaldırın.'
+      );
+    }
+    setKaydediliyor(true);
+    try {
+      const simdi = new Date().toISOString();
+      const ops = seciliSatirlar.map((r) => {
+        const data = {
+          code: r.kod.trim(),
+          name: r.ad.trim(),
+          sinif: parseInt(r.sinif, 10) || 1,
+          akts: parseInt(r.akts, 10) || 0,
+          statu: r.statu,
+          donem: r.donem,
+          seviye: r.seviye,
+          bolognaLink: r.bolognaLink.trim(),
+          professor: r.professor || '',
+          departmentId: departmentId || 'bilgisayar',
+          updatedAt: simdi,
+        };
+        if (r.mevcutId) {
+          return { collection: 'sinav_dersler', type: 'set', docId: r.mevcutId, data, merge: true };
+        }
+        // Sınav süresi ve öğrenci sayısı belgede yok: var olan varsayılanlar
+        // korunur, güncellemede ELLENMEZ (merge) — yetkilinin girdiği süre
+        // içe aktarmayla sıfırlanmamalı.
+        return {
+          collection: 'sinav_dersler',
+          type: 'add',
+          data: { ...data, duration: 30, studentCount: 0, createdAt: simdi },
+        };
+      });
+      await DBWrite.batch(ops);
+      if (window.audit) {
+        window.audit('course_import', 'sinav_dersler', '', {
+          meta: { dosya: dosyaAdi, yeni: yeniSayisi, guncellenen: guncelSayisi },
+        });
+      }
+      alert(`${yeniSayisi} ders eklendi, ${guncelSayisi} ders güncellendi.`);
+      onDone();
+    } catch (err) {
+      console.error(err);
+      alert('İçe aktarma başarısız: ' + err.message);
+    } finally {
+      setKaydediliyor(false);
+    }
+  };
+
+  if (!open) return null;
+
+  const hucre = { padding: '6px 8px', fontSize: 12, verticalAlign: 'top' };
+  const kucukSecim = {
+    width: '100%',
+    padding: '5px 6px',
+    fontSize: 12,
+    borderRadius: 6,
+    border: '1px solid #D1D5DB',
+  };
+
+  return (
+    <Modal open={true} title="Açılan Dersler Listesini İçe Aktar" onClose={onClose} width={1180}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <p style={{ fontSize: 12.5, color: '#6B7280', margin: 0, lineHeight: 1.6 }}>
+          Bölümün <b>açılan dersler</b> tablosunu (.docx ya da .pdf) seçin. Belgeden{' '}
+          <b>ders kodu, ders adı, Z/S, AKTS ve öğretim elemanı</b> okunur; sınıf, tablodaki
+          “1.SINIF” başlıklarından çıkarılır. <b>Dönem, seviye ve Bologna linki</b> belgede
+          bulunmadığı için aşağıdan toplu verilir — her satırda tek tek değiştirebilirsiniz.
+        </p>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <label
+            style={{
+              padding: '8px 14px',
+              border: '1px dashed #A5B4FC',
+              borderRadius: 8,
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#4F46E5',
+              background: '#EEF2FF',
+            }}
+          >
+            📄 Dosya Seç (.docx / .pdf)
+            <input
+              type="file"
+              accept=".docx,.pdf"
+              onChange={dosyaSec}
+              style={{ display: 'none' }}
+            />
+          </label>
+          {dosyaAdi && <span style={{ fontSize: 12.5, color: '#374151' }}>{dosyaAdi}</span>}
+          {okunuyor && <span style={{ fontSize: 12.5, color: '#6B7280' }}>Belge okunuyor…</span>}
+        </div>
+
+        {hata && (
+          <div
+            style={{
+              background: '#FEE2E2',
+              color: '#991B1B',
+              padding: '10px 12px',
+              borderRadius: 8,
+              fontSize: 12.5,
+              lineHeight: 1.6,
+            }}
+          >
+            {hata}
+          </div>
+        )}
+
+        {uyarilar.length > 0 && (
+          <div
+            style={{
+              background: '#FFFBEB',
+              color: '#92400E',
+              border: '1px solid #FDE68A',
+              padding: '10px 12px',
+              borderRadius: 8,
+              fontSize: 12.5,
+              lineHeight: 1.6,
+            }}
+          >
+            <b>Okunamayan satırlar:</b>
+            <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+              {uyarilar.slice(0, 6).map((u, i) => (
+                <li key={i}>{u}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {satirlar && (
+          <>
+            {/* Toplu alanlar */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '160px 190px 1fr',
+                gap: 10,
+                padding: 12,
+                background: '#F5F3FF',
+                border: '1px solid #DDD6FE',
+                borderRadius: 10,
+              }}
+            >
+              <FormField label="Dönem — hepsine *">
+                <Select
+                  value={toplu.donem}
+                  onChange={(e) => topluUygula('donem', e.target.value)}
+                  style={kucukSecim}
+                >
+                  <option value="">— Seçiniz —</option>
+                  <option value="guz">Güz</option>
+                  <option value="bahar">Bahar</option>
+                </Select>
+              </FormField>
+              <FormField label="Seviye — hepsine *">
+                <Select
+                  value={toplu.seviye}
+                  onChange={(e) => topluUygula('seviye', e.target.value)}
+                  style={kucukSecim}
+                >
+                  <option value="lisans">Lisans</option>
+                  <option value="yukseklisans">Yüksek Lisans</option>
+                  <option value="doktora">Doktora</option>
+                </Select>
+              </FormField>
+              <FormField label="Bologna linki — hepsine *">
+                <Input
+                  value={toplu.bolognaLink}
+                  onChange={(e) => topluUygula('bolognaLink', e.target.value)}
+                  placeholder="https://bologna.cankiri.edu.tr/… (her satırda ayrıca düzenlenebilir)"
+                  style={kucukSecim}
+                />
+              </FormField>
+            </div>
+
+            <div style={{ fontSize: 12.5, color: '#374151' }}>
+              <b>{satirlar.length}</b> ders okundu · <b>{seciliSatirlar.length}</b> seçili ·{' '}
+              <span style={{ color: '#047857' }}>{yeniSayisi} yeni</span> ·{' '}
+              <span style={{ color: '#B45309' }}>{guncelSayisi} güncellenecek</span>
+              {eksikli.length > 0 && (
+                <span style={{ color: '#DC2626', fontWeight: 600 }}>
+                  {' '}
+                  · {eksikli.length} satırda eksik alan
+                </span>
+              )}
+            </div>
+
+            <div
+              style={{
+                maxHeight: 420,
+                overflow: 'auto',
+                border: '1px solid #E5E7EB',
+                borderRadius: 10,
+              }}
+            >
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead style={{ position: 'sticky', top: 0, background: '#F9FAFB', zIndex: 1 }}>
+                  <tr style={{ textAlign: 'left', color: '#6B7280' }}>
+                    <th style={{ ...hucre, width: 34 }} />
+                    <th style={hucre}>Kod</th>
+                    <th style={hucre}>Ders Adı</th>
+                    <th style={{ ...hucre, width: 74 }}>Sınıf</th>
+                    <th style={{ ...hucre, width: 62 }}>Z/S</th>
+                    <th style={{ ...hucre, width: 62 }}>AKTS</th>
+                    <th style={{ ...hucre, width: 200 }}>Öğretim Elemanı</th>
+                    <th style={{ ...hucre, width: 96 }}>Dönem</th>
+                    <th style={{ ...hucre, width: 120 }}>Seviye</th>
+                    <th style={{ ...hucre, width: 180 }}>Bologna Linki</th>
+                    <th style={{ ...hucre, width: 96 }}>Durum</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {satirlar.map((r, i) => {
+                    const eksik = DL.eksikAlanlar(r);
+                    const sorunlu = r.secili && eksik.length > 0;
+                    return (
+                      <tr
+                        key={i}
+                        style={{
+                          borderTop: '1px solid #F3F4F6',
+                          background: !r.secili ? '#FAFAFA' : sorunlu ? '#FEF2F2' : 'white',
+                          opacity: r.secili ? 1 : 0.55,
+                        }}
+                      >
+                        <td style={hucre}>
+                          <input
+                            type="checkbox"
+                            checked={r.secili}
+                            onChange={(e) => satirGuncelle(i, { secili: e.target.checked })}
+                          />
+                        </td>
+                        <td style={{ ...hucre, fontWeight: 700 }}>
+                          {r.kod}
+                          {sorunlu && (
+                            <div style={{ color: '#DC2626', fontWeight: 500, fontSize: 10.5 }}>
+                              eksik: {eksik.join(', ')}
+                            </div>
+                          )}
+                        </td>
+                        <td style={hucre}>{r.ad}</td>
+                        <td style={hucre}>
+                          <Select
+                            value={r.sinif == null ? '' : r.sinif}
+                            onChange={(e) =>
+                              satirGuncelle(i, { sinif: parseInt(e.target.value, 10) })
+                            }
+                            style={kucukSecim}
+                          >
+                            {[1, 2, 3, 4, 5].map((x) => (
+                              <option key={x} value={x}>
+                                {x === 5 ? 'Seçmeli' : x}
+                              </option>
+                            ))}
+                          </Select>
+                        </td>
+                        <td style={hucre}>
+                          <Select
+                            value={r.statu}
+                            onChange={(e) => satirGuncelle(i, { statu: e.target.value })}
+                            style={kucukSecim}
+                          >
+                            <option value="">—</option>
+                            <option value="Z">Z</option>
+                            <option value="S">S</option>
+                          </Select>
+                        </td>
+                        <td style={hucre}>
+                          <Input
+                            type="number"
+                            value={r.akts == null ? '' : r.akts}
+                            onChange={(e) => satirGuncelle(i, { akts: e.target.value })}
+                            style={kucukSecim}
+                          />
+                        </td>
+                        <td style={hucre}>
+                          <Select
+                            value={r.professor}
+                            onChange={(e) => satirGuncelle(i, { professor: e.target.value })}
+                            style={kucukSecim}
+                          >
+                            <option value="">— Eşleşmedi —</option>
+                            {/* Belgedeki adlar önce: yetkili "belgede kim yazıyordu"
+                                sorusunu listeyi kapatmadan görebilsin. */}
+                            {r.eslesenler
+                              .filter((e) => e.akademisyen)
+                              .map((e, j) => (
+                                <option key={'b' + j} value={e.akademisyen.name}>
+                                  {e.akademisyen.name}
+                                </option>
+                              ))}
+                            {professors
+                              .filter(
+                                (p) =>
+                                  !r.eslesenler.some(
+                                    (e) => e.akademisyen && e.akademisyen.name === p.name
+                                  )
+                              )
+                              .map((p, j) => (
+                                <option key={'t' + j} value={p.name}>
+                                  {p.name}
+                                </option>
+                              ))}
+                          </Select>
+                          {r.eslesmeyen.length > 0 && (
+                            <div style={{ color: '#B45309', fontSize: 10.5, marginTop: 3 }}>
+                              belgede eşleşmeyen: {r.eslesmeyen.join(', ')}
+                            </div>
+                          )}
+                          {r.ogretimElemanlari.length > 1 && (
+                            <div style={{ color: '#6B7280', fontSize: 10.5, marginTop: 3 }}>
+                              belgede {r.ogretimElemanlari.length} kişi yazılı — biri seçilir
+                            </div>
+                          )}
+                        </td>
+                        <td style={hucre}>
+                          <Select
+                            value={r.donem}
+                            onChange={(e) => satirGuncelle(i, { donem: e.target.value })}
+                            style={kucukSecim}
+                          >
+                            <option value="">—</option>
+                            <option value="guz">Güz</option>
+                            <option value="bahar">Bahar</option>
+                          </Select>
+                        </td>
+                        <td style={hucre}>
+                          <Select
+                            value={r.seviye}
+                            onChange={(e) => satirGuncelle(i, { seviye: e.target.value })}
+                            style={kucukSecim}
+                          >
+                            <option value="lisans">Lisans</option>
+                            <option value="yukseklisans">Yük. Lisans</option>
+                            <option value="doktora">Doktora</option>
+                          </Select>
+                        </td>
+                        <td style={hucre}>
+                          <Input
+                            value={r.bolognaLink}
+                            onChange={(e) => satirGuncelle(i, { bolognaLink: e.target.value })}
+                            placeholder="https://…"
+                            style={kucukSecim}
+                          />
+                        </td>
+                        <td style={hucre}>
+                          <Badge
+                            style={{
+                              background: r.durum === 'guncelle' ? '#FEF3C7' : '#D1FAE5',
+                              color: r.durum === 'guncelle' ? '#92400E' : '#065F46',
+                              fontSize: 10.5,
+                            }}
+                          >
+                            {r.durum === 'guncelle' ? 'Güncellenecek' : 'Yeni'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '10px 16px',
+              background: 'white',
+              border: '1px solid #D1D5DB',
+              borderRadius: 8,
+              cursor: 'pointer',
+            }}
+          >
+            İptal
+          </button>
+          <Btn onClick={kaydet} disabled={kaydediliyor || !seciliSatirlar.length}>
+            {kaydediliyor ? 'Kaydediliyor…' : `${seciliSatirlar.length} dersi kaydet`}
+          </Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
   const [courses, setCourses] = useState([]);
   const [professors, setProfessors] = useState([]);
@@ -44,6 +546,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
   const [filterClass, setFilterClass] = useState('all');
   const [filterTerm, setFilterTerm] = useState('all');
   const [search, setSearch] = useState('');
+  const [iceAktarAcik, setIceAktarAcik] = useState(false);
 
   const isAdmin = currentUser?.role === 'admin';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
@@ -232,7 +735,25 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
             Bölüme ait derslerin programı, hocası ve temel tanımlamaları
           </p>
         </div>
-        <Btn onClick={startNew}>+ Yeni Ders Tanımla</Btn>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setIceAktarAcik(true)}
+            title="Bölümün açılan dersler tablosunu (.docx / .pdf) okuyup toplu ekler"
+            style={{
+              padding: '10px 16px',
+              background: 'white',
+              border: '1px solid #A5B4FC',
+              color: '#4F46E5',
+              borderRadius: 8,
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: 13,
+            }}
+          >
+            📄 Listeden İçe Aktar
+          </button>
+          <Btn onClick={startNew}>+ Yeni Ders Tanımla</Btn>
+        </div>
       </div>
 
       <div
@@ -556,6 +1077,18 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
           </div>
         </div>
       )}
+
+      <DersListesiIceAktarModal
+        open={iceAktarAcik}
+        onClose={() => setIceAktarAcik(false)}
+        professors={professors}
+        mevcutDersler={courses}
+        departmentId={activeDepartment}
+        onDone={() => {
+          setIceAktarAcik(false);
+          loadData();
+        }}
+      />
 
       {/* Ders Düzenle/Ekle Modal */}
       {editingCourse && (
