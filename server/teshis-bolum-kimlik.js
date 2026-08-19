@@ -106,6 +106,7 @@ function bolumAtiflari(deger, yol = '', cikti = []) {
   // ── 2) Gömülü çekirdek slug'lar ──
   console.log('\n══════ 2) Koda gömülü çekirdek 6 bölüm ══════');
   console.log(`(gömülü listede facultyId sabit '${GOMULU_FAKULTE}' yazılı)\n`);
+  const kayipSluglar = [];
   GOMULU_SLUGLAR.forEach((slug) => {
     const dogrudan = harita.varyantlar[slug];
     if (dogrudan) {
@@ -123,6 +124,7 @@ function bolumAtiflari(deger, yol = '', cikti = []) {
       );
     } else {
       console.log(`• ${slug.padEnd(12)} → DB'de KARŞILIĞI YOK   ⚠ yalnız gömülü listede`);
+      kayipSluglar.push(slug);
     }
   });
 
@@ -182,15 +184,40 @@ function bolumAtiflari(deger, yol = '', cikti = []) {
     .find({})
     .toArray()
     .catch(() => []);
-  const kapsamsiz = atamalar.filter(
+  // ⚠ ÖLÇÜT İNCE: `kapsamTuru` HİÇ YOKSA kayıt ESKİDİR ve okuma tarafı onu
+  // `departmentId` üzerinden çözer (lib/yayin-kapsami.js → kapsamsız dal).
+  // Yani "kapsamDepartmentIds boş" tek başına bozukluk DEĞİLDİR. Gerçekten
+  // kimseye ulaşmayan kayıt: kapsamTuru 'bolum'/'fakulte' YAZILI ama liste boş.
+  const bozukAtama = atamalar.filter(
     (a) =>
-      String(a.kapsamTuru || '') !== 'universite' &&
+      ['bolum', 'fakulte'].includes(String(a.kapsamTuru || '')) &&
       (!Array.isArray(a.kapsamDepartmentIds) || a.kapsamDepartmentIds.length === 0)
   );
-  console.log(
-    `• Anket ataması: ${atamalar.length} kayıt, ${kapsamsiz.length} tanesinin kapsamı BOŞ` +
-      (kapsamsiz.length ? '   ⚠ bunlar kimseye ulaşmıyor ve yönetim listesinde görünmüyor' : '')
+  const eskiAtama = atamalar.filter(
+    (a) => !String(a.kapsamTuru || '') && String(a.departmentId || '')
   );
+  const sahipsizAtama = atamalar.filter(
+    (a) => !String(a.kapsamTuru || '') && !String(a.departmentId || '')
+  );
+  console.log(`• Anket ataması: ${atamalar.length} kayıt`);
+  console.log(
+    `    ${bozukAtama.length} tanesi KAPSAMI YAZILI AMA BOŞ` +
+      (bozukAtama.length ? '   ⚠ kimseye ulaşmıyor, yönetim listesinde de görünmüyor' : '')
+  );
+  console.log(`    ${eskiAtama.length} tanesi eski biçim (departmentId üzerinden çalışıyor)`);
+  console.log(
+    `    ${sahipsizAtama.length} tanesi ne kapsam ne bölüm taşıyor` +
+      (sahipsizAtama.length ? '   ⚠ HERKESE açık sayılıyor' : '')
+  );
+  bozukAtama
+    .concat(sahipsizAtama)
+    .slice(0, 10)
+    .forEach((a) => {
+      console.log(
+        `      surveyId=${a.surveyId} rol=${a.targetRole || '?'} grup=${a.targetGroup || '?'} ` +
+          `kapsamTuru='${a.kapsamTuru || ''}' departmentId='${a.departmentId || ''}'`
+      );
+    });
 
   const ygler = await db
     .collection('yatay_gecis_basvurular')
@@ -223,6 +250,32 @@ function bolumAtiflari(deger, yol = '', cikti = []) {
   sablonKayip.slice(0, 10).forEach((t) => {
     console.log(`    ${t.module}/${t.docType || 'default'} → departmentId='${t.departmentId}'`);
   });
+
+  // ── 5) DB karşılığı olmayan slug'lar ──
+  if (kayipSluglar.length) {
+    console.log('\n══════ 5) DB’de karşılığı olmayan gömülü slug’lar ══════');
+    console.log('Bu slug’ı taşıyan kayıtlar hiçbir DB bölümüne bağlanamıyor:\n');
+    for (const slug of kayipSluglar) {
+      let toplam = 0;
+      const nerede = [];
+      for (const ad of koleksiyonlar) {
+        const docs = await db.collection(ad).find({}).toArray();
+        let n = 0;
+        docs.forEach((d) => {
+          const { _id, ...govde } = d;
+          bolumAtiflari(govde).forEach(([, deger]) => {
+            if (deger === slug) n++;
+          });
+        });
+        if (n) {
+          nerede.push(`${ad}: ${n}`);
+          toplam += n;
+        }
+      }
+      console.log(`• '${slug}' → toplam ${toplam} atıf`);
+      nerede.forEach((x) => console.log(`    ${x}`));
+    }
+  }
 
   console.log('\n(Bu betik hiçbir şey yazmadı.)');
   process.exit(0);
