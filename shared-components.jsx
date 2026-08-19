@@ -12911,6 +12911,12 @@ const TabanPuanPaneli = ({
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
   const [hata, setHata] = useState('');
+  // ── PANEL VARSAYILAN OLARAK KAPALI ──
+  // Kütüphanede yıl-tür başına bir düğme var; on sekiz düğme + program
+  // tablosu, asıl işin (başvuru listesi) önünü kapatıyordu. Panel bir kez
+  // ayarlanıp bırakılan bir şey: durumu başlıktaki özet satırında görünür,
+  // düzenlemek isteyen açar.
+  const [acik, setAcik] = useState(false);
 
   // ── Kütüphane + bu modülün önceki seçimi ──
   useEffect(() => {
@@ -13059,223 +13065,281 @@ const TabanPuanPaneli = ({
   const siraliKutuphane = useMemo(() => window.tabanTablolariSirala(kutuphane || []), [kutuphane]);
   const bulunan = satirlar.filter((r) => r.taban).length;
 
+  // Kapalıyken bile durum okunabilsin: kaç tablo seçili, kaç program hazır.
+  // Hiç tablo seçilmemişse bu bir eksiktir, vurgu rengiyle yazılır.
+  const ozet =
+    secili.length === 0
+      ? 'Tablo seçilmedi'
+      : `${secili.length} tablo seçili · ${bulunan}/${satirlar.length} program hazır`;
+
   return (
     <div style={tabanKart}>
-      <label style={tabanEtiket}>{baslik || 'Taban puan tablosu'}</label>
-
-      <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
-        {aciklama || 'Kullanılacak taban puan tablosunu Taban Puan Kütüphanesi’nden seçin.'}{' '}
-        {puanTuru ? (
-          <>
-            Bu panel <b>{puanTuru}</b> listesini bekliyor.{' '}
-          </>
-        ) : null}
-        Birden çok yıl seçebilirsiniz — aday, <b>yerleştiği yılın</b> taban puanıyla
-        değerlendirilir. Değerler bir <b>öneridir</b>; her satırı elle değiştirebilirsiniz.
-      </div>
-
-      {/* ── Kütüphaneden tablo seçimi ── */}
-      {kutuphane === null ? (
-        <div style={{ fontSize: 12, color: C.textMuted }}>Kütüphane yükleniyor…</div>
-      ) : siraliKutuphane.length === 0 ? (
-        <div
+      <button
+        type="button"
+        onClick={() => setAcik((v) => !v)}
+        aria-expanded={acik}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          width: '100%',
+          padding: 0,
+          border: 'none',
+          background: 'transparent',
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <span
           style={{
-            padding: '10px 12px',
-            borderRadius: 7,
-            background: C.accentLight,
-            color: C.accent,
-            fontSize: 12,
-            fontWeight: 600,
-            lineHeight: 1.55,
+            fontSize: 11,
+            color: C.textMuted,
+            transform: acik ? 'rotate(90deg)' : 'none',
+            transition: 'transform 0.15s',
+            lineHeight: 1,
           }}
         >
-          Kütüphanede hiç taban puan tablosu yok. <b>Taban Puanlar</b> modülünden kurumun listesini
-          bir kez ekleyin; sonra tüm modüller o tabloyu kullanabilir. (Bu arada aşağıdaki tablodan
-          puanları elle de girebilirsiniz.)
-        </div>
-      ) : (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-          {siraliKutuphane.map((t) => {
-            const on = secili.includes(t.id);
-            // Panelin beklediği türden olmayan tablolar solgun gösterilir —
-            // engellenmez (kurum listeyi başka türde yayımlamış olabilir) ama
-            // yanlışlıkla seçilmesi zorlaşır.
-            const uyumsuz = varsayilanTur && t.tur !== varsayilanTur;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => tabloSec(t.id)}
-                title={uyumsuz ? 'Bu panelin beklediği liste türü değil' : ''}
-                style={{
-                  padding: '6px 13px',
-                  borderRadius: 20,
-                  border: '1px solid ' + (on ? C.navy : C.border),
-                  background: on ? C.navy : 'white',
-                  color: on ? '#fff' : uyumsuz ? '#9CA3AF' : C.textMuted,
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {window.tabloEtiketi(t)}
-                <span style={{ marginLeft: 6, opacity: 0.75, fontWeight: 600 }}>
-                  {(t.satirlar || []).length}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {hata && (
-        <div
+          ▶
+        </span>
+        <span style={{ ...tabanEtiket, marginBottom: 0 }}>{baslik || 'Taban puan tablosu'}</span>
+        <span style={{ flex: 1 }} />
+        <span
           style={{
-            marginTop: 10,
-            padding: '8px 12px',
-            borderRadius: 7,
-            background: C.accentLight,
-            color: C.accent,
-            fontSize: 12,
+            fontSize: 11.5,
             fontWeight: 600,
+            color: secili.length === 0 ? C.accent : C.textMuted,
+            whiteSpace: 'nowrap',
           }}
         >
-          {hata}
-        </div>
-      )}
-      {msg && (
-        <div
-          style={{
-            marginTop: 10,
-            padding: '8px 12px',
-            borderRadius: 7,
-            background: C.greenLight,
-            color: C.green,
-            fontSize: 12,
-            fontWeight: 600,
-          }}
-        >
-          {msg}
-        </div>
-      )}
+          {ozet}
+        </span>
+      </button>
 
-      {satirlar.length > 0 && (
-        <div style={{ marginTop: 12, overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: C.bg }}>
-                <th style={{ textAlign: 'left', padding: '6px 8px', color: C.textMuted }}>
-                  Program
-                </th>
-                <th
-                  style={{ textAlign: 'left', padding: '6px 8px', width: 130, color: C.textMuted }}
-                >
-                  Taban puan
-                </th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', color: C.textMuted }}>
-                  Kaynak (yıl)
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {satirlar.map((r) => (
-                <tr key={r.id} style={{ borderTop: '1px solid ' + C.borderLight }}>
-                  <td style={{ padding: '6px 8px', fontWeight: 600, color: C.text }}>{r.ad}</td>
-                  <td style={{ padding: '6px 8px' }}>
-                    <input
-                      value={r.taban || ''}
-                      onChange={(e) => elleYaz(r.id, e.target.value)}
-                      placeholder="—"
-                      style={{ ...tabanGirdi, padding: '5px 8px', fontSize: 12 }}
-                    />
-                  </td>
-                  <td style={{ padding: '6px 8px', color: C.textMuted, fontSize: 11.5 }}>
-                    {r.elleMi ? (
-                      <span style={{ color: C.accent, fontWeight: 600 }}>elle girildi</span>
-                    ) : r.eslesmeler.length === 0 ? (
-                      'seçili tablolarda yok'
-                    ) : (
-                      /* Birden çok yıl eşleştiyse hangisinin kullanıldığı
-                         GÖRÜNÜR ve değiştirilebilir olmalı: adayın yılı
-                         değerlendirmeyi doğrudan belirliyor. */
-                      <span style={{ display: 'inline-flex', gap: 5, flexWrap: 'wrap' }}>
-                        {r.eslesmeler.map((e) => {
-                          const on = r.etkin && e.tabloId === r.etkin.tabloId;
-                          return (
-                            <button
-                              key={e.tabloId}
-                              type="button"
-                              onClick={() => yilSec(r.id, e.yil)}
-                              disabled={e.puansiz}
-                              title={
-                                e.puansiz ? 'Bu yıl puan yayımlanmamış' : e.etiket + ' → ' + e.taban
-                              }
-                              style={{
-                                padding: '2px 9px',
-                                borderRadius: 12,
-                                border: '1px solid ' + (on ? C.navy : C.border),
-                                background: on ? C.navy : 'white',
-                                color: on ? '#fff' : e.puansiz ? '#9CA3AF' : C.textMuted,
-                                fontSize: 11,
-                                fontWeight: 700,
-                                cursor: e.puansiz ? 'not-allowed' : 'pointer',
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              {e.yil || '—'}
-                              {e.puansiz ? ' (puan yok)' : ''}
-                            </button>
-                          );
-                        })}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div
-            style={{
-              display: 'flex',
-              gap: 10,
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              marginTop: 10,
-            }}
-          >
-            <span style={{ fontSize: 11.5, color: C.textMuted }}>
-              {bulunan}/{satirlar.length} programın taban puanı hazır.
-            </span>
-            <span style={{ flex: 1 }} />
-            <button
-              onClick={kaydet}
-              disabled={!!busy}
-              style={{
-                padding: '7px 16px',
-                borderRadius: 8,
-                border: 'none',
-                background: C.green,
-                color: '#fff',
-                fontSize: 12.5,
-                fontWeight: 700,
-                fontFamily: 'inherit',
-                cursor: busy ? 'wait' : 'pointer',
-                opacity: busy ? 0.6 : 1,
-              }}
-            >
-              {busy === 'kayit' ? 'Kaydediliyor…' : 'Kaydet'}
-            </button>
+      {!acik ? null : (
+        <>
+          <div style={{ fontSize: 11.5, color: C.textMuted, margin: '10px 0', lineHeight: 1.5 }}>
+            {aciklama || 'Kullanılacak taban puan tablosunu Taban Puan Kütüphanesi’nden seçin.'}{' '}
+            {puanTuru ? (
+              <>
+                Bu panel <b>{puanTuru}</b> listesini bekliyor.{' '}
+              </>
+            ) : null}
+            Birden çok yıl seçebilirsiniz — aday, <b>yerleştiği yılın</b> taban puanıyla
+            değerlendirilir. Değerler bir <b>öneridir</b>; her satırı elle değiştirebilirsiniz.
           </div>
 
-          {kayit && kayit.okunmaZamani && (
-            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
-              Son güncelleme: {new Date(kayit.okunmaZamani).toLocaleString('tr-TR')}
-              {kayit.okuyan ? ' · ' + kayit.okuyan : ''}
+          {/* ── Kütüphaneden tablo seçimi ── */}
+          {kutuphane === null ? (
+            <div style={{ fontSize: 12, color: C.textMuted }}>Kütüphane yükleniyor…</div>
+          ) : siraliKutuphane.length === 0 ? (
+            <div
+              style={{
+                padding: '10px 12px',
+                borderRadius: 7,
+                background: C.accentLight,
+                color: C.accent,
+                fontSize: 12,
+                fontWeight: 600,
+                lineHeight: 1.55,
+              }}
+            >
+              Kütüphanede hiç taban puan tablosu yok. <b>Taban Puanlar</b> modülünden kurumun
+              listesini bir kez ekleyin; sonra tüm modüller o tabloyu kullanabilir. (Bu arada
+              aşağıdaki tablodan puanları elle de girebilirsiniz.)
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+              {siraliKutuphane.map((t) => {
+                const on = secili.includes(t.id);
+                // Panelin beklediği türden olmayan tablolar solgun gösterilir —
+                // engellenmez (kurum listeyi başka türde yayımlamış olabilir) ama
+                // yanlışlıkla seçilmesi zorlaşır.
+                const uyumsuz = varsayilanTur && t.tur !== varsayilanTur;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => tabloSec(t.id)}
+                    title={uyumsuz ? 'Bu panelin beklediği liste türü değil' : ''}
+                    style={{
+                      padding: '6px 13px',
+                      borderRadius: 20,
+                      border: '1px solid ' + (on ? C.navy : C.border),
+                      background: on ? C.navy : 'white',
+                      color: on ? '#fff' : uyumsuz ? '#9CA3AF' : C.textMuted,
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {window.tabloEtiketi(t)}
+                    <span style={{ marginLeft: 6, opacity: 0.75, fontWeight: 600 }}>
+                      {(t.satirlar || []).length}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
-        </div>
+
+          {hata && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '8px 12px',
+                borderRadius: 7,
+                background: C.accentLight,
+                color: C.accent,
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              {hata}
+            </div>
+          )}
+          {msg && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '8px 12px',
+                borderRadius: 7,
+                background: C.greenLight,
+                color: C.green,
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              {msg}
+            </div>
+          )}
+
+          {satirlar.length > 0 && (
+            <div style={{ marginTop: 12, overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: C.bg }}>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', color: C.textMuted }}>
+                      Program
+                    </th>
+                    <th
+                      style={{
+                        textAlign: 'left',
+                        padding: '6px 8px',
+                        width: 130,
+                        color: C.textMuted,
+                      }}
+                    >
+                      Taban puan
+                    </th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', color: C.textMuted }}>
+                      Kaynak (yıl)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {satirlar.map((r) => (
+                    <tr key={r.id} style={{ borderTop: '1px solid ' + C.borderLight }}>
+                      <td style={{ padding: '6px 8px', fontWeight: 600, color: C.text }}>{r.ad}</td>
+                      <td style={{ padding: '6px 8px' }}>
+                        <input
+                          value={r.taban || ''}
+                          onChange={(e) => elleYaz(r.id, e.target.value)}
+                          placeholder="—"
+                          style={{ ...tabanGirdi, padding: '5px 8px', fontSize: 12 }}
+                        />
+                      </td>
+                      <td style={{ padding: '6px 8px', color: C.textMuted, fontSize: 11.5 }}>
+                        {r.elleMi ? (
+                          <span style={{ color: C.accent, fontWeight: 600 }}>elle girildi</span>
+                        ) : r.eslesmeler.length === 0 ? (
+                          'seçili tablolarda yok'
+                        ) : (
+                          /* Birden çok yıl eşleştiyse hangisinin kullanıldığı
+                         GÖRÜNÜR ve değiştirilebilir olmalı: adayın yılı
+                         değerlendirmeyi doğrudan belirliyor. */
+                          <span style={{ display: 'inline-flex', gap: 5, flexWrap: 'wrap' }}>
+                            {r.eslesmeler.map((e) => {
+                              const on = r.etkin && e.tabloId === r.etkin.tabloId;
+                              return (
+                                <button
+                                  key={e.tabloId}
+                                  type="button"
+                                  onClick={() => yilSec(r.id, e.yil)}
+                                  disabled={e.puansiz}
+                                  title={
+                                    e.puansiz
+                                      ? 'Bu yıl puan yayımlanmamış'
+                                      : e.etiket + ' → ' + e.taban
+                                  }
+                                  style={{
+                                    padding: '2px 9px',
+                                    borderRadius: 12,
+                                    border: '1px solid ' + (on ? C.navy : C.border),
+                                    background: on ? C.navy : 'white',
+                                    color: on ? '#fff' : e.puansiz ? '#9CA3AF' : C.textMuted,
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    cursor: e.puansiz ? 'not-allowed' : 'pointer',
+                                    fontFamily: 'inherit',
+                                  }}
+                                >
+                                  {e.yil || '—'}
+                                  {e.puansiz ? ' (puan yok)' : ''}
+                                </button>
+                              );
+                            })}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  marginTop: 10,
+                }}
+              >
+                <span style={{ fontSize: 11.5, color: C.textMuted }}>
+                  {bulunan}/{satirlar.length} programın taban puanı hazır.
+                </span>
+                <span style={{ flex: 1 }} />
+                <button
+                  onClick={kaydet}
+                  disabled={!!busy}
+                  style={{
+                    padding: '7px 16px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: C.green,
+                    color: '#fff',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                    cursor: busy ? 'wait' : 'pointer',
+                    opacity: busy ? 0.6 : 1,
+                  }}
+                >
+                  {busy === 'kayit' ? 'Kaydediliyor…' : 'Kaydet'}
+                </button>
+              </div>
+
+              {kayit && kayit.okunmaZamani && (
+                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
+                  Son güncelleme: {new Date(kayit.okunmaZamani).toLocaleString('tr-TR')}
+                  {kayit.okuyan ? ' · ' + kayit.okuyan : ''}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
