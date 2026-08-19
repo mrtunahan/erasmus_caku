@@ -808,10 +808,16 @@ async function izgaraSablonuDene(secenek) {
   const sonuc = await TE.produceGridXlsx(secenek);
   if (sonuc.ok) {
     if (sonuc.atlanan && sonuc.atlanan.length) {
+      // En sık sebep saat uyuşmazlığıdır: şablonun saat satırları bölümün
+      // saat ayarıyla aynı olmalı. Kullanıcıyı doğrudan o düğmeye yönlendir.
+      const saatSorunu = sonuc.atlanan.some((a) => /saat/i.test(a.sebep || ''));
       alert(
         'Program şablona yazıldı, ancak bazı dersler yerleştirilemedi:\n\n• ' +
           sonuc.atlanan.map((a) => a.metin).join('\n• ') +
-          '\n\nŞablondaki derslik sütunlarını ve saat satırlarını gözden geçirin.'
+          (saatSorunu
+            ? '\n\nŞablondaki saat satırları ile bölümün saat aralığı aynı olmalı. ' +
+              'Üstteki "Ders Saatleri" düğmesinden başlangıç/bitiş saatini şablona göre ayarlayın.'
+            : '\n\nŞablondaki derslik sütunlarını gözden geçirin.')
       );
     }
     return true;
@@ -1063,6 +1069,22 @@ const SaatAyariModal = ({ acik, kapat, bolumId, bolumAdi, kayit, kaydedildi }) =
         <div style={{ fontSize: 12, color: DP.textMuted, marginTop: 4 }}>
           {bolumAdi} — bu ayar yalnız bu bölüm içindir. Ders 45 dakika, teneffüs 15 dakikadır;
           başlangıç ve bitiş saatini siz seçersiniz.
+        </div>
+        <div
+          style={{
+            marginTop: 10,
+            padding: '9px 11px',
+            borderRadius: 8,
+            background: DP.primaryPale,
+            border: '1px solid ' + DP.primaryLight,
+            fontSize: 11,
+            color: DP.primary,
+            lineHeight: 1.5,
+          }}
+        >
+          Şablonlar modülüne Excel şablonu yüklediyseniz, aşağıdaki saatler{' '}
+          <strong>şablondaki saat satırlarıyla aynı</strong> olmalı — sistem dersi ancak eşleşen
+          satıra yazabilir.
         </div>
 
         <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
@@ -2428,6 +2450,43 @@ function DersProgramiApp({
                 color={DP.primary}
               />
               {loadingFaculty ? 'Yükleniyor...' : 'Fakülte Programı'}
+            </button>
+          )}
+          {/* ── Ders Saatleri ──
+              Programın kaçta başlayıp kaçta biteceği bölümün kendi kararıdır
+              (45 dk ders + 15 dk teneffüs sabit). Düğme o anki aralığı yazar
+              ki yetkili ayarı açmadan da ne olduğunu görsün; yüklenen Excel
+              şablonunun saat satırlarıyla bu aralık AYNI olmalıdır. */}
+          {(isAdmin || isDeptManager) && activeDepartment && (
+            <button
+              onClick={() => setShowSaatAyari(true)}
+              title="Ders programının başlangıç ve bitiş saatini ayarla (bu bölüme özel)"
+              style={{
+                padding: '7px 12px',
+                borderRadius: 8,
+                border: '1px solid ' + DP.primaryLight,
+                background: 'white',
+                color: DP.primary,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <DPIcon
+                path="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                size={13}
+                color={DP.primary}
+              />
+              Ders Saatleri
+              {visibleHours.length > 0 && (
+                <span style={{ fontWeight: 500, color: DP.textMuted }}>
+                  {visibleHours[0].split('-')[0]} –{' '}
+                  {visibleHours[visibleHours.length - 1].split('-')[1]}
+                </span>
+              )}
             </button>
           )}
           {/* Bölümün TÜM SINIFLARI tek ızgarada — önce önizleme, belgeler
