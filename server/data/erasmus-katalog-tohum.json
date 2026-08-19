@@ -1,0 +1,242 @@
+[
+  {
+    "name": "Politechnika Bydgoska im Jana i Jedrzeja Sniadeckich",
+    "country": "Poland",
+    "courses": [
+      {
+        "code": "05-EMS-APN-SP1",
+        "name": "Architecture and Programming of Microcontrollers",
+        "credits": 8
+      },
+      {
+        "code": "05-EMS-CN-SP1",
+        "name": "Computer Networks",
+        "credits": 4
+      },
+      {
+        "code": "05-EMS-BOS-SP1",
+        "name": "Basics of Operating Systems",
+        "credits": 3
+      },
+      {
+        "code": "05-EMS-WSD-SP1",
+        "name": "Web Services Design",
+        "credits": 2
+      },
+      {
+        "code": "05-EMS-FP-SP1",
+        "name": "Fundamentals of Programming",
+        "credits": 5
+      },
+      {
+        "code": "05-EMS-RES-SP1",
+        "name": "Renewable Energy Sources",
+        "credits": 2
+      },
+      {
+        "code": "05-EMS-DC-SP1",
+        "name": "Digital Circuits",
+        "credits": 4
+      },
+      {
+        "code": "05-EMS-SG-SP1",
+        "name": "Smart Grid",
+        "credits": 8
+      },
+      {
+        "code": "05-EMS-SLP-SP1",
+        "name": "Script Languages Programming",
+        "credits": 5
+      },
+      {
+        "code": "15-EMS-HW-SP1",
+        "name": "History of Design",
+        "credits": 3
+      },
+      {
+        "code": "15-EMS-BD-SP1",
+        "name": "Basics of Design",
+        "credits": 4
+      },
+      {
+        "code": "15-EMS-VC-SP1",
+        "name": "Visual Communication",
+        "credits": 3
+      },
+      {
+        "code": "15-EMS-DS-SP1",
+        "name": "Specialized Design",
+        "credits": 4
+      },
+      {
+        "code": "15-EMS-PD-SP1",
+        "name": "Packaging Design",
+        "credits": 4
+      },
+      {
+        "code": "08-EMS-FINAC-SP1",
+        "name": "Financial Accounting",
+        "credits": 6
+      },
+      {
+        "code": "08-EMS-MANAG-SP1",
+        "name": "Management",
+        "credits": 6
+      },
+      {
+        "code": "08-EMS-MANAC-SP1",
+        "name": "Management Accounting",
+        "credits": 5
+      },
+      {
+        "code": "00-EMS-STAT-SP1",
+        "name": "Statistics",
+        "credits": 6
+      }
+    ]
+  },
+  {
+    "name": "Politechnika Krakowska",
+    "country": "Poland",
+    "courses": [
+      {
+        "code": "E-CN",
+        "name": "Computer Networks",
+        "credits": 6
+      },
+      {
+        "code": "F-1.SE",
+        "name": "Software Engineering",
+        "credits": 6
+      },
+      {
+        "code": "E-IPE",
+        "name": "Introduction to Prompt Engineering",
+        "credits": 6
+      },
+      {
+        "code": "F-1.PS_1",
+        "name": "Problem Solving",
+        "credits": 6
+      },
+      {
+        "code": "F-1.EAI",
+        "name": "Elements of AI",
+        "credits": 6
+      }
+    ]
+  },
+  {
+    "name": "Collegium Witelona Uczelnia Panstwowa",
+    "country": "Poland",
+    "courses": [
+      {
+        "code": "MI.4",
+        "name": "Computer Networks I",
+        "credits": 5
+      },
+      {
+        "code": "MI.2",
+        "name": "Programming Basic I",
+        "credits": 6
+      },
+      {
+        "code": "ME.1",
+        "name": "Basics of Economics and Finance",
+        "credits": 4
+      },
+      {
+        "code": "BI.1",
+        "name": "Mathematics I",
+        "credits": 6
+      },
+      {
+        "code": "ML.2",
+        "name": "Production Logistics",
+        "credits": 5
+      },
+      {
+        "code": "MP.2",
+        "name": "Production and Service Management",
+        "credits": 5
+      }
+    ]
+  },
+  {
+    "name": "Panevezio Kolegija",
+    "country": "Lithuania",
+    "courses": [
+      {
+        "code": "PFL",
+        "name": "Professional Foreign Language",
+        "credits": 6
+      },
+      {
+        "code": "IIT",
+        "name": "Innovative Information Technology",
+        "credits": 6
+      },
+      {
+        "code": "HN",
+        "name": "Health Nutrition",
+        "credits": 3
+      },
+      {
+        "code": "CAD",
+        "name": "Computer Aided Design (CAD)",
+        "credits": 6
+      },
+      {
+        "code": "SSE",
+        "name": "Software systems engineering",
+        "credits": 3
+      },
+      {
+        "code": "LWN",
+        "name": "Local and wide area networks",
+        "credits": 3
+      },
+      {
+        "code": "CNS",
+        "name": "Computer network security and control",
+        "credits": 3
+      }
+    ]
+  },
+  {
+    "name": "Babeș-Bolyai University",
+    "country": "Romania",
+    "courses": [
+      {
+        "code": "MLE5023",
+        "name": "Formal languages and compiler design",
+        "credits": 5
+      },
+      {
+        "code": "MLE5077",
+        "name": "Parallel and distributed programming",
+        "credits": 5
+      },
+      {
+        "code": "MLE5260",
+        "name": "Database fundamentals",
+        "credits": 5
+      },
+      {
+        "code": "MLE5002",
+        "name": "Computer networks",
+        "credits": 6
+      },
+      {
+        "code": "MLE5258",
+        "name": "Advanced programming techniques",
+        "credits": 5
+      },
+      {
+        "code": "MLE5078",
+        "name": "Mobile application programming",
+        "credits": 4
+      }
+    ]
+  }
+]
