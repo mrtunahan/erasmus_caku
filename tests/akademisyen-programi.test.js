@@ -79,7 +79,8 @@ describe('akademisyenKayitlari', () => {
     expect(kayitlar.map((k) => k.dersKodu)).toEqual(['BIL201', 'MAK101']);
     expect(kayitlar[0].bolumAdi).toBe('Bilgisayar Mühendisliği');
     expect(kayitlar[1].bolumAdi).toBe('Makine Mühendisliği');
-    expect(kayitlar[1].saat).toBe('11:15-12:00');
+    // Sabah bloğu :30 başlar (indeks 3 → 11:30-12:15).
+    expect(kayitlar[1].saat).toBe('11:30-12:15');
   });
 
   it('bölünmüş hücrenin ikinci dersini de sayar ve dersliği devralır', () => {
@@ -229,7 +230,8 @@ describe('programIzgarasi', () => {
     ]);
     // Satır anahtarı SAAT etiketidir: bu belge birden çok bölümü birleştirir
     // ve bölümlerin slot indeksleri aynı saati göstermeyebilir.
-    expect(doluSaatler).toEqual(['08:15-09:00', '15:15-16:00', '16:15-17:00']);
+    // Sabah bloğu :30, öğleden sonraki :15 başlar (fakültenin kendi tablosu).
+    expect(doluSaatler).toEqual(['08:30-09:15', '15:15-16:00', '16:15-17:00']);
     expect(ozet.dersSaati).toBe(3);
     expect(ozet.dersSayisi).toBe(2);
     expect(ozet.bolumSayisi).toBe(2);

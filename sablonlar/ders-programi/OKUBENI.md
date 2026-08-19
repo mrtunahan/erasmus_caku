@@ -77,12 +77,31 @@ yanlış program vermektir.
 Çakışma önlemi programda alınıyor; şablona temiz veri gelir. Aynı hücreye iki
 ders düşerse ikincisi yazılmaz ve bildirilir.
 
-### Ders saatleri şablonla aynı olmalı
+### Ders saatleri
 
-Şablondaki saat satırları (`08:30 - 09:15` …) ile bölümün Ders Programı
-modülündeki saat ayarı **aynı saatleri** göstermelidir; sistem ikisini boşluk
-farkını yok sayarak eşleştirir. Bölümün saat aralığını Ders Programı'ndaki saat
-düğmesinden ayarlayın (ör. başlangıç `08:30`).
+Sistemin **varsayılan saatleri bu şablonla birebir aynıdır** — hiçbir ayar
+yapmadan eşleşir:
+
+| Öğleden önce  | Öğleden sonra |
+| ------------- | ------------- |
+| 08:30 - 09:15 | 13:15 - 14:00 |
+| 09:30 - 10:15 | 14:15 - 15:00 |
+| 10:30 - 11:15 | 15:15 - 16:00 |
+| 11:30 - 12:15 | 16:15 - 17:00 |
+| 12:30 - 13:15 | 17:15 - 18:00 |
+
+Gün **iki bloktan** oluşur ve ritimleri bağımsızdır: sabah dersleri yarım
+saatte (`:30`), öğleden sonrakiler çeyrek geçe (`:15`) başlar. Ders 45 dakika,
+teneffüs 15 dakikadır.
+
+Bölüm farklı çalışıyorsa Ders Programı'ndaki **Ders Saatleri** düğmesinden
+**iki bloğu da ayrı ayrı** değiştirebilir (sabahı 09:00'da başlatıp öğleden
+sonrayı 13:15'te bırakmak gibi). Öğleden sonra bloğu tamamen kaldırılabilir —
+yalnız sabah ders yapan bölümün programı boş satırla uzamaz.
+
+Şablonun saat satırlarıyla bölümün ayarı **aynı saatleri** göstermelidir;
+sistem ikisini boşluk farkını yok sayarak eşleştirir (`08:30 - 09:15` ile
+`08:30-09:15` aynıdır).
 
 ## 4. Kullanılabilir yer tutucular
 

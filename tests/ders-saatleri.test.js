@@ -6,6 +6,7 @@ import {
   VARSAYILAN_AYAR,
   ayarNormalize,
   ayarOzeti,
+  blokEtiketleri,
   birlesikEksen,
   bolumAyari,
   bolumSaatleri,
@@ -43,37 +44,46 @@ describe('dakikaya / saatMetni', () => {
   });
 });
 
-describe('ayarNormalize', () => {
+describe('ayarNormalize — iki blok', () => {
+  const iki = (ob, os) => ({ ogledenOnce: ob, ogledenSonra: os });
+
   it('eksik alan varsayılana düşer', () => {
     expect(ayarNormalize({}, 'lisans')).toEqual(VARSAYILAN_AYAR.lisans);
     expect(ayarNormalize(null, 'doktora')).toEqual(VARSAYILAN_AYAR.lisansustu);
   });
 
-  it('geçerli ayar korunur', () => {
-    expect(ayarNormalize({ baslangic: '08:30', bitis: '18:00' }, 'lisans')).toEqual({
-      baslangic: '08:30',
-      bitis: '18:00',
-    });
+  it('geçerli iki bloklu ayar korunur', () => {
+    const a = iki({ baslangic: '09:00', bitis: '12:00' }, { baslangic: '13:00', bitis: '17:00' });
+    expect(ayarNormalize(a, 'lisans')).toEqual(a);
   });
 
-  it('BOZUK aralık (bitiş başlangıçtan önce) tamamen yok sayılır', () => {
-    // Yarım kayıt programı boşaltmamalı — varsayılana dönülür.
-    expect(ayarNormalize({ baslangic: '17:00', bitis: '09:00' }, 'lisans')).toEqual(
-      VARSAYILAN_AYAR.lisans
+  it('ESKİ tek bloklu kayıt öğleden ÖNCE bloğu sayılır', () => {
+    // Ayar önce tek bloktu; eskiden kaydedilmiş bölümün programı kaymamalı.
+    expect(ayarNormalize({ baslangic: '08:15', bitis: '17:00' }, 'lisans')).toEqual(
+      iki({ baslangic: '08:15', bitis: '17:00' }, null)
     );
   });
 
-  it('bir dersin sığmadığı aralık da yok sayılır', () => {
-    expect(ayarNormalize({ baslangic: '08:15', bitis: '08:45' }, 'lisans')).toEqual(
-      VARSAYILAN_AYAR.lisans
-    );
+  it('BOZUK blok (bitiş başlangıçtan önce) varsayılana döner', () => {
+    const a = ayarNormalize(iki({ baslangic: '17:00', bitis: '09:00' }, null), 'lisans');
+    expect(a.ogledenOnce).toEqual(VARSAYILAN_AYAR.lisans.ogledenOnce);
+  });
+
+  it('bir dersin sığmadığı blok da yok sayılır', () => {
+    const a = ayarNormalize(iki({ baslangic: '08:30', bitis: '09:00' }, null), 'lisans');
+    expect(a.ogledenOnce).toEqual(VARSAYILAN_AYAR.lisans.ogledenOnce);
   });
 
   it('yalnız biri bozuksa o alan varsayılandan gelir', () => {
-    expect(ayarNormalize({ baslangic: 'abc', bitis: '18:00' }, 'lisans')).toEqual({
-      baslangic: '08:15',
-      bitis: '18:00',
-    });
+    const a = ayarNormalize(iki({ baslangic: 'abc', bitis: '12:00' }, null), 'lisans');
+    expect(a.ogledenOnce).toEqual({ baslangic: '08:30', bitis: '12:00' });
+  });
+
+  it('öğleden sonrası açıkça KAPATILABİLİR', () => {
+    // Yalnız sabah ders yapan bölümün programı boş satırla uzamasın.
+    const a = ayarNormalize(iki({ baslangic: '08:30', bitis: '13:15' }, null), 'lisans');
+    expect(a.ogledenSonra).toBe(null);
+    expect(saatEtiketleri(a)).toHaveLength(5);
   });
 });
 
@@ -86,8 +96,8 @@ describe('seviyeAnahtari / bolumAyari', () => {
   });
 
   it('kayıttan doğru seviyenin ayarını alır', () => {
-    const kayit = { lisans: { baslangic: '09:00', bitis: '16:00' } };
-    expect(bolumAyari(kayit, 'lisans').baslangic).toBe('09:00');
+    const kayit = { lisans: { ogledenOnce: { baslangic: '09:00', bitis: '16:00' } } };
+    expect(bolumAyari(kayit, 'lisans').ogledenOnce.baslangic).toBe('09:00');
     expect(bolumAyari(kayit, 'doktora')).toEqual(VARSAYILAN_AYAR.lisansustu);
   });
 
@@ -100,6 +110,7 @@ describe('saatEtiketleri', () => {
   it('45 dakika ders + 15 dakika teneffüs ritmi', () => {
     expect(DERS_DK).toBe(45);
     expect(TENEFFUS_DK).toBe(15);
+    // Tek bloklu (eski biçim) girdi de kabul edilir.
     expect(saatEtiketleri({ baslangic: '08:15', bitis: '11:00' })).toEqual([
       '08:15-09:00',
       '09:15-10:00',
@@ -120,10 +131,32 @@ describe('saatEtiketleri', () => {
     expect(saatEtiketleri({ baslangic: '08:15', bitis: '11:30' })).toHaveLength(3);
   });
 
-  it('VARSAYILAN lisans ayarı bugünkü ızgarayla birebir aynı', () => {
-    // Kayıtlı programlar saat İNDEKSİYLE duruyor; varsayılan liste değişirse
-    // ayar yapmamış bölümlerin dersleri başka saatte görünürdü.
-    expect(saatEtiketleri(VARSAYILAN_AYAR.lisans)).toEqual(PROGRAM_SAATLERI.slice(0, 9));
+  it('VARSAYILAN lisans ayarı FAKÜLTENİN kendi tablosudur', () => {
+    // Sabah :30'da, öğleden sonra :15'te başlar — tek ritimle kurulamaz.
+    expect(saatEtiketleri(VARSAYILAN_AYAR.lisans)).toEqual([
+      '08:30-09:15',
+      '09:30-10:15',
+      '10:30-11:15',
+      '11:30-12:15',
+      '12:30-13:15',
+      '13:15-14:00',
+      '14:15-15:00',
+      '15:15-16:00',
+      '16:15-17:00',
+      '17:15-18:00',
+    ]);
+  });
+
+  it('lisans ızgarası GENEL ızgaranın başlangıcıdır', () => {
+    // Kayıtlı programlar saat İNDEKSİYLE duruyor; iki liste ayrışırsa
+    // akademisyen programında dersler başka satırda görünürdü.
+    expect(saatEtiketleri(VARSAYILAN_AYAR.lisans)).toEqual(PROGRAM_SAATLERI.slice(0, 10));
+  });
+
+  it('öğleden sonra bloğu KENDİ ritmini kurar (öğle arasından sonra kayma)', () => {
+    const etiketler = saatEtiketleri(VARSAYILAN_AYAR.lisans);
+    expect(etiketler[4]).toBe('12:30-13:15'); // sabahın sonu
+    expect(etiketler[5]).toBe('13:15-14:00'); // öğleden sonra yeniden başlar
   });
 
   it('VARSAYILAN lisansüstü ayarı on dört satırın tamamını verir', () => {
@@ -241,5 +274,72 @@ describe('slotlariEksene', () => {
     // İkisi de "günün ilk dersi" ama farklı saatte — ayrı satırlara düşmeli.
     expect(Object.keys(aSlot)).toEqual(['Pazartesi_0']);
     expect(Object.keys(bSlot)).toEqual(['Pazartesi_1']);
+  });
+});
+
+describe('blokEtiketleri — bloklar birbirinden bağımsız', () => {
+  it('sabah bloğu :30, öğleden sonra :15 başlayabilir', () => {
+    expect(blokEtiketleri({ baslangic: '08:30', bitis: '13:15' })).toEqual([
+      '08:30-09:15',
+      '09:30-10:15',
+      '10:30-11:15',
+      '11:30-12:15',
+      '12:30-13:15',
+    ]);
+    expect(blokEtiketleri({ baslangic: '13:15', bitis: '18:00' })).toEqual([
+      '13:15-14:00',
+      '14:15-15:00',
+      '15:15-16:00',
+      '16:15-17:00',
+      '17:15-18:00',
+    ]);
+  });
+
+  it('bitişi aşan ders yazılmaz', () => {
+    expect(blokEtiketleri({ baslangic: '08:30', bitis: '10:00' })).toEqual(['08:30-09:15']);
+  });
+
+  it('üst sınır uygulanır', () => {
+    expect(blokEtiketleri({ baslangic: '00:00', bitis: '23:59' }, 3)).toHaveLength(3);
+  });
+});
+
+describe('iki bloklu ayar — bölüme özel değişiklik', () => {
+  it('yetkili İKİ bloğu da ayrı ayrı değiştirebilir', () => {
+    const ayar = {
+      ogledenOnce: { baslangic: '09:00', bitis: '12:00' },
+      ogledenSonra: { baslangic: '14:00', bitis: '17:00' },
+    };
+    expect(saatEtiketleri(ayar)).toEqual([
+      '09:00-09:45',
+      '10:00-10:45',
+      '11:00-11:45',
+      '14:00-14:45',
+      '15:00-15:45',
+      '16:00-16:45',
+    ]);
+  });
+
+  it('bloklar arası boşluk programda satır üretmez', () => {
+    // 12:00 ile 14:00 arası öğle arasıdır; ızgarada satırı yoktur.
+    const ayar = {
+      ogledenOnce: { baslangic: '09:00', bitis: '12:00' },
+      ogledenSonra: { baslangic: '14:00', bitis: '17:00' },
+    };
+    expect(saatEtiketleri(ayar).some((h) => h.startsWith('12:') || h.startsWith('13:'))).toBe(
+      false
+    );
+  });
+
+  it('toplam satır sayısı üst sınırı aşmaz', () => {
+    const ayar = {
+      ogledenOnce: { baslangic: '00:00', bitis: '12:00' },
+      ogledenSonra: { baslangic: '12:00', bitis: '23:59' },
+    };
+    expect(saatEtiketleri(ayar).length).toBeLessThanOrEqual(EN_COK_SAAT);
+  });
+
+  it('özet iki bloğu da anlatır', () => {
+    expect(ayarOzeti(VARSAYILAN_AYAR.lisans)).toBe('08:30 – 13:15 · 13:15 – 18:00 · 10 ders saati');
   });
 });
