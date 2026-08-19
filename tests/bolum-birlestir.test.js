@@ -48,6 +48,10 @@ describe('dbKimlikleri', () => {
     ]);
   });
 
+  it('eskiKimlikler alanını da toplar', () => {
+    expect(dbKimlikleri({ id: '6a3bc525', eskiKimlikler: ['gida'] })).toEqual(['6a3bc525', 'gida']);
+  });
+
   it('tekrarları eler, boş girdide çökmez', () => {
     expect(dbKimlikleri({ id: 'x', _docId: 'x', kimlikler: ['x'] })).toEqual(['x']);
     expect(dbKimlikleri(null)).toEqual([]);

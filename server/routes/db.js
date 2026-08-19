@@ -1373,7 +1373,14 @@ router.get('/:collection', async (req, res) => {
         // Yalnız `departments` için kimlikler açıkça taşınır.
         ...(collection === 'departments'
           ? {
-              kimlikler: [_docId, _id && _id.toString(), rest.code]
+              kimlikler: [
+                _docId,
+                _id && _id.toString(),
+                rest.code,
+                // Bölümün artık üretilmeyen ama eski kayıtlarda duran
+                // kimlikleri (bkz. server/lib/bolum-kimlik.js).
+                ...(Array.isArray(rest.eskiKimlikler) ? rest.eskiKimlikler : []),
+              ]
                 .filter(Boolean)
                 .map(String)
                 .filter((x, i, a) => a.indexOf(x) === i),
