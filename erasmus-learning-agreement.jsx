@@ -145,79 +145,13 @@ const downloadAsDocx = async (html, filename) => {
 };
 
 // ── University Course Catalogs ──
-const UNIVERSITY_CATALOGS = {
-  'Politechnika Bydgoska im Jana i Jedrzeja Sniadeckich': {
-    country: 'Poland',
-    courses: [
-      {
-        code: '05-EMS-APN-SP1',
-        name: 'Architecture and Programming of Microcontrollers',
-        credits: 8,
-      },
-      { code: '05-EMS-CN-SP1', name: 'Computer Networks', credits: 4 },
-      { code: '05-EMS-BOS-SP1', name: 'Basics of Operating Systems', credits: 3 },
-      { code: '05-EMS-WSD-SP1', name: 'Web Services Design', credits: 2 },
-      { code: '05-EMS-FP-SP1', name: 'Fundamentals of Programming', credits: 5 },
-      { code: '05-EMS-RES-SP1', name: 'Renewable Energy Sources', credits: 2 },
-      { code: '05-EMS-DC-SP1', name: 'Digital Circuits', credits: 4 },
-      { code: '05-EMS-SG-SP1', name: 'Smart Grid', credits: 8 },
-      { code: '05-EMS-SLP-SP1', name: 'Script Languages Programming', credits: 5 },
-      { code: '15-EMS-HW-SP1', name: 'History of Design', credits: 3 },
-      { code: '15-EMS-BD-SP1', name: 'Basics of Design', credits: 4 },
-      { code: '15-EMS-VC-SP1', name: 'Visual Communication', credits: 3 },
-      { code: '15-EMS-DS-SP1', name: 'Specialized Design', credits: 4 },
-      { code: '15-EMS-PD-SP1', name: 'Packaging Design', credits: 4 },
-      { code: '08-EMS-FINAC-SP1', name: 'Financial Accounting', credits: 6 },
-      { code: '08-EMS-MANAG-SP1', name: 'Management', credits: 6 },
-      { code: '08-EMS-MANAC-SP1', name: 'Management Accounting', credits: 5 },
-      { code: '00-EMS-STAT-SP1', name: 'Statistics', credits: 6 },
-    ],
-  },
-  'Politechnika Krakowska': {
-    country: 'Poland',
-    courses: [
-      { code: 'E-CN', name: 'Computer Networks', credits: 6 },
-      { code: 'F-1.SE', name: 'Software Engineering', credits: 6 },
-      { code: 'E-IPE', name: 'Introduction to Prompt Engineering', credits: 6 },
-      { code: 'F-1.PS_1', name: 'Problem Solving', credits: 6 },
-      { code: 'F-1.EAI', name: 'Elements of AI', credits: 6 },
-    ],
-  },
-  'Collegium Witelona Uczelnia Panstwowa': {
-    country: 'Poland',
-    courses: [
-      { code: 'MI.4', name: 'Computer Networks I', credits: 5 },
-      { code: 'MI.2', name: 'Programming Basic I', credits: 6 },
-      { code: 'ME.1', name: 'Basics of Economics and Finance', credits: 4 },
-      { code: 'BI.1', name: 'Mathematics I', credits: 6 },
-      { code: 'ML.2', name: 'Production Logistics', credits: 5 },
-      { code: 'MP.2', name: 'Production and Service Management', credits: 5 },
-    ],
-  },
-  'Panevezio Kolegija': {
-    country: 'Lithuania',
-    courses: [
-      { code: 'PFL', name: 'Professional Foreign Language', credits: 6 },
-      { code: 'IIT', name: 'Innovative Information Technology', credits: 6 },
-      { code: 'HN', name: 'Health Nutrition', credits: 3 },
-      { code: 'CAD', name: 'Computer Aided Design (CAD)', credits: 6 },
-      { code: 'SSE', name: 'Software systems engineering', credits: 3 },
-      { code: 'LWN', name: 'Local and wide area networks', credits: 3 },
-      { code: 'CNS', name: 'Computer network security and control', credits: 3 },
-    ],
-  },
-  'Babeș-Bolyai University': {
-    country: 'Romania',
-    courses: [
-      { code: 'MLE5023', name: 'Formal languages and compiler design', credits: 5 },
-      { code: 'MLE5077', name: 'Parallel and distributed programming', credits: 5 },
-      { code: 'MLE5260', name: 'Database fundamentals', credits: 5 },
-      { code: 'MLE5002', name: 'Computer networks', credits: 6 },
-      { code: 'MLE5258', name: 'Advanced programming techniques', credits: 5 },
-      { code: 'MLE5078', name: 'Mobile application programming', credits: 4 },
-    ],
-  },
-};
+// ── ERASMUS ORTAKLARI ARTIK KODDA DEĞİL ──
+// Burada beş üniversite ders kataloglarıyla birlikte SABİT YAZILIYDI. O liste
+// tek bir bölümün ortaklarıydı ama koddan geldiği için HER bölüme gösteriliyor,
+// bölümler hiç öğrenci göndermedikleri kurumları kendi eşleştirme geçmişlerinde
+// görüyordu. Kayıtlar `erasmus_universities` koleksiyonuna taşındı ve bölüme
+// bağlandı (server/erasmus-katalog-tasi.js). Üniversite listesi artık yalnız
+// veritabanından, yalnız aktif bölümün kayıtlarıyla gelir.
 
 // ── Sample Data ──
 const SAMPLE_STUDENTS = [
@@ -1445,10 +1379,12 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave, activeDepartment }
 };
 
 // ── Course Catalog Modal ──
-const CourseCatalogModal = ({ university, onClose, onSelect }) => {
+// Katalog artık koddan değil, çağıran bileşenin okuduğu bölüm kayıtlarından
+// gelir (allUniversities). Bileşen kendi başına global bir listeye bakarsa
+// bölüm izolasyonu burada delinirdi.
+const CourseCatalogModal = ({ university, catalog, onClose, onSelect }) => {
   const r = useResponsive();
   const [selectedCourses, setSelectedCourses] = useState([]);
-  const catalog = UNIVERSITY_CATALOGS[university];
   if (!catalog) return null;
 
   const toggleCourse = (course) => {
@@ -2410,7 +2346,7 @@ const TripHistoryModal = ({ onClose, isReadOnly = false, activeDepartment, curre
   }, [activeDepartment, deptVariantSet]);
 
   // ── ÜNİVERSİTE LİSTESİ YALNIZ BÖLÜMÜN KENDİ GEÇMİŞİNDEN ──
-  // Buraya eskiden sabit katalog (UNIVERSITY_CATALOGS) ve başka bölümlerin
+  // Buraya eskiden koda gömülü sabit katalog ve başka bölümlerin
   // eklediği kurumlar da katılıyordu. O katalog Bilgisayar Mühendisliği'nin
   // Erasmus ortaklarıyla doldurulmuştu; sonuç olarak HER bölüm Bilgisayar'ın
   // üniversitelerini kendi eşleştirme geçmişinde görüyordu — üstelik altları
@@ -4545,6 +4481,7 @@ const StudentDetailModal = ({
       {showCatalogModal && (
         <CourseCatalogModal
           university={editedStudent.hostInstitution}
+          catalog={allUniversities[editedStudent.hostInstitution]}
           onClose={() => setShowCatalogModal(false)}
           onSelect={(hostCourses) => {
             const newMatch = { id: `outgoing${Date.now()}`, homeCourses: [], hostCourses };
@@ -5096,38 +5033,60 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   const [customUniversities, setCustomUniversities] = useState({});
   const fileInputRef = useRef(null);
 
-  // Özel üniversiteleri yükle
+  // ── ÜNİVERSİTELER BÖLÜME ÖZELDİR ──
+  // Bir bölümün Erasmus ortağı, başka bölümü ilgilendirmez; ders katalogları da
+  // bölümün kendi eşleştirmelerine göre şekillenir. Bölümü olmayan kayıt hiçbir
+  // bölüme gösterilmez (eşleştirme geçmişiyle aynı kural) — mevcut kayıtlar
+  // server/erasmus-katalog-tasi.js ile damgalanır.
   useEffect(() => {
-    const loadCustomUnis = async () => {
+    let iptal = false;
+    (async () => {
       try {
-        const docs = await window.apiRead('erasmus_universities');
-        const unis = {};
-        docs.forEach((doc) => {
-          if (doc.name) {
-            unis[doc.name] = {
-              country: doc.country || '',
-              courses: doc.courses || [],
-              custom: true,
-            };
+        let varyantlar = activeDepartment ? [String(activeDepartment)] : [];
+        if (activeDepartment && window.deptIdVariants) {
+          try {
+            varyantlar = (await window.deptIdVariants(activeDepartment)).map(String);
+          } catch (_) {
+            varyantlar = [String(activeDepartment)];
           }
+        }
+        const varyantSet = new Set(varyantlar);
+        const docs = await window.apiRead('erasmus_universities');
+        if (iptal) return;
+        const unis = {};
+        (docs || []).forEach((doc) => {
+          if (!doc || !doc.name) return;
+          if (activeDepartment) {
+            if (!(doc.departmentId && varyantSet.has(String(doc.departmentId)))) return;
+          }
+          unis[doc.name] = {
+            country: doc.country || '',
+            courses: doc.courses || [],
+            custom: true,
+          };
         });
         setCustomUniversities(unis);
       } catch (e) {
-        console.error('Özel üniversiteler yüklenemedi:', e);
+        console.error('Üniversiteler yüklenemedi:', e);
       }
+    })();
+    return () => {
+      iptal = true;
     };
-    loadCustomUnis();
-  }, []);
+  }, [activeDepartment]);
 
-  // Tüm üniversiteler = sabit katalog + özel eklenenler
-  const allUniversities = { ...UNIVERSITY_CATALOGS, ...customUniversities };
+  // Tüm üniversiteler = bu bölümün veritabanındaki kayıtları.
+  const allUniversities = customUniversities;
 
   const handleAddUniversity = async (name, country) => {
     try {
+      // Bölüm damgası YAZMA anında konur; damgasız kayıt hiçbir bölümde
+      // görünmez ve sahibi sonradan veriden çıkarılamaz.
       await window.DBWrite.add('erasmus_universities', {
         name,
         country,
         courses: [],
+        departmentId: activeDepartment || '',
         createdAt: new Date().toISOString(),
       });
       setCustomUniversities((prev) => ({
