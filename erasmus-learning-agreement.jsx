@@ -2340,13 +2340,7 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect, activeDepartment }) =>
 };
 
 // ── Trip History Modal (Eşleştirme Geçmişi) ──
-const TripHistoryModal = ({
-  onClose,
-  universities,
-  isReadOnly = false,
-  activeDepartment,
-  currentUser,
-}) => {
+const TripHistoryModal = ({ onClose, isReadOnly = false, activeDepartment, currentUser }) => {
   const r = useResponsive();
   const [selectedUni, setSelectedUni] = useState('');
   const [history, setHistory] = useState([]);
@@ -2392,14 +2386,18 @@ const TripHistoryModal = ({
     let cancelled = false;
     (async () => {
       try {
-        const th = await window.apiRead(
-          'trip_history',
-          activeDepartment ? { where: `departmentId:eq:${activeDepartment}` } : {}
-        );
+        // Sunucu süzgeci HAM EŞİTLİK yapıyordu (`departmentId:eq:...`); aynı
+        // bölümün öteki kimlik biçimiyle yazılmış kayıtları kaçırıyordu.
+        // Süzme, kayıt listesindekiyle (filteredHistory) AYNI kurala bağlandı.
+        const th = await window.apiRead('trip_history');
         if (cancelled) return;
         const set = new Set();
         (th || []).forEach((h) => {
-          if (h.hostInstitution) set.add(h.hostInstitution);
+          if (!h.hostInstitution) return;
+          if (activeDepartment) {
+            if (!(h.departmentId && deptVariantSet.has(String(h.departmentId)))) return;
+          }
+          set.add(h.hostInstitution);
         });
         setExtraUnis(Array.from(set));
       } catch (e) {
@@ -2409,11 +2407,17 @@ const TripHistoryModal = ({
     return () => {
       cancelled = true;
     };
-  }, [activeDepartment]);
+  }, [activeDepartment, deptVariantSet]);
 
-  const uniList = Array.from(
-    new Set([...Object.keys(universities || UNIVERSITY_CATALOGS), ...extraUnis])
-  ).sort((a, b) => a.localeCompare(b, 'tr'));
+  // ── ÜNİVERSİTE LİSTESİ YALNIZ BÖLÜMÜN KENDİ GEÇMİŞİNDEN ──
+  // Buraya eskiden sabit katalog (UNIVERSITY_CATALOGS) ve başka bölümlerin
+  // eklediği kurumlar da katılıyordu. O katalog Bilgisayar Mühendisliği'nin
+  // Erasmus ortaklarıyla doldurulmuştu; sonuç olarak HER bölüm Bilgisayar'ın
+  // üniversitelerini kendi eşleştirme geçmişinde görüyordu — üstelik altları
+  // boş, çünkü kayıt süzgeci (filteredHistory) doğru çalışıyor ve o bölüme
+  // ait kayıt yok. Geçmiş ekranında listelenecek tek doğru şey, bölümün
+  // GERÇEKTEN öğrenci gönderdiği kurumlardır.
+  const uniList = Array.from(new Set(extraUnis)).sort((a, b) => a.localeCompare(b, 'tr'));
   const filteredUniList = uniSearch
     ? uniList.filter((u) => u.toLowerCase().includes(uniSearch.toLowerCase()))
     : uniList;
@@ -2679,6 +2683,23 @@ const TripHistoryModal = ({
               </div>
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
+              {filteredUniList.length === 0 && (
+                // Liste artık bölümün GERÇEK geçmişinden geliyor; boş olması
+                // bir arıza değil, "bu bölüm henüz öğrenci göndermemiş"
+                // demektir. Sebebini yazmazsak ekran bozuk görünür.
+                <div
+                  style={{
+                    padding: '18px 14px',
+                    fontSize: 12,
+                    color: '#6B7280',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {uniSearch
+                    ? 'Aramanıza uyan üniversite yok.'
+                    : 'Bu bölümün henüz eşleştirme geçmişi yok. Bir öğrencinin ders eşleştirmesi onaylandığında gittiği üniversite burada listelenir.'}
+                </div>
+              )}
               {filteredUniList.map((uni) => {
                 const isActive = selectedUni === uni;
                 return (
@@ -5914,7 +5935,6 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
         {showTripHistory && (
           <TripHistoryModal
             onClose={() => setShowTripHistory(false)}
-            universities={allUniversities}
             isReadOnly={currentUser?.role !== 'admin'}
             activeDepartment={activeDepartment}
             currentUser={currentUser}

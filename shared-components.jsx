@@ -763,11 +763,24 @@ window.deptIdVariants = async function (deptId) {
   const key = String(deptId);
   try {
     const depts = await window.apiRead('departments');
-    const rec = (depts || []).find(
-      (d) => d && [d.id, d._id, d._docId, d.code].some((k) => k && String(k) === key)
-    );
+    // Sunucu okuma projeksiyonu `_id`/`_docId`'yi silip tek `id` döndürüyor;
+    // kimlik biçimleri AYRICA `kimlikler` alanıyla geliyor (routes/db.js) ve
+    // bölümün artık üretilmeyen eski kimlikleri de oradadır. Yalnız
+    // id/_id/_docId/code'a bakmak o biçimleri kaçırırdı.
+    const hepsi = (d) =>
+      [
+        d.id,
+        d._id,
+        d._docId,
+        d.code,
+        ...(Array.isArray(d.kimlikler) ? d.kimlikler : []),
+        ...(Array.isArray(d.eskiKimlikler) ? d.eskiKimlikler : []),
+      ]
+        .filter(Boolean)
+        .map(String);
+    const rec = (depts || []).find((d) => d && hepsi(d).includes(key));
     if (!rec) return [key];
-    const set = new Set([rec.id, rec._id, rec._docId, rec.code].filter(Boolean).map(String));
+    const set = new Set(hepsi(rec));
     set.add(key);
     return [...set];
   } catch {
