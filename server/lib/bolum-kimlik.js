@@ -22,10 +22,20 @@
 // haritası da her kimlik biçimi için anahtar taşır.
 // ══════════════════════════════════════════════════════════════
 
-/** Bir bölüm dokümanının taşıdığı tüm kimlik biçimleri. */
+/**
+ * Bir bölüm dokümanının taşıdığı tüm kimlik biçimleri.
+ *
+ * `eskiKimlikler`: bölümün ARTIK ÜRETİLMEYEN ama eski kayıtlarda duran
+ * kimlikleri. Gıda Mühendisliği'nin durumu buydu — kayıtların bir kısmı
+ * 'gida' slug'ını taşırken DB dokümanının kimliği ObjectId'ydi ve ikisini
+ * bağlayan hiçbir şey yoktu; bölüm DB'de var olduğu halde o kayıtlar
+ * hiçbir bölüme çözülmüyordu. Yüzlerce atıfı yeniden yazmak yerine bölüm
+ * dokümanına eski kimliği not etmek hem geri alınabilir hem de tek yazma.
+ */
 function kimlikler(d) {
   if (!d) return [];
-  return [d.id, d._docId, d.code, d._id && d._id.toString()]
+  const eski = Array.isArray(d.eskiKimlikler) ? d.eskiKimlikler : [];
+  return [d.id, d._docId, d.code, d._id && d._id.toString(), ...eski]
     .filter(Boolean)
     .map(String)
     .filter((x, i, a) => a.indexOf(x) === i);

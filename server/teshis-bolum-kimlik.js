@@ -352,9 +352,21 @@ function bolumAtiflari(deger, yol = '', cikti = []) {
     const cakisan = [];
     let yalnizAd = 0;
     let adYetim = 0;
+    let adAlaniYok = 0;
+    const adAlanlari = new Map(); // hangi alanda ad metni duruyor
     docs.forEach((d) => {
       const adMetni = d.department || d.departmentName || '';
-      if (!adMetni) return;
+      if (!adMetni) {
+        // Sıfır sonuçlar iki farklı şeyi gösterebilir: kural temiz çalışıyor
+        // OLABİLİR ya da bakılan alan bu veride HİÇ YOK. Ayırt edilebilsin.
+        adAlaniYok++;
+        Object.keys(d).forEach((k) => {
+          if (/bolum|department/i.test(k) && typeof d[k] === 'string' && d[k].trim()) {
+            adAlanlari.set(k, (adAlanlari.get(k) || 0) + 1);
+          }
+        });
+        return;
+      }
       const adinBolumu = adaGoreBolum.get(trAd(adMetni));
       const kimlik = String(d.departmentId || '');
       if (!kimlik) {
@@ -375,6 +387,13 @@ function bolumAtiflari(deger, yol = '', cikti = []) {
     if (cakisan.length > 20) console.log(`        … +${cakisan.length - 20} kayıt daha`);
     console.log(`    yalnız-ad (kural KORUR)                        → ${yalnizAd}`);
     console.log(`    ad-yetim (zaten hiçbir bölümde görünmüyor)     → ${adYetim}`);
+    console.log(`    ad metni HİÇ YOK (kural zaten devreye girmiyor) → ${adAlaniYok}`);
+    if (adAlanlari.size) {
+      console.log('        bu kayıtlarda bölümle ilgili metin taşıyan alanlar:');
+      [...adAlanlari.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .forEach(([k, n]) => console.log(`          ${k}: ${n}`));
+    }
   }
 
   console.log('\n(Bu betik hiçbir şey yazmadı.)');

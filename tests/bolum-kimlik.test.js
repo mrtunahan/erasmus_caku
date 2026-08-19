@@ -18,6 +18,7 @@ const DOKUMANLAR = [
   { id: '64aa01', _docId: 'bilgisayar', code: 'BLM', facultyId: 'F-MUH', name: 'Bilgisayar Müh.' },
   { _id: { toString: () => '64aa02' }, _docId: 'makine', facultyId: 'F-MUH', name: 'Makine Müh.' },
   { id: 'orman', facultyId: 'F-ORMAN', name: 'Orman Müh.' },
+  { id: '64aa04', facultyId: 'F-MUH', name: 'Gıda Müh.', eskiKimlikler: ['gida'] },
 ];
 
 describe('kimlikler', () => {
@@ -25,6 +26,19 @@ describe('kimlikler', () => {
     expect(kimlikler(DOKUMANLAR[0])).toEqual(['64aa01', 'bilgisayar', 'BLM']);
     expect(kimlikler(DOKUMANLAR[1])).toEqual(['makine', '64aa02']);
     expect(kimlikler(null)).toEqual([]);
+  });
+
+  it('eskiKimlikler de sayılır — artık üretilmeyen ama kayıtlarda duran slug', () => {
+    // Gıda Mühendisliği: kayıtların bir kısmı 'gida' taşıyor, dokümanın
+    // kimliği ise ObjectId. İkisini bağlayan tek şey bu alan.
+    expect(kimlikler({ id: '6a3bc525', name: 'Gıda Müh.', eskiKimlikler: ['gida'] })).toEqual([
+      '6a3bc525',
+      'gida',
+    ]);
+  });
+
+  it('eskiKimlikler zaten bilinen bir kimliği çoğaltmaz', () => {
+    expect(kimlikler({ id: 'gida', eskiKimlikler: ['gida'] })).toEqual(['gida']);
   });
 });
 
@@ -48,6 +62,13 @@ describe('bolumKimlikHaritasi', () => {
   it('tüm kimlikler aynı kanonik değere bağlanır', () => {
     expect(h.kanonik['bilgisayar']).toBe(h.kanonik['64aa01']);
     expect(h.kanonik['BLM']).toBe(h.kanonik['64aa01']);
+  });
+
+  it('ESKİ kimlik de fakülteye ve kanonik kimliğe bağlanır', () => {
+    // Bu olmadan 'gida' taşıyan kayıtlar bölüm DB'de var olduğu halde
+    // hiçbir bölüme çözülmüyordu.
+    expect(h.fakulte['gida']).toBe('F-MUH');
+    expect(h.kanonik['gida']).toBe(h.kanonik['64aa04']);
   });
 
   it('boş girdide çökmez', () => {
@@ -79,6 +100,11 @@ describe('ayniBolum', () => {
   it('farklı kimlik biçimleri aynı bölümü gösterir', () => {
     expect(ayniBolum('bilgisayar', '64aa01', h)).toBe(true);
     expect(ayniBolum('BLM', 'bilgisayar', h)).toBe(true);
+  });
+
+  it('eski slug ile ObjectId aynı bölümü gösterir', () => {
+    expect(ayniBolum('gida', '64aa04', h)).toBe(true);
+    expect(ayniBolum('gida', 'makine', h)).toBe(false);
   });
 
   it('farklı bölümleri ayırır', () => {
