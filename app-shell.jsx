@@ -515,6 +515,9 @@ const Sidebar = ({
   const isStudent = !isAdmin && !isDeptManager && !isProfessor;
   // Üni/fakülte yetkilisi — modül görünürlüğünde admin gibi davranır
   const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
+  // Yalnız ÜNİVERSİTE yetkilisi (fakülte yetkilisi de 'admin' rolüyle geldiği
+  // için role bakmak yetmez — bkz. window.isUniversiteYetkilisi).
+  const uniAdminMi = !!(window.isUniversiteYetkilisi && window.isUniversiteYetkilisi(currentUser));
 
   // Faz 2 — "Gelen Belgeler" bekleyen sayısı (sidebar rozeti). Gelen kutusu
   // ekranıyla AYNI filtreyi (window.belgeGelenKutusu) kullanır.
@@ -852,10 +855,14 @@ const Sidebar = ({
               Yönetim
             </div>
             {ADMIN_MODULES.filter((mod) => {
-              // Bölüm yetkilisi: Audit Log dışında tüm yönetim modülleri
-              if (isDeptManager && !isAdmin && !isHierarchyManager) {
-                return mod.id !== 'audit';
-              }
+              // ── AUDIT LOG YALNIZ ÜNİVERSİTE YETKİLİSİNDE ──
+              // Denetim kaydı kurum genelindeki her işlemi (kim, ne zaman,
+              // neyi değiştirdi) tutar; bir fakültenin ya da bölümün diğer
+              // birimlerin işlem geçmişini okuması gerekmiyor. Eskiden yalnız
+              // bölüm yetkilisine kapalıydı, fakülte yetkilisi görüyordu.
+              // Rolle ayırmak yetmez: fakülte yetkilisi de 'admin' rolüyle
+              // geliyor (bkz. window.isUniversiteYetkilisi).
+              if (mod.id === 'audit') return uniAdminMi;
               return true;
             }).map((mod) => {
               const isActive = currentRoute === mod.id;
@@ -2698,13 +2705,19 @@ function AppShell() {
         : []
       : COMMON_MODULES.map((m) => m.id);
     // Bölüm yetkilisi yönetim modülleri görür ama Audit Log hariç.
+    // Audit Log yalnız üniversite yetkilisinde; menüden gizlemek yetmez,
+    // adres satırından girilebilen rota da kapatılır.
+    const uniAdminMi = !!(
+      window.isUniversiteYetkilisi && window.isUniversiteYetkilisi(currentUser)
+    );
+    const yonetimModulleri = ADMIN_MODULES.filter((m) => m.id !== 'audit' || uniAdminMi).map(
+      (m) => m.id
+    );
     const allowedAdmin = isOnExtraDept
       ? []
-      : isAdmin || isHierarchyManager
-        ? ADMIN_MODULES.map((m) => m.id)
-        : isDeptManager
-          ? ADMIN_MODULES.filter((m) => m.id !== 'audit').map((m) => m.id)
-          : [];
+      : isAdmin || isHierarchyManager || isDeptManager
+        ? yonetimModulleri
+        : [];
     // Hiyerarşi yönetim modülleri (yetki bayrağına göre)
     const allowedHierarchy = isOnExtraDept
       ? []

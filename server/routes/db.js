@@ -304,6 +304,10 @@ const STRUCTURE_MANAGER_WRITE = new Set([
 // Tamamlanma ölçütü koleksiyona göre değişir; BASVURU_TAMAMLANDI'da tanımlı.
 // Bir koleksiyon için orada karşılık YOKSA tamamlanma şartı aranmaz — yalnız
 // yetki kontrolü uygulanır (bkz. muafiyet_records).
+// Silinmesi ÜNİVERSİTE yetkilisine bağlı koleksiyonlar. Yükleme/güncelleme
+// bölüm yetkilisinde kalır; yalnız kaldırma yukarı taşınmıştır.
+const TABAN_SIL_UNI_ADMIN = new Set(['taban_puanlar', 'taban_tablolari']);
+
 const BASVURU_SIL_DEPT_MANAGER = new Set([
   'cap_yandal_basvurular',
   'yatay_gecis_basvurular',
@@ -540,6 +544,28 @@ async function enforceWritePolicies(db, op, user) {
         allow: false,
         status: 403,
         error: `Bu koleksiyonu yalnız bölüm yetkilisi düzenleyebilir: ${op.collection}`,
+      };
+    }
+  }
+
+  // a2a) Taban puan tablosu SİLME: yalnız üniversite yetkilisi.
+  //
+  // Tablo kurum geneli bir referanstır — Dikey/Yatay Geçiş modülleri adayın
+  // şartını buradan okur ve aday YERLEŞTİĞİ YILIN tablosuna göre
+  // değerlendirilir. Bir fakültenin sildiği tablo, o yılı kullanan TÜM
+  // bölümlerin değerlendirmesini sessizce bozar. Yükleme ve güncelleme
+  // bölüm yetkilisinde kalır (yukarıdaki DEPT_MANAGER_WRITE); kaldıran tek
+  // merci üniversitedir.
+  if (op.type === 'delete' && TABAN_SIL_UNI_ADMIN.has(op.collection)) {
+    const flags = await getActorFlags(db, user);
+    if (!flags.admin && !flags.uniAdmin) {
+      return {
+        allow: false,
+        status: 403,
+        error:
+          'Taban puan tablosunu yalnız üniversite yetkilisi silebilir. ' +
+          'Tablo kurum geneli kullanılıyor; kaldırılması gerekiyorsa üniversite ' +
+          'yetkilisine iletin.',
       };
     }
   }
