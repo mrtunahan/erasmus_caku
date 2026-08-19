@@ -38,6 +38,7 @@ import {
 } from './lib/bolum-kimlik.js';
 import { bolumleriBirlestir as bolumleriBirlestirCoz } from './lib/bolum-birlestir.js';
 import { akademisyenBolumdeMi } from './lib/akademisyen-bolum.js';
+import { bolumleriFakulteyeGrupla, baslikGosterilsinMi } from './lib/bolum-gruplama.js';
 import { basvuruBolumId, basvuruBolumdeMi, sahipsizBasvurular } from './lib/yatay-kapsam.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
@@ -2399,6 +2400,52 @@ function useFakulteAdlari() {
 
 window.fakulteAdlariniYukle = fakulteAdlariniYukle;
 window.useFakulteAdlari = useFakulteAdlari;
+
+// ── BÖLÜM SEÇİCİ: FAKÜLTE BAŞLIĞI ALTINDA ──
+// 57 bölümü düz sıralayan listeler kullanıcıyı tüm listeyi taramaya
+// zorluyordu; üstelik benzer adlar (İnşaat / İnşaat Mühendisliği, iki ayrı
+// yüksekokulda Yönetim ve Organizasyon) hangisinin hangisi olduğunu belli
+// etmiyordu. Gruplama kuralı lib/bolum-gruplama.js'te, test altında.
+//
+// Sıradan bir <select> olarak kalır: klavye ile gezinme, yazarak arama ve
+// mobil davranış tarayıcıdan gelir — özel bir açılır liste bunları yeniden
+// yazmayı gerektirirdi.
+function BolumSecici({ value, onChange, haric, placeholder, style, disabled, autoFocus }) {
+  const fakulteAdlari = useFakulteAdlari();
+  // Dışlanan bölüm ÖTEKİ kimlik biçimiyle gelmiş olabilir (slug ↔ ObjectId);
+  // ham eşitlik onu listeden düşüremez ve kullanıcı kendi bölümünü seçebilirdi.
+  const haricHepsi = (Array.isArray(haric) ? haric : [haric])
+    .filter(Boolean)
+    .flatMap((k) => (window.bolumKimlikleri ? window.bolumKimlikleri(k) : [String(k)]));
+  const gruplar = bolumleriFakulteyeGrupla(window.DEPARTMENTS || [], fakulteAdlari, {
+    haric: haricHepsi,
+  });
+  const basliklar = baslikGosterilsinMi(gruplar);
+  const secenek = (d) => (
+    <option key={d.id} value={d.id}>
+      {d.name}
+    </option>
+  );
+  return (
+    <select
+      value={value || ''}
+      onChange={onChange}
+      style={style}
+      disabled={disabled}
+      autoFocus={autoFocus}
+    >
+      <option value="">{placeholder || 'Bölüm Seçin'}</option>
+      {basliklar
+        ? gruplar.map((g) => (
+            <optgroup key={g.id || '_diger'} label={g.ad}>
+              {g.bolumler.map(secenek)}
+            </optgroup>
+          ))
+        : gruplar.flatMap((g) => g.bolumler.map(secenek))}
+    </select>
+  );
+}
+window.BolumSecici = BolumSecici;
 
 // ══════════════════════════════════════════════════════════════
 // ── PerfData: Performans cevaplarını modüller arası paylaşımlı okuma ──

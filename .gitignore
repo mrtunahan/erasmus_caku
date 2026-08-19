@@ -42,3 +42,4 @@ debug_html/
 scripts/service-account-key.json
 yedek/
 yedek-*.json
+professors-dedupe-*.json
