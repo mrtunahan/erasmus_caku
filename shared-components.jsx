@@ -115,6 +115,7 @@ import {
 import {
   yayinKapsamCoz,
   yayinKapsamYamasi,
+  kapsamBolumListesi,
   yayinKapsamdaMi,
   yayinYonetilebilirMi,
 } from './lib/yayin-kapsami.js';
@@ -12747,6 +12748,7 @@ window.duyuruKapsamdaMi = duyuruKapsamdaMi;
 // Yayın kapsamı (duyuru + anket ortak): yayımlayanın yetki alanı dışına çıkmaz.
 window.yayinKapsamCoz = yayinKapsamCoz;
 window.yayinKapsamYamasi = yayinKapsamYamasi;
+window.kapsamBolumListesi = kapsamBolumListesi;
 window.yayinKapsamdaMi = yayinKapsamdaMi;
 window.yayinYonetilebilirMi = yayinYonetilebilirMi;
 window.akademikYilBul = akademikYilBul;
