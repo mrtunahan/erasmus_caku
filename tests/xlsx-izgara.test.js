@@ -479,3 +479,53 @@ describe('derslik adı eşleşmesi — Makine Mühendisliği vakası', () => {
     expect(derslikBasliklari(null)).toEqual([]);
   });
 });
+
+describe('hucreleriYaz — Excel biçimli (kendini kapatan) hücreler', () => {
+  // Gerçek olay: Excel'de açılıp yeniden kaydedilen şablon, boş ama biçimli
+  // hücreleri '<c r="E9" s="33"/>' diye yazar. Eski desen bunda kapanışı
+  // bulamayıp SONRAKİ hücreleri yutuyordu; hedef son hücreyse '</row>'
+  // sınırını da aşıp XML'i bozuyordu — Excel "onarayım mı" diyordu.
+  const satir =
+    '<row r="9"><c r="D9" s="1" t="s"><v>7</v></c>' +
+    '<c r="E9" s="33"/><c r="F9" s="33"/>' +
+    '<c r="H9" s="34" t="s"><v>9</v></c></row>';
+  const sheet = '<sheetData>' + satir + '<row r="10"><c r="D10" s="1"/></row></sheetData>';
+
+  it('kendini kapatan hücreye yazınca komşular YERİNDE kalır', () => {
+    const out = hucreleriYaz(sheet, [{ ref: 'E9', deger: 'MAT242', stil: 5 }]);
+    expect(out).toContain(
+      '<c r="E9" s="5" t="inlineStr"><is><t xml:space="preserve">MAT242</t></is></c>'
+    );
+    expect(out).toContain('<c r="F9" s="33"/>');
+    expect(out).toContain('<c r="H9" s="34" t="s"><v>9</v></c>');
+  });
+
+  it('SATIRIN SON kendini kapatan hücresine yazmak satır sınırını aşmaz', () => {
+    const tekli =
+      '<sheetData><row r="9"><c r="D9" s="1"/><c r="Q9" s="33"/></row>' +
+      '<row r="10"><c r="D10" s="2" t="s"><v>1</v></c></row></sheetData>';
+    const out = hucreleriYaz(tekli, [{ ref: 'Q9', deger: 'BLM307' }]);
+    // 10. satır olduğu gibi durmalı; '</row>' dengesi bozulmamalı.
+    expect(out).toContain('<row r="10"><c r="D10" s="2" t="s"><v>1</v></c></row>');
+    expect((out.match(/<row\b/g) || []).length).toBe((out.match(/<\/row>/g) || []).length);
+  });
+
+  it('KENDİNİ KAPATAN BOŞ SATIRA yazmak satırı açar, sonraki satırı yutmaz', () => {
+    const bos = '<sheetData><row r="9"/><row r="10"><c r="D10" s="1"/></row></sheetData>';
+    const out = hucreleriYaz(bos, [{ ref: 'E9', deger: 'X' }]);
+    expect(out).toContain('<row r="9"><c r="E9" t="inlineStr">');
+    expect(out).toContain('<row r="10"><c r="D10" s="1"/></row>');
+  });
+});
+
+describe('renkliStilEkle — applyFill çakışması', () => {
+  it('applyFill="0" taşıyan biçimde öznitelik ÇİFTLENMEZ, 1 yapılır', () => {
+    const styles =
+      '<styleSheet><fills count="1"><fill><patternFill patternType="none"/></fill></fills>' +
+      '<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyFill="0"/></cellXfs></styleSheet>';
+    const { xml } = renkliStilEkle(styles, [{ temelStil: 0, renk: '#5B9BD5' }]);
+    const yeniXf = (xml.match(/<xf\b[^>]*\/>/g) || [])[1];
+    expect((yeniXf.match(/applyFill=/g) || []).length).toBe(1);
+    expect(yeniXf).toContain('applyFill="1"');
+  });
+});
