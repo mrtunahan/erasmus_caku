@@ -331,3 +331,91 @@ describe('fakülte yetkilisi ÜNİVERSİTE yetkilisi sayılmaz', () => {
     expect(k.departmentIds).toEqual(['makine']);
   });
 });
+
+// ── ÜÇ YETKİ DÜZEYİ, ÜÇ FARKLI SEÇİM KÜMESİ ──
+// Üniversite yetkilisi: bölüm VEYA fakülte VEYA tüm bölümler.
+// Fakülte yetkilisi: yalnız kendi fakültesindeki bölümler.
+// Bölüm yetkilisi: yalnız kendi bölümü.
+describe('kapsam seçimi — fakülte düzeyi', () => {
+  const BOLUMLER = [
+    { id: 'bilgisayar', facultyId: 'F-MUH' },
+    { id: 'makine', facultyId: 'F-MUH' },
+    { id: 'fizik', facultyId: 'F-FEN' },
+    { id: 'kimyab', facultyId: 'F-FEN' },
+  ];
+  const uni = yayinKapsamCoz({ role: 'admin' }, BOLUMLER);
+  const muhYetkilisi = yayinKapsamCoz(
+    {
+      role: 'admin',
+      baseRole: 'professor',
+      isFacultyManager: true,
+      facultyId: 'F-MUH',
+      departmentId: 'bilgisayar',
+    },
+    BOLUMLER
+  );
+  const bolumYetkilisi = yayinKapsamCoz(
+    { role: 'bolum_yetkilisi', baseRole: 'professor', isDeptManager: true, departmentId: 'makine' },
+    BOLUMLER
+  );
+
+  it('üniversite yetkilisi TEK FAKÜLTEYE atayabilir', () => {
+    const y = yayinKapsamYamasi(uni, { tur: 'fakulte', id: 'F-FEN' }, BOLUMLER);
+    expect(y.kapsamTuru).toBe('fakulte');
+    expect(y.kapsamDepartmentIds.sort()).toEqual(['fizik', 'kimyab']);
+    // Mühendislik'e ulaşmaz.
+    expect(yayinKapsamdaMi(y, { departmentId: 'bilgisayar' })).toBe(false);
+    expect(yayinKapsamdaMi(y, { departmentId: 'fizik' })).toBe(true);
+  });
+
+  it('üniversite yetkilisi TEK BÖLÜME atayabilir', () => {
+    const y = yayinKapsamYamasi(uni, { tur: 'bolum', id: 'makine' }, BOLUMLER);
+    expect(y.kapsamTuru).toBe('bolum');
+    expect(y.kapsamDepartmentIds).toEqual(['makine']);
+  });
+
+  it('üniversite yetkilisi seçim yapmazsa TÜM kuruma gider', () => {
+    expect(yayinKapsamYamasi(uni, { tur: 'hepsi', id: '' }, BOLUMLER).kapsamTuru).toBe(
+      'universite'
+    );
+  });
+
+  it('fakülte yetkilisi KENDİ fakültesini seçebilir', () => {
+    const y = yayinKapsamYamasi(muhYetkilisi, { tur: 'fakulte', id: 'F-MUH' }, BOLUMLER);
+    expect(y.kapsamDepartmentIds.sort()).toEqual(['bilgisayar', 'makine']);
+  });
+
+  it('fakülte yetkilisi BAŞKA fakülteyi seçemez — seçim yok sayılır', () => {
+    // İstemciden ne gelirse gelsin kapsam aşılamaz: kayıt yayımcının kendi
+    // kapsamıyla yazılır, Fen'e ULAŞMAZ.
+    const y = yayinKapsamYamasi(muhYetkilisi, { tur: 'fakulte', id: 'F-FEN' }, BOLUMLER);
+    expect(y.kapsamTuru).toBe('fakulte');
+    expect(y.kapsamDepartmentIds.sort()).toEqual(['bilgisayar', 'makine']);
+    expect(yayinKapsamdaMi(y, { departmentId: 'fizik' })).toBe(false);
+  });
+
+  it('fakülte yetkilisi kendi fakültesindeki TEK bölüme atayabilir', () => {
+    const y = yayinKapsamYamasi(muhYetkilisi, { tur: 'bolum', id: 'makine' }, BOLUMLER);
+    expect(y.kapsamDepartmentIds).toEqual(['makine']);
+  });
+
+  it('fakülte yetkilisi BAŞKA fakültenin bölümünü seçemez', () => {
+    const y = yayinKapsamYamasi(muhYetkilisi, { tur: 'bolum', id: 'fizik' }, BOLUMLER);
+    expect(yayinKapsamdaMi(y, { departmentId: 'fizik' })).toBe(false);
+  });
+
+  it('bölüm yetkilisi fakülte seçse bile yalnız kendi bölümüne ulaşır', () => {
+    const y = yayinKapsamYamasi(bolumYetkilisi, { tur: 'fakulte', id: 'F-MUH' }, BOLUMLER);
+    expect(y.kapsamDepartmentIds).toEqual(['makine']);
+    expect(yayinKapsamdaMi(y, { departmentId: 'bilgisayar' })).toBe(false);
+  });
+
+  it('düz metin seçim ESKİ davranışı korur (bölüm kimliği)', () => {
+    expect(yayinKapsamYamasi(uni, 'makine').kapsamDepartmentIds).toEqual(['makine']);
+  });
+
+  it('bölümü olmayan fakülte seçimi yok sayılır', () => {
+    const y = yayinKapsamYamasi(uni, { tur: 'fakulte', id: 'F-YOK' }, BOLUMLER);
+    expect(y.kapsamTuru).toBe('universite');
+  });
+});
