@@ -33,6 +33,19 @@ import {
 } from './lib/xlsx-izgara.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
+  adAnahtari,
+  akademisyenEsle,
+  dersleriCoz,
+  docxBaslikParagraflari,
+  docxTablolari,
+  eksikAlanlar,
+  iceAktarmaSatirlari,
+  kunyeTahmini,
+  mevcutDersBul,
+  pdfSatirlari,
+  unvaniSoy,
+} from './lib/ders-listesi-ice-aktar.js';
+import {
   tabanKaydiBul,
   tabanKarsilastir,
   programAnahtari,
@@ -4457,6 +4470,52 @@ const TemplateEngine = (() => {
     }
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // AÇILAN DERSLER LİSTESİ — BELGEDEN OKUMA
+  //
+  // Bölümün Word (ya da PDF) listesi tarayıcıda okunur: sunucuya dosya
+  // gitmez, model çağrılmaz. Ayrıştırma kuralları lib/ders-listesi-ice-aktar
+  // içindedir ve test altındadır; burada yalnız DOSYAYI AÇMA işi yapılır.
+  // ══════════════════════════════════════════════════════════════
+  async function dersListesiOku(file) {
+    const ad = String((file && file.name) || '');
+    const uzanti = ad.split('.').pop().toLowerCase();
+    if (uzanti === 'docx') {
+      const JSZip = await ensureJSZip();
+      const zip = await JSZip.loadAsync(await file.arrayBuffer());
+      const belge = zip.file('word/document.xml');
+      if (!belge) throw new Error('Word belgesi okunamadı (word/document.xml yok).');
+      const xml = await belge.async('string');
+      const tablolar = docxTablolari(xml);
+      if (tablolar.length === 0) {
+        throw new Error(
+          'Belgede tablo bulunamadı. Ders listesi bir Word TABLOSU olmalı; ' +
+            'sekmeyle hizalanmış düz metin okunamaz.'
+        );
+      }
+      // Belgede birden çok tablo olabilir (antet/imza tablosu gibi); ders
+      // tablosu, EN ÇOK DERS çıkanıdır — "ilkini al" demek antet tablosuna
+      // takılırdı.
+      let enIyi = { dersler: [], uyarilar: [] };
+      tablolar.forEach((t) => {
+        const c = dersleriCoz(t);
+        if (c.dersler.length > enIyi.dersler.length) enIyi = c;
+      });
+      return { ...enIyi, baslik: docxBaslikParagraflari(xml), tur: 'docx' };
+    }
+    if (uzanti === 'pdf') {
+      if (!window.pdfMetniCikar) throw new Error('PDF okuyucu bu sayfada yüklü değil.');
+      const { metin } = await window.pdfMetniCikar(file);
+      if (!String(metin || '').trim()) {
+        throw new Error('PDF metin katmanı taşımıyor (taranmış görüntü). Word sürümünü yükleyin.');
+      }
+      const satirlar = pdfSatirlari(metin);
+      const cozum = dersleriCoz(satirlar);
+      return { ...cozum, baslik: satirlar.slice(0, 6).map((r) => r.join(' ')), tur: 'pdf' };
+    }
+    throw new Error('Yalnız .docx ve .pdf okunabilir. Seçilen dosya: ' + (ad || 'bilinmiyor'));
+  }
+
   return {
     detectPlaceholders,
     generateDocx,
@@ -4470,9 +4529,21 @@ const TemplateEngine = (() => {
     detectPlaceholdersXlsx,
     fillRowsByKey,
     formatCaseTr,
+    dersListesiOku,
   };
 })();
 window.TemplateEngine = TemplateEngine;
+// Açılan dersler listesini içe aktarma — saf yardımcılar (test altında).
+window.DersListesi = {
+  oku: TemplateEngine.dersListesiOku,
+  kunyeTahmini,
+  iceAktarmaSatirlari,
+  akademisyenEsle,
+  mevcutDersBul,
+  eksikAlanlar,
+  unvaniSoy,
+  adAnahtari,
+};
 // Türkçe-duyarlı harf biçimlendirmesini modüllere aç (ekran görüntüsü için):
 //   window.formatCaseTr(value, 'name' | 'title' | 'upper' | 'lower')
 window.formatCaseTr = TemplateEngine.formatCaseTr;
