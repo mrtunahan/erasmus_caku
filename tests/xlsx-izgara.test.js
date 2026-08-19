@@ -401,3 +401,39 @@ describe('kunyeDoldur', () => {
     expect(kunyeDoldur(shared, {})).toContain('<t>Pazartesi</t>');
   });
 });
+
+describe('dersliksiz program — Makine Mühendisliği senaryosu', () => {
+  // Gerçek olay: bölümün derslerine derslik atanmamıştı. Izgara şablonu
+  // hücreyi (gün, saat, DERSLİK) ile adresler; derslik yoksa yazılacak sütun
+  // da yoktur. Motor bunu sessizce boş belge üreterek geçiştirmemeli.
+  const dersliksiz = Array.from({ length: 5 }, (_, i) => ({
+    gun: 'Pazartesi',
+    saat: '08:30-09:15',
+    derslik: '',
+    kod: 'MKM' + (150 + i),
+  }));
+
+  it('hiçbir ders yerleşemez ve HEPSİ sebebiyle raporlanır', () => {
+    const { yazimlar, atlanan } = yerlesimPlani(izgara, hucreler, dersliksiz);
+    expect(yazimlar).toEqual([]);
+    expect(atlanan).toHaveLength(5);
+    expect(atlanan.every((a) => a.sebep === 'derslik-bos')).toBe(true);
+  });
+
+  it('özet, yapılacak işi bulmaya yetecek kadar açık', () => {
+    const ozet = atlananOzeti(yerlesimPlani(izgara, hucreler, dersliksiz).atlanan);
+    expect(ozet).toHaveLength(1);
+    expect(ozet[0].metin).toContain('5 ders yazılamadı');
+    expect(ozet[0].metin).toContain('derslik atanmamış');
+    expect(ozet[0].metin).toContain('MKM150');
+  });
+
+  it('dersliği OLAN ders yazılır, olmayan atlanır — kısmi program da üretilir', () => {
+    const karma = dersliksiz.concat([
+      { gun: 'Pazartesi', saat: '08:30-09:15', derslik: 'M10Z04', kod: 'MKM265' },
+    ]);
+    const { yazimlar, atlanan } = yerlesimPlani(izgara, hucreler, karma);
+    expect(yazimlar).toEqual([{ ref: 'E8', deger: 'MKM265', renk: undefined }]);
+    expect(atlanan).toHaveLength(5);
+  });
+});
