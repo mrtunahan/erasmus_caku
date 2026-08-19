@@ -55,18 +55,31 @@ Excel şablonu, fakültenin elle tuttuğu tablonun **aynısıdır**:
 - Derslik başlığı iki biçimde de yazılabilir; ikisi de eşleşir:
   `M10Z04` + `(T45 - S25)` ya da `Bilgisayar Kat1` + `(M111BL)`.
 
-### Dolu ve boyalı alanlara dokunulmaz
+### Dolu, boyalı ve birleşik alanlara dokunulmaz
 
-Şablonda elle doldurduğunuz alanlar korunur — sistem üzerlerine **yazmaz**:
+Şablonda kurumun ayırdığı alanlar korunur — sistem üzerlerine **yazmaz**:
 
 - **Sarı** ortak zorunlu ders satırları (`OZD-…`)
-- **Yeşil** öğle arası satırı
 - İçinde metin olan her hücre
+- Derslik sütunları boyunca **birleştirilmiş** satırlar — öğle arası bandı
+  (`E12:Q12` gibi) bu şekildedir
 
 Bir ders bu yüzden yerleştirilemezse çıktı alındığında **sebebiyle bildirilir**
-(“şablonda o hücre dolu ya da boyalı”, “o gün/saat satırı yok”, “o derslik
-sütunu yok”, “derse derslik atanmamış”). Eksik bir programı sessizce vermek,
-yanlış program vermektir.
+(“şablonda o hücre dolu ya da boyalı”, “o satır birleştirilmiş”, “o gün/saat
+satırı yok”, “o derslik sütunu yok”, “derse derslik atanmamış”). Eksik bir
+programı sessizce vermek, yanlış program vermektir.
+
+> **Öğle arasında ders yapıyorsanız o satırın birleştirmesini kaldırın.**
+> Bu klasördeki hazır şablonlarda `12:30 - 13:15` satırı, kurumun kendi
+> tablosunda olduğu gibi `E…:Q…` boyunca **birleştirilmiştir**. Birleşik alan
+> Excel’de tek hücredir: sol üst hücrenin dışına yazılan hiçbir şey görünmez.
+> Bölümünüzün o saatte dersi varsa Excel’de o satırı seçip **Birleştir ve
+> Ortala**’yı kapatın; yoksa dersler çıktıya **hiç girmez** (ve sistem bunu
+> uyarı olarak size söyler).
+
+Aynı ad birden çok derslik sütununda geçiyorsa (başlıkların parantez içindeki
+kapasiteleri çakışabiliyor: `M10Z04 (T45 - S25)` ve `M10Z06 (T45 - S25)`) o ad
+**hiçbir sütuna** bağlanmaz; ders yanlış dersliğe yazılmaktansa bildirilir.
 
 ### Bölüm ve fakülte çıktısı aynı şablonu kullanır
 
@@ -126,6 +139,13 @@ Yer tutucu yazımı **yalnızca** `{{...}}` biçimidir.
 `{{Gün}}` ve `{{Ders Saati}}` çıktıda **sütun başlığı olarak** yazılır
 (“Gün”, “Ders Saati”); yer tutucu görünmez. Karşılığı verilmeyen diğer
 yer tutucular silinir.
+
+Bu ikisi **künye alanı değildir**, tablonun kendisini işaretler: eşleme
+sihirbazında “🔒 Tablo işareti — otomatik” diye kilitli görünürler, eşleme
+istemezler ve yaptığınız hiçbir eşleme sütun başlıklarının üzerine yazamaz.
+
+Bölüm çıktısında belge başlığına bölüm adının girmesi için başlıkta
+`{{Bölüm Adı}}` kullanın; `{{Fakülte Adı}}` yalnız fakülteyi yazar.
 
 ### Word (PDF) şablonunda
 

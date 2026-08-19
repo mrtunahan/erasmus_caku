@@ -119,6 +119,16 @@ describe('izgaraCoz', () => {
     expect(izgaraCoz({ C7: { metin: '{{Gün}}' }, D7: { metin: '{{Ders Saati}}' } }, [])).toBe(null);
   });
 
+  it('veri alanındaki birleşik aralığın HER hücresi işaretlenir', () => {
+    // E10:G10 kurumun öğle arası bandı: birleşik, beyaz, metinsiz.
+    expect([...izgara.birlesikHucreler].sort()).toEqual(['E10', 'F10', 'G10']);
+  });
+
+  it('gün sütununun birleşik blokları veri alanı sayılmaz', () => {
+    // C8:C10 ve C11:C12 ızgaranın taşıyıcısıdır; derslik hücresi değildir.
+    expect([...izgara.birlesikHucreler].some((r) => r.startsWith('C'))).toBe(false);
+  });
+
   it('birleştirilmemiş tek satırlık gün bloğu da okunur', () => {
     const g = izgaraCoz(
       {
@@ -158,6 +168,48 @@ describe('yerlesimPlani', () => {
     ]);
     expect(yazimlar).toEqual([]);
     expect(atlanan[0].sebep).toBe('dolu-hucre');
+  });
+
+  it('BİRLEŞİK bandın içine yazılmaz — Excel orada yalnız sol üstü gösterir', () => {
+    // Kurumun kendi tablosunda öğle arası satırı E12:Q12 diye birleşiktir ve
+    // BEYAZDIR: ne metni ne boyası vardır. Eski ölçütlere göre "boş" görünüp
+    // içine ders yazılıyor, ders çıktıda hiç görünmüyordu.
+    const { yazimlar, atlanan } = yerlesimPlani(izgara, hucreler, [
+      kayit('Pazartesi', '12:30-13:15', 'M11101', 'OGLE101'),
+    ]);
+    expect(yazimlar).toEqual([]);
+    expect(atlanan[0].sebep).toBe('birlesik-hucre');
+    expect(atlanan[0].ref).toBe('F10');
+  });
+
+  it('birleşik aralığın SOL ÜST hücresi de yazılabilir alan değildir', () => {
+    const { yazimlar, atlanan } = yerlesimPlani(izgara, hucreler, [
+      kayit('Pazartesi', '12:30-13:15', 'M10Z04', 'OGLE102'),
+    ]);
+    expect(yazimlar).toEqual([]);
+    expect(atlanan[0].sebep).toBe('birlesik-hucre');
+  });
+
+  it('İKİ SÜTUNDA geçen derslik adayı hiçbirine bağlanmaz', () => {
+    // 'M10Z04 (T45 - S25)' ile 'M10Z06 (T45 - S25)' aynı parantez adayını
+    // üretir; ilk sütuna bağlamak dersi sessizce yanlış dersliğe yazardı.
+    const iki = izgaraCoz(
+      {
+        C1: { metin: '{{Gün}}' },
+        D1: { metin: '{{Ders Saati}}' },
+        E1: { metin: 'M10Z04\r\n(T45 - S25)' },
+        F1: { metin: 'M10Z06\r\n(T45 - S25)' },
+        C2: { metin: 'Cuma' },
+        D2: { metin: '08:30 - 09:15' },
+      },
+      []
+    );
+    const belirsiz = yerlesimPlani(iki, {}, [kayit('Cuma', '08:30-09:15', 'T45 - S25', 'X1')]);
+    expect(belirsiz.yazimlar).toEqual([]);
+    expect(belirsiz.atlanan[0].sebep).toBe('derslik-yok');
+    // Kendi adı tekildir; o hâlâ eşleşir.
+    const net = yerlesimPlani(iki, {}, [kayit('Cuma', '08:30-09:15', 'M10Z06', 'X2')]);
+    expect(net.yazimlar).toEqual([{ ref: 'F2', deger: 'X2', renk: undefined }]);
   });
 
   it('şablonda olmayan saat atlanır ve SEBEBİ bildirilir', () => {
