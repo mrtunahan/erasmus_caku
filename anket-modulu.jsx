@@ -439,13 +439,17 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
   // "alan boşsa herkese göster" diyordu; Bilgisayar'a atanan anket Orman'da
   // görünüyordu. Kapsam artık kaydın üzerinde durur ve okumada zorunludur.
   const saveAssignment = async (data) => {
-    const { kapsamBolumu, ...kayit } = data;
+    const { kapsamSecimi, ...kayit } = data;
     // Kapsam, bileşen genelinde çözülmüş olanla AYNI olmalı: burada yeniden
     // gömülü listeyle çözmek, yönetim listesinin gördüğüyle kayda yazılanı
     // ayrıştırırdı.
     const kapsam = yayinKapsami;
+    // Seçim yalnız DARALTIR: kapsamı aşan bir seçim (ör. başka fakülte)
+    // yok sayılır ve kayıt yayımcının tam kapsamıyla yazılır.
     const kapsamYamasi =
-      kapsam && window.yayinKapsamYamasi ? window.yayinKapsamYamasi(kapsam, kapsamBolumu) : {};
+      kapsam && window.yayinKapsamYamasi
+        ? window.yayinKapsamYamasi(kapsam, kapsamSecimi, kapsamBolumleriTum)
+        : {};
     await window.DBWrite.add('survey_assignments', {
       ...kayit,
       ...kapsamYamasi,
@@ -1931,10 +1935,45 @@ function AtamaPaneli({
   );
   // Tek bölümü olan yetkili (tipik bölüm yetkilisi) seçim yapmaz.
   const tekBolum = kapsamTuru === 'bolum' && kapsamBolumleri.length <= 1;
-  const [kapsamBolumu, setKapsamBolumu] = useState('');
-  const seciliKapsamBolumu = tekBolum
-    ? String(kapsamBolumleri[0]?.id || activeDepartment || '')
-    : kapsamBolumu;
+
+  // ── SEÇİM ÜÇ DÜZEYDE ──
+  // Değer biçimi: '' (kapsamın tamamı) · 'fak:<fakülteId>' · 'bol:<bölümId>'.
+  // Fakülte düzeyi eksikti: üniversite yetkilisi tek bir fakülteye anket
+  // atayamıyor, 57 bölümü tek tek seçmek ya da tüm kuruma göndermek zorunda
+  // kalıyordu.
+  const [secim, setSecim] = useState('');
+  const secimCoz = (v) => {
+    const t = String(v || '');
+    if (t.startsWith('fak:')) return { tur: 'fakulte', id: t.slice(4) };
+    if (t.startsWith('bol:')) return { tur: 'bolum', id: t.slice(4) };
+    return { tur: 'hepsi', id: '' };
+  };
+  const seciliKapsam = tekBolum
+    ? { tur: 'bolum', id: String(kapsamBolumleri[0]?.id || activeDepartment || '') }
+    : secimCoz(secim);
+  const seciliKapsamBolumu = seciliKapsam.tur === 'bolum' ? seciliKapsam.id : '';
+
+  // Seçilebilir fakülteler: kapsamdaki bölümlerin fakülteleri. Bölüm
+  // yetkilisinde tek fakülte çıkar ve zaten seçim kutusu gösterilmez.
+  const fakulteAdlari = window.useFakulteAdlari ? window.useFakulteAdlari() : {};
+  const fakulteGruplari = useMemo(() => {
+    const gruplar = new Map();
+    kapsamBolumleri.forEach((d) => {
+      const f = String(d.facultyId || '');
+      if (!gruplar.has(f)) gruplar.set(f, []);
+      gruplar.get(f).push(d);
+    });
+    const trSirala = (a, b) => String(a || '').localeCompare(String(b || ''), 'tr-TR');
+    return [...gruplar.entries()]
+      .map(([id, liste]) => ({
+        id,
+        ad: fakulteAdlari[id] || '',
+        bolumler: liste.slice().sort((a, b) => trSirala(a.name, b.name)),
+      }))
+      .sort((a, b) => trSirala(a.ad, b.ad));
+  }, [kapsamBolumleri, fakulteAdlari]);
+  // Fakülte adları henüz gelmediyse başlık yazmak yerine düz liste gösterilir.
+  const fakulteBasligi = fakulteGruplari.every((g) => g.ad);
 
   const tumEtiket =
     kapsamTuru === 'universite'
@@ -1946,7 +1985,12 @@ function AtamaPaneli({
     (departments || []).find((d) => String(d.id) === String(seciliKapsamBolumu))?.name ||
     departmentInfo?.name ||
     '';
-  const kapsamEtiketi = seciliKapsamBolumu ? deptName : tumEtiket;
+  const kapsamEtiketi =
+    seciliKapsam.tur === 'bolum' && seciliKapsamBolumu
+      ? deptName
+      : seciliKapsam.tur === 'fakulte'
+        ? (fakulteAdlari[seciliKapsam.id] || 'Seçilen fakülte') + ' (tüm bölümleri)'
+        : tumEtiket;
 
   const toggleGroup = (g) =>
     setGroups((p) => (p.includes(g) ? p.filter((x) => x !== g) : [...p, g]));
@@ -1970,7 +2014,7 @@ function AtamaPaneli({
         mandatory: !!mandatory,
         // Kapsam kaydın üzerine yazılır (onAssign çözer); aşağıdakiler
         // gösterim içindir.
-        kapsamBolumu: seciliKapsamBolumu,
+        kapsamSecimi: seciliKapsam,
         departmentId: seciliKapsamBolumu,
         departmentName: seciliKapsamBolumu ? deptName : '',
         kapsamEtiketi,
@@ -1981,7 +2025,7 @@ function AtamaPaneli({
     setGroups([]);
     setDueDate('');
     setMandatory(false);
-    setKapsamBolumu('');
+    setSecim('');
   };
 
   return (
@@ -2011,28 +2055,54 @@ function AtamaPaneli({
             <input value={deptName} disabled style={{ ...inputStyle, background: '#F3F4F6' }} />
           ) : (
             <select
-              value={kapsamBolumu}
-              onChange={(e) => setKapsamBolumu(e.target.value)}
+              value={secim}
+              onChange={(e) => setSecim(e.target.value)}
               style={{ ...inputStyle, cursor: 'pointer' }}
             >
               <option value="">{tumEtiket}</option>
-              {kapsamBolumleri.map((d) => (
-                <option key={d.id} value={d.id}>
-                  Yalnız {d.name}
-                </option>
-              ))}
+              {fakulteGruplari.map((g) => {
+                const secenekler = [
+                  // Fakültenin TAMAMI — üniversite yetkilisinin 57 bölümü tek
+                  // tek seçmek zorunda kalmadan bir fakülteye atayabilmesi için.
+                  //
+                  // Yalnız üniversite düzeyinde gösterilir: fakülte yetkilisinde
+                  // bu seçenek zaten "Fakültemin tüm bölümleri" ile aynı şeydir,
+                  // bölüm yetkilisinde ise etiket yanıltıcı olurdu (kapsam
+                  // kesişimi onu kendi bölümüne indirir, ama kutuda fakülte adı
+                  // yazardı).
+                  kapsamTuru === 'universite' && g.id ? (
+                    <option key={'f' + g.id} value={'fak:' + g.id}>
+                      {g.ad ? g.ad + ' (tüm bölümleri)' : 'Bu fakültenin tüm bölümleri'}
+                    </option>
+                  ) : null,
+                  ...g.bolumler.map((d) => (
+                    <option key={d.id} value={'bol:' + d.id}>
+                      Yalnız {d.name}
+                    </option>
+                  )),
+                ].filter(Boolean);
+                return fakulteBasligi && g.ad ? (
+                  <optgroup key={g.id || '_diger'} label={g.ad}>
+                    {secenekler}
+                  </optgroup>
+                ) : (
+                  secenekler
+                );
+              })}
             </select>
           )}
           <p style={{ fontSize: 11.5, color: ANK.textMuted, margin: '6px 0 0', lineHeight: 1.5 }}>
             {tekBolum
               ? 'Anket yalnız bu bölüme atanır.'
-              : kapsamBolumu
+              : seciliKapsam.tur === 'bolum'
                 ? 'Anket yalnız seçtiğiniz bölüme atanır.'
-                : kapsamTuru === 'universite'
-                  ? 'Anket tüm fakültelerin bölümlerine atanır.'
-                  : kapsamTuru === 'fakulte'
-                    ? 'Anket fakültenizdeki tüm bölümlere atanır.'
-                    : 'Anket bağlı olduğunuz bölümlere atanır.'}
+                : seciliKapsam.tur === 'fakulte'
+                  ? 'Anket yalnız seçtiğiniz fakültenin bölümlerine atanır.'
+                  : kapsamTuru === 'universite'
+                    ? 'Anket tüm fakültelerin bölümlerine atanır.'
+                    : kapsamTuru === 'fakulte'
+                      ? 'Anket fakültenizdeki tüm bölümlere atanır.'
+                      : 'Anket bağlı olduğunuz bölümlere atanır.'}
           </p>
         </div>
 
