@@ -96,9 +96,12 @@ const adAnahtari = (s) =>
   // ── YAZMADAN ÖNCE YEDEK ──
   // Alan eklemek geri alınabilir bir işlem ama dokümanın yazma öncesi hâlini
   // saklamak bedava; yedek yazılamıyorsa hiçbir şey yazılmaz.
-  const dizin = process.env.YEDEK_DIZIN || path.join(__dirname, '..');
+  // Yedek proje kökü yerine `yedek/` altına yazılır: kök dizin web sunucusu
+  // tarafından servis ediliyor olabilir ve `yedek/` zaten .gitignore'da.
+  const dizin = process.env.YEDEK_DIZIN || path.join(__dirname, '..', 'yedek');
   const dosya = path.join(dizin, `yedek-bolum-eski-kimlik-${Date.now()}.json`);
   try {
+    fs.mkdirSync(dizin, { recursive: true });
     fs.writeFileSync(
       dosya,
       JSON.stringify(
@@ -111,6 +114,7 @@ const adAnahtari = (s) =>
     console.log(`\nYedek yazıldı: ${dosya}`);
   } catch (e) {
     console.error(`\nYedek YAZILAMADI (${e.message}) — hiçbir şey değiştirilmedi.`);
+    console.error('  YEDEK_DIZIN ile yazılabilir bir dizin verip yeniden deneyin.');
     process.exit(1);
   }
 
