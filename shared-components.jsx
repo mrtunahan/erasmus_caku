@@ -32,6 +32,10 @@ import {
   yerlesimPlani,
 } from './lib/xlsx-izgara.js';
 import { universiteYetkilisiMi } from './lib/yetki.js';
+import {
+  bolumKimlikleri as bolumKimlikleriCoz,
+  ayniBolum as ayniBolumCoz,
+} from './lib/bolum-kimlik.js';
 import { basvuruBolumId, basvuruBolumdeMi, sahipsizBasvurular } from './lib/yatay-kapsam.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
@@ -514,11 +518,28 @@ const DEPARTMENTS = [
   },
 ];
 
-// Çekirdek 6 bölüm Mühendislik fakültesine aittir — fakülte kapsamı
-// filtrelemesi (sağ sidebar bölüm geçişi) bu alanı kullanır.
+// ── ÇEKİRDEK 6 BÖLÜMÜN FAKÜLTESİ ──
+// Bu değer bir VARSAYIMDIR ve yalnız DB okunana kadar geçerlidir. Gerçek
+// fakülte kimliği `departments` koleksiyonundadır; app-shell açılışta DB'yi
+// okuyup bu alanı ÜZERİNE YAZAR (mergeDbDepartments → gomuluyuZenginlestir).
+//
+// ⚠ Sabit kalması bir arızaya yol açmıştı: kullanıcının `facultyId`'si DB'den
+// (ObjectId) geldiği için 'muhendislik' metniyle hiçbir zaman eşleşmiyordu.
+// Fakülte yetkilisinin anket ataması kimseye ulaşmıyor, fakülte şablonu
+// çözülmüyordu. Bu yüzden alan artık "geçici varsayılan" olarak işaretli.
 DEPARTMENTS.forEach((d) => {
   if (!d.facultyId) d.facultyId = 'muhendislik';
+  // Bölümün bilinen tüm kimlikleri — DB okununca genişler.
+  if (!Array.isArray(d.kimlikler)) d.kimlikler = [String(d.id)];
 });
+
+// ── BÖLÜM KİMLİĞİ: TEK KARŞILAŞTIRMA NOKTASI ──
+// Aynı bölüm slug ('bilgisayar') ve DB kimliği (ObjectId) ile anılabiliyor.
+// Ham eşitlik (`a === b`) aynı bölümü farklı bölüm sanıyor; modüller bunun
+// yerine bu iki yardımcıyı kullanmalı.
+// Kural ve gerekçesi lib/bolum-kimlik.js'te (test altında).
+window.bolumKimlikleri = (bolumId) => bolumKimlikleriCoz(DEPARTMENTS, bolumId);
+window.ayniBolumMu = (a, b) => ayniBolumCoz(a, b, DEPARTMENTS);
 
 // Bölüm bazlı modüller (her bölüm yetkilisi bunlara erişir)
 const DEPARTMENT_MODULES = [
@@ -729,9 +750,13 @@ window.isUniversiteYetkilisi = universiteYetkilisiMi;
 // otomatik destekler.
 window.profMatchesDept = function (prof, deptId, deptName) {
   if (!prof || !deptId) return false;
-  if (prof.departmentId === deptId) return true;
+  // Ham eşitlik yetmez: aynı bölüm slug ('bilgisayar') ve DB kimliği
+  // (ObjectId) ile anılabiliyor; akademisyenin kaydında hangisinin durduğu
+  // kaydın ne zaman açıldığına bağlı. Bölümün TÜM kimlikleri denenir.
+  const kimlikler = window.bolumKimlikleri ? window.bolumKimlikleri(deptId) : [String(deptId)];
+  if (kimlikler.includes(String(prof.departmentId || ''))) return true;
   const extras = Array.isArray(prof.additionalDepartments) ? prof.additionalDepartments : [];
-  if (extras.includes(deptId)) return true;
+  if (extras.some((x) => kimlikler.includes(String(x)))) return true;
   // Ham veri fallback: departmentId boşsa ad ile dene
   if (!prof.departmentId && deptName && prof.department) {
     const norm = (s) => (s || '').toLocaleLowerCase('tr-TR').replace(/\s+/g, '');
