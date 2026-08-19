@@ -21,6 +21,7 @@ import { satirlariAyir, satirlariYerlestir, veriSatiriSec } from './lib/xlsx-sat
 import {
   atlananOzeti,
   birlesikAraliklar,
+  derslikBasliklari,
   boyaliStiller,
   hucreleriYaz,
   izgaraCoz,
@@ -4162,6 +4163,7 @@ const TemplateEngine = (() => {
           reason: 'no-placement',
           toplam: (opts.kayitlar || []).length,
           atlanan: atlananOzeti(plan.atlanan),
+          derslikler: derslikBasliklari(hedef.izgara),
         };
       }
       const { xml: yeniStil, harita } = renkliStilEkle(
@@ -4197,6 +4199,7 @@ const TemplateEngine = (() => {
         yazilan: plan.yazimlar.length,
         toplam: (opts.kayitlar || []).length,
         atlanan: atlananOzeti(plan.atlanan),
+        derslikler: derslikBasliklari(hedef.izgara),
       };
     } catch (e) {
       return { ok: false, reason: 'invalid-output', message: e && e.message };

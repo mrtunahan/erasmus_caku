@@ -814,7 +814,7 @@ async function izgaraSablonuDene(secenek) {
           'yerleştirilemedi:\n\n• ' +
           sonuc.atlanan.map((a) => a.metin).join('\n• ') +
           '\n\n' +
-          izgaraCozumOnerisi(sonuc.atlanan)
+          izgaraCozumOnerisi(sonuc.atlanan, sonuc.derslikler)
       );
     }
     return true;
@@ -829,7 +829,7 @@ async function izgaraSablonuDene(secenek) {
         'bu yüzden şablon kullanılmadı.\n\n• ' +
         sonuc.atlanan.map((a) => a.metin).join('\n• ') +
         '\n\n' +
-        izgaraCozumOnerisi(sonuc.atlanan) +
+        izgaraCozumOnerisi(sonuc.atlanan, sonuc.derslikler) +
         '\n\nŞimdilik yerleşik Excel çıktısı indiriliyor.'
     );
     return false;
@@ -857,7 +857,7 @@ async function izgaraSablonuDene(secenek) {
  * eksikse dersin yazılacağı yer yoktur. Sebebi söyleyip bırakmak yetkiliyi
  * ekranda öylece bırakıyordu — ne yapması gerektiği de yazılır.
  */
-function izgaraCozumOnerisi(atlanan) {
+function izgaraCozumOnerisi(atlanan, sablonDerslikleri) {
   const sebepler = (atlanan || []).map((a) => a.sebep || '');
   const oneriler = [];
   if (sebepler.some((x) => /derslik atanmamış/.test(x))) {
@@ -867,9 +867,16 @@ function izgaraCozumOnerisi(atlanan) {
     );
   }
   if (sebepler.some((x) => /derslik sütunu yok/.test(x))) {
+    // Yalnız "eşleşmedi" demek yetmez: iki listeyi yan yana görmeden hangi
+    // adın hangisine uymadığı anlaşılmaz.
+    const liste =
+      Array.isArray(sablonDerslikleri) && sablonDerslikleri.length
+        ? ' Şablondaki sütunlar: ' + sablonDerslikleri.join(', ') + '.'
+        : '';
     oneriler.push(
       'Şablonun başlık satırında olmayan derslikler var. Derslik adını şablondaki ' +
-        'başlıkla aynı yazın ya da şablona o derslik için sütun ekleyin.'
+        'başlıkla aynı yazın ya da şablona o derslik için sütun ekleyin.' +
+        liste
     );
   }
   if (sebepler.some((x) => /gün\/saat satırı yok/.test(x))) {

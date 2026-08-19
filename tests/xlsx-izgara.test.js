@@ -7,6 +7,7 @@ import {
   birlesikAraliklar,
   boyaliStiller,
   derslikAdaylari,
+  derslikBasliklari,
   hucreleriYaz,
   izgaraCoz,
   kunyeDoldur,
@@ -435,5 +436,46 @@ describe('dersliksiz program — Makine Mühendisliği senaryosu', () => {
     const { yazimlar, atlanan } = yerlesimPlani(izgara, hucreler, karma);
     expect(yazimlar).toEqual([{ ref: 'E8', deger: 'MKM265', renk: undefined }]);
     expect(atlanan).toHaveLength(5);
+  });
+});
+
+describe('derslik adı eşleşmesi — Makine Mühendisliği vakası', () => {
+  // Gerçek olay: programın tamamı girili olduğu hâlde yalnız birkaç ders
+  // şablona düştü. Yazılanlar, dersliği şablondaki başlıkla eşleşen derslerdi;
+  // gerisi "derslik sütunu yok" ile atlandı. Bu blok eşleşme kurallarını
+  // gerçek başlıklarla sabitler.
+  const SABLON_BASLIKLARI = [
+    'M10Z04\r\n(T45 - S25)',
+    'M11101\r\n(T63 - S42)',
+    'Bilgisayar Kat1 \r\n(M111BL)',
+  ];
+
+  it('birebir ad, boşluk/kasa farkı ve parantez içi kod eşleşir', () => {
+    const adaylar = SABLON_BASLIKLARI.map(derslikAdaylari);
+    expect(adaylar[0]).toContain(sadeAd('M10Z04'));
+    expect(adaylar[0]).toContain(sadeAd('m10z04'));
+    expect(adaylar[2]).toContain(sadeAd('Bilgisayar Kat1'));
+    expect(adaylar[2]).toContain(sadeAd('BİLGİSAYAR KAT-1'));
+    expect(adaylar[2]).toContain(sadeAd('M111BL'));
+  });
+
+  it('sistemde farklı yazılmış derslik EŞLEŞMEZ ve derslik adıyla raporlanır', () => {
+    // 'Amfi 3' şablonda yok — kullanıcının göreceği şey ders kodu değil,
+    // hangi derslik ADININ tutmadığıdır.
+    const { atlanan } = yerlesimPlani(izgara, hucreler, [
+      { gun: 'Pazartesi', saat: '08:30-09:15', derslik: 'Amfi 3', kod: 'MKM151' },
+      { gun: 'Pazartesi', saat: '09:30-10:15', derslik: 'Amfi 3', kod: 'MKM153' },
+      { gun: 'Salı', saat: '08:30-09:15', derslik: 'D-201', kod: 'MKM251' },
+    ]);
+    const ozet = atlananOzeti(atlanan);
+    expect(ozet).toHaveLength(1);
+    expect(ozet[0].metin).toContain('Eşleşmeyen derslikler: Amfi 3, D-201');
+    // Ders kodları DEĞİL derslik adları listelenir; tekrar da edilmez.
+    expect(ozet[0].etiketler).toEqual(['Amfi 3', 'D-201']);
+  });
+
+  it('derslikBasliklari şablondaki sütunları okunur biçimde listeler', () => {
+    expect(derslikBasliklari(izgara)).toEqual(['M10Z04', 'M11101', 'Bilgisayar Kat1']);
+    expect(derslikBasliklari(null)).toEqual([]);
   });
 });
