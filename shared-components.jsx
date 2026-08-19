@@ -9837,9 +9837,21 @@ const LoginModal = ({ onLogin }) => {
                                   .indexOf(profSearch.toLocaleLowerCase('tr')) >= 0;
                               // Bölüm seçiliyse yumuşak filtre: o bölümdekiler +
                               // bölümü tanımsız akademisyenler (örn. fakülte/üni
-                              // yöneticisi) her zaman görünür.
+                              // yöneticisi) görünür — onları gizlemek giriş
+                              // yapamaz hâle getirirdi, bölüm alanları hiç
+                              // dolmuyor (unv-yonetimi yalnız facultyId yazar).
+                              //
+                              // Ama "her bölümde görünsün" fazlaydı: fakülte
+                              // düzeyindeki kişi üniversitedeki HER bölümün
+                              // listesinde çıkıyor, başka bölümün yetkilisi onu
+                              // kendi akademisyeni sanıyordu. Fakülte biliniyorsa
+                              // kendi fakültesiyle sınırlanır; bilinmiyorsa
+                              // (eski kayıt) yine görünür — kimse kilitlenmez.
+                              const bolumsuz = !p.departmentId;
+                              const baskaFakulte =
+                                bolumsuz && selFaculty && p.facultyId && p.facultyId !== selFaculty;
                               const matchesDept =
-                                !selDept || !p.departmentId || p.departmentId === selDept;
+                                !selDept || (bolumsuz ? !baskaFakulte : p.departmentId === selDept);
                               return matchesSearch && matchesDept;
                             });
                             if (filtered.length === 0)

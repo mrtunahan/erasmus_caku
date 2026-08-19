@@ -24,6 +24,7 @@ const { ObjectId } = require('mongodb');
 const { getDbSafe } = require('../config/database');
 const { softAuth } = require('../middleware/softAuth');
 const { canManageTemplate, canViewTemplate } = require('../lib/sablon-erisim');
+const { profilBul } = require('../lib/akademisyen-kimlik');
 
 const router = express.Router();
 const softAuthMiddleware = softAuth(getDbSafe);
@@ -117,7 +118,9 @@ async function resolveActorScope(req) {
   if (u.role === 'professor' && u.identifier) {
     try {
       const db = await getDbSafe();
-      const prof = await db.collection('professors').findOne({ name: u.identifier });
+      // Aynı adlı kayıtların birleşimi — şablon erişimi de giriş ve yazma
+      // korumasıyla aynı profili görmelidir (akademisyen-kimlik.js).
+      const prof = await profilBul(db, u.identifier);
       if (prof) {
         isUniversityAdmin = !!prof.isUniversityAdmin;
         isFacultyManager = !!prof.isFacultyManager;

@@ -69,8 +69,21 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
     const loadProfessors = async () => {
       try {
         const allProfs = await window.apiRead('professors');
+        // ── HAYALET AKADEMİSYEN ──
+        // Eskiden ölçüt `(p.departmentId || 'bilgisayar') === activeDepartment`
+        // idi: BÖLÜMÜ OLMAYAN akademisyen Bilgisayar Mühendisliği sayılıyordu.
+        // Üniversite yetkilisinin fakülte düzeyinde eklediği kişide
+        // departmentId hiç yazılmıyor (unv-yonetimi-modulu.jsx: yalnız
+        // facultyId) — o yüzden fakülteye eklenen her akademisyen Bilgisayar
+        // Mühendisliği'nin komisyon listesinde beliriyordu. Ortak kural
+        // kullanılır: ana bölüm + ek bölümler + (kimliksiz eski kayıtlarda) ad.
+        const dept = (window.DEPARTMENTS || []).find((x) => x.id === activeDepartment);
         const filtered = activeDepartment
-          ? allProfs.filter((p) => (p.departmentId || 'bilgisayar') === activeDepartment)
+          ? allProfs.filter((p) =>
+              window.profMatchesDept
+                ? window.profMatchesDept(p, activeDepartment, dept?.name)
+                : p.departmentId === activeDepartment
+            )
           : allProfs;
         setProfessors(filtered);
       } catch (e) {
