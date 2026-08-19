@@ -1364,6 +1364,21 @@ router.get('/:collection', async (req, res) => {
       return {
         ...rest,
         id: _docId || _id.toString(),
+        // ── BÖLÜM KİMLİĞİNİN TÜM BİÇİMLERİ ──
+        // Bu projeksiyon `_id` ve `_docId`'yi SİLİP tek bir `id` döndürüyor:
+        // `_docId || _id`. Çekirdek bölümlerde `_docId` slug ('bilgisayar')
+        // olduğu için ObjectId biçimi istemciye HİÇ ulaşmıyordu; o biçimle
+        // kaydedilmiş atıflar (ör. akademisyenin departmentId'si) istemcide
+        // hiçbir bölüme bağlanamıyor, kişi kendi bölümünde görünmüyordu.
+        // Yalnız `departments` için kimlikler açıkça taşınır.
+        ...(collection === 'departments'
+          ? {
+              kimlikler: [_docId, _id && _id.toString(), rest.code]
+                .filter(Boolean)
+                .map(String)
+                .filter((x, i, a) => a.indexOf(x) === i),
+            }
+          : {}),
       };
     });
 

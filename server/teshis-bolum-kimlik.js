@@ -277,6 +277,106 @@ function bolumAtiflari(deger, yol = '', cikti = []) {
     }
   }
 
+  // ── 6) Çekirdek bölümler: hangi kimlik biçimi kaç kayıtta ──
+  // Okuma API'si (routes/db.js) `_id` ve `_docId` alanlarını SİLİP tek bir
+  // `id` döndürüyor: `_docId || _id`. Çekirdek 6 bölümde `_docId` slug olduğu
+  // için ObjectId biçimi kendiliğinden istemciye ULAŞMAZ; o biçimle
+  // kaydedilmiş atıflar istemcide hiçbir bölüme bağlanamıyordu.
+  //
+  // Artık `departments` okumasında kimlik biçimleri `kimlikler` alanıyla
+  // AÇIKÇA gönderiliyor ve istemci bunları birleştiriyor
+  // (lib/bolum-birlestir.js). Aşağıdaki sayı, o düzeltmenin KAÇ KAYDI
+  // kurtardığını gösterir: sıfırdan büyükse düzeltme olmadan bu kayıtlar
+  // bölümsüz görünürdü.
+  console.log('\n══════ 6) Çekirdek bölümlerde kimlik biçimi dağılımı ══════');
+  const cekirdek = bolumler.filter((d) => {
+    const ids = kimlikler(d);
+    return ids.some((x) => GOMULU_SLUGLAR.includes(x));
+  });
+  const sayaclar = new Map(); // kimlik → { toplam, nerede:Map }
+  cekirdek.forEach((d) =>
+    kimlikler(d).forEach((k) => sayaclar.set(k, { toplam: 0, nerede: new Map() }))
+  );
+  for (const ad of koleksiyonlar) {
+    const docs = await db.collection(ad).find({}).toArray();
+    docs.forEach((d) => {
+      const { _id, ...govde } = d;
+      bolumAtiflari(govde).forEach(([, deger]) => {
+        const s = sayaclar.get(deger);
+        if (!s) return;
+        s.toplam++;
+        s.nerede.set(ad, (s.nerede.get(ad) || 0) + 1);
+      });
+    });
+  }
+  cekirdek.forEach((d) => {
+    const ids = kimlikler(d);
+    const slug = ids.find((x) => GOMULU_SLUGLAR.includes(x));
+    const digerleri = ids.filter((x) => x !== slug);
+    console.log(`\n• ${d.name}`);
+    console.log(`    '${slug}' (slug, doğrudan ULAŞIR)      → ${sayaclar.get(slug).toplam} atıf`);
+    digerleri.forEach((k) => {
+      const s = sayaclar.get(k);
+      const uyari = s.toplam ? '   ⚠ YALNIZ `kimlikler` ALANIYLA ULAŞIR' : '';
+      console.log(`    '${k}' (ObjectId)  → ${s.toplam} atıf${uyari}`);
+      if (s.toplam)
+        [...s.nerede.entries()].forEach(([k2, n]) => console.log(`        ${k2}: ${n}`));
+    });
+  });
+
+  // ── 7) AD EŞLEŞMESİ ÇAKIŞMASI: kişi kaç bölümde birden görünüyor? ──
+  // Ortak kural (window.profMatchesDept) bölüm ADINA yalnız `departmentId`
+  // BOŞKEN bakar. Fakülte Yönetimi ve Kullanıcı Yönetimi ise adı KOŞULSUZ
+  // deniyor: `p.departmentId === deptId || p.department === deptName`.
+  // Kimliği A bölümünü, eski `department` metni B bölümünü gösteren kişi bu
+  // iki ekranda İKİ bölümde birden çıkıyor — "hayalet akademisyen" şikâyeti.
+  //
+  // Ortak kurala geçmek görünürlüğü DARALTIR, o yüzden önce sayılır:
+  //   • çakışan  → kimliği ve adı FARKLI bölüm gösteriyor (hayalet üretir;
+  //                düzeltmeden sonra yalnız kimliğin bölümünde görünür)
+  //   • yalnız-ad → kimliği yok, yalnız ad var (kural bunu KORUR)
+  //   • ad-yetim  → kimliği yok, adı da hiçbir bölüme uymuyor (zaten görünmez)
+  console.log('\n══════ 7) Ad eşleşmesi çakışması (hayalet akademisyen) ══════');
+  const adaGoreBolum = new Map(); // normalize ad → bölüm dokümanı
+  bolumler.forEach((d) => {
+    [d.name, d.shortName].filter(Boolean).forEach((ad) => {
+      const k = trAd(ad);
+      if (!k) return;
+      // Aynı ada iki bölüm düşerse eşleştirme zaten güvenilmez: işaretle.
+      adaGoreBolum.set(k, adaGoreBolum.has(k) ? null : d);
+    });
+  });
+
+  for (const ad of ['professors', 'students']) {
+    const docs = await db.collection(ad).find({}).toArray();
+    const cakisan = [];
+    let yalnizAd = 0;
+    let adYetim = 0;
+    docs.forEach((d) => {
+      const adMetni = d.department || d.departmentName || '';
+      if (!adMetni) return;
+      const adinBolumu = adaGoreBolum.get(trAd(adMetni));
+      const kimlik = String(d.departmentId || '');
+      if (!kimlik) {
+        if (adinBolumu) yalnizAd++;
+        else adYetim++;
+        return;
+      }
+      if (!adinBolumu) return; // ad hiçbir bölüme uymuyor → çakışma yok
+      const kimligeGore = harita.kanonik[kimlik];
+      const adaGore = harita.kanonik[kimlikler(adinBolumu)[0]];
+      if (kimligeGore && adaGore && kimligeGore !== adaGore) {
+        cakisan.push(`${d.name || d.adSoyad || d._docId}: kimlik→${kimlik}, ad→"${adMetni}"`);
+      }
+    });
+    console.log(`\n• ${ad}: ${docs.length} kayıt`);
+    console.log(`    çakışan (düzeltmeden sonra TEK bölümde görünür) → ${cakisan.length}`);
+    cakisan.slice(0, 20).forEach((x) => console.log(`        ${x}`));
+    if (cakisan.length > 20) console.log(`        … +${cakisan.length - 20} kayıt daha`);
+    console.log(`    yalnız-ad (kural KORUR)                        → ${yalnizAd}`);
+    console.log(`    ad-yetim (zaten hiçbir bölümde görünmüyor)     → ${adYetim}`);
+  }
+
   console.log('\n(Bu betik hiçbir şey yazmadı.)');
   process.exit(0);
 })().catch((e) => {
