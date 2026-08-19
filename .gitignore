@@ -40,3 +40,4 @@ debug_html/
 .nyc_output/
 *.lcov
 scripts/service-account-key.json
+yedek/
