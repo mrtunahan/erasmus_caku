@@ -1265,8 +1265,10 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                           </select>
                         </td>
                         <td style={{ padding: 14 }}>
-                          <select
-                            value={editingProf.departmentId || ''}
+                          <window.BolumSecici
+                            value={editingProf.departmentId}
+                            placeholder="Kaynak Bölüm Seçin"
+                            haric={activeDepartment}
                             onChange={(e) => {
                               setEditingProf({
                                 ...editingProf,
@@ -1286,16 +1288,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                               backgroundColor: 'white',
                               cursor: 'pointer',
                             }}
-                          >
-                            <option value="">Kaynak Bölüm Seçin</option>
-                            {(window.DEPARTMENTS || [])
-                              .filter((d) => d.id !== activeDepartment)
-                              .map((d) => (
-                                <option key={d.id} value={d.id}>
-                                  {d.name}
-                                </option>
-                              ))}
-                          </select>
+                          />
                         </td>
                         <td style={{ padding: 14, textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
@@ -1343,8 +1336,8 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                             />
                           </td>
                           <td style={{ padding: 14 }}>
-                            <select
-                              value={editingProf.departmentId || ''}
+                            <window.BolumSecici
+                              value={editingProf.departmentId}
                               onChange={(e) => {
                                 const dept = DEPARTMENTS.find((d) => d.id === e.target.value);
                                 setEditingProf({
@@ -1363,14 +1356,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                                 backgroundColor: 'white',
                                 cursor: 'pointer',
                               }}
-                            >
-                              <option value="">Bölüm Seçin</option>
-                              {DEPARTMENTS.map((d) => (
-                                <option key={d.id} value={d.id}>
-                                  {d.name}
-                                </option>
-                              ))}
-                            </select>
+                            />
                           </td>
                           <td style={{ padding: 14, textAlign: 'right' }}>
                             <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
