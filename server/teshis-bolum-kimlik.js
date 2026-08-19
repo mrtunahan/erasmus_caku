@@ -277,6 +277,53 @@ function bolumAtiflari(deger, yol = '', cikti = []) {
     }
   }
 
+  // ── 6) Çekirdek bölümler: hangi kimlik biçimi kaç kayıtta ──
+  // Okuma API'si (routes/db.js) `_id` ve `_docId` alanlarını SİLİP tek bir
+  // `id` döndürüyor: `_docId || _id`. Çekirdek 6 bölümde `_docId` slug olduğu
+  // için ObjectId biçimi kendiliğinden istemciye ULAŞMAZ; o biçimle
+  // kaydedilmiş atıflar istemcide hiçbir bölüme bağlanamıyordu.
+  //
+  // Artık `departments` okumasında kimlik biçimleri `kimlikler` alanıyla
+  // AÇIKÇA gönderiliyor ve istemci bunları birleştiriyor
+  // (lib/bolum-birlestir.js). Aşağıdaki sayı, o düzeltmenin KAÇ KAYDI
+  // kurtardığını gösterir: sıfırdan büyükse düzeltme olmadan bu kayıtlar
+  // bölümsüz görünürdü.
+  console.log('\n══════ 6) Çekirdek bölümlerde kimlik biçimi dağılımı ══════');
+  const cekirdek = bolumler.filter((d) => {
+    const ids = kimlikler(d);
+    return ids.some((x) => GOMULU_SLUGLAR.includes(x));
+  });
+  const sayaclar = new Map(); // kimlik → { toplam, nerede:Map }
+  cekirdek.forEach((d) =>
+    kimlikler(d).forEach((k) => sayaclar.set(k, { toplam: 0, nerede: new Map() }))
+  );
+  for (const ad of koleksiyonlar) {
+    const docs = await db.collection(ad).find({}).toArray();
+    docs.forEach((d) => {
+      const { _id, ...govde } = d;
+      bolumAtiflari(govde).forEach(([, deger]) => {
+        const s = sayaclar.get(deger);
+        if (!s) return;
+        s.toplam++;
+        s.nerede.set(ad, (s.nerede.get(ad) || 0) + 1);
+      });
+    });
+  }
+  cekirdek.forEach((d) => {
+    const ids = kimlikler(d);
+    const slug = ids.find((x) => GOMULU_SLUGLAR.includes(x));
+    const digerleri = ids.filter((x) => x !== slug);
+    console.log(`\n• ${d.name}`);
+    console.log(`    '${slug}' (slug, doğrudan ULAŞIR)      → ${sayaclar.get(slug).toplam} atıf`);
+    digerleri.forEach((k) => {
+      const s = sayaclar.get(k);
+      const uyari = s.toplam ? '   ⚠ YALNIZ `kimlikler` ALANIYLA ULAŞIR' : '';
+      console.log(`    '${k}' (ObjectId)  → ${s.toplam} atıf${uyari}`);
+      if (s.toplam)
+        [...s.nerede.entries()].forEach(([k2, n]) => console.log(`        ${k2}: ${n}`));
+    });
+  });
+
   console.log('\n(Bu betik hiçbir şey yazmadı.)');
   process.exit(0);
 })().catch((e) => {

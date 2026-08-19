@@ -36,6 +36,7 @@ import {
   bolumKimlikleri as bolumKimlikleriCoz,
   ayniBolum as ayniBolumCoz,
 } from './lib/bolum-kimlik.js';
+import { bolumleriBirlestir as bolumleriBirlestirCoz } from './lib/bolum-birlestir.js';
 import { basvuruBolumId, basvuruBolumdeMi, sahipsizBasvurular } from './lib/yatay-kapsam.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
@@ -540,6 +541,9 @@ DEPARTMENTS.forEach((d) => {
 // Kural ve gerekçesi lib/bolum-kimlik.js'te (test altında).
 window.bolumKimlikleri = (bolumId) => bolumKimlikleriCoz(DEPARTMENTS, bolumId);
 window.ayniBolumMu = (a, b) => ayniBolumCoz(a, b, DEPARTMENTS);
+// DB bölümlerini gömülü listeye katar (app-shell açılışta çağırır).
+// Kimliklerin nasıl birleştiği ve NEDEN önemli olduğu lib/bolum-birlestir.js'te.
+window.bolumleriBirlestir = (dbKayitlari) => bolumleriBirlestirCoz(DEPARTMENTS, dbKayitlari);
 
 // Bölüm bazlı modüller (her bölüm yetkilisi bunlara erişir)
 const DEPARTMENT_MODULES = [
