@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const { getDbSafe } = require('../config/database');
+const { profilBul } = require('../lib/akademisyen-kimlik');
 const {
   generateToken,
   requireAuth,
@@ -325,7 +326,10 @@ router.post('/professor', async (req, res) => {
 async function fetchProfessorProfile(professorName) {
   try {
     const db = await getDbSafe();
-    const doc = await db.collection('professors').findOne({ name: professorName });
+    // findOne DEĞİL: aynı adlı kayıtlardan rastgele biri seçilirse giriş bir
+    // profili, yazma koruması (routes/db.js → getActorFlags) BAŞKA bir
+    // profili görebiliyordu. İkisi de aynı birleşik profili okur.
+    const doc = await profilBul(db, professorName);
     if (!doc) return null;
     return {
       name: doc.name,
@@ -503,7 +507,7 @@ router.post('/change-password', async (req, res) => {
   if (authUser && authUser.role === 'professor' && authUser.identifier) {
     try {
       const db = await getDbSafe();
-      const prof = await db.collection('professors').findOne({ name: authUser.identifier });
+      const prof = await profilBul(db, authUser.identifier);
       if (prof) {
         isUniAdminFlag = !!prof.isUniversityAdmin;
         isFacultyMgrFlag = !!prof.isFacultyManager;

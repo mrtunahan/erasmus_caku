@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
+const { profilBul } = require('../lib/akademisyen-kimlik');
 const { auditWrites } = require('../middleware/auditLog');
 const { softAuth } = require('../middleware/softAuth');
 const { JWT_SECRET } = require('../middleware/auth');
@@ -277,6 +278,12 @@ const STAFF_ROLES = new Set(['professor', 'bolum_yetkilisi', 'admin']);
 // tam-doküman güncelleyen meşru akışlar ise bozulmaz.
 const PRIV_FIELDS = ['isUniversityAdmin', 'isFacultyManager', 'isDeptManager'];
 
+const PRIV_ETIKET = {
+  isUniversityAdmin: 'üniversite yetkilisi',
+  isFacultyManager: 'fakülte yetkilisi',
+  isDeptManager: 'bölüm yetkilisi',
+};
+
 // Yapısal koleksiyonlar: bayraksız (sade) professor rolü yazamaz
 const STRUCTURE_MANAGER_WRITE = new Set([
   'departments',
@@ -443,7 +450,10 @@ async function getActorFlags(db, user) {
   if (hit && Date.now() - hit.ts < 60 * 1000) return hit.flags;
   let flags = { admin: false, uniAdmin: false, facManager: false, deptManager: false };
   try {
-    const prof = await db.collection('professors').findOne({ name: user.identifier });
+    // findOne DEĞİL: aynı adlı kayıtlardan rastgele birini seçmek, gerçek
+    // yöneticiyi yetkisiz sayıp yazdığı yetki alanını sessizce düşürüyordu
+    // (bkz. server/lib/akademisyen-kimlik.js).
+    const prof = await profilBul(db, user.identifier);
     if (prof) {
       flags = {
         admin: false,
@@ -632,10 +642,30 @@ async function enforceWritePolicies(db, op, user) {
       const flags = await getActorFlags(db, user);
       if (!flags.admin && !flags.uniAdmin) {
         const existing = await findExistingDoc(db, op);
+        // ── SESSİZ ROL KAYBI ──
+        // Alanı düşürmek doğru; SESSİZCE düşürmek değildi. İstek `success`
+        // dönüyor, arayüz "fakülte yetkilisi olarak eklendi" diyor, kişi
+        // rolsüz oluşuyordu — yetkili hatayı ancak günler sonra fark ediyor.
+        // Talep edilen değer gerçekten kaybediliyorsa istek REDDEDİLİR.
+        const kaybedilen = [];
         for (const f of PRIV_FIELDS) {
           if (f === 'isDeptManager' && flags.facManager) continue; // fak. yetkilisi bölüm yetkilisi atayabilir
+          const istenen = op.data[f];
+          const mevcut = existing && f in existing ? existing[f] : undefined;
+          if (f in op.data && !!istenen !== !!mevcut) kaybedilen.push(f);
           if (existing && f in existing) op.data[f] = existing[f];
           else delete op.data[f];
+        }
+        if (kaybedilen.length) {
+          return {
+            allow: false,
+            status: 403,
+            error:
+              'Bu yetkiyi atamaya izniniz yok: ' +
+              kaybedilen.map((f) => PRIV_ETIKET[f] || f).join(', ') +
+              '. Kaydınızda üniversite yetkilisi bayrağı görünmüyor — aynı adla ' +
+              'birden çok akademisyen kaydı varsa yetki o kayıtlara dağılmış olabilir.',
+          };
         }
       }
     }
