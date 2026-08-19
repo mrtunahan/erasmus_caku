@@ -806,21 +806,33 @@ async function izgaraSablonuDene(secenek) {
   const TE = window.TemplateEngine;
   if (!TE || !TE.produceGridXlsx) return false;
   const sonuc = await TE.produceGridXlsx(secenek);
+
   if (sonuc.ok) {
     if (sonuc.atlanan && sonuc.atlanan.length) {
-      // En sık sebep saat uyuşmazlığıdır: şablonun saat satırları bölümün
-      // saat ayarıyla aynı olmalı. Kullanıcıyı doğrudan o düğmeye yönlendir.
-      const saatSorunu = sonuc.atlanan.some((a) => /saat/i.test(a.sebep || ''));
       alert(
-        'Program şablona yazıldı, ancak bazı dersler yerleştirilemedi:\n\n• ' +
+        `Program şablona yazıldı (${sonuc.yazilan}/${sonuc.toplam} ders), ancak bazı dersler ` +
+          'yerleştirilemedi:\n\n• ' +
           sonuc.atlanan.map((a) => a.metin).join('\n• ') +
-          (saatSorunu
-            ? '\n\nŞablondaki saat satırları ile bölümün saat aralığı aynı olmalı. ' +
-              'Üstteki "Ders Saatleri" düğmesinden başlangıç/bitiş saatini şablona göre ayarlayın.'
-            : '\n\nŞablondaki derslik sütunlarını gözden geçirin.')
+          '\n\n' +
+          izgaraCozumOnerisi(sonuc.atlanan)
       );
     }
     return true;
+  }
+
+  // HİÇ ders yerleşemedi: belge üretilmedi, sebebi anlatılıp yerleşik çıktıya
+  // düşülür. Boş bir dosya vermek, "çıktı aldım" sanan yetkiliye sessizce boş
+  // bir program vermektir.
+  if (sonuc.reason === 'no-placement') {
+    alert(
+      `Şablona HİÇBİR ders yazılamadı (${sonuc.toplam} dersin tamamı dışarıda kaldı), ` +
+        'bu yüzden şablon kullanılmadı.\n\n• ' +
+        sonuc.atlanan.map((a) => a.metin).join('\n• ') +
+        '\n\n' +
+        izgaraCozumOnerisi(sonuc.atlanan) +
+        '\n\nŞimdilik yerleşik Excel çıktısı indiriliyor.'
+    );
+    return false;
   }
   if (sonuc.reason === 'no-grid') {
     alert(
@@ -836,6 +848,43 @@ async function izgaraSablonuDene(secenek) {
     );
   }
   return false;
+}
+
+/**
+ * Yerleşemeyen derslerin sebebine göre YAPILACAK İŞİ söyler.
+ *
+ * Izgara şablonu hücreyi (gün, saat, DERSLİK) ile adresler; bu üçlüden biri
+ * eksikse dersin yazılacağı yer yoktur. Sebebi söyleyip bırakmak yetkiliyi
+ * ekranda öylece bırakıyordu — ne yapması gerektiği de yazılır.
+ */
+function izgaraCozumOnerisi(atlanan) {
+  const sebepler = (atlanan || []).map((a) => a.sebep || '');
+  const oneriler = [];
+  if (sebepler.some((x) => /derslik atanmamış/.test(x))) {
+    oneriler.push(
+      'Bu şablonda SÜTUNLAR DERSLİKTİR; dersliği olmayan ders yazılamaz. ' +
+        'Düzenleme modunda hücredeki derslik seçicisinden derslik atayın.'
+    );
+  }
+  if (sebepler.some((x) => /derslik sütunu yok/.test(x))) {
+    oneriler.push(
+      'Şablonun başlık satırında olmayan derslikler var. Derslik adını şablondaki ' +
+        'başlıkla aynı yazın ya da şablona o derslik için sütun ekleyin.'
+    );
+  }
+  if (sebepler.some((x) => /gün\/saat satırı yok/.test(x))) {
+    oneriler.push(
+      'Şablondaki saat satırları ile bölümün saat aralığı aynı olmalı. ' +
+        'Üstteki "Ders Saatleri" düğmesinden iki bloğu da şablona göre ayarlayın.'
+    );
+  }
+  if (sebepler.some((x) => /dolu ya da boyalı/.test(x))) {
+    oneriler.push(
+      'Şablonda elle doldurulmuş (sarı/yeşil) hücrelere yazılmaz; o saatler ' +
+        'kurumun ayırdığı alanlardır.'
+    );
+  }
+  return oneriler.join('\n\n');
 }
 
 // ── Bölüm: Excel ──

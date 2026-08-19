@@ -4153,6 +4153,17 @@ const TemplateEngine = (() => {
       if (!hedef) return { ok: false, reason: 'no-grid' };
 
       const plan = yerlesimPlani(hedef.izgara, hedef.hucreler, opts.kayitlar || []);
+      // HİÇBİR ders yerleşemediyse belge üretilmez. Boş bir şablon indirmek,
+      // "çıktı aldım" sanan yetkiliye boş bir program vermektir; çağıran bu
+      // durumda kendi yerleşik çıktısına düşer.
+      if (plan.yazimlar.length === 0) {
+        return {
+          ok: false,
+          reason: 'no-placement',
+          toplam: (opts.kayitlar || []).length,
+          atlanan: atlananOzeti(plan.atlanan),
+        };
+      }
       const { xml: yeniStil, harita } = renkliStilEkle(
         stilXml,
         plan.yazimlar.map((y) => ({
@@ -4181,7 +4192,12 @@ const TemplateEngine = (() => {
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
       downloadBlob(blob, opts.filename || 'ders-programi.xlsx');
-      return { ok: true, yazilan: plan.yazimlar.length, atlanan: atlananOzeti(plan.atlanan) };
+      return {
+        ok: true,
+        yazilan: plan.yazimlar.length,
+        toplam: (opts.kayitlar || []).length,
+        atlanan: atlananOzeti(plan.atlanan),
+      };
     } catch (e) {
       return { ok: false, reason: 'invalid-output', message: e && e.message };
     }
