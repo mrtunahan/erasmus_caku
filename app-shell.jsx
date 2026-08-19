@@ -2140,10 +2140,36 @@ function AppShell() {
             (s || '').toString().toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
           const existingNames = new Set(DEPARTMENTS.map((d) => norm(d.name)));
           let added = 0;
+
+          // ── AD BAZLI DEDUP GERÇEĞİ SAKLIYORDU ──
+          // Aynı adlı DB kaydı listeye HİÇ girmiyordu; gömülü kayıt slug
+          // kimliğiyle ve SABİT YAZILMIŞ `facultyId: 'muhendislik'` ile
+          // kalıyordu. Oysa kullanıcıların `facultyId`'si DB'den (ObjectId)
+          // geliyor: fakülte kapsamı hiçbir zaman eşleşmiyordu. Anket
+          // ataması kimseye ulaşmıyor, fakülte şablonu çözülmüyordu.
+          //
+          // Artık gömülü kayıt SİLİNMİYOR (renk/ikon ve slug kimliği başka
+          // yerlerde kullanılıyor), DB'deki gerçekle ZENGİNLEŞTİRİLİYOR:
+          // gerçek `facultyId` yazılır ve DB kimlikleri `kimlikler` dizisine
+          // eklenir. Böylece slug de ObjectId de aynı bölümü gösterir.
+          const gomuluyuZenginlestir = (gomulu, dbKaydi) => {
+            const dbKimlikleri = [dbKaydi.id, dbKaydi._docId, dbKaydi.code]
+              .filter(Boolean)
+              .map(String);
+            const mevcut = Array.isArray(gomulu.kimlikler) ? gomulu.kimlikler : [String(gomulu.id)];
+            gomulu.kimlikler = [...new Set([...mevcut, ...dbKimlikleri])];
+            // DB'nin fakültesi ESAS: gömülü değer bir varsayımdı.
+            if (dbKaydi.facultyId) gomulu.facultyId = String(dbKaydi.facultyId);
+          };
+
           dbDepts.forEach((d) => {
             const id = d.id || d._docId;
             if (!id || existingIds.has(id)) return;
-            if (existingNames.has(norm(d.name))) return; // ad bazlı dedup
+            const gomuluEs = DEPARTMENTS.find((x) => norm(x.name) === norm(d.name));
+            if (gomuluEs) {
+              gomuluyuZenginlestir(gomuluEs, d);
+              return; // ayrı satır olarak EKLENMEZ (mükerrer görünürdü)
+            }
             DEPARTMENTS.push({
               id,
               name: d.name || id,
@@ -2153,6 +2179,7 @@ function AppShell() {
                 d.icon ||
                 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
               facultyId: d.facultyId || '',
+              kimlikler: [d.id, d._docId, d.code].filter(Boolean).map(String),
             });
             existingIds.add(id);
             existingNames.add(norm(d.name));
