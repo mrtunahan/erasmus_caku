@@ -107,4 +107,55 @@ async function profilBul(db, ad) {
   return profilBirlestir(kayitlar);
 }
 
-module.exports = { profilBirlestir, profilBul };
+/**
+ * Bir dokümandaki ESKİ ADA birebir eşit her metni (ve her ANAHTARI) yeni adla
+ * değiştirir; değişiklik olup olmadığını da bildirir.
+ *
+ * Neden gerekli: kişi kimliği ad metnidir ve ad, veritabanında yabancı anahtar
+ * gibi kullanılır — `professor_passwords` adı ANAHTAR olarak tutar,
+ * `departments.managerNames` bir ad dizisidir, `sinav_dersler.professor` ve
+ * program slotlarındaki `instructor` düz metindir. Aynı kişi iki farklı adla
+ * kayıtlıysa (unvanı değişmiş) birini silmek yetmez: silinen adı kullanan her
+ * atıf boşa düşer. Önce atıflar çevrilir, sonra kayıtlar birleştirilir.
+ *
+ * ── YALNIZ TAM EŞLEŞME ──
+ * Cümle içinde geçen ad ("Danışman Dr. X olacak") bir atıf değil, metindir;
+ * onu değiştirmek kaydı bozardı. Bu yüzden alt dize araması YAPILMAZ.
+ *
+ * @returns {{deger:*, degisti:boolean}}
+ */
+function adAtiflariniCevir(deger, eski, yeni) {
+  if (typeof deger === 'string') {
+    return deger === eski ? { deger: yeni, degisti: true } : { deger, degisti: false };
+  }
+  if (Array.isArray(deger)) {
+    let degisti = false;
+    const yeniDizi = deger.map((x) => {
+      const s = adAtiflariniCevir(x, eski, yeni);
+      if (s.degisti) degisti = true;
+      return s.deger;
+    });
+    return { deger: yeniDizi, degisti };
+  }
+  if (deger && typeof deger === 'object' && deger.constructor === Object) {
+    let degisti = false;
+    const yeniNesne = {};
+    Object.keys(deger).forEach((anahtar) => {
+      const s = adAtiflariniCevir(deger[anahtar], eski, yeni);
+      if (s.degisti) degisti = true;
+      if (anahtar === eski) {
+        degisti = true;
+        // Hedef anahtar zaten varsa ÜSTÜNE YAZILMAZ: kalan kimliğin kendi
+        // şifresi geçerlidir; eskisi düşer ve çağıran bunu bildirir.
+        if (!(yeni in deger)) yeniNesne[yeni] = s.deger;
+      } else {
+        yeniNesne[anahtar] = s.deger;
+      }
+    });
+    return { deger: yeniNesne, degisti };
+  }
+  // Tarih, ObjectId, sayı, null… — dokunulmaz.
+  return { deger, degisti: false };
+}
+
+module.exports = { profilBirlestir, profilBul, adAtiflariniCevir };

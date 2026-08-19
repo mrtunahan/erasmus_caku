@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { profilBirlestir } = require('../server/lib/akademisyen-kimlik.js');
+const { profilBirlestir, adAtiflariniCevir } = require('../server/lib/akademisyen-kimlik.js');
 
 describe('profilBirlestir', () => {
   it('tek kayıtta kaydın kendisini verir', () => {
@@ -104,5 +104,61 @@ describe('profilBirlestir', () => {
     expect(p.isMemur).toBe(true);
     expect(p.external).toBe(true);
     expect(p.memurModules).toEqual(['staj']);
+  });
+});
+
+// ── Unvanı değişmiş aynı kişi ──
+// Canlı veride çıktı: "Arş. Gör. Dr. Merve DURMAZ" ile "Dr. Merve Durmaz"
+// sistem için İKİ AYRI KİŞİ. Ad yabancı anahtar gibi kullanıldığı için
+// (şifre anahtarı, managerNames, sinav_dersler.professor, instructor)
+// birleştirmeden ÖNCE tüm atıflar çevrilmelidir.
+describe('adAtiflariniCevir', () => {
+  const E = 'Dr. Merve Durmaz';
+  const Y = 'Arş. Gör. Dr. Merve DURMAZ';
+
+  it('tam eşleşen atıfı çevirir', () => {
+    expect(adAtiflariniCevir({ professor: E }, E, Y)).toEqual({
+      deger: { professor: Y },
+      degisti: true,
+    });
+  });
+
+  it('CÜMLE İÇİNDEKİ ada dokunmaz — o bir atıf değil, metindir', () => {
+    const g = { not: `Danışman ${E} olacak` };
+    expect(adAtiflariniCevir(g, E, Y)).toEqual({ deger: g, degisti: false });
+  });
+
+  it('dizi ve iç içe nesnedeki atıfları çevirir', () => {
+    expect(adAtiflariniCevir({ managerNames: ['Prof. X', E] }, E, Y).deger).toEqual({
+      managerNames: ['Prof. X', Y],
+    });
+    expect(adAtiflariniCevir({ members: [{ name: E, role: 'uye' }] }, E, Y).deger).toEqual({
+      members: [{ name: Y, role: 'uye' }],
+    });
+  });
+
+  it('ANAHTAR olarak tutulan adı da çevirir (professor_passwords)', () => {
+    expect(adAtiflariniCevir({ [E]: 'hash', Baska: 'h2' }, E, Y).deger).toEqual({
+      [Y]: 'hash',
+      Baska: 'h2',
+    });
+  });
+
+  it('hedef anahtar zaten varsa ÜSTÜNE YAZMAZ — kalan kimliğin şifresi korunur', () => {
+    expect(adAtiflariniCevir({ [E]: 'eski', [Y]: 'yeni' }, E, Y).deger).toEqual({ [Y]: 'yeni' });
+  });
+
+  it('ilgisiz dokümanda degisti=false — boşuna yazma yapılmaz', () => {
+    const g = { x: 1, y: null, z: 'başka' };
+    const r = adAtiflariniCevir(g, E, Y);
+    expect(r.degisti).toBe(false);
+    expect(r.deger).toEqual(g);
+  });
+
+  it('Date / ObjectId gibi özel nesneler bozulmaz', () => {
+    const t = new Date('2026-01-01');
+    const r = adAtiflariniCevir({ createdAt: t, professor: E }, E, Y);
+    expect(r.deger.createdAt).toBe(t);
+    expect(r.deger.professor).toBe(Y);
   });
 });
