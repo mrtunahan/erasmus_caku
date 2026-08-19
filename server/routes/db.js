@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
+const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
 const { auditWrites } = require('../middleware/auditLog');
 const { softAuth } = require('../middleware/softAuth');
 const { JWT_SECRET } = require('../middleware/auth');
@@ -308,6 +309,12 @@ const STRUCTURE_MANAGER_WRITE = new Set([
 // bölüm yetkilisinde kalır; yalnız kaldırma yukarı taşınmıştır.
 const TABAN_SIL_UNI_ADMIN = new Set(['taban_puanlar', 'taban_tablolari']);
 
+// Yayın kapsamı taşıyan koleksiyonlar: kaydı ancak KAPSAMINA giren yetkili
+// kaldırabilir. Kural istemcide de var (yönetim listesi süzülüyor) ama YALNIZ
+// orada olması yetmiyordu: silme isteği sunucuda hiçbir denetimden geçmiyor,
+// başka fakültenin -hatta üniversite genelinin- ataması silinebiliyordu.
+const KAPSAMLI_SIL = new Set(['survey_assignments', 'duyurular']);
+
 const BASVURU_SIL_DEPT_MANAGER = new Set([
   'cap_yandal_basvurular',
   'yatay_gecis_basvurular',
@@ -567,6 +574,44 @@ async function enforceWritePolicies(db, op, user) {
           'Tablo kurum geneli kullanılıyor; kaldırılması gerekiyorsa üniversite ' +
           'yetkilisine iletin.',
       };
+    }
+  }
+
+  // a2a) Kapsamlı yayın SİLME: kaydın kapsamı ile işlemi yapanın yetki alanı
+  // kesişmeli. Üniversite geneli bir yayın alt yetkiliye görünür ama onun
+  // eseri değildir; kaldırma yetkisi üst mercide kalır.
+  if (op.type === 'delete' && KAPSAMLI_SIL.has(op.collection)) {
+    const flags = await getActorFlags(db, user);
+    if (!flags.admin && !flags.uniAdmin) {
+      let kayit = null;
+      try {
+        kayit = await findDocByAnyId(db, op.collection, op.docId);
+      } catch (_) {
+        kayit = null;
+      }
+      // Kayıt okunamıyorsa yetki VERİLMEZ: bilinmeyen bir kaydı silmek,
+      // yanlışlıkla başka fakültenin yayınını kaldırmak demek olabilir.
+      let izin = false;
+      if (kayit) {
+        let profil = null;
+        try {
+          profil = user.role === 'professor' ? await profilBul(db, user.identifier) : null;
+        } catch (_) {
+          profil = null;
+        }
+        const bolumler = await db.collection('departments').find({}).toArray();
+        izin = yonetilebilirMi(kayit, aktorKapsami(profil, bolumler));
+      }
+      if (!izin) {
+        return {
+          allow: false,
+          status: 403,
+          error:
+            'Bu yayını kaldırma yetkiniz yok. Üniversite geneli yayınları yalnız ' +
+            'üniversite yetkilisi kaldırabilir; diğerlerini yalnız kendi yetki ' +
+            'alanınızdaki yayınlar için yapabilirsiniz.',
+        };
+      }
     }
   }
 

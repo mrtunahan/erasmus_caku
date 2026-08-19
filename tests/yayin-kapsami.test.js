@@ -254,3 +254,80 @@ describe('kapsamBolumListesi', () => {
     expect(yayinKapsamdaMi(atama, { departmentId: '64aa03' })).toBe(false);
   });
 });
+
+// ── CANLIDA GÖRÜLEN ARIZA ──
+// "Mühendislik'teki üniversite yetkilisinin oluşturduğu anketi, BAŞKA bir
+// fakültedeki fakülte yetkilisi silebildi; üstelik listede görüyordu."
+describe('fakülte yetkilisi ÜNİVERSİTE yetkilisi sayılmaz', () => {
+  // Giriş sırasında fakülte yetkilisi 'admin' rolüne yükseltiliyor
+  // (attachProfile); ayırt eden şey baseRole + isUniversityAdmin bayrağı.
+  const fakYetkilisi = {
+    role: 'admin',
+    baseRole: 'professor',
+    isFacultyManager: true,
+    facultyId: 'F-FEN',
+    departmentId: 'fizik',
+  };
+  const uniYetkilisi = { role: 'admin', baseRole: 'professor', isUniversityAdmin: true };
+  const BOLUMLER = [
+    { id: 'bilgisayar', facultyId: 'F-MUH' },
+    { id: 'makine', facultyId: 'F-MUH' },
+    { id: 'fizik', facultyId: 'F-FEN' },
+  ];
+
+  it('kapsamı FAKÜLTE olur, üniversite değil', () => {
+    const k = yayinKapsamCoz(fakYetkilisi, BOLUMLER);
+    expect(k.kapsamTuru).toBe('fakulte');
+    expect(k.departmentIds).toEqual(['fizik']);
+  });
+
+  it('attığı anket TÜM üniversiteye gitmez', () => {
+    // Eskiden kapsam 'universite' yazılıyordu: Fen'in anketi Mühendislik'teki
+    // herkese ulaşıyordu.
+    const yama = yayinKapsamYamasi(yayinKapsamCoz(fakYetkilisi, BOLUMLER));
+    expect(yama.kapsamTuru).toBe('fakulte');
+    expect(yayinKapsamdaMi(yama, { departmentId: 'bilgisayar' })).toBe(false);
+    expect(yayinKapsamdaMi(yama, { departmentId: 'fizik' })).toBe(true);
+  });
+
+  it('ÜNİVERSİTE genelindeki anketi yönetemez — asıl şikâyet buydu', () => {
+    const uniAnket = yayinKapsamYamasi(yayinKapsamCoz(uniYetkilisi, BOLUMLER));
+    const fakKapsam = yayinKapsamCoz(fakYetkilisi, BOLUMLER);
+    expect(yayinYonetilebilirMi(uniAnket, fakKapsam)).toBe(false);
+  });
+
+  it('BAŞKA fakültenin atamasını yönetemez', () => {
+    const muhYetkilisi = {
+      role: 'admin',
+      baseRole: 'professor',
+      isFacultyManager: true,
+      facultyId: 'F-MUH',
+      departmentId: 'bilgisayar',
+    };
+    const muhAnket = yayinKapsamYamasi(yayinKapsamCoz(muhYetkilisi, BOLUMLER));
+    expect(yayinYonetilebilirMi(muhAnket, yayinKapsamCoz(fakYetkilisi, BOLUMLER))).toBe(false);
+  });
+
+  it('KENDİ fakültesinin atamasını yönetebilir', () => {
+    const kendi = yayinKapsamYamasi(yayinKapsamCoz(fakYetkilisi, BOLUMLER));
+    expect(yayinYonetilebilirMi(kendi, yayinKapsamCoz(fakYetkilisi, BOLUMLER))).toBe(true);
+  });
+
+  it('gerçek üniversite yetkilisi kapsamını KAYBETMEZ', () => {
+    expect(yayinKapsamCoz(uniYetkilisi, BOLUMLER).kapsamTuru).toBe('universite');
+    // Bayraksız eski admin oturumu da üniversite düzeyindedir.
+    expect(yayinKapsamCoz({ role: 'admin' }, BOLUMLER).kapsamTuru).toBe('universite');
+  });
+
+  it('bölüm yetkilisi de üniversite sayılmaz', () => {
+    const bolumYetkilisi = {
+      role: 'bolum_yetkilisi',
+      baseRole: 'professor',
+      isDeptManager: true,
+      departmentId: 'makine',
+    };
+    const k = yayinKapsamCoz(bolumYetkilisi, BOLUMLER);
+    expect(k.kapsamTuru).toBe('bolum');
+    expect(k.departmentIds).toEqual(['makine']);
+  });
+});
