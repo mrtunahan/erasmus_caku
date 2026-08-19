@@ -1,3 +1,5 @@
+const { ayniBolum } = require('./bolum-kimlik');
+
 // ══════════════════════════════════════════════════════════════
 // ŞABLON ERİŞİM KURALLARI (document_templates)
 //
@@ -31,10 +33,14 @@ function ogrenciBelgesiMi(tpl) {
  * @param {{scope?:string,departmentId?:string,facultyId?:string,module?:string}} tpl
  * @param {Record<string,string>} deptFacMap bölüm id → fakülte id
  */
-function canManageTemplate(scope, tpl, deptFacMap) {
+function canManageTemplate(scope, tpl, deptFacMap, kimlikHaritasi) {
   const s = scope || {};
   const t = tpl || {};
   const map = deptFacMap || {};
+  // Aynı bölüm birden çok kimlikle anılabiliyor (id / _docId / code / _id ve
+  // istemcideki slug). Harita verilmezse davranış ham eşitliktir — eski
+  // çağrılar bozulmaz (bkz. server/lib/bolum-kimlik.js).
+  const ayni = (a, b) => ayniBolum(a, b, kimlikHaritasi);
   if (s.isUniversityAdmin) return true;
   if (s.isFacultyManager) {
     if (t.scope === 'faculty' && t.facultyId === s.facultyId) return true;
@@ -45,7 +51,7 @@ function canManageTemplate(scope, tpl, deptFacMap) {
     return false;
   }
   if (s.isDeptManager) {
-    return t.scope === 'department' && !!t.departmentId && t.departmentId === s.departmentId;
+    return t.scope === 'department' && !!t.departmentId && ayni(t.departmentId, s.departmentId);
   }
   return false;
 }
@@ -56,11 +62,12 @@ function canManageTemplate(scope, tpl, deptFacMap) {
  * @param {object} tpl document_templates kaydı
  * @param {Record<string,string>} deptFacMap bölüm id → fakülte id
  */
-function canViewTemplate(scope, tpl, deptFacMap) {
+function canViewTemplate(scope, tpl, deptFacMap, kimlikHaritasi) {
   const s = scope || {};
   const t = tpl || {};
   const map = deptFacMap || {};
-  if (canManageTemplate(s, t, map)) return true;
+  const ayni = (a, b) => ayniBolum(a, b, kimlikHaritasi);
+  if (canManageTemplate(s, t, map, kimlikHaritasi)) return true;
   // Üniversite geneli herkes okur
   if (t.scope === 'university') return true;
   // Öğrenci: yalnız STUDENT_TEMPLATE_DOCTYPES belgelerinde ve yalnız KENDİ
@@ -69,14 +76,14 @@ function canViewTemplate(scope, tpl, deptFacMap) {
   if (s.isStudent) {
     if (!ogrenciBelgesiMi(t)) return false;
     if (!s.departmentId) return false;
-    if (t.scope === 'department') return t.departmentId === s.departmentId;
+    if (t.scope === 'department') return ayni(t.departmentId, s.departmentId);
     if (t.scope === 'faculty') return !!t.facultyId && t.facultyId === map[s.departmentId];
     return false;
   }
   // OKUMA erişimi: kullanıcı, şablonun kapsamına giriyorsa (yönetici olmasa
   // da) indirebilir — örn. akademisyen kendi bölümüne/fakültesine ait şablonu
   // görüp belge üretebilir. (canManage yalnız DÜZENLEME içindir.)
-  if (t.scope === 'department' && t.departmentId && t.departmentId === s.departmentId) {
+  if (t.scope === 'department' && t.departmentId && ayni(t.departmentId, s.departmentId)) {
     return true;
   }
   if (t.scope === 'faculty' && t.facultyId && t.facultyId === s.facultyId) {
