@@ -309,14 +309,41 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
   const isAdmin = currentUser?.role === 'admin';
   const FACULTY_DEPARTMENTS = window.DEPARTMENTS || [];
 
+  // ── Kapsam çözümü için bölümler DB'DEN okunur ──
+  // Gömülü `window.DEPARTMENTS` listesindeki çekirdek 6 bölümün `facultyId`
+  // alanı sabit 'muhendislik' metnidir; fakülte yetkilisinin profilindeki
+  // facultyId ise DB kimliğidir (ObjectId). Kapsam yalnız gömülü listeyle
+  // çözülünce hiçbiri eşleşmiyor, fakülte yetkilisinin kapsamı BOŞ çıkıyor ve
+  // atadığı anket kimseye ulaşmıyordu (boş kapsam = kimse).
+  const [dbBolumler, setDbBolumler] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    window
+      .apiRead('departments')
+      .catch(() => [])
+      .then((d) => {
+        if (alive) setDbBolumler(d || []);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // Bu yetkilinin yayın kapsamı (bölüm / fakülte / üniversite) — atama yazarken
   // kayda geçer, atama listesini süzerken de kullanılır.
+  const kapsamBolumleriTum = useMemo(
+    () =>
+      window.kapsamBolumListesi
+        ? window.kapsamBolumListesi(dbBolumler, FACULTY_DEPARTMENTS)
+        : FACULTY_DEPARTMENTS,
+    [dbBolumler, FACULTY_DEPARTMENTS]
+  );
   const yayinKapsami = useMemo(
     () =>
       window.yayinKapsamCoz
-        ? window.yayinKapsamCoz(currentUser, FACULTY_DEPARTMENTS)
+        ? window.yayinKapsamCoz(currentUser, kapsamBolumleriTum)
         : { kapsamTuru: 'bolum', facultyId: '', departmentIds: [] },
-    [currentUser, FACULTY_DEPARTMENTS]
+    [currentUser, kapsamBolumleriTum]
   );
 
   const load = useCallback(async () => {
@@ -410,9 +437,10 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
   // görünüyordu. Kapsam artık kaydın üzerinde durur ve okumada zorunludur.
   const saveAssignment = async (data) => {
     const { kapsamBolumu, ...kayit } = data;
-    const kapsam = window.yayinKapsamCoz
-      ? window.yayinKapsamCoz(currentUser, FACULTY_DEPARTMENTS)
-      : null;
+    // Kapsam, bileşen genelinde çözülmüş olanla AYNI olmalı: burada yeniden
+    // gömülü listeyle çözmek, yönetim listesinin gördüğüyle kayda yazılanı
+    // ayrıştırırdı.
+    const kapsam = yayinKapsami;
     const kapsamYamasi =
       kapsam && window.yayinKapsamYamasi ? window.yayinKapsamYamasi(kapsam, kapsamBolumu) : {};
     await window.DBWrite.add('survey_assignments', {

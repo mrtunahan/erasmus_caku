@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   kullaniciBolumleri,
+  kapsamBolumListesi,
   yayinKapsamCoz,
   yayinKapsamYamasi,
   yayinKapsamdaMi,
@@ -184,5 +185,72 @@ describe('kullaniciBolumleri', () => {
       'c',
     ]);
     expect(kullaniciBolumleri(null)).toEqual([]);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// İKİ BÖLÜM LİSTESİ, İKİ AYRI KİMLİK — ANKET ATAMASI KİMSEYE ULAŞMIYORDU
+//
+// Bölüm listesi iki yerden geliyor: `departments` koleksiyonunda kimlik
+// ObjectId ve `facultyId` gerçek fakülte kimliği; koda gömülü çekirdek 6
+// bölümde ise kimlik slug ve `facultyId` sabit 'muhendislik' metni.
+// Fakülte yetkilisinin profilindeki facultyId DB'den geldiği için gömülü
+// listeyle kapsam çözülünce hiçbir bölüm eşleşmiyor, kapsam BOŞ çıkıyor ve
+// boş kapsam okuma tarafında "kimse" demek.
+// ══════════════════════════════════════════════════════════════
+describe('kapsamBolumListesi', () => {
+  const DB = [
+    { id: '64aa01', name: 'Bilgisayar Mühendisliği', facultyId: 'F-MUH' },
+    { id: '64aa02', name: 'Makine ve Metal Teknolojileri', facultyId: 'F-MUH' },
+    { id: '64aa03', name: 'Orman Mühendisliği', facultyId: 'F-ORMAN' },
+  ];
+  const GOMULU = [
+    { id: 'bilgisayar', name: 'Bilgisayar Mühendisliği', facultyId: 'muhendislik' },
+    { id: 'kimya', name: 'Kimya Mühendisliği', facultyId: 'muhendislik' },
+  ];
+
+  it('gömülü slug kimliği, DB kaydının GERÇEK fakültesine bağlanır', () => {
+    const liste = kapsamBolumListesi(DB, GOMULU);
+    expect(liste).toContainEqual({ id: 'bilgisayar', facultyId: 'F-MUH' });
+    expect(liste).toContainEqual({ id: '64aa01', facultyId: 'F-MUH' });
+  });
+
+  it('DB’de karşılığı olmayan gömülü bölüm kendi fakültesiyle kalır', () => {
+    expect(kapsamBolumListesi(DB, GOMULU)).toContainEqual({
+      id: 'kimya',
+      facultyId: 'muhendislik',
+    });
+  });
+
+  it('aynı kimlik iki kez listelenmez', () => {
+    const ids = kapsamBolumListesi(DB, GOMULU).map((x) => x.id);
+    expect(ids.length).toBe(new Set(ids).size);
+  });
+
+  it('boş girdide çökmez', () => {
+    expect(kapsamBolumListesi(null, null)).toEqual([]);
+  });
+
+  it('ARIZANIN KENDİSİ: yalnız gömülü listeyle fakülte kapsamı BOŞ çıkar', () => {
+    // facultyId'si DB kimliği olan fakülte yetkilisi, gömülü listedeki
+    // 'muhendislik' metniyle hiçbir zaman eşleşmez.
+    const fakYetkili = { isFacultyManager: true, facultyId: 'F-MUH' };
+    expect(yayinKapsamCoz(fakYetkili, GOMULU).departmentIds).toEqual([]);
+    // Düzeltilmiş liste ile kapsam dolu gelir ve HER İKİ kimlik biçimini taşır.
+    const k = yayinKapsamCoz(fakYetkili, kapsamBolumListesi(DB, GOMULU));
+    expect(k.departmentIds).toContain('bilgisayar');
+    expect(k.departmentIds).toContain('64aa01');
+    expect(k.departmentIds).not.toContain('64aa03'); // başka fakülte
+  });
+
+  it('uçtan uca: fakülte yetkilisinin ataması SLUG taşıyan öğrenciye ulaşır', () => {
+    const fakYetkili = { isFacultyManager: true, facultyId: 'F-MUH' };
+    const kapsam = yayinKapsamCoz(fakYetkili, kapsamBolumListesi(DB, GOMULU));
+    const atama = { ...yayinKapsamYamasi(kapsam), targetRole: 'student' };
+    // Kimi öğrencinin departmentId'si slug, kiminki ObjectId.
+    expect(yayinKapsamdaMi(atama, { departmentId: 'bilgisayar' })).toBe(true);
+    expect(yayinKapsamdaMi(atama, { departmentId: '64aa02' })).toBe(true);
+    // Başka fakültenin öğrencisine ULAŞMAZ — asıl kural bu.
+    expect(yayinKapsamdaMi(atama, { departmentId: '64aa03' })).toBe(false);
   });
 });
