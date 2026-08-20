@@ -9,6 +9,7 @@
 // Gerçek koruma için requireAuth gerekir.
 
 const jwt = require('jsonwebtoken');
+const OTURUM = require('../lib/oturum-damgasi');
 const { logger } = require('../lib/logger');
 
 const DEV_FALLBACK_SECRET = 'caku-erasmus-dev-secret-key';
@@ -31,6 +32,8 @@ function actorIp(req) {
 }
 
 function softAuth(getDb) {
+  // Damga tablosu ilk kullanımda kurulur; kurulmazsa hiçbir jeton düşmez.
+  OTURUM.kur(getDb);
   return function (req, res, next) {
     const token = extractToken(req);
     if (token) {
@@ -40,8 +43,14 @@ function softAuth(getDb) {
         // sunucumuz tarafından imzalanmış payload atanır — user-controlled
         // input olsa da kriptografik doğrulamadan sonra trust edilir.
         const decoded = jwt.verify(token, JWT_SECRET);
-        req.user = decoded;
-        return next();
+        // requireAuth ile aynı iki denetim: sıfırlama jetonu oturum jetonu
+        // sayılmaz, şifre değişiminden önceki jeton da kabul edilmez.
+        if (!OTURUM.oturumJetonuMu(decoded) || OTURUM.eskimisMi(decoded)) {
+          req.softAuthError = 'StaleOrPurposeToken';
+        } else {
+          req.user = decoded;
+          return next();
+        }
       } catch (err) {
         // Geçersiz/expired token — req.user atanmaz; aşağıdaki audit log akışına devam
         req.softAuthError = err.name;
