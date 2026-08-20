@@ -657,6 +657,8 @@ const CourseMatchCard = ({
   canApprove = false,
   // Gidiş eşleştirmesi onaya girmez: ne rozet ne onay düğmesi gösterilir.
   onayaTabi = true,
+  // Transkriptten hesaplanmış ama HENÜZ ONAYLANMAMIŞ notlar (önizleme).
+  onizleme = null,
   onApprove,
   onReject,
 }) => {
@@ -667,6 +669,14 @@ const CourseMatchCard = ({
   // Eski kayıtlarda status yok → onaylı sayılır (yeşil), düzeni bozmaz.
   const status = match.status || 'approved';
   const onayGoster = onayaTabi;
+  // Belgeye basılan, eşleştirmenin bütünü için geçerli tek not.
+  const dersimizinNotu = match.homeGrade || onizleme?.homeGrade || '';
+  // Kartta gösterilen notların en az biri kayıttan değil, hesaptan geliyor.
+  const onizlemeVar = (match.hostCourses || []).some(
+    (_, i) =>
+      !(match.homeGrades?.[i] ?? match.homeGrade ?? '') &&
+      !!(onizleme?.homeGrades?.[i] ?? onizleme?.homeGrade ?? '')
+  );
   const statusMeta = {
     pending: { label: 'Onay Bekliyor', color: '#92400E', bg: '#FEF3C7', dot: '#F59E0B' },
     approved: { label: 'Onaylandı', color: '#065F46', bg: '#D1FAE5', dot: '#10B981' },
@@ -914,8 +924,15 @@ const CourseMatchCard = ({
                 işin bittiğini sanıyordu. Boş olan artık boş görünür. */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {(match.hostCourses || []).map((hc, idx) => {
-                const ham = match.hostGrades?.[idx] ?? match.hostGrade ?? '';
-                const harf = match.homeGrades?.[idx] ?? match.homeGrade ?? '';
+                const kayitliHam = match.hostGrades?.[idx] ?? match.hostGrade ?? '';
+                const kayitliHarf = match.homeGrades?.[idx] ?? match.homeGrade ?? '';
+                // Kayıtta not yoksa transkriptten hesaplananı göster. Bu
+                // ÖNİZLEMEDİR: onaylanana kadar kayda geçmez, ayrı renkte
+                // durur ki onaylanmışla karıştırılmasın.
+                const onizHarf = onizleme?.homeGrades?.[idx] ?? onizleme?.homeGrade ?? '';
+                const hesaplanan = !kayitliHarf && !!onizHarf;
+                const ham = kayitliHam || (hesaplanan ? (onizleme?.hostGrades?.[idx] ?? '') : '');
+                const harf = kayitliHarf || (hesaplanan ? onizHarf : '');
                 return (
                   <div key={idx}>
                     <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>
@@ -925,7 +942,8 @@ const CourseMatchCard = ({
                       style={{
                         fontSize: 14,
                         fontWeight: 700,
-                        color: harf ? C.navy : C.textMuted,
+                        color: hesaplanan ? '#92400E' : harf ? C.navy : C.textMuted,
+                        fontStyle: hesaplanan ? 'italic' : 'normal',
                         fontFamily: "'Playfair Display', serif",
                       }}
                     >
@@ -951,6 +969,22 @@ const CourseMatchCard = ({
             <div style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>
               harf karşılığı (transkript notu)
             </div>
+            {/* ── BELGEYE HANGİ NOTUN GİDECEĞİ KARTTA GÖRÜNSÜN ──
+                Yukarıdaki satırlar KARŞI KURUM dersi başınadır. Kendi
+                dersimize işlenen not ise eşleştirmenin bütününe aittir
+                (AKTS ağırlıklı). İki karşı ders tek dersimize sayıldığında
+                bu ikisi farklı olur; kart yalnız ilkini gösterdiği için
+                belgedeki not "yanlış" görünüyordu. */}
+            {dersimizinNotu && (match.hostCourses || []).length > 1 && (
+              <div style={{ fontSize: 10, color: C.navy, marginTop: 4, fontWeight: 700 }}>
+                Dersimize işlenecek: {dersimizinNotu}
+              </div>
+            )}
+            {onizlemeVar && (
+              <div style={{ fontSize: 10, color: '#92400E', marginTop: 2, fontWeight: 600 }}>
+                Hesaplandı — akademisyen onayı bekliyor
+              </div>
+            )}
           </div>
         )}
         {!readOnly && (
@@ -3683,6 +3717,24 @@ const StudentDetailModal = ({
   // gidiş eşleştirmesi imzalı anlaşmadır, onaya girmez. Eski hatalı damga
   // yüzünden 'pending' kalmış gidiş kayıtları da böylece kuyruğa dönmez.
   const pendingCount = window.onayBekleyenler(editedStudent).length;
+
+  // ── HESAPLANAN NOT KARTLARA ANINDA YANSIR ──
+  // Not DEĞERLERİ kayda ancak akademisyen onayıyla girer (öğrenci kendi
+  // notunu yazamasın diye). Ama hesaplanmış hâlini görmek için onayı
+  // beklemek gerekmiyordu: transkript dolu olduğu hâlde kartlar "—"
+  // gösteriyor, iş yapılmamış sanılıyordu. Burada hesaplanan not ÖNİZLEME
+  // olarak kartlara verilir — gösterilir, kaydedilmez.
+  const onizlemeNotlari = React.useMemo(() => {
+    const transkript = editedStudent.erasmusTranskript || [];
+    const donus = editedStudent.returnMatches || [];
+    if (!transkript.length || !donus.length) return {};
+    const sistem = kurumNotSistemi || window.erasmusSistemSez(transkript).sistem;
+    const harita = {};
+    window.erasmusNotlariHesapla(donus, transkript, sistem).forEach((d) => {
+      if (d && d.id) harita[d.id] = d;
+    });
+    return harita;
+  }, [editedStudent.erasmusTranskript, editedStudent.returnMatches, kurumNotSistemi]);
   const [activeTab, setActiveTab] = useState('outgoing');
   const [editingMatch, setEditingMatch] = useState(null);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
@@ -4466,6 +4518,7 @@ const StudentDetailModal = ({
                 showGrade={true}
                 type="return"
                 readOnly={readOnly}
+                onizleme={onizlemeNotlari[match.id]}
                 onayaTabi={true}
                 canApprove={canApprove}
                 onApprove={(id) => reviewMatch('return', id, 'approved')}
@@ -4751,9 +4804,15 @@ function erasmusRowsFromMatches(matches, gradeMode, donem) {
       let kNot = '';
       let cNot = '';
       if (gradeMode) {
-        const hg = match.hostGrades?.[i] || match.hostGrade || '';
-        kNot = hg;
-        cNot = hg && window.convertGrade ? window.convertGrade(hg) : '';
+        // ── ONAYLANAN HARF NOTU BELGEYE GİRER ──
+        // Burada `homeGrades`/`homeGrade` hiç okunmuyor, ham not
+        // `convertGrade` ile yeniden çevriliyordu. O çevrim not sistemini
+        // (beşli/onluk/sözel) bilmez: sözel ölçekli bir transkriptte boş
+        // döner ve resmî belgenin "Başarı Notu" sütunu sessizce boş çıkardı.
+        // Öncelik artık tek yerde: lib/erasmus-not.js → satirNotlari.
+        const { ham, harf } = window.erasmusSatirNotlari(match, i);
+        kNot = ham;
+        cNot = harf || (ham && window.convertGrade ? window.convertGrade(ham) : '');
       }
       // Birleşen tarafın hücreleri için: ilk satır 'restart', altları 'continue'
       let _merge = null;
@@ -5017,6 +5076,27 @@ const generateReturnWordDoc = async (student, onPreview) => {
     alert('Bu öğrencinin henüz dönüş eşleştirmesi bulunmamaktadır.');
     return;
   }
+
+  // ── BOŞ NOT SÜTUNU SESSİZ ÇIKMASIN ──
+  // Notlar kayda yalnız akademisyen onayıyla girer. Onay verilmemişse belge
+  // "Başarı Notu" sütunları boş olarak üretiliyor ve neden boş olduğunu
+  // hiçbir şey söylemiyordu. Eksik olan adım burada adıyla söylenir.
+  const notsuz = (student.returnMatches || []).filter(
+    (m) =>
+      !(m.homeGrade || '') &&
+      Object.keys(m.homeGrades || {}).length === 0 &&
+      !(m.hostGrade || '') &&
+      Object.keys(m.hostGrades || {}).length === 0
+  ).length;
+  if (notsuz > 0) {
+    const devam = confirm(
+      `${notsuz} eşleştirmenin notu henüz kayda geçmedi; belgede "Başarı Notu" ` +
+        'sütunları boş çıkacak.\n\nNotlar, dönüş sekmesindeki not panelinden ' +
+        '"Notları onayla" ile hesaplanıp kaydedilir (ardından Kaydet).\n\n' +
+        'Yine de boş notlarla belge oluşturulsun mu?'
+    );
+    if (!devam) return;
+  }
   // Önce Şablonlar modülüne atanmış "dönüş" şablonunu dene
   if (window.TemplateEngine && window.TemplateEngine.produceFromTemplate) {
     const rows = erasmusRowsFromMatches(
@@ -5081,8 +5161,8 @@ const generateReturnWordDoc = async (student, onPreview) => {
   student.returnMatches.forEach((match) => {
     // Per-course grades: use hostGrades/homeGrades objects if available, else fall back to single hostGrade/homeGrade
     // Belgeye de uydurulmuş not basılmaz: notu olmayan ders boş gider.
-    const getHostGrade = (idx) => match.hostGrades?.[idx] || match.hostGrade || '';
-    const getHomeGrade = (idx) => match.homeGrades?.[idx] || match.homeGrade || '';
+    const getHostGrade = (idx) => window.erasmusSatirNotlari(match, idx).ham;
+    const getHomeGrade = (idx) => window.erasmusSatirNotlari(match, idx).harf;
     // ── BELGEYE ONAYLANAN NOT BASILIR ──
     // Burada yalnız `convertGrade(hostGrade)` çağrılıyordu: akademisyenin
     // transkriptten hesaplayıp onayladığı harf notu (`homeGrades`) hesaba
@@ -5093,8 +5173,7 @@ const generateReturnWordDoc = async (student, onPreview) => {
     // iki karşı ders tek dersimize sayıldığında geçerli not ilk dersin notu
     // değil, AKTS ağırlıklı ortalamadır. Onaylanmış değer varsa esas odur;
     // yoksa eski çevrime düşülür.
-    const getConvertedGrade = (idx) =>
-      match.homeGrade || getHomeGrade(idx) || convertGrade(getHostGrade(idx));
+    const getConvertedGrade = (idx) => getHomeGrade(idx) || convertGrade(getHostGrade(idx));
 
     const hostLen = match.hostCourses.length;
     const homeLen = match.homeCourses.length;
