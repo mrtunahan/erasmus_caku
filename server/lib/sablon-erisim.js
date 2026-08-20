@@ -1,5 +1,14 @@
 const { ayniBolum } = require('./bolum-kimlik');
 
+// Fakülte kimliği de tek biçimli değil: bir fakülte `_docId` slug'ıyla
+// ('muhendislik') ve ObjectId'siyle anılabiliyor. Şablonun `facultyId`'si
+// YÜKLEYENİN profilinden, kullanıcının fakültesi ise çoğu zaman BÖLÜM
+// dokümanından gelir; ham eşitlik ikisini farklı fakülte sanıyordu.
+// Harita verilmezse davranış ham eşitliktir — eski çağrılar bozulmaz.
+function ayniFakulte(a, b, fakulteHaritasi) {
+  return ayniBolum(a, b, fakulteHaritasi);
+}
+
 // ══════════════════════════════════════════════════════════════
 // ŞABLON ERİŞİM KURALLARI (document_templates)
 //
@@ -33,20 +42,21 @@ function ogrenciBelgesiMi(tpl) {
  * @param {{scope?:string,departmentId?:string,facultyId?:string,module?:string}} tpl
  * @param {Record<string,string>} deptFacMap bölüm id → fakülte id
  */
-function canManageTemplate(scope, tpl, deptFacMap, kimlikHaritasi) {
+function canManageTemplate(scope, tpl, deptFacMap, kimlikHaritasi, fakulteHaritasi) {
   const s = scope || {};
   const t = tpl || {};
   const map = deptFacMap || {};
+  const ayniFak = (a, b) => ayniFakulte(a, b, fakulteHaritasi);
   // Aynı bölüm birden çok kimlikle anılabiliyor (id / _docId / code / _id ve
   // istemcideki slug). Harita verilmezse davranış ham eşitliktir — eski
   // çağrılar bozulmaz (bkz. server/lib/bolum-kimlik.js).
   const ayni = (a, b) => ayniBolum(a, b, kimlikHaritasi);
   if (s.isUniversityAdmin) return true;
   if (s.isFacultyManager) {
-    if (t.scope === 'faculty' && t.facultyId === s.facultyId) return true;
+    if (t.scope === 'faculty' && ayniFak(t.facultyId, s.facultyId)) return true;
     if (t.scope === 'department') {
       const facOfDept = map[t.departmentId];
-      return !!facOfDept && facOfDept === s.facultyId;
+      return !!facOfDept && ayniFak(facOfDept, s.facultyId);
     }
     return false;
   }
@@ -62,12 +72,13 @@ function canManageTemplate(scope, tpl, deptFacMap, kimlikHaritasi) {
  * @param {object} tpl document_templates kaydı
  * @param {Record<string,string>} deptFacMap bölüm id → fakülte id
  */
-function canViewTemplate(scope, tpl, deptFacMap, kimlikHaritasi) {
+function canViewTemplate(scope, tpl, deptFacMap, kimlikHaritasi, fakulteHaritasi) {
   const s = scope || {};
   const t = tpl || {};
   const map = deptFacMap || {};
   const ayni = (a, b) => ayniBolum(a, b, kimlikHaritasi);
-  if (canManageTemplate(s, t, map, kimlikHaritasi)) return true;
+  const ayniFak = (a, b) => ayniFakulte(a, b, fakulteHaritasi);
+  if (canManageTemplate(s, t, map, kimlikHaritasi, fakulteHaritasi)) return true;
   // Üniversite geneli herkes okur
   if (t.scope === 'university') return true;
   // Öğrenci: yalnız STUDENT_TEMPLATE_DOCTYPES belgelerinde ve yalnız KENDİ
@@ -77,7 +88,7 @@ function canViewTemplate(scope, tpl, deptFacMap, kimlikHaritasi) {
     if (!ogrenciBelgesiMi(t)) return false;
     if (!s.departmentId) return false;
     if (t.scope === 'department') return ayni(t.departmentId, s.departmentId);
-    if (t.scope === 'faculty') return !!t.facultyId && t.facultyId === map[s.departmentId];
+    if (t.scope === 'faculty') return !!t.facultyId && ayniFak(t.facultyId, map[s.departmentId]);
     return false;
   }
   // OKUMA erişimi: kullanıcı, şablonun kapsamına giriyorsa (yönetici olmasa
@@ -94,8 +105,11 @@ function canViewTemplate(scope, tpl, deptFacMap, kimlikHaritasi) {
   // yetkilisinin kendi ekranında duruyordu. Öğrenci dalı (yukarıda) fakülteyi
   // zaten bölümden türetiyor; personel dalı bunu yapmıyordu.
   if (t.scope === 'faculty' && t.facultyId) {
-    const benimFakulte = s.facultyId || map[s.departmentId];
-    if (benimFakulte && t.facultyId === benimFakulte) return true;
+    // İKİ kaynak da denenir: profilde yazan fakülte ve bölümden türetilen
+    // fakülte. Bunlar aynı fakültenin farklı biçimleri olabilir; kullanıcının
+    // yalnız birini taşıması şablonu erişilemez kılmamalı.
+    const adaylar = [s.facultyId, map[s.departmentId]].filter(Boolean);
+    if (adaylar.some((f) => ayniFak(t.facultyId, f))) return true;
   }
   return false;
 }

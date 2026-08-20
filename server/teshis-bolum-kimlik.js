@@ -396,6 +396,52 @@ function bolumAtiflari(deger, yol = '', cikti = []) {
     }
   }
 
+  // ── 8) FAKÜLTE ŞABLONU ÇIKTIYA İŞLİYOR MU? ──
+  // Şablon yüklenirken `facultyId` YÜKLEYENİN PROFİLİNDEN yazılır; çözüm
+  // (`/api/templates/resolve`) ise fakülteyi BÖLÜM DOKÜMANINDAN okur. İkisi
+  // aynı fakültenin farklı biçimleriyse (slug ↔ ObjectId) liste şablonu
+  // gösterir ama çözüm bulamaz: "görünüyor ama çıktıya işlemiyor".
+  console.log('\n══════ 8) Fakülte şablonları çözülüyor mu ══════');
+  // Fakülte listesi ve ad haritası yukarıda (1. bölüm) zaten okundu.
+  const fakHarita = bolumKimlikHaritasi(fakulteler);
+
+  // 4. bölümdeki okuma yeniden kullanılır (aynı koleksiyon, aynı çalıştırma).
+  const fakSablonlari = (sablonlar || []).filter((t) => t && t.scope === 'faculty');
+  console.log(
+    `document_templates: ${(sablonlar || []).length} kayıt, ${fakSablonlari.length} fakülte kapsamlı`
+  );
+
+  if (fakSablonlari.length === 0) {
+    console.log('  Fakülte kapsamlı şablon yok — bu arıza sizde oluşmaz.');
+  }
+  for (const t of fakSablonlari) {
+    const sablonFak = String(t.facultyId || '');
+    const kanonik = fakHarita.kanonik[sablonFak];
+    console.log(`\n• "${t.name}"  (modül: ${t.module}, tür: ${t.docType || 'default'})`);
+    console.log(
+      `    şablonun facultyId'si : '${sablonFak}' → ${fakAd[sablonFak] || '⚠ HİÇBİR FAKÜLTEYE UYMUYOR'}`
+    );
+    if (!kanonik) continue;
+
+    // Bu fakültenin bölümleri, dokümanlarında fakülteyi hangi biçimle anıyor?
+    const kapsam = bolumler.filter((d) => fakHarita.kanonik[String(d.facultyId || '')] === kanonik);
+    let hamEsleseen = 0;
+    const farkli = [];
+    kapsam.forEach((d) => {
+      const bolumunFak = String(d.facultyId || '');
+      if (bolumunFak === sablonFak) hamEsleseen++;
+      else farkli.push(`${d.name}: '${bolumunFak}'`);
+    });
+    console.log(`    bu fakültedeki bölüm  : ${kapsam.length}`);
+    console.log(`    ham eşitlikle çözülen : ${hamEsleseen}`);
+    if (farkli.length) {
+      console.log(`    ⚠ ÇÖZÜLEMEYEN (görünür ama çıktıya işlemez): ${farkli.length}`);
+      farkli.slice(0, 10).forEach((x) => console.log(`        ${x}`));
+      if (farkli.length > 10) console.log(`        … +${farkli.length - 10} bölüm daha`);
+      console.log(`      (kimlik varyantı eşleştirmesiyle bu ${farkli.length} bölüm de çözülür)`);
+    }
+  }
+
   console.log('\n(Bu betik hiçbir şey yazmadı.)');
   process.exit(0);
 })().catch((e) => {
