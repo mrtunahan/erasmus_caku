@@ -694,6 +694,30 @@ async function enforceWritePolicies(db, op, user) {
       };
     }
 
+    // ── EŞLEŞTİRME İÇİNDEKİ NOTLAR DA ÖĞRENCİYE KAPALI ──
+    // Harf notu transkriptten HESAPLANIR ve akademisyen onayında yazılır.
+    // Ama notlar `returnMatches` dizisinin İÇİNDE duruyor ve o diziyi öğrenci
+    // yazabiliyor (eşleştirme ekleyebilmesi gerek). Alan adına bakan koruma
+    // buraya ulaşmaz; dizinin içi ayrıca temizlenir. Aksi halde arayüz kilidi
+    // tek başına kalır ve isteği elle kuran bir öğrenci kendi notunu yazar.
+    const NOT_ALANLARI = ['hostGrade', 'homeGrade', 'hostGrades', 'homeGrades'];
+    if (op.data && Array.isArray(op.data.returnMatches)) {
+      const oncekiler = Array.isArray(mevcut.returnMatches) ? mevcut.returnMatches : [];
+      op.data.returnMatches = op.data.returnMatches.map((m) => {
+        if (!m || typeof m !== 'object') return m;
+        const temiz = { ...m };
+        NOT_ALANLARI.forEach((alan) => delete temiz[alan]);
+        // Onaylanmış notlar KAYBOLMASIN: kayıttaki mevcut değerler korunur.
+        const eski = oncekiler.find((x) => x && x.id === m.id);
+        if (eski) {
+          NOT_ALANLARI.forEach((alan) => {
+            if (eski[alan] !== undefined) temiz[alan] = eski[alan];
+          });
+        }
+        return temiz;
+      });
+    }
+
     // Yetki/kimlik alanları istemci gönderse bile düşürülür.
     if (op.data && typeof op.data === 'object') {
       for (const alan of Object.keys(op.data)) {

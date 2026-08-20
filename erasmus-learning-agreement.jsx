@@ -899,43 +899,50 @@ const CourseMatchCard = ({
             >
               Notlar
             </div>
-            {match.hostGrades && Object.keys(match.hostGrades).length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {match.hostCourses.map((hc, idx) => {
-                  const hGrade = match.hostGrades?.[idx] || match.hostGrade || 'A';
-                  const hmGrade = match.homeGrades?.[idx] || match.homeGrade || 'Muaf';
-                  return (
-                    <div key={idx}>
-                      <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>
-                        {hc.code}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color: C.navy,
-                          fontFamily: "'Playfair Display', serif",
-                        }}
-                      >
-                        {hGrade} → {hmGrade}
-                      </div>
+            {/* ── NOT YOKSA NOT YAZILMAZ ──
+                Burada `match.hostGrade || 'A'` ve `|| 'Muaf'` vardı: notu
+                girilmemiş her eşleştirme "A → Muaf" görünüyordu. Uydurulmuş
+                bir not, yok olan nottan kötüdür — öğrenci de akademisyen de
+                işin bittiğini sanıyordu. Boş olan artık boş görünür. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {(match.hostCourses || []).map((hc, idx) => {
+                const ham = match.hostGrades?.[idx] ?? match.hostGrade ?? '';
+                const harf = match.homeGrades?.[idx] ?? match.homeGrade ?? '';
+                return (
+                  <div key={idx}>
+                    <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>
+                      {hc.code}
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: C.navy,
-                  fontFamily: "'Playfair Display', serif",
-                }}
-              >
-                {match.hostGrade || 'A'} → {match.homeGrade || 'Muaf'}
-              </div>
-            )}
-            <div style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>Karşı → Kendi</div>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: harf ? C.navy : C.textMuted,
+                        fontFamily: "'Playfair Display', serif",
+                      }}
+                    >
+                      {harf || '—'}
+                      {ham ? (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: C.textMuted,
+                            fontFamily: 'inherit',
+                            marginLeft: 5,
+                          }}
+                        >
+                          ({ham})
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>
+              harf karşılığı (transkript notu)
+            </div>
           </div>
         )}
         {!readOnly && (
@@ -982,7 +989,16 @@ const CourseMatchCard = ({
 };
 
 // ── Course Match Edit Modal ──
-const CourseMatchEditModal = ({ match, type, onClose, onSave, activeDepartment }) => {
+// `notlarKilitli`: öğrenci notlara dokunamaz. Not, transkriptten HESAPLANIR
+// (lib/erasmus-not.js); burada elle girilmesi hesabı geçersiz kılardı.
+const CourseMatchEditModal = ({
+  match,
+  type,
+  onClose,
+  onSave,
+  activeDepartment,
+  notlarKilitli,
+}) => {
   const r = useResponsive();
   const [editedMatch, setEditedMatch] = useState(JSON.parse(JSON.stringify(match)));
   const [showHomeCatalog, setShowHomeCatalog] = useState(false);
@@ -1266,12 +1282,14 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave, activeDepartment }
                       <FormField label={`Karşı Kurumdan Alınan Not`}>
                         <Input
                           value={gradeVal}
+                          disabled={notlarKilitli}
                           onChange={(e) => {
+                            if (notlarKilitli) return;
                             const newGrades = { ...(editedMatch.hostGrades || {}) };
                             newGrades[idx] = e.target.value;
                             setEditedMatch((prev) => ({ ...prev, hostGrades: newGrades }));
                           }}
-                          placeholder="A, B+, 85, vb."
+                          placeholder={notlarKilitli ? 'transkriptten gelir' : 'A, B+, 85, vb.'}
                         />
                         {gradeVal && (
                           <div
@@ -1291,14 +1309,19 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave, activeDepartment }
                         )}
                       </FormField>
                       <FormField label={`Kendi Kurumumuzdaki Karşılık`}>
+                        {/* Varsayılan 'Muaf' KALDIRILDI: notu hesaplanmamış
+                            ders "Muaf" görünüyor, muafiyet verilmiş gibi
+                            okunuyordu. Boş olan boş kalır. */}
                         <Input
-                          value={editedMatch.homeGrades?.[idx] ?? editedMatch.homeGrade ?? 'Muaf'}
+                          value={editedMatch.homeGrades?.[idx] ?? editedMatch.homeGrade ?? ''}
+                          disabled={notlarKilitli}
                           onChange={(e) => {
+                            if (notlarKilitli) return;
                             const newGrades = { ...(editedMatch.homeGrades || {}) };
                             newGrades[idx] = e.target.value;
                             setEditedMatch((prev) => ({ ...prev, homeGrades: newGrades }));
                           }}
-                          placeholder="Muaf, AA, BB, vb."
+                          placeholder={notlarKilitli ? 'hesaplanır' : 'AA, BB, vb.'}
                         />
                       </FormField>
                     </div>
@@ -1314,8 +1337,11 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave, activeDepartment }
               <FormField label="Karşı Kurumdan Alınan Not">
                 <Input
                   value={editedMatch.hostGrade || ''}
+                  disabled={notlarKilitli}
                   onChange={(e) =>
-                    setEditedMatch((prev) => ({ ...prev, hostGrade: e.target.value }))
+                    notlarKilitli
+                      ? undefined
+                      : setEditedMatch((prev) => ({ ...prev, hostGrade: e.target.value }))
                   }
                   placeholder="A, B+, 85, vb."
                 />
@@ -1338,9 +1364,12 @@ const CourseMatchEditModal = ({ match, type, onClose, onSave, activeDepartment }
               </FormField>
               <FormField label="Kendi Kurumumuzdaki Karşılık">
                 <Input
-                  value={editedMatch.homeGrade || 'Muaf'}
+                  value={editedMatch.homeGrade || ''}
+                  disabled={notlarKilitli}
                   onChange={(e) =>
-                    setEditedMatch((prev) => ({ ...prev, homeGrade: e.target.value }))
+                    notlarKilitli
+                      ? undefined
+                      : setEditedMatch((prev) => ({ ...prev, homeGrade: e.target.value }))
                   }
                   placeholder="Muaf, AA, BB, vb."
                 />
@@ -3564,20 +3593,32 @@ const StudentDetailModal = ({
 
   // Hesaplanan notları kayda geçirir. Not DEĞERLERİ burada üretilmez —
   // panelden hesaplanmış hâlleriyle gelir (lib/erasmus-not.js).
-  const notlariOnayla = (harfler) => {
+  const notlariOnayla = (harfler, dersNotlari, etkinSistem) => {
     const harita = {};
     (harfler || []).forEach((h) => {
       if (h && h.id && h.sonuc && h.sonuc.ok) harita[h.id] = h.sonuc.harf;
     });
+    // Ders bazlı notlar eşleştirmelere ANCAK BURADA yazılır: onay anı.
+    // Öğrenci tarafında yazılsaydı sunucudaki `returnMatches` yazma yetkisi
+    // arayüz kilidini anlamsız kılardı.
+    const dersHaritasi = {};
+    (dersNotlari || []).forEach((d) => {
+      if (d && d.id) dersHaritasi[d.id] = d;
+    });
     setEditedStudent((p) => ({
       ...p,
+      returnMatches: (p.returnMatches || []).map((m) => {
+        const d = dersHaritasi[m.id];
+        return d ? { ...m, hostGrades: d.hostGrades, homeGrades: d.homeGrades } : m;
+      }),
       erasmusHarfNotlari: harita,
-      erasmusNotSistemi: kurumNotSistemi,
+      erasmusNotSistemi: etkinSistem || kurumNotSistemi,
+      erasmusNotDurumu: 'onaylandi',
       erasmusNotOnayi: true,
       erasmusNotOnaylayan: (currentUser && currentUser.name) || '',
       erasmusNotOnayTarihi: new Date().toISOString(),
     }));
-    alert('Harf notları kayda geçirildi. Kaydet ile kalıcı hâle getirin.');
+    alert('Notlar eşleştirmelere işlendi ve onaylandı. Kaydet ile kalıcı hâle getirin.');
   };
   const reviewMatch = (matchType, matchId, decision, reason) => {
     const key = matchType === 'outgoing' ? 'outgoingMatches' : 'returnMatches';
@@ -4543,6 +4584,7 @@ const StudentDetailModal = ({
 
       {editingMatch && (
         <CourseMatchEditModal
+          notlarKilitli={!canApprove}
           match={editingMatch.match}
           type={editingMatch.type}
           activeDepartment={activeDepartment}
