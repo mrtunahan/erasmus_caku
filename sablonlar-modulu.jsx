@@ -35,45 +35,107 @@ const SB_MODULES = [
 // tonlarda kalıyordu. Diğer modüllerdeki (YG, ANK, DS) düzenle aynı: renk ve
 // ölçü TEK yerde tanımlanır, bileşenler buradan okur.
 // ══════════════════════════════════════════════════════════════
+// Uygulamanın paleti (design-tokens.json → window.C). Modül kendi gri ve
+// vurgu tonlarını uyduruyordu; sonuç, aynı işi gören öğelerin ekranda farklı
+// renklerde durmasıydı. Palet burada TÜRETİLİR, tanımlanmaz.
+const SBC = (typeof window !== 'undefined' && window.C) || {};
 const SB = {
-  baslik: '#111827',
-  metin: '#1F2937',
-  soluk: '#6B7280',
-  soluk2: '#9CA3AF',
-  koyu: '#374151',
-  kenar: '#E5E7EB',
+  navy: SBC.navy || '#1B2A4A',
+  metin: SBC.text || '#1F2937',
+  soluk: SBC.textMuted || '#64748B',
+  soluk2: '#94A3B8',
+  koyu: '#334155',
+  kenar: SBC.border || '#E5E7EB',
   kenarGiris: '#D1D5DB',
-  yuzey: '#FFFFFF',
-  yuzey2: '#F9FAFB',
+  yuzey: SBC.card || '#FFFFFF',
+  yuzey2: '#FAFAFA',
   cipZemin: '#F1F5F9',
   cipMetin: '#475569',
-  yaricap: 12,
+  vurgu: SBC.gold || '#C4973B',
+  birincil: '#0891B2',
+  birincilSolgun: '#ECFEFF',
+  basari: SBC.green || '#059669',
+  uyari: '#D97706',
+  uyariSolgun: '#FEF3C7',
+  tehlike: '#DC2626',
+  tehlikeSolgun: '#FEE2E2',
+  yaricap: 10,
   yaricapKucuk: 8,
 };
+SB.baslik = SB.navy;
 
 // Durum bildirimi renkleri — tek sözlük, üç durum.
 const SB_MESAJ = {
-  error: { bg: '#FEE2E2', fg: '#991B1B', bd: '#FECACA' },
-  ok: { bg: '#DCFCE7', fg: '#166534', bd: '#BBF7D0' },
-  info: { bg: '#EFF6FF', fg: '#1E40AF', bd: '#DBEAFE' },
+  error: { bg: SB.tehlikeSolgun, fg: '#991B1B', bd: '#FECACA' },
+  ok: { bg: '#D1FAE5', fg: '#065F46', bd: '#A7F3D0' },
+  info: { bg: '#DBEAFE', fg: '#1E40AF', bd: '#BFDBFE' },
 };
 
-// Eşleme durumu: eşlenmiş (mor) / eşlenmemiş (amber).
-// Kart aksiyonlarının renkleri — her eylem kendi anlamıyla anılsın, çağrı
-// yerinde çıplak renk kodu durmasın.
-const SB_EYLEM = {
-  duzenle: ['#0F766E', '#CCFBF1'],
-  indir: ['#15803D', '#DCFCE7'],
-  varsayilan: ['#B45309', '#FEF3C7'],
-  aktif: ['#1E40AF', '#DBEAFE'],
-  sil: ['#DC2626', '#FEE2E2'],
-  notr: ['#6B7280', '#F3F4F6'],
+// ── EYLEM BİÇİMLERİ: ÜÇ TON, DAHA FAZLASI DEĞİL ──
+// Kart üzerindeki altı düğme altı ayrı renkteydi (turkuaz, yeşil, amber,
+// mavi, mor, kırmızı). Hepsi aynı ağırlıkta bağırınca hiçbiri öne çıkmıyor,
+// kart da alacalı görünüyordu. Hiyerarşi üç tonla kurulur:
+//   birincil → o kartta yapılması gereken iş (alan eşleme)
+//   sessiz   → sıradan eylemler; ekranda gürültü yapmaz
+//   tehlike  → geri alınamayan eylem
+const SB_BICIM = {
+  birincil: { fg: SB.birincil, bg: SB.birincilSolgun, bd: '#A5F0FA' },
+  sessiz: { fg: SB.koyu, bg: SB.yuzey, bd: SB.kenarGiris },
+  tehlike: { fg: SB.tehlike, bg: SB.yuzey, bd: '#FCA5A5' },
+  // Etkin (basılı) durum: aynı sessiz düğme, vurgu rengiyle işaretli.
+  etkin: { fg: SB.vurgu, bg: '#FBF6EC', bd: '#E8D5A8' },
 };
 
+// Eşleme durumu şeridi.
 const SB_ESLEME = {
-  var: { bg: '#EDE9FE', fg: '#6D28D9', bd: '#DDD6FE', btnFg: '#7C3AED' },
-  yok: { bg: '#FEF3C7', fg: '#92400E', bd: '#FDE68A', btnFg: '#B45309' },
+  var: { bg: SB.birincilSolgun, fg: '#0E7490', bd: '#A5F0FA' },
+  yok: { bg: SB.uyariSolgun, fg: '#92400E', bd: '#FDE68A' },
 };
+
+// ══════════════════════════════════════════════════════════════
+// İKONLAR
+//
+// Emoji kullanılıyordu (📄 🧩 ⚠️ ✏️ ⬇ ★ ✓ ✕). Emoji her işletim sisteminde
+// başka çizilir, boyu satır yüksekliğini bozar, rengi metne uymaz ve kurumsal
+// bir ekranda oyuncak gibi durur. Yerine tek çizgi kalınlığında SVG: rengini
+// `currentColor` ile düğmeden alır, ölçüsü sabittir.
+// ══════════════════════════════════════════════════════════════
+const SB_IKON_YOLU = {
+  dosya: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6',
+  esleme: 'M4 7h7v10H4z M13 10h7 M13 14h7',
+  uyari:
+    'M12 9v4 M12 17h.01 M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L14.7 3.9a2 2 0 00-3.4 0z',
+  duzenle: 'M12 20h9 M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z',
+  indir: 'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4 M7 10l5 5 5-5 M12 15V3',
+  yildiz: 'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.9L12 17.8 5.8 21l1.2-6.9-5-4.9 6.9-1z',
+  onay: 'M20 6L9 17l-5-5',
+  daire: 'M12 3a9 9 0 100 18 9 9 0 000-18z',
+  sil: 'M3 6h18 M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2 M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6',
+  ekle: 'M12 5v14 M5 12h14',
+};
+
+function SbIkon({ ad, boyut = 15, dolgu = false }) {
+  const yol = SB_IKON_YOLU[ad];
+  if (!yol) return null;
+  return (
+    <svg
+      width={boyut}
+      height={boyut}
+      viewBox="0 0 24 24"
+      fill={dolgu ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flexShrink: 0 }}
+      aria-hidden="true"
+    >
+      {yol.split(' M').map((d, i) => (
+        <path key={i} d={i === 0 ? d : 'M' + d} />
+      ))}
+    </svg>
+  );
+}
 
 const sbKart = {
   background: SB.yuzey,
@@ -289,7 +351,12 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
           <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: SB.baslik }}>Şablonlar</h2>
           <p style={{ fontSize: 13, color: SB.soluk, margin: '4px 0 0' }}>{scopeHint}</p>
         </div>
-        <SB_Btn onClick={() => setShowAdd(true)}>+ Yeni Şablon Ekle</SB_Btn>
+        <SB_Btn onClick={() => setShowAdd(true)}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <SbIkon ad="ekle" boyut={14} />
+            Yeni Şablon Ekle
+          </span>
+        </SB_Btn>
       </div>
 
       {/* Mesaj */}
@@ -492,7 +559,12 @@ function SablonKarti({ tpl, onEsle, onDuzenle, onDegistir, onSil }) {
         <span style={sbRozet(SB.cipZemin, SB.cipMetin, 600)}>
           {SB_SCOPE_LABEL[tpl.scope] || tpl.scope}
         </span>
-        {tpl.isDefault && <span style={sbRozet('#FEF3C7', '#92400E')}>★ VARSAYILAN</span>}
+        {tpl.isDefault && (
+          <span style={{ ...sbRozet('#FBF6EC', '#8A6A29'), display: 'inline-flex', gap: 4 }}>
+            <SbIkon ad="yildiz" boyut={11} dolgu />
+            VARSAYILAN
+          </span>
+        )}
         {!tpl.isActive && <span style={sbRozet(SB.kenar, SB.koyu)}>PASİF</span>}
       </div>
 
@@ -525,7 +597,7 @@ function SablonKarti({ tpl, onEsle, onDuzenle, onDegistir, onSil }) {
               maxWidth: '100%',
             }}
           >
-            <span>📄</span>
+            <SbIkon ad="dosya" boyut={14} />
             <span
               style={{
                 maxWidth: 340,
@@ -569,7 +641,7 @@ function SablonKarti({ tpl, onEsle, onDuzenle, onDegistir, onSil }) {
             border: '1px solid ' + esleme.bd,
           }}
         >
-          <span>{eslenenSayisi > 0 ? '🧩' : '⚠️'}</span>
+          <SbIkon ad={eslenenSayisi > 0 ? 'esleme' : 'uyari'} boyut={14} />
           <span>
             {eslenenSayisi > 0
               ? eslenenSayisi + ' anahtar alan eşlendi — belge üretimine hazır'
@@ -589,73 +661,68 @@ function SablonKarti({ tpl, onEsle, onDuzenle, onDegistir, onSil }) {
         }}
       >
         {eslenebilir && (
-          <button onClick={onEsle} style={textBtn(esleme.btnFg, esleme.bg)}>
-            🧩 {eslenenSayisi > 0 ? 'Eşlemeyi Düzenle' : 'Alanları Eşle'}
+          // Eşleme yapılmamışsa o kartta yapılması gereken iş budur; birincil
+          // biçimle öne çıkar. Yapılmışsa sıradan bir düzenleme eylemidir.
+          <button onClick={onEsle} style={textBtn(eslenenSayisi > 0 ? 'sessiz' : 'birincil')}>
+            <SbIkon ad="esleme" />
+            {eslenenSayisi > 0 ? 'Eşlemeyi Düzenle' : 'Alanları Eşle'}
           </button>
         )}
-        <button onClick={onDuzenle} style={textBtn(...SB_EYLEM.duzenle)}>
-          ✏️ Düzenle
+        <button onClick={onDuzenle} style={textBtn('sessiz')}>
+          <SbIkon ad="duzenle" />
+          Düzenle
         </button>
         <a
           href={'/api/templates/' + tpl._id + '/download'}
-          style={{ ...textBtn(...SB_EYLEM.indir), textDecoration: 'none' }}
+          style={{ ...textBtn('sessiz'), textDecoration: 'none' }}
         >
-          ⬇ İndir
+          <SbIkon ad="indir" />
+          İndir
         </a>
         <button
           onClick={() => onDegistir('isDefault')}
-          style={textBtn(...(tpl.isDefault ? SB_EYLEM.varsayilan : SB_EYLEM.notr))}
+          style={textBtn(tpl.isDefault ? 'etkin' : 'sessiz')}
         >
-          ★ {tpl.isDefault ? 'Varsayılanı Kaldır' : 'Varsayılan Yap'}
+          <SbIkon ad="yildiz" dolgu={!!tpl.isDefault} />
+          {tpl.isDefault ? 'Varsayılanı Kaldır' : 'Varsayılan Yap'}
         </button>
         <button
           onClick={() => onDegistir('isActive')}
-          style={textBtn(...(tpl.isActive ? SB_EYLEM.aktif : SB_EYLEM.notr))}
+          style={textBtn(tpl.isActive ? 'etkin' : 'sessiz')}
         >
-          {tpl.isActive ? '✓ Aktif' : '○ Pasif'}
+          <SbIkon ad={tpl.isActive ? 'onay' : 'daire'} />
+          {tpl.isActive ? 'Aktif' : 'Pasif'}
         </button>
-        <button onClick={onSil} style={textBtn(...SB_EYLEM.sil)}>
-          ✕ Sil
+        <button onClick={onSil} style={textBtn('tehlike')}>
+          <SbIkon ad="sil" />
+          Sil
         </button>
       </div>
     </div>
   );
 }
 
-function iconBtn(color, bg) {
-  return {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    border: '1px solid ' + color + '40',
-    background: bg,
-    color: color,
-    cursor: 'pointer',
-    fontSize: 14,
-    fontWeight: 700,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    textDecoration: 'none',
-    lineHeight: 1,
-  };
-}
-
 // Metin etiketli aksiyon butonu (kart alt satırı)
-function textBtn(color, bg) {
+/**
+ * Kart eylem düğmesi. Renk çifti değil, ANLAM alır (SB_BICIM anahtarı):
+ * birincil | sessiz | tehlike | etkin. Çağrı yerinde çıplak renk durmaz ve
+ * hiyerarşi tek yerden değişir.
+ */
+function textBtn(bicim) {
+  const c = SB_BICIM[bicim] || SB_BICIM.sessiz;
   return {
-    padding: '7px 13px',
-    borderRadius: 8,
-    border: '1px solid ' + color + '33',
-    background: bg,
-    color: color,
+    padding: '7px 12px',
+    borderRadius: SB.yaricapKucuk,
+    border: '1px solid ' + c.bd,
+    background: c.bg,
+    color: c.fg,
     cursor: 'pointer',
     fontSize: 12.5,
     fontWeight: 600,
     fontFamily: "'Inter', sans-serif",
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
     lineHeight: 1,
     whiteSpace: 'nowrap',
   };
@@ -768,9 +835,11 @@ function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
             <div
               key={alan.docType}
               style={{
-                border: '1px solid ' + (tpl ? renk + '55' : SB.kenar),
-                background: tpl ? renk + '0C' : '#FAFAFA',
-                borderRadius: 10,
+                // Dolu yuva ile boş yuva ARASINDAKİ fark bir kenarlık kadar;
+                // modül renginin geniş yıkaması paneli alacalı gösteriyordu.
+                border: '1px solid ' + (tpl ? SB.kenarGiris : SB.kenar),
+                background: tpl ? SB.yuzey : SB.yuzey2,
+                borderRadius: SB.yaricap,
                 padding: 12,
                 display: 'flex',
                 flexDirection: 'column',
@@ -784,12 +853,17 @@ function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
                   <div
                     style={{
                       fontSize: 11.5,
-                      color: '#166534',
+                      color: SB.basari,
                       fontWeight: 600,
-                      wordBreak: 'break-all',
+                      wordBreak: 'break-word',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      flexWrap: 'wrap',
                     }}
                   >
-                    ✓ {tpl.name}
+                    <SbIkon ad="onay" boyut={13} />
+                    {tpl.name}
                     {/* Şablon bu bölüme ait olmayabilir: fakülte ya da üniversite
                         düzeyinde yüklenmiş bir şablon da buraya düşer. Kapsamı
                         yazmazsak "bu bölüme yüklenmiş" sanılıyor ve fakülte
@@ -809,18 +883,9 @@ function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
                   <button
                     type="button"
                     onClick={() => onDuzenle(tpl)}
-                    style={{
-                      marginTop: 2,
-                      padding: '6px 10px',
-                      border: '1px solid #D1D5DB',
-                      borderRadius: 8,
-                      background: 'white',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: SB.koyu,
-                      cursor: 'pointer',
-                    }}
+                    style={{ ...textBtn('sessiz'), marginTop: 2, alignSelf: 'flex-start' }}
                   >
+                    <SbIkon ad="duzenle" boyut={13} />
                     Değiştir / Düzenle
                   </button>
                 </>
@@ -838,18 +903,9 @@ function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
                         ad: alan.baslik,
                       })
                     }
-                    style={{
-                      marginTop: 2,
-                      padding: '6px 10px',
-                      border: 'none',
-                      borderRadius: 8,
-                      background: renk,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: 'white',
-                      cursor: 'pointer',
-                    }}
+                    style={{ ...textBtn('birincil'), marginTop: 2, alignSelf: 'flex-start' }}
                   >
+                    <SbIkon ad="ekle" boyut={13} />
                     {alan.uzanti} yükle
                   </button>
                 </>
@@ -1209,16 +1265,23 @@ function AddTemplateModal(props) {
               style={{
                 marginTop: 8,
                 padding: '8px 12px',
-                borderRadius: 8,
-                background: '#FEF3C7',
-                color: '#92400E',
+                borderRadius: SB.yaricapKucuk,
+                background: SB_ESLEME.yok.bg,
+                color: SB_ESLEME.yok.fg,
+                border: '1px solid ' + SB_ESLEME.yok.bd,
                 fontSize: 12,
                 fontWeight: 600,
-                border: '1px solid #FDE68A',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+                lineHeight: 1.5,
               }}
             >
-              ⚠️ {file ? 'Yeni dosya' : 'Modül/belge türü değişimi'} nedeniyle mevcut alan eşlemeniz
-              sıfırlanacak — kaydettikten sonra 🧩 ile yeniden eşlemeniz gerekir.
+              <SbIkon ad="uyari" boyut={14} />
+              <span>
+                {file ? 'Yeni dosya' : 'Modül/belge türü değişimi'} nedeniyle mevcut alan eşlemeniz
+                sıfırlanacak — kaydettikten sonra “Alanları Eşle” ile yeniden eşlemeniz gerekir.
+              </span>
             </div>
           )}
         </SB_FormField>
