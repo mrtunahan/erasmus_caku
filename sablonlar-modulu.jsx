@@ -880,6 +880,32 @@ function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
                       </span>
                     ) : null}
                   </div>
+                  {/* ── YÜKLÜ OLMAK ÇIKTIYA İŞLEMEK DEĞİLDİR ──
+                      Doldurulabilir bir şablon (.docx/.xlsx) alan eşlemesi
+                      yapılmadan çıktı üretemez; üretici sessizce yerleşik
+                      biçime düşer. Yuva "✓ yüklü" derken çıktının değişmemesi
+                      buradan geliyordu. Eksik, yükleme noktasında yazılır. */}
+                  {sbEslenebilir(tpl.file) &&
+                    (tpl.fields || []).filter((f) => f && f.variable).length === 0 && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: SB_ESLEME.yok.fg,
+                          background: SB_ESLEME.yok.bg,
+                          border: '1px solid ' + SB_ESLEME.yok.bd,
+                          borderRadius: SB.yaricapKucuk,
+                          padding: '5px 8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        <SbIkon ad="uyari" boyut={13} />
+                        Alan eşlemesi yok — çıktı yerleşik biçimde üretilir
+                      </div>
+                    )}
                   <button
                     type="button"
                     onClick={() => onDuzenle(tpl)}

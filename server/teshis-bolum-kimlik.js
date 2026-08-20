@@ -442,6 +442,57 @@ function bolumAtiflari(deger, yol = '', cikti = []) {
     }
   }
 
+  // ── 9) ŞABLON ÇIKTIYA İŞLEYEBİLİR Mİ? ──
+  // Şablonun listede görünmesi çıktıya işleyeceği anlamına GELMEZ. Üretici
+  // (shared-components → produceFromTemplate / produceRowsXlsx) sırayla şunlara
+  // bakar ve ilk takıldığı yerde SESSİZCE yerleşik çıktıya düşer:
+  //   1. çözüm şablonu buldu mu           (modül + belge türü + kapsam)
+  //   2. dosya uzantısı üreticiye uyuyor mu (.docx metin, .xlsx satır üretici)
+  //   3. şablon aktif mi
+  //   4. ALAN EŞLEMESİ yapılmış mı        (en sık atlanan adım)
+  // "Görünüyor ama çıktıya işlemiyor" şikâyetinin cevabı bu tabloda.
+  console.log('\n══════ 9) Şablonlar çıktıya işleyebilir mi ══════');
+  const uzantiUyumu = (uz, tur) => {
+    const u = String(uz || '').toLowerCase();
+    // Ders programı 'xlsx' türlerini satır üreticisiyle, ötekileri docx ile üretir.
+    return /xlsx?$/.test(u)
+      ? 'xlsx üretici'
+      : u === 'docx'
+        ? 'docx üretici'
+        : `⚠ '${u}' üretilemez`;
+  };
+  let hazir = 0;
+  let eksik = 0;
+  for (const t of sablonlar || []) {
+    const eslenen = (Array.isArray(t.fields) ? t.fields : []).filter((f) => f && f.variable).length;
+    const aktif = t.isActive !== false;
+    const uz = (t.file && t.file.extension) || '';
+    const uyum = uzantiUyumu(uz, t.docType);
+    const sorunlar = [];
+    if (!t.file) sorunlar.push('DOSYA YOK');
+    if (!aktif) sorunlar.push('PASİF');
+    if (uyum.startsWith('⚠')) sorunlar.push(uyum);
+    if (eslenen === 0) sorunlar.push('ALAN EŞLEMESİ YAPILMAMIŞ');
+    if (sorunlar.length) eksik++;
+    else hazir++;
+    console.log(`\n• "${t.name}"`);
+    console.log(
+      `    modül: ${t.module} · tür: ${t.docType || 'default'} · kapsam: ${t.scope}` +
+        (t.scope === 'faculty' ? ` (${t.facultyId})` : '')
+    );
+    console.log(
+      `    dosya: ${uz || '(yok)'} → ${uyum} · eşlenen alan: ${eslenen} · ${aktif ? 'aktif' : 'PASİF'}`
+    );
+    console.log(
+      sorunlar.length ? `    ⚠ ÇIKTIYA İŞLEMEZ — ${sorunlar.join(' · ')}` : '    ✓ çıktıya işler'
+    );
+  }
+  console.log(`\nÖzet: ${hazir} şablon çıktıya işler, ${eksik} şablon işlemez.`);
+  if (eksik) {
+    console.log('  Alan eşlemesi eksikse: Şablonlar modülünde şablonu açıp');
+    console.log('  "Alanları Eşle" ile anahtar alanları bağlayın.');
+  }
+
   console.log('\n(Bu betik hiçbir şey yazmadı.)');
   process.exit(0);
 })().catch((e) => {
