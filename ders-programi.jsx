@@ -662,7 +662,7 @@ function sablonUyarisi(sonuc, belgeAdi) {
   if (sonuc.reason === 'no-mapping') {
     alert(
       belgeAdi +
-        ' şablonunun alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp 🧩 ile alanları eşleyin. Şimdilik yerleşik çıktı kullanılacak.'
+        ' şablonunun alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp "Alanları Eşle" ile anahtar alanları bağlayın. Şimdilik yerleşik çıktı kullanılacak.'
     );
   } else if (sonuc.reason === 'invalid-output') {
     alert(
@@ -675,7 +675,20 @@ function sablonUyarisi(sonuc, belgeAdi) {
       belgeAdi +
         ' için yüklenen şablonun biçimi bu çıktıya uymuyor (.xlsx çıktısı için Excel, PDF çıktısı için Word şablonu gerekir). Yerleşik çıktı kullanılacak.'
     );
+  } else if (sonuc.reason === 'download' || sonuc.reason === 'network') {
+    // Bu iki durum SESSİZ kalıyordu. Şablon listede duruyor ama dosyası
+    // indirilemiyorsa (erişim reddi ya da dosya silinmiş) kullanıcı yerleşik
+    // çıktıyı alıyor ve sebebini asla öğrenemiyordu — "yüklü ama işlemiyor"
+    // şikâyetinin görünmez yarısı buydu.
+    alert(
+      belgeAdi +
+        ' şablonu okunamadı: ' +
+        (sonuc.message || 'bilinmeyen hata') +
+        '. Yerleşik çıktı kullanılacak.'
+    );
   }
+  // 'no-template' bilerek sessizdir: şablon yüklememek normal bir durumdur,
+  // her çıktıda uyarı vermek gürültü olurdu.
 }
 
 /** Şablon çıktısı için ortak veri: künye + saat satırları. */
