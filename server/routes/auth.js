@@ -518,6 +518,41 @@ router.post('/change-password', async (req, res) => {
     }
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // KENDİ ŞİFRESİNİ DEĞİŞTİREN, MEVCUT ŞİFRESİNİ BİLMEK ZORUNDADIR
+  //
+  // Bu kural yalnız ÖĞRENCİ dalında vardı; akademisyen, bölüm yetkilisi ve
+  // admin dallarında hiç uygulanmıyordu. Oysa istemci mevcut şifreyi zaten
+  // topluyor ve gönderiyor (PasswordManagementModal) — sunucu onu okumadan
+  // atıyordu. Yani alan doldurulsa da doldurulmasa da şifre değişiyordu.
+  //
+  // Sonucu somut: açık bırakılmış bir oturum ya da çalınmış bir jeton, hesap
+  // sahibinin şifresini değiştirip onu kendi hesabından kalıcı olarak
+  // dışarıda bırakmaya yetiyordu. Mevcut şifreyi sormak bu adımı kapatır.
+  //
+  // İki durum bu kuralın DIŞINDADIR:
+  //   • yönetici BAŞKASININ şifresini sıfırlıyorsa (kurtarma yolu; hedefin
+  //     şifresini zaten bilemez)
+  //   • öğrencinin henüz hiç şifresi yoksa (ilk kurulum)
+  // ══════════════════════════════════════════════════════════════
+  const kendiHesabi =
+    !!authUser && String(authUser.identifier || '') === String(identifier || '') && !!identifier;
+  const adminHesabiKendi = role === 'admin' && !!authUser;
+
+  async function mevcutSifreDogrula(saklananHash, dogrulamaKimligi) {
+    if (!saklananHash) return null; // henüz şifre yok — ilk kurulum
+    if (!currentPassword) {
+      recordAttempt(chpassKey);
+      return 'Mevcut şifre gerekli.';
+    }
+    const gecerli = await verifyPassword(currentPassword, saklananHash, dogrulamaKimligi);
+    if (!gecerli) {
+      recordAttempt(chpassKey);
+      return 'Mevcut şifre hatalı.';
+    }
+    return null;
+  }
+
   try {
     const bcryptHash = await hashPassword(newPassword);
 
@@ -528,16 +563,11 @@ router.post('/change-password', async (req, res) => {
       // Şifre zaten belirlenmişse: admin reset hariç, mevcut şifre doğrulaması
       // ZORUNLU. Bu, currentPassword göndermeden hesap ele geçirmeyi engeller.
       // İlk kurulum (henüz şifre yok) anonim olarak izinli kalır.
-      if (doc[identifier] && !isAdmin) {
-        if (!currentPassword) {
-          recordAttempt(chpassKey);
-          return res.json({ success: false, error: 'Mevcut şifre gerekli.' });
-        }
-        const valid = await verifyPassword(currentPassword, doc[identifier], identifier);
-        if (!valid) {
-          recordAttempt(chpassKey);
-          return res.json({ success: false, error: 'Mevcut şifre hatalı.' });
-        }
+      // Yönetici BAŞKA bir öğrencinin şifresini sıfırlıyorsa mevcut şifre
+      // aranmaz; kendi hesabını değiştiriyorsa aranır.
+      if (!isAdmin || kendiHesabi) {
+        const hata = await mevcutSifreDogrula(doc[identifier], identifier);
+        if (hata) return res.json({ success: false, error: hata });
       }
 
       // Anonim ilk-kurulum da denemedir — aynı hesaba art arda kurulum
@@ -559,6 +589,12 @@ router.post('/change-password', async (req, res) => {
       if (!isAdmin) {
         return res.status(403).json({ error: 'Bu işlem için admin yetkisi gerekli.' });
       }
+      // Admin hesabı tektir; bu her zaman KENDİ şifresini değiştirmektir.
+      if (adminHesabiKendi) {
+        const adminDoc = await getPasswordDoc('admin');
+        const hata = await mevcutSifreDogrula(adminDoc.password, 'admin');
+        if (hata) return res.json({ success: false, error: hata });
+      }
       await setPasswordDoc('admin', { password: bcryptHash, updatedAt: new Date() });
       await auditPasswordChange(
         authUser,
@@ -577,6 +613,11 @@ router.post('/change-password', async (req, res) => {
       }
       if (!isAdmin && !(authUser.role === 'professor' && authUser.identifier === identifier)) {
         return res.status(403).json({ error: 'Bu hesabın şifresini değiştirme yetkiniz yok.' });
+      }
+      if (kendiHesabi) {
+        const profDoc = await getPasswordDoc('professor_passwords');
+        const hata = await mevcutSifreDogrula(profDoc[identifier], identifier);
+        if (hata) return res.json({ success: false, error: hata });
       }
       await setPasswordDoc('professor_passwords', { [identifier]: bcryptHash }, true);
       await auditPasswordChange(
@@ -598,6 +639,11 @@ router.post('/change-password', async (req, res) => {
         !(authUser.role === 'bolum_yetkilisi' && authUser.identifier === identifier)
       ) {
         return res.status(403).json({ error: 'Bu hesabın şifresini değiştirme yetkiniz yok.' });
+      }
+      if (kendiHesabi) {
+        const mgrDoc = await getPasswordDoc('department_manager_passwords');
+        const hata = await mevcutSifreDogrula(mgrDoc[identifier], identifier);
+        if (hata) return res.json({ success: false, error: hata });
       }
       await setPasswordDoc('department_manager_passwords', { [identifier]: bcryptHash }, true);
       await auditPasswordChange(
@@ -729,11 +775,28 @@ router.post('/student-register', async (req, res) => {
 // ══════════════════════════════════════════════
 // 6. Öğrenci şifre var mı kontrol
 // ══════════════════════════════════════════════
+// ── ŞİFRESİ OLMAYAN HESAP ARAMA ──
+// Bu iki uç kimlik istemiyor ve hız sınırı da yoktu. 9 haneli numaralar
+// taranarak "şifresi henüz belirlenmemiş" hesaplar listelenebiliyordu; o
+// hesapların şifresi ilk-kurulum yoluyla anonim olarak atanabildiği için
+// tarama doğrudan hesap ele geçirmeye yarıyordu. Sınır, taramayı yavaşlatır
+// (ilk kurulum yolunun kendisi ayrı bir konudur — bkz. change-password).
+function sifreSorguSiniri(req, res) {
+  const key = `haspass:${String(req.ip || 'bilinmeyen')}`;
+  if (!checkRateLimit(key)) {
+    res.status(429).json({ error: 'Çok fazla sorgu. 15 dakika sonra tekrar deneyin.' });
+    return false;
+  }
+  recordAttempt(key);
+  return true;
+}
+
 router.post('/student-has-password-check', async (req, res) => {
   const { studentNumber } = req.body;
   if (!studentNumber) {
     return res.status(400).json({ error: 'Öğrenci numarası gerekli.' });
   }
+  if (!sifreSorguSiniri(req, res)) return;
   try {
     const doc = await getPasswordDoc('student_passwords');
     return res.json({ hasPassword: !!doc[studentNumber.trim()] });
@@ -748,6 +811,7 @@ router.get('/student-has-password/:studentNumber', async (req, res) => {
   if (!studentNumber) {
     return res.status(400).json({ error: 'Öğrenci numarası gerekli.' });
   }
+  if (!sifreSorguSiniri(req, res)) return;
   try {
     const doc = await getPasswordDoc('student_passwords');
     return res.json({ hasPassword: !!doc[studentNumber.trim()] });
@@ -768,6 +832,14 @@ router.post('/admin-reset', async (req, res) => {
     return res.status(400).json({ error: 'Eksik parametreler.' });
   }
 
+  // Bu uç ADMIN ŞİFRESİNİ doğruluyor ve hiçbir hız sınırı yoktu: tek bir
+  // parolayı sınırsız deneyerek kurumun tüm hesaplarını sıfırlama yetkisi
+  // elde etmek mümkündü. Giriş uçlarıyla aynı sınıra bağlandı.
+  const resetKey = 'admin-reset';
+  if (!checkRateLimit(resetKey)) {
+    return res.status(429).json({ error: 'Çok fazla deneme. 15 dakika sonra tekrar deneyin.' });
+  }
+
   try {
     const adminDoc = await getPasswordDoc('admin');
     if (!adminDoc.password) {
@@ -776,8 +848,10 @@ router.post('/admin-reset', async (req, res) => {
 
     const adminValid = await verifyPassword(adminPassword, adminDoc.password, 'admin');
     if (!adminValid) {
+      recordAttempt(resetKey);
       return res.status(403).json({ error: 'Admin şifresi hatalı.' });
     }
+    clearAttempts(resetKey);
 
     const bcryptHash = await hashPassword(newPassword);
 

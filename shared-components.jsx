@@ -11322,26 +11322,27 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
 
           <div style={{ height: 1, background: '#E5E7EB', margin: '16px 0' }} />
 
-          {/* Mevcut şifre — admin için gerekli değil */}
-          {currentUser?.role !== 'admin' && (
-            <div>
-              <label style={label}>Mevcut Şifre</label>
-              <div style={inputWrap}>
-                <input
-                  type={showCurrent ? 'text' : 'password'}
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Mevcut şifreniz"
-                  style={inputStyle}
-                  onFocus={(e) => (e.target.style.borderColor = '#6366F1')}
-                  onBlur={(e) => (e.target.style.borderColor = '#D1D5DB')}
-                />
-                <button type="button" style={eyeBtn} onClick={() => setShowCurrent(!showCurrent)}>
-                  {eyeIcon(showCurrent)}
-                </button>
-              </div>
-            </div>
-          )}
+          {/* ── MEVCUT ŞİFRE HERKESE SORULUR ──
+              Bu alan eskiden admin'e gösterilmiyordu; sunucu da hiçbir rol
+              için doğrulamıyordu. Yani alan doldurulsa da yok sayılıyor,
+              açık bırakılmış bir oturum hesap sahibini kendi hesabından
+              dışarıda bırakabiliyordu. Sunucu artık kendi hesabını
+              değiştiren herkesten mevcut şifreyi istiyor; alan da öyle. */}
+          <label style={label}>Mevcut Şifre</label>
+          <div style={inputWrap}>
+            <input
+              type={showCurrent ? 'text' : 'password'}
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Mevcut şifreniz"
+              style={inputStyle}
+              onFocus={(e) => (e.target.style.borderColor = '#6366F1')}
+              onBlur={(e) => (e.target.style.borderColor = '#D1D5DB')}
+            />
+            <button type="button" style={eyeBtn} onClick={() => setShowCurrent(!showCurrent)}>
+              {eyeIcon(showCurrent)}
+            </button>
+          </div>
 
           <label style={label}>Yeni Şifre</label>
           <div style={inputWrap}>
