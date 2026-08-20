@@ -45,6 +45,7 @@ import {
   eslesmeHarfNotu,
   eslesmeNotlariniHesapla,
   kodAnahtari as erasmusKodAnahtari,
+  satirNotlari,
   sistemSez,
   transkriptEslestir,
 } from './lib/erasmus-not.js';
@@ -13069,6 +13070,12 @@ window.mevcutEslesmeIdleri = mevcutEslesmeIdleri;
 // Onaya tabi olan yalnız dönüş tarafı — gidiş çoktan imzalanmış anlaşmadır.
 window.onayaTabiMi = onayaTabiMi;
 window.onayBekleyenler = onayBekleyenler;
+// Not hesabı — kural ve testleri lib/erasmus-not.js'te. Eşleştirme kartları
+// hesaplanan notu ÖNİZLEME olarak gösterir; kayda yalnız onayla girer.
+window.erasmusSistemSez = sistemSez;
+window.erasmusNotlariHesapla = eslesmeNotlariniHesapla;
+// Belge satırının notu — üç çıktı yolu da aynı önceliği kullanır.
+window.erasmusSatirNotlari = satirNotlari;
 window.slotDersCikar = slotDersCikar;
 window.slotDersGuncelle = slotDersGuncelle;
 // Şube: aynı ders kodu bir slotta birden çok kez yürüyebilir (iki müfredat ×

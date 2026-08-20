@@ -12,6 +12,7 @@ import {
   kodAnahtari,
   notCevir,
   puandanHarf,
+  satirNotlari,
   sistemSez,
   transkriptEslestir,
 } from '../lib/erasmus-not.js';
@@ -351,5 +352,30 @@ describe('eslesmeNotlariniHesapla — toplu denklik notu', () => {
     const [r] = eslesmeNotlariniHesapla([m], [{ kod: 'CS101', not: 'A' }], 'ects');
     expect(r.homeGrade).toBe('');
     expect(r.eksik).toEqual(['CS102']);
+  });
+});
+
+describe('satirNotlari', () => {
+  it('ham not ders bazlıdır, harf notu eşleştirmenin bütününe aittir', () => {
+    const m = { hostGrades: { 0: '5', 1: '4' }, homeGrades: { 0: 'A', 1: 'B2' }, homeGrade: 'B1' };
+    expect(satirNotlari(m, 0)).toEqual({ ham: '5', harf: 'B1' });
+    expect(satirNotlari(m, 1)).toEqual({ ham: '4', harf: 'B1' });
+  });
+
+  it('toplu not yoksa ders bazlı harfe düşülür', () => {
+    const m = { hostGrades: { 0: '5' }, homeGrades: { 0: 'A' } };
+    expect(satirNotlari(m, 0)).toEqual({ ham: '5', harf: 'A' });
+  });
+
+  it('eski tekil alanlar hâlâ okunur', () => {
+    expect(satirNotlari({ hostGrade: '85', homeGrade: 'BA' }, 0)).toEqual({
+      ham: '85',
+      harf: 'BA',
+    });
+  });
+
+  it('not yoksa boş döner — belgeye uydurulmuş not basılmaz', () => {
+    expect(satirNotlari({}, 0)).toEqual({ ham: '', harf: '' });
+    expect(satirNotlari(null, 3)).toEqual({ ham: '', harf: '' });
   });
 });
