@@ -48,6 +48,7 @@ import {
   sistemSez,
   transkriptEslestir,
 } from './lib/erasmus-not.js';
+import { onayDamgasi, mevcutEslesmeIdleri } from './lib/erasmus-onay.js';
 import { basvuruBolumId, basvuruBolumdeMi, sahipsizBasvurular } from './lib/yatay-kapsam.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
@@ -13056,6 +13057,10 @@ window.slotDersVarMi = slotDersVarMi;
 window.slotDersEkle = slotDersEkle;
 // Çakışma anlık görüntüsünün tazelenmesi — kural ve gerekçesi lib/ders-slot.js'te.
 window.yilSlotlariniGuncelle = yilSlotlariniGuncelle;
+// Eşleştirme onay damgası — "status yok" iki farklı okunuyordu, kural artık
+// tek yerde ve testli (bkz. lib/erasmus-onay.js).
+window.onayDamgasi = onayDamgasi;
+window.mevcutEslesmeIdleri = mevcutEslesmeIdleri;
 window.slotDersCikar = slotDersCikar;
 window.slotDersGuncelle = slotDersGuncelle;
 // Şube: aynı ders kodu bir slotta birden çok kez yürüyebilir (iki müfredat ×
