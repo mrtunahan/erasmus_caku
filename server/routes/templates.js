@@ -25,7 +25,7 @@ const { getDbSafe } = require('../config/database');
 const { softAuth } = require('../middleware/softAuth');
 const { canManageTemplate, canViewTemplate } = require('../lib/sablon-erisim');
 const { profilBul } = require('../lib/akademisyen-kimlik');
-const { bolumKimlikHaritasi, bolumVaryantlari } = require('../lib/bolum-kimlik');
+const { bolumKimlikHaritasi, bolumVaryantlari, ayniBolum } = require('../lib/bolum-kimlik');
 
 const router = express.Router();
 const softAuthMiddleware = softAuth(getDbSafe);
@@ -160,6 +160,31 @@ async function bolumHaritasi(db) {
   return bolumKimlikHaritasi(docs);
 }
 
+// ══════════════════════════════════════════════════════════════
+// FAKÜLTENİN DE BİRDEN ÇOK KİMLİĞİ VAR
+//
+// Bölümlerdeki sorunun aynısı fakültelerde de geçerli: bir fakülte `_docId`
+// slug'ıyla ('muhendislik') ve ObjectId'siyle anılabiliyor. Kimin hangi biçimi
+// taşıdığı kaydın ne zaman açıldığına bağlı.
+//
+// ── FAKÜLTE ŞABLONU GÖRÜNÜYOR AMA ÇIKTIYA İŞLEMİYORDU ──
+// Şablon yüklenirken `facultyId` YÜKLEYENİN PROFİLİNDEN yazılır. Çözüm
+// (`/resolve`) ise fakülteyi BÖLÜM DOKÜMANINDAN okur. İkisi aynı fakültenin
+// farklı biçimleri olduğunda:
+//   • liste (canViewTemplate) kullanıcının profilindeki biçimle karşılaştırdığı
+//     için şablonu GÖSTERİYOR,
+//   • çözüm bölüm dokümanındaki biçimle aradığı için BULAMIYOR
+// ve çıktı sessizce yerleşik biçime düşüyordu. Tam olarak "görünüyor ama
+// çıktıya işlemiyor" şikâyeti.
+//
+// `bolumKimlikHaritasi` aslında genel bir kimlik haritasıdır (id/_id/_docId/
+// code → kanonik); fakülte dokümanlarına da aynen uygulanır.
+// ══════════════════════════════════════════════════════════════
+async function fakulteHaritasi(db) {
+  const docs = await db.collection('faculties').find({}).toArray();
+  return bolumKimlikHaritasi(docs);
+}
+
 // Alan eşleme kayıtlarını doğrula/temizle — yer tutucu → değişken eşlemesi.
 // Şema: { token, tokenOccurrence, context, variable, value }
 function sanitizeFields(input) {
@@ -205,8 +230,9 @@ router.get('/', readLimiter, softAuthMiddleware, async (req, res) => {
     const scope = await resolveActorScope(req);
     const db = await getDbSafe();
     const harita = await bolumHaritasi(db);
+    const fakHarita = await fakulteHaritasi(db);
     const all = await db.collection('document_templates').find({}).toArray();
-    const visible = all.filter((t) => canViewTemplate(scope, t, harita.fakulte, harita));
+    const visible = all.filter((t) => canViewTemplate(scope, t, harita.fakulte, harita, fakHarita));
     // Modüle göre sırala
     visible.sort((a, b) => {
       if (a.module !== b.module) return a.module.localeCompare(b.module);
@@ -278,7 +304,12 @@ router.post('/', writeLimiter, softAuthMiddleware, upload.single('file'), async 
         // Bölüm gerçekten bu fakültenin altında mı?
         const db = await getDbSafe();
         const dmap = await bolumHaritasi(db);
-        if (dmap.fakulte[departmentId] !== scope.facultyId) {
+        const fmap = await fakulteHaritasi(db);
+        // Ham eşitlik burada da yanlıştı: bölümün fakültesi doküman
+        // biçiminde, yetkilinin fakültesi profil biçiminde gelir. İkisi aynı
+        // fakültenin farklı biçimleriyse yetkili KENDİ bölümüne şablon
+        // yükleyemez ve "Kendi fakültenizdeki bir bölüm seçin" hatası alırdı.
+        if (!ayniBolum(dmap.fakulte[departmentId], scope.facultyId, fmap)) {
           cleanupFile(req.file);
           return res.status(403).json({ error: 'Kendi fakültenizdeki bir bölüm seçin.' });
         }
@@ -366,7 +397,8 @@ async function updateTemplateHandler(req, res) {
 
     const scope = await resolveActorScope(req);
     const dmap = await bolumHaritasi(db);
-    if (!canManageTemplate(scope, tpl, dmap.fakulte, dmap)) {
+    const fmap = await fakulteHaritasi(db);
+    if (!canManageTemplate(scope, tpl, dmap.fakulte, dmap, fmap)) {
       return res.status(403).json({ error: 'Bu şablonu yönetme yetkiniz yok.' });
     }
 
@@ -421,7 +453,7 @@ async function updateTemplateHandler(req, res) {
         return res.status(403).json({ error: 'Üniversite geneli kapsam için yetkiniz yok.' });
       }
       // Yeni kapsam da bu kullanıcının yönetebileceği bir yer olmalı
-      if (!canManageTemplate(scope, candidate, dmap.fakulte, dmap)) {
+      if (!canManageTemplate(scope, candidate, dmap.fakulte, dmap, fmap)) {
         return res.status(403).json({ error: 'Seçtiğiniz kapsama şablon taşıma yetkiniz yok.' });
       }
       update.scope = candidate.scope;
@@ -436,7 +468,8 @@ async function updateTemplateHandler(req, res) {
             scope,
             { scope: 'department', departmentId: newDept },
             dmap.fakulte,
-            dmap
+            dmap,
+            fmap
           )
         ) {
           return res.status(403).json({ error: 'Bu bölüme şablon taşıma yetkiniz yok.' });
@@ -490,7 +523,8 @@ router.post(
       }
       const scope = await resolveActorScope(req);
       const dmap = await bolumHaritasi(db);
-      if (!canManageTemplate(scope, tpl, dmap.fakulte, dmap)) {
+      const fmap = await fakulteHaritasi(db);
+      if (!canManageTemplate(scope, tpl, dmap.fakulte, dmap, fmap)) {
         cleanupFile(req.file);
         return res.status(403).json({ error: 'Bu şablonu düzenleme yetkiniz yok.' });
       }
@@ -549,7 +583,8 @@ async function deleteTemplateHandler(req, res) {
 
     const scope = await resolveActorScope(req);
     const dmap = await bolumHaritasi(db);
-    if (!canManageTemplate(scope, tpl, dmap.fakulte, dmap)) {
+    const fmap = await fakulteHaritasi(db);
+    if (!canManageTemplate(scope, tpl, dmap.fakulte, dmap, fmap)) {
       return res.status(403).json({ error: 'Bu şablonu silme yetkiniz yok.' });
     }
 
@@ -583,7 +618,8 @@ router.get('/:id/download', readLimiter, softAuthMiddleware, async (req, res) =>
     // Görme yetkisi (yönetebiliyorsa veya scope='university' ise erişim)
     const scope = await resolveActorScope(req);
     const dmap = await bolumHaritasi(db);
-    if (!canViewTemplate(scope, tpl, dmap.fakulte, dmap)) {
+    const fmap = await fakulteHaritasi(db);
+    if (!canViewTemplate(scope, tpl, dmap.fakulte, dmap, fmap)) {
       return res.status(403).json({ error: 'Erişim yetkiniz yok.' });
     }
 
@@ -618,6 +654,12 @@ router.get('/resolve', readLimiter, async (req, res) => {
     const db = await getDbSafe();
     const harita = await bolumHaritasi(db);
     const facultyId = departmentId ? harita.fakulte[departmentId] || '' : '';
+    // Şablon, YÜKLEYENİN profilindeki fakülte biçimiyle kaydedilmiş olabilir;
+    // buradaki değer ise BÖLÜM DOKÜMANINDAN geliyor. Ham eşitlik aynı
+    // fakültenin iki biçimini farklı fakülte sanar ve fakülte şablonu hiç
+    // bulunamaz (bkz. fakulteHaritasi).
+    const fakHarita = await fakulteHaritasi(db);
+    const fakulteKimlikleri = facultyId ? bolumVaryantlari(fakHarita, facultyId) : [];
     // Bölüm şablonu, bölümün ÖTEKİ kimlikleriyle kaydedilmiş olabilir; ham
     // eşitlik onu bulamaz ve bölüm şablonu yokmuş gibi davranılırdı.
     const bolumKimlikleri = departmentId ? bolumVaryantlari(harita, departmentId) : [];
@@ -639,7 +681,9 @@ router.get('/resolve', readLimiter, async (req, res) => {
     let arr = departmentId
       ? await find({ scope: 'department', departmentId: { $in: bolumKimlikleri } })
       : [];
-    if (!arr.length && facultyId) arr = await find({ scope: 'faculty', facultyId });
+    if (!arr.length && facultyId) {
+      arr = await find({ scope: 'faculty', facultyId: { $in: fakulteKimlikleri } });
+    }
     if (!arr.length) arr = await find({ scope: 'university' });
 
     if (!arr.length) return res.json({ template: null });

@@ -244,3 +244,66 @@ describe('fakülte şablonu, fakültedeki BÖLÜM akademisyenine görünür', ()
     expect(canManageTemplate({ departmentId: 'bilgisayar' }, fakSablonu, HARITA)).toBe(false);
   });
 });
+
+// ── CANLIDA GÖRÜLEN ARIZA ──
+// "Fakülte geneli şablon bölüm yetkililerinde GÖRÜNÜYOR fakat çıktıya
+// İŞLEMİYOR." Sebep: fakültenin de birden çok kimlik biçimi var. Şablonun
+// `facultyId`'si YÜKLEYENİN profilinden yazılır; kullanıcının fakültesi ise
+// çoğu zaman BÖLÜM dokümanından türetilir. Liste bir kaynağa, çözüm ötekine
+// bakınca şablon görünüyor ama bulunamıyordu.
+describe('fakülte kimliğinin iki biçimi', () => {
+  // Mühendislik Fakültesi: dokümanda slug, ObjectId olarak da anılıyor.
+  const FAK_HARITA = require('../server/lib/bolum-kimlik.js').bolumKimlikHaritasi([
+    { id: 'muhendislik', _docId: 'muhendislik', name: 'Mühendislik Fakültesi' },
+    { id: '64ff90', _docId: 'fen', name: 'Fen Fakültesi' },
+  ]);
+  // Bölüm dokümanları fakülteyi SLUG ile anıyor.
+  const DEPT_FAC = { bilgisayar: 'muhendislik', makine: 'muhendislik', fizik: 'fen' };
+  // Şablon, yükleyenin profilindeki biçimle kaydedilmiş.
+  const sablonSlug = { scope: 'faculty', facultyId: 'muhendislik', module: 'dersprogrami' };
+
+  it('ÖTEKİ biçimle sorulduğunda da erişilebilir', () => {
+    const kullanici = { departmentId: 'bilgisayar' };
+    expect(canViewTemplate(kullanici, sablonSlug, DEPT_FAC, null, FAK_HARITA)).toBe(true);
+  });
+
+  it('şablon ObjectId biçimindeyken bölümden türetilen SLUG ile eşleşir', () => {
+    const sablonObjectId = { scope: 'faculty', facultyId: '64ff90', module: 'staj' };
+    // Fizik'in dokümanı fakülteyi 'fen' diyor; şablon '64ff90' taşıyor.
+    expect(
+      canViewTemplate({ departmentId: 'fizik' }, sablonObjectId, DEPT_FAC, null, FAK_HARITA)
+    ).toBe(true);
+  });
+
+  it('BAŞKA fakültenin şablonu yine erişilemez — tolerans kapsam açmaz', () => {
+    expect(canViewTemplate({ departmentId: 'fizik' }, sablonSlug, DEPT_FAC, null, FAK_HARITA)).toBe(
+      false
+    );
+  });
+
+  it('fakülte yetkilisi ÖTEKİ biçimi taşısa da kendi şablonunu yönetir', () => {
+    const yetkili = { isFacultyManager: true, facultyId: 'muhendislik' };
+    expect(canManageTemplate(yetkili, sablonSlug, DEPT_FAC, null, FAK_HARITA)).toBe(true);
+    // Kendi fakültesindeki BÖLÜM şablonunu da yönetebilir.
+    const bolumSablonu = { scope: 'department', departmentId: 'makine' };
+    expect(canManageTemplate(yetkili, bolumSablonu, DEPT_FAC, null, FAK_HARITA)).toBe(true);
+  });
+
+  it('fakülte yetkilisi BAŞKA fakültenin bölüm şablonunu yönetemez', () => {
+    const yetkili = { isFacultyManager: true, facultyId: 'muhendislik' };
+    expect(
+      canManageTemplate(
+        yetkili,
+        { scope: 'department', departmentId: 'fizik' },
+        DEPT_FAC,
+        null,
+        FAK_HARITA
+      )
+    ).toBe(false);
+  });
+
+  it('harita verilmezse HAM EŞİTLİK — eski çağrılar bozulmaz', () => {
+    expect(canViewTemplate({ facultyId: 'muhendislik' }, sablonSlug, DEPT_FAC)).toBe(true);
+    expect(canViewTemplate({ facultyId: '64ff90' }, sablonSlug, DEPT_FAC)).toBe(false);
+  });
+});
