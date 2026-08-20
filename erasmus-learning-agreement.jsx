@@ -3514,6 +3514,71 @@ const StudentDetailModal = ({
   });
   // Akademisyen (öğrenci olmayan) eşleştirmeyi onaylayabilir/reddedebilir.
   const canApprove = !!currentUser && currentUser.role !== 'student';
+
+  // ── KURUMUN NOT SİSTEMİ ──
+  // Bir kurumun notları hep aynı ölçekle verilir; bu yüzden sistem ÖĞRENCİ
+  // BAŞINA değil KURUM başına tutulur (erasmus_universities). Bir kez seçilir,
+  // o kuruma giden herkes için geçerli olur. Öğrenci seçemez.
+  const [kurumNotSistemi, setKurumNotSistemiDurum] = useState(
+    (student && student.erasmusNotSistemi) || ''
+  );
+  useEffect(() => {
+    let iptal = false;
+    (async () => {
+      const kurum = editedStudent && editedStudent.hostInstitution;
+      if (!kurum) return;
+      try {
+        const docs = await window.apiRead('erasmus_universities');
+        if (iptal) return;
+        const k = (docs || []).find((u) => u && u.name === kurum);
+        if (k && k.notSistemi) setKurumNotSistemiDurum(k.notSistemi);
+      } catch (_) {
+        /* okunamazsa öğrenci kaydındaki anlık görüntüyle devam */
+      }
+    })();
+    return () => {
+      iptal = true;
+    };
+  }, [student && student.hostInstitution]);
+
+  const setKurumNotSistemi = async (deger) => {
+    setKurumNotSistemiDurum(deger);
+    const kurum = editedStudent && editedStudent.hostInstitution;
+    if (!kurum || !deger) return;
+    try {
+      const docs = await window.apiRead('erasmus_universities');
+      const k = (docs || []).find((u) => u && u.name === kurum);
+      if (k) {
+        await window.DBWrite.set(
+          'erasmus_universities',
+          k.id || k._docId,
+          { notSistemi: deger },
+          true
+        );
+        if (window.apiInvalidate) window.apiInvalidate('erasmus_universities');
+      }
+    } catch (e) {
+      console.warn('Kurumun not sistemi kaydedilemedi:', e && e.message);
+    }
+  };
+
+  // Hesaplanan notları kayda geçirir. Not DEĞERLERİ burada üretilmez —
+  // panelden hesaplanmış hâlleriyle gelir (lib/erasmus-not.js).
+  const notlariOnayla = (harfler) => {
+    const harita = {};
+    (harfler || []).forEach((h) => {
+      if (h && h.id && h.sonuc && h.sonuc.ok) harita[h.id] = h.sonuc.harf;
+    });
+    setEditedStudent((p) => ({
+      ...p,
+      erasmusHarfNotlari: harita,
+      erasmusNotSistemi: kurumNotSistemi,
+      erasmusNotOnayi: true,
+      erasmusNotOnaylayan: (currentUser && currentUser.name) || '',
+      erasmusNotOnayTarihi: new Date().toISOString(),
+    }));
+    alert('Harf notları kayda geçirildi. Kaydet ile kalıcı hâle getirin.');
+  };
   const reviewMatch = (matchType, matchId, decision, reason) => {
     const key = matchType === 'outgoing' ? 'outgoingMatches' : 'returnMatches';
     setEditedStudent((prev) => ({
@@ -4254,6 +4319,21 @@ const StudentDetailModal = ({
         )}
         {activeTab === 'return' && (
           <>
+            {/* ── TRANSKRİPT VE HARF NOTU ──
+                Dönüş eşleştirmelerinin ÜSTÜNDE durur: not, eşleştirmelerden
+                türetilir ve ders değişikliği uyarısı akademisyenin gözüne ilk
+                burada çarpmalıdır. Kural katmanı lib/erasmus-not.js'te. */}
+            {window.ErasmusDonusNotPaneli && (
+              <window.ErasmusDonusNotPaneli
+                ogrenci={editedStudent}
+                akademisyenMi={canApprove}
+                salt={readOnly || canApprove}
+                notSistemi={kurumNotSistemi}
+                onOgrenciDegisti={(yama) => setEditedStudent((p) => ({ ...p, ...yama }))}
+                onNotSistemi={setKurumNotSistemi}
+                onNotlariOnayla={notlariOnayla}
+              />
+            )}
             {!readOnly && editedStudent.hostInstitution && (
               <div
                 style={{
