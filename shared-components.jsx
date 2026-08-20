@@ -48,7 +48,12 @@ import {
   sistemSez,
   transkriptEslestir,
 } from './lib/erasmus-not.js';
-import { onayDamgasi, mevcutEslesmeIdleri } from './lib/erasmus-onay.js';
+import {
+  onayDamgasi,
+  mevcutEslesmeIdleri,
+  onayaTabiMi,
+  onayBekleyenler,
+} from './lib/erasmus-onay.js';
 import { basvuruBolumId, basvuruBolumdeMi, sahipsizBasvurular } from './lib/yatay-kapsam.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
@@ -13061,6 +13066,9 @@ window.yilSlotlariniGuncelle = yilSlotlariniGuncelle;
 // tek yerde ve testli (bkz. lib/erasmus-onay.js).
 window.onayDamgasi = onayDamgasi;
 window.mevcutEslesmeIdleri = mevcutEslesmeIdleri;
+// Onaya tabi olan yalnız dönüş tarafı — gidiş çoktan imzalanmış anlaşmadır.
+window.onayaTabiMi = onayaTabiMi;
+window.onayBekleyenler = onayBekleyenler;
 window.slotDersCikar = slotDersCikar;
 window.slotDersGuncelle = slotDersGuncelle;
 // Şube: aynı ders kodu bir slotta birden çok kez yürüyebilir (iki müfredat ×

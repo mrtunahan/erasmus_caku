@@ -4,7 +4,12 @@
 // onaya gönderdi, oysa buna gerek yok." Sebep, `status` alanının yokluğunun
 // iki yerde iki farklı okunmasıydı.
 import { describe, it, expect } from 'vitest';
-import { onayDamgasi, mevcutEslesmeIdleri } from '../lib/erasmus-onay.js';
+import {
+  onayDamgasi,
+  mevcutEslesmeIdleri,
+  onayaTabiMi,
+  onayBekleyenler,
+} from '../lib/erasmus-onay.js';
 
 describe('onayDamgasi', () => {
   it('ÖNCEDEN VAR OLAN durumsuz eşleştirme onaya DÜŞMEZ — asıl arıza', () => {
@@ -66,5 +71,54 @@ describe('mevcutEslesmeIdleri', () => {
 
   it('boş kayıtta boş küme', () => {
     expect(mevcutEslesmeIdleri(null).size).toBe(0);
+  });
+});
+
+// ── GİDİŞ ONAYA GİRMEZ ──
+// Öğrenim anlaşması gitmeden önce imzalanır; dönüşte yeniden onaya
+// düşürmek akademisyene çoktan bitmiş işi geri getiriyordu.
+describe('onayaTabiMi', () => {
+  it('yalnız dönüş tarafı onaydan geçer', () => {
+    expect(onayaTabiMi('return')).toBe(true);
+    expect(onayaTabiMi('outgoing')).toBe(false);
+    expect(onayaTabiMi('')).toBe(false);
+    expect(onayaTabiMi(undefined)).toBe(false);
+  });
+});
+
+describe('onayDamgasi — onaySart', () => {
+  it('öğrencinin eklediği YENİ gidiş eşleştirmesi onaya düşmez', () => {
+    const [m] = onayDamgasi([{ id: 'g9' }], new Set(), true, onayaTabiMi('outgoing'));
+    expect(m.status).toBe('approved');
+  });
+
+  it('öğrencinin eklediği YENİ dönüş eşleştirmesi onaya düşer', () => {
+    const [m] = onayDamgasi([{ id: 'd9' }], new Set(), true, onayaTabiMi('return'));
+    expect(m.status).toBe('pending');
+  });
+
+  it('akademisyenin verdiği karar her iki türde de korunur', () => {
+    const [m] = onayDamgasi([{ id: 'd1', status: 'rejected' }], new Set(), true, true);
+    expect(m.status).toBe('rejected');
+  });
+});
+
+describe('onayBekleyenler', () => {
+  it('kuyruğa yalnız bekleyen DÖNÜŞ eşleştirmeleri girer', () => {
+    const kayit = {
+      outgoingMatches: [{ id: 'g1', status: 'pending' }, { id: 'g2' }],
+      returnMatches: [
+        { id: 'd1', status: 'pending' },
+        { id: 'd2', status: 'approved' },
+        { id: 'd3' },
+      ],
+    };
+    // g1 eski hatalı damgayı taşıyor olsa bile kuyruğa girmez.
+    expect(onayBekleyenler(kayit).map((m) => m.id)).toEqual(['d1']);
+  });
+
+  it('boş kayıtta çökmez', () => {
+    expect(onayBekleyenler(null)).toEqual([]);
+    expect(onayBekleyenler({})).toEqual([]);
   });
 });
