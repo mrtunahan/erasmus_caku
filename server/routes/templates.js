@@ -686,7 +686,35 @@ router.get('/resolve', readLimiter, async (req, res) => {
     }
     if (!arr.length) arr = await find({ scope: 'university' });
 
-    if (!arr.length) return res.json({ template: null });
+    if (!arr.length) {
+      // ── NEDEN BULUNAMADI ──
+      // Boş cevap üç farklı şeyi anlatıyordu ve istemci ayırt edemiyordu:
+      // şablon hiç yüklenmemiş · yüklenmiş ama BELGE TÜRÜ farklı · yüklenmiş
+      // ama KAPSAMI bu bölümü tutmuyor. Üçünde de çıktı sessizce yerleşik
+      // biçime düşüyor, yetkili "şablonum neden işlemiyor" diye kalıyordu.
+      // Modüldeki adaylar sayılıp geri verilir; istemci ancak ADAY VARSA
+      // konuşur, yoksa susar (şablon yüklememek normaldir).
+      const adaylar = await db
+        .collection('document_templates')
+        .find({ module: module_ })
+        .project({ docType: 1, scope: 1, facultyId: 1, departmentId: 1, isActive: 1 })
+        .limit(50)
+        .toArray();
+      return res.json({
+        template: null,
+        tani: {
+          module: module_,
+          docType,
+          departmentId,
+          facultyId,
+          moduldekiSablon: adaylar.length,
+          ayniBelgeTuru: adaylar.filter((t) => (t.docType || 'default') === docType).length,
+          pasif: adaylar.filter((t) => t.isActive === false).length,
+          kapsamlar: [...new Set(adaylar.map((t) => t.scope))],
+          belgeTurleri: [...new Set(adaylar.map((t) => t.docType || 'default'))],
+        },
+      });
+    }
     res.json({ template: publicTemplate(arr[0]) });
   } catch (err) {
     console.error('templates route error:', err);

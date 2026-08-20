@@ -864,6 +864,32 @@ async function izgaraSablonuDene(secenek) {
         (sonuc.message || sonuc.reason) +
         '). Yerleşik çıktı kullanılacak.'
     );
+  } else if (sonuc.reason === 'not-xlsx') {
+    alert(
+      'Bu çıktı için yüklenen şablon Excel değil (.' +
+        (sonuc.uzanti || 'bilinmeyen') +
+        '). Ders programı ızgarası yalnız .xlsx şablona yazılabilir. ' +
+        'Yerleşik çıktı kullanılacak.'
+    );
+  } else if (sonuc.reason === 'no-template') {
+    // ── ŞABLON YOK MU, YOKSA EŞLEŞMEDİ Mİ? ──
+    // Şablon yüklememek NORMALDİR; her çıktıda uyarmak gürültü olur. Ama
+    // modülde şablon VARSA ve yine de bulunamadıysa bu bir uyumsuzluktur ve
+    // yetkili sebebini bilmeden "şablonum işlemiyor" diye kalıyordu.
+    const t = sonuc.tani;
+    if (t && t.moduldekiSablon > 0) {
+      alert(
+        'Bu çıktı için şablon bulunamadı.\n\n' +
+          `Aranan belge türü: ${t.docType}\n` +
+          `Modüldeki şablonlar: ${t.moduldekiSablon} (belge türleri: ${(t.belgeTurleri || []).join(', ') || '—'})\n` +
+          `Aynı belge türünde olan: ${t.ayniBelgeTuru}` +
+          (t.pasif ? `\nPasif şablon: ${t.pasif}` : '') +
+          `\nKapsamlar: ${(t.kapsamlar || []).join(', ') || '—'}` +
+          `\nBölümünüz: ${t.departmentId || '—'} · fakülteniz: ${t.facultyId || '—'}` +
+          '\n\nŞablon farklı bir BELGE TÜRÜ ile yüklenmiş olabilir. ' +
+          'Yerleşik çıktı kullanılacak.'
+      );
+    }
   }
   return false;
 }
