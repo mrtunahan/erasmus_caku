@@ -140,6 +140,7 @@ import {
   slotDersleri,
   slotKodVarMi,
   sonrakiSube,
+  yilSlotlariniGuncelle,
 } from './lib/ders-slot.js';
 import { XLSX_STIL, calismaKitabiParcalari, xlsxDosyaAdi } from './lib/xlsx-yaz.js';
 import {
@@ -12655,6 +12656,8 @@ window.slotDersleri = slotDersleri;
 window.slotDersSayisi = slotDersSayisi;
 window.slotDersVarMi = slotDersVarMi;
 window.slotDersEkle = slotDersEkle;
+// Çakışma anlık görüntüsünün tazelenmesi — kural ve gerekçesi lib/ders-slot.js'te.
+window.yilSlotlariniGuncelle = yilSlotlariniGuncelle;
 window.slotDersCikar = slotDersCikar;
 window.slotDersGuncelle = slotDersGuncelle;
 // Şube: aynı ders kodu bir slotta birden çok kez yürüyebilir (iki müfredat ×
