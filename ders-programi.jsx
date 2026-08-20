@@ -1896,6 +1896,15 @@ function DersProgramiApp({
           true
         );
         setScheduleData(next);
+        // ── ÇAKIŞMA ANLIK GÖRÜNTÜSÜ DE TAZELENİR ──
+        // `deptAllYearsSlots` yalnız bölüm/dönem değişince yükleniyor; kaydetmek
+        // onu tazelemiyordu. Sonuç: 1. Sınıf'a ders ekleyip 2. Sınıf'a geçince,
+        // çakışma denetiminin gördüğü 1. Sınıf hâlâ AÇILIŞTAKİ hâliydi —
+        // az önce yarattığınız çakışma ne eklerken uyarı veriyor ne panelde
+        // görünüyordu; ancak bölüm/dönem değiştirip geri dönünce ortaya
+        // çıkıyordu. Yazdığımız veriyi zaten elimizde tutuyoruz; ağdan
+        // yeniden okumaya gerek yok.
+        setDeptAllYearsSlots((onceki) => window.yilSlotlariniGuncelle(onceki, year, next));
         return next;
       } catch (e) {
         console.error('Program kaydedilirken hata:', e);
@@ -2342,6 +2351,30 @@ function DersProgramiApp({
   // ve her düzenlemede N+1 yeniden okuma sorunu giderildi).
   useEffect(() => {
     loadAllSchedules();
+  }, [loadAllSchedules]);
+
+  // ── BAŞKASININ DÜZENLEMESİ DE ÇAKIŞMA DENETİMİNE GİRSİN ──
+  // Program birden çok kişi tarafından aynı anda düzenleniyor: bölüm
+  // yetkilisi 2. Sınıf'ı, akademisyen kendi dersini. Bu modül hiçbir canlı
+  // olayı dinlemiyordu, dolayısıyla açtığınız andaki anlık görüntüyle
+  // çalışıyordu — başkasının az önce koyduğu ders sizin denetiminizde YOK
+  // sayılıyor, çakışma ancak sayfa yenilenince ortaya çıkıyordu.
+  //
+  // Yazma olayları öbek öbek gelir (bir düzenleme birkaç yazma tetikler),
+  // bu yüzden geciktirilir: her olayda ağdan yeniden okumak gereksiz.
+  // Kendi yazmamız da bu olayı tetikler ama zararsızdır — anlık görüntü
+  // yukarıda zaten yerel olarak güncellendi, bu yalnız doğrulama turudur.
+  useEffect(() => {
+    let zamanlayici = null;
+    const tazele = () => {
+      clearTimeout(zamanlayici);
+      zamanlayici = setTimeout(() => loadAllSchedules(), 2000);
+    };
+    window.addEventListener('realtime:course_schedules', tazele);
+    return () => {
+      clearTimeout(zamanlayici);
+      window.removeEventListener('realtime:course_schedules', tazele);
+    };
   }, [loadAllSchedules]);
 
   // Çakışma tespiti — kalıcı veriye ek olarak DÜZENLENEN sınıfın canlı

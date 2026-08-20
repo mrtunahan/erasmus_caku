@@ -11,6 +11,7 @@ import {
   slotEkDersler,
   slotKodVarMi,
   sonrakiSube,
+  yilSlotlariniGuncelle,
 } from '../lib/ders-slot.js';
 
 const birinci = {
@@ -329,5 +330,55 @@ describe('şube — aynı ders kodunun birden çok kaydı', () => {
     s = slotDersGuncelle(s, 1, { sube: '2' });
     expect(slotDersleri(s)[1].sube).toBe('2');
     expect(slotDersVarMi(s, 'KML312', '2')).toBe(true);
+  });
+});
+
+// Çakışma denetiminin baktığı anlık görüntü.
+//
+// Şikâyet: "çakışma tespit sistemi geç mi çalışıyor". Sebep buydu — kaydetmek
+// bu kümeyi tazelemiyordu, dolayısıyla denetim başka sınıfların AÇILIŞTAKİ
+// hâlini görüyordu ve az önce yaratılan çakışmayı fark etmiyordu.
+describe('yilSlotlariniGuncelle', () => {
+  const anlik = () => [
+    { year: '1', slots: { Pazartesi_0: { courseCode: 'BIL101' } } },
+    { year: '2', slots: { Sali_1: { courseCode: 'BIL201' } } },
+  ];
+
+  it('kaydedilen sınıfın slotları DEĞİŞİR — asıl arıza buydu', () => {
+    const yeni = { Pazartesi_0: { courseCode: 'BIL105' } };
+    const sonuc = yilSlotlariniGuncelle(anlik(), '1', yeni);
+    expect(sonuc.find((x) => x.year === '1').slots).toEqual(yeni);
+  });
+
+  it('öteki sınıflara dokunulmaz', () => {
+    const sonuc = yilSlotlariniGuncelle(anlik(), '1', {});
+    expect(sonuc.find((x) => x.year === '2').slots).toEqual({
+      Sali_1: { courseCode: 'BIL201' },
+    });
+    expect(sonuc).toHaveLength(2);
+  });
+
+  it('kümede olmayan sınıf EKLENİR', () => {
+    // Henüz programı olmayan sınıfa ilk ders konduğunda küme onu tanımıyordu.
+    const sonuc = yilSlotlariniGuncelle(anlik(), 3, { Carsamba_2: { courseCode: 'BIL301' } });
+    expect(sonuc).toHaveLength(3);
+    expect(sonuc[2]).toEqual({ year: '3', slots: { Carsamba_2: { courseCode: 'BIL301' } } });
+  });
+
+  it('sınıf numarası sayı ya da metin olabilir', () => {
+    expect(yilSlotlariniGuncelle(anlik(), 1, { x: 1 })).toHaveLength(2);
+    expect(yilSlotlariniGuncelle(anlik(), '1', { x: 1 })).toHaveLength(2);
+  });
+
+  it('girdi DEĞİŞTİRİLMEZ — React durumu yerinde değiştirilemez', () => {
+    const girdi = anlik();
+    const kopya = JSON.parse(JSON.stringify(girdi));
+    yilSlotlariniGuncelle(girdi, '1', { yeni: true });
+    expect(girdi).toEqual(kopya);
+  });
+
+  it('boş girdilerde çökmez', () => {
+    expect(yilSlotlariniGuncelle(null, '1', null)).toEqual([{ year: '1', slots: {} }]);
+    expect(yilSlotlariniGuncelle([], '1', { a: 1 })).toEqual([{ year: '1', slots: { a: 1 } }]);
   });
 });
