@@ -10,12 +10,13 @@
  * kayıtlar bu değerleri taşımaya devam eder.
  *
  * ── HANGİ NOT SAHTE, HANGİSİ GERÇEK ──
- * Aynı alanlarda akademisyenin ELLE girdiği gerçek notlar da durabilir.
- * Alan adına bakmak ayırmaz; ayrımı DEĞERLER yapar (bkz.
- * server/lib/erasmus-tohum-not.js, testleri tests/erasmus-tohum-not.test.js):
- *
- *   hepsi 'A'/'Muaf'        → tohum, boşaltılır
- *   tek bir değer bile farklı → insan eli, TAMAMI KORUNUR
+ * Canlı veri gösterdi ki ikisi AYNI eşleştirmenin içinde yan yana durur:
+ * eski tekil alanlarda tohum, ders bazlı alanlarda akademisyenin girdiği
+ * gerçek not. Bu yüzden karar eşleştirme düzeyinde değil, DERS İNDEKSİ
+ * düzeyinde verilir ve imza tek bir değer değil, ÇİFTTİR: aynı indekste
+ * karşı kurum 'A' VE denklik 'Muaf'. Biri gerçek bir değerle değişmişse
+ * (host='10' → 'Muaf') o çifte insan eli değmiştir, dokunulmaz.
+ * Kural ve testleri: server/lib/erasmus-tohum-not.js.
  *
  * `erasmusNotOnayi` damgasına güvenilmez: alan yeni eklendi, mevcut
  * kayıtların hiçbirinde yok. Damgalı kayıt yine de baştan atlanır.
@@ -34,12 +35,12 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { notDegerleri, tohumKokusu, notlariBosalt } = require('./lib/erasmus-tohum-not');
-
-const ozet = (m) =>
-  notDegerleri(m)
-    .map((x) => `${x.alan}='${x.deger}'`)
-    .join(', ');
+const {
+  tohumlariBosalt,
+  notlariBosalt,
+  notCiftleri,
+  tekilSizintisiVarMi,
+} = require('./lib/erasmus-tohum-not');
 
 (async () => {
   const { getDbSafe } = require('./config/database');
@@ -50,6 +51,7 @@ const ozet = (m) =>
   const ogrenciler = await db.collection('students').find({}).toArray();
   const yapilacak = [];
   const korunanlar = [];
+  const sizintililar = [];
   let damgali = 0;
 
   ogrenciler.forEach((o) => {
@@ -63,20 +65,26 @@ const ozet = (m) =>
     const yeni = [];
     const silinecek = [];
     const elle = [];
+    const sizinti = [];
     (Array.isArray(o.returnMatches) ? o.returnMatches : []).forEach((m) => {
-      const koku = tohumKokusu(m);
-      if (koku === 'bos') {
+      if (!m || typeof m !== 'object' || !notCiftleri(m).length) {
         yeni.push(m);
         return;
       }
-      if (koku === 'insan' && !elleDeSil) {
-        yeni.push(m);
-        elle.push(`${m.id || '?'}: ${ozet(m)}`);
+      if (elleDeSil) {
+        yeni.push(notlariBosalt(m));
+        silinecek.push(`${m.id || '?'}: tüm notlar`);
         return;
       }
-      yeni.push(notlariBosalt(m));
-      silinecek.push(`${m.id || '?'}: ${ozet(m)}`);
+      const { temiz, silinen, kalan } = tohumlariBosalt(m);
+      yeni.push(temiz);
+      silinen.forEach((d) => silinecek.push(`${m.id || '?'} ${d}`));
+      kalan.forEach((d) => elle.push(`${m.id || '?'} ${d}`));
+      if (tekilSizintisiVarMi(temiz, (m.hostCourses || []).length)) {
+        sizinti.push(`${m.id || '?'}: tekil not ${(m.hostCourses || []).length} derse yayılıyor`);
+      }
     });
+    if (sizinti.length) sizintililar.push({ kim, sizinti });
     if (elle.length) korunanlar.push({ kim, elle });
     if (silinecek.length) yapilacak.push({ ogrenci: o, kim, returnMatches: yeni, silinecek });
   });
@@ -85,19 +93,29 @@ const ozet = (m) =>
   console.log(`Öğrenci kaydı: ${ogrenciler.length}`);
   console.log(`Not onayı damgalı (atlanan): ${damgali}`);
 
-  console.log(`\n== TOHUM: 'A'/'Muaf' sabitleri — BOŞALTILACAK (${yapilacak.length} öğrenci) ==`);
+  console.log(`\n== TOHUM: 'A' → 'Muaf' çifti — BOŞALTILACAK (${yapilacak.length} öğrenci) ==`);
   yapilacak.forEach((x) => {
     console.log(`  ~ ${x.kim} — ${x.silinecek.length} eşleştirme`);
     x.silinecek.forEach((d) => console.log(`      ${d}`));
   });
 
-  console.log(`\n== İNSAN ELİ: farklı değer taşıyor — KORUNACAK (${korunanlar.length} öğrenci) ==`);
+  console.log(`\n== GERÇEK NOT — KORUNACAK (${korunanlar.length} öğrenci) ==`);
   korunanlar.forEach((x) => {
     console.log(`  = ${x.kim} — ${x.elle.length} eşleştirme`);
     x.elle.forEach((d) => console.log(`      ${d}`));
   });
+  if (sizintililar.length && !elleDeSil) {
+    console.log(`\n== GÖZDEN GEÇİRİN: tekil not birden çok derse yayılıyor ==`);
+    console.log('  Gösterim ders bazlı not yoksa tekil alana düşer; tek bir');
+    console.log('  değer, notu hiç girilmemiş dersleri de dolu gösterir.');
+    sizintililar.forEach((x) => {
+      console.log(`  ! ${x.kim}`);
+      x.sizinti.forEach((d) => console.log(`      ${d}`));
+    });
+  }
+
   if (korunanlar.length && !elleDeSil) {
-    console.log('\n  Bu notlar elle girilmiş görünüyor; betik onlara DOKUNMAZ.');
+    console.log('\n  Korunan notlar elle girilmiş görünüyor; betik onlara DOKUNMAZ.');
     console.log('  Listeye bakıp bunların da sahte olduğuna karar verirseniz:');
     console.log('    ELLE_GIRILENLERI_DE_SIL=1 node server/erasmus-sahte-not-temizle.js');
   }
