@@ -4213,6 +4213,9 @@ const TemplateEngine = (() => {
   async function produceGridXlsx(opts) {
     const token = localStorage.getItem('caku_auth_token');
     const headers = token ? { Authorization: 'Bearer ' + token } : {};
+    // Sunucu, şablon bulamadığında NEDEN bulamadığını da bildirir (`tani`);
+    // istemci bunu kullanıcıya aktarır. Bkz. routes/templates.js → /resolve.
+    let sonTani = null;
     const tryResolve = async (dep) => {
       try {
         const r = await fetch(
@@ -4225,6 +4228,7 @@ const TemplateEngine = (() => {
           { headers, credentials: 'include' }
         );
         const d = await r.json().catch(() => ({}));
+        if (!d.template && d.tani) sonTani = d.tani;
         return d.template || null;
       } catch (_) {
         return null;
@@ -4232,9 +4236,9 @@ const TemplateEngine = (() => {
     };
     let tpl = await tryResolve(opts.departmentId || '');
     if (!tpl && opts.departmentId) tpl = await tryResolve('');
-    if (!tpl) return { ok: false, reason: 'no-template' };
+    if (!tpl) return { ok: false, reason: 'no-template', tani: sonTani };
     if (!tpl.file || !/^xlsx?$/.test(tpl.file.extension || '')) {
-      return { ok: false, reason: 'not-xlsx' };
+      return { ok: false, reason: 'not-xlsx', uzanti: (tpl.file && tpl.file.extension) || '' };
     }
 
     let buf;
