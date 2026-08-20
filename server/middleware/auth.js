@@ -1,5 +1,4 @@
 const jwt = require('jsonwebtoken');
-const OTURUM = require('../lib/oturum-damgasi');
 
 // Üretimde JWT_SECRET zorunlu — dev'de fallback (mevcut davranışla uyumlu).
 const DEV_FALLBACK_SECRET = 'caku-erasmus-dev-secret-key';
@@ -76,16 +75,6 @@ function requireAuth(req, res, next) {
 
   try {
     const decoded = verifyToken(token);
-    // Sıfırlama jetonu OTURUM jetonu değildir; aynı anahtarla imzalansa da
-    // yalnız şifre belirlemeye yetkilidir (bkz. lib/oturum-damgasi.js).
-    if (!OTURUM.oturumJetonuMu(decoded)) {
-      return res.status(401).json({ error: 'Geçersiz token.' });
-    }
-    // Şifre değiştikten ÖNCE verilmiş jeton kabul edilmez: sıfırlama, ele
-    // geçirilmiş oturumu da kapatmalıdır.
-    if (OTURUM.eskimisMi(decoded)) {
-      return res.status(401).json({ error: 'Şifreniz değişti, lütfen yeniden giriş yapın.' });
-    }
     req.user = decoded;
     next();
   } catch (err) {
