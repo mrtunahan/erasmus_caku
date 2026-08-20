@@ -39,6 +39,13 @@ import {
 import { bolumleriBirlestir as bolumleriBirlestirCoz } from './lib/bolum-birlestir.js';
 import { akademisyenBolumdeMi } from './lib/akademisyen-bolum.js';
 import { bolumleriFakulteyeGrupla, baslikGosterilsinMi } from './lib/bolum-gruplama.js';
+import {
+  NOT_SISTEMLERI,
+  dersDegisikligi,
+  eslesmeHarfNotu,
+  kodAnahtari as erasmusKodAnahtari,
+  transkriptEslestir,
+} from './lib/erasmus-not.js';
 import { basvuruBolumId, basvuruBolumdeMi, sahipsizBasvurular } from './lib/yatay-kapsam.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
@@ -11672,6 +11679,304 @@ window.Badge = Badge;
 window.SEED_PROFESSORS = SEED_PROFESSORS;
 window.LoginModal = LoginModal;
 window.PasswordManagementModal = PasswordManagementModal;
+// ══════════════════════════════════════════════════════════════
+// ERASMUS DÖNÜŞÜ — TRANSKRİPT VE HARF NOTU PANELİ
+//
+// Dönüş aşamasında iki taraf var ve yetkileri farklı:
+//
+//   ÖĞRENCİ  transkriptindeki HAM notları satır satır yazar ve transkript
+//            dosyasını kanıt olarak ekler. Harf notuna DOKUNAMAZ — ne bu
+//            arayüzde bir alan vardır ne de sunucu öğrenciden gelen not
+//            alanlarını kabul eder (routes/db.js → STUDENT_SELF_PROTECTED).
+//
+//   AKADEMİSYEN kurumun not sistemini seçer, hesaplanan harf notlarını
+//            kanıt dosyasıyla karşılaştırıp onaylar. Ders değişikliği ve
+//            transkript uyuşmazlıkları burada uyarı olarak çıkar.
+//
+// Kurallar lib/erasmus-not.js'te, test altında. Bu bileşen yalnız gösterir
+// ve toplar; hiçbir not kararı burada verilmez.
+// ══════════════════════════════════════════════════════════════
+function ErasmusDonusNotPaneli({
+  ogrenci,
+  akademisyenMi,
+  salt,
+  notSistemi,
+  onOgrenciDegisti,
+  onNotSistemi,
+  onNotlariOnayla,
+}) {
+  const gidis = (ogrenci && ogrenci.outgoingMatches) || [];
+  const donus = (ogrenci && ogrenci.returnMatches) || [];
+  const transkript = (ogrenci && ogrenci.erasmusTranskript) || [];
+  const dosya = (ogrenci && ogrenci.erasmusTranskriptDosya) || null;
+
+  // Dönüşteki karşı kurum dersleri — transkript satırları bunlardan üretilir,
+  // öğrenci listeyi kendi kafasına göre uzatamaz.
+  const dersler = useMemo(() => {
+    const gorulen = new Map();
+    donus.forEach((m) =>
+      ((m && m.hostCourses) || []).forEach((c) => {
+        const k = erasmusKodAnahtari(c && c.code);
+        if (k && !gorulen.has(k)) gorulen.set(k, { anahtar: k, kod: c.code, ad: c.name || '' });
+      })
+    );
+    return [...gorulen.values()];
+  }, [donus]);
+
+  const degisiklik = useMemo(() => dersDegisikligi(gidis, donus), [gidis, donus]);
+  const eslestirme = useMemo(() => transkriptEslestir(transkript, donus), [transkript, donus]);
+  const harfler = useMemo(
+    () =>
+      donus.map((m) => ({
+        id: m.id,
+        dersler: ((m && m.hostCourses) || []).map((c) => c.code).join(' + '),
+        karsilik: ((m && m.homeCourses) || []).map((c) => c.code).join(' + '),
+        sonuc: eslesmeHarfNotu(m, eslestirme.eslesen, notSistemi),
+      })),
+    [donus, eslestirme, notSistemi]
+  );
+
+  const notYaz = (anahtar, deger) => {
+    const kalan = transkript.filter((r) => erasmusKodAnahtari(r.kod) !== anahtar);
+    const ders = dersler.find((d) => d.anahtar === anahtar);
+    onOgrenciDegisti({
+      erasmusTranskript: deger
+        ? [...kalan, { kod: (ders && ders.kod) || anahtar, not: deger }]
+        : kalan,
+    });
+  };
+  const notOku = (anahtar) => {
+    const r = transkript.find((x) => erasmusKodAnahtari(x.kod) === anahtar);
+    return r ? r.not : '';
+  };
+
+  const kutu = {
+    background: C.card,
+    border: '1px solid ' + C.border,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  };
+  const uyariKutusu = {
+    ...kutu,
+    background: '#FEF3C7',
+    border: '1px solid #FDE68A',
+    color: '#92400E',
+  };
+
+  return (
+    <div>
+      {/* ── DERS DEĞİŞİKLİĞİ ──
+          İmzalanan gidiş anlaşmasından sapma. Akademisyen için kritik; öğrenci
+          de kendi yazdığının fark edildiğini görsün diye herkese gösterilir. */}
+      {degisiklik.degisti && (
+        <div style={uyariKutusu}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>Gidiş anlaşmasından sapma var</div>
+          {degisiklik.yeni.length > 0 && (
+            <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+              Anlaşmada olmayan, dönüşte eklenen ders: <b>{degisiklik.yeni.join(', ')}</b>
+            </div>
+          )}
+          {degisiklik.dusen.length > 0 && (
+            <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+              Anlaşmada olup dönüşte bulunmayan ders: <b>{degisiklik.dusen.join(', ')}</b>
+            </div>
+          )}
+          {akademisyenMi && (
+            <div style={{ fontSize: 12, marginTop: 8, opacity: 0.9 }}>
+              Onaylamadan önce değişikliğin gerekçesini öğrenciyle teyit edin.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TRANSKRİPT ── */}
+      <div style={kutu}>
+        <div style={{ fontWeight: 700, color: C.navy, marginBottom: 4 }}>Transkript</div>
+        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12, lineHeight: 1.5 }}>
+          Karşı kurumun transkriptindeki notu <b>aynen</b> yazın; çeviriyi sistem yapar. Aşağıdaki
+          dersler dönüş eşleştirmelerinizden gelir.
+        </div>
+
+        {dersler.length === 0 ? (
+          <div style={{ fontSize: 13, color: C.textMuted }}>
+            Önce dönüş eşleştirmesi ekleyin; dersler burada listelenecek.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {dersler.map((d) => (
+              <div
+                key={d.anahtar}
+                style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}
+              >
+                <div style={{ flex: '1 1 240px', fontSize: 13 }}>
+                  <b>{d.kod}</b>
+                  {d.ad ? ' — ' + d.ad : ''}
+                </div>
+                <input
+                  value={notOku(d.anahtar)}
+                  onChange={(e) => notYaz(d.anahtar, e.target.value)}
+                  disabled={salt}
+                  placeholder="Transkriptteki not"
+                  style={{
+                    width: 160,
+                    padding: '7px 10px',
+                    border: '1px solid ' + C.border,
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontFamily: 'inherit',
+                    background: salt ? '#F3F4F6' : C.card,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ marginTop: 12, fontSize: 12, color: C.textMuted }}>
+          Transkript dosyası (kanıt):{' '}
+          {dosya && dosya.url ? (
+            <a href={dosya.url} target="_blank" rel="noreferrer" style={{ color: C.blue }}>
+              {dosya.name || 'transkript'}
+            </a>
+          ) : (
+            <span>yüklenmedi</span>
+          )}
+        </div>
+        {!salt && (
+          <input
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg"
+            onChange={(e) => {
+              const f = e.target.files && e.target.files[0];
+              if (!f) return;
+              // Dosya, mevcut belge yükleme altyapısıyla saklanır (File zaten
+              // bir Blob'dur); burada yalnız adı ve adresi kayda geçer.
+              window
+                .uploadGeneratedDoc(f, f.name, 'erasmus_transkript')
+                .then((url) => {
+                  if (!url) throw new Error('adres alınamadı');
+                  onOgrenciDegisti({ erasmusTranskriptDosya: { url, name: f.name } });
+                })
+                .catch((hata) =>
+                  alert('Transkript yüklenemedi: ' + ((hata && hata.message) || 'bilinmeyen hata'))
+                );
+            }}
+            style={{ marginTop: 6, fontSize: 12 }}
+          />
+        )}
+
+        {eslestirme.transkriptteFazla.length > 0 && (
+          <div style={{ fontSize: 12, color: '#92400E', marginTop: 10 }}>
+            Transkriptte olup eşleştirmelerde bulunmayan kod:{' '}
+            <b>{eslestirme.transkriptteFazla.join(', ')}</b>
+          </div>
+        )}
+      </div>
+
+      {/* ── HARF NOTU ──
+          Hesaplanır, elle girilmez. Öğrenci de görür (şeffaflık) ama
+          değiştiremez; sunucu da öğrenciden gelen not alanlarını kabul etmez. */}
+      <div style={kutu}>
+        <div style={{ fontWeight: 700, color: C.navy, marginBottom: 4 }}>Harf notu</div>
+        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12, lineHeight: 1.5 }}>
+          Not, kurumun not sistemine göre çeviri tablosundan hesaplanır. Elle değiştirilemez.
+        </div>
+
+        {akademisyenMi ? (
+          <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 13 }}>Kurumun not sistemi:</span>
+            <select
+              value={notSistemi || ''}
+              onChange={(e) => onNotSistemi(e.target.value)}
+              style={{
+                padding: '7px 10px',
+                border: '1px solid ' + C.border,
+                borderRadius: 8,
+                fontSize: 13,
+                fontFamily: 'inherit',
+              }}
+            >
+              <option value="">— seçin —</option>
+              {NOT_SISTEMLERI.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.ad}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          !notSistemi && (
+            <div style={{ fontSize: 12, color: '#92400E', marginBottom: 10 }}>
+              Kurumun not sistemi henüz tanımlanmadı; notunuz akademisyen tanımladıktan sonra
+              hesaplanacak.
+            </div>
+          )
+        )}
+
+        {harfler.length === 0 ? (
+          <div style={{ fontSize: 13, color: C.textMuted }}>Dönüş eşleştirmesi yok.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {harfler.map((h) => (
+              <div
+                key={h.id}
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  fontSize: 13,
+                  padding: '6px 0',
+                  borderBottom: '1px solid ' + C.borderLight,
+                }}
+              >
+                <span style={{ flex: '1 1 260px' }}>
+                  {h.dersler || '(karşı kurum dersi yok)'}
+                  {h.karsilik ? ' → ' + h.karsilik : ''}
+                </span>
+                {h.sonuc.ok ? (
+                  <b style={{ color: C.green, fontSize: 15 }}>{h.sonuc.harf}</b>
+                ) : (
+                  <span style={{ color: '#92400E', fontSize: 12 }}>belirsiz — {h.sonuc.sebep}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {akademisyenMi && (
+          <button
+            type="button"
+            onClick={() => onNotlariOnayla(harfler)}
+            disabled={harfler.length === 0 || harfler.some((h) => !h.sonuc.ok)}
+            title={
+              harfler.some((h) => !h.sonuc.ok)
+                ? 'Belirsiz not varken onaylanamaz'
+                : 'Hesaplanan notları kayda geçir'
+            }
+            style={{
+              marginTop: 12,
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: harfler.some((h) => !h.sonuc.ok) ? '#D1D5DB' : C.green,
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              cursor: harfler.some((h) => !h.sonuc.ok) ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Notları onayla
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+window.ErasmusDonusNotPaneli = ErasmusDonusNotPaneli;
+
 window.GradeConverter = GradeConverter;
 window.ChangePasswordModal = ChangePasswordModal;
 

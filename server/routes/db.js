@@ -380,6 +380,16 @@ const STUDENT_SELF_PROTECTED = new Set([
   '_docId',
   'createdAt',
   'registeredVia',
+  // ── ERASMUS DÖNÜŞ NOTU ──
+  // Harf notu HESAPLANIR (lib/erasmus-not.js), elle girilmez; öğrencinin
+  // yazabildiği tek şey transkriptteki HAM nottur. Bu alanlar istemciden
+  // gelirse sessizce düşürülür — arayüzü atlayan bir istek kendi notunu
+  // yazamasın. Kararı veren akademisyenin kimliği de öğrenciye kapalıdır.
+  'erasmusHarfNotlari',
+  'erasmusNotOnayi',
+  'erasmusNotOnaylayan',
+  'erasmusNotOnayTarihi',
+  'erasmusNotSistemi',
 ]);
 
 // Öğrenci sahiplik alanları — mevcut dokümanda bunlardan biri doluysa
