@@ -26,6 +26,82 @@ const SB_MODULES = [
   { id: 'akreditasyon', label: 'Akreditasyon', color: '#0F766E' },
   { id: 'anket', label: 'Anketler', color: '#06B6D4' },
 ];
+// ══════════════════════════════════════════════════════════════
+// GÖRÜNÜM BELİRTECLERİ
+//
+// Modül boyunca aynı gri, aynı kenarlık, aynı köşe yarıçapı onlarca yerde
+// elle yazılıydı (~90 renk kodu, 76 satır içi stil nesnesi). Bir rengi
+// değiştirmek dosyayı taramak demekti ve aynı işi gören iki öğe farklı
+// tonlarda kalıyordu. Diğer modüllerdeki (YG, ANK, DS) düzenle aynı: renk ve
+// ölçü TEK yerde tanımlanır, bileşenler buradan okur.
+// ══════════════════════════════════════════════════════════════
+const SB = {
+  baslik: '#111827',
+  metin: '#1F2937',
+  soluk: '#6B7280',
+  soluk2: '#9CA3AF',
+  koyu: '#374151',
+  kenar: '#E5E7EB',
+  kenarGiris: '#D1D5DB',
+  yuzey: '#FFFFFF',
+  yuzey2: '#F9FAFB',
+  cipZemin: '#F1F5F9',
+  cipMetin: '#475569',
+  yaricap: 12,
+  yaricapKucuk: 8,
+};
+
+// Durum bildirimi renkleri — tek sözlük, üç durum.
+const SB_MESAJ = {
+  error: { bg: '#FEE2E2', fg: '#991B1B', bd: '#FECACA' },
+  ok: { bg: '#DCFCE7', fg: '#166534', bd: '#BBF7D0' },
+  info: { bg: '#EFF6FF', fg: '#1E40AF', bd: '#DBEAFE' },
+};
+
+// Eşleme durumu: eşlenmiş (mor) / eşlenmemiş (amber).
+// Kart aksiyonlarının renkleri — her eylem kendi anlamıyla anılsın, çağrı
+// yerinde çıplak renk kodu durmasın.
+const SB_EYLEM = {
+  duzenle: ['#0F766E', '#CCFBF1'],
+  indir: ['#15803D', '#DCFCE7'],
+  varsayilan: ['#B45309', '#FEF3C7'],
+  aktif: ['#1E40AF', '#DBEAFE'],
+  sil: ['#DC2626', '#FEE2E2'],
+  notr: ['#6B7280', '#F3F4F6'],
+};
+
+const SB_ESLEME = {
+  var: { bg: '#EDE9FE', fg: '#6D28D9', bd: '#DDD6FE', btnFg: '#7C3AED' },
+  yok: { bg: '#FEF3C7', fg: '#92400E', bd: '#FDE68A', btnFg: '#B45309' },
+};
+
+const sbKart = {
+  background: SB.yuzey,
+  border: '1px solid ' + SB.kenar,
+  borderRadius: SB.yaricap,
+  padding: 16,
+};
+
+const sbGiris = {
+  padding: '8px 12px',
+  border: '1px solid ' + SB.kenarGiris,
+  borderRadius: SB.yaricapKucuk,
+  fontSize: 13,
+  fontFamily: 'inherit',
+};
+
+/** Yuvarlak rozet — modül etiketi, kapsam, durum. */
+function sbRozet(zemin, yazi, kalin = 700) {
+  return {
+    fontSize: 10.5,
+    fontWeight: kalin,
+    padding: '2px 9px',
+    borderRadius: 999,
+    background: zemin,
+    color: yazi,
+  };
+}
+
 // Bir modülün belge türleri (shared TEMPLATE_VARS'tan)
 function docTypesOf(moduleId) {
   return typeof window !== 'undefined' && window.templateDocTypes
@@ -67,7 +143,7 @@ function fmtDate(d) {
   }
 }
 function moduleMeta(id) {
-  return SB_MODULES.find((m) => m.id === id) || { id, label: id, color: '#6B7280' };
+  return SB_MODULES.find((m) => m.id === id) || { id, label: id, color: SB.soluk };
 }
 
 function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
@@ -175,7 +251,7 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
         <h2 style={{ color: '#DC2626', fontSize: 20, marginBottom: 8 }}>Erişim Reddedildi</h2>
-        <p style={{ color: '#6B7280' }}>
+        <p style={{ color: SB.soluk }}>
           Şablonlar modülüne yalnızca bölüm/fakülte/üniversite yetkilileri erişebilir.
         </p>
       </div>
@@ -192,7 +268,7 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
     <div
       style={{
         fontFamily: "'Inter', sans-serif",
-        color: '#1F2937',
+        color: SB.metin,
         maxWidth: 1400,
         margin: '0 auto',
         padding: '0 4px 40px',
@@ -210,31 +286,14 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
         }}
       >
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Şablonlar</h2>
-          <p style={{ fontSize: 13, color: '#6B7280', margin: '4px 0 0' }}>{scopeHint}</p>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: SB.baslik }}>Şablonlar</h2>
+          <p style={{ fontSize: 13, color: SB.soluk, margin: '4px 0 0' }}>{scopeHint}</p>
         </div>
         <SB_Btn onClick={() => setShowAdd(true)}>+ Yeni Şablon Ekle</SB_Btn>
       </div>
 
       {/* Mesaj */}
-      {msg.text && (
-        <div
-          style={{
-            background:
-              msg.kind === 'error' ? '#FEE2E2' : msg.kind === 'ok' ? '#DCFCE7' : '#EFF6FF',
-            color: msg.kind === 'error' ? '#991B1B' : msg.kind === 'ok' ? '#166534' : '#1E40AF',
-            padding: '8px 14px',
-            borderRadius: 8,
-            fontSize: 13,
-            marginBottom: 12,
-            border:
-              '1px solid ' +
-              (msg.kind === 'error' ? '#FECACA' : msg.kind === 'ok' ? '#BBF7D0' : '#DBEAFE'),
-          }}
-        >
-          {msg.text}
-        </div>
-      )}
+      {msg.text && <DurumMesaji text={msg.text} kind={msg.kind} />}
 
       {/* ── DERS PROGRAMI YÜKLEME ALANLARI ──
           Ders programı modülünün DÖRT çıktısı var ve her biri ayrı bir belge:
@@ -248,295 +307,35 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
         onDuzenle={(tpl) => setEditTpl(tpl)}
       />
 
-      {/* Filtre */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          alignItems: 'center',
-          marginBottom: 12,
-          flexWrap: 'wrap',
-        }}
-      >
-        <select
-          value={filter.module}
-          onChange={(e) => setFilter({ ...filter, module: e.target.value })}
-          style={{
-            padding: '8px 10px',
-            border: '1px solid #D1D5DB',
-            borderRadius: 8,
-            fontSize: 13,
-            background: 'white',
-          }}
-        >
-          <option value="all">Tüm Modüller</option>
-          {SB_MODULES.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-        <input
-          value={filter.search}
-          onChange={(e) => setFilter({ ...filter, search: e.target.value })}
-          placeholder="Şablon ara..."
-          style={{
-            flex: 1,
-            minWidth: 180,
-            padding: '8px 12px',
-            border: '1px solid #D1D5DB',
-            borderRadius: 8,
-            fontSize: 13,
-          }}
-        />
-        <div style={{ fontSize: 12, color: '#6B7280' }}>{filtered.length} şablon</div>
-      </div>
+      <SablonSuzgeci filter={filter} onChange={setFilter} sayi={filtered.length} />
 
       {/* Liste */}
       {loading ? (
-        <p style={{ padding: 24, textAlign: 'center', color: '#6B7280' }}>Yükleniyor…</p>
+        <p style={{ padding: 24, textAlign: 'center', color: SB.soluk }}>Yükleniyor…</p>
       ) : filtered.length === 0 ? (
         <div
           style={{
-            background: 'white',
-            border: '1px dashed #D1D5DB',
-            borderRadius: 12,
+            ...sbKart,
+            border: '1px dashed ' + SB.kenarGiris,
             padding: '40px 24px',
             textAlign: 'center',
-            color: '#6B7280',
+            color: SB.soluk,
           }}
         >
           Henüz bir şablon eklenmedi. Yukarıdaki butonla başlayın.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {filtered.map((t) => {
-            const m = moduleMeta(t.module);
-            const isDocx = sbEslenebilir(t.file);
-            const mappedCount = (t.fields || []).filter((f) => f.variable).length;
-            const hasMapping = mappedCount > 0;
-            return (
-              <div
-                key={t._id}
-                style={{
-                  background: 'white',
-                  border: '1px solid #E5E7EB',
-                  borderLeft: '4px solid ' + m.color,
-                  borderRadius: 12,
-                  padding: 16,
-                  opacity: t.isActive ? 1 : 0.72,
-                }}
-              >
-                {/* Üst satır: başlık + rozetler */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 15.5, fontWeight: 700, color: '#111827' }}>
-                    {t.name}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 10.5,
-                      fontWeight: 700,
-                      padding: '2px 9px',
-                      borderRadius: 999,
-                      background: m.color + '18',
-                      color: m.color,
-                    }}
-                  >
-                    {m.label}
-                  </span>
-                  {docTypesOf(t.module).length > 1 && (
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 700,
-                        padding: '2px 9px',
-                        borderRadius: 999,
-                        background: '#EEF2FF',
-                        color: '#4338CA',
-                      }}
-                    >
-                      {docTypeLabel(t.module, t.docType)}
-                    </span>
-                  )}
-                  <span
-                    style={{
-                      fontSize: 10.5,
-                      fontWeight: 600,
-                      padding: '2px 9px',
-                      borderRadius: 999,
-                      background: '#F1F5F9',
-                      color: '#475569',
-                    }}
-                  >
-                    {SB_SCOPE_LABEL[t.scope] || t.scope}
-                  </span>
-                  {t.isDefault && (
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 700,
-                        padding: '2px 9px',
-                        borderRadius: 999,
-                        background: '#FEF3C7',
-                        color: '#92400E',
-                      }}
-                    >
-                      ★ VARSAYILAN
-                    </span>
-                  )}
-                  {!t.isActive && (
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 700,
-                        padding: '2px 9px',
-                        borderRadius: 999,
-                        background: '#E5E7EB',
-                        color: '#374151',
-                      }}
-                    >
-                      PASİF
-                    </span>
-                  )}
-                </div>
-
-                {t.description && (
-                  <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 5 }}>
-                    {t.description}
-                  </div>
-                )}
-
-                {/* Dosya + meta satırı */}
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: '#6B7280',
-                    marginTop: 8,
-                    display: 'flex',
-                    gap: 8,
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  {t.file && (
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        background: '#F9FAFB',
-                        border: '1px solid #E5E7EB',
-                        borderRadius: 7,
-                        padding: '4px 10px',
-                        maxWidth: '100%',
-                      }}
-                    >
-                      <span>📄</span>
-                      <span
-                        style={{
-                          maxWidth: 340,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          fontWeight: 600,
-                          color: '#374151',
-                        }}
-                        title={t.file.originalName}
-                      >
-                        {t.file.originalName}
-                      </span>
-                      <span style={{ color: '#9CA3AF' }}>
-                        {(t.file.extension || '').toUpperCase()} · {fmtBytes(t.file.size)}
-                      </span>
-                    </span>
-                  )}
-                  <span style={{ color: '#9CA3AF' }}>
-                    {fmtDate(t.createdAt)}
-                    {t.createdByName ? ' · ' + t.createdByName : ''}
-                  </span>
-                </div>
-
-                {/* Eşleme durum şeridi (.docx ve .xlsx) */}
-                {isDocx && (
-                  <div
-                    style={{
-                      marginTop: 10,
-                      padding: '8px 12px',
-                      borderRadius: 8,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      background: hasMapping ? '#EDE9FE' : '#FEF3C7',
-                      color: hasMapping ? '#6D28D9' : '#92400E',
-                      border: '1px solid ' + (hasMapping ? '#DDD6FE' : '#FDE68A'),
-                    }}
-                  >
-                    <span>{hasMapping ? '🧩' : '⚠️'}</span>
-                    <span>
-                      {hasMapping
-                        ? mappedCount + ' anahtar alan eşlendi — belge üretimine hazır'
-                        : 'Anahtar alanlar henüz eşlenmedi. Çıktı üretmek için eşleme gerekli.'}
-                    </span>
-                  </div>
-                )}
-
-                {/* Aksiyon butonları — etiketli */}
-                <div
-                  style={{
-                    marginTop: 12,
-                    display: 'flex',
-                    gap: 8,
-                    flexWrap: 'wrap',
-                    justifyContent: 'flex-end',
-                  }}
-                >
-                  {isDocx && (
-                    <button
-                      onClick={() => setMapping({ tpl: t, file: null })}
-                      style={textBtn(
-                        hasMapping ? '#7C3AED' : '#B45309',
-                        hasMapping ? '#EDE9FE' : '#FEF3C7'
-                      )}
-                    >
-                      🧩 {hasMapping ? 'Eşlemeyi Düzenle' : 'Alanları Eşle'}
-                    </button>
-                  )}
-                  <button onClick={() => setEditTpl(t)} style={textBtn('#0F766E', '#CCFBF1')}>
-                    ✏️ Düzenle
-                  </button>
-                  <a
-                    href={'/api/templates/' + t._id + '/download'}
-                    style={{ ...textBtn('#15803D', '#DCFCE7'), textDecoration: 'none' }}
-                  >
-                    ⬇ İndir
-                  </a>
-                  <button
-                    onClick={() => handleToggle(t, 'isDefault')}
-                    style={textBtn(
-                      t.isDefault ? '#B45309' : '#6B7280',
-                      t.isDefault ? '#FEF3C7' : '#F3F4F6'
-                    )}
-                  >
-                    ★ {t.isDefault ? 'Varsayılanı Kaldır' : 'Varsayılan Yap'}
-                  </button>
-                  <button
-                    onClick={() => handleToggle(t, 'isActive')}
-                    style={textBtn(
-                      t.isActive ? '#1E40AF' : '#6B7280',
-                      t.isActive ? '#DBEAFE' : '#F3F4F6'
-                    )}
-                  >
-                    {t.isActive ? '✓ Aktif' : '○ Pasif'}
-                  </button>
-                  <button onClick={() => handleDelete(t)} style={textBtn('#DC2626', '#FEE2E2')}>
-                    ✕ Sil
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+          {filtered.map((t) => (
+            <SablonKarti
+              key={t._id}
+              tpl={t}
+              onEsle={() => setMapping({ tpl: t, file: null })}
+              onDuzenle={() => setEditTpl(t)}
+              onDegistir={(alan) => handleToggle(t, alan)}
+              onSil={() => handleDelete(t)}
+            />
+          ))}
         </div>
       )}
 
@@ -604,6 +403,221 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/** Kısa süreli durum bildirimi (hata / başarı / bilgi). */
+function DurumMesaji({ text, kind }) {
+  const c = SB_MESAJ[kind] || SB_MESAJ.info;
+  return (
+    <div
+      style={{
+        background: c.bg,
+        color: c.fg,
+        border: '1px solid ' + c.bd,
+        padding: '8px 14px',
+        borderRadius: SB.yaricapKucuk,
+        fontSize: 13,
+        marginBottom: 12,
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
+/** Modüle göre daraltma + serbest arama. */
+function SablonSuzgeci({ filter, onChange, sayi }) {
+  return (
+    <div
+      style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}
+    >
+      <select
+        value={filter.module}
+        onChange={(e) => onChange({ ...filter, module: e.target.value })}
+        style={{ ...sbGiris, padding: '8px 10px', background: SB.yuzey, cursor: 'pointer' }}
+      >
+        <option value="all">Tüm Modüller</option>
+        {SB_MODULES.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+      <input
+        value={filter.search}
+        onChange={(e) => onChange({ ...filter, search: e.target.value })}
+        placeholder="Şablon ara..."
+        style={{ ...sbGiris, flex: 1, minWidth: 180 }}
+      />
+      <div style={{ fontSize: 12, color: SB.soluk }}>{sayi} şablon</div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// TEK ŞABLON KARTI
+//
+// Ana bileşenin içinde 280 satırlık satır içi JSX olarak duruyordu; kartın
+// neye benzediğini görmek için listeleme, süzgeç ve modal mantığının arasından
+// geçmek gerekiyordu. Kart kendi başına bir şey: bir şablonun kimliği,
+// dosyası, eşleme durumu ve üzerinde yapılabilecekler.
+//
+// Eylemler geri çağrı olarak alınır — kart neyin nasıl yapıldığını bilmez,
+// yalnız hangi eylemin istendiğini bildirir.
+// ══════════════════════════════════════════════════════════════
+function SablonKarti({ tpl, onEsle, onDuzenle, onDegistir, onSil }) {
+  const m = moduleMeta(tpl.module);
+  const eslenebilir = sbEslenebilir(tpl.file);
+  const eslenenSayisi = (tpl.fields || []).filter((f) => f.variable).length;
+  const esleme = eslenenSayisi > 0 ? SB_ESLEME.var : SB_ESLEME.yok;
+
+  return (
+    <div
+      style={{
+        ...sbKart,
+        borderLeft: '4px solid ' + m.color,
+        opacity: tpl.isActive ? 1 : 0.72,
+      }}
+    >
+      {/* Üst satır: başlık + rozetler */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 15.5, fontWeight: 700, color: SB.baslik }}>{tpl.name}</span>
+        <span style={sbRozet(m.color + '18', m.color)}>{m.label}</span>
+        {/* Belge türü rozeti yalnız çok türlü modüllerde anlamlı. */}
+        {docTypesOf(tpl.module).length > 1 && (
+          <span style={sbRozet('#EEF2FF', '#4338CA')}>{docTypeLabel(tpl.module, tpl.docType)}</span>
+        )}
+        <span style={sbRozet(SB.cipZemin, SB.cipMetin, 600)}>
+          {SB_SCOPE_LABEL[tpl.scope] || tpl.scope}
+        </span>
+        {tpl.isDefault && <span style={sbRozet('#FEF3C7', '#92400E')}>★ VARSAYILAN</span>}
+        {!tpl.isActive && <span style={sbRozet(SB.kenar, SB.koyu)}>PASİF</span>}
+      </div>
+
+      {tpl.description && (
+        <div style={{ fontSize: 12.5, color: SB.soluk, marginTop: 5 }}>{tpl.description}</div>
+      )}
+
+      {/* Dosya + meta satırı */}
+      <div
+        style={{
+          fontSize: 12,
+          color: SB.soluk,
+          marginTop: 8,
+          display: 'flex',
+          gap: 8,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
+        {tpl.file && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: SB.yuzey2,
+              border: '1px solid ' + SB.kenar,
+              borderRadius: 7,
+              padding: '4px 10px',
+              maxWidth: '100%',
+            }}
+          >
+            <span>📄</span>
+            <span
+              style={{
+                maxWidth: 340,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                fontWeight: 600,
+                color: SB.koyu,
+              }}
+              title={tpl.file.originalName}
+            >
+              {tpl.file.originalName}
+            </span>
+            <span style={{ color: SB.soluk2 }}>
+              {(tpl.file.extension || '').toUpperCase()} · {fmtBytes(tpl.file.size)}
+            </span>
+          </span>
+        )}
+        <span style={{ color: SB.soluk2 }}>
+          {fmtDate(tpl.createdAt)}
+          {tpl.createdByName ? ' · ' + tpl.createdByName : ''}
+        </span>
+      </div>
+
+      {/* Eşleme durum şeridi — yalnız doldurulabilir dosyalarda (.docx/.xlsx).
+          Eşleme yoksa şablon yüklü olsa bile çıktı üretilemez; bu yüzden
+          kartın üzerinde duruyor, aksiyonların arasında kaybolmuyor. */}
+      {eslenebilir && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: '8px 12px',
+            borderRadius: SB.yaricapKucuk,
+            fontSize: 12,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: esleme.bg,
+            color: esleme.fg,
+            border: '1px solid ' + esleme.bd,
+          }}
+        >
+          <span>{eslenenSayisi > 0 ? '🧩' : '⚠️'}</span>
+          <span>
+            {eslenenSayisi > 0
+              ? eslenenSayisi + ' anahtar alan eşlendi — belge üretimine hazır'
+              : 'Anahtar alanlar henüz eşlenmedi. Çıktı üretmek için eşleme gerekli.'}
+          </span>
+        </div>
+      )}
+
+      {/* Aksiyonlar */}
+      <div
+        style={{
+          marginTop: 12,
+          display: 'flex',
+          gap: 8,
+          flexWrap: 'wrap',
+          justifyContent: 'flex-end',
+        }}
+      >
+        {eslenebilir && (
+          <button onClick={onEsle} style={textBtn(esleme.btnFg, esleme.bg)}>
+            🧩 {eslenenSayisi > 0 ? 'Eşlemeyi Düzenle' : 'Alanları Eşle'}
+          </button>
+        )}
+        <button onClick={onDuzenle} style={textBtn(...SB_EYLEM.duzenle)}>
+          ✏️ Düzenle
+        </button>
+        <a
+          href={'/api/templates/' + tpl._id + '/download'}
+          style={{ ...textBtn(...SB_EYLEM.indir), textDecoration: 'none' }}
+        >
+          ⬇ İndir
+        </a>
+        <button
+          onClick={() => onDegistir('isDefault')}
+          style={textBtn(...(tpl.isDefault ? SB_EYLEM.varsayilan : SB_EYLEM.notr))}
+        >
+          ★ {tpl.isDefault ? 'Varsayılanı Kaldır' : 'Varsayılan Yap'}
+        </button>
+        <button
+          onClick={() => onDegistir('isActive')}
+          style={textBtn(...(tpl.isActive ? SB_EYLEM.aktif : SB_EYLEM.notr))}
+        >
+          {tpl.isActive ? '✓ Aktif' : '○ Pasif'}
+        </button>
+        <button onClick={onSil} style={textBtn(...SB_EYLEM.sil)}>
+          ✕ Sil
+        </button>
+      </div>
     </div>
   );
 }
@@ -685,14 +699,40 @@ const DP_SABLON_ALANLARI = [
   },
 ];
 
+// Kapsam önceliği: EN ÖZEL kazanır. Sunucudaki çözüm (`/api/templates/resolve`)
+// bölüm → fakülte → üniversite sırasıyla arar ve ilk bulduğunu kullanır.
+const SB_KAPSAM_ONCELIK = { department: 0, faculty: 1, university: 2 };
+
+/**
+ * Bir belge türü için GERÇEKTEN kullanılacak şablon.
+ *
+ * Bu panel eskiden listeden gelen İLK kaydı alıyordu; liste ise güncellenme
+ * tarihine göre sıralı. Bölümün kendi şablonu varken üniversite şablonu daha
+ * yeni güncellenmişse panel onu "yüklü" gösteriyor, modül ise bölümünkini
+ * kullanıyordu — gösterilen ile kullanılan farklı olabiliyordu.
+ * Sıralama artık sunucudaki çözümle aynı: önce kapsam özgüllüğü, sonra
+ * varsayılan işareti, sonra güncellik.
+ */
+function sbEtkinSablon(adaylar) {
+  return (adaylar || []).slice().sort((a, b) => {
+    const ka = SB_KAPSAM_ONCELIK[a.scope] ?? 9;
+    const kb = SB_KAPSAM_ONCELIK[b.scope] ?? 9;
+    if (ka !== kb) return ka - kb;
+    if (!!b.isDefault !== !!a.isDefault) return b.isDefault ? 1 : -1;
+    return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+  })[0];
+}
+
 function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
-  const yuklu = {};
+  const adaylar = {};
   (templates || []).forEach((t) => {
     if (t && t.module === 'dersprogrami' && t.isActive !== false) {
       const d = t.docType || 'default';
-      if (!yuklu[d]) yuklu[d] = t;
+      (adaylar[d] = adaylar[d] || []).push(t);
     }
   });
+  const yuklu = {};
+  Object.keys(adaylar).forEach((d) => (yuklu[d] = sbEtkinSablon(adaylar[d])));
   const renk = moduleMeta('dersprogrami').color;
 
   return (
@@ -707,10 +747,10 @@ function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: SB.baslik }}>
           Ders Programı Şablonları
         </span>
-        <span style={{ fontSize: 12, color: '#6B7280' }}>
+        <span style={{ fontSize: 12, color: SB.soluk }}>
           Dört çıktı, dört ayrı dosya — hiçbiri zorunlu değil
         </span>
       </div>
@@ -728,7 +768,7 @@ function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
             <div
               key={alan.docType}
               style={{
-                border: '1px solid ' + (tpl ? renk + '55' : '#E5E7EB'),
+                border: '1px solid ' + (tpl ? renk + '55' : SB.kenar),
                 background: tpl ? renk + '0C' : '#FAFAFA',
                 borderRadius: 10,
                 padding: 12,
@@ -737,8 +777,8 @@ function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
                 gap: 6,
               }}
             >
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{alan.baslik}</div>
-              <div style={{ fontSize: 11, color: '#6B7280', lineHeight: 1.4 }}>{alan.ipucu}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: SB.baslik }}>{alan.baslik}</div>
+              <div style={{ fontSize: 11, color: SB.soluk, lineHeight: 1.4 }}>{alan.ipucu}</div>
               {tpl ? (
                 <>
                   <div
@@ -750,6 +790,21 @@ function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
                     }}
                   >
                     ✓ {tpl.name}
+                    {/* Şablon bu bölüme ait olmayabilir: fakülte ya da üniversite
+                        düzeyinde yüklenmiş bir şablon da buraya düşer. Kapsamı
+                        yazmazsak "bu bölüme yüklenmiş" sanılıyor ve fakülte
+                        şablonunu bölümde ayrıca yüklemeye çalışılıyor. */}
+                    {tpl.scope && tpl.scope !== 'department' ? (
+                      <span
+                        style={{
+                          ...sbRozet(SB.cipZemin, SB.cipMetin, 600),
+                          marginLeft: 6,
+                          display: 'inline-block',
+                        }}
+                      >
+                        {SB_SCOPE_LABEL[tpl.scope] || tpl.scope}
+                      </span>
+                    ) : null}
                   </div>
                   <button
                     type="button"
@@ -762,7 +817,7 @@ function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
                       background: 'white',
                       fontSize: 12,
                       fontWeight: 600,
-                      color: '#374151',
+                      color: SB.koyu,
                       cursor: 'pointer',
                     }}
                   >
@@ -771,7 +826,7 @@ function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: 11.5, color: '#9CA3AF', fontWeight: 600 }}>
+                  <div style={{ fontSize: 11.5, color: SB.soluk2, fontWeight: 600 }}>
                     Yüklenmedi — yerleşik çıktı kullanılıyor
                   </div>
                   <button
@@ -1019,7 +1074,7 @@ function AddTemplateModal(props) {
                 </option>
               ))}
             </select>
-            <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 4 }}>
+            <div style={{ fontSize: 11.5, color: SB.soluk, marginTop: 4 }}>
               Aynı modüle birden çok belge atanabilir (örn. Erasmus gidiş ve dönüş ayrı
               belgelerdir). Her belge türü için ayrı şablon yükleyin.
             </div>
@@ -1129,7 +1184,7 @@ function AddTemplateModal(props) {
           }
         >
           {isEdit && editTemplate.file && (
-            <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>
+            <div style={{ fontSize: 12, color: SB.soluk, marginBottom: 6 }}>
               Mevcut: <b>{editTemplate.file.originalName}</b> (
               {(editTemplate.file.extension || '').toUpperCase()}). Değiştirmek için yeni dosya
               seçin; bırakırsanız aynı kalır.
@@ -1145,7 +1200,7 @@ function AddTemplateModal(props) {
               border: '1px dashed #9CA3AF',
               borderRadius: 8,
               fontSize: 13,
-              background: '#F9FAFB',
+              background: SB.yuzey2,
               boxSizing: 'border-box',
             }}
           />
@@ -1505,7 +1560,7 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
 
   return (
     <SB_Modal open={true} onClose={onClose} title={'Alan Eşleme — ' + tpl.name} width={760}>
-      <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 12px', lineHeight: 1.6 }}>
+      <p style={{ fontSize: 12.5, color: SB.soluk, margin: '0 0 12px', lineHeight: 1.6 }}>
         Belgede tespit edilen yer tutucular aşağıda. Her birini{' '}
         <b>{moduleMeta(tpl.module).label}</b> modülünün değişkenlerine eşleyin — çıktı üretilirken
         bu alanlar gerçek verilerle doldurulur. <b>Satır değişkenleri</b> tablo satırındaki alanlar
@@ -1532,7 +1587,7 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
       )}
 
       {fields === null ? (
-        <p style={{ padding: 24, textAlign: 'center', color: '#6B7280' }}>Belge inceleniyor…</p>
+        <p style={{ padding: 24, textAlign: 'center', color: SB.soluk }}>Belge inceleniyor…</p>
       ) : fields.length === 0 ? (
         <div
           style={{
@@ -1569,7 +1624,7 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
                 alignItems: 'center',
                 padding: '9px 12px',
                 borderRadius: 9,
-                border: '1px solid ' + (f.variable ? '#C4B5FD' : '#E5E7EB'),
+                border: '1px solid ' + (f.variable ? '#C4B5FD' : SB.kenar),
                 background: f.variable ? '#F5F3FF' : 'white',
               }}
             >
@@ -1587,13 +1642,13 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
                 >
                   {f.token}
                 </span>
-                <span style={{ fontSize: 10.5, color: '#9CA3AF', marginLeft: 6 }}>
+                <span style={{ fontSize: 10.5, color: SB.soluk2, marginLeft: 6 }}>
                   #{f.tokenOccurrence}
                 </span>
                 <div
                   style={{
                     fontSize: 11.5,
-                    color: '#6B7280',
+                    color: SB.soluk,
                     marginTop: 3,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -1707,7 +1762,7 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
           gap: 8,
         }}
       >
-        <span style={{ fontSize: 12, color: '#6B7280' }}>
+        <span style={{ fontSize: 12, color: SB.soluk }}>
           {mappedCount} alan eşlendi{fields ? ' / ' + eslenebilir.length + ' tespit' : ''}
         </span>
         <div style={{ display: 'flex', gap: 8 }}>
