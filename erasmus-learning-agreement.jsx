@@ -3392,9 +3392,7 @@ const TripHistoryModal = ({ onClose, isReadOnly = false, activeDepartment, curre
                                                   borderRadius: 3,
                                                 }}
                                               >
-                                                {entry.homeGrades?.[ci] ||
-                                                  entry.homeGrade ||
-                                                  'Muaf'}
+                                                {entry.homeGrades?.[ci] || entry.homeGrade || '—'}
                                               </span>
                                             </div>
                                           )}
@@ -3725,8 +3723,10 @@ const StudentDetailModal = ({
       id: `${type}${Date.now()}`,
       homeCourses: [],
       hostCourses: [],
+      // Not alanları BOŞ açılır. Eskiden 'Muaf' yazılıyordu; notu hiç
+      // hesaplanmamış ders muafiyet verilmiş gibi görünüyordu.
       ...(type === 'return'
-        ? { hostGrade: '', homeGrade: 'Muaf', hostGrades: {}, homeGrades: {} }
+        ? { hostGrade: '', homeGrade: '', hostGrades: {}, homeGrades: {} }
         : {}),
     };
     setEditedStudent((prev) => ({
@@ -3737,20 +3737,19 @@ const StudentDetailModal = ({
   };
 
   const copyFromOutgoing = (outgoingMatch) => {
-    const hostGrades = {};
-    const homeGrades = {};
-    outgoingMatch.hostCourses.forEach((_, idx) => {
-      hostGrades[idx] = 'A';
-      homeGrades[idx] = 'Muaf';
-    });
+    // ── SAHTE NOT TOHUMLAMASI KALDIRILDI ──
+    // Burada her ders için hostGrades='A', homeGrades='Muaf' YAZILIYORDU.
+    // Kayıtta gerçekten 'A' ve 'Muaf' duruyordu; gösterim düzeltilse bile
+    // veri sahte kalıyordu. Kopyalanan şey DERSLERDİR, notlar değil — notlar
+    // transkriptten hesaplanır (lib/erasmus-not.js).
     const newReturnMatch = {
       id: `return${Date.now()}`,
       homeCourses: JSON.parse(JSON.stringify(outgoingMatch.homeCourses)),
       hostCourses: JSON.parse(JSON.stringify(outgoingMatch.hostCourses)),
-      hostGrade: 'A',
-      homeGrade: 'Muaf',
-      hostGrades,
-      homeGrades,
+      hostGrade: '',
+      homeGrade: '',
+      hostGrades: {},
+      homeGrades: {},
     };
     setEditedStudent((prev) => ({
       ...prev,
@@ -4639,12 +4638,12 @@ const StudentDetailModal = ({
                 const homeGrades = {};
                 m.hostCourses.forEach((_, idx) => {
                   hostGrades[idx] = m.hostGrades?.[idx] || m.hostGrade || '';
-                  homeGrades[idx] = m.homeGrades?.[idx] || m.homeGrade || 'Muaf';
+                  homeGrades[idx] = m.homeGrades?.[idx] || m.homeGrade || '';
                 });
                 return {
                   ...base,
                   hostGrade: m.hostGrade || '',
-                  homeGrade: m.homeGrade || 'Muaf',
+                  homeGrade: m.homeGrade || '',
                   hostGrades,
                   homeGrades,
                 };
@@ -5073,12 +5072,9 @@ const generateReturnWordDoc = async (student, onPreview) => {
   const rows = [];
   student.returnMatches.forEach((match) => {
     // Per-course grades: use hostGrades/homeGrades objects if available, else fall back to single hostGrade/homeGrade
-    const getHostGrade = (idx) => match.hostGrades?.[idx] || match.hostGrade || 'A';
-    const getHomeGrade = (idx) => {
-      const hg = match.homeGrades?.[idx] || match.homeGrade || 'Muaf';
-      // If homeGrade looks like a conversion target, use it; otherwise convert from host
-      return hg;
-    };
+    // Belgeye de uydurulmuş not basılmaz: notu olmayan ders boş gider.
+    const getHostGrade = (idx) => match.hostGrades?.[idx] || match.hostGrade || '';
+    const getHomeGrade = (idx) => match.homeGrades?.[idx] || match.homeGrade || '';
     const getConvertedGrade = (idx) => convertGrade(getHostGrade(idx));
 
     const hostLen = match.hostCourses.length;
@@ -5422,10 +5418,17 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
       // düşer). Akademisyen eklerse doğrudan 'approved'. Mevcut status
       // (akademisyen onay/red ile değişmiş) korunur.
       const savingAsStudent = currentUser?.role === 'student';
-      const stamp = (arr) =>
-        (arr || []).map((m) =>
-          m.status ? m : { ...m, status: savingAsStudent ? 'pending' : 'approved' }
-        );
+      // ── AYNI BOŞLUK, İKİ FARKLI OKUMA ──
+      // Gösterim `status` yokken "onaylı" sayıyor (m.status || 'approved'),
+      // damgalama ise "yeni, onaya düşsün" sayıyordu. Sonuç: öğrenci DÖNÜŞ
+      // notlarını gönderirken kaydettiğinde, statüsü hiç yazılmamış eski
+      // GİDİŞ eşleştirmeleri de 'pending' damgası yiyor ve akademisyene
+      // yeniden onaya düşüyordu — oysa onlar çoktan onaylıydı.
+      //
+      // Damga artık yalnız bu kayıtta GERÇEKTEN YENİ olan eşleştirmelere
+      // vurulur: kural ve testleri lib/erasmus-onay.js'te.
+      const oncekiIdler = window.mevcutEslesmeIdleri(originalStudent);
+      const stamp = (arr) => window.onayDamgasi(arr, oncekiIdler, savingAsStudent);
       // Elle girilen metinleri normalize et: ad → Title, soyad → BÜYÜK,
       // ders adları → Title. Ders KODLARI ve KURUM ADI (katalog anahtarı)
       // dokunulmadan bırakılır.
