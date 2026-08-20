@@ -655,6 +655,8 @@ const CourseMatchCard = ({
   type,
   readOnly = false,
   canApprove = false,
+  // Gidiş eşleştirmesi onaya girmez: ne rozet ne onay düğmesi gösterilir.
+  onayaTabi = true,
   onApprove,
   onReject,
 }) => {
@@ -664,13 +666,15 @@ const CourseMatchCard = ({
   // Onay durumu: pending=sarı, approved=yeşil, rejected=kırmızı.
   // Eski kayıtlarda status yok → onaylı sayılır (yeşil), düzeni bozmaz.
   const status = match.status || 'approved';
+  const onayGoster = onayaTabi;
   const statusMeta = {
     pending: { label: 'Onay Bekliyor', color: '#92400E', bg: '#FEF3C7', dot: '#F59E0B' },
     approved: { label: 'Onaylandı', color: '#065F46', bg: '#D1FAE5', dot: '#10B981' },
     rejected: { label: 'Reddedildi', color: '#991B1B', bg: '#FEE2E2', dot: '#EF4444' },
   }[status] || { label: status, color: C.textMuted, bg: '#F3F4F6', dot: '#9CA3AF' };
-  const borderColor =
-    { pending: '#FCD34D', approved: '#6EE7B7', rejected: '#FCA5A5' }[status] || C.border;
+  const borderColor = onayaTabi
+    ? { pending: '#FCD34D', approved: '#6EE7B7', rejected: '#FCA5A5' }[status] || C.border
+    : C.border;
   return (
     <div
       style={{
@@ -691,28 +695,32 @@ const CourseMatchCard = ({
           flexWrap: 'wrap',
         }}
       >
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '4px 10px',
-            borderRadius: 20,
-            background: statusMeta.bg,
-            color: statusMeta.color,
-            fontSize: 12,
-            fontWeight: 700,
-          }}
-        >
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusMeta.dot }} />
-          {statusMeta.label}
-        </span>
-        {match.reviewedBy && status !== 'pending' && (
+        {onayGoster && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 10px',
+              borderRadius: 20,
+              background: statusMeta.bg,
+              color: statusMeta.color,
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            <span
+              style={{ width: 8, height: 8, borderRadius: '50%', background: statusMeta.dot }}
+            />
+            {statusMeta.label}
+          </span>
+        )}
+        {onayGoster && match.reviewedBy && status !== 'pending' && (
           <span style={{ fontSize: 11, color: C.textMuted }}>
             {status === 'approved' ? 'Onaylayan' : 'Reddeden'}: {match.reviewedBy}
           </span>
         )}
-        {canApprove && (
+        {onayGoster && canApprove && (
           <span style={{ display: 'flex', gap: 6 }}>
             {status !== 'approved' && (
               <button
@@ -3607,7 +3615,12 @@ const StudentDetailModal = ({
       ...p,
       returnMatches: (p.returnMatches || []).map((m) => {
         const d = dersHaritasi[m.id];
-        return d ? { ...m, hostGrades: d.hostGrades, homeGrades: d.homeGrades } : m;
+        // `homeGrade` eşleştirmenin BÜTÜNÜ için geçerli tek nottur (AKTS
+        // ağırlıklı). Belgede kendi dersimizin satırına basılan budur; ders
+        // bazlı ayrıntı `homeGrades`te durur (bkz. lib/erasmus-not.js).
+        return d
+          ? { ...m, hostGrades: d.hostGrades, homeGrades: d.homeGrades, homeGrade: d.homeGrade }
+          : m;
       }),
       erasmusHarfNotlari: harita,
       erasmusNotSistemi: etkinSistem || kurumNotSistemi,
@@ -3649,11 +3662,8 @@ const StudentDetailModal = ({
             }
           : m
       );
-    setEditedStudent((prev) => ({
-      ...prev,
-      outgoingMatches: apply(prev.outgoingMatches),
-      returnMatches: apply(prev.returnMatches),
-    }));
+    // Yalnız dönüş tarafı: toplu onay gidiş eşleştirmelerine dokunmaz.
+    setEditedStudent((prev) => ({ ...prev, returnMatches: apply(prev.returnMatches) }));
   };
   // Red sebebi modalı: { scope:'single'|'all', matchType, matchId }
   const [rejectCtx, setRejectCtx] = useState(null);
@@ -3669,11 +3679,10 @@ const StudentDetailModal = ({
     setRejectCtx(null);
     setRejectReason('');
   };
-  // Bekleyen eşleştirme sayısı (toolbar için)
-  const pendingCount = [
-    ...(editedStudent.outgoingMatches || []),
-    ...(editedStudent.returnMatches || []),
-  ].filter((m) => (m.status || 'approved') === 'pending').length;
+  // Bekleyen eşleştirme sayısı (toolbar için). Yalnız DÖNÜŞ tarafı sayılır:
+  // gidiş eşleştirmesi imzalı anlaşmadır, onaya girmez. Eski hatalı damga
+  // yüzünden 'pending' kalmış gidiş kayıtları da böylece kuyruğa dönmez.
+  const pendingCount = window.onayBekleyenler(editedStudent).length;
   const [activeTab, setActiveTab] = useState('outgoing');
   const [editingMatch, setEditingMatch] = useState(null);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
@@ -4345,9 +4354,7 @@ const StudentDetailModal = ({
                 showGrade={false}
                 type="outgoing"
                 readOnly={readOnly}
-                canApprove={canApprove}
-                onApprove={(id) => reviewMatch('outgoing', id, 'approved')}
-                onReject={(id) => openReject('single', 'outgoing', id)}
+                onayaTabi={false}
               />
             ))}
             {!readOnly && (
@@ -4459,6 +4466,7 @@ const StudentDetailModal = ({
                 showGrade={true}
                 type="return"
                 readOnly={readOnly}
+                onayaTabi={true}
                 canApprove={canApprove}
                 onApprove={(id) => reviewMatch('return', id, 'approved')}
                 onReject={(id) => openReject('single', 'return', id)}
@@ -5075,7 +5083,18 @@ const generateReturnWordDoc = async (student, onPreview) => {
     // Belgeye de uydurulmuş not basılmaz: notu olmayan ders boş gider.
     const getHostGrade = (idx) => match.hostGrades?.[idx] || match.hostGrade || '';
     const getHomeGrade = (idx) => match.homeGrades?.[idx] || match.homeGrade || '';
-    const getConvertedGrade = (idx) => convertGrade(getHostGrade(idx));
+    // ── BELGEYE ONAYLANAN NOT BASILIR ──
+    // Burada yalnız `convertGrade(hostGrade)` çağrılıyordu: akademisyenin
+    // transkriptten hesaplayıp onayladığı harf notu (`homeGrades`) hesaba
+    // katılmıyor, belge kendi başına ikinci bir çevrim yapıyordu. Sonuç,
+    // onaylanmış nota rağmen boş ya da farklı bir hane olabiliyordu —
+    // resmî belge ile kayıt birbirini tutmuyordu.
+    // Kendi dersimizin satırına basılan not eşleştirmenin BÜTÜNÜNE aittir:
+    // iki karşı ders tek dersimize sayıldığında geçerli not ilk dersin notu
+    // değil, AKTS ağırlıklı ortalamadır. Onaylanmış değer varsa esas odur;
+    // yoksa eski çevrime düşülür.
+    const getConvertedGrade = (idx) =>
+      match.homeGrade || getHomeGrade(idx) || convertGrade(getHostGrade(idx));
 
     const hostLen = match.hostCourses.length;
     const homeLen = match.homeCourses.length;
@@ -5428,7 +5447,10 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
       // Damga artık yalnız bu kayıtta GERÇEKTEN YENİ olan eşleştirmelere
       // vurulur: kural ve testleri lib/erasmus-onay.js'te.
       const oncekiIdler = window.mevcutEslesmeIdleri(originalStudent);
-      const stamp = (arr) => window.onayDamgasi(arr, oncekiIdler, savingAsStudent);
+      // Gidiş tarafı onaya GİRMEZ: öğrenim anlaşması gitmeden önce
+      // imzalanmıştır (bkz. lib/erasmus-onay.js).
+      const stamp = (arr, tur) =>
+        window.onayDamgasi(arr, oncekiIdler, savingAsStudent, window.onayaTabiMi(tur));
       // Elle girilen metinleri normalize et: ad → Title, soyad → BÜYÜK,
       // ders adları → Title. Ders KODLARI ve KURUM ADI (katalog anahtarı)
       // dokunulmadan bırakılır.
@@ -5443,8 +5465,8 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
         ...updatedStudent,
         firstName: titleCaseTr(updatedStudent.firstName),
         lastName: upperTr(updatedStudent.lastName),
-        outgoingMatches: stamp(updatedStudent.outgoingMatches).map(normMatch),
-        returnMatches: stamp(updatedStudent.returnMatches).map(normMatch),
+        outgoingMatches: stamp(updatedStudent.outgoingMatches, 'outgoing').map(normMatch),
+        returnMatches: stamp(updatedStudent.returnMatches, 'return').map(normMatch),
       };
 
       await DB.updateStudent(updatedStudent.id, updatedStudent);

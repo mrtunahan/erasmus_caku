@@ -299,3 +299,57 @@ describe('eslesmeNotlariniHesapla', () => {
     expect(eslesmeNotlariniHesapla(null, null, 'ects')).toEqual([]);
   });
 });
+
+// ── DENKLİK NOTU EŞLEŞTİRMENİN BÜTÜNÜNE AİTTİR ──
+// Belge, kendi kurumumuzdaki dersin satırına tek bir not basar. İki karşı
+// kurum dersi tek dersimize sayıldığında o not ilk dersin notu değil, AKTS
+// ağırlıklı ortalamadır.
+describe('eslesmeNotlariniHesapla — toplu denklik notu', () => {
+  it('N karşı ders → 1 kendi dersimiz: AKTS ağırlıklı ortalama', () => {
+    const m = {
+      id: 'm1',
+      hostCourses: [
+        { code: 'CS101', credits: 5 },
+        { code: 'CS102', credits: 2 },
+      ],
+      homeCourses: [{ code: 'BIL203', credits: 7 }],
+    };
+    const [r] = eslesmeNotlariniHesapla(
+      [m],
+      [
+        { kod: 'CS101', not: 'A' },
+        { kod: 'CS102', not: 'C' },
+      ],
+      'ects'
+    );
+    // Ders bazlı ayrıntı korunur...
+    expect(r.homeGrades).toEqual({ 0: 'A', 1: 'B2' });
+    // ...ama dersimize yazılacak tek not ağırlıklı ortalamadır.
+    const beklenen = eslesmeHarfNotu(
+      m,
+      { [kodAnahtari('CS101')]: 'A', [kodAnahtari('CS102')]: 'C' },
+      'ects'
+    );
+    expect(beklenen.ok).toBe(true);
+    expect(r.homeGrade).toBe(beklenen.harf);
+    // Ağırlıklı ortalama, iki dersin harflerinin arasında kalır.
+    expect(['A', 'B2']).not.toContain(r.homeGrade);
+  });
+
+  it('1:1 eşleştirmede toplu not ders notuyla aynıdır', () => {
+    const m = { id: 'm2', hostCourses: [{ code: 'PHY200' }], homeCourses: [{ code: 'FIZ101' }] };
+    const [r] = eslesmeNotlariniHesapla([m], [{ kod: 'PHY200', not: 'B' }], 'ects');
+    expect(r.homeGrade).toBe(r.homeGrades[0]);
+  });
+
+  it('eksik not varken toplu not YAZILMAZ — yarım belge basılmaz', () => {
+    const m = {
+      id: 'm3',
+      hostCourses: [{ code: 'CS101' }, { code: 'CS102' }],
+      homeCourses: [{ code: 'BIL203' }],
+    };
+    const [r] = eslesmeNotlariniHesapla([m], [{ kod: 'CS101', not: 'A' }], 'ects');
+    expect(r.homeGrade).toBe('');
+    expect(r.eksik).toEqual(['CS102']);
+  });
+});
