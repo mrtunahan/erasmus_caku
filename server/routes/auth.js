@@ -3,6 +3,9 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const { getDbSafe } = require('../config/database');
 const { profilBul } = require('../lib/akademisyen-kimlik');
+const SIFIRLAMA = require('../lib/sifre-sifirlama');
+const EPOSTA = require('../lib/eposta');
+const OTURUM = require('../lib/oturum-damgasi');
 const {
   generateToken,
   requireAuth,
@@ -575,6 +578,7 @@ router.post('/change-password', async (req, res) => {
       if (!authUser) recordAttempt(chpassKey);
 
       await setPasswordDoc('student_passwords', { [identifier]: bcryptHash }, true);
+      await sifreDegisiminiDamgala('student', identifier);
       await auditPasswordChange(
         authUser,
         'student',
@@ -596,6 +600,7 @@ router.post('/change-password', async (req, res) => {
         if (hata) return res.json({ success: false, error: hata });
       }
       await setPasswordDoc('admin', { password: bcryptHash, updatedAt: new Date() });
+      await sifreDegisiminiDamgala('admin', 'admin');
       await auditPasswordChange(
         authUser,
         'admin',
@@ -620,6 +625,7 @@ router.post('/change-password', async (req, res) => {
         if (hata) return res.json({ success: false, error: hata });
       }
       await setPasswordDoc('professor_passwords', { [identifier]: bcryptHash }, true);
+      await sifreDegisiminiDamgala('professor', identifier);
       await auditPasswordChange(
         authUser,
         'professor',
@@ -646,6 +652,7 @@ router.post('/change-password', async (req, res) => {
         if (hata) return res.json({ success: false, error: hata });
       }
       await setPasswordDoc('department_manager_passwords', { [identifier]: bcryptHash }, true);
+      await sifreDegisiminiDamgala('bolum_yetkilisi', identifier);
       await auditPasswordChange(
         authUser,
         'bolum_yetkilisi',
@@ -718,7 +725,7 @@ router.post('/student-lookup', async (req, res) => {
 // kaydı + şifre hash'i + oturum token'ı.
 // ══════════════════════════════════════════════
 router.post('/student-register', async (req, res) => {
-  const { studentNumber, firstName, lastName, departmentId, departmentName, password } =
+  const { studentNumber, firstName, lastName, departmentId, departmentName, password, email } =
     req.body || {};
   const trimmedId = String(studentNumber || '').trim();
   if (!/^\d{9}$/.test(trimmedId)) {
@@ -755,6 +762,10 @@ router.post('/student-register', async (req, res) => {
       lastName: String(lastName).trim(),
       departmentId: departmentId,
       departmentName: String(departmentName || '').trim(),
+      // Şifre sıfırlama kodunun gideceği TEK adres. Öğrenci kendi hesabını
+      // açtığı için adres kendi beyanıdır; biçimi geçersizse hiç yazılmaz,
+      // yoksa sıfırlama isteği sessizce boşa düşerdi.
+      email: SIFIRLAMA.epostaBicimiGecerli(email) ? SIFIRLAMA.epostaAnahtari(email) : '',
       erasmusAccess: false,
       createdAt: now,
       updatedAt: now,
@@ -855,11 +866,15 @@ router.post('/admin-reset', async (req, res) => {
 
     const bcryptHash = await hashPassword(newPassword);
 
+    // Yönetici sıfırlaması da eski oturumları düşürür: sıfırlama sebebi
+    // çoğu zaman hesabın ele geçirilmiş olmasıdır.
     if (targetRole === 'student' && targetIdentifier) {
       await setPasswordDoc('student_passwords', { [targetIdentifier]: bcryptHash }, true);
+      await sifreDegisiminiDamgala('student', targetIdentifier);
       return res.json({ success: true });
     } else if (targetRole === 'professor' && targetIdentifier) {
       await setPasswordDoc('professor_passwords', { [targetIdentifier]: bcryptHash }, true);
+      await sifreDegisiminiDamgala('professor', targetIdentifier);
       return res.json({ success: true });
     }
 
@@ -901,6 +916,241 @@ router.post('/default-professor-password', async (req, res) => {
     return res.json({ success: true });
   } catch (error) {
     console.error('setDefaultProfessorPassword error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// ŞİFREMİ UNUTTUM — TEK KULLANIMLIK KOD
+//
+// Üç adım, üç uç:
+//   1. /forgot-password     kod üretilir, kayıtlı adrese gönderilir
+//   2. /verify-reset-code   kod doğruysa KISA ÖMÜRLÜ sıfırlama jetonu verilir
+//   3. /reset-password      o jetonla yeni şifre belirlenir
+//
+// İki adım yerine üç adım olmasının sebebi kullanım kolaylığı: kullanıcı kodu
+// bir kez girer, sonra şifresini rahatça yazar; kod ekranda beklemez.
+//
+// ── HESABIN VARLIĞI SIZDIRILMAZ ──
+// 1. adım hesap olsa da olmasa da AYNI cevabı döner. Aksi halde bu uç
+// "hangi hesap kayıtlı" taramasının yeni adresi olur. Bu yüzden kullanıcıya
+// adresin maskeli hâli de GÖSTERİLMEZ; kendi adresini zaten bilir.
+//
+// Kurallar server/lib/sifre-sifirlama.js'te, test altında.
+// ══════════════════════════════════════════════════════════════
+
+const SIFIRLAMA_KOLEKSIYON = 'password_resets';
+const SIFIRLAMA_ROLLERI = new Set(['student', 'professor', 'bolum_yetkilisi']);
+
+/** Hesabın kayıtlı e-posta adresi — rol başına farklı yerde durur. */
+async function hesapEpostasi(db, rol, kimlik) {
+  if (rol === 'student') {
+    const o = await db.collection('students').findOne({ studentNumber: String(kimlik).trim() });
+    return (o && (o.email || o.eposta)) || '';
+  }
+  // Akademisyen ve bölüm yetkilisi aynı `professors` kaydından okunur; ikisi
+  // de akademisyen kimliğiyle giriyor.
+  const prof = await profilBul(db, kimlik);
+  return (prof && prof.email) || '';
+}
+
+/** Şifre değişim damgası — eski oturumların düşmesi bu damgayla olur. */
+async function sifreDegisiminiDamgala(rol, kimlik) {
+  try {
+    await setPasswordDoc(
+      'sifre_degisim_zamanlari',
+      { [SIFIRLAMA.damgaAnahtari(rol, kimlik)]: Date.now() },
+      true
+    );
+    // Bellek tablosu anında tazelensin: aksi halde eski oturum tazeleme
+    // penceresi (60 sn) kadar daha çalışırdı.
+    await OTURUM.bildirimVer();
+  } catch (e) {
+    console.error('sifreDegisiminiDamgala:', e && e.message);
+  }
+}
+
+/** Şifreyi rolüne göre yazar. */
+async function sifreYaz(rol, kimlik, hash) {
+  if (rol === 'student') {
+    await setPasswordDoc('student_passwords', { [kimlik]: hash }, true);
+  } else if (rol === 'professor') {
+    await setPasswordDoc('professor_passwords', { [kimlik]: hash }, true);
+  } else if (rol === 'bolum_yetkilisi') {
+    await setPasswordDoc('department_manager_passwords', { [kimlik]: hash }, true);
+  }
+}
+
+// ── 1. Kod iste ──
+router.post('/forgot-password', async (req, res) => {
+  const { role, identifier } = req.body || {};
+  const kimlik = String(identifier || '').trim();
+  // Cevap HER DURUMDA aynı: hesap var mı yok mu, adresi tanımlı mı belli olmaz.
+  const ayniCevap = {
+    success: true,
+    mesaj:
+      'Hesabınız kayıtlıysa ve e-posta adresiniz tanımlıysa kod gönderildi. ' +
+      'Birkaç dakika içinde ulaşmazsa bölüm sekreterliğinize başvurun.',
+  };
+  if (!SIFIRLAMA_ROLLERI.has(role) || !kimlik) return res.json(ayniCevap);
+
+  // Hem hesap hem IP başına sınır: tek hesabı bombalamak da genel tarama da
+  // aynı kapıdan geçer.
+  const hesapKey = `forgot:${role}:${kimlik}`;
+  const ipKey = `forgot-ip:${String(req.ip || 'bilinmeyen')}`;
+  if (!checkRateLimit(hesapKey) || !checkRateLimit(ipKey)) {
+    return res.status(429).json({ error: 'Çok fazla istek. 15 dakika sonra tekrar deneyin.' });
+  }
+  recordAttempt(hesapKey);
+  recordAttempt(ipKey);
+
+  try {
+    const db = await getDbSafe();
+    const adres = await hesapEpostasi(db, role, kimlik);
+    if (!SIFIRLAMA.epostaBicimiGecerli(adres)) return res.json(ayniCevap);
+
+    // E-posta yolu kapalıysa kullanıcıyı boşuna bekletmemek gerekir; bu
+    // yapılandırma eksikliğidir, hesap bilgisi değildir — sızıntı olmaz.
+    if (!EPOSTA.hazirMi()) {
+      console.error('[forgot-password] e-posta gönderilemiyor:', EPOSTA.eksikNedir());
+      return res.status(503).json({
+        error:
+          'Şifre sıfırlama e-postası şu an gönderilemiyor. Lütfen bölüm sekreterliğinize başvurun.',
+      });
+    }
+
+    const kod = SIFIRLAMA.kodUret();
+    const kodHash = await hashPassword(kod);
+    await db.collection(SIFIRLAMA_KOLEKSIYON).replaceOne(
+      { _id: SIFIRLAMA.damgaAnahtari(role, kimlik) },
+      {
+        _id: SIFIRLAMA.damgaAnahtari(role, kimlik),
+        role,
+        identifier: kimlik,
+        // Kod DÜZ saklanmaz: veritabanını okuyan biri hesabı ele geçirmesin.
+        kodHash,
+        sonKullanma: SIFIRLAMA.sonKullanma(),
+        denemeSayisi: 0,
+        kullanildi: false,
+        istekIp: String(req.ip || ''),
+        olusturma: new Date(),
+      },
+      { upsert: true }
+    );
+
+    const mesaj = EPOSTA.kodMesaji(kod, SIFIRLAMA.GECERLILIK_DAKIKA);
+    const sonuc = await EPOSTA.gonder({ alici: adres, ...mesaj });
+    if (!sonuc.ok) {
+      console.error('[forgot-password] gönderim başarısız:', sonuc.hata);
+      return res.status(503).json({
+        error: 'Kod gönderilemedi. Lütfen daha sonra tekrar deneyin.',
+      });
+    }
+    return res.json(ayniCevap);
+  } catch (error) {
+    console.error('forgotPassword error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
+  }
+});
+
+// ── 2. Kodu doğrula ──
+router.post('/verify-reset-code', async (req, res) => {
+  const { role, identifier, kod } = req.body || {};
+  const kimlik = String(identifier || '').trim();
+  if (!SIFIRLAMA_ROLLERI.has(role) || !kimlik || !kod) {
+    return res.status(400).json({ error: 'Eksik parametreler.' });
+  }
+  const anahtar = SIFIRLAMA.damgaAnahtari(role, kimlik);
+  const ipKey = `verify-ip:${String(req.ip || 'bilinmeyen')}`;
+  if (!checkRateLimit(ipKey)) {
+    return res.status(429).json({ error: 'Çok fazla deneme. 15 dakika sonra tekrar deneyin.' });
+  }
+
+  try {
+    const db = await getDbSafe();
+    const col = db.collection(SIFIRLAMA_KOLEKSIYON);
+    const kayit = await col.findOne({ _id: anahtar });
+    const durum = SIFIRLAMA.kodDurumu(kayit);
+    if (!durum.ok) {
+      recordAttempt(ipKey);
+      return res.json({ success: false, error: SIFIRLAMA.durumMesaji(durum.sebep) });
+    }
+
+    const dogru = await bcrypt.compare(String(kod).trim(), kayit.kodHash);
+    if (!dogru) {
+      recordAttempt(ipKey);
+      // Deneme sayacı KAYITTA tutulur: IP değiştirerek kaba kuvvet sürdürülemesin.
+      await col.updateOne({ _id: anahtar }, { $inc: { denemeSayisi: 1 } });
+      const kalan = SIFIRLAMA.AZAMI_DENEME - (Number(kayit.denemeSayisi || 0) + 1);
+      return res.json({
+        success: false,
+        error:
+          kalan > 0
+            ? `Kod hatalı. ${kalan} deneme hakkınız kaldı.`
+            : 'Kod hatalı. Deneme hakkı bitti.',
+      });
+    }
+
+    // Kod doğru: KISA ÖMÜRLÜ ve YALNIZ şifre belirlemeye yarayan bir jeton.
+    // `amac` alanı sayesinde bu jeton normal oturum jetonu olarak kabul
+    // edilmez (bkz. middleware/auth.js).
+    const sifirlamaJetonu = generateToken({
+      amac: 'sifre-sifirlama',
+      role,
+      identifier: kimlik,
+      kodAnahtari: anahtar,
+    });
+    clearAttempts(ipKey);
+    return res.json({ success: true, sifirlamaJetonu });
+  } catch (error) {
+    console.error('verifyResetCode error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası.' });
+  }
+});
+
+// ── 3. Yeni şifreyi belirle ──
+router.post('/reset-password', async (req, res) => {
+  const { sifirlamaJetonu, newPassword } = req.body || {};
+  if (!sifirlamaJetonu || !newPassword) {
+    return res.status(400).json({ error: 'Eksik parametreler.' });
+  }
+  if (String(newPassword).length < 6) {
+    return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır.' });
+  }
+
+  let veri = null;
+  try {
+    veri = verifyToken(sifirlamaJetonu);
+  } catch (_) {
+    return res.status(401).json({ error: 'Sıfırlama süresi doldu. Yeniden kod isteyin.' });
+  }
+  if (!veri || veri.amac !== 'sifre-sifirlama' || !SIFIRLAMA_ROLLERI.has(veri.role)) {
+    return res.status(401).json({ error: 'Geçersiz sıfırlama jetonu.' });
+  }
+
+  try {
+    const db = await getDbSafe();
+    const col = db.collection(SIFIRLAMA_KOLEKSIYON);
+    const kayit = await col.findOne({ _id: veri.kodAnahtari });
+    // Jeton geçerli olsa bile kod bu arada kullanılmış/ölmüş olabilir.
+    const durum = SIFIRLAMA.kodDurumu(kayit);
+    if (!durum.ok) {
+      return res.status(400).json({ error: SIFIRLAMA.durumMesaji(durum.sebep) });
+    }
+
+    const hash = await hashPassword(String(newPassword));
+    await sifreYaz(veri.role, veri.identifier, hash);
+    // Kod TEK KULLANIMLIK: aynı kodla ikinci şifre belirlenemez.
+    await col.updateOne(
+      { _id: veri.kodAnahtari },
+      { $set: { kullanildi: true, kullanim: new Date() } }
+    );
+    // Eski oturumlar düşsün — sıfırlamanın asıl amacı budur.
+    await sifreDegisiminiDamgala(veri.role, veri.identifier);
+    await auditPasswordChange(null, veri.role, veri.identifier, false, false, false);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('resetPassword error:', error);
     return res.status(500).json({ error: 'Sunucu hatası.' });
   }
 });
