@@ -6,12 +6,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   NOT_SISTEMLERI,
+  dersDegisikligi,
+  eslesmeHarfNotu,
+  eslesmeNotlariniHesapla,
+  kodAnahtari,
   notCevir,
   puandanHarf,
-  kodAnahtari,
-  dersDegisikligi,
+  sistemSez,
   transkriptEslestir,
-  eslesmeHarfNotu,
 } from '../lib/erasmus-not.js';
 
 describe('notCevir', () => {
@@ -201,5 +203,99 @@ describe('eslesmeHarfNotu', () => {
   it('karşı kurum dersi olmayan eşleştirme belirsiz', () => {
     expect(eslesmeHarfNotu({ hostCourses: [] }, {}, 'ects').ok).toBe(false);
     expect(eslesmeHarfNotu(null, {}, 'ects').ok).toBe(false);
+  });
+});
+
+describe('sistemSez', () => {
+  const t = (...notlar) => notlar.map((not, i) => ({ kod: 'C' + i, not }));
+
+  it('sözel notlar tanınır', () => {
+    const r = sistemSez(t('very good', 'sufficient'));
+    expect(r.sistem).toBe('metin');
+    expect(r.kesin).toBe(true);
+  });
+
+  it('İKİ HARFLİ kod bizim harf tablomuzu kesinleştirir', () => {
+    expect(sistemSez(t('AA', 'BB', 'CC')).sistem).toBe('harf');
+    expect(sistemSez(t('A', 'B+', 'C')).sistem).toBe('harf');
+  });
+
+  it('tek harfli notlar ECTS sayılır — Erasmus standardı', () => {
+    // 'C' iki tabloda da var ama farklı karşılık veriyor; karşı kurum
+    // yabancı olduğu için ECTS varsayılır ve sebebi yazılır.
+    const r = sistemSez(t('A', 'B', 'C', 'E'));
+    expect(r.sistem).toBe('ects');
+    expect(r.sebep).toMatch(/ECTS/);
+  });
+
+  it('sayısal ölçek EN BÜYÜK nottan çıkarılır', () => {
+    expect(sistemSez(t('85', '90', '72')).sistem).toBe('yuzluk');
+    expect(sistemSez(t('8', '9', '6')).sistem).toBe('onluk');
+    expect(sistemSez(t('5', '4', '3')).sistem).toBe('besli');
+  });
+
+  it('hepsi 5 ve altındaysa KESİN DEĞİL — 10lük olabilir', () => {
+    const r = sistemSez(t('4', '3'));
+    expect(r.sistem).toBe('besli');
+    expect(r.kesin).toBe(false);
+    expect(r.sebep).toMatch(/doğrulayın/);
+  });
+
+  it('virgüllü ondalık okunur', () => {
+    expect(sistemSez(t('4,5', '3,5')).sistem).toBe('besli');
+  });
+
+  it('KARIŞIK transkriptte sistem uydurulmaz', () => {
+    const r = sistemSez(t('85', 'very good'));
+    expect(r.sistem).toBe('');
+    expect(r.kesin).toBe(false);
+  });
+
+  it('boş transkriptte sistem yok', () => {
+    expect(sistemSez([]).sistem).toBe('');
+    expect(sistemSez(null).sistem).toBe('');
+  });
+});
+
+describe('eslesmeNotlariniHesapla', () => {
+  const donus = [
+    { id: 'm1', hostCourses: [{ code: 'CS101' }, { code: 'CS102' }] },
+    { id: 'm2', hostCourses: [{ code: 'PHY200' }] },
+  ];
+
+  it('her ders için HAM not ve HARF karşılığı yazılır', () => {
+    const r = eslesmeNotlariniHesapla(
+      donus,
+      [
+        { kod: 'CS101', not: 'A' },
+        { kod: 'CS102', not: 'C' },
+        { kod: 'PHY200', not: 'E' },
+      ],
+      'ects'
+    );
+    expect(r[0].hostGrades).toEqual({ 0: 'A', 1: 'C' });
+    expect(r[0].homeGrades).toEqual({ 0: 'A', 1: 'B2' });
+    expect(r[1].homeGrades).toEqual({ 0: 'C3' });
+    expect(r[0].eksik).toEqual([]);
+  });
+
+  it('notu OLMAYAN ders için değer YAZILMAZ, eksik olarak bildirilir', () => {
+    // Uydurulmuş bir 'A' yazmak yerine boş bırakılır.
+    const r = eslesmeNotlariniHesapla(donus, [{ kod: 'CS101', not: 'A' }], 'ects');
+    expect(r[0].hostGrades).toEqual({ 0: 'A' });
+    expect(r[0].homeGrades).toEqual({ 0: 'A' });
+    expect(r[0].eksik).toEqual(['CS102']);
+    expect(r[1].eksik).toEqual(['PHY200']);
+  });
+
+  it('çevrilemeyen not HAM haliyle durur ama HARF yazılmaz', () => {
+    const r = eslesmeNotlariniHesapla(donus, [{ kod: 'CS101', not: 'Z' }], 'ects');
+    expect(r[0].hostGrades).toEqual({ 0: 'Z' });
+    expect(r[0].homeGrades).toEqual({});
+    expect(r[0].eksik[0]).toMatch(/CS101/);
+  });
+
+  it('boş girdilerde çökmez', () => {
+    expect(eslesmeNotlariniHesapla(null, null, 'ects')).toEqual([]);
   });
 });

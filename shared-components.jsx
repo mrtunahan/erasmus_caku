@@ -43,7 +43,9 @@ import {
   NOT_SISTEMLERI,
   dersDegisikligi,
   eslesmeHarfNotu,
+  eslesmeNotlariniHesapla,
   kodAnahtari as erasmusKodAnahtari,
+  sistemSez,
   transkriptEslestir,
 } from './lib/erasmus-not.js';
 import { basvuruBolumId, basvuruBolumdeMi, sahipsizBasvurular } from './lib/yatay-kapsam.js';
@@ -11726,16 +11728,41 @@ function ErasmusDonusNotPaneli({
 
   const degisiklik = useMemo(() => dersDegisikligi(gidis, donus), [gidis, donus]);
   const eslestirme = useMemo(() => transkriptEslestir(transkript, donus), [transkript, donus]);
+
+  // ── SİSTEM TRANSKRİPTTEN SEZİLİR ──
+  // Kurum için sistem tanımlıysa o esastır; tanımlı değilse transkriptin
+  // kendisi çoğu zaman ölçeği ele verir. Sezgi ÖNERİDİR: ne olduğu ve kesin
+  // olup olmadığı ekranda yazılır, akademisyen değiştirebilir.
+  const sezilen = useMemo(() => sistemSez(transkript), [transkript]);
+  const etkinSistem = notSistemi || sezilen.sistem;
+
   const harfler = useMemo(
     () =>
       donus.map((m) => ({
         id: m.id,
         dersler: ((m && m.hostCourses) || []).map((c) => c.code).join(' + '),
         karsilik: ((m && m.homeCourses) || []).map((c) => c.code).join(' + '),
-        sonuc: eslesmeHarfNotu(m, eslestirme.eslesen, notSistemi),
+        sonuc: eslesmeHarfNotu(m, eslestirme.eslesen, etkinSistem),
       })),
-    [donus, eslestirme, notSistemi]
+    [donus, eslestirme, etkinSistem]
   );
+
+  // ── ÖĞRENCİ NOTU İŞLEMEZ, ONAYA GÖNDERİR ──
+  // Notların eşleştirmelere YAZILMASI akademisyenin onayıyla olur. Öğrenci
+  // yazsaydı, sunucuda `returnMatches`i yazma yetkisi olduğu için arayüz
+  // kilidini atlayan bir istek kendi notunu yazabilirdi. Öğrencinin gönderdiği
+  // tek şey transkript ve "hazırım" bilgisidir; ekranda gördüğü notlar
+  // ÖNİZLEMEDİR.
+  const notlariIsleVeGonder = () => {
+    onOgrenciDegisti({
+      erasmusNotDurumu: 'onay-bekliyor',
+      erasmusNotGonderimZamani: new Date().toISOString(),
+    });
+    alert(
+      'Transkriptiniz akademisyen onayına gönderildi. Notlar onaydan sonra ' +
+        'eşleştirmelere işlenecek. Kaydet ile kalıcı hâle getirin.'
+    );
+  };
 
   const notYaz = (anahtar, deger) => {
     const kalan = transkript.filter((r) => erasmusKodAnahtari(r.kod) !== anahtar);
@@ -11906,11 +11933,30 @@ function ErasmusDonusNotPaneli({
               ))}
             </select>
           </div>
+        ) : null}
+
+        {/* Sezgi, kurum tanımı olsun olmasın gösterilir: akademisyen seçtiği
+            sistemle transkriptin söylediğini karşılaştırabilsin. */}
+        {sezilen.sistem ? (
+          <div
+            style={{
+              fontSize: 12,
+              marginBottom: 10,
+              color: sezilen.kesin ? C.textMuted : '#92400E',
+            }}
+          >
+            Transkriptten sezilen:{' '}
+            <b>{(NOT_SISTEMLERI.find((x) => x.id === sezilen.sistem) || {}).ad}</b>
+            {sezilen.sebep ? ` — ${sezilen.sebep}` : ''}
+            {notSistemi && notSistemi !== sezilen.sistem ? (
+              <span style={{ color: '#92400E' }}> · kurum tanımı FARKLI, kurum tanımı geçerli</span>
+            ) : null}
+          </div>
         ) : (
-          !notSistemi && (
+          !etkinSistem && (
             <div style={{ fontSize: 12, color: '#92400E', marginBottom: 10 }}>
-              Kurumun not sistemi henüz tanımlanmadı; notunuz akademisyen tanımladıktan sonra
-              hesaplanacak.
+              Not sistemi belirlenemedi. Transkriptteki notları girin; sistem anlaşılmazsa
+              akademisyen elle seçecek.
             </div>
           )
         )}
@@ -11946,10 +11992,52 @@ function ErasmusDonusNotPaneli({
           </div>
         )}
 
+        {/* ── ÖĞRENCİ: HESAPLA VE ONAYA GÖNDER ──
+            Öğrenci notu YAZMAZ; hesaplanmış notların eşleştirmelere işlenmesini
+            ve akademisyene gitmesini başlatır. Belirsiz not varken gönderilmez —
+            eksik notla onaya gitmek akademisyeni boşa çalıştırır. */}
+        {!akademisyenMi && !salt && (
+          <div style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              onClick={notlariIsleVeGonder}
+              disabled={harfler.length === 0 || harfler.some((h) => !h.sonuc.ok)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background:
+                  harfler.length === 0 || harfler.some((h) => !h.sonuc.ok) ? '#D1D5DB' : C.navy,
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor:
+                  harfler.length === 0 || harfler.some((h) => !h.sonuc.ok)
+                    ? 'not-allowed'
+                    : 'pointer',
+              }}
+            >
+              Notları işle ve onaya gönder
+            </button>
+            {ogrenci && ogrenci.erasmusNotDurumu === 'onay-bekliyor' && (
+              <span style={{ fontSize: 12, color: C.textMuted, marginLeft: 10 }}>
+                Akademisyen onayı bekleniyor.
+              </span>
+            )}
+          </div>
+        )}
+
         {akademisyenMi && (
           <button
             type="button"
-            onClick={() => onNotlariOnayla(harfler)}
+            onClick={() =>
+              onNotlariOnayla(
+                harfler,
+                eslesmeNotlariniHesapla(donus, transkript, etkinSistem),
+                etkinSistem
+              )
+            }
             disabled={harfler.length === 0 || harfler.some((h) => !h.sonuc.ok)}
             title={
               harfler.some((h) => !h.sonuc.ok)
