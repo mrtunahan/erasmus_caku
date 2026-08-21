@@ -39,6 +39,7 @@ import {
 import { bolumleriBirlestir as bolumleriBirlestirCoz } from './lib/bolum-birlestir.js';
 import { akademisyenBolumdeMi } from './lib/akademisyen-bolum.js';
 import { bolumleriFakulteyeGrupla, baslikGosterilsinMi } from './lib/bolum-gruplama.js';
+import { programGirdileri, akademisyenCakismalari, cakismaMetni } from './lib/seviye-cakisma.js';
 import {
   NOT_SISTEMLERI,
   dersDegisikligi,
@@ -12742,11 +12743,20 @@ const AkademisyenProgramModal = ({ open, onClose, ad, unvan = '', birim = '' }) 
       const kanon = kimlikler[0];
       const liste = bolumSaatleriCoz(bolumAyarlari[kanon], 'lisans');
       const listeUstu = bolumSaatleriCoz(bolumAyarlari[kanon], 'lisansustu');
-      // Lisansüstü liste lisansı kapsar (aynı başlangıç, daha geç bitiş);
-      // uzun olanı kullanmak iki seviyenin dersini de doğru etiketler.
-      const secilen = listeUstu.length >= liste.length ? listeUstu : liste;
+      // ── HER SEVİYE KENDİ SAATİYLE ETİKETLENİR ──
+      // Burada iki listeden UZUN OLANI seçilip her iki seviyenin dersine
+      // uygulanıyordu; gerekçe "lisansüstü listesi lisansı kapsar" idi. Ama
+      // saat ayarı seviyeye özeldir: lisansüstü akşam bloğuna kayabilir ve o
+      // zaman lisans dersi olmadığı saatte görünür. Kayıtlar seviyesine göre
+      // eşleşsin diye anahtar 'bölüm|seviye'; eski (yalnız bölüm) anahtar da
+      // korunur ki seviyesi bilinmeyen kayıt etiketsiz kalmasın.
+      const uzun = listeUstu.length >= liste.length ? listeUstu : liste;
       kimlikler.forEach((k) => {
-        if (!harita[k]) harita[k] = secilen;
+        if (!harita[k + '|lisans']) harita[k + '|lisans'] = liste;
+        ['lisansustu', 'yukseklisans', 'doktora'].forEach((sv) => {
+          if (!harita[k + '|' + sv]) harita[k + '|' + sv] = listeUstu;
+        });
+        if (!harita[k]) harita[k] = uzun;
       });
     });
     return harita;
@@ -13067,6 +13077,11 @@ window.yilSlotlariniGuncelle = yilSlotlariniGuncelle;
 // tek yerde ve testli (bkz. lib/erasmus-onay.js).
 window.onayDamgasi = onayDamgasi;
 window.mevcutEslesmeIdleri = mevcutEslesmeIdleri;
+// Seviyeler arası akademisyen çakışması (lisans ↔ lisansüstü):
+// slot indeksi değil, etiketten çözülen ZAMAN ARALIĞI karşılaştırılır.
+window.programGirdileri = programGirdileri;
+window.akademisyenCakismalari = akademisyenCakismalari;
+window.seviyeCakismaMetni = cakismaMetni;
 // Onaya tabi olan yalnız dönüş tarafı — gidiş çoktan imzalanmış anlaşmadır.
 window.onayaTabiMi = onayaTabiMi;
 window.onayBekleyenler = onayBekleyenler;
