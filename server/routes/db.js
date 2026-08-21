@@ -380,6 +380,9 @@ const STUDENT_SELF_PROTECTED = new Set([
   '_docId',
   'createdAt',
   'registeredVia',
+  // Aydınlatma kaydı ispat belgesidir: kaydeden sunucudur, öğrenci
+  // sonradan sürümünü ya da tarihini değiştiremez.
+  'kvkkAydinlatma',
   // ── ERASMUS DÖNÜŞ NOTU ──
   // Harf notu HESAPLANIR (lib/erasmus-not.js), elle girilmez; öğrencinin
   // yazabildiği tek şey transkriptteki HAM nottur. Bu alanlar istemciden

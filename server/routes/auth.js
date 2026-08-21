@@ -720,6 +720,7 @@ router.post('/student-lookup', async (req, res) => {
 router.post('/student-register', async (req, res) => {
   const { studentNumber, firstName, lastName, departmentId, departmentName, password } =
     req.body || {};
+  const kvkk = (req.body || {}).kvkkAydinlatma || {};
   const trimmedId = String(studentNumber || '').trim();
   if (!/^\d{9}$/.test(trimmedId)) {
     return res.status(400).json({ error: 'Geçerli 9 haneli öğrenci numarası gerekli.' });
@@ -759,6 +760,19 @@ router.post('/student-register', async (req, res) => {
       createdAt: now,
       updatedAt: now,
       registeredVia: 'self-service',
+      // ── AYDINLATMA KAYDI ──
+      // KVKK m.10 yükümlülüğünün yerine getirildiğini ispatlar: hangi metin
+      // SÜRÜMÜ gösterildi, ne zaman. Rıza kaydı DEĞİLDİR — kurumun işleme
+      // sebebi kanundur (bkz. lib/kvkk.js).
+      //
+      // Zaman damgası istemciden değil SUNUCUDAN alınır: ispat değeri olan
+      // bir kayıtta tarihi, saati kullanıcının makinesine bırakmak onu
+      // ispat olmaktan çıkarır. İstemciden gelen tek şey metnin sürümü.
+      kvkkAydinlatma: {
+        surum: String(kvkk.surum || '').slice(0, 32),
+        tarih: now.toISOString(),
+        tur: 'aydinlatma',
+      },
     });
     const bcryptHash = await hashPassword(String(password));
     await setPasswordDoc('student_passwords', { [trimmedId]: bcryptHash }, true);
