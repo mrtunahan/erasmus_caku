@@ -382,3 +382,49 @@ describe('yilSlotlariniGuncelle', () => {
     expect(yilSlotlariniGuncelle([], '1', { a: 1 })).toEqual([{ year: '1', slots: { a: 1 } }]);
   });
 });
+
+// ── ÇAKIŞMA ONAYI OKUMADA KAYBOLMAMALI ──
+// Kullanıcı uyarıyı bilerek onaylayıp dersi yerleştirdiğinde işaret derse
+// yazılır. Normalleştirme alanları tek tek seçtiği için taşınmayan alan ilk
+// okumada silinir; o zaman "gözden kaçmış hata" ile "bilerek verilmiş karar"
+// bir daha ayırt edilemez.
+describe('slotDersleri — çakışma onayı', () => {
+  it('birinci dersin onayı korunur', () => {
+    const [d] = slotDersleri({ courseCode: 'EMU209', cakismaOnayi: true });
+    expect(d.cakismaOnayi).toBe(true);
+  });
+
+  it('ek dersin onayı korunur ve birinciden DEVRALINMAZ', () => {
+    const dersler = slotDersleri({
+      courseCode: 'EMU209',
+      cakismaOnayi: true,
+      dersler: [{ courseCode: 'MAT165' }, { courseCode: 'FZK181', cakismaOnayi: true }],
+    });
+    expect(dersler.map((d) => d.cakismaOnayi)).toEqual([true, undefined, true]);
+  });
+
+  it('onaysız derste alan hiç yazılmaz', () => {
+    const [d] = slotDersleri({ courseCode: 'EMU209' });
+    expect('cakismaOnayi' in d).toBe(false);
+  });
+});
+
+describe('slotDersEkle — çakışma onayı gidiş dönüş', () => {
+  it('onaylı ders yazılıp geri okunduğunda işaret durur', () => {
+    const slot = slotDersEkle(null, { courseCode: 'EMU209', cakismaOnayi: true });
+    expect(slotDersleri(slot)[0].cakismaOnayi).toBe(true);
+  });
+
+  it('bölünmüş hücrede yalnız onaylı ders işaretli kalır', () => {
+    let slot = slotDersEkle(null, { courseCode: 'MAT165' });
+    slot = slotDersEkle(slot, { courseCode: 'EMU209', cakismaOnayi: true });
+    const dersler = slotDersleri(slot);
+    expect(dersler.map((d) => d.courseCode)).toEqual(['MAT165', 'EMU209']);
+    expect(dersler.map((d) => d.cakismaOnayi)).toEqual([undefined, true]);
+  });
+
+  it('onaysız ders kaydına boş alan eklenmez', () => {
+    const slot = slotDersEkle(null, { courseCode: 'MAT165' });
+    expect('cakismaOnayi' in slot).toBe(false);
+  });
+});
