@@ -39,6 +39,7 @@ import {
 import { bolumleriBirlestir as bolumleriBirlestirCoz } from './lib/bolum-birlestir.js';
 import { akademisyenBolumdeMi } from './lib/akademisyen-bolum.js';
 import { bolumleriFakulteyeGrupla, baslikGosterilsinMi } from './lib/bolum-gruplama.js';
+import { KVKK_SURUM, kvkkMetni, aydinlatmaKaydi } from './lib/kvkk.js';
 import { programGirdileri, akademisyenCakismalari, cakismaMetni } from './lib/seviye-cakisma.js';
 import {
   NOT_SISTEMLERI,
@@ -2339,6 +2340,12 @@ window.TENANT = {
   developerNote: 'Offline Asistan, Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.',
   logoUrl: 'logo.png',
   studentEmailDomain: 'ogrenci.karatekin.edu.tr',
+  // KVKK aydınlatma metninin başvuru bölümü. Boş bırakılırsa metin
+  // "[kurum tarafından doldurulacak]" der — sessizce eksik kalmaz.
+  // tenant_config/main üzerinden doldurulur.
+  kvkkAdres: '',
+  kvkkEposta: '',
+  kvkkKep: '',
 };
 (async () => {
   try {
@@ -7925,6 +7932,126 @@ const Badge = ({ children, color, bg }) => (
   </span>
 );
 
+// ══════════════════════════════════════════════════════════════
+// KVKK AYDINLATMA METNİ PENCERESİ
+//
+// Metin okunabilir olmalı: kutucuğun yanına sıkıştırılmış, kimsenin
+// açmadığı bir bağlantı aydınlatma yükümlülüğünü karşılamaz. Metnin kendisi
+// ve gerekçesi lib/kvkk.js'te; burada yalnız gösterim var.
+// ══════════════════════════════════════════════════════════════
+const KvkkMetniModal = ({ onClose }) => {
+  const metin = kvkkMetni(window.TENANT || {});
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.55)',
+        zIndex: 4000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'white',
+          borderRadius: 14,
+          maxWidth: 720,
+          width: '100%',
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          padding: 24,
+          boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+        }}
+      >
+        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', margin: '0 0 10px' }}>
+          {metin.baslik}
+        </h2>
+        <p style={{ fontSize: 13, lineHeight: 1.6, color: '#334155', margin: '0 0 16px' }}>
+          {metin.giris}
+        </p>
+        {metin.eksikAlanVar && (
+          <div
+            style={{
+              background: '#FEF3C7',
+              border: '1px solid #FDE68A',
+              color: '#92400E',
+              borderRadius: 8,
+              padding: 10,
+              fontSize: 12,
+              lineHeight: 1.5,
+              marginBottom: 16,
+            }}
+          >
+            Bu metnin kurum iletişim ve saklama süresi alanları henüz doldurulmamıştır. Yetkili,
+            Kurum Ayarları’ndan KVKK adres, e-posta ve KEP bilgilerini girmelidir.
+          </div>
+        )}
+        {metin.bolumler.map((b, i) => (
+          <div key={i} style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: '#1E293B', margin: '0 0 6px' }}>
+              {b.baslik}
+            </h3>
+            {b.girisMetni && (
+              <p style={{ fontSize: 12.5, lineHeight: 1.6, color: '#475569', margin: '0 0 6px' }}>
+                {b.girisMetni}
+              </p>
+            )}
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {b.maddeler.map((m, j) => (
+                <li
+                  key={j}
+                  style={{ fontSize: 12.5, lineHeight: 1.6, color: '#475569', marginBottom: 4 }}
+                >
+                  {m}
+                </li>
+              ))}
+            </ul>
+            {b.sonMetni && (
+              <p style={{ fontSize: 12.5, lineHeight: 1.6, color: '#475569', margin: '6px 0 0' }}>
+                {b.sonMetni}
+              </p>
+            )}
+          </div>
+        ))}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            borderTop: '1px solid #E2E8F0',
+            paddingTop: 14,
+          }}
+        >
+          <span style={{ fontSize: 11.5, color: '#94A3B8', flex: 1 }}>Sürüm: {metin.surum}</span>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '8px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#1B2A4A',
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+            }}
+          >
+            Kapat
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+window.KvkkMetniModal = KvkkMetniModal;
+
 // ── Login Modal ──
 const LoginModal = ({ onLogin }) => {
   const [activeTab, setActiveTab] = useState('student'); // student, professor, admin
@@ -7947,6 +8074,11 @@ const LoginModal = ({ onLogin }) => {
   const [registerMode, setRegisterMode] = useState(false); // yeni öğrenci kayıt
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  // KVKK aydınlatma metni onayı. Kutucuk RIZA değil, "okudum" teyididir —
+  // gerekçesi lib/kvkk.js dosyasının başında.
+  const [kvkkOkundu, setKvkkOkundu] = useState(false);
+  const [kvkkAcik, setKvkkAcik] = useState(false);
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [pendingUser, setPendingUser] = useState(null);
@@ -8130,6 +8262,10 @@ const LoginModal = ({ onLogin }) => {
       setError('Şifreler uyuşmuyor!');
       return;
     }
+    if (!kvkkOkundu) {
+      setError('Devam etmek için aydınlatma metnini okuduğunuzu onaylayın.');
+      return;
+    }
     setLoading(true);
     try {
       // Kayıt sunucu tarafında atomik yapılır: mükerrer kontrolü + öğrenci
@@ -8144,6 +8280,9 @@ const LoginModal = ({ onLogin }) => {
         departmentId: selectedDepartment,
         departmentName: deptObj?.name || '',
         password: newPassword,
+        // Aydınlatmanın YAPILDIĞINI ispatlayan kayıt: hangi metin sürümü, ne
+        // zaman gösterildi. Rıza kaydı DEĞİLDİR (bkz. lib/kvkk.js).
+        kvkkAydinlatma: aydinlatmaKaydi(KVKK_SURUM),
       });
       const reg = regRes.data || {};
       if (!reg.success) {
@@ -9402,6 +9541,55 @@ const LoginModal = ({ onLogin }) => {
                     {error}
                   </div>
                 )}
+
+                {/* ── KVKK AYDINLATMASI ──
+                    Kutucuk RIZA almaz, aydınlatmanın yapıldığını teyit eder:
+                    üniversitenin öğrenci verisini işlemesi kanuna dayanır,
+                    rızaya değil (gerekçe lib/kvkk.js başında). Bu yüzden
+                    "kabul ediyorum" değil "okudum" der; metin bir tıkla açılır
+                    — okunamayan bir metin aydınlatma sayılmaz. */}
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    marginBottom: 18,
+                    fontSize: 12.5,
+                    lineHeight: 1.5,
+                    color: '#475569',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={kvkkOkundu}
+                    onChange={(e) => setKvkkOkundu(e.target.checked)}
+                    style={{ marginTop: 2, width: 16, height: 16, flexShrink: 0 }}
+                  />
+                  <span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setKvkkAcik(true);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        font: 'inherit',
+                        color: '#1D4ED8',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Aydınlatma Metni
+                    </button>
+                    &rsquo;ni okudum ve kişisel verilerimin metinde belirtilen kapsamda işleneceği
+                    konusunda bilgilendirildim.
+                  </span>
+                </label>
+                {kvkkAcik && <KvkkMetniModal onClose={() => setKvkkAcik(false)} />}
 
                 <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
                   {loading ? (
