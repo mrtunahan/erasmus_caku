@@ -240,17 +240,44 @@ describe('programIzgarasi', () => {
   it('FARKLI SAATTE BAŞLAYAN iki bölüm ayrı satırlara düşer', () => {
     // Bilgisayar 08:15'te, Makine 08:30'da başlıyor. İkisinin de "günün ilk
     // dersi" (indeks 0) ama aynı zaman değil — indeksle anahtarlansaydı tek
-    // satıra yığılır ve hocaya olmayan bir çakışma gösterilirdi.
+    // satıra yığılır ve tablo yanlış okunurdu.
     const erken = {
       ...kayit('Pazartesi', 0, 'BIL101', 'Bilgisayar Mühendisliği'),
       saat: '08:15-09:00',
     };
     const gec = { ...kayit('Pazartesi', 0, 'MAK101', 'Makine Mühendisliği'), saat: '08:30-09:15' };
-    const { doluSaatler, izgara, cakismalar } = programIzgarasi([erken, gec]);
+    const { doluSaatler, izgara } = programIzgarasi([erken, gec]);
     expect(doluSaatler).toEqual(['08:15-09:00', '08:30-09:15']);
     expect(izgara['Pazartesi']['08:15-09:00']).toHaveLength(1);
     expect(izgara['Pazartesi']['08:30-09:15']).toHaveLength(1);
-    expect(cakismalar).toEqual([]);
+  });
+
+  it('AYRI SATIR ayrı zaman demek değildir: kısmen binişen ders çakışır', () => {
+    // Aynı örnek, çakışma tarafından bakınca: 08:15-09:00 ile 08:30-09:15
+    // otuz dakika üst üste biniyor. Hoca ikisinde birden olamaz. Eski
+    // tarama satır satır çalıştığı için bunu görmüyordu; ölçüt artık
+    // etiketten çözülen zaman aralığı.
+    const erken = {
+      ...kayit('Pazartesi', 0, 'BIL101', 'Bilgisayar Mühendisliği'),
+      saat: '08:15-09:00',
+    };
+    const gec = { ...kayit('Pazartesi', 0, 'MAK101', 'Makine Mühendisliği'), saat: '08:30-09:15' };
+    const { cakismalar } = programIzgarasi([erken, gec]);
+    expect(cakismalar).toHaveLength(1);
+    expect(cakismalar[0].mesaj).toContain('BIL101');
+    expect(cakismalar[0].mesaj).toContain('MAK101');
+  });
+
+  it('uç uca gelen dersler çakışmaz', () => {
+    const once = {
+      ...kayit('Pazartesi', 0, 'BIL101', 'Bilgisayar Mühendisliği'),
+      saat: '08:15-09:00',
+    };
+    const sonra = {
+      ...kayit('Pazartesi', 1, 'MAK101', 'Makine Mühendisliği'),
+      saat: '09:00-09:45',
+    };
+    expect(programIzgarasi([once, sonra]).cakismalar).toEqual([]);
   });
 
   it('boş kayıt listesinde çökmez', () => {
@@ -377,5 +404,50 @@ describe('akademisyenKayitlari — bölüme özel saatler', () => {
       }
     );
     expect(kayitlar.map((k) => k.dersKodu)).toEqual(['GEC', 'ERKEN']);
+  });
+});
+
+// ── BİRLEŞİK PROGRAM: HER SEVİYE KENDİ SAATİYLE ──
+// Bölüm yönetimindeki "Ders Programı Görüntüle" lisans ve lisansüstünü tek
+// tabloda gösterir. Saat ayarı bölüme VE seviyeye özel olduğu için etiket
+// seviyeye göre çözülmezse ders olmadığı saatte görünür.
+describe('akademisyenKayitlari — seviyeye özel saat etiketi', () => {
+  const dokumanlar = [
+    {
+      id: 'bilgisayar_guz_1',
+      slots: { Pazartesi_0: { courseCode: 'BIL101', instructor: 'Ayşe Yılmaz' } },
+    },
+    {
+      id: 'bilgisayar_guz_1_doktora',
+      slots: { Pazartesi_0: { courseCode: 'BIL801', instructor: 'Ayşe Yılmaz' } },
+    },
+  ];
+
+  it('lisans ve lisansüstü AYNI indekste farklı saat gösterir', () => {
+    const kayitlar = akademisyenKayitlari(dokumanlar, {
+      ad: 'Ayşe Yılmaz',
+      donem: 'guz',
+      bolumler: [{ id: 'bilgisayar', name: 'Bilgisayar Müh.' }],
+      bolumSaatleri: {
+        'bilgisayar|lisans': ['08:30-09:15'],
+        'bilgisayar|doktora': ['18:00-18:45'],
+      },
+    });
+    const lisans = kayitlar.find((k) => k.dersKodu === 'BIL101');
+    const doktora = kayitlar.find((k) => k.dersKodu === 'BIL801');
+    expect(lisans.saat).toBe('08:30-09:15');
+    expect(doktora.saat).toBe('18:00-18:45');
+    // İkisi de listede: birleşik program iki seviyeyi birden gösterir.
+    expect(kayitlar).toHaveLength(2);
+  });
+
+  it('eski (yalnız bölüm) anahtar hâlâ çalışır', () => {
+    const kayitlar = akademisyenKayitlari(dokumanlar, {
+      ad: 'Ayşe Yılmaz',
+      donem: 'guz',
+      bolumler: [{ id: 'bilgisayar', name: 'Bilgisayar Müh.' }],
+      bolumSaatleri: { bilgisayar: ['09:00-09:45'] },
+    });
+    expect(kayitlar.every((k) => k.saat === '09:00-09:45')).toBe(true);
   });
 });

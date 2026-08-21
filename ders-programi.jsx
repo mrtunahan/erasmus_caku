@@ -98,7 +98,15 @@ const slotCourses = window.slotDersleri;
 // kümesinin ORTAK ekseni. İkisi ayrı verilir: bölüm içi çakışma bölümün
 // saatiyle, fakülte çakışması ortak eksenin saatiyle raporlanmalı, yoksa
 // yetkiliye yanlış saat gösterilir.
-function detectConflicts(deptAllYearsSlots, allFacultySlots, bolumSaatleri, fakulteSaatleri) {
+function detectConflicts(
+  deptAllYearsSlots,
+  allFacultySlots,
+  bolumSaatleri,
+  fakulteSaatleri,
+  // ÖTEKİ seviyenin dersleri (zaman aralıklı). Izgaraya girmez; yalnız
+  // akademisyenin iki seviyede aynı saate düşen dersini bulur.
+  otekiSeviyeGirdileri
+) {
   const conflicts = [];
   const seen = new Set();
 
@@ -219,6 +227,42 @@ function detectConflicts(deptAllYearsSlots, allFacultySlots, bolumSaatleri, faku
       });
     });
   }
+
+  // 3) SEVİYELER ARASI: aynı akademisyen lisans ve lisansüstünde aynı saatte
+  if ((otekiSeviyeGirdileri || []).length && window.programGirdileri) {
+    const bizimkiler = [];
+    (deptAllYearsSlots || []).forEach(({ year: yr, slots }) => {
+      bizimkiler.push(
+        ...window.programGirdileri(
+          slots,
+          bolumSaatleri,
+          { kaynak: 'bu|' + yr, sinif: String(yr) },
+          slotCourses
+        )
+      );
+    });
+    window.akademisyenCakismalari(bizimkiler, otekiSeviyeGirdileri).forEach((c) => {
+      const y = c.yeni || {};
+      const m = c.mevcut || {};
+      const cKey = `seviye_${c.gun}_${y.bas}_${c.akademisyen}_${y.dersKodu}_${m.dersKodu}`;
+      if (seen.has(cKey)) return;
+      seen.add(cKey);
+      const nerede = [m.seviyeAd, m.bolumAdi, m.sinif ? m.sinif + '. Sınıf' : '']
+        .filter(Boolean)
+        .join(' · ');
+      conflicts.push({
+        type: 'cross_level',
+        day: c.gun,
+        hour: y.saat,
+        instructor: c.akademisyen,
+        courses: [
+          `${y.sinif ? y.sinif + '. Sınıf: ' : ''}${y.dersKodu}`,
+          `${nerede}: ${m.dersKodu} (${m.saat})`,
+        ],
+        message: window.seviyeCakismaMetni ? window.seviyeCakismaMetni(c) : '',
+      });
+    });
+  }
   return conflicts;
 }
 
@@ -233,7 +277,12 @@ function checkSlotConflict(
   // Aynı saatin FAKÜLTE ekseni'ndeki indeksi. Bölümlerin başlangıç saatleri
   // farklı olabildiği için bölüm indeksi doğrudan fakülte kümesinde
   // aranamaz; -1 ise bu saatin ortak eksende karşılığı yoktur.
-  fakulteIndeksi
+  fakulteIndeksi,
+  // ÖTEKİ seviyenin dersleri (zaman aralıklı) + bu saatin etiketi. Slot
+  // indeksi seviyeler arasında karşılaştırılamaz; zaman karşılaştırılır.
+  otekiSeviyeGirdileri,
+  saatEtiket,
+  dersKodu
 ) {
   const warnings = [];
   const key = `${day}_${hourIndex}`;
@@ -283,6 +332,26 @@ function checkSlotConflict(
           }
         });
       });
+    });
+  }
+  // ── ÖTEKİ SEVİYE: AKADEMİSYEN O SAATTE BAŞKA YERDE Mİ ──
+  // Lisans ve lisansüstü ayrı belgelerde hazırlanır; biri yapılırken
+  // ötekindeki ders görünmüyordu. Kişi tek, takvim tek.
+  if (instructor && saatEtiket && (otekiSeviyeGirdileri || []).length && window.programGirdileri) {
+    const yeni = window.programGirdileri(
+      { [`${day}_0`]: [{ courseCode: dersKodu || '', instructor }] },
+      [saatEtiket],
+      { kaynak: '__yeni__' },
+      window.slotDersleri
+    );
+    window.akademisyenCakismalari(yeni, otekiSeviyeGirdileri).forEach((c) => {
+      const m = c.mevcut || {};
+      const nerede = [m.seviyeAd, m.bolumAdi, m.sinif ? m.sinif + '. Sınıf' : '']
+        .filter(Boolean)
+        .join(' · ');
+      warnings.push(
+        `${instructor} bu saatte ${nerede ? nerede + ' — ' : ''}"${m.dersKodu || 'ders'}" dersinde (${m.saat}).`
+      );
     });
   }
   return warnings;
@@ -1689,6 +1758,9 @@ function DersProgramiApp({
   const [deptAllYearsSlots, setDeptAllYearsSlots] = useState([]);
   // Fakülte geneli tüm bölüm/sınıf slotları
   const [allFacultySlots, setAllFacultySlots] = useState([]);
+  // ÖTEKİ seviyenin (lisans ↔ lisansüstü) dersleri, zaman aralığına
+  // çevrilmiş hâlde. Izgarada gösterilmez; yalnız akademisyen çakışması.
+  const [otekiSeviyeGirdileri, setOtekiSeviyeGirdileri] = useState([]);
   // Slot ekleme esnasında çakışma uyarıları
   const [addSlotWarnings, setAddSlotWarnings] = useState([]);
   // Akademisyenin kendi üniversite geneli haftalık programı (ortak bileşen)
@@ -2006,7 +2078,10 @@ function DersProgramiApp({
           course.professor || '',
           otherYearsSlots,
           allFacultySlots,
-          fakulteSaatIndeksi(hi)
+          fakulteSaatIndeksi(hi),
+          otekiSeviyeGirdileri,
+          saatEtiketi(visibleHours, hi),
+          course.code || ''
         );
         // splitting durumunda "zaten ders var" uyarısı VERİLMEZ — bölme kasıtlıdır.
         if (warnings.length > 0) {
@@ -2126,7 +2201,10 @@ function DersProgramiApp({
           instructor,
           otherYearsSlots,
           allFacultySlots,
-          fakulteSaatIndeksi(hi)
+          fakulteSaatIndeksi(hi),
+          otekiSeviyeGirdileri,
+          saatEtiketi(visibleHours, hi),
+          course.code || ''
         );
         if (warnings.length > 0) {
           setAddSlotWarnings(warnings);
@@ -2281,6 +2359,7 @@ function DersProgramiApp({
       setCiktiFakultesi(kapsamFakulte);
       const deptYears = [];
       const faculty = [];
+      const otekiSeviye = [];
       const orphans = [];
       const digerFakulte = [];
       (allDocs || []).forEach((d) => {
@@ -2292,8 +2371,29 @@ function DersProgramiApp({
         const docSeviye = d.seviye || (parts.length >= 4 ? parts[3] : 'lisans');
         const slots = d.slots || {};
         if (sem !== semester || !slots || Object.keys(slots).length === 0) return;
-        // Yalnız bu modülün seviyesindeki programlar (çakışma kendi seviyesi içinde)
-        if ((docSeviye || 'lisans') !== seviye) return;
+        // ── ÖTEKİ SEVİYE ATILMAZ, AYRI TUTULUR ──
+        // Buradan `return` ile atılıyordu: çakışma taraması her belgeyi
+        // yalnız kendi seviyesiyle karşılaştırıyor, lisansüstü programı
+        // yapılırken akademisyenin aynı saatteki lisans dersi görünmüyordu.
+        // Kişi tek, takvim tek. Öteki seviye ayrı kümede toplanır — ızgaraya
+        // karışmaz (saat eksenleri farklı), yalnız çakışma denetimine girer.
+        if ((docSeviye || 'lisans') !== seviye) {
+          const bolumKanon = variantToCanon[String(deptId)] || String(deptId);
+          const ayniBolum = deptId === activeDepartment || activeVariants.has(String(deptId));
+          const ayniFakulte =
+            validDeptIds.has(String(deptId)) &&
+            String(deptFacultyMap[String(deptId)] || '') === kapsamFakulte;
+          if (!ayniBolum && !ayniFakulte) return;
+          otekiSeviye.push({
+            docId: String(d.id || ''),
+            deptId: bolumKanon,
+            deptName: deptNameMap[String(deptId)] || deptNameMap[bolumKanon] || '',
+            year: yr,
+            seviye: docSeviye,
+            slots,
+          });
+          return;
+        }
         if (deptId === activeDepartment) {
           deptYears.push({ year: yr, slots });
         } else if (activeVariants.has(String(deptId))) {
@@ -2371,9 +2471,34 @@ function DersProgramiApp({
           : f.slots,
       }));
 
+      // ── ÖTEKİ SEVİYE: SLOT DEĞİL, ZAMAN ──
+      // Bu kayıtlar ızgaraya girmez; yalnız "akademisyen o saatte başka
+      // yerde mi" sorusunu yanıtlar. Slot indeksi seviyeler arasında
+      // karşılaştırılamayacağı için her kayıt kendi saat etiketinden
+      // ÇÖZÜLEN zaman aralığına çevrilir (bkz. lib/seviye-cakisma.js).
+      const otekiGirdiler = [];
+      otekiSeviye.forEach((o) => {
+        const saatListesi = window.bolumSaatleri(ayarlarSimdiki[String(o.deptId)], o.seviye);
+        otekiGirdiler.push(
+          ...window.programGirdileri(
+            o.slots,
+            saatListesi,
+            {
+              kaynak: o.docId,
+              seviye: o.seviye,
+              seviyeAd: window.dpSeviyeAdi ? window.dpSeviyeAdi(o.seviye) : o.seviye,
+              bolumAdi: o.deptName || (o.deptId === activeDepartment ? '' : o.deptId),
+              sinif: o.year,
+            },
+            window.slotDersleri
+          )
+        );
+      });
+
       setFakulteSaatleri(eksen);
       setDeptAllYearsSlots(deptYears);
       setAllFacultySlots(eksende);
+      setOtekiSeviyeGirdileri(otekiGirdiler);
       return { deptYears, faculty: eksende, eksen, kendiSaatleri };
     } catch (e) {
       console.error('Programlar yüklenirken hata:', e);
@@ -2421,9 +2546,23 @@ function DersProgramiApp({
   useEffect(() => {
     const merged = deptAllYearsSlots.filter((s) => String(s.year) !== String(year));
     merged.push({ year: String(year), slots: scheduleData });
-    const c = detectConflicts(merged, allFacultySlots, visibleHours, fakulteSaatleri);
+    const c = detectConflicts(
+      merged,
+      allFacultySlots,
+      visibleHours,
+      fakulteSaatleri,
+      otekiSeviyeGirdileri
+    );
     setConflicts(c);
-  }, [deptAllYearsSlots, allFacultySlots, scheduleData, year, visibleHours, fakulteSaatleri]);
+  }, [
+    deptAllYearsSlots,
+    allFacultySlots,
+    scheduleData,
+    year,
+    visibleHours,
+    fakulteSaatleri,
+    otekiSeviyeGirdileri,
+  ]);
 
   // Seçili döneme ait tüm dersler — akademisyen sadece kendi derslerini görebilir
   const yearCourses = useMemo(() => {
@@ -4361,14 +4500,19 @@ function DersProgramiApp({
                           fontSize: 10,
                           fontWeight: 600,
                           textTransform: 'uppercase',
-                          color: c.type === 'cross_dept' ? '#D97706' : '#DC2626',
+                          color:
+                            c.type === 'cross_dept' || c.type === 'cross_level'
+                              ? '#D97706'
+                              : '#DC2626',
                         }}
                       >
                         {c.type === 'cross_dept'
                           ? 'Fakülte Çakışması'
-                          : c.type === 'dept_professor'
-                            ? 'Hoca Çakışması'
-                            : 'Derslik Çakışması'}
+                          : c.type === 'cross_level'
+                            ? 'Seviye Çakışması'
+                            : c.type === 'dept_professor'
+                              ? 'Hoca Çakışması'
+                              : 'Derslik Çakışması'}
                       </span>
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: DP.text }}>{c.message}</div>
