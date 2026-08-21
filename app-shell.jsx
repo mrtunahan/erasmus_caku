@@ -3012,7 +3012,17 @@ function AppShell() {
             // Kısa modüllerde sayfa yüksekliği sidebar'ın altında kalmasın —
             // sidebar'lı/sidebar'sız her rolde aynı taban yükseklik.
             minHeight: isMobile ? undefined : 'calc(100vh - 64px)',
-            overflowY: 'auto',
+            // ── BURADA `overflowY: 'auto'` VARDI ──
+            // <main>'in yükseklik SINIRI yok (yalnız minHeight), yani kendisi
+            // hiç kaydırılmıyor; kaydırılan sayfa gövdesi. Ama overflow yine
+            // de <main>'i "kaydırılabilir kap" yapıyordu ve `position: sticky`
+            // en yakın kaydırılabilir ataya göre çalışır. Hiç kaydırılmayan
+            // bir kaba yapışan öğe hiç yapışmaz: modül içindeki bütün sticky
+            // kutular (ders programı ders havuzu gibi) sessizce sıradan
+            // öğeye dönüşüyordu.
+            //
+            // İki eksen de 'visible' bırakılmalı: birine hidden/auto vermek
+            // ötekini de kaydırılabilir yapar ve arıza geri gelir.
           }}
         >
           <div style={{ maxWidth: 1400, margin: '0 auto' }}>{renderModule()}</div>
