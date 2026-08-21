@@ -4,6 +4,7 @@
 // Token'ların gerçek kaynağı design-tokens.json — JSON import'u Vite'ın
 // hem dev hem prod modunda sorunsuz çalışır (.cjs import'u dev'de patlıyordu).
 import T_TOKENS from './design-tokens.json';
+import { createPortal } from 'react-dom';
 import {
   MEZUNIYET_VARSAYILAN,
   MEZUNIYET_KALIPLARI,
@@ -7941,14 +7942,24 @@ const Badge = ({ children, color, bg }) => (
 // ══════════════════════════════════════════════════════════════
 const KvkkMetniModal = ({ onClose }) => {
   const metin = kvkkMetni(window.TENANT || {});
-  return (
+  // ── PENCERE GÖVDEYE TAŞINIR ──
+  // Bileşen giriş kartının içinde render ediliyordu. Kart `overflow: hidden`
+  // taşır ve giriş kabuğu kendi `z-index`/kaydırma bağlamını kurar; pencere
+  // orada kalınca metnin üstü ve altı kırpılıyor, kaydırarak da
+  // ulaşılamıyordu. Portal ile doğrudan <body> altına çıkarılır: artık
+  // hiçbir üst kap onu kırpamaz.
+  //
+  // Yapı üç parçalı: BAŞLIK ve ALT ÇUBUK sabit, yalnız ORTA bölüm kayar.
+  // Tek parça kaydırmada metnin başı ve sonu ekran dışında kalıyordu.
+  const govde = (
     <div
       onClick={onClose}
       style={{
         position: 'fixed',
         inset: 0,
         background: 'rgba(15,23,42,0.55)',
-        zIndex: 4000,
+        // Giriş kabuğu 10000'de duruyor; pencere onun da üstünde olmalı.
+        zIndex: 10050,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -7962,69 +7973,84 @@ const KvkkMetniModal = ({ onClose }) => {
           borderRadius: 14,
           maxWidth: 720,
           width: '100%',
-          maxHeight: '85vh',
-          overflowY: 'auto',
-          padding: 24,
+          maxHeight: 'calc(100vh - 32px)',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
           boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
         }}
       >
-        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', margin: '0 0 10px' }}>
-          {metin.baslik}
-        </h2>
-        <p style={{ fontSize: 13, lineHeight: 1.6, color: '#334155', margin: '0 0 16px' }}>
-          {metin.giris}
-        </p>
-        {metin.eksikAlanVar && (
-          <div
-            style={{
-              background: '#FEF3C7',
-              border: '1px solid #FDE68A',
-              color: '#92400E',
-              borderRadius: 8,
-              padding: 10,
-              fontSize: 12,
-              lineHeight: 1.5,
-              marginBottom: 16,
-            }}
-          >
-            Bu metnin kurum iletişim ve saklama süresi alanları henüz doldurulmamıştır. Yetkili,
-            Kurum Ayarları’ndan KVKK adres, e-posta ve KEP bilgilerini girmelidir.
-          </div>
-        )}
-        {metin.bolumler.map((b, i) => (
-          <div key={i} style={{ marginBottom: 16 }}>
-            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: '#1E293B', margin: '0 0 6px' }}>
-              {b.baslik}
-            </h3>
-            {b.girisMetni && (
-              <p style={{ fontSize: 12.5, lineHeight: 1.6, color: '#475569', margin: '0 0 6px' }}>
-                {b.girisMetni}
-              </p>
-            )}
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
-              {b.maddeler.map((m, j) => (
-                <li
-                  key={j}
-                  style={{ fontSize: 12.5, lineHeight: 1.6, color: '#475569', marginBottom: 4 }}
-                >
-                  {m}
-                </li>
-              ))}
-            </ul>
-            {b.sonMetni && (
-              <p style={{ fontSize: 12.5, lineHeight: 1.6, color: '#475569', margin: '6px 0 0' }}>
-                {b.sonMetni}
-              </p>
-            )}
-          </div>
-        ))}
+        <div style={{ padding: '20px 24px 12px', borderBottom: '1px solid #E2E8F0' }}>
+          <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', margin: 0 }}>
+            {metin.baslik}
+          </h2>
+        </div>
+
+        <div
+          style={{
+            padding: '16px 24px',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <p style={{ fontSize: 13, lineHeight: 1.6, color: '#334155', margin: '0 0 16px' }}>
+            {metin.giris}
+          </p>
+          {metin.eksikAlanVar && (
+            <div
+              style={{
+                background: '#FEF3C7',
+                border: '1px solid #FDE68A',
+                color: '#92400E',
+                borderRadius: 8,
+                padding: 10,
+                fontSize: 12,
+                lineHeight: 1.5,
+                marginBottom: 16,
+              }}
+            >
+              Bu metnin kurum iletişim ve saklama süresi alanları henüz doldurulmamıştır. Yetkili,
+              kurum ayarlarından KVKK adres, e-posta ve KEP bilgilerini girmelidir.
+            </div>
+          )}
+          {metin.bolumler.map((b, i) => (
+            <div key={i} style={{ marginBottom: 16 }}>
+              <h3 style={{ fontSize: 13.5, fontWeight: 800, color: '#1E293B', margin: '0 0 6px' }}>
+                {b.baslik}
+              </h3>
+              {b.girisMetni && (
+                <p style={{ fontSize: 12.5, lineHeight: 1.6, color: '#475569', margin: '0 0 6px' }}>
+                  {b.girisMetni}
+                </p>
+              )}
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {b.maddeler.map((m, j) => (
+                  <li
+                    key={j}
+                    style={{ fontSize: 12.5, lineHeight: 1.6, color: '#475569', marginBottom: 4 }}
+                  >
+                    {m}
+                  </li>
+                ))}
+              </ul>
+              {b.sonMetni && (
+                <p style={{ fontSize: 12.5, lineHeight: 1.6, color: '#475569', margin: '6px 0 0' }}>
+                  {b.sonMetni}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 12,
             borderTop: '1px solid #E2E8F0',
-            paddingTop: 14,
+            padding: '12px 24px',
           }}
         >
           <span style={{ fontSize: 11.5, color: '#94A3B8', flex: 1 }}>Sürüm: {metin.surum}</span>
@@ -8049,6 +8075,7 @@ const KvkkMetniModal = ({ onClose }) => {
       </div>
     </div>
   );
+  return typeof document !== 'undefined' ? createPortal(govde, document.body) : govde;
 };
 window.KvkkMetniModal = KvkkMetniModal;
 
