@@ -171,11 +171,18 @@ function detectConflicts(
         const cKey = `prof_${day}_${hi}_${prof}`;
         if (seen.has(cKey)) return;
         seen.add(cKey);
+        // ── BİLEREK KABUL EDİLEN ÇAKIŞMA ──
+        // Yerleştirirken uyarıyı onaylayan kullanıcı derse iz bırakır.
+        // Çakışma listeden KALDIRILMAZ — program hâlâ kurala aykırıdır ve
+        // bunu gören biri düzeltmek isteyebilir; ama "gözden kaçmış hata"
+        // ile "bilerek verilmiş karar" ayırt edilebilsin.
+        const onayli = profEntries.some((e) => e.cakismaOnayi);
         conflicts.push({
           type: 'dept_professor',
           day,
           hour,
           instructor: prof,
+          onayli,
           courses: profEntries.map((e) => `${e.year}. Sınıf: ${e.courseCode}`),
           message: `Hoca çakışması: ${prof} — ${day} ${hour} — ${profEntries.map((e) => e.courseCode + ' (' + e.year + '. Sınıf)').join(' & ')}`,
         });
@@ -2066,6 +2073,7 @@ function DersProgramiApp({
           return false;
         sube = oneri;
       }
+      let cakismaOnayi = false;
       if (!forceAdd) {
         const otherYearsSlots = deptAllYearsSlots.filter((s) => s.year !== year);
         const warnings = checkSlotConflict(
@@ -2085,20 +2093,26 @@ function DersProgramiApp({
         );
         // splitting durumunda "zaten ders var" uyarısı VERİLMEZ — bölme kasıtlıdır.
         if (warnings.length > 0) {
-          if (isAdmin) {
-            if (
-              !window.confirm(
-                (splitting ? 'Hücre bölünüyor. ' : '') +
-                  'Çakışma tespit edildi:\n\n• ' +
-                  warnings.join('\n• ') +
-                  '\n\nYine de yerleştirilsin mi?'
-              )
+          // ── ÇAKIŞMA HER ZAMAN HATA DEĞİLDİR ──
+          // Yetkili olmayan herkese yerleştirme tümden kapalıydı. Ama meşru
+          // durumlar var: aynı hoca farklı sınıflarda yürüyen eski müfredat
+          // dersini aynı saate koymak zorunda kalabilir. Kurala uymayan bir
+          // programı kaydetmek, doğru programı hiç kaydedememekten iyidir —
+          // yeter ki bilerek yapılsın ve kayıtta izi kalsın.
+          //
+          // Uyarı herkese aynı; fark yalnız kararı verenin bunu ONAYLAMASI.
+          // Çakışma listeden kaybolmaz, "bilerek kabul edildi" diye durur.
+          if (
+            !window.confirm(
+              (splitting ? 'Hücre bölünüyor. ' : '') +
+                'Çakışma tespit edildi:\n\n• ' +
+                warnings.join('\n• ') +
+                '\n\nYine de yerleştirilsin mi? (Çakışma listesinde ' +
+                '"bilerek kabul edildi" olarak görünmeye devam eder.)'
             )
-              return false;
-          } else {
-            alert('Çakışma nedeniyle yerleştirilemedi:\n\n• ' + warnings.join('\n• '));
+          )
             return false;
-          }
+          cakismaOnayi = true;
         }
       }
       commitSlots((s) => {
@@ -2113,6 +2127,8 @@ function DersProgramiApp({
           sube,
           courseId: course.id,
           sinif: course.sinif || 0,
+          // Bilerek kabul edilen çakışma: uyarı susturulmaz, işaretlenir.
+          ...(cakismaOnayi || forceAdd ? { cakismaOnayi: true } : {}),
         });
       });
       return true;
@@ -2207,8 +2223,10 @@ function DersProgramiApp({
           course.code || ''
         );
         if (warnings.length > 0) {
+          // Uyarı gösterilir, karar kullanıcıya bırakılır: "Çakışmayı kabul et
+          // ve ekle" düğmesi forceAdd ile buraya geri döner.
           setAddSlotWarnings(warnings);
-          return; // Çakışma var — admin ise "Geçersiz Kıl" gösterilecek, diğerleri engellenecek
+          return;
         }
       }
 
@@ -2221,6 +2239,8 @@ function DersProgramiApp({
           sube,
           courseId: course.id,
           sinif: course.sinif || 0,
+          // Bilerek kabul edilen çakışma: uyarı susturulmaz, işaretlenir.
+          ...(forceAdd ? { cakismaOnayi: true } : {}),
         });
       });
       setShowAddModal(false);
@@ -4285,9 +4305,9 @@ function DersProgramiApp({
                       paddingLeft: 22,
                     }}
                   >
-                    {isAdmin
-                      ? 'Fakülte yöneticisi olarak çakışmayı geçersiz kılabilirsiniz.'
-                      : 'Lütfen farklı bir saat veya derslik seçin.'}
+                    Farklı bir saat/derslik seçebilir ya da çakışmayı bilerek kabul edip
+                    ekleyebilirsiniz — kabul edilen çakışma listede "bilerek kabul edildi" olarak
+                    görünmeye devam eder.
                   </div>
                 </div>
               )}
@@ -4330,31 +4350,29 @@ function DersProgramiApp({
                 İptal
               </button>
               {addSlotWarnings.length > 0 ? (
-                isAdmin ? (
-                  <button
-                    onClick={() => handleAddSlot(true)}
-                    style={{
-                      padding: '10px 22px',
-                      borderRadius: 10,
-                      border: 'none',
-                      background: '#DC2626',
-                      color: 'white',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                      boxShadow: '0 2px 8px rgba(220,38,38,0.3)',
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.boxShadow = '0 4px 12px rgba(220,38,38,0.4)')
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.boxShadow = '0 2px 8px rgba(220,38,38,0.3)')
-                    }
-                  >
-                    Çakışmayı Geçersiz Kıl
-                  </button>
-                ) : null
+                <button
+                  onClick={() => handleAddSlot(true)}
+                  style={{
+                    padding: '10px 22px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: '#DC2626',
+                    color: 'white',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    boxShadow: '0 2px 8px rgba(220,38,38,0.3)',
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.boxShadow = '0 4px 12px rgba(220,38,38,0.4)')
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.boxShadow = '0 2px 8px rgba(220,38,38,0.3)')
+                  }
+                >
+                  Çakışmayı Kabul Et ve Ekle
+                </button>
               ) : (
                 <button
                   onClick={() => handleAddSlot(false)}
@@ -4500,12 +4518,14 @@ function DersProgramiApp({
                           fontSize: 10,
                           fontWeight: 600,
                           textTransform: 'uppercase',
-                          color:
-                            c.type === 'cross_dept' || c.type === 'cross_level'
+                          color: c.onayli
+                            ? '#6B7280'
+                            : c.type === 'cross_dept' || c.type === 'cross_level'
                               ? '#D97706'
                               : '#DC2626',
                         }}
                       >
+                        {c.onayli ? 'Bilerek Kabul Edildi · ' : ''}
                         {c.type === 'cross_dept'
                           ? 'Fakülte Çakışması'
                           : c.type === 'cross_level'
