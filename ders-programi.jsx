@@ -2967,6 +2967,14 @@ function DersProgramiApp({
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
         {editMode && !responsive.isMobile && (
           <div
+            // ── DERS HAVUZU PROGRAMLA BİRLİKTE AKAR ──
+            // Kutu `position: sticky` ile ekranın üstüne çakılıydı ve kendi
+            // içinde 620px'de kesilip ayrı bir kaydırma çubuğu açıyordu.
+            // Programın alt saatlerine ders yerleştirirken kutu yukarıda
+            // asılı kalıyor, sürükleme mesafesi sayfa boyu uzuyordu; kutunun
+            // kendi kaydırması da sayfa kaydırmasıyla yarışıyordu.
+            // Artık sayfayla birlikte aşağı iner ve boyu içeriği kadardır:
+            // hangi satıra bakıyorsanız ders listesi onun yanındadır.
             style={{
               width: 220,
               flexShrink: 0,
@@ -2974,10 +2982,7 @@ function DersProgramiApp({
               borderRadius: 12,
               border: '1px solid #E5E7EB',
               padding: 12,
-              maxHeight: 620,
-              overflowY: 'auto',
-              position: 'sticky',
-              top: 8,
+              alignSelf: 'flex-start',
             }}
           >
             <div style={{ fontSize: 12, fontWeight: 700, color: DP.navy, marginBottom: 4 }}>
