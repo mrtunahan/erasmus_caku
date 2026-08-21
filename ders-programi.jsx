@@ -2984,9 +2984,11 @@ function DersProgramiApp({
               border: '1px solid #E5E7EB',
               padding: 12,
               position: 'sticky',
-              top: 8,
+              // Üst başlık (64px) sticky duruyor; kutu onun altında başlar,
+              // yoksa kaydırırken başlığın arkasına giriyor.
+              top: 72,
               alignSelf: 'flex-start',
-              maxHeight: 'calc(100vh - 24px)',
+              maxHeight: 'calc(100vh - 88px)',
               overflowY: 'auto',
             }}
           >
