@@ -2781,6 +2781,8 @@ function SinavOtomasyonuApp({
   const [professors, setProfessors] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [activePeriodId, setActivePeriodId] = useState(null);
+  // Dönem kartları açılır kapanır; varsayılan kapalı, seçili dönem başlıkta.
+  const [donemlerAcik, setDonemlerAcik] = useState(false);
   const [placedExams, setPlacedExams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('calendar');
@@ -3365,6 +3367,18 @@ function SinavOtomasyonuApp({
   const activePeriod = periods.find((p) => p.id === activePeriodId);
   const periodExams = placedExams.filter((e) => e.periodId === activePeriodId);
 
+  // ── SEÇİM YOKKEN KAPANMAZ ──
+  // Panel varsayılan kapalıdır, ama hiç dönem seçilmemişken kapalı açılış
+  // kullanıcıyı boş bir sayfayla baş başa bırakırdı: seçecek kart görünmez.
+  // Seçim yapılana kadar açık durur.
+  const donemlerGoster = donemlerAcik || !activePeriod;
+
+  // Kapalıyken başlıkta duran özet: hangi dönem seçili, kaç dönem var.
+  const donemOzeti = activePeriod
+    ? `${activePeriod.label || `${activePeriod.examType} - ${activePeriod.semester}`}` +
+      `${periods.length > 1 ? ` · ${periods.length} dönem` : ''}`
+    : `${periods.length} dönem — seçilmedi`;
+
   // Create a turkishified version of exams for consistent display
   const turkishifiedPeriodExams = useMemo(() => periodExams.map(turkishifyExam), [periodExams]);
 
@@ -3855,20 +3869,61 @@ function SinavOtomasyonuApp({
             düzenle/sil ikonları tek satıra sıkışıyordu. */}
         {periods.length > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <div
+            {/* ── AÇILIR KAPANIR ──
+                Dönem kartları sayfanın üstünü kaplıyordu; oysa dönem bir kez
+                seçilip takvimle çalışılan bir şey. Başlık açar/kapar, kapalıyken
+                hangi dönemin seçili olduğu özet satırında durur. */}
+            <button
+              type="button"
+              onClick={() => activePeriod && setDonemlerAcik((v) => !v)}
+              aria-expanded={donemlerGoster}
+              disabled={!activePeriod}
               style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color: C.navy,
-                marginBottom: 10,
-                letterSpacing: 0.2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                width: '100%',
+                padding: 0,
+                marginBottom: donemlerGoster ? 10 : 0,
+                border: 'none',
+                background: 'transparent',
+                fontFamily: 'inherit',
+                cursor: activePeriod ? 'pointer' : 'default',
+                textAlign: 'left',
               }}
             >
-              Sınav Dönemleri
-            </div>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: '#6B7280',
+                  opacity: activePeriod ? 1 : 0.35,
+                  transform: donemlerGoster ? 'rotate(90deg)' : 'none',
+                  transition: 'transform 0.15s',
+                  lineHeight: 1,
+                }}
+              >
+                ▶
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.navy, letterSpacing: 0.2 }}>
+                Sınav Dönemleri
+              </span>
+              <span style={{ flex: 1 }} />
+              <span
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  color: '#6B7280',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {donemOzeti}
+              </span>
+            </button>
             <div
               style={{
-                display: 'grid',
+                display: donemlerGoster ? 'grid' : 'none',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
                 gap: 10,
               }}
