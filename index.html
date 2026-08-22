@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.quilljs.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://pagead2.googlesyndication.com https://adservice.google.com https://*.googlesyndication.com https://*.doubleclick.net https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://*.adtrafficquality.google; style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://websitem.karatekin.edu.tr https://cakuavis.karatekin.edu.tr https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net; connect-src 'self' https://cdnjs.cloudflare.com https://unpkg.com https://cdn.quilljs.com https://cdn.jsdelivr.net https://*.googleapis.com https://firebasestorage.googleapis.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://csi.gstatic.com https://api.adtrafficquality.google https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://*.adtrafficquality.google; frame-src 'self' blob: https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://www.google.com https://docs.google.com https://*.googleapis.com https://firebasestorage.googleapis.com https://view.officeapps.live.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://*.adtrafficquality.google; object-src 'none'; base-uri 'self';">
-  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="icon" type="image/png" href="/logo.png">
   <title>Offline Asistan</title>
 
   <!-- Google AdSense -->
@@ -479,7 +479,7 @@
 <body>
   <div id="root">
     <div class="loading-screen">
-      <img src="logo.png" alt="Logo" class="loading-logo" />
+      <img src="/logo.png" alt="Logo" class="loading-logo" />
       <div class="loading-title">Offline Asistan</div>
       <div class="loading-subtitle">Çankırı Karatekin Üniversitesi</div>
       <div class="loading-bar-track">
@@ -516,7 +516,7 @@
         ? 'API sunucusuna ulaşılamıyor (' + window.apiError + ').'
         : 'Uygulama beklenenden uzun sürede yüklendi.';
       screen.innerHTML =
-        '<img src="logo.png" alt="Logo" class="loading-logo" />' +
+        '<img src="/logo.png" alt="Logo" class="loading-logo" />' +
         '<div class="loading-title">Bağlantı Sorunu</div>' +
         '<div class="loading-subtitle" style="max-width:340px;line-height:1.5">' + reason +
         ' Sunucu çalışıyorsa sayfayı yenileyin; sorun sürerse sistem yöneticisine bildirin.</div>' +

@@ -284,7 +284,7 @@ const TopHeader = ({
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12 }}>
           <img
-            src="logo.png"
+            src="/logo.png"
             alt="Logo"
             style={{
               width: isMobile ? 36 : 44,

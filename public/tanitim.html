@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline Asistan — Fakülte Yönetim Sistemi</title>
+    <meta
+      name="description"
+      content="Erasmus, ders programı, sınav otomasyonu, staj ve muafiyet süreçlerini tek yerde yürüten fakülte yönetim sistemi."
+    />
+    <!-- Sayfa hiçbir dış kaynağa bağlanmaz: yazı tipi, betik, görsel — hepsi
+         kendi sunucusundan. Tanıtım sayfası uygulamadan bağımsız olduğu için
+         kendi güvenlik politikasını taşır. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'none';"
+    />
+    <link rel="icon" href="/logo.png" />
+    <style>
+      /* ── SIFIR BAĞIMLILIK ──
+         Bu sayfa React yüklemez. Ziyaretçi yalnız sistemin ne olduğunu
+         öğrenmek için uygulamanın tamamını indirmemeli; giriş düğmesine
+         basınca indirir. */
+      :root {
+        --lacivert: #121828;
+        --lacivert-2: #1b2a4a;
+        --teal: #0d9b8e;
+        --teal-koyu: #0a7d72;
+        --altin: #c4973b;
+        --metin: #0f172a;
+        --metin-soluk: #64748b;
+        --kenar: #e2e8f0;
+        --zemin: #f7f9fb;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+          sans-serif;
+        color: var(--metin);
+        background: var(--zemin);
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.6;
+      }
+      a {
+        color: inherit;
+      }
+
+      /* ── Üst çubuk ── */
+      .ust {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: rgba(18, 24, 40, 0.92);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .ust-ic {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .marka {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+      .marka img {
+        width: 34px;
+        height: 34px;
+        object-fit: contain;
+        flex-shrink: 0;
+      }
+      .marka-ad {
+        color: #fff;
+        font-weight: 800;
+        font-size: 16px;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+      }
+      .marka-alt {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 11.5px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .bosluk {
+        flex: 1;
+      }
+      .giris-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--teal);
+        color: #fff;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 14px;
+        padding: 10px 18px;
+        border-radius: 10px;
+        white-space: nowrap;
+        transition:
+          background 0.15s,
+          transform 0.15s;
+      }
+      .giris-btn:hover {
+        background: var(--teal-koyu);
+      }
+      .giris-btn:active {
+        transform: translateY(1px);
+      }
+
+      /* ── Kahraman ── */
+      .kahraman {
+        background:
+          linear-gradient(rgba(8, 12, 24, 0.72), rgba(8, 12, 24, 0.88)), url('/login-bg.jpg');
+        background-size: cover;
+        background-position: center;
+        color: #fff;
+        padding: 76px 20px 84px;
+        text-align: center;
+      }
+      .kahraman h1 {
+        margin: 0 auto 14px;
+        max-width: 780px;
+        font-size: 40px;
+        line-height: 1.18;
+        font-weight: 800;
+        letter-spacing: -0.025em;
+      }
+      .kahraman h1 .vurgu {
+        color: var(--altin);
+      }
+      .kahraman p {
+        margin: 0 auto 30px;
+        max-width: 620px;
+        font-size: 16.5px;
+        color: rgba(255, 255, 255, 0.82);
+      }
+      .kahraman .giris-btn {
+        font-size: 15.5px;
+        padding: 13px 28px;
+      }
+      .kahraman-not {
+        margin-top: 16px;
+        font-size: 12.5px;
+        color: rgba(255, 255, 255, 0.55);
+      }
+
+      /* ── Bölüm ── */
+      .bolum {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 64px 20px;
+      }
+      .bolum-baslik {
+        text-align: center;
+        margin-bottom: 8px;
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      .bolum-alt {
+        text-align: center;
+        color: var(--metin-soluk);
+        margin: 0 auto 38px;
+        max-width: 560px;
+        font-size: 14.5px;
+      }
+
+      /* ── Modül kartları ── */
+      .kartlar {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .kart {
+        background: #fff;
+        border: 1px solid var(--kenar);
+        border-radius: 14px;
+        padding: 20px;
+        transition:
+          box-shadow 0.18s,
+          transform 0.18s,
+          border-color 0.18s;
+      }
+      .kart:hover {
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+        transform: translateY(-2px);
+        border-color: #cbd5e1;
+      }
+      .kart-ikon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: #eef6f5;
+        color: var(--teal);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+      }
+      .kart h3 {
+        margin: 0 0 6px;
+        font-size: 15.5px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+      .kart p {
+        margin: 0;
+        font-size: 13.5px;
+        color: var(--metin-soluk);
+      }
+
+      /* ── Alt bilgi ── */
+      .alt {
+        background: var(--lacivert);
+        color: rgba(255, 255, 255, 0.7);
+        padding: 34px 20px;
+      }
+      .alt-ic {
+        max-width: 1100px;
+        margin: 0 auto;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 14px;
+        font-size: 13px;
+      }
+      .alt-ic strong {
+        color: #fff;
+      }
+
+      @media (max-width: 640px) {
+        .kahraman {
+          padding: 54px 18px 60px;
+        }
+        .kahraman h1 {
+          font-size: 29px;
+        }
+        .kahraman p {
+          font-size: 15px;
+        }
+        .marka-alt {
+          display: none;
+        }
+        .bolum {
+          padding: 48px 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ── ESKİ HASH BAĞLANTILARI ──
+         Uygulama `#erasmus` gibi hash rotalar kullanıyor ve hash sunucuya HİÇ
+         gitmez; nginx onu göremez. Kök artık tanıtım olduğu için, kayıtlı bir
+         `/#erasmus` yer imi buraya düşerdi. Hash'i burada yakalayıp uygulamaya
+         taşıyoruz — eski bağlantılar çalışmaya devam etsin.
+         `replace` kullanılır: geri düğmesi tanıtıma dönüp yeniden
+         yönlendirmesin. -->
+    <script>
+      (function () {
+        var h = window.location.hash;
+        if (h && h.length > 1) window.location.replace('/panel/' + h);
+      })();
+    </script>
+
+    <header class="ust">
+      <div class="ust-ic">
+        <div class="marka">
+          <img src="/logo.png" alt="" />
+          <div style="min-width: 0">
+            <div class="marka-ad">Offline Asistan</div>
+            <div class="marka-alt">Çankırı Karatekin Üniversitesi</div>
+          </div>
+        </div>
+        <div class="bosluk"></div>
+        <a class="giris-btn" href="/panel/">
+          Sisteme Giriş
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </a>
+      </div>
+    </header>
+
+    <section class="kahraman">
+      <h1>Fakültenin işleyişi <span class="vurgu">tek sistemde</span></h1>
+      <p>
+        Erasmus hareketliliğinden ders programına, staj dosyalarından muafiyet başvurularına kadar
+        fakültenin yürüttüğü süreçler; belgeleriyle, onay akışlarıyla ve çakışma denetimleriyle
+        birlikte.
+      </p>
+      <a class="giris-btn" href="/panel/">
+        Sisteme Giriş
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </a>
+      <div class="kahraman-not">Giriş, kurum hesabı olan öğrenci ve personele açıktır.</div>
+    </section>
+
+    <section class="bolum">
+      <h2 class="bolum-baslik">Modüller</h2>
+      <p class="bolum-alt">
+        Her modül kendi süreciyle birlikte gelir: başvuru, değerlendirme, onay ve resmî belge
+        çıktısı.
+      </p>
+
+      <div class="kartlar">
+        <div class="kart">
+          <div class="kart-ikon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+            </svg>
+          </div>
+          <h3>Erasmus Öğrenim Anlaşması</h3>
+          <p>
+            Gidiş ve dönüş ders eşleştirmeleri, ders değişikliği uyarıları, transkriptten harf notu
+            dönüşümü ve akademisyen onayı.
+          </p>
+        </div>
+
+        <div class="kart">
+          <div class="kart-ikon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
+            </svg>
+          </div>
+          <h3>Ders Programı</h3>
+          <p>
+            Sürükle-bırak haftalık program; derslik, hoca ve seviyeler arası çakışmaları anında
+            yakalayan denetim.
+          </p>
+        </div>
+
+        <div class="kart">
+          <div class="kart-ikon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 6v6l4 2" />
+              <circle cx="12" cy="12" r="10" />
+            </svg>
+          </div>
+          <h3>Sınav Otomasyonu</h3>
+          <p>
+            Vize, final ve bütünleme dönemleri; sınavların takvime yerleştirilmesi ve gözetmen
+            planlaması.
+          </p>
+        </div>
+
+        <div class="kart">
+          <div class="kart-ikon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="2" y="7" width="20" height="14" rx="2" />
+              <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
+            </svg>
+          </div>
+          <h3>Staj</h3>
+          <p>
+            Staj başvurusu, işyeri bilgileri, sosyal güvenlik bildirimi için gereken belgelerin
+            hazırlanması.
+          </p>
+        </div>
+
+        <div class="kart">
+          <div class="kart-ikon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 11l3 3L22 4" />
+              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+            </svg>
+          </div>
+          <h3>Ders Muafiyeti ve İntibak</h3>
+          <p>
+            Muafiyet başvurularının toplanması, ders eşleştirmesi ve intibak kararının belgeye
+            dökülmesi.
+          </p>
+        </div>
+
+        <div class="kart">
+          <div class="kart-ikon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3 17l6-6 4 4 8-8" />
+              <path d="M14 7h7v7" />
+            </svg>
+          </div>
+          <h3>Yatay ve Dikey Geçiş</h3>
+          <p>
+            Kurum içi/kurumlararası ve merkezi yerleştirme puanıyla geçiş başvuruları; taban puan
+            tabloları ve sıralama.
+          </p>
+        </div>
+
+        <div class="kart">
+          <div class="kart-ikon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 11H5a2 2 0 00-2 2v7h6zM15 3H9v17h6zM21 8h-6v12h6z" />
+            </svg>
+          </div>
+          <h3>Anketler</h3>
+          <p>
+            Bölüm, fakülte ya da üniversite geneline yayımlanan anketler; hedefli atama ve sonuç
+            raporları.
+          </p>
+        </div>
+
+        <div class="kart">
+          <div class="kart-ikon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+              <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+            </svg>
+          </div>
+          <h3>Şablonlar</h3>
+          <p>
+            Kurumsal belge şablonlarının bölüm, fakülte veya üniversite kapsamında tanımlanması ve
+            çıktıya işlenmesi.
+          </p>
+        </div>
+
+        <div class="kart">
+          <div class="kart-ikon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </div>
+          <h3>Öğrenci Portalı</h3>
+          <p>
+            Öğrencinin kendi başvuruları, belgeleri, ders programı ve duyuruları tek ekranda
+            izlemesi.
+          </p>
+        </div>
+
+        <div class="kart">
+          <div class="kart-ikon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3 21h18M5 21V7l7-4 7 4v14" />
+              <path d="M9 21v-6h6v6" />
+            </svg>
+          </div>
+          <h3>Bölüm ve Fakülte Yönetimi</h3>
+          <p>
+            Akademisyen bilgileri, birleşik ders programı görüntüleme, komisyonlar ve yetki
+            tanımları.
+          </p>
+        </div>
+
+        <div class="kart">
+          <div class="kart-ikon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+            </svg>
+          </div>
+          <h3>Akademik Takvim ve Duyurular</h3>
+          <p>
+            Dönem takvimi, bölüm ve fakülte duyuruları; hedeflenen kitleye açılan bilgilendirmeler.
+          </p>
+        </div>
+
+        <div class="kart">
+          <div class="kart-ikon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2zM22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" />
+            </svg>
+          </div>
+          <h3>Kaynak Kütüphanesi ve Yol Haritaları</h3>
+          <p>
+            Ders kaynakları, mezuniyet yol haritaları ve öğrencinin ilerlemesini izleyen planlar.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="alt">
+      <div class="alt-ic">
+        <div><strong>Offline Asistan</strong> — Çankırı Karatekin Üniversitesi</div>
+        <div class="bosluk"></div>
+        <div>Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.</div>
+      </div>
+    </footer>
+  </body>
+</html>
