@@ -5,6 +5,7 @@ const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
+const { mukerrerAtlanabilirMi } = require('../lib/yazma-mukerrer');
 const { auditWrites } = require('../middleware/auditLog');
 const { softAuth } = require('../middleware/softAuth');
 const { JWT_SECRET } = require('../middleware/auth');
@@ -1151,8 +1152,22 @@ async function executeSingleOp(db, op) {
   switch (op.type) {
     case 'add': {
       const { cleaned } = addTimestamps(op.data, true);
-      const result = await col.insertOne(cleaned);
-      return { success: true, id: result.insertedId.toString() };
+      try {
+        const result = await col.insertOne(cleaned);
+        return { success: true, id: result.insertedId.toString() };
+      } catch (e) {
+        // ── MÜKERRER KAYIT HATA DEĞİLDİR ──
+        // sigKey taşıyan koleksiyonlarda (trip_history, muafiyet_history)
+        // benzersizlik indeksinin AMACI ikinci kaydı engellemektir. Bu hata
+        // toplu yazmada döngüyü kırıyor, istek 500 dönüyor ve KALAN
+        // işlemler hiç yazılmıyordu — canlıda bir öğrencinin geçmişi bu
+        // yüzden eksik kalıyordu. Kural ve gerekçesi:
+        // server/lib/yazma-mukerrer.js
+        if (mukerrerAtlanabilirMi(e, cleaned)) {
+          return { success: true, atlandi: 'mukerrer' };
+        }
+        throw e;
+      }
     }
     case 'set': {
       const { cleaned } = addTimestamps(op.data, true);
