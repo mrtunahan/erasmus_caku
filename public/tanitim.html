@@ -221,65 +221,6 @@
         box-shadow: 0 4px 14px rgba(27, 42, 74, 0.24);
       }
 
-      .panel {
-        display: none;
-        background: #fff;
-        border: 1px solid var(--kenar);
-        border-radius: 18px;
-        padding: 30px;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
-        animation: panelGir 0.28s ease-out;
-      }
-      .panel[data-etkin='1'] {
-        display: grid;
-        grid-template-columns: 56px 1fr;
-        gap: 20px;
-        align-items: start;
-      }
-      @keyframes panelGir {
-        from {
-          opacity: 0;
-          transform: translateY(8px);
-        }
-        to {
-          opacity: 1;
-          transform: none;
-        }
-      }
-      .panel-ikon {
-        width: 56px;
-        height: 56px;
-        border-radius: 14px;
-        background: linear-gradient(135deg, #eef6f5, #dceceb);
-        color: var(--teal-koyu);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .panel h3 {
-        margin: 0 0 8px;
-        font-size: 19px;
-        font-weight: 800;
-        letter-spacing: -0.015em;
-      }
-      .panel p {
-        margin: 0 0 14px;
-        font-size: 14.5px;
-        color: #475569;
-      }
-      .panel ul {
-        margin: 0;
-        padding-left: 18px;
-        columns: 2;
-        column-gap: 28px;
-      }
-      .panel li {
-        font-size: 13.5px;
-        color: var(--metin-soluk);
-        margin-bottom: 6px;
-        break-inside: avoid;
-      }
-
       /* ══════ GERÇEK KİTAP ══════
          Açık bir kitap yayılımı: SOL sayfa metin, SAĞ sayfa görsel(ler).
          Sayfa çevrilince sağdaki yaprak cilt çizgisinden sola döner ve
@@ -304,13 +245,13 @@
         color: rgba(255, 255, 255, 0.62);
       }
       .kitap-sahne {
-        max-width: 1000px;
+        max-width: 1240px;
         margin: 0 auto;
-        perspective: 2600px;
+        perspective: 2800px;
       }
       .kitap {
         position: relative;
-        height: 460px;
+        height: 620px;
         transform-style: preserve-3d;
         /* Kapak: kitabın altından taşan koyu kenar */
         filter: drop-shadow(0 30px 50px rgba(0, 0, 0, 0.55));
@@ -485,8 +426,102 @@
         object-fit: contain;
       }
 
+      /* ══ BÜYÜTEÇ ══
+         Sağ sayfadaki görseller küçük basılıyor; ayrıntısı için tıklanınca
+         tam ekran açılır. Büyüteç işareti karenin tıklanabilir olduğunu
+         söyler — yoksa kimse denemez. */
+      .kare {
+        position: relative;
+        cursor: zoom-in;
+        border: none;
+        padding: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .kare::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 8px;
+        background-color: rgba(15, 23, 42, 0);
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.35-4.35M11 8v6M8 11h6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        opacity: 0;
+        transition:
+          opacity 0.18s,
+          background-color 0.18s;
+      }
+      .kare:hover::after,
+      .kare:focus-visible::after {
+        opacity: 1;
+        background-color: rgba(15, 23, 42, 0.42);
+      }
+
+      .buyutec {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        background: rgba(6, 10, 20, 0.94);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 34px;
+        cursor: zoom-out;
+      }
+      .buyutec img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 10px;
+        box-shadow: 0 30px 70px rgba(0, 0, 0, 0.6);
+      }
+      .buyutec-btn {
+        position: absolute;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        cursor: pointer;
+        font-family: inherit;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .buyutec-btn.kapat {
+        top: 18px;
+        right: 20px;
+        width: 42px;
+        height: 42px;
+        font-size: 22px;
+        line-height: 1;
+      }
+      /* Birden çok görselde büyüteç içinde de gezinilir. */
+      .buyutec-btn.ok {
+        top: 50%;
+        transform: translateY(-50%);
+        width: 48px;
+        height: 48px;
+      }
+      .buyutec-btn.ok.sol {
+        left: 18px;
+      }
+      .buyutec-btn.ok.sag {
+        right: 18px;
+      }
+      .buyutec-sayac {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+
       .kitap-kontrol {
-        max-width: 1000px;
+        max-width: 1240px;
         margin: 26px auto 0;
         display: flex;
         align-items: center;
@@ -571,12 +606,6 @@
         .bolum {
           padding: 48px 18px;
         }
-        .panel[data-etkin='1'] {
-          grid-template-columns: 1fr;
-        }
-        .panel ul {
-          columns: 1;
-        }
         /* ── DAR EKRANDA KİTAP AÇILMAZ ──
            İki sayfayı yan yana sığdırmaya çalışmak her ikisini de okunmaz
            kılıyor. Telefonda yaprak çevirme kapanır; sayfalar alt alta,
@@ -626,9 +655,6 @@
         .sayfa[data-durum='cevrildi'],
         .sayfa[data-durum='bekleyen'] {
           transform: none;
-        }
-        .panel {
-          animation: none;
         }
       }
     </style>
@@ -703,22 +729,16 @@
       <div class="kahraman-not">Giriş, kurum hesabı olan öğrenci ve personele açıktır.</div>
     </section>
 
-    <!-- ══ MODÜLLER — SEKMELİ ══ -->
-    <section class="bolum">
+    <!-- ══ MODÜLLER — SEKMEYE BAĞLI KİTAP ══
+         Sekme seçilir, kitap o modülün içeriğini gösterir. Modül başına
+         sabit bir açıklama paneli yok: içeriği yetkili giriyor. -->
+    <section class="kitap-alan">
       <h2 class="bolum-baslik">Modüller</h2>
       <p class="bolum-alt">
-        Her modül kendi süreciyle birlikte gelir: başvuru, değerlendirme, onay ve resmî belge
-        çıktısı.
+        Bir modül seçin; o modüle ait tanıtım sayfaları kitap gibi çevrilerek gösterilir.
       </p>
 
       <div class="sekme-serit" role="tablist" id="sekmeler"></div>
-      <div id="paneller"></div>
-    </section>
-
-    <!-- ══ 3B SAYFA ÇEVİRME SLIDER ══ -->
-    <section class="kitap-alan">
-      <h2 class="bolum-baslik">Öne çıkanlar</h2>
-      <p class="bolum-alt">Duyurular, yenilikler ve kurumdan haberler.</p>
 
       <div class="kitap-sahne">
         <div class="kitap" id="kitap" aria-live="polite">
@@ -730,33 +750,11 @@
 
       <div class="kitap-kontrol">
         <button class="kitap-btn" id="geri" aria-label="Önceki sayfa">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
         </button>
         <div class="kitap-noktalar" id="noktalar"></div>
         <button class="kitap-btn" id="ileri" aria-label="Sonraki sayfa">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M9 6l6 6-6 6" />
-          </svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
         </button>
       </div>
     </section>
@@ -785,257 +783,94 @@
         }
 
         // ══ MODÜL SEKMELERİ ══
-        var IKON = {
-          takvim: 'M3 4h18v18H3zM16 2v4M8 2v4M3 10h18',
-          saat: 'M12 6v6l4 2M12 22a10 10 0 100-20 10 10 0 000 20z',
-          onay: 'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11',
-          gunes: 'M12 3v2m0 14v2M5 12H3m18 0h-2M6 6l1.5 1.5M16.5 16.5L18 18M18 6l-1.5 1.5M7.5 16.5L6 18M16 12a4 4 0 11-8 0 4 4 0 018 0z',
-          grafik: 'M3 17l6-6 4 4 8-8M14 7h7v7',
-          canta: 'M2 7h20v14H2zM16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16',
-          dallanma: 'M6 3v12M6 21a3 3 0 100-6 3 3 0 000 6zM18 9a3 3 0 100-6 3 3 0 000 6zM18 6H9a3 3 0 00-3 3',
-          hedef: 'M12 22a10 10 0 100-20 10 10 0 000 20zM12 18a6 6 0 100-12 6 6 0 000 12zM12 14a2 2 0 100-4 2 2 0 000 4z',
-          anket: 'M9 11H5a2 2 0 00-2 2v7h6zM15 3H9v17h6zM21 8h-6v12h6z',
-          kulup: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
-          rozet: 'M12 15a7 7 0 100-14 7 7 0 000 14zM8.2 13.9L7 22l5-3 5 3-1.2-8.1',
-        };
-
+        //
+        // Sekme kimlikleri lib/tanitim-slayt.js'teki TANITIM_MODULLERI ile
+        // AYNI olmalı: yönetim ekranı slaydı o kimlikle kaydeder, burası o
+        // kimlikle süzer. Ayrışırlarsa yetkilinin eklediği slayt hiçbir
+        // sekmede görünmez — sessiz bir kayıp. tests/tanitim-slayt.test.js
+        // bu dosyayı okuyup iki listeyi karşılaştırır.
         var MODULLER = [
           {
+            id: 'dersprogrami',
             ad: 'Ders Programı',
-            ikon: 'takvim',
-            ozet: 'Haftalık ders programını sürükle-bırak ile hazırlayın; çakışmalar siz yerleştirirken yakalansın.',
-            maddeler: [
-              'Derslik ve öğretim üyesi çakışma denetimi',
-              'Lisans ve lisansüstü arasında çakışma uyarısı',
-              'Bölüm ve fakülte birleşik programı',
-              'Bölüme özel ders saati düzeni',
-              'Şablona işlenmiş Word/Excel çıktısı',
-              'Akademisyen bazlı program görüntüleme',
-            ],
+            ozet: 'Haftalık ders programını sürükle-bırak ile hazırlayın; derslik, öğretim üyesi ve seviyeler arası çakışmalar siz yerleştirirken yakalansın.',
           },
           {
+            id: 'sinav',
             ad: 'Sınav Otomasyonu',
-            ikon: 'saat',
-            ozet: 'Vize, final ve bütünleme dönemlerini kurun; sınavları takvime yerleştirin.',
-            maddeler: [
-              'Dönem bazlı sınav takvimi',
-              'Sürükle-bırak yerleştirme',
-              'Derslik ve gözetmen planlaması',
-              'Öğrenci ve akademisyen görünümü',
-              'Yazdırılabilir sınav programı',
-            ],
+            ozet: 'Vize, final ve bütünleme dönemlerini kurun; sınavları takvime yerleştirin, gözetmen ve derslik planlayın.',
           },
           {
+            id: 'muafiyet',
             ad: 'Ders Muafiyeti',
-            ikon: 'onay',
-            ozet: 'Muafiyet başvurularını toplayın, ders içeriklerini karşılaştırın, kararı belgeye dökün.',
-            maddeler: [
-              'Öğrenci başvurusu ve belge yükleme',
-              'Ders içeriği benzerlik değerlendirmesi',
-              'AKTS uygunluk denetimi',
-              'Komisyon onay akışı',
-              'Muafiyet geçmişi ve resmî çıktı',
-            ],
+            ozet: 'Muafiyet başvurularını toplayın, ders içeriklerini karşılaştırın, komisyon kararını resmî belgeye dökün.',
           },
           {
+            id: 'yazokulu',
             ad: 'Yaz Okulu İntibak',
-            ikon: 'gunes',
-            ozet: 'Başka kurumda alınan yaz okulu derslerinin intibakını yürütün.',
-            maddeler: [
-              'Alınan ders ve karşılık eşleştirmesi',
-              'AKTS ve içerik denetimi',
-              'Onay ve ret gerekçesi',
-              'İntibak belgesi çıktısı',
-            ],
+            ozet: 'Başka kurumda alınan yaz okulu derslerinin intibakını yürütün; AKTS ve içerik denetimiyle birlikte.',
           },
           {
+            id: 'gecis',
             ad: 'Yatay ve Dikey Geçiş',
-            ikon: 'grafik',
-            ozet: 'Kurum içi, kurumlararası ve merkezi yerleştirme puanıyla geçiş başvurularını değerlendirin.',
-            maddeler: [
-              'Başvuru toplama ve belge kontrolü',
-              'Taban puan tabloları kütüphanesi',
-              'Otomatik sıralama ve kontenjan',
-              'Değerlendirme kriterleri',
-              'Sonuç ilanı ve intibak',
-            ],
+            ozet: 'Kurum içi, kurumlararası ve merkezi yerleştirme puanıyla geçiş başvurularını toplayın, sıralayın, sonuçlandırın.',
           },
           {
+            id: 'staj',
             ad: 'Staj',
-            ikon: 'canta',
-            ozet: 'Staj başvurusundan sosyal güvenlik bildirimine kadar tüm dosyayı tek yerde tutun.',
-            maddeler: [
-              'Staj yeri ve tarih bilgileri',
-              'Nüfus ve sosyal güvenlik alanları',
-              'Komisyon onayı',
-              'SGK belgesi ve staj defteri çıktısı',
-              'Staj dönemleri ve etap takibi',
-            ],
+            ozet: 'Staj başvurusundan sosyal güvenlik bildirimine kadar tüm dosyayı tek yerde tutun; belgeler şablondan üretilir.',
           },
           {
+            id: 'capyandal',
             ad: 'ÇAP ve Yandal',
-            ikon: 'dallanma',
-            ozet: 'Çift anadal ve yandal başvurularını ilan, başvuru ve yerleştirme adımlarıyla yönetin.',
-            maddeler: [
-              'Program ve kontenjan tanımı',
-              'Başvuru ve not ortalaması denetimi',
-              'Sıralama ve yerleştirme',
-              'Ders intibakı',
-            ],
+            ozet: 'Çift anadal ve yandal süreçlerini ilan, başvuru, sıralama ve yerleştirme adımlarıyla yönetin.',
           },
           {
+            id: 'stratejik',
             ad: 'Stratejik Plan',
-            ikon: 'hedef',
-            ozet: 'Hedefleri, göstergeleri ve dönemsel gerçekleşmeleri takip edin.',
-            maddeler: [
-              'Amaç ve hedef ağacı',
-              'Performans göstergeleri',
-              'Dönemsel gerçekleşme girişi',
-              'Şablona işlenmiş rapor çıktısı',
-            ],
+            ozet: 'Amaç ve hedef ağacını, performans göstergelerini ve dönemsel gerçekleşmeleri takip edin.',
           },
           {
+            id: 'anket',
             ad: 'Anketler',
-            ikon: 'anket',
-            ozet: 'Bölüm, fakülte veya üniversite geneline anket yayımlayın; sonuçları raporlayın.',
-            maddeler: [
-              'Soru tipleri ve zorunlu anket',
-              'Hedefli yayım (bölüm / fakülte / genel)',
-              'Anonim yanıt seçeneği',
-              'Katılım ve sonuç raporları',
-            ],
+            ozet: 'Bölüm, fakülte veya üniversite geneline anket yayımlayın; katılımı ve sonuçları raporlayın.',
           },
           {
+            id: 'kulup',
             ad: 'Öğrenci Kulüpleri',
-            ikon: 'kulup',
-            ozet: 'Kulüp kayıtlarını, üyelerini ve etkinliklerini yönetin.',
-            maddeler: [
-              'Kulüp ve danışman tanımı',
-              'Üyelik başvuruları',
-              'Etkinlik takvimi',
-              'Faaliyet raporu',
-            ],
+            ozet: 'Kulüp kayıtlarını, danışmanlarını, üyeliklerini ve etkinlik takvimini yönetin.',
           },
           {
+            id: 'akreditasyon',
             ad: 'Akreditasyon',
-            ikon: 'rozet',
-            ozet: 'Akreditasyon ölçütlerini, kanıtlarını ve hazırlık sürecini tek yerde toplayın.',
-            maddeler: [
-              'Ölçüt ve alt ölçüt yapısı',
-              'Kanıt belgesi bağlama',
-              'Sorumlu ataması ve durum takibi',
-              'Öz değerlendirme raporu',
-            ],
+            ozet: 'Ölçütleri, kanıt belgelerini ve sorumluları tek yerde toplayın; öz değerlendirme raporunu hazırlayın.',
           },
         ];
 
-        function ikonSvg(ad) {
-          var ns = 'http://www.w3.org/2000/svg';
-          var svg = document.createElementNS(ns, 'svg');
-          svg.setAttribute('width', '26');
-          svg.setAttribute('height', '26');
-          svg.setAttribute('viewBox', '0 0 24 24');
-          svg.setAttribute('fill', 'none');
-          svg.setAttribute('stroke', 'currentColor');
-          svg.setAttribute('stroke-width', '1.9');
-          svg.setAttribute('stroke-linecap', 'round');
-          svg.setAttribute('stroke-linejoin', 'round');
-          svg.setAttribute('aria-hidden', 'true');
-          var p = document.createElementNS(ns, 'path');
-          p.setAttribute('d', IKON[ad] || IKON.takvim);
-          svg.appendChild(p);
-          return svg;
-        }
-
         var serit = document.getElementById('sekmeler');
-        var paneller = document.getElementById('paneller');
+        var etkinModul = 0;
 
         MODULLER.forEach(function (m, i) {
           var btn = el('button', 'sekme', m.ad);
           btn.type = 'button';
           btn.setAttribute('role', 'tab');
           btn.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
-          btn.setAttribute('aria-controls', 'panel-' + i);
           btn.id = 'sekme-' + i;
           btn.addEventListener('click', function () {
-            sec(i);
+            modulSec(i);
           });
           serit.appendChild(btn);
-
-          var panel = el('div', 'panel');
-          panel.id = 'panel-' + i;
-          panel.setAttribute('role', 'tabpanel');
-          panel.setAttribute('aria-labelledby', 'sekme-' + i);
-          if (i === 0) panel.setAttribute('data-etkin', '1');
-
-          var ikon = el('div', 'panel-ikon');
-          ikon.appendChild(ikonSvg(m.ikon));
-          panel.appendChild(ikon);
-
-          var govde = el('div');
-          govde.appendChild(el('h3', null, m.ad));
-          govde.appendChild(el('p', null, m.ozet));
-          var ul = el('ul');
-          m.maddeler.forEach(function (x) {
-            ul.appendChild(el('li', null, x));
-          });
-          govde.appendChild(ul);
-          panel.appendChild(govde);
-          paneller.appendChild(panel);
         });
-
-        function sec(i) {
-          MODULLER.forEach(function (_, j) {
-            document.getElementById('sekme-' + j).setAttribute('aria-selected', i === j ? 'true' : 'false');
-            var p = document.getElementById('panel-' + j);
-            if (i === j) p.setAttribute('data-etkin', '1');
-            else p.removeAttribute('data-etkin');
-          });
-        }
 
         // Sekmeler arasında ok tuşlarıyla gezinme (klavye erişilebilirliği).
         serit.addEventListener('keydown', function (e) {
           var yon = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
           if (!yon) return;
-          var etkin = MODULLER.findIndex(function (_, j) {
-            return document.getElementById('sekme-' + j).getAttribute('aria-selected') === 'true';
-          });
-          var hedef = (etkin + yon + MODULLER.length) % MODULLER.length;
-          sec(hedef);
+          var hedef = (etkinModul + yon + MODULLER.length) % MODULLER.length;
+          modulSec(hedef);
           document.getElementById('sekme-' + hedef).focus();
           e.preventDefault();
         });
-
-        // ══════ GERÇEK KİTAP ══════
-        //
-        // Açık yayılım: SOL sayfa metin, SAĞ sayfa görsel(ler).
-        // Yaprak[i] sağda durur ve cilt çizgisinden sola döner:
-        //     ön yüz  = görsel[i]      (sağda görünür)
-        //     arka yüz = metin[i+1]    (çevrilince solda görünür)
-        // Çevrilen yapraklar solda birikir; en son çevrilen üstte kalır,
-        // yani solda daima etkin slaydın metni durur. Altta iki sabit yarı
-        // var: ilk yayılımın SOL metni ve son yayılımın SAĞ görseli — yaprak
-        // yığını tükendiğinde arkadan onlar görünür.
-        //
-        // İçerik sunucudan gelir. Erişilemezse ya da hiç slayt yoksa gömülü
-        // varsayılan gösterilir: tanıtım sayfası boş bir kutuyla açılmamalı.
-        var VARSAYILAN = [
-          {
-            baslik: 'Tek sistem, tek oturum',
-            metin: 'Öğrenci ve akademisyen; ders programından staja, muafiyetten Erasmus’a kadar tüm işlemlerini aynı hesapla yürütür.',
-            gorseller: [],
-          },
-          {
-            baslik: 'Belgeler şablondan üretilir',
-            metin: 'Kurumun kendi Word şablonu bir kez tanımlanır; çıktılar bölüm, fakülte ve üniversite kapsamına göre otomatik doldurulur.',
-            gorseller: [],
-          },
-          {
-            baslik: 'Çakışmalar siz yazarken görünür',
-            metin: 'Ders programında derslik, öğretim üyesi ve seviyeler arası çakışmalar yerleştirme anında bildirilir.',
-            gorseller: [],
-          },
-        ];
 
         var kitap = document.getElementById('kitap');
         var sabitSol = document.getElementById('sabitSol');
@@ -1076,9 +911,19 @@
           // Dörtten çoğu ızgarayı okunmaz kılıyor; fazlası gösterilmez.
           var goster = g.slice(0, 4);
           d.setAttribute('data-adet', String(goster.length));
-          goster.forEach(function (ad) {
-            var k = el('div', 'kare');
+          goster.forEach(function (ad, gi) {
+            // Düğme, div değil: klavyeyle de odaklanıp açılabilsin.
+            var k = el('button', 'kare');
+            k.type = 'button';
+            k.setAttribute('aria-label', 'Görseli büyüt');
             k.style.backgroundImage = "url('/api/tanitim/gorsel/" + encodeURIComponent(ad) + "')";
+            k.style.backgroundSize = 'cover';
+            k.style.backgroundPosition = 'center';
+            k.addEventListener('click', function (e) {
+              // Yaprak çevirme dinleyicilerine sızmasın.
+              e.stopPropagation();
+              buyutecAc(goster, gi);
+            });
             d.appendChild(k);
           });
           return d;
@@ -1178,7 +1023,122 @@
           { passive: true }
         );
 
-        kitabiKur(VARSAYILAN);
+        // ══ BÜYÜTEÇ ══
+        // Sağ sayfadaki görsel küçük basılıyor; tıklanınca tam ekran açılır.
+        // Görsel listesi taşınır ki büyüteç içinde de gezinilebilsin.
+        var buyutecKatman = null;
+
+        function buyutecKapat() {
+          if (!buyutecKatman) return;
+          document.body.removeChild(buyutecKatman);
+          buyutecKatman = null;
+          document.removeEventListener('keydown', buyutecTus);
+        }
+
+        function buyutecTus(e) {
+          if (!buyutecKatman) return;
+          if (e.key === 'Escape') buyutecKapat();
+          else if (e.key === 'ArrowRight') buyutecGit(1);
+          else if (e.key === 'ArrowLeft') buyutecGit(-1);
+        }
+
+        function buyutecGit(yon) {
+          if (!buyutecKatman) return;
+          var liste = buyutecKatman.__liste;
+          var i = (buyutecKatman.__i + yon + liste.length) % liste.length;
+          buyutecKatman.__i = i;
+          buyutecKatman.__img.src = '/api/tanitim/gorsel/' + encodeURIComponent(liste[i]);
+          if (buyutecKatman.__sayac) {
+            buyutecKatman.__sayac.textContent = i + 1 + ' / ' + liste.length;
+          }
+        }
+
+        function buyutecAc(liste, i) {
+          buyutecKapat();
+          var k = el('div', 'buyutec');
+          k.setAttribute('role', 'dialog');
+          k.setAttribute('aria-label', 'Görsel önizleme');
+          var img = document.createElement('img');
+          img.alt = '';
+          // Görselin kendisine tıklamak kapatmasın; arka plan kapatır.
+          img.addEventListener('click', function (e) {
+            e.stopPropagation();
+          });
+          k.appendChild(img);
+
+          var kapat = el('button', 'buyutec-btn kapat', '×');
+          kapat.type = 'button';
+          kapat.setAttribute('aria-label', 'Kapat');
+          k.appendChild(kapat);
+
+          k.__liste = liste;
+          k.__i = i;
+          k.__img = img;
+
+          if (liste.length > 1) {
+            ['sol', 'sag'].forEach(function (yan) {
+              var b = el('button', 'buyutec-btn ok ' + yan);
+              b.type = 'button';
+              b.setAttribute('aria-label', yan === 'sol' ? 'Önceki görsel' : 'Sonraki görsel');
+              b.innerHTML = '';
+              var ns = 'http://www.w3.org/2000/svg';
+              var svg = document.createElementNS(ns, 'svg');
+              svg.setAttribute('width', '20');
+              svg.setAttribute('height', '20');
+              svg.setAttribute('viewBox', '0 0 24 24');
+              svg.setAttribute('fill', 'none');
+              svg.setAttribute('stroke', 'currentColor');
+              svg.setAttribute('stroke-width', '2.5');
+              svg.setAttribute('stroke-linecap', 'round');
+              svg.setAttribute('stroke-linejoin', 'round');
+              var path = document.createElementNS(ns, 'path');
+              path.setAttribute('d', yan === 'sol' ? 'M15 18l-6-6 6-6' : 'M9 6l6 6-6 6');
+              svg.appendChild(path);
+              b.appendChild(svg);
+              b.addEventListener('click', function (e) {
+                e.stopPropagation();
+                buyutecGit(yan === 'sol' ? -1 : 1);
+              });
+              k.appendChild(b);
+            });
+            var sayac = el('div', 'buyutec-sayac');
+            k.appendChild(sayac);
+            k.__sayac = sayac;
+          }
+
+          k.addEventListener('click', buyutecKapat);
+          document.body.appendChild(k);
+          buyutecKatman = k;
+          document.addEventListener('keydown', buyutecTus);
+          buyutecGit(0);
+        }
+
+        // ── SLAYTLAR MODÜLE GÖRE SÜZÜLÜR ──
+        // Tüm slaytlar bir kez çekilir; sekme değişince yeniden istek
+        // atılmaz. Liste küçük, sekme değiştirme sık.
+        var tumSlaytlar = [];
+
+        function modulSec(i) {
+          etkinModul = Math.max(0, Math.min(i, MODULLER.length - 1));
+          MODULLER.forEach(function (_, j) {
+            document
+              .getElementById('sekme-' + j)
+              .setAttribute('aria-selected', j === etkinModul ? 'true' : 'false');
+          });
+          var m = MODULLER[etkinModul];
+          var kendi = tumSlaytlar.filter(function (s) {
+            return s.modul === m.id;
+          });
+          // Yetkili o modüle henüz içerik girmediyse kitap boş kalmasın:
+          // modülün gömülü tanıtım metni tek sayfa olarak gösterilir.
+          if (!kendi.length) {
+            kendi = [{ id: '_bos', baslik: m.ad, metin: m.ozet, gorseller: [] }];
+          }
+          kitabiKur(kendi);
+        }
+
+        modulSec(0);
+
         fetch('/api/db/tanitim_slaytlari', { credentials: 'omit' })
           .then(function (r) {
             return r.ok ? r.json() : null;
@@ -1186,7 +1146,7 @@
           .then(function (veri) {
             var kayitlar = Array.isArray(veri) ? veri : veri && veri.data ? veri.data : null;
             if (!kayitlar) return;
-            var temiz = kayitlar
+            tumSlaytlar = kayitlar
               .map(function (k) {
                 // Görseller dizidir; eski kayıtlar tek alanla (`gorsel`)
                 // duruyor. İkisi de okunur, güvensiz ad elenir, tekrar
@@ -1205,20 +1165,23 @@
                   baslik: String((k && k.baslik) || '').trim(),
                   metin: String((k && k.metin) || '').trim(),
                   gorseller: gorseller,
+                  modul: String((k && k.modul) || '').trim(),
                   sira: isFinite(sira) ? sira : 0,
                   yayinda: !(k && k.yayinda === false),
                 };
               })
+              // Modülü yazılmamış kayıt hiçbir sekmede gösterilmez: bir
+              // slaydı bütün sekmelere koymak sekmenin anlamını bitirirdi.
               .filter(function (s) {
-                return s.yayinda && (s.baslik || s.metin || s.gorseller.length);
+                return s.yayinda && s.modul && (s.baslik || s.metin || s.gorseller.length);
               })
               .sort(function (a, b) {
                 return a.sira - b.sira || a.id.localeCompare(b.id, 'tr');
               });
-            if (temiz.length) kitabiKur(temiz);
+            modulSec(etkinModul);
           })
           .catch(function () {
-            /* varsayılan slaytlarla devam */
+            /* gömülü tanıtım metinleriyle devam */
           });
       })();
     </script>

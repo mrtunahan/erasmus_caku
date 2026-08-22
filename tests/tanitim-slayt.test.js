@@ -4,6 +4,7 @@
 // ve uygulamadaki yönetim ekranı. Sıralama ve görünürlük kuralı ikisinde
 // ayrı yazılsaydı yetkilinin gördüğü sıra ile ziyaretçininki ayrışırdı.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
 import {
   gorselAdiGuvenliMi,
   gorselUrl,
@@ -11,6 +12,9 @@ import {
   gorselleriCoz,
   yayindakiSlaytlar,
   sonrakiSira,
+  TANITIM_MODULLERI,
+  modulGecerliMi,
+  modulSlaytlari,
 } from '../lib/tanitim-slayt.js';
 
 describe('gorselAdiGuvenliMi', () => {
@@ -67,6 +71,7 @@ describe('slaytNormalize', () => {
       metin: 'Açıklama',
       gorseller: [],
       gorsel: '',
+      modul: '',
       sira: 3,
       yayinda: true,
     });
@@ -183,5 +188,76 @@ describe('slaytNormalize — çoklu görsel', () => {
 
   it('yalnız çoklu görseli olan slayt gösterilir', () => {
     expect(yayindakiSlaytlar([{ id: 'g', gorseller: ['a.jpg', 'b.jpg'] }])).toHaveLength(1);
+  });
+});
+
+// ══ İKİ LİSTE, TEK KİMLİK KÜMESİ ══
+// Modül kimlikleri iki yerde duruyor: burada (yönetim ekranının seçicisi)
+// ve public/tanitim.html içinde (sekmeler). Tanıtım sayfası saf HTML olduğu
+// için lib'i import edemiyor. Ayrışırlarsa yetkilinin "Staj" diye eklediği
+// slayt ziyaretçide HİÇBİR sekmede görünmez — hata vermeden kaybolur.
+// Bu test o kaymayı yakalar.
+describe('modül kimlikleri — lib ile tanıtım sayfası', () => {
+  const html = readFileSync(new URL('../public/tanitim.html', import.meta.url), 'utf8');
+
+  // MODULLER dizisindeki `id: 'xxx'` alanları.
+  const sayfadakiIdler = (() => {
+    const bas = html.indexOf('var MODULLER = [');
+    expect(bas).toBeGreaterThan(-1);
+    const son = html.indexOf('];', bas);
+    const blok = html.slice(bas, son);
+    return [...blok.matchAll(/id:\s*'([a-z]+)'/g)].map((m) => m[1]);
+  })();
+
+  it('tanıtım sayfası modül listesi bulunabiliyor', () => {
+    expect(sayfadakiIdler.length).toBeGreaterThan(0);
+  });
+
+  it('KİMLİK KÜMELERİ birebir aynı', () => {
+    const libIdler = TANITIM_MODULLERI.map((m) => m.id);
+    expect([...sayfadakiIdler].sort()).toEqual([...libIdler].sort());
+  });
+
+  it('sıralama da aynı — sekme sırası yönetim seçicisiyle örtüşsün', () => {
+    expect(sayfadakiIdler).toEqual(TANITIM_MODULLERI.map((m) => m.id));
+  });
+
+  it('kimlikler benzersiz', () => {
+    const idler = TANITIM_MODULLERI.map((m) => m.id);
+    expect(new Set(idler).size).toBe(idler.length);
+  });
+});
+
+describe('modulSlaytlari', () => {
+  const kayitlar = [
+    { id: 'a', baslik: 'Staj 1', modul: 'staj', sira: 2 },
+    { id: 'b', baslik: 'Staj 2', modul: 'staj', sira: 1 },
+    { id: 'c', baslik: 'Anket', modul: 'anket', sira: 1 },
+    { id: 'd', baslik: 'Gizli', modul: 'staj', sira: 3, yayinda: false },
+    { id: 'e', baslik: 'Modülsüz', sira: 1 },
+  ];
+
+  it('yalnız o modülün yayındaki slaytları, sırayla', () => {
+    expect(modulSlaytlari(kayitlar, 'staj').map((s) => s.id)).toEqual(['b', 'a']);
+  });
+
+  it('MODÜLSÜZ kayıt hiçbir sekmede görünmez', () => {
+    // Bir slaydı bütün sekmelere koymak sekmenin anlamını bitirirdi.
+    const hepsi = TANITIM_MODULLERI.flatMap((m) => modulSlaytlari(kayitlar, m.id).map((s) => s.id));
+    expect(hepsi).not.toContain('e');
+  });
+
+  it('boş ya da tanımsız modül kimliğinde boş liste', () => {
+    expect(modulSlaytlari(kayitlar, '')).toEqual([]);
+    expect(modulSlaytlari(kayitlar, 'olmayan')).toEqual([]);
+  });
+});
+
+describe('modulGecerliMi', () => {
+  it('listedeki kimlik geçerli, uydurma değil', () => {
+    expect(modulGecerliMi('staj')).toBe(true);
+    expect(modulGecerliMi('uydurma')).toBe(false);
+    expect(modulGecerliMi('')).toBe(false);
+    expect(modulGecerliMi(null)).toBe(false);
   });
 });
