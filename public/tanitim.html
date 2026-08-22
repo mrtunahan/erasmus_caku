@@ -13,16 +13,17 @@
          kendi güvenlik politikasını taşır. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'none';"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none';"
     />
     <link rel="icon" href="/logo.png" />
     <style>
       /* ── SIFIR BAĞIMLILIK ──
-         Bu sayfa React yüklemez. Ziyaretçi yalnız sistemin ne olduğunu
-         öğrenmek için uygulamanın tamamını indirmemeli; giriş düğmesine
-         basınca indirir. */
+         Bu sayfa React yüklemez, dış kütüphane çekmez. Ziyaretçi yalnız
+         sistemin ne olduğunu öğrenmek için uygulamanın tamamını (~570 kB)
+         indirmemeli; "Sisteme Giriş"e basınca indirir.
+         Sekmeler ve 3B slider saf CSS + birkaç yüz bayt JS ile çalışır. */
       :root {
-        --lacivert: #121828;
+        --lacivert: #0e1526;
         --lacivert-2: #1b2a4a;
         --teal: #0d9b8e;
         --teal-koyu: #0a7d72;
@@ -31,6 +32,7 @@
         --metin-soluk: #64748b;
         --kenar: #e2e8f0;
         --zemin: #f7f9fb;
+        --kagit: #fffdf8;
       }
       * {
         box-sizing: border-box;
@@ -52,18 +54,21 @@
       a {
         color: inherit;
       }
+      .bosluk {
+        flex: 1;
+      }
 
       /* ── Üst çubuk ── */
       .ust {
         position: sticky;
         top: 0;
-        z-index: 10;
-        background: rgba(18, 24, 40, 0.92);
-        backdrop-filter: blur(8px);
+        z-index: 20;
+        background: rgba(14, 21, 38, 0.92);
+        backdrop-filter: blur(10px);
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       }
       .ust-ic {
-        max-width: 1100px;
+        max-width: 1140px;
         margin: 0 auto;
         padding: 12px 20px;
         display: flex;
@@ -96,9 +101,6 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      .bosluk {
-        flex: 1;
-      }
       .giris-btn {
         display: inline-flex;
         align-items: center;
@@ -113,10 +115,13 @@
         white-space: nowrap;
         transition:
           background 0.15s,
-          transform 0.15s;
+          transform 0.15s,
+          box-shadow 0.15s;
+        box-shadow: 0 4px 14px rgba(13, 155, 142, 0.3);
       }
       .giris-btn:hover {
         background: var(--teal-koyu);
+        box-shadow: 0 6px 20px rgba(13, 155, 142, 0.42);
       }
       .giris-btn:active {
         transform: translateY(1px);
@@ -124,30 +129,32 @@
 
       /* ── Kahraman ── */
       .kahraman {
+        position: relative;
         background:
-          linear-gradient(rgba(8, 12, 24, 0.72), rgba(8, 12, 24, 0.88)), url('/login-bg.jpg');
+          linear-gradient(rgba(8, 12, 24, 0.74), rgba(8, 12, 24, 0.9)), url('/login-bg.jpg');
         background-size: cover;
         background-position: center;
         color: #fff;
-        padding: 76px 20px 84px;
+        padding: 78px 20px 86px;
         text-align: center;
+        overflow: hidden;
       }
       .kahraman h1 {
         margin: 0 auto 14px;
-        max-width: 780px;
-        font-size: 40px;
-        line-height: 1.18;
+        max-width: 800px;
+        font-size: 42px;
+        line-height: 1.16;
         font-weight: 800;
-        letter-spacing: -0.025em;
+        letter-spacing: -0.028em;
       }
       .kahraman h1 .vurgu {
         color: var(--altin);
       }
       .kahraman p {
         margin: 0 auto 30px;
-        max-width: 620px;
+        max-width: 630px;
         font-size: 16.5px;
-        color: rgba(255, 255, 255, 0.82);
+        color: rgba(255, 255, 255, 0.84);
       }
       .kahraman .giris-btn {
         font-size: 15.5px;
@@ -161,67 +168,286 @@
 
       /* ── Bölüm ── */
       .bolum {
-        max-width: 1100px;
+        max-width: 1140px;
         margin: 0 auto;
         padding: 64px 20px;
       }
       .bolum-baslik {
         text-align: center;
-        margin-bottom: 8px;
-        font-size: 26px;
+        margin: 0 0 8px;
+        font-size: 27px;
         font-weight: 800;
         letter-spacing: -0.02em;
       }
       .bolum-alt {
         text-align: center;
         color: var(--metin-soluk);
-        margin: 0 auto 38px;
-        max-width: 560px;
+        margin: 0 auto 34px;
+        max-width: 580px;
         font-size: 14.5px;
       }
 
-      /* ── Modül kartları ── */
-      .kartlar {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 16px;
+      /* ══ SEKMELER ══
+         Modül sayısı çok; hepsini kart olarak dizmek envanter listesine
+         dönüyordu. Sekme, ziyaretçinin ilgilendiğini seçip okumasını sağlar. */
+      .sekme-serit {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+        margin-bottom: 26px;
       }
-      .kart {
+      .sekme {
+        border: 1px solid var(--kenar);
+        background: #fff;
+        color: var(--metin-soluk);
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 9px 15px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: all 0.16s;
+        white-space: nowrap;
+      }
+      .sekme:hover {
+        border-color: #94a3b8;
+        color: var(--metin);
+      }
+      .sekme[aria-selected='true'] {
+        background: var(--lacivert-2);
+        border-color: var(--lacivert-2);
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(27, 42, 74, 0.24);
+      }
+
+      .panel {
+        display: none;
         background: #fff;
         border: 1px solid var(--kenar);
+        border-radius: 18px;
+        padding: 30px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+        animation: panelGir 0.28s ease-out;
+      }
+      .panel[data-etkin='1'] {
+        display: grid;
+        grid-template-columns: 56px 1fr;
+        gap: 20px;
+        align-items: start;
+      }
+      @keyframes panelGir {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .panel-ikon {
+        width: 56px;
+        height: 56px;
         border-radius: 14px;
-        padding: 20px;
-        transition:
-          box-shadow 0.18s,
-          transform 0.18s,
-          border-color 0.18s;
-      }
-      .kart:hover {
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-        transform: translateY(-2px);
-        border-color: #cbd5e1;
-      }
-      .kart-ikon {
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        background: #eef6f5;
-        color: var(--teal);
+        background: linear-gradient(135deg, #eef6f5, #dceceb);
+        color: var(--teal-koyu);
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 12px;
       }
-      .kart h3 {
-        margin: 0 0 6px;
-        font-size: 15.5px;
+      .panel h3 {
+        margin: 0 0 8px;
+        font-size: 19px;
         font-weight: 800;
-        letter-spacing: -0.01em;
+        letter-spacing: -0.015em;
       }
-      .kart p {
+      .panel p {
+        margin: 0 0 14px;
+        font-size: 14.5px;
+        color: #475569;
+      }
+      .panel ul {
         margin: 0;
+        padding-left: 18px;
+        columns: 2;
+        column-gap: 28px;
+      }
+      .panel li {
         font-size: 13.5px;
         color: var(--metin-soluk);
+        margin-bottom: 6px;
+        break-inside: avoid;
+      }
+
+      /* ══ 3B SAYFA ÇEVİRME SLIDER ══
+         Kitap sayfası çevirir gibi: kağıt Y ekseninde döner, perspektif
+         kaptadır. Dönen yüzeyin arkası görünmez (backface-visibility), yoksa
+         çevrilirken yazı ters okunurdu. */
+      .kitap-alan {
+        background: linear-gradient(180deg, #0e1526 0%, #16203a 100%);
+        padding: 62px 20px 70px;
+        color: #fff;
+      }
+      .kitap-alan .bolum-baslik {
+        color: #fff;
+      }
+      .kitap-alan .bolum-alt {
+        color: rgba(255, 255, 255, 0.62);
+      }
+      .kitap-sahne {
+        max-width: 860px;
+        margin: 0 auto;
+        perspective: 2200px;
+      }
+      .kitap {
+        position: relative;
+        min-height: 380px;
+        transform-style: preserve-3d;
+      }
+      .sayfa {
+        position: absolute;
+        inset: 0;
+        background: var(--kagit);
+        color: var(--metin);
+        border-radius: 14px;
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        box-shadow:
+          0 26px 60px rgba(0, 0, 0, 0.5),
+          0 0 0 1px rgba(255, 255, 255, 0.06);
+        transform-origin: left center;
+        transform: rotateY(0deg);
+        backface-visibility: hidden;
+        transition:
+          transform 0.85s cubic-bezier(0.2, 0.7, 0.25, 1),
+          opacity 0.5s;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 1;
+      }
+      /* Kitap sırtı: sayfanın sol kenarında ince gölge şeridi. */
+      .sayfa::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 26px;
+        background: linear-gradient(90deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0));
+        pointer-events: none;
+        z-index: 2;
+      }
+      .sayfa[data-durum='etkin'] {
+        transform: rotateY(0deg);
+        opacity: 1;
+        pointer-events: auto;
+        z-index: 3;
+      }
+      /* Çevrilip geride kalan sayfa */
+      .sayfa[data-durum='cevrildi'] {
+        transform: rotateY(-172deg);
+        opacity: 0;
+        z-index: 2;
+      }
+      /* Henüz gelmemiş sayfa: hafifçe geride durur */
+      .sayfa[data-durum='bekleyen'] {
+        transform: rotateY(0deg) translateZ(-30px) scale(0.985);
+        opacity: 0;
+      }
+      .sayfa-gorsel {
+        background: #1b2a4a center/cover no-repeat;
+        min-height: 220px;
+      }
+      .sayfa-metin {
+        padding: 34px 34px 34px 30px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .sayfa-metin h3 {
+        margin: 0 0 10px;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--lacivert-2);
+      }
+      .sayfa-metin p {
+        margin: 0;
+        font-size: 14.5px;
+        color: #475569;
+        white-space: pre-line;
+      }
+      /* ── GÖRSELSİZ SLAYT ──
+         Görsel yoksa iki sütunun sağ yarısı boş kalıyor ve metin sola
+         sıkışmış görünüyordu. Tek sütuna düşer, metin ortalanır ve satır
+         uzunluğu okunur bir genişlikte tutulur. */
+      .sayfa[data-gorselsiz='1'] {
+        grid-template-columns: 1fr;
+      }
+      .sayfa[data-gorselsiz='1'] .sayfa-metin {
+        text-align: center;
+        align-items: center;
+        padding: 46px 40px;
+      }
+      .sayfa[data-gorselsiz='1'] .sayfa-metin h3 {
+        font-size: 26px;
+      }
+      .sayfa[data-gorselsiz='1'] .sayfa-metin p {
+        max-width: 56ch;
+        font-size: 15.5px;
+      }
+
+      .kitap-kontrol {
+        max-width: 860px;
+        margin: 22px auto 0;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .kitap-btn {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        font-family: inherit;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.16s;
+      }
+      .kitap-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.18);
+        border-color: rgba(255, 255, 255, 0.4);
+      }
+      .kitap-btn:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+      .kitap-noktalar {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        flex: 1;
+      }
+      .nokta {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        border: none;
+        padding: 0;
+        background: rgba(255, 255, 255, 0.28);
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .nokta[aria-current='true'] {
+        background: var(--altin);
+        width: 26px;
+        border-radius: 999px;
       }
 
       /* ── Alt bilgi ── */
@@ -231,7 +457,7 @@
         padding: 34px 20px;
       }
       .alt-ic {
-        max-width: 1100px;
+        max-width: 1140px;
         margin: 0 auto;
         display: flex;
         flex-wrap: wrap;
@@ -243,7 +469,7 @@
         color: #fff;
       }
 
-      @media (max-width: 640px) {
+      @media (max-width: 760px) {
         .kahraman {
           padding: 54px 18px 60px;
         }
@@ -259,13 +485,44 @@
         .bolum {
           padding: 48px 18px;
         }
+        .panel[data-etkin='1'] {
+          grid-template-columns: 1fr;
+        }
+        .panel ul {
+          columns: 1;
+        }
+        .sayfa {
+          grid-template-columns: 1fr;
+        }
+        .sayfa-gorsel {
+          min-height: 150px;
+        }
+        .sayfa-metin {
+          padding: 22px;
+        }
+        .kitap {
+          min-height: 440px;
+        }
+      }
+      /* Hareketi azaltılmış tercihine saygı: sayfa çevirme animasyonu kapanır. */
+      @media (prefers-reduced-motion: reduce) {
+        .sayfa {
+          transition: opacity 0.2s;
+        }
+        .sayfa[data-durum='cevrildi'],
+        .sayfa[data-durum='bekleyen'] {
+          transform: none;
+        }
+        .panel {
+          animation: none;
+        }
       }
     </style>
   </head>
   <body>
     <!-- ── ESKİ HASH BAĞLANTILARI ──
-         Uygulama `#erasmus` gibi hash rotalar kullanıyor ve hash sunucuya HİÇ
-         gitmez; nginx onu göremez. Kök artık tanıtım olduğu için, kayıtlı bir
+         Uygulama `#erasmus` gibi hash rotalar kullanıyor ve hash SUNUCUYA HİÇ
+         GİTMEZ; nginx onu göremez. Kök artık tanıtım olduğu için, kayıtlı bir
          `/#erasmus` yer imi buraya düşerdi. Hash'i burada yakalayıp uygulamaya
          taşıyoruz — eski bağlantılar çalışmaya devam etsin.
          `replace` kullanılır: geri düğmesi tanıtıma dönüp yeniden
@@ -332,6 +589,7 @@
       <div class="kahraman-not">Giriş, kurum hesabı olan öğrenci ve personele açıktır.</div>
     </section>
 
+    <!-- ══ MODÜLLER — SEKMELİ ══ -->
     <section class="bolum">
       <h2 class="bolum-baslik">Modüller</h2>
       <p class="bolum-alt">
@@ -339,278 +597,49 @@
         çıktısı.
       </p>
 
-      <div class="kartlar">
-        <div class="kart">
-          <div class="kart-ikon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
-            </svg>
-          </div>
-          <h3>Erasmus Öğrenim Anlaşması</h3>
-          <p>
-            Gidiş ve dönüş ders eşleştirmeleri, ders değişikliği uyarıları, transkriptten harf notu
-            dönüşümü ve akademisyen onayı.
-          </p>
-        </div>
+      <div class="sekme-serit" role="tablist" id="sekmeler"></div>
+      <div id="paneller"></div>
+    </section>
 
-        <div class="kart">
-          <div class="kart-ikon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="3" y="4" width="18" height="18" rx="2" />
-              <path d="M16 2v4M8 2v4M3 10h18" />
-            </svg>
-          </div>
-          <h3>Ders Programı</h3>
-          <p>
-            Sürükle-bırak haftalık program; derslik, hoca ve seviyeler arası çakışmaları anında
-            yakalayan denetim.
-          </p>
-        </div>
+    <!-- ══ 3B SAYFA ÇEVİRME SLIDER ══ -->
+    <section class="kitap-alan">
+      <h2 class="bolum-baslik">Öne çıkanlar</h2>
+      <p class="bolum-alt">Duyurular, yenilikler ve kurumdan haberler.</p>
 
-        <div class="kart">
-          <div class="kart-ikon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M12 6v6l4 2" />
-              <circle cx="12" cy="12" r="10" />
-            </svg>
-          </div>
-          <h3>Sınav Otomasyonu</h3>
-          <p>
-            Vize, final ve bütünleme dönemleri; sınavların takvime yerleştirilmesi ve gözetmen
-            planlaması.
-          </p>
-        </div>
+      <div class="kitap-sahne">
+        <div class="kitap" id="kitap" aria-live="polite"></div>
+      </div>
 
-        <div class="kart">
-          <div class="kart-ikon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="2" y="7" width="20" height="14" rx="2" />
-              <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
-            </svg>
-          </div>
-          <h3>Staj</h3>
-          <p>
-            Staj başvurusu, işyeri bilgileri, sosyal güvenlik bildirimi için gereken belgelerin
-            hazırlanması.
-          </p>
-        </div>
-
-        <div class="kart">
-          <div class="kart-ikon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M9 11l3 3L22 4" />
-              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-            </svg>
-          </div>
-          <h3>Ders Muafiyeti ve İntibak</h3>
-          <p>
-            Muafiyet başvurularının toplanması, ders eşleştirmesi ve intibak kararının belgeye
-            dökülmesi.
-          </p>
-        </div>
-
-        <div class="kart">
-          <div class="kart-ikon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M3 17l6-6 4 4 8-8" />
-              <path d="M14 7h7v7" />
-            </svg>
-          </div>
-          <h3>Yatay ve Dikey Geçiş</h3>
-          <p>
-            Kurum içi/kurumlararası ve merkezi yerleştirme puanıyla geçiş başvuruları; taban puan
-            tabloları ve sıralama.
-          </p>
-        </div>
-
-        <div class="kart">
-          <div class="kart-ikon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M9 11H5a2 2 0 00-2 2v7h6zM15 3H9v17h6zM21 8h-6v12h6z" />
-            </svg>
-          </div>
-          <h3>Anketler</h3>
-          <p>
-            Bölüm, fakülte ya da üniversite geneline yayımlanan anketler; hedefli atama ve sonuç
-            raporları.
-          </p>
-        </div>
-
-        <div class="kart">
-          <div class="kart-ikon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-              <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
-            </svg>
-          </div>
-          <h3>Şablonlar</h3>
-          <p>
-            Kurumsal belge şablonlarının bölüm, fakülte veya üniversite kapsamında tanımlanması ve
-            çıktıya işlenmesi.
-          </p>
-        </div>
-
-        <div class="kart">
-          <div class="kart-ikon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-          </div>
-          <h3>Öğrenci Portalı</h3>
-          <p>
-            Öğrencinin kendi başvuruları, belgeleri, ders programı ve duyuruları tek ekranda
-            izlemesi.
-          </p>
-        </div>
-
-        <div class="kart">
-          <div class="kart-ikon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M3 21h18M5 21V7l7-4 7 4v14" />
-              <path d="M9 21v-6h6v6" />
-            </svg>
-          </div>
-          <h3>Bölüm ve Fakülte Yönetimi</h3>
-          <p>
-            Akademisyen bilgileri, birleşik ders programı görüntüleme, komisyonlar ve yetki
-            tanımları.
-          </p>
-        </div>
-
-        <div class="kart">
-          <div class="kart-ikon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-            </svg>
-          </div>
-          <h3>Akademik Takvim ve Duyurular</h3>
-          <p>
-            Dönem takvimi, bölüm ve fakülte duyuruları; hedeflenen kitleye açılan bilgilendirmeler.
-          </p>
-        </div>
-
-        <div class="kart">
-          <div class="kart-ikon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2zM22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" />
-            </svg>
-          </div>
-          <h3>Kaynak Kütüphanesi ve Yol Haritaları</h3>
-          <p>
-            Ders kaynakları, mezuniyet yol haritaları ve öğrencinin ilerlemesini izleyen planlar.
-          </p>
-        </div>
+      <div class="kitap-kontrol">
+        <button class="kitap-btn" id="geri" aria-label="Önceki sayfa">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <div class="kitap-noktalar" id="noktalar"></div>
+        <button class="kitap-btn" id="ileri" aria-label="Sonraki sayfa">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </button>
       </div>
     </section>
 
@@ -621,5 +650,395 @@
         <div>Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.</div>
       </div>
     </footer>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // ── Metin daima metin olarak basılır ──
+        // Slayt başlığı ve metni yetkili girdisidir ve sunucudan gelir.
+        // innerHTML ile basılsaydı oraya yazılan bir etiket sayfada çalışırdı;
+        // her yerde textContent kullanılır.
+        function el(etiket, sinif, yazi) {
+          var d = document.createElement(etiket);
+          if (sinif) d.className = sinif;
+          if (yazi != null) d.textContent = yazi;
+          return d;
+        }
+
+        // ══ MODÜL SEKMELERİ ══
+        var IKON = {
+          takvim: 'M3 4h18v18H3zM16 2v4M8 2v4M3 10h18',
+          saat: 'M12 6v6l4 2M12 22a10 10 0 100-20 10 10 0 000 20z',
+          onay: 'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11',
+          gunes: 'M12 3v2m0 14v2M5 12H3m18 0h-2M6 6l1.5 1.5M16.5 16.5L18 18M18 6l-1.5 1.5M7.5 16.5L6 18M16 12a4 4 0 11-8 0 4 4 0 018 0z',
+          grafik: 'M3 17l6-6 4 4 8-8M14 7h7v7',
+          canta: 'M2 7h20v14H2zM16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16',
+          dallanma: 'M6 3v12M6 21a3 3 0 100-6 3 3 0 000 6zM18 9a3 3 0 100-6 3 3 0 000 6zM18 6H9a3 3 0 00-3 3',
+          hedef: 'M12 22a10 10 0 100-20 10 10 0 000 20zM12 18a6 6 0 100-12 6 6 0 000 12zM12 14a2 2 0 100-4 2 2 0 000 4z',
+          anket: 'M9 11H5a2 2 0 00-2 2v7h6zM15 3H9v17h6zM21 8h-6v12h6z',
+          kulup: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
+          rozet: 'M12 15a7 7 0 100-14 7 7 0 000 14zM8.2 13.9L7 22l5-3 5 3-1.2-8.1',
+        };
+
+        var MODULLER = [
+          {
+            ad: 'Ders Programı',
+            ikon: 'takvim',
+            ozet: 'Haftalık ders programını sürükle-bırak ile hazırlayın; çakışmalar siz yerleştirirken yakalansın.',
+            maddeler: [
+              'Derslik ve öğretim üyesi çakışma denetimi',
+              'Lisans ve lisansüstü arasında çakışma uyarısı',
+              'Bölüm ve fakülte birleşik programı',
+              'Bölüme özel ders saati düzeni',
+              'Şablona işlenmiş Word/Excel çıktısı',
+              'Akademisyen bazlı program görüntüleme',
+            ],
+          },
+          {
+            ad: 'Sınav Otomasyonu',
+            ikon: 'saat',
+            ozet: 'Vize, final ve bütünleme dönemlerini kurun; sınavları takvime yerleştirin.',
+            maddeler: [
+              'Dönem bazlı sınav takvimi',
+              'Sürükle-bırak yerleştirme',
+              'Derslik ve gözetmen planlaması',
+              'Öğrenci ve akademisyen görünümü',
+              'Yazdırılabilir sınav programı',
+            ],
+          },
+          {
+            ad: 'Ders Muafiyeti',
+            ikon: 'onay',
+            ozet: 'Muafiyet başvurularını toplayın, ders içeriklerini karşılaştırın, kararı belgeye dökün.',
+            maddeler: [
+              'Öğrenci başvurusu ve belge yükleme',
+              'Ders içeriği benzerlik değerlendirmesi',
+              'AKTS uygunluk denetimi',
+              'Komisyon onay akışı',
+              'Muafiyet geçmişi ve resmî çıktı',
+            ],
+          },
+          {
+            ad: 'Yaz Okulu İntibak',
+            ikon: 'gunes',
+            ozet: 'Başka kurumda alınan yaz okulu derslerinin intibakını yürütün.',
+            maddeler: [
+              'Alınan ders ve karşılık eşleştirmesi',
+              'AKTS ve içerik denetimi',
+              'Onay ve ret gerekçesi',
+              'İntibak belgesi çıktısı',
+            ],
+          },
+          {
+            ad: 'Yatay ve Dikey Geçiş',
+            ikon: 'grafik',
+            ozet: 'Kurum içi, kurumlararası ve merkezi yerleştirme puanıyla geçiş başvurularını değerlendirin.',
+            maddeler: [
+              'Başvuru toplama ve belge kontrolü',
+              'Taban puan tabloları kütüphanesi',
+              'Otomatik sıralama ve kontenjan',
+              'Değerlendirme kriterleri',
+              'Sonuç ilanı ve intibak',
+            ],
+          },
+          {
+            ad: 'Staj',
+            ikon: 'canta',
+            ozet: 'Staj başvurusundan sosyal güvenlik bildirimine kadar tüm dosyayı tek yerde tutun.',
+            maddeler: [
+              'Staj yeri ve tarih bilgileri',
+              'Nüfus ve sosyal güvenlik alanları',
+              'Komisyon onayı',
+              'SGK belgesi ve staj defteri çıktısı',
+              'Staj dönemleri ve etap takibi',
+            ],
+          },
+          {
+            ad: 'ÇAP ve Yandal',
+            ikon: 'dallanma',
+            ozet: 'Çift anadal ve yandal başvurularını ilan, başvuru ve yerleştirme adımlarıyla yönetin.',
+            maddeler: [
+              'Program ve kontenjan tanımı',
+              'Başvuru ve not ortalaması denetimi',
+              'Sıralama ve yerleştirme',
+              'Ders intibakı',
+            ],
+          },
+          {
+            ad: 'Stratejik Plan',
+            ikon: 'hedef',
+            ozet: 'Hedefleri, göstergeleri ve dönemsel gerçekleşmeleri takip edin.',
+            maddeler: [
+              'Amaç ve hedef ağacı',
+              'Performans göstergeleri',
+              'Dönemsel gerçekleşme girişi',
+              'Şablona işlenmiş rapor çıktısı',
+            ],
+          },
+          {
+            ad: 'Anketler',
+            ikon: 'anket',
+            ozet: 'Bölüm, fakülte veya üniversite geneline anket yayımlayın; sonuçları raporlayın.',
+            maddeler: [
+              'Soru tipleri ve zorunlu anket',
+              'Hedefli yayım (bölüm / fakülte / genel)',
+              'Anonim yanıt seçeneği',
+              'Katılım ve sonuç raporları',
+            ],
+          },
+          {
+            ad: 'Öğrenci Kulüpleri',
+            ikon: 'kulup',
+            ozet: 'Kulüp kayıtlarını, üyelerini ve etkinliklerini yönetin.',
+            maddeler: [
+              'Kulüp ve danışman tanımı',
+              'Üyelik başvuruları',
+              'Etkinlik takvimi',
+              'Faaliyet raporu',
+            ],
+          },
+          {
+            ad: 'Akreditasyon',
+            ikon: 'rozet',
+            ozet: 'Akreditasyon ölçütlerini, kanıtlarını ve hazırlık sürecini tek yerde toplayın.',
+            maddeler: [
+              'Ölçüt ve alt ölçüt yapısı',
+              'Kanıt belgesi bağlama',
+              'Sorumlu ataması ve durum takibi',
+              'Öz değerlendirme raporu',
+            ],
+          },
+        ];
+
+        function ikonSvg(ad) {
+          var ns = 'http://www.w3.org/2000/svg';
+          var svg = document.createElementNS(ns, 'svg');
+          svg.setAttribute('width', '26');
+          svg.setAttribute('height', '26');
+          svg.setAttribute('viewBox', '0 0 24 24');
+          svg.setAttribute('fill', 'none');
+          svg.setAttribute('stroke', 'currentColor');
+          svg.setAttribute('stroke-width', '1.9');
+          svg.setAttribute('stroke-linecap', 'round');
+          svg.setAttribute('stroke-linejoin', 'round');
+          svg.setAttribute('aria-hidden', 'true');
+          var p = document.createElementNS(ns, 'path');
+          p.setAttribute('d', IKON[ad] || IKON.takvim);
+          svg.appendChild(p);
+          return svg;
+        }
+
+        var serit = document.getElementById('sekmeler');
+        var paneller = document.getElementById('paneller');
+
+        MODULLER.forEach(function (m, i) {
+          var btn = el('button', 'sekme', m.ad);
+          btn.type = 'button';
+          btn.setAttribute('role', 'tab');
+          btn.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+          btn.setAttribute('aria-controls', 'panel-' + i);
+          btn.id = 'sekme-' + i;
+          btn.addEventListener('click', function () {
+            sec(i);
+          });
+          serit.appendChild(btn);
+
+          var panel = el('div', 'panel');
+          panel.id = 'panel-' + i;
+          panel.setAttribute('role', 'tabpanel');
+          panel.setAttribute('aria-labelledby', 'sekme-' + i);
+          if (i === 0) panel.setAttribute('data-etkin', '1');
+
+          var ikon = el('div', 'panel-ikon');
+          ikon.appendChild(ikonSvg(m.ikon));
+          panel.appendChild(ikon);
+
+          var govde = el('div');
+          govde.appendChild(el('h3', null, m.ad));
+          govde.appendChild(el('p', null, m.ozet));
+          var ul = el('ul');
+          m.maddeler.forEach(function (x) {
+            ul.appendChild(el('li', null, x));
+          });
+          govde.appendChild(ul);
+          panel.appendChild(govde);
+          paneller.appendChild(panel);
+        });
+
+        function sec(i) {
+          MODULLER.forEach(function (_, j) {
+            document.getElementById('sekme-' + j).setAttribute('aria-selected', i === j ? 'true' : 'false');
+            var p = document.getElementById('panel-' + j);
+            if (i === j) p.setAttribute('data-etkin', '1');
+            else p.removeAttribute('data-etkin');
+          });
+        }
+
+        // Sekmeler arasında ok tuşlarıyla gezinme (klavye erişilebilirliği).
+        serit.addEventListener('keydown', function (e) {
+          var yon = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+          if (!yon) return;
+          var etkin = MODULLER.findIndex(function (_, j) {
+            return document.getElementById('sekme-' + j).getAttribute('aria-selected') === 'true';
+          });
+          var hedef = (etkin + yon + MODULLER.length) % MODULLER.length;
+          sec(hedef);
+          document.getElementById('sekme-' + hedef).focus();
+          e.preventDefault();
+        });
+
+        // ══ 3B SAYFA ÇEVİRME SLIDER ══
+        //
+        // İçerik sunucudan gelir (yetkili uygulamadan ekler). Sunucu
+        // erişilemezse ya da hiç slayt yoksa gömülü varsayılan gösterilir —
+        // tanıtım sayfası boş bir kutuyla açılmamalı.
+        var VARSAYILAN = [
+          {
+            baslik: 'Tek sistem, tek oturum',
+            metin: 'Öğrenci ve akademisyen; ders programından staja, muafiyetten Erasmus’a kadar tüm işlemlerini aynı hesapla yürütür.',
+            gorsel: '',
+          },
+          {
+            baslik: 'Belgeler şablondan üretilir',
+            metin: 'Kurumun kendi Word şablonu bir kez tanımlanır; çıktılar bölüm, fakülte ve üniversite kapsamına göre otomatik doldurulur.',
+            gorsel: '',
+          },
+          {
+            baslik: 'Çakışmalar siz yazarken görünür',
+            metin: 'Ders programında derslik, öğretim üyesi ve seviyeler arası çakışmalar yerleştirme anında bildirilir.',
+            gorsel: '',
+          },
+        ];
+
+        var kitap = document.getElementById('kitap');
+        var noktalar = document.getElementById('noktalar');
+        var btnGeri = document.getElementById('geri');
+        var btnIleri = document.getElementById('ileri');
+        var slaytlar = [];
+        var etkinSlayt = 0;
+
+        function gorselAdiGuvenliMi(ad) {
+          var a = String(ad == null ? '' : ad).trim();
+          if (!a || a.length > 200) return false;
+          if (/[/\\]/.test(a) || a.indexOf('..') >= 0) return false;
+          return /\.(jpe?g|png|webp|gif|avif)$/i.test(a);
+        }
+
+        function kitabiKur(liste) {
+          slaytlar = liste;
+          kitap.textContent = '';
+          noktalar.textContent = '';
+
+          liste.forEach(function (s, i) {
+            var sayfa = el('div', 'sayfa');
+            sayfa.setAttribute('data-durum', i === 0 ? 'etkin' : 'bekleyen');
+            if (!s.gorsel) sayfa.setAttribute('data-gorselsiz', '1');
+
+            if (s.gorsel) {
+              var g = el('div', 'sayfa-gorsel');
+              // Görsel adı yetkili girdisidir: yol enjeksiyonuna karşı
+              // istemcide de elenir (sunucuda ayrıca denetleniyor).
+              g.style.backgroundImage =
+                "url('/api/tanitim/gorsel/" + encodeURIComponent(s.gorsel) + "')";
+              sayfa.appendChild(g);
+            }
+
+            var m = el('div', 'sayfa-metin');
+            if (s.baslik) m.appendChild(el('h3', null, s.baslik));
+            if (s.metin) m.appendChild(el('p', null, s.metin));
+            sayfa.appendChild(m);
+            kitap.appendChild(sayfa);
+
+            var n = el('button', 'nokta');
+            n.type = 'button';
+            n.setAttribute('aria-label', i + 1 + '. sayfa');
+            n.addEventListener('click', function () {
+              git(i);
+            });
+            noktalar.appendChild(n);
+          });
+
+          git(0);
+        }
+
+        function git(i) {
+          if (!slaytlar.length) return;
+          etkinSlayt = Math.max(0, Math.min(i, slaytlar.length - 1));
+          var sayfalar = kitap.children;
+          for (var j = 0; j < sayfalar.length; j++) {
+            sayfalar[j].setAttribute(
+              'data-durum',
+              j < etkinSlayt ? 'cevrildi' : j === etkinSlayt ? 'etkin' : 'bekleyen'
+            );
+            noktalar.children[j].setAttribute('aria-current', j === etkinSlayt ? 'true' : 'false');
+          }
+          btnGeri.disabled = etkinSlayt === 0;
+          btnIleri.disabled = etkinSlayt === slaytlar.length - 1;
+        }
+
+        btnGeri.addEventListener('click', function () {
+          git(etkinSlayt - 1);
+        });
+        btnIleri.addEventListener('click', function () {
+          git(etkinSlayt + 1);
+        });
+
+        // Dokunmatik: yatay kaydırma sayfayı çevirir.
+        var dokunusX = null;
+        kitap.addEventListener(
+          'touchstart',
+          function (e) {
+            dokunusX = e.touches[0].clientX;
+          },
+          { passive: true }
+        );
+        kitap.addEventListener(
+          'touchend',
+          function (e) {
+            if (dokunusX == null) return;
+            var fark = e.changedTouches[0].clientX - dokunusX;
+            if (Math.abs(fark) > 50) git(etkinSlayt + (fark < 0 ? 1 : -1));
+            dokunusX = null;
+          },
+          { passive: true }
+        );
+
+        // Sunucudan slaytları çek. Başarısızlıkta varsayılan kalır — tanıtım
+        // sayfasının açılması API'ye bağlı olmamalı.
+        kitabiKur(VARSAYILAN);
+        fetch('/api/db/tanitim_slaytlari', { credentials: 'omit' })
+          .then(function (r) {
+            return r.ok ? r.json() : null;
+          })
+          .then(function (veri) {
+            var kayitlar = Array.isArray(veri) ? veri : veri && veri.data ? veri.data : null;
+            if (!kayitlar) return;
+            var temiz = kayitlar
+              .map(function (k) {
+                var g = String((k && (k.gorsel || k.gorselAdi)) || '').trim();
+                var sira = Number(k && k.sira);
+                return {
+                  id: String((k && (k.id || k._docId || k._id)) || ''),
+                  baslik: String((k && k.baslik) || '').trim(),
+                  metin: String((k && k.metin) || '').trim(),
+                  gorsel: gorselAdiGuvenliMi(g) ? g : '',
+                  sira: isFinite(sira) ? sira : 0,
+                  yayinda: !(k && k.yayinda === false),
+                };
+              })
+              .filter(function (s) {
+                return s.yayinda && (s.baslik || s.metin || s.gorsel);
+              })
+              .sort(function (a, b) {
+                return a.sira - b.sira || a.id.localeCompare(b.id, 'tr');
+              });
+            if (temiz.length) kitabiKur(temiz);
+          })
+          .catch(function () {
+            /* varsayılan slaytlarla devam */
+          });
+      })();
+    </script>
   </body>
 </html>

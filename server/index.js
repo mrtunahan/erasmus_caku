@@ -8,6 +8,7 @@ const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const dbRoutes = require('./routes/db');
 const fileRoutes = require('./routes/files');
+const tanitimRoutes = require('./routes/tanitim');
 const templateRoutes = require('./routes/templates');
 const semanticRoutes = require('./routes/semantic');
 const aiRoutes = require('./routes/ai');
@@ -119,6 +120,8 @@ app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRateLimiter(), authRoutes);
 app.use('/api/db', dbRoutes);
 app.use('/api/files', fileRoutes);
+// Tanıtım sayfası görselleri: anonim, salt okunur, yalnız uploads/tanitim.
+app.use('/api/tanitim', tanitimRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/semantic', semanticRoutes);
 app.use('/api/ai', aiRoutes);

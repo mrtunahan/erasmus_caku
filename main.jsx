@@ -138,6 +138,10 @@ window.__lazyModules = {
     loader: () => import('./unv-yonetimi-modulu.jsx'),
     component: 'UnvYonetimiApp',
   },
+  tanitim: {
+    loader: () => import('./tanitim-yonetimi.jsx'),
+    component: 'TanitimYonetimiApp',
+  },
   fakulte: {
     loader: () => import('./fak-yonetimi-modulu.jsx'),
     component: 'FakYonetimiApp',
