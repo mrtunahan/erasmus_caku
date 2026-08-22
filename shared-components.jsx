@@ -2339,7 +2339,7 @@ window.TENANT = {
   facultyName: FACULTY.name,
   unitName: 'ÇAKÜ Bilgisayar Mühendisliği',
   developerNote: 'Offline Asistan, Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.',
-  logoUrl: 'logo.png',
+  logoUrl: '/logo.png',
   studentEmailDomain: 'ogrenci.karatekin.edu.tr',
   // KVKK aydınlatma metninin başvuru bölümü. Boş bırakılırsa metin
   // "[kurum tarafından doldurulacak]" der — sessizce eksik kalmaz.
@@ -9255,7 +9255,7 @@ const LoginModal = ({ onLogin }) => {
 
             <div className="lg-brand-row">
               <div className="lg-brand-mini-logo" aria-hidden="true">
-                <img src="logo.png" alt="" className="lg-brand-mini-img" />
+                <img src="/logo.png" alt="" className="lg-brand-mini-img" />
                 <div className="lg-brand-mini-ring">
                   <span className="lg-brand-mini-dot d1" />
                   <span className="lg-brand-mini-dot d2" />
@@ -9270,7 +9270,7 @@ const LoginModal = ({ onLogin }) => {
             <div className="lg-illus">
               <div className="lg-illus-wrap">
                 <div className="lg-illus-circle">
-                  <img src="logo.png" alt="ÇAKÜ Logo" className="lg-illus-logo" />
+                  <img src="/logo.png" alt="ÇAKÜ Logo" className="lg-illus-logo" />
                 </div>
                 <div className="lg-illus-orbit" aria-hidden="true">
                   <span className="lg-illus-orbit-dot d1" />

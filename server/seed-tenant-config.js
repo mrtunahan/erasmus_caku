@@ -31,7 +31,7 @@
     // Altbilgideki birim adı (© satırı)
     unitName: 'ÇAKÜ Bilgisayar Mühendisliği',
     developerNote: 'Offline Asistan, Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.',
-    logoUrl: 'logo.png',
+    logoUrl: '/logo.png',
     // Öğrenci e-posta placeholder'ı gibi ikincil kullanımlar için
     studentEmailDomain: 'ogrenci.karatekin.edu.tr',
   };
