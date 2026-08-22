@@ -280,10 +280,18 @@
         break-inside: avoid;
       }
 
-      /* ══ 3B SAYFA ÇEVİRME SLIDER ══
-         Kitap sayfası çevirir gibi: kağıt Y ekseninde döner, perspektif
-         kaptadır. Dönen yüzeyin arkası görünmez (backface-visibility), yoksa
-         çevrilirken yazı ters okunurdu. */
+      /* ══════ GERÇEK KİTAP ══════
+         Açık bir kitap yayılımı: SOL sayfa metin, SAĞ sayfa görsel(ler).
+         Sayfa çevrilince sağdaki yaprak cilt çizgisinden sola döner ve
+         ARKA yüzü yeni sol sayfa olur; altından bir sonraki yayılımın sağ
+         sayfası açığa çıkar. Gerçek kitapta olan tam olarak budur.
+
+         Yaprak[i]: ön yüz = görsel[i] (sağda), arka yüz = metin[i+1].
+         Çevrilmiş yaprakların arka yüzü solda birikir; en son çevrilen
+         üstte kalır, yani solda daima etkin slaydın metni görünür.
+
+         `backface-visibility: hidden` şart: olmasaydı yaprak dönerken
+         ön yüzü ayna görüntüsü hâlinde okunurdu. */
       .kitap-alan {
         background: linear-gradient(180deg, #0e1526 0%, #16203a 100%);
         padding: 62px 20px 70px;
@@ -296,119 +304,197 @@
         color: rgba(255, 255, 255, 0.62);
       }
       .kitap-sahne {
-        max-width: 860px;
+        max-width: 1000px;
         margin: 0 auto;
-        perspective: 2200px;
+        perspective: 2600px;
       }
       .kitap {
         position: relative;
-        min-height: 380px;
+        height: 460px;
         transform-style: preserve-3d;
+        /* Kapak: kitabın altından taşan koyu kenar */
+        filter: drop-shadow(0 30px 50px rgba(0, 0, 0, 0.55));
       }
-      .sayfa {
+      /* Kitabın iki yarısı */
+      .yari {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 50%;
+        background: var(--kagit);
+        overflow: hidden;
+      }
+      .yari.sol {
+        left: 0;
+        border-radius: 10px 0 0 10px;
+      }
+      .yari.sag {
+        right: 0;
+        border-radius: 0 10px 10px 0;
+      }
+      /* Cilt: ortadaki dikiş gölgesi. Kitabı iki ayrı karttan bir bütün
+         hâline getiren şey bu. */
+      .cilt {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        width: 42px;
+        transform: translateX(-50%);
+        z-index: 60;
+        pointer-events: none;
+        background: linear-gradient(
+          90deg,
+          rgba(0, 0, 0, 0) 0%,
+          rgba(0, 0, 0, 0.1) 28%,
+          rgba(0, 0, 0, 0.28) 50%,
+          rgba(0, 0, 0, 0.1) 72%,
+          rgba(0, 0, 0, 0) 100%
+        );
+      }
+
+      /* Yaprak: sağ yarıda durur, sol kenarından (cilt) döner. */
+      .yaprak {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 50%;
+        height: 100%;
+        transform-origin: left center;
+        transform-style: preserve-3d;
+        transition: transform 0.95s cubic-bezier(0.3, 0.68, 0.32, 1);
+        transform: rotateY(0deg);
+      }
+      .yaprak[data-cevrildi='1'] {
+        transform: rotateY(-180deg);
+      }
+      .yuz {
         position: absolute;
         inset: 0;
         background: var(--kagit);
-        color: var(--metin);
-        border-radius: 14px;
-        overflow: hidden;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        box-shadow:
-          0 26px 60px rgba(0, 0, 0, 0.5),
-          0 0 0 1px rgba(255, 255, 255, 0.06);
-        transform-origin: left center;
-        transform: rotateY(0deg);
         backface-visibility: hidden;
-        transition:
-          transform 0.85s cubic-bezier(0.2, 0.7, 0.25, 1),
-          opacity 0.5s;
-        opacity: 0;
-        pointer-events: none;
-        z-index: 1;
+        -webkit-backface-visibility: hidden;
+        overflow: hidden;
       }
-      /* Kitap sırtı: sayfanın sol kenarında ince gölge şeridi. */
-      .sayfa::before {
+      .yuz.on {
+        border-radius: 0 10px 10px 0;
+      }
+      /* Arka yüz baştan çevrilmiş durur; yaprak dönünce düz görünür. */
+      .yuz.arka {
+        transform: rotateY(180deg);
+        border-radius: 10px 0 0 10px;
+      }
+      /* Kağıt dokusu: cilde yakın taraf hafif koyulaşır. */
+      .yuz.on::after,
+      .yari.sag::after {
         content: '';
         position: absolute;
         left: 0;
         top: 0;
         bottom: 0;
-        width: 26px;
-        background: linear-gradient(90deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0));
+        width: 40px;
+        background: linear-gradient(90deg, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0));
         pointer-events: none;
-        z-index: 2;
       }
-      .sayfa[data-durum='etkin'] {
-        transform: rotateY(0deg);
-        opacity: 1;
-        pointer-events: auto;
-        z-index: 3;
+      .yuz.arka::after,
+      .yari.sol::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 40px;
+        background: linear-gradient(270deg, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0));
+        pointer-events: none;
       }
-      /* Çevrilip geride kalan sayfa */
-      .sayfa[data-durum='cevrildi'] {
-        transform: rotateY(-172deg);
-        opacity: 0;
-        z-index: 2;
-      }
-      /* Henüz gelmemiş sayfa: hafifçe geride durur */
-      .sayfa[data-durum='bekleyen'] {
-        transform: rotateY(0deg) translateZ(-30px) scale(0.985);
-        opacity: 0;
-      }
-      .sayfa-gorsel {
-        background: #1b2a4a center/cover no-repeat;
-        min-height: 220px;
-      }
-      .sayfa-metin {
-        padding: 34px 34px 34px 30px;
+
+      /* ── Sayfa içerikleri ── */
+      .metin-sayfa {
+        height: 100%;
+        padding: 46px 42px 46px 48px;
         display: flex;
         flex-direction: column;
         justify-content: center;
+        color: var(--metin);
       }
-      .sayfa-metin h3 {
-        margin: 0 0 10px;
-        font-size: 22px;
+      .metin-sayfa .no {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        color: var(--altin);
+        text-transform: uppercase;
+        margin-bottom: 12px;
+      }
+      .metin-sayfa h3 {
+        margin: 0 0 14px;
+        font-size: 25px;
+        line-height: 1.24;
         font-weight: 800;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.022em;
         color: var(--lacivert-2);
       }
-      .sayfa-metin p {
+      .metin-sayfa p {
         margin: 0;
         font-size: 14.5px;
-        color: #475569;
+        line-height: 1.75;
+        color: #47556b;
         white-space: pre-line;
       }
-      /* ── GÖRSELSİZ SLAYT ──
-         Görsel yoksa iki sütunun sağ yarısı boş kalıyor ve metin sola
-         sıkışmış görünüyordu. Tek sütuna düşer, metin ortalanır ve satır
-         uzunluğu okunur bir genişlikte tutulur. */
-      .sayfa[data-gorselsiz='1'] {
+
+      /* Görsel sayfası: bir, iki ya da daha çok görsel için ızgara. */
+      .gorsel-sayfa {
+        height: 100%;
+        padding: 22px;
+        display: grid;
+        gap: 10px;
+      }
+      .gorsel-sayfa[data-adet='1'] {
         grid-template-columns: 1fr;
       }
-      .sayfa[data-gorselsiz='1'] .sayfa-metin {
-        text-align: center;
+      .gorsel-sayfa[data-adet='2'] {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+      }
+      .gorsel-sayfa[data-adet='3'] {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+      }
+      .gorsel-sayfa[data-adet='3'] .kare:first-child {
+        grid-column: 1 / -1;
+      }
+      .gorsel-sayfa[data-adet='4'] {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+      }
+      .kare {
+        background: #dfe6ef center/cover no-repeat;
+        border-radius: 8px;
+        min-height: 0;
+      }
+      /* Görseli olmayan slaytta sağ sayfa boş kalmasın: kurum işareti. */
+      .gorsel-yok {
+        height: 100%;
+        display: flex;
         align-items: center;
-        padding: 46px 40px;
+        justify-content: center;
+        opacity: 0.14;
       }
-      .sayfa[data-gorselsiz='1'] .sayfa-metin h3 {
-        font-size: 26px;
-      }
-      .sayfa[data-gorselsiz='1'] .sayfa-metin p {
-        max-width: 56ch;
-        font-size: 15.5px;
+      .gorsel-yok img {
+        width: 140px;
+        height: 140px;
+        object-fit: contain;
       }
 
       .kitap-kontrol {
-        max-width: 860px;
-        margin: 22px auto 0;
+        max-width: 1000px;
+        margin: 26px auto 0;
         display: flex;
         align-items: center;
         gap: 14px;
       }
       .kitap-btn {
-        width: 42px;
-        height: 42px;
+        width: 44px;
+        height: 44px;
         border-radius: 50%;
         border: 1px solid rgba(255, 255, 255, 0.22);
         background: rgba(255, 255, 255, 0.08);
@@ -425,7 +511,7 @@
         border-color: rgba(255, 255, 255, 0.4);
       }
       .kitap-btn:disabled {
-        opacity: 0.3;
+        opacity: 0.28;
         cursor: default;
       }
       .kitap-noktalar {
@@ -491,17 +577,45 @@
         .panel ul {
           columns: 1;
         }
-        .sayfa {
-          grid-template-columns: 1fr;
-        }
-        .sayfa-gorsel {
-          min-height: 150px;
-        }
-        .sayfa-metin {
-          padding: 22px;
-        }
+        /* ── DAR EKRANDA KİTAP AÇILMAZ ──
+           İki sayfayı yan yana sığdırmaya çalışmak her ikisini de okunmaz
+           kılıyor. Telefonda yaprak çevirme kapanır; sayfalar alt alta,
+           tek sütun akar. Hikâye aynı, taşıyıcı değişir. */
         .kitap {
-          min-height: 440px;
+          height: auto;
+          filter: none;
+        }
+        .cilt {
+          display: none;
+        }
+        .yari,
+        .yaprak {
+          position: static;
+          width: 100%;
+          transform: none !important;
+          transition: none;
+        }
+        .yari.sol,
+        .yari.sag {
+          display: none;
+        }
+        .yaprak {
+          transform-style: flat;
+        }
+        .yuz {
+          position: static;
+          backface-visibility: visible;
+          -webkit-backface-visibility: visible;
+          border-radius: 10px;
+        }
+        .yuz.arka {
+          display: none;
+        }
+        .metin-sayfa {
+          padding: 26px 22px;
+        }
+        .gorsel-sayfa {
+          min-height: 220px;
         }
       }
       /* Hareketi azaltılmış tercihine saygı: sayfa çevirme animasyonu kapanır. */
@@ -607,7 +721,11 @@
       <p class="bolum-alt">Duyurular, yenilikler ve kurumdan haberler.</p>
 
       <div class="kitap-sahne">
-        <div class="kitap" id="kitap" aria-live="polite"></div>
+        <div class="kitap" id="kitap" aria-live="polite">
+          <div class="yari sol" id="sabitSol"></div>
+          <div class="yari sag" id="sabitSag"></div>
+          <div class="cilt"></div>
+        </div>
       </div>
 
       <div class="kitap-kontrol">
@@ -888,35 +1006,46 @@
           e.preventDefault();
         });
 
-        // ══ 3B SAYFA ÇEVİRME SLIDER ══
+        // ══════ GERÇEK KİTAP ══════
         //
-        // İçerik sunucudan gelir (yetkili uygulamadan ekler). Sunucu
-        // erişilemezse ya da hiç slayt yoksa gömülü varsayılan gösterilir —
-        // tanıtım sayfası boş bir kutuyla açılmamalı.
+        // Açık yayılım: SOL sayfa metin, SAĞ sayfa görsel(ler).
+        // Yaprak[i] sağda durur ve cilt çizgisinden sola döner:
+        //     ön yüz  = görsel[i]      (sağda görünür)
+        //     arka yüz = metin[i+1]    (çevrilince solda görünür)
+        // Çevrilen yapraklar solda birikir; en son çevrilen üstte kalır,
+        // yani solda daima etkin slaydın metni durur. Altta iki sabit yarı
+        // var: ilk yayılımın SOL metni ve son yayılımın SAĞ görseli — yaprak
+        // yığını tükendiğinde arkadan onlar görünür.
+        //
+        // İçerik sunucudan gelir. Erişilemezse ya da hiç slayt yoksa gömülü
+        // varsayılan gösterilir: tanıtım sayfası boş bir kutuyla açılmamalı.
         var VARSAYILAN = [
           {
             baslik: 'Tek sistem, tek oturum',
             metin: 'Öğrenci ve akademisyen; ders programından staja, muafiyetten Erasmus’a kadar tüm işlemlerini aynı hesapla yürütür.',
-            gorsel: '',
+            gorseller: [],
           },
           {
             baslik: 'Belgeler şablondan üretilir',
             metin: 'Kurumun kendi Word şablonu bir kez tanımlanır; çıktılar bölüm, fakülte ve üniversite kapsamına göre otomatik doldurulur.',
-            gorsel: '',
+            gorseller: [],
           },
           {
             baslik: 'Çakışmalar siz yazarken görünür',
             metin: 'Ders programında derslik, öğretim üyesi ve seviyeler arası çakışmalar yerleştirme anında bildirilir.',
-            gorsel: '',
+            gorseller: [],
           },
         ];
 
         var kitap = document.getElementById('kitap');
+        var sabitSol = document.getElementById('sabitSol');
+        var sabitSag = document.getElementById('sabitSag');
         var noktalar = document.getElementById('noktalar');
         var btnGeri = document.getElementById('geri');
         var btnIleri = document.getElementById('ileri');
         var slaytlar = [];
         var etkinSlayt = 0;
+        var yapraklar = [];
 
         function gorselAdiGuvenliMi(ad) {
           var a = String(ad == null ? '' : ad).trim();
@@ -925,30 +1054,65 @@
           return /\.(jpe?g|png|webp|gif|avif)$/i.test(a);
         }
 
+        function metinSayfasi(s, no, toplam) {
+          var d = el('div', 'metin-sayfa');
+          d.appendChild(el('div', 'no', no + ' / ' + toplam));
+          if (s.baslik) d.appendChild(el('h3', null, s.baslik));
+          if (s.metin) d.appendChild(el('p', null, s.metin));
+          return d;
+        }
+
+        function gorselSayfasi(s) {
+          var g = (s && s.gorseller) || [];
+          if (!g.length) {
+            var bos = el('div', 'gorsel-yok');
+            var logo = document.createElement('img');
+            logo.src = '/logo.png';
+            logo.alt = '';
+            bos.appendChild(logo);
+            return bos;
+          }
+          var d = el('div', 'gorsel-sayfa');
+          // Dörtten çoğu ızgarayı okunmaz kılıyor; fazlası gösterilmez.
+          var goster = g.slice(0, 4);
+          d.setAttribute('data-adet', String(goster.length));
+          goster.forEach(function (ad) {
+            var k = el('div', 'kare');
+            k.style.backgroundImage = "url('/api/tanitim/gorsel/" + encodeURIComponent(ad) + "')";
+            d.appendChild(k);
+          });
+          return d;
+        }
+
         function kitabiKur(liste) {
           slaytlar = liste;
-          kitap.textContent = '';
+          yapraklar = [];
           noktalar.textContent = '';
+          // Sabit yarılar: ilk yayılımın solu, son yayılımın sağı.
+          sabitSol.textContent = '';
+          sabitSag.textContent = '';
+          sabitSol.appendChild(metinSayfasi(liste[0], 1, liste.length));
+          sabitSag.appendChild(gorselSayfasi(liste[liste.length - 1]));
+          // Eski yaprakları temizle (sabit yarılar ve cilt kalsın).
+          Array.prototype.slice.call(kitap.querySelectorAll('.yaprak')).forEach(function (y) {
+            kitap.removeChild(y);
+          });
 
           liste.forEach(function (s, i) {
-            var sayfa = el('div', 'sayfa');
-            sayfa.setAttribute('data-durum', i === 0 ? 'etkin' : 'bekleyen');
-            if (!s.gorsel) sayfa.setAttribute('data-gorselsiz', '1');
+            var y = el('div', 'yaprak');
+            y.setAttribute('data-i', String(i));
 
-            if (s.gorsel) {
-              var g = el('div', 'sayfa-gorsel');
-              // Görsel adı yetkili girdisidir: yol enjeksiyonuna karşı
-              // istemcide de elenir (sunucuda ayrıca denetleniyor).
-              g.style.backgroundImage =
-                "url('/api/tanitim/gorsel/" + encodeURIComponent(s.gorsel) + "')";
-              sayfa.appendChild(g);
-            }
+            var on = el('div', 'yuz on');
+            on.appendChild(gorselSayfasi(s));
+            y.appendChild(on);
 
-            var m = el('div', 'sayfa-metin');
-            if (s.baslik) m.appendChild(el('h3', null, s.baslik));
-            if (s.metin) m.appendChild(el('p', null, s.metin));
-            sayfa.appendChild(m);
-            kitap.appendChild(sayfa);
+            var arka = el('div', 'yuz arka');
+            // Yaprağın arkası bir SONRAKİ yayılımın sol sayfasıdır.
+            if (liste[i + 1]) arka.appendChild(metinSayfasi(liste[i + 1], i + 2, liste.length));
+            y.appendChild(arka);
+
+            kitap.appendChild(y);
+            yapraklar.push(y);
 
             var n = el('button', 'nokta');
             n.type = 'button';
@@ -965,14 +1129,15 @@
         function git(i) {
           if (!slaytlar.length) return;
           etkinSlayt = Math.max(0, Math.min(i, slaytlar.length - 1));
-          var sayfalar = kitap.children;
-          for (var j = 0; j < sayfalar.length; j++) {
-            sayfalar[j].setAttribute(
-              'data-durum',
-              j < etkinSlayt ? 'cevrildi' : j === etkinSlayt ? 'etkin' : 'bekleyen'
-            );
+          yapraklar.forEach(function (y, j) {
+            var cevrildi = j < etkinSlayt;
+            y.setAttribute('data-cevrildi', cevrildi ? '1' : '0');
+            // Yığın sırası: çevrilmemişlerde küçük indeks üstte (etkin sayfa
+            // en üstte), çevrilmişlerde büyük indeks üstte (en son çevrilen
+            // solda görünür). Aksi hâlde eski sayfa yenisini örterdi.
+            y.style.zIndex = String(cevrildi ? 10 + j : 50 - j);
             noktalar.children[j].setAttribute('aria-current', j === etkinSlayt ? 'true' : 'false');
-          }
+          });
           btnGeri.disabled = etkinSlayt === 0;
           btnIleri.disabled = etkinSlayt === slaytlar.length - 1;
         }
@@ -982,6 +1147,15 @@
         });
         btnIleri.addEventListener('click', function () {
           git(etkinSlayt + 1);
+        });
+
+        // Klavye: kitap görünürken sol/sağ ok tuşları sayfa çevirir.
+        document.addEventListener('keydown', function (e) {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+          var kutu = kitap.getBoundingClientRect();
+          if (kutu.bottom < 0 || kutu.top > window.innerHeight) return;
+          if (document.activeElement && document.activeElement.closest('.sekme-serit')) return;
+          git(etkinSlayt + (e.key === 'ArrowRight' ? 1 : -1));
         });
 
         // Dokunmatik: yatay kaydırma sayfayı çevirir.
@@ -1004,8 +1178,6 @@
           { passive: true }
         );
 
-        // Sunucudan slaytları çek. Başarısızlıkta varsayılan kalır — tanıtım
-        // sayfasının açılması API'ye bağlı olmamalı.
         kitabiKur(VARSAYILAN);
         fetch('/api/db/tanitim_slaytlari', { credentials: 'omit' })
           .then(function (r) {
@@ -1016,19 +1188,29 @@
             if (!kayitlar) return;
             var temiz = kayitlar
               .map(function (k) {
-                var g = String((k && (k.gorsel || k.gorselAdi)) || '').trim();
+                // Görseller dizidir; eski kayıtlar tek alanla (`gorsel`)
+                // duruyor. İkisi de okunur, güvensiz ad elenir, tekrar
+                // yazılmış ad bir kez alınır.
+                var kaynak = (k && Array.isArray(k.gorseller) ? k.gorseller : []).concat(
+                  k && (k.gorsel || k.gorselAdi) ? [k.gorsel || k.gorselAdi] : []
+                );
+                var gorseller = [];
+                kaynak.forEach(function (x) {
+                  var a = String(x || '').trim();
+                  if (gorselAdiGuvenliMi(a) && gorseller.indexOf(a) < 0) gorseller.push(a);
+                });
                 var sira = Number(k && k.sira);
                 return {
                   id: String((k && (k.id || k._docId || k._id)) || ''),
                   baslik: String((k && k.baslik) || '').trim(),
                   metin: String((k && k.metin) || '').trim(),
-                  gorsel: gorselAdiGuvenliMi(g) ? g : '',
+                  gorseller: gorseller,
                   sira: isFinite(sira) ? sira : 0,
                   yayinda: !(k && k.yayinda === false),
                 };
               })
               .filter(function (s) {
-                return s.yayinda && (s.baslik || s.metin || s.gorsel);
+                return s.yayinda && (s.baslik || s.metin || s.gorseller.length);
               })
               .sort(function (a, b) {
                 return a.sira - b.sira || a.id.localeCompare(b.id, 'tr');

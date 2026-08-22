@@ -8,6 +8,7 @@ import {
   gorselAdiGuvenliMi,
   gorselUrl,
   slaytNormalize,
+  gorselleriCoz,
   yayindakiSlaytlar,
   sonrakiSira,
 } from '../lib/tanitim-slayt.js';
@@ -64,6 +65,7 @@ describe('slaytNormalize', () => {
       id: 's1',
       baslik: 'Erasmus',
       metin: 'Açıklama',
+      gorseller: [],
       gorsel: '',
       sira: 3,
       yayinda: true,
@@ -139,5 +141,47 @@ describe('sonrakiSira', () => {
   it('boş listede 1', () => {
     expect(sonrakiSira([])).toBe(1);
     expect(sonrakiSira(null)).toBe(1);
+  });
+});
+
+// ── ÇOKLU GÖRSEL ──
+// Sağ sayfaya birden çok görsel konabiliyor. Eski kayıtlar tek alanla
+// (`gorsel`) duruyor; ikisi de kabul edilir, veri taşınmadan ilerlenir.
+describe('gorselleriCoz', () => {
+  it('dizi olarak verilen görseller sırayla gelir', () => {
+    expect(gorselleriCoz({ gorseller: ['a.jpg', 'b.png'] })).toEqual(['a.jpg', 'b.png']);
+  });
+
+  it('ESKİ tek alanlı kayıt hâlâ okunur', () => {
+    expect(gorselleriCoz({ gorsel: 'eski.jpg' })).toEqual(['eski.jpg']);
+  });
+
+  it('ikisi bir arada: dizi önce, tekil sonra ve TEKRAR ETMEZ', () => {
+    expect(gorselleriCoz({ gorseller: ['a.jpg'], gorsel: 'a.jpg' })).toEqual(['a.jpg']);
+    expect(gorselleriCoz({ gorseller: ['a.jpg'], gorsel: 'b.jpg' })).toEqual(['a.jpg', 'b.jpg']);
+  });
+
+  it('güvensiz adlar dizinin içinden de elenir', () => {
+    expect(gorselleriCoz({ gorseller: ['a.jpg', '../gizli.jpg', 'b.svg', 'c.png'] })).toEqual([
+      'a.jpg',
+      'c.png',
+    ]);
+  });
+
+  it('boş girdide boş dizi', () => {
+    expect(gorselleriCoz(null)).toEqual([]);
+    expect(gorselleriCoz({})).toEqual([]);
+  });
+});
+
+describe('slaytNormalize — çoklu görsel', () => {
+  it('gorseller dizisi ve geriye uyumlu tekil alan birlikte döner', () => {
+    const s = slaytNormalize({ gorseller: ['bir.jpg', 'iki.png'] });
+    expect(s.gorseller).toEqual(['bir.jpg', 'iki.png']);
+    expect(s.gorsel).toBe('bir.jpg');
+  });
+
+  it('yalnız çoklu görseli olan slayt gösterilir', () => {
+    expect(yayindakiSlaytlar([{ id: 'g', gorseller: ['a.jpg', 'b.jpg'] }])).toHaveLength(1);
   });
 });

@@ -63,6 +63,9 @@ router.use((req, res, next) => {
 // İzin verilen koleksiyonlar (güvenlik sınırı)
 const ALLOWED_COLLECTIONS = [
   'students',
+  // Tanıtım sayfası slaytları (kök adres, giriş öncesi). Okuması anonim
+  // (PUBLIC_READ), yazması yalnız üniversite yetkilisinde (TANITIM_YAZ).
+  'tanitim_slaytlari',
   'sinav_programi',
   'sinav_dersler',
   'sinav_donemler',
@@ -317,6 +320,13 @@ const STRUCTURE_MANAGER_WRITE = new Set([
 // Silinmesi ÜNİVERSİTE yetkilisine bağlı koleksiyonlar. Yükleme/güncelleme
 // bölüm yetkilisinde kalır; yalnız kaldırma yukarı taşınmıştır.
 const TABAN_SIL_UNI_ADMIN = new Set(['taban_puanlar', 'taban_tablolari']);
+
+// ── TANITIM SAYFASI: YAZMAK ÜNİVERSİTE YETKİLİSİNİN ──
+// Slaytlar kök adreste, GİRİŞ ÖNCESİ, herkese gösterilir. Bölüm ya da
+// fakülte yetkilisinin kurumun vitrinine içerik koyması beklenmez; bu
+// yüzden DEPT_MANAGER_WRITE değil, ayrı ve daha dar bir kapı.
+// Okuma tarafı anonimdir (PUBLIC_READ) — sayfa oturum taşımaz.
+const TANITIM_YAZ = new Set(['tanitim_slaytlari']);
 
 // Yayın kapsamı taşıyan koleksiyonlar: kaydı ancak KAPSAMINA giren yetkili
 // kaldırabilir. Kural istemcide de var (yönetim listesi süzülüyor) ama YALNIZ
@@ -585,6 +595,19 @@ async function enforceWritePolicies(db, op, user) {
   // bölümlerin değerlendirmesini sessizce bozar. Yükleme ve güncelleme
   // bölüm yetkilisinde kalır (yukarıdaki DEPT_MANAGER_WRITE); kaldıran tek
   // merci üniversitedir.
+  if (TANITIM_YAZ.has(op.collection)) {
+    const flags = await getActorFlags(db, user);
+    if (!flags.uniAdmin) {
+      return {
+        allow: false,
+        status: 403,
+        error:
+          'Tanıtım sayfası içeriğini yalnız üniversite yetkilisi düzenleyebilir. ' +
+          'Sayfa kurumun giriş öncesi vitrinidir.',
+      };
+    }
+  }
+
   if (op.type === 'delete' && TABAN_SIL_UNI_ADMIN.has(op.collection)) {
     const flags = await getActorFlags(db, user);
     if (!flags.admin && !flags.uniAdmin) {

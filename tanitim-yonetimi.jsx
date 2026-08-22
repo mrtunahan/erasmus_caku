@@ -67,14 +67,17 @@ function TanitimYonetimiApp({ currentUser }) {
 
   const kaydet = async () => {
     const d = duzenlenen || {};
-    if (!String(d.baslik || '').trim() && !String(d.metin || '').trim() && !d.gorsel) {
+    const gorselVar = (Array.isArray(d.gorseller) ? d.gorseller : []).length > 0;
+    if (!String(d.baslik || '').trim() && !String(d.metin || '').trim() && !gorselVar) {
       bildir('Slayt boş olamaz: başlık, metin ya da görselden en az biri gerekli.', 'hata');
       return;
     }
     const veri = {
       baslik: String(d.baslik || '').trim(),
       metin: String(d.metin || '').trim(),
-      gorsel: String(d.gorsel || '').trim(),
+      // Görseller DİZİ olarak yazılır. Eski tek alan (`gorsel`) yazılmaz:
+      // okuma tarafı ikisini de kabul ediyor, yeni kayıtta tek biçim kalsın.
+      gorseller: Array.isArray(d.gorseller) ? d.gorseller : d.gorsel ? [d.gorsel] : [],
       sira: Number.isFinite(Number(d.sira)) ? Number(d.sira) : window.tanitimSonrakiSira(kayitlar),
       yayinda: d.yayinda !== false,
     };
@@ -137,8 +140,12 @@ function TanitimYonetimiApp({ currentUser }) {
       if (!window.tanitimGorselGuvenliMi(ad)) {
         throw new Error('dosya adı beklenen biçimde değil');
       }
-      setDuzenlenen((p) => ({ ...(p || {}), gorsel: ad }));
-      bildir('Görsel yüklendi.', 'basari');
+      setDuzenlenen((p) => {
+        const onceki = (p && Array.isArray(p.gorseller) ? p.gorseller : []).slice();
+        if (onceki.indexOf(ad) < 0) onceki.push(ad);
+        return { ...(p || {}), gorseller: onceki };
+      });
+      bildir('Görsel eklendi.', 'basari');
     } catch (e) {
       bildir('Görsel yüklenemedi: ' + (e.message || ''), 'hata');
     } finally {
@@ -256,39 +263,74 @@ function TanitimYonetimiApp({ currentUser }) {
             />
           </div>
           <div style={{ marginBottom: 12 }}>
-            <label style={etiket}>Görsel</label>
-            {duzenlenen.gorsel ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                <img
-                  src={window.tanitimGorselUrl(duzenlenen.gorsel)}
-                  alt=""
-                  style={{
-                    width: 120,
-                    height: 76,
-                    objectFit: 'cover',
-                    borderRadius: 8,
-                    border: '1px solid #E5E7EB',
-                  }}
-                />
-                <button
-                  onClick={() => setDuzenlenen({ ...duzenlenen, gorsel: '' })}
-                  style={{ ...dugme('#6B7280'), padding: '6px 12px', fontSize: 12 }}
-                >
-                  Kaldır
-                </button>
+            <label style={etiket}>Görseller (sağ sayfa)</label>
+            {/* Sağ sayfaya en çok dört görsel basılır; fazlası ızgarayı
+                okunmaz kılıyor. Sıralama eklenme sırasıdır. */}
+            {(duzenlenen.gorseller || []).length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+                {(duzenlenen.gorseller || []).map((g, gi) => (
+                  <div key={g + gi} style={{ position: 'relative' }}>
+                    <img
+                      src={window.tanitimGorselUrl(g)}
+                      alt=""
+                      style={{
+                        width: 110,
+                        height: 70,
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        border: '1px solid #E5E7EB',
+                        opacity: gi < 4 ? 1 : 0.4,
+                      }}
+                    />
+                    <button
+                      title="Kaldır"
+                      onClick={() =>
+                        setDuzenlenen({
+                          ...duzenlenen,
+                          gorseller: (duzenlenen.gorseller || []).filter((_, j) => j !== gi),
+                        })
+                      }
+                      style={{
+                        position: 'absolute',
+                        top: -6,
+                        right: -6,
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: '#DC2626',
+                        color: 'white',
+                        fontSize: 13,
+                        lineHeight: 1,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
               </div>
-            ) : null}
+            )}
+            {(duzenlenen.gorseller || []).length > 4 && (
+              <div style={{ fontSize: 11.5, color: '#92400E', marginBottom: 8 }}>
+                Sayfaya yalnız ilk dört görsel basılır; soluk olanlar gösterilmez.
+              </div>
+            )}
             <input
               type="file"
               accept={IZINLI_TUR.join(',')}
               disabled={gorselYukleniyor}
-              onChange={(e) => gorselSec(e.target.files && e.target.files[0])}
+              onChange={(e) => {
+                gorselSec(e.target.files && e.target.files[0]);
+                e.target.value = '';
+              }}
               style={{ fontSize: 13 }}
             />
             <div style={{ fontSize: 11.5, color: C.textMuted || '#64748B', marginTop: 4 }}>
               {gorselYukleniyor
                 ? 'Yükleniyor…'
-                : `JPG, PNG, WEBP, GIF veya AVIF · en çok ${EN_BUYUK_MB} MB · görselsiz slayt da olur`}
+                : `JPG, PNG, WEBP, GIF veya AVIF · en çok ${EN_BUYUK_MB} MB · birden çok eklenebilir · görselsiz slayt da olur`}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
@@ -332,19 +374,38 @@ function TanitimYonetimiApp({ currentUser }) {
         sirali.map((s, i) => (
           <div key={s.id} style={{ ...kart, opacity: s.yayinda ? 1 : 0.55 }}>
             <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-              {s.gorsel ? (
-                <img
-                  src={window.tanitimGorselUrl(s.gorsel)}
-                  alt=""
-                  style={{
-                    width: 110,
-                    height: 70,
-                    objectFit: 'cover',
-                    borderRadius: 8,
-                    border: '1px solid #E5E7EB',
-                    flexShrink: 0,
-                  }}
-                />
+              {s.gorseller.length ? (
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <img
+                    src={window.tanitimGorselUrl(s.gorseller[0])}
+                    alt=""
+                    style={{
+                      width: 110,
+                      height: 70,
+                      objectFit: 'cover',
+                      borderRadius: 8,
+                      border: '1px solid #E5E7EB',
+                      display: 'block',
+                    }}
+                  />
+                  {s.gorseller.length > 1 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        right: 4,
+                        bottom: 4,
+                        background: 'rgba(15,23,42,0.82)',
+                        color: 'white',
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        padding: '2px 7px',
+                        borderRadius: 10,
+                      }}
+                    >
+                      +{s.gorseller.length - 1}
+                    </span>
+                  )}
+                </div>
               ) : (
                 <div
                   style={{
