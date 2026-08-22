@@ -114,7 +114,13 @@ function computeAvailableDepts(currentUser, adminScope, memurAtamalari) {
 // alan ekranlar. Aktif bölüm kapsamı çözülmeden diğer modüller açılmaz; bunlar
 // açılır — aksi hâlde fakültesinde henüz bölüm olmayan bir yetkili, bölüm
 // ekleyeceği ekrana (Fakülte Yönetimi) hiç ulaşamazdı.
-const BOLUMDEN_BAGIMSIZ_MODULLER = new Set(['univ', 'fakulte', 'akreditasyon', 'yapayzeka']);
+const BOLUMDEN_BAGIMSIZ_MODULLER = new Set([
+  'univ',
+  'tanitim',
+  'fakulte',
+  'akreditasyon',
+  'yapayzeka',
+]);
 
 // Fakülte staj yetkilisi (SGK onayı + fakülte geneli staj erişimi) tespiti.
 // Yeni: isStajCoordinator bayrağı (Fakülte Yönetimi'nden atanır).
@@ -283,16 +289,29 @@ const TopHeader = ({
           </button>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12 }}>
-          <img
-            src="/logo.png"
-            alt="Logo"
-            style={{
-              width: isMobile ? 36 : 44,
-              height: isMobile ? 36 : 44,
-              borderRadius: 8,
-              objectFit: 'cover',
-            }}
-          />
+          {/* ── TANITIM SAYFASINA DÖNÜŞ ──
+              Kök adres artık tanıtım sayfası; uygulama /panel altında. Logoya
+              tıklamak oraya götürür — sitelerde logonun ana sayfaya götürmesi
+              beklenen davranıştır ve buraya ayrı bir düğme koymadan aynı işi
+              görür. Yeni sekmede değil, aynı sekmede: kullanıcı geri
+              düğmesiyle uygulamaya dönebilsin. */}
+          <a
+            href="/"
+            title="Tanıtım sayfasına dön"
+            style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}
+          >
+            <img
+              src="/logo.png"
+              alt="Tanıtım sayfasına dön"
+              style={{
+                width: isMobile ? 36 : 44,
+                height: isMobile ? 36 : 44,
+                borderRadius: 8,
+                objectFit: 'cover',
+                cursor: 'pointer',
+              }}
+            />
+          </a>
           <div>
             <div
               style={{
@@ -2908,6 +2927,7 @@ function AppShell() {
         kulupler: window.OgrenciKulupleriApp,
         anket: window.AnketModulu,
         univ: window.UnvYonetimiApp,
+        tanitim: window.TanitimYonetimiApp,
         fakulte: window.FakYonetimiApp,
         akreditasyon: window.AkreditasyonApp,
         yapayzeka: window.YapayZekaApp,

@@ -219,7 +219,15 @@ const READABLE_COLLECTIONS = [...ALLOWED_COLLECTIONS];
 const DB_AUTH_ENFORCED = process.env.DB_AUTH_MODE !== 'off';
 
 // tenant_config: giriş ekranı (kimliksiz) marka/kurum adını okuyabilmeli.
-const PUBLIC_READ = new Set(['universities', 'faculties', 'departments', 'tenant_config']);
+// tanitim_slaytlari: tanıtım sayfası anonimdir, slaytları okuyabilmeli.
+// İçerik zaten herkese gösterilmek üzere yetkili tarafından yazılır; PII yok.
+const PUBLIC_READ = new Set([
+  'universities',
+  'faculties',
+  'departments',
+  'tenant_config',
+  'tanitim_slaytlari',
+]);
 // Giriş ekranındaki akademisyen adı araması için gerekli asgari alanlar
 const PUBLIC_READ_STRIPPED = { professors: ['name', 'title', 'departmentId'] };
 const ADMIN_READ = new Set(['audit_logs']);

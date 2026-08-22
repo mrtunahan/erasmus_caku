@@ -41,6 +41,13 @@ import { bolumleriBirlestir as bolumleriBirlestirCoz } from './lib/bolum-birlest
 import { akademisyenBolumdeMi } from './lib/akademisyen-bolum.js';
 import { bolumleriFakulteyeGrupla, baslikGosterilsinMi } from './lib/bolum-gruplama.js';
 import { KVKK_SURUM, kvkkMetni, aydinlatmaKaydi } from './lib/kvkk.js';
+import {
+  gorselAdiGuvenliMi as tanitimGorselGuvenliMi,
+  gorselUrl as tanitimGorselUrl,
+  slaytNormalize as tanitimSlaytNormalize,
+  yayindakiSlaytlar as tanitimYayindakiSlaytlar,
+  sonrakiSira as tanitimSonrakiSira,
+} from './lib/tanitim-slayt.js';
 import { programGirdileri, akademisyenCakismalari, cakismaMetni } from './lib/seviye-cakisma.js';
 import {
   NOT_SISTEMLERI,
@@ -734,6 +741,12 @@ const HIERARCHY_MODULES = [
     label: 'Üniversite Yönetimi',
     flag: 'isUniversityAdmin',
     icon: 'M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z',
+  },
+  {
+    id: 'tanitim',
+    label: 'Tanıtım Sayfası',
+    flag: 'isUniversityAdmin',
+    icon: 'M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5zM8 7h8M8 11h8M8 15h4',
   },
   {
     id: 'fakulte',
@@ -13292,6 +13305,14 @@ window.yilSlotlariniGuncelle = yilSlotlariniGuncelle;
 // tek yerde ve testli (bkz. lib/erasmus-onay.js).
 window.onayDamgasi = onayDamgasi;
 window.mevcutEslesmeIdleri = mevcutEslesmeIdleri;
+// Tanıtım sayfası slaytları — kural lib/tanitim-slayt.js'te; hem yönetim
+// ekranı hem tanıtım sayfası aynı sıralama ve görünürlük kuralını kullanır.
+window.tanitimGorselGuvenliMi = tanitimGorselGuvenliMi;
+window.tanitimGorselUrl = tanitimGorselUrl;
+window.tanitimSlaytNormalize = tanitimSlaytNormalize;
+window.tanitimYayindakiSlaytlar = tanitimYayindakiSlaytlar;
+window.tanitimSonrakiSira = tanitimSonrakiSira;
+
 // Seviyeler arası akademisyen çakışması (lisans ↔ lisansüstü):
 // slot indeksi değil, etiketten çözülen ZAMAN ARALIĞI karşılaştırılır.
 window.programGirdileri = programGirdileri;
