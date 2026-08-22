@@ -66,6 +66,7 @@ const ALLOWED_COLLECTIONS = [
   // Tanıtım sayfası slaytları (kök adres, giriş öncesi). Okuması anonim
   // (PUBLIC_READ), yazması yalnız üniversite yetkilisinde (TANITIM_YAZ).
   'tanitim_slaytlari',
+  'tanitim_modulleri',
   'sinav_programi',
   'sinav_dersler',
   'sinav_donemler',
@@ -230,6 +231,7 @@ const PUBLIC_READ = new Set([
   'departments',
   'tenant_config',
   'tanitim_slaytlari',
+  'tanitim_modulleri',
 ]);
 // Giriş ekranındaki akademisyen adı araması için gerekli asgari alanlar
 const PUBLIC_READ_STRIPPED = { professors: ['name', 'title', 'departmentId'] };
@@ -326,7 +328,7 @@ const TABAN_SIL_UNI_ADMIN = new Set(['taban_puanlar', 'taban_tablolari']);
 // fakülte yetkilisinin kurumun vitrinine içerik koyması beklenmez; bu
 // yüzden DEPT_MANAGER_WRITE değil, ayrı ve daha dar bir kapı.
 // Okuma tarafı anonimdir (PUBLIC_READ) — sayfa oturum taşımaz.
-const TANITIM_YAZ = new Set(['tanitim_slaytlari']);
+const TANITIM_YAZ = new Set(['tanitim_slaytlari', 'tanitim_modulleri']);
 
 // Yayın kapsamı taşıyan koleksiyonlar: kaydı ancak KAPSAMINA giren yetkili
 // kaldırabilir. Kural istemcide de var (yönetim listesi süzülüyor) ama YALNIZ

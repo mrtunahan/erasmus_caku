@@ -135,7 +135,7 @@
         background-size: cover;
         background-position: center;
         color: #fff;
-        padding: 78px 20px 86px;
+        padding: 74px 20px 70px;
         text-align: center;
         overflow: hidden;
       }
@@ -155,10 +155,6 @@
         max-width: 630px;
         font-size: 16.5px;
         color: rgba(255, 255, 255, 0.84);
-      }
-      .kahraman .giris-btn {
-        font-size: 15.5px;
-        padding: 13px 28px;
       }
       .kahraman-not {
         margin-top: 16px;
@@ -710,23 +706,12 @@
         fakültenin yürüttüğü süreçler; belgeleriyle, onay akışlarıyla ve çakışma denetimleriyle
         birlikte.
       </p>
-      <a class="giris-btn" href="/panel/">
-        Sisteme Giriş
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M5 12h14M13 6l6 6-6 6" />
-        </svg>
-      </a>
-      <div class="kahraman-not">Giriş, kurum hesabı olan öğrenci ve personele açıktır.</div>
+      <!-- Kahramandaki ikinci "Sisteme Giriş" düğmesi kaldırıldı: üst çubuktaki
+           düğme zaten her kaydırma konumunda görünür duruyor, ikisi bir arada
+           aynı işi iki kez teklif ediyordu. -->
+      <div class="kahraman-not">
+        Giriş, kurum hesabı olan öğrenci ve personele açıktır — sağ üstteki düğmeden.
+      </div>
     </section>
 
     <!-- ══ MODÜLLER — SEKMEYE BAĞLI KİTAP ══
@@ -739,6 +724,25 @@
       </p>
 
       <div class="sekme-serit" role="tablist" id="sekmeler"></div>
+
+      <!-- Hiç modül tanımlanmamışken görünür. Uydurma bir varsayılan liste
+           göstermek, yetkilinin sildiği sekmeyi geri getirirdi. -->
+      <div
+        id="modulYok"
+        style="
+          display: none;
+          max-width: 620px;
+          margin: 0 auto;
+          padding: 30px;
+          text-align: center;
+          border: 1px dashed rgba(255, 255, 255, 0.22);
+          border-radius: 14px;
+          color: rgba(255, 255, 255, 0.62);
+          font-size: 14px;
+        "
+      >
+        Modül sekmeleri henüz tanımlanmadı.
+      </div>
 
       <div class="kitap-sahne">
         <div class="kitap" id="kitap" aria-live="polite">
@@ -784,88 +788,33 @@
 
         // ══ MODÜL SEKMELERİ ══
         //
-        // Sekme kimlikleri lib/tanitim-slayt.js'teki TANITIM_MODULLERI ile
-        // AYNI olmalı: yönetim ekranı slaydı o kimlikle kaydeder, burası o
-        // kimlikle süzer. Ayrışırlarsa yetkilinin eklediği slayt hiçbir
-        // sekmede görünmez — sessiz bir kayıp. tests/tanitim-slayt.test.js
-        // bu dosyayı okuyup iki listeyi karşılaştırır.
-        var MODULLER = [
-          {
-            id: 'dersprogrami',
-            ad: 'Ders Programı',
-            ozet: 'Haftalık ders programını sürükle-bırak ile hazırlayın; derslik, öğretim üyesi ve seviyeler arası çakışmalar siz yerleştirirken yakalansın.',
-          },
-          {
-            id: 'sinav',
-            ad: 'Sınav Otomasyonu',
-            ozet: 'Vize, final ve bütünleme dönemlerini kurun; sınavları takvime yerleştirin, gözetmen ve derslik planlayın.',
-          },
-          {
-            id: 'muafiyet',
-            ad: 'Ders Muafiyeti',
-            ozet: 'Muafiyet başvurularını toplayın, ders içeriklerini karşılaştırın, komisyon kararını resmî belgeye dökün.',
-          },
-          {
-            id: 'yazokulu',
-            ad: 'Yaz Okulu İntibak',
-            ozet: 'Başka kurumda alınan yaz okulu derslerinin intibakını yürütün; AKTS ve içerik denetimiyle birlikte.',
-          },
-          {
-            id: 'gecis',
-            ad: 'Yatay ve Dikey Geçiş',
-            ozet: 'Kurum içi, kurumlararası ve merkezi yerleştirme puanıyla geçiş başvurularını toplayın, sıralayın, sonuçlandırın.',
-          },
-          {
-            id: 'staj',
-            ad: 'Staj',
-            ozet: 'Staj başvurusundan sosyal güvenlik bildirimine kadar tüm dosyayı tek yerde tutun; belgeler şablondan üretilir.',
-          },
-          {
-            id: 'capyandal',
-            ad: 'ÇAP ve Yandal',
-            ozet: 'Çift anadal ve yandal süreçlerini ilan, başvuru, sıralama ve yerleştirme adımlarıyla yönetin.',
-          },
-          {
-            id: 'stratejik',
-            ad: 'Stratejik Plan',
-            ozet: 'Amaç ve hedef ağacını, performans göstergelerini ve dönemsel gerçekleşmeleri takip edin.',
-          },
-          {
-            id: 'anket',
-            ad: 'Anketler',
-            ozet: 'Bölüm, fakülte veya üniversite geneline anket yayımlayın; katılımı ve sonuçları raporlayın.',
-          },
-          {
-            id: 'kulup',
-            ad: 'Öğrenci Kulüpleri',
-            ozet: 'Kulüp kayıtlarını, danışmanlarını, üyeliklerini ve etkinlik takvimini yönetin.',
-          },
-          {
-            id: 'akreditasyon',
-            ad: 'Akreditasyon',
-            ozet: 'Ölçütleri, kanıt belgelerini ve sorumluları tek yerde toplayın; öz değerlendirme raporunu hazırlayın.',
-          },
-        ];
-
+        // Sekmeler koda gömülü DEĞİL: `tanitim_modulleri` koleksiyonundan
+        // gelir, yetkili uygulamadan ekler/siler/sıralar. Böylece yeni bir
+        // sekme için dağıtım gerekmez ve kimliklerin iki yerde ayrışma
+        // ihtimali ortadan kalkar.
+        var MODULLER = [];
         var serit = document.getElementById('sekmeler');
         var etkinModul = 0;
 
-        MODULLER.forEach(function (m, i) {
-          var btn = el('button', 'sekme', m.ad);
-          btn.type = 'button';
-          btn.setAttribute('role', 'tab');
-          btn.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
-          btn.id = 'sekme-' + i;
-          btn.addEventListener('click', function () {
-            modulSec(i);
+        function sekmeleriKur() {
+          serit.textContent = '';
+          MODULLER.forEach(function (m, i) {
+            var btn = el('button', 'sekme', m.ad);
+            btn.type = 'button';
+            btn.setAttribute('role', 'tab');
+            btn.setAttribute('aria-selected', i === etkinModul ? 'true' : 'false');
+            btn.id = 'sekme-' + i;
+            btn.addEventListener('click', function () {
+              modulSec(i);
+            });
+            serit.appendChild(btn);
           });
-          serit.appendChild(btn);
-        });
+        }
 
         // Sekmeler arasında ok tuşlarıyla gezinme (klavye erişilebilirliği).
         serit.addEventListener('keydown', function (e) {
           var yon = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-          if (!yon) return;
+          if (!yon || !MODULLER.length) return;
           var hedef = (etkinModul + yon + MODULLER.length) % MODULLER.length;
           modulSec(hedef);
           document.getElementById('sekme-' + hedef).focus();
@@ -1119,70 +1068,124 @@
         var tumSlaytlar = [];
 
         function modulSec(i) {
+          if (!MODULLER.length) return;
           etkinModul = Math.max(0, Math.min(i, MODULLER.length - 1));
           MODULLER.forEach(function (_, j) {
-            document
-              .getElementById('sekme-' + j)
-              .setAttribute('aria-selected', j === etkinModul ? 'true' : 'false');
+            var b = document.getElementById('sekme-' + j);
+            if (b) b.setAttribute('aria-selected', j === etkinModul ? 'true' : 'false');
           });
           var m = MODULLER[etkinModul];
           var kendi = tumSlaytlar.filter(function (s) {
-            return s.modul === m.id;
+            return s.modul === m.anahtar;
           });
           // Yetkili o modüle henüz içerik girmediyse kitap boş kalmasın:
-          // modülün gömülü tanıtım metni tek sayfa olarak gösterilir.
+          // modülün kendi özeti tek sayfa olarak gösterilir.
           if (!kendi.length) {
-            kendi = [{ id: '_bos', baslik: m.ad, metin: m.ozet, gorseller: [] }];
+            kendi = [
+              {
+                id: '_bos',
+                baslik: m.ad,
+                metin: m.ozet || 'Bu modül için henüz içerik eklenmedi.',
+                gorseller: [],
+              },
+            ];
           }
           kitabiKur(kendi);
         }
 
-        modulSec(0);
+        // Hiç modül tanımlanmamışsa kitap ve sekmeler gizlenir; uydurma bir
+        // varsayılan listeyle doldurmak, yetkilinin sildiği sekmeyi geri
+        // getirirdi.
+        function modulYokGoster() {
+          serit.textContent = '';
+          document.querySelector('.kitap-sahne').style.display = 'none';
+          document.querySelector('.kitap-kontrol').style.display = 'none';
+          var not = document.getElementById('modulYok');
+          if (not) not.style.display = 'block';
+        }
 
-        fetch('/api/db/tanitim_slaytlari', { credentials: 'omit' })
-          .then(function (r) {
-            return r.ok ? r.json() : null;
-          })
-          .then(function (veri) {
-            var kayitlar = Array.isArray(veri) ? veri : veri && veri.data ? veri.data : null;
-            if (!kayitlar) return;
-            tumSlaytlar = kayitlar
-              .map(function (k) {
-                // Görseller dizidir; eski kayıtlar tek alanla (`gorsel`)
-                // duruyor. İkisi de okunur, güvensiz ad elenir, tekrar
-                // yazılmış ad bir kez alınır.
-                var kaynak = (k && Array.isArray(k.gorseller) ? k.gorseller : []).concat(
-                  k && (k.gorsel || k.gorselAdi) ? [k.gorsel || k.gorselAdi] : []
-                );
-                var gorseller = [];
-                kaynak.forEach(function (x) {
-                  var a = String(x || '').trim();
-                  if (gorselAdiGuvenliMi(a) && gorseller.indexOf(a) < 0) gorseller.push(a);
-                });
-                var sira = Number(k && k.sira);
-                return {
-                  id: String((k && (k.id || k._docId || k._id)) || ''),
-                  baslik: String((k && k.baslik) || '').trim(),
-                  metin: String((k && k.metin) || '').trim(),
-                  gorseller: gorseller,
-                  modul: String((k && k.modul) || '').trim(),
-                  sira: isFinite(sira) ? sira : 0,
-                  yayinda: !(k && k.yayinda === false),
-                };
-              })
-              // Modülü yazılmamış kayıt hiçbir sekmede gösterilmez: bir
-              // slaydı bütün sekmelere koymak sekmenin anlamını bitirirdi.
-              .filter(function (s) {
-                return s.yayinda && s.modul && (s.baslik || s.metin || s.gorseller.length);
-              })
-              .sort(function (a, b) {
-                return a.sira - b.sira || a.id.localeCompare(b.id, 'tr');
+        // ── VERİ: önce modüller, sonra slaytlar ──
+        // İkisi paralel çekilir; sekmeler modüller gelince kurulur.
+        function veriyiOku(yol) {
+          return fetch(yol, { credentials: 'omit' })
+            .then(function (r) {
+              return r.ok ? r.json() : null;
+            })
+            .then(function (veri) {
+              if (Array.isArray(veri)) return veri;
+              return veri && Array.isArray(veri.data) ? veri.data : [];
+            })
+            .catch(function () {
+              return [];
+            });
+        }
+
+        Promise.all([
+          veriyiOku('/api/db/tanitim_modulleri'),
+          veriyiOku('/api/db/tanitim_slaytlari'),
+        ]).then(function (sonuc) {
+          var modulKayitlari = sonuc[0];
+          var slaytKayitlari = sonuc[1];
+
+          MODULLER = modulKayitlari
+            .map(function (k) {
+              var ad = String((k && k.ad) || '').trim();
+              var sira = Number(k && k.sira);
+              return {
+                anahtar: String((k && k.anahtar) || '').trim(),
+                ad: ad,
+                ozet: String((k && k.ozet) || '').trim(),
+                sira: isFinite(sira) ? sira : 0,
+                yayinda: !(k && k.yayinda === false),
+              };
+            })
+            .filter(function (m) {
+              return m.yayinda && m.ad && m.anahtar;
+            })
+            .sort(function (a, b) {
+              return a.sira - b.sira || a.ad.localeCompare(b.ad, 'tr');
+            });
+
+          tumSlaytlar = slaytKayitlari
+            .map(function (k) {
+              // Görseller dizidir; eski kayıtlar tek alanla (`gorsel`)
+              // duruyor. İkisi de okunur, güvensiz ad elenir, tekrar
+              // yazılmış ad bir kez alınır.
+              var kaynak = (k && Array.isArray(k.gorseller) ? k.gorseller : []).concat(
+                k && (k.gorsel || k.gorselAdi) ? [k.gorsel || k.gorselAdi] : []
+              );
+              var gorseller = [];
+              kaynak.forEach(function (x) {
+                var a = String(x || '').trim();
+                if (gorselAdiGuvenliMi(a) && gorseller.indexOf(a) < 0) gorseller.push(a);
               });
-            modulSec(etkinModul);
-          })
-          .catch(function () {
-            /* gömülü tanıtım metinleriyle devam */
-          });
+              var sira = Number(k && k.sira);
+              return {
+                id: String((k && (k.id || k._docId || k._id)) || ''),
+                baslik: String((k && k.baslik) || '').trim(),
+                metin: String((k && k.metin) || '').trim(),
+                gorseller: gorseller,
+                modul: String((k && k.modul) || '').trim(),
+                sira: isFinite(sira) ? sira : 0,
+                yayinda: !(k && k.yayinda === false),
+              };
+            })
+            // Modülü yazılmamış kayıt hiçbir sekmede gösterilmez: bir
+            // slaydı bütün sekmelere koymak sekmenin anlamını bitirirdi.
+            .filter(function (s) {
+              return s.yayinda && s.modul && (s.baslik || s.metin || s.gorseller.length);
+            })
+            .sort(function (a, b) {
+              return a.sira - b.sira || a.id.localeCompare(b.id, 'tr');
+            });
+
+          if (!MODULLER.length) {
+            modulYokGoster();
+            return;
+          }
+          sekmeleriKur();
+          modulSec(0);
+        });
       })();
     </script>
   </body>

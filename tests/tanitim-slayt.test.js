@@ -4,7 +4,6 @@
 // ve uygulamadaki yönetim ekranı. Sıralama ve görünürlük kuralı ikisinde
 // ayrı yazılsaydı yetkilinin gördüğü sıra ile ziyaretçininki ayrışırdı.
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
 import {
   gorselAdiGuvenliMi,
   gorselUrl,
@@ -12,7 +11,10 @@ import {
   gorselleriCoz,
   yayindakiSlaytlar,
   sonrakiSira,
-  TANITIM_MODULLERI,
+  ONERILEN_MODULLER,
+  modulKimligi,
+  modulNormalize,
+  yayindakiModuller,
   modulGecerliMi,
   modulSlaytlari,
 } from '../lib/tanitim-slayt.js';
@@ -191,40 +193,79 @@ describe('slaytNormalize — çoklu görsel', () => {
   });
 });
 
-// ══ İKİ LİSTE, TEK KİMLİK KÜMESİ ══
-// Modül kimlikleri iki yerde duruyor: burada (yönetim ekranının seçicisi)
-// ve public/tanitim.html içinde (sekmeler). Tanıtım sayfası saf HTML olduğu
-// için lib'i import edemiyor. Ayrışırlarsa yetkilinin "Staj" diye eklediği
-// slayt ziyaretçide HİÇBİR sekmede görünmez — hata vermeden kaybolur.
-// Bu test o kaymayı yakalar.
-describe('modül kimlikleri — lib ile tanıtım sayfası', () => {
-  const html = readFileSync(new URL('../public/tanitim.html', import.meta.url), 'utf8');
-
-  // MODULLER dizisindeki `id: 'xxx'` alanları.
-  const sayfadakiIdler = (() => {
-    const bas = html.indexOf('var MODULLER = [');
-    expect(bas).toBeGreaterThan(-1);
-    const son = html.indexOf('];', bas);
-    const blok = html.slice(bas, son);
-    return [...blok.matchAll(/id:\s*'([a-z]+)'/g)].map((m) => m[1]);
-  })();
-
-  it('tanıtım sayfası modül listesi bulunabiliyor', () => {
-    expect(sayfadakiIdler.length).toBeGreaterThan(0);
+// ══ MODÜLLER VERİDEN GELİR ══
+// Sekmeler önce koda gömülüydü ve iki yerde duruyordu (lib + tanıtım
+// sayfası); yeni sekme eklemek dağıtım gerektiriyor, iki liste ayrışırsa
+// slayt sessizce kayboluyordu. Artık tek kaynak veritabanı.
+describe('modulKimligi', () => {
+  it('addan okunur bir anahtar türetir', () => {
+    expect(modulKimligi('Staj')).toBe('staj');
+    expect(modulKimligi('Ders Programı')).toBe('dersprogrami');
   });
 
-  it('KİMLİK KÜMELERİ birebir aynı', () => {
-    const libIdler = TANITIM_MODULLERI.map((m) => m.id);
-    expect([...sayfadakiIdler].sort()).toEqual([...libIdler].sort());
+  it('TÜRKÇE harfler ASCII karşılığına iner', () => {
+    // Kimliği elle yazan biri 'ı' ile 'i'yi karıştırır; anahtar ayrışmasın.
+    expect(modulKimligi('Yaz Okulu İntibak')).toBe('yazokuluintibak');
+    expect(modulKimligi('ÇAP ve Yandal')).toBe('capveyandal');
+    expect(modulKimligi('ÖĞRENCİ')).toBe('ogrenci');
   });
 
-  it('sıralama da aynı — sekme sırası yönetim seçicisiyle örtüşsün', () => {
-    expect(sayfadakiIdler).toEqual(TANITIM_MODULLERI.map((m) => m.id));
+  it('noktalama ve boşluk düşer, uzunluk sınırlanır', () => {
+    expect(modulKimligi('A-B_C (D)')).toBe('abcd');
+    expect(modulKimligi('x'.repeat(60)).length).toBe(40);
   });
 
-  it('kimlikler benzersiz', () => {
-    const idler = TANITIM_MODULLERI.map((m) => m.id);
-    expect(new Set(idler).size).toBe(idler.length);
+  it('boş girdide boş', () => {
+    expect(modulKimligi('')).toBe('');
+    expect(modulKimligi(null)).toBe('');
+  });
+});
+
+describe('modulNormalize', () => {
+  it('anahtar yoksa addan türetilir', () => {
+    expect(modulNormalize({ ad: 'Staj' }).anahtar).toBe('staj');
+  });
+
+  it('kayıttaki anahtar korunur — ad değişse de slaytlar kopmasın', () => {
+    // Yetkili modülün adını düzeltirse, ona bağlı slaytlar kaybolmamalı.
+    const m = modulNormalize({ ad: 'Staj İşlemleri', anahtar: 'staj' });
+    expect(m.anahtar).toBe('staj');
+  });
+
+  it('yayinda alanı yoksa yayında sayılır', () => {
+    expect(modulNormalize({ ad: 'x' }).yayinda).toBe(true);
+    expect(modulNormalize({ ad: 'x', yayinda: false }).yayinda).toBe(false);
+  });
+});
+
+describe('yayindakiModuller', () => {
+  const kayitlar = [
+    { id: '1', ad: 'Staj', anahtar: 'staj', sira: 2 },
+    { id: '2', ad: 'Anketler', anahtar: 'anket', sira: 1 },
+    { id: '3', ad: 'Taslak', anahtar: 'taslak', sira: 0, yayinda: false },
+    { id: '4', ad: '', anahtar: '', sira: 3 },
+  ];
+
+  it('yayında ve adı olanlar, sıraya göre', () => {
+    expect(yayindakiModuller(kayitlar).map((m) => m.anahtar)).toEqual(['anket', 'staj']);
+  });
+
+  it('boş girdide çökmez', () => {
+    expect(yayindakiModuller(null)).toEqual([]);
+  });
+});
+
+describe('modulGecerliMi', () => {
+  const moduller = [{ ad: 'Staj', anahtar: 'staj' }];
+
+  it('tanımlı modülün anahtarı geçerli', () => {
+    expect(modulGecerliMi('staj', moduller)).toBe(true);
+  });
+
+  it('tanımsız anahtar geçersiz — sabit listeye değil VERİYE bakar', () => {
+    expect(modulGecerliMi('akreditasyon', moduller)).toBe(false);
+    expect(modulGecerliMi('', moduller)).toBe(false);
+    expect(modulGecerliMi('staj', [])).toBe(false);
   });
 });
 
@@ -242,22 +283,18 @@ describe('modulSlaytlari', () => {
   });
 
   it('MODÜLSÜZ kayıt hiçbir sekmede görünmez', () => {
-    // Bir slaydı bütün sekmelere koymak sekmenin anlamını bitirirdi.
-    const hepsi = TANITIM_MODULLERI.flatMap((m) => modulSlaytlari(kayitlar, m.id).map((s) => s.id));
-    expect(hepsi).not.toContain('e');
-  });
-
-  it('boş ya da tanımsız modül kimliğinde boş liste', () => {
-    expect(modulSlaytlari(kayitlar, '')).toEqual([]);
-    expect(modulSlaytlari(kayitlar, 'olmayan')).toEqual([]);
+    expect(modulSlaytlari(kayitlar, '').map((s) => s.id)).toEqual([]);
+    expect(modulSlaytlari(kayitlar, 'anket').map((s) => s.id)).toEqual(['c']);
   });
 });
 
-describe('modulGecerliMi', () => {
-  it('listedeki kimlik geçerli, uydurma değil', () => {
-    expect(modulGecerliMi('staj')).toBe(true);
-    expect(modulGecerliMi('uydurma')).toBe(false);
-    expect(modulGecerliMi('')).toBe(false);
-    expect(modulGecerliMi(null)).toBe(false);
+describe('ONERILEN_MODULLER', () => {
+  it('öneri listesi tutarlı: kimlikler benzersiz ve addan türetilebilir', () => {
+    const anahtarlar = ONERILEN_MODULLER.map((m) => m.id);
+    expect(new Set(anahtarlar).size).toBe(anahtarlar.length);
+    ONERILEN_MODULLER.forEach((m) => {
+      expect(m.ad).toBeTruthy();
+      expect(m.id).toBeTruthy();
+    });
   });
 });
