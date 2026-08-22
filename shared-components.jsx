@@ -47,6 +47,9 @@ import {
   slaytNormalize as tanitimSlaytNormalize,
   yayindakiSlaytlar as tanitimYayindakiSlaytlar,
   sonrakiSira as tanitimSonrakiSira,
+  TANITIM_MODULLERI,
+  modulGecerliMi as tanitimModulGecerliMi,
+  modulSlaytlari as tanitimModulSlaytlari,
 } from './lib/tanitim-slayt.js';
 import { programGirdileri, akademisyenCakismalari, cakismaMetni } from './lib/seviye-cakisma.js';
 import {
@@ -13312,6 +13315,9 @@ window.tanitimGorselUrl = tanitimGorselUrl;
 window.tanitimSlaytNormalize = tanitimSlaytNormalize;
 window.tanitimYayindakiSlaytlar = tanitimYayindakiSlaytlar;
 window.tanitimSonrakiSira = tanitimSonrakiSira;
+window.TANITIM_MODULLERI = TANITIM_MODULLERI;
+window.tanitimModulGecerliMi = tanitimModulGecerliMi;
+window.tanitimModulSlaytlari = tanitimModulSlaytlari;
 
 // Seviyeler arası akademisyen çakışması (lisans ↔ lisansüstü):
 // slot indeksi değil, etiketten çözülen ZAMAN ARALIĞI karşılaştırılır.

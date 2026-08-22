@@ -31,6 +31,9 @@ function TanitimYonetimiApp({ currentUser }) {
   const [mesaj, setMesaj] = useState({ metin: '', tur: '' });
   const [duzenlenen, setDuzenlenen] = useState(null); // {} yeni, {...} düzenle
   const [gorselYukleniyor, setGorselYukleniyor] = useState(false);
+  // Liste süzgeci: modül sayısı on bir, hepsi bir arada listelenince
+  // yetkili aradığını bulamıyor.
+  const [suzgec, setSuzgec] = useState('');
 
   const yetkili = window.universiteYetkilisiMi
     ? window.universiteYetkilisiMi(currentUser)
@@ -62,8 +65,9 @@ function TanitimYonetimiApp({ currentUser }) {
   const sirali = useMemo(() => {
     return [...kayitlar]
       .map((k) => window.tanitimSlaytNormalize(k))
+      .filter((s) => !suzgec || s.modul === suzgec)
       .sort((a, b) => a.sira - b.sira || a.id.localeCompare(b.id, 'tr'));
-  }, [kayitlar]);
+  }, [kayitlar, suzgec]);
 
   const kaydet = async () => {
     const d = duzenlenen || {};
@@ -232,9 +236,32 @@ function TanitimYonetimiApp({ currentUser }) {
       )}
 
       {!duzenlenen && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <span style={{ fontSize: 12.5, color: C.textMuted || '#64748B' }}>Modül:</span>
+          <select
+            value={suzgec}
+            onChange={(e) => setSuzgec(e.target.value)}
+            style={{ ...girdi, width: 'auto', minWidth: 200, padding: '7px 10px' }}
+          >
+            <option value="">Tümü</option>
+            {window.TANITIM_MODULLERI.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.ad}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {!duzenlenen && (
         <button
           onClick={() =>
-            setDuzenlenen({ sira: window.tanitimSonrakiSira(kayitlar), yayinda: true })
+            setDuzenlenen({
+              sira: window.tanitimSonrakiSira(kayitlar),
+              yayinda: true,
+              modul: suzgec || '',
+              gorseller: [],
+            })
           }
           style={{ ...dugme(C.navy || '#1B2A4A'), marginBottom: 16 }}
         >
@@ -244,6 +271,24 @@ function TanitimYonetimiApp({ currentUser }) {
 
       {duzenlenen && (
         <div style={{ ...kart, border: '2px solid ' + (C.navy || '#1B2A4A') }}>
+          <div style={{ marginBottom: 12 }}>
+            <label style={etiket}>Modül sekmesi</label>
+            <select
+              style={girdi}
+              value={duzenlenen.modul || ''}
+              onChange={(e) => setDuzenlenen({ ...duzenlenen, modul: e.target.value })}
+            >
+              <option value="">— seçiniz —</option>
+              {window.TANITIM_MODULLERI.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.ad}
+                </option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11.5, color: C.textMuted || '#64748B', marginTop: 4 }}>
+              Slayt yalnızca bu sekmede görünür.
+            </div>
+          </div>
           <div style={{ marginBottom: 12 }}>
             <label style={etiket}>Başlık</label>
             <input
@@ -427,6 +472,19 @@ function TanitimYonetimiApp({ currentUser }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <strong style={{ fontSize: 14.5 }}>{s.baslik || '(başlıksız)'}</strong>
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: 10,
+                      background: s.modul ? '#EEF6F5' : '#FEE2E2',
+                      color: s.modul ? '#0A7D72' : '#991B1B',
+                    }}
+                  >
+                    {(window.TANITIM_MODULLERI.find((m) => m.id === s.modul) || {}).ad ||
+                      'MODÜLSÜZ'}
+                  </span>
                   {!s.yayinda && (
                     <span
                       style={{
