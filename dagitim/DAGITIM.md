@@ -41,8 +41,10 @@ cp /var/www/erasmus_caku/ssl-setup/nginx-domain.conf /etc/nginx/sites-available/
 diff /etc/nginx/sites-available/caku-erasmus /etc/nginx/sites-enabled/caku-erasmus
 ```
 
-**`diff` çıktısı boş değilse durun** — canlıda repoda olmayan bir değişiklik
-var demektir; önce onu repoya taşıyın. Boşsa:
+**`diff` çıktısında bir nginx DİREKTİFİ farkı varsa durun** — canlıda repoda
+olmayan bir değişiklik var demektir; önce onu repoya taşıyın. Yalnız yorum
+satırı farkı çıkması normaldir (repo dosyası kendini açıklayan bir başlık
+taşır); yorumlar davranışı etkilemez. Direktifler aynıysa:
 
 ```bash
 rm /etc/nginx/sites-enabled/caku-erasmus
