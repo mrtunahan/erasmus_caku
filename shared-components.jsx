@@ -47,7 +47,10 @@ import {
   slaytNormalize as tanitimSlaytNormalize,
   yayindakiSlaytlar as tanitimYayindakiSlaytlar,
   sonrakiSira as tanitimSonrakiSira,
-  TANITIM_MODULLERI,
+  ONERILEN_MODULLER as TANITIM_ONERILEN_MODULLER,
+  modulKimligi as tanitimModulKimligi,
+  modulNormalize as tanitimModulNormalize,
+  yayindakiModuller as tanitimYayindakiModuller,
   modulGecerliMi as tanitimModulGecerliMi,
   modulSlaytlari as tanitimModulSlaytlari,
 } from './lib/tanitim-slayt.js';
@@ -13315,7 +13318,10 @@ window.tanitimGorselUrl = tanitimGorselUrl;
 window.tanitimSlaytNormalize = tanitimSlaytNormalize;
 window.tanitimYayindakiSlaytlar = tanitimYayindakiSlaytlar;
 window.tanitimSonrakiSira = tanitimSonrakiSira;
-window.TANITIM_MODULLERI = TANITIM_MODULLERI;
+window.TANITIM_ONERILEN_MODULLER = TANITIM_ONERILEN_MODULLER;
+window.tanitimModulKimligi = tanitimModulKimligi;
+window.tanitimModulNormalize = tanitimModulNormalize;
+window.tanitimYayindakiModuller = tanitimYayindakiModuller;
 window.tanitimModulGecerliMi = tanitimModulGecerliMi;
 window.tanitimModulSlaytlari = tanitimModulSlaytlari;
 
