@@ -27,23 +27,35 @@ pm2 logs erasmus_caku --lines 30 --nostream
 lrwxrwxrwx  dolcefarniente -> ...              ← (diğer site symlink)
 ```
 
-`sites-available/` altındaki dosyayı düzenlemek **hiçbir şey yapmaz**.
-nginx `include /etc/nginx/sites-enabled/*;` ile yalnız `sites-enabled`
-kopyasını okur. Düzenlemeden önce daima:
+`sites-available/` altındakini düzenlemek **hiçbir şey yapmaz**. nginx
+`include /etc/nginx/sites-enabled/*;` ile yalnız `sites-enabled` kopyasını
+okur. Bir dağıtımda bu iki tur kaybettirdi.
+
+`ssl-setup/nginx-domain.conf` artık canlının **birebir aynası**. Ayrışmayı
+kökten bitirmek için `sites-enabled`'ı symlink'e çevirin — ama önce farkın
+gerçekten boş olduğunu doğrulayın:
 
 ```bash
-ls -la /etc/nginx/sites-enabled/
-nginx -T 2>/dev/null | grep -c "aradığınız-satır"   # gerçekten yüklü mü
+cp /etc/nginx/sites-enabled/caku-erasmus ~/nginx.yedek
+cp /var/www/erasmus_caku/ssl-setup/nginx-domain.conf /etc/nginx/sites-available/caku-erasmus
+diff /etc/nginx/sites-available/caku-erasmus /etc/nginx/sites-enabled/caku-erasmus
 ```
 
-Symlink'e çevirmek cazip ama **yapmayın**: canlı kopya elle iyileştirilmiş
-(rate limitler 10→50 r/s, API 5→100, Socket.IO proxy `$http_connection` ve
-86400s, API timeout'ları, keepalive 65/1000, ACME kökü `/dist`). Repo'daki
-`ssl-setup/nginx-domain.conf` bunların hiçbirini içermiyor; symlink kurmak
-üretim ayarlarını geri alır. Önce `diff` alın:
+**`diff` çıktısı boş değilse durun** — canlıda repoda olmayan bir değişiklik
+var demektir; önce onu repoya taşıyın. Boşsa:
 
 ```bash
-diff /etc/nginx/sites-available/caku-erasmus /etc/nginx/sites-enabled/caku-erasmus
+rm /etc/nginx/sites-enabled/caku-erasmus
+ln -s /etc/nginx/sites-available/caku-erasmus /etc/nginx/sites-enabled/caku-erasmus
+nginx -t && systemctl restart nginx
+```
+
+Bundan sonra tek gerçek kaynak repo olur: `git pull` + `cp` + `restart`.
+
+Değişiklik yaptığınızda gerçekten yüklendiğini **ölçerek** doğrulayın:
+
+```bash
+nginx -T 2>/dev/null | grep -c "aradığınız-satır"
 ```
 
 **2. `location` değişikliğinde `reload` yetmeyebilir.**
@@ -51,7 +63,7 @@ diff /etc/nginx/sites-available/caku-erasmus /etc/nginx/sites-enabled/caku-erasm
 `systemctl reload nginx` çalıştı, `nginx -T` yeni bloğu gösterdi, ama
 istekler eski yapılandırmayla karşılanmaya devam etti. `systemctl restart
 nginx` ile düzeldi. `location` ekleyip çıkarırken doğrudan `restart`
-kullanın ve **ölçerek** doğrulayın:
+kullanın ve ölçerek doğrulayın:
 
 ```bash
 systemctl restart nginx && sleep 3
@@ -65,7 +77,8 @@ curl -s https://offlineasistan.com.tr/ | wc -c
 - `/assets/...`, `/logo.png` → statik varlıklar
 - `/api/`, `/socket.io/` → Express (127.0.0.1:3001)
 
-Eklenecek nginx blokları: `dagitim/nginx-tanitim.conf`.
+İlgili nginx blokları (`location = /`, `location /panel`) artık
+`ssl-setup/nginx-domain.conf` içinde tanımlı.
 
 **Uygulama içindeki varlık yolları MUTLAK olmalı** (`/logo.png`,
 `/assets/...`). Göreli yol (`logo.png`) kökte çalışır ama `/panel/`
