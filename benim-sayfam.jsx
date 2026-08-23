@@ -192,7 +192,11 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [editMode, setEditMode] = useState(false);
   const [filterSinif, setFilterSinif] = useState('all');
-  const [filterDonem, setFilterDonem] = useState('all');
+  // Dönem süzgeci TEK. Eskiden ikisi vardı: görünmez bir "bulunulan yarıyıl"
+  // süzgeci ile bu açılır kutu. Görünmez olan önce çalıştığı için kutudan
+  // "Güz" seçen öğrenci Bahar yarıyılında hiç ders göremiyor, "Tüm Dönemler"
+  // de tümünü göstermiyordu. Varsayılan yine bulunulan yarıyıl.
+  const [filterDonem, setFilterDonem] = useState(() => window.DERS_SECIM_BU_DONEM || 'bu');
   const [search, setSearch] = useState('');
   // Aktif dönem (yarıyıl) — seçim bu döneme göre yüklenir/kaydedilir
   const [term, setTerm] = useState(() => bsCurrentTerm());
@@ -649,31 +653,41 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     setDisplayMonth(d);
   };
 
+  // Dönem DIŞINDAKİ süzgeçler: bölüm, sınıf, arama. Gizlenen ders sayısı da
+  // bunlardan geçenler içinden sayılır, yoksa aramayla ilgisiz yüzlerce ders
+  // "gizli" diye rapor edilirdi.
+  const digerSuzgecler = useCallback(
+    (c) => {
+      if (filterDept !== 'all' && String(c.departmentId) !== String(filterDept)) return false;
+      if (filterSinif !== 'all' && String(c.sinif) !== String(filterSinif)) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const dep = (deptNameMap[String(c.departmentId)] || '').toLowerCase();
+        const hay = `${c.code || ''} ${c.name || ''} ${c.professor || ''} ${dep}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    },
+    [filterDept, filterSinif, search, deptNameMap]
+  );
+
   const filteredCourses = useMemo(() => {
     return allCourses
-      .filter((c) => {
-        // Yalnız seçili DÖNEMİN dersleri (Güz döneminde Güz dersleri).
-        // 'genel'/boş dönemli dersler her yarıyılda seçilebilir.
-        const cd = c.donem || 'genel';
-        if (cd !== term.donem && cd !== 'genel') return false;
-        if (filterDept !== 'all' && String(c.departmentId) !== String(filterDept)) return false;
-        if (filterSinif !== 'all' && String(c.sinif) !== String(filterSinif)) return false;
-        if (filterDonem !== 'all' && c.donem !== filterDonem) return false;
-        if (search) {
-          const q = search.toLowerCase();
-          const dep = (deptNameMap[String(c.departmentId)] || '').toLowerCase();
-          const hay = `${c.code || ''} ${c.name || ''} ${c.professor || ''} ${dep}`.toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
-        return true;
-      })
+      .filter((c) => digerSuzgecler(c) && window.dersSecimDonemUyuyorMu(c, filterDonem, term.donem))
       .sort((a, b) => {
         const sa = parseInt(a.sinif) || 99;
         const sb = parseInt(b.sinif) || 99;
         if (sa !== sb) return sa - sb;
         return (a.code || '').localeCompare(b.code || '');
       });
-  }, [allCourses, filterSinif, filterDonem, filterDept, search, term.donem, deptNameMap]);
+  }, [allCourses, filterDonem, term.donem, digerSuzgecler]);
+
+  // Yalnız dönem yüzünden listede olmayan ders sayısı — öğrenci eksik listeye
+  // bakıp nedenini bilmesin diye ekranda yazılır.
+  const donemDisiSayisi = useMemo(
+    () => window.dersSecimDonemDisiSayisi(allCourses, filterDonem, term.donem, digerSuzgecler),
+    [allCourses, filterDonem, term.donem, digerSuzgecler]
+  );
 
   // Ders listesinde geçen bölümler (cross-faculty filtre dropdown'ı için)
   const courseDeptOptions = useMemo(() => {
@@ -1040,10 +1054,11 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               fontSize: 14,
             }}
           >
-            <option value="all">Tüm Dönemler</option>
-            <option value="guz">Güz</option>
-            <option value="bahar">Bahar</option>
-            <option value="yaz">Yaz</option>
+            {window.dersSecimDonemSecenekleri(term.donem).map((o) => (
+              <option key={o.deger} value={o.deger}>
+                {o.etiket}
+              </option>
+            ))}
           </select>
           <div
             style={{
@@ -1058,6 +1073,46 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             Seçili: {selectedIds.length}
           </div>
         </div>
+
+        {/* Dönem yüzünden gizlenen ders varsa söylenir. Eskiden bu dersler
+            sessizce yoktu; öğrenci listeyi eksik görüp nedenini bilemiyordu. */}
+        {donemDisiSayisi > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flexWrap: 'wrap',
+              background: '#EFF6FF',
+              border: '1px solid #BFDBFE',
+              color: '#1E40AF',
+              borderRadius: 10,
+              padding: '10px 14px',
+              marginBottom: 12,
+              fontSize: 13,
+            }}
+          >
+            <span>
+              Bu dönem süzgeci nedeniyle <strong>{donemDisiSayisi} ders</strong> listede görünmüyor.
+            </span>
+            <button
+              onClick={() => setFilterDonem(window.DERS_SECIM_TUM_DONEMLER)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 8,
+                border: '1px solid #1D4ED8',
+                background: 'white',
+                color: '#1D4ED8',
+                fontSize: 12.5,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              Hepsini göster
+            </button>
+          </div>
+        )}
 
         {allCourses.length === 0 ? (
           <div

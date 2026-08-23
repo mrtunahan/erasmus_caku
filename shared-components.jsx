@@ -56,6 +56,14 @@ import {
 } from './lib/tanitim-slayt.js';
 import { programGirdileri, akademisyenCakismalari, cakismaMetni } from './lib/seviye-cakisma.js';
 import {
+  BU_DONEM as DERS_SECIM_BU_DONEM,
+  TUM_DONEMLER as DERS_SECIM_TUM_DONEMLER,
+  DONEMSIZ as DERS_SECIM_DONEMSIZ,
+  donemUyuyorMu as dersSecimDonemUyuyorMu,
+  donemSecenekleri as dersSecimDonemSecenekleri,
+  donemDisiSayisi as dersSecimDonemDisiSayisi,
+} from './lib/ders-secim-suzgec.js';
+import {
   NOT_SISTEMLERI,
   dersDegisikligi,
   eslesmeHarfNotu,
@@ -13324,6 +13332,15 @@ window.tanitimModulNormalize = tanitimModulNormalize;
 window.tanitimYayindakiModuller = tanitimYayindakiModuller;
 window.tanitimModulGecerliMi = tanitimModulGecerliMi;
 window.tanitimModulSlaytlari = tanitimModulSlaytlari;
+
+// Öğrenci ders seçimi dönem süzgeci — görünmez yarıyıl süzgeci başka
+// dönemin derslerini sessizce eliyordu; kural artık tek yerde ve testli.
+window.DERS_SECIM_BU_DONEM = DERS_SECIM_BU_DONEM;
+window.DERS_SECIM_TUM_DONEMLER = DERS_SECIM_TUM_DONEMLER;
+window.DERS_SECIM_DONEMSIZ = DERS_SECIM_DONEMSIZ;
+window.dersSecimDonemUyuyorMu = dersSecimDonemUyuyorMu;
+window.dersSecimDonemSecenekleri = dersSecimDonemSecenekleri;
+window.dersSecimDonemDisiSayisi = dersSecimDonemDisiSayisi;
 
 // Seviyeler arası akademisyen çakışması (lisans ↔ lisansüstü):
 // slot indeksi değil, etiketten çözülen ZAMAN ARALIĞI karşılaştırılır.
