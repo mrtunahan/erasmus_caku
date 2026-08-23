@@ -156,12 +156,6 @@
         font-size: 16.5px;
         color: rgba(255, 255, 255, 0.84);
       }
-      .kahraman-not {
-        margin-top: 16px;
-        font-size: 12.5px;
-        color: rgba(255, 255, 255, 0.55);
-      }
-
       /* ── Bölüm ── */
       .bolum {
         max-width: 1140px;
@@ -170,17 +164,10 @@
       }
       .bolum-baslik {
         text-align: center;
-        margin: 0 0 8px;
+        margin: 0 0 34px;
         font-size: 27px;
         font-weight: 800;
         letter-spacing: -0.02em;
-      }
-      .bolum-alt {
-        text-align: center;
-        color: var(--metin-soluk);
-        margin: 0 auto 34px;
-        max-width: 580px;
-        font-size: 14.5px;
       }
 
       /* ══ SEKMELER ══
@@ -236,9 +223,6 @@
       }
       .kitap-alan .bolum-baslik {
         color: #fff;
-      }
-      .kitap-alan .bolum-alt {
-        color: rgba(255, 255, 255, 0.62);
       }
       .kitap-sahne {
         max-width: 1240px;
@@ -706,12 +690,9 @@
         fakültenin yürüttüğü süreçler; belgeleriyle, onay akışlarıyla ve çakışma denetimleriyle
         birlikte.
       </p>
-      <!-- Kahramandaki ikinci "Sisteme Giriş" düğmesi kaldırıldı: üst çubuktaki
-           düğme zaten her kaydırma konumunda görünür duruyor, ikisi bir arada
-           aynı işi iki kez teklif ediyordu. -->
-      <div class="kahraman-not">
-        Giriş, kurum hesabı olan öğrenci ve personele açıktır — sağ üstteki düğmeden.
-      </div>
+      <!-- Kahramandaki ikinci "Sisteme Giriş" düğmesi ve altındaki yönerge
+           kaldırıldı: üst çubuktaki düğme her kaydırma konumunda görünür
+           duruyor, nereye tıklanacağını ayrıca anlatmaya gerek yok. -->
     </section>
 
     <!-- ══ MODÜLLER — SEKMEYE BAĞLI KİTAP ══
@@ -719,9 +700,6 @@
          sabit bir açıklama paneli yok: içeriği yetkili giriyor. -->
     <section class="kitap-alan">
       <h2 class="bolum-baslik">Modüller</h2>
-      <p class="bolum-alt">
-        Bir modül seçin; o modüle ait tanıtım sayfaları kitap gibi çevrilerek gösterilir.
-      </p>
 
       <div class="sekme-serit" role="tablist" id="sekmeler"></div>
 
