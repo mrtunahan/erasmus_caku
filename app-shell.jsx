@@ -301,7 +301,11 @@ const TopHeader = ({
             style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}
           >
             <img
-              src="/logo.png"
+              src="/marka.png"
+              onError={(e) => {
+                // Marka dosyası konmadıysa kurum arması gösterilir.
+                if (e.currentTarget.src.indexOf('/logo.png') < 0) e.currentTarget.src = '/logo.png';
+              }}
               alt="Tanıtım sayfasına dön"
               style={{
                 width: isMobile ? 36 : 44,
